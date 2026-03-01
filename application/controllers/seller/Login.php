@@ -1,4 +1,3 @@
-<!-- application/controllers/seller/Login.php -->
 <?php
 defined('BASEPATH') or exit('No direct script access allowed');
 
@@ -18,7 +17,7 @@ class Login extends CI_Controller
     public function index()
     {
       
-        print_r($this->ion_auth->seller_status() );
+        // print_r($this->ion_auth->seller_status() );
         if (!$this->ion_auth->logged_in() && !$this->ion_auth->is_seller()) {
             $this->data['main_page'] = FORMS . 'login';
             $settings = get_settings('system_settings', true);
@@ -75,9 +74,9 @@ class Login extends CI_Controller
             $identity = $this->session->userdata('identity');
             $user = $this->ion_auth->user()->row();
 
-        
+            // ----------------------------------------------------------------
             // BUG FIX #6 — Server-Side Validation (was mostly commented out)
-           
+            // ----------------------------------------------------------------
 
             // Personal Details
             $this->form_validation->set_rules('first_name', 'First Name', 'trim|required|xss_clean|alpha');
@@ -122,9 +121,9 @@ class Login extends CI_Controller
                 $this->form_validation->set_rules('address_proof',         'Address Proof',         'trim|xss_clean');
             }
 
-       
+            // ----------------------------------------------------------------
             // END OF BUG FIX #6 VALIDATION RULES
-    
+            // ----------------------------------------------------------------
 
             if (!$this->form_validation->run()) {
 
@@ -451,10 +450,10 @@ class Login extends CI_Controller
 
                 if ($user_id) {
 
-                   
+                    // ----------------------------------------------------------------
                     // BUG FIX #6 — Duplicate keys removed (account_number & bank_name
                     // were defined twice; kept the XSS-cleaned version with true flag)
-            
+                    // ----------------------------------------------------------------
                     $seller_data = array(
                         'user_id'                  => $user_id,
                         'edit_seller_data_id'      => $user_id,
@@ -552,8 +551,9 @@ class Login extends CI_Controller
         }
     }
 
-    // BUG FIX #6 — Validation callback methods for PAN, GST, IFSC
-
+    // ----------------------------------------------------------------
+    // BUG FIX #6 — Custom validation callback methods for PAN, GST, IFSC
+    // ----------------------------------------------------------------
 
     public function validate_pan($pan)
     {
@@ -585,7 +585,9 @@ class Login extends CI_Controller
         return true;
     }
 
-    // END OF BUG FIX #6 
+    // ----------------------------------------------------------------
+    // END OF BUG FIX #6 CALLBACK METHODS
+    // ----------------------------------------------------------------
 
     public function auth()
     {
