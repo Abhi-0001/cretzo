@@ -8323,6 +8323,7 @@ fieldset:disabled .btn {
 
 .modal.show .modal-dialog {
   transform: none;
+  margin-right: 45%;
 }
 
 .modal.modal-static .modal-dialog {

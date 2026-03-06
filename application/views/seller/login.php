@@ -17,7 +17,7 @@
 }
 
 body {
-    background-color: #FDF8EE; /* Matching the soft cream background */
+    background-color: #fef8e8; /* Matching the soft cream background */
     height: 100vh;
     display: flex;
     justify-content: center;
@@ -147,7 +147,7 @@ body {
 }
 </style>
 </head>
-<body>
+<body style="background:#fef8e8">
 
     <div class="login-container">
         <div class="brand-section">

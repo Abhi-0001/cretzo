@@ -1,542 +1,544 @@
-
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="<?= base_url('assets/seller/css/cretzo/form.css') ?>">
-<style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cretzo - Seller Login</title>
 
+    <link
+        href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=Poppins:wght@300;400&display=swap"
+        rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+        }
 
-  .is-invalid {
-  border: 1px solid red;
-}
+        body {
+            background: #fef8e8;
+            /* Matching the soft cream background */
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
 
-.error-msg {
-  font-size: 12px;
-}
+        .login-container {
+            background: white;
+            width: 900px;
+            display: flex;
+            padding: 60px;
+            border-radius: 8px;
+            /* Optional shadow for depth */
+            /* box-shadow: 0 10px 30px rgba(0,0,0,0.05); */
+        }
 
-</style>
+        /* LEFT SECTION */
+        .brand-section {
+            flex: 1;
+            text-align: center;
+            padding-right: 40px;
+        }
 
+        .logo {
+            font-family: 'Playfair Display', serif;
+            font-size: 48px;
+            letter-spacing: -2px;
+        }
+
+        .logo span {
+            color: #E07A48;
+        }
+
+        .tagline {
+            font-family: 'Playfair Display', serif;
+            font-size: 18px;
+            margin-bottom: 30px;
+        }
+
+        .illustration img {
+            width: 100%;
+            max-width: 300px;
+            margin-bottom: 20px;
+        }
+
+        .mission-text {
+            font-family: 'Playfair Display', serif;
+            color: #5D6D5E;
+            /* Muted olive/grey tone */
+            font-size: 24px;
+            line-height: 1.2;
+        }
+
+        /* RIGHT SECTION */
+        .form-section {
+            flex: 1;
+            padding-left: 40px;
+        }
+
+        .form-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 32px;
+            margin-bottom: 30px;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-group label {
+            font-family: 'Playfair Display', serif;
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 12px;
+            border: 1.5px solid #333;
+            border-radius: 6px;
+            background: transparent;
+        }
+
+        .forgot-password {
+            text-align: right;
+            margin-top: 5px;
+        }
+
+        .forgot-password a {
+            font-size: 13px;
+            color: #333;
+            text-decoration: none;
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: 14px;
+            background-color: #E07A48;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        .signup-prompt {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .signup-prompt p {
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+
+        .btn-create {
+            width: 100%;
+            padding: 10px;
+            background: white;
+            border: 1.5px solid #333;
+            color: #E07A48;
+            font-weight: 600;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        
+        .error-message {
+            color: #e74c3c;
+            font-size: 12px;
+            margin-top: 5px;
+            display: none;
+        }
+   
+
+        .login-container {
+            width: 900px;
+            background: #fff;
+            padding: 40px;
+            border-radius: 8px;
+            display: flex;
+        }
+
+        .form-section { width: 100%; }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #333;
+            border-radius: 6px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            background: #E07A48;
+            border: none;
+            color: #fff;
+            font-weight: bold;
+            border-radius: 25px;
+            cursor: pointer;
+        }
+
+        .send-otp {
+            font-size: 13px;
+            color: #E07A48;
+            cursor: pointer;
+            display: inline-block;
+            margin-top: 5px;
+        }
+
+        .error-message {
+            color: red;
+            font-size: 12px;
+            display: none;
+        }
+
+        .success-message {
+            color: green;
+            font-size: 12px;
+            display: none;
+        }
+
+        .step1, .step2 { display: none; }
+        .step1.active, .step2.active { display: block; }
+    </style>
 </head>
-<body>
-  <section class="content w-100 seller-form">
-      <div class="container-fluid">
-        <div class="form-parent">
-          <div class="form-container-main">
 
-              <div class="form-header w-100">
-                  
-                  <div class="login-logo ">
-                    <a href="<?= base_url() . 'seller/login' ?>">
-                      <img class='w-50' src="<?= base_url() . $logo ?>">
-                    </a>
-                  </div>
+<body style="background:#fef8e8">
 
-                  <div class="slider d-flex w-100 justify-content-between align-items-center">
-                              <div class="form-indicator form-indicator-1  active">
-                                  <p class="text-n text-capitalize">personal details</p>
-                              </div>
-                              <div class="completion-line completion-line-1"></div>
-                              <div class="form-indicator form-indicator-2">
-                                  
-                                      <p class="text-n text-capitalize">store details</p>
-                                  
-                              </div>
-                              <div class="completion-line completion-line-2"></div>
-                              <div class="form-indicator form-indicator-3">
-                                
-                                          <p class="text-n text-capitalize">account details</p>
-                                    
-                              </div>
-                  </div>
-              </div>
+    <div class="login-container">
+        <div class="brand-section">
+            <div class="logo-area">
+                <a href="<?= base_url() . 'seller/login' ?>"><img src="<?= base_url() . $logo ?>"
+                        style="width: 340px;"></a>
+                <p class="tagline">Welcome to the zone of creativity</p>
+            </div>
 
-              <div class="form-container">
-                <form  id="seller_form" onSubmit="submitForm(e)" enctype="multipart/form-data"> 
-                  
-                    <div class="form-step form1">
-                      <div class="row gap-xl-5">
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">First Name <span class="text-danger">*</span></label>
-                          <input name="first_name" type="text" class="input" placeholder="First name"required="" >
-                        </div>
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">Last Name </label>
-                          <input name="last_name" type="text" class="input" placeholder="Last Name" >
-                        </div>
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">Phone Number <span class="text-danger">*</span></label>
-                         <input name="phone" type="text" id="phone" onkeyup="validatePhone()" class="input" placeholder="Enter Phone Number"  maxlength="10" onkeypress="if ( isNaN(this.value + String.fromCharCode(event.keyCode) )) return false;" required="">
-                          <span id="phone_error" class="text-danger"></span>
-                          <!-- <a>verify</a> -->
-                        </div>
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">Email ID <span class="text-danger">*</span></label>
-                          <input name="email" type="email" onkeyup="validateEmail()" id="email" class="input" placeholder="Enter Email ID" required="">
-                          <span id="email_error" class="text-danger"></span>
-                          <!-- <a>verify</a> -->
-                        </div>
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">Address
-                            
-                          </label>
-                          <input name="address1" type="text" class="input" placeholder="Street 1" >
-                        </div>
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">&nbsp;</label>
-                          <input name="address2"  type="text" class="input" placeholder="Street 2">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">District
-                            
-                          </label>
-                          <input name="district" type="text" class="input" placeholder="Enter District" >
-                        </div>
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">City/Village/Town
-                            
-                          </label>
-                          <input name="city" type="text" class="input" placeholder="Enter City/Village/Town" > 
-                        </div>
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">State
-                            
-                          </label>
-                          <input name="state" type="text" class="input" placeholder="Enter State" >
-                        </div>
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">PIN Code
-                            
-                          </label>
-                          <input name="pin" type="text" class="input" placeholder="Enter PIN Code"  maxlength="6" onkeypress="if ( isNaN(this.value + String.fromCharCode(event.keyCode) )) return false;">
-                        </div>
-                      
-                      </div>
-                        
-                        <div class="text-center mt-3">
-                          <button type="button" class="btn btn-next-1 ">Next</button>
-                        </div>
-                    </div>
+            <div class="illustration">
+                <img src="<?= base_url() ?>/assets/logo/handloon.png" alt="Handmade Artist">
+            </div>
 
-                    
-
-                    <div class="form-step form2">
-                        <div>
-                          <div class="photo-upload d-flex gap-4 justify-content-between align-items-center mb-3">
-                            <input type="file" class="hidden" name="store_logo"  id="photoInput" accept="image/*">
-                            <div class="preview-container ">
-                              <svg class="profile-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-person" viewBox="0 0 16 16">
-                                <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6m2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0m4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4m-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10s-3.516.68-4.168 1.332c-.678.678-.83 1.418-.832 1.664z"/>
-                              </svg>
-                              <img id="photoPreview" src="" class="shop-logo hidden" style="margin-top: 1rem;">
-                            </div>
-                          <label for="photoInput">Shop Logo</label>
-                          </div>
-                        </div>
-                        
-                      <div class="row">
-
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">Shop Name </label>
-                          <input name="shop_name" type="text" class="input" placeholder="Shop Name" >
-                        </div>
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">Social Media Handle </label>
-                          <input name="social" type="text" class="input" placeholder="Enter Social Media" >
-                        </div>
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">Shop Phone Number </label>
-                          <input name="shop_phone" type="text" class="input" placeholder="Enter shop  Phone Number"  maxlength="10" onkeypress="if ( isNaN(this.value + String.fromCharCode(event.keyCode) )) return false;">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">Pickup Address Lane 1</label>
-                          <input name="pickup_address1"  type="text" class="input" placeholder="Address Lane 1" >
-                        </div>
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label" >Pickup Address Lane 2</label>
-                          <input name="pickup_address2" type="text" class="input" placeholder="Address Lane 2">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">City</label>
-                          <input  name="pickup_district" type="text" class="input" placeholder="Enter City">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                          <label name="pickup_city" class="form-label">District</label>
-                          <input type="text" class="input" placeholder="Enter District">
-                        </div>
-                        
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">State</label>
-                          <input name="pickup_state" type="text" class="input" placeholder="Enter State">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">PIN Code</label>
-                          <input name="pickup_pin" type="text" class="input" placeholder="Enter PIN Code" maxlength="6" onkeypress="if ( isNaN(this.value + String.fromCharCode(event.keyCode) )) return false;">
-                        </div>
-                      </div>
-                      
-                      <div class=" mt-3 w-100 d-flex justify-content-between align-items-center">
-                        <button type="button" class="btn btn-back-1 ">Back</button>
-                        <button type="button" class="btn btn-next-2 ">Next</button>
-                      </div>
-
-                    </div>
-
-                    <div class="form-step form3">
-
-                      <div class="row">
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">Entity Type </label>
-                          <select name="entity_type" class="input" id="entity_type">
-                            <option name="individual">Individual</option>
-                            <option name="sole_proprietorship">Sole proprietorship</option>
-                            <option name="partenership_firm">Partenership Firm</option>
-                            <option name="individual">Pvt Ltd.</option>
-                          </select>
-                          
-                        </div>
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">PAN Number</label>
-                          <input name="pan" type="text" class="input" placeholder="Enter PAN Number" >
-                        </div>
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">GST Number </label>
-                          <input name="gst" type="text" class="input" placeholder="22ABCDE0000A1Z5" >
-                        </div>
-                      </div>
-
-                      <h3>Declaration</h3>
-                      <div class="d-flex flex-column justify-content-between align-items-start">
-                          <div id="entity_check_div">
-                              <input type="checkbox" id="entity_check" class="check-input">
-                              <label for="entity_check">We are not a registered Entity.</label>
-                          </div>
-                          <div>
-                              <input type="checkbox" id="gst_check" class="check-input">
-                              <label for="gst_check">We are not GST registered.</label>
-                          </div>
-                      </div>
-                      
-                      <h3>Account Details</h3>
-                      <div class="row">
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">Account Number</label>
-                          <input name="account_number" type="text" class="input" placeholder="Enter your Account Number"  onkeypress="if ( isNaN(this.value + String.fromCharCode(event.keyCode) )) return false;">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">Confirm Account Number</label>
-                          <input name="confirm_account_number" type="text" class="input" placeholder="Confirm your Account Number"  onkeypress="if ( isNaN(this.value + String.fromCharCode(event.keyCode) )) return false;">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">Account Holder name</label>
-                          <input name="account_holder_name" type="text" class="input" placeholder="Enter  the Account Holder’s name" >
-                        </div>
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">IFSC Code</label>
-                          <input name="ifsc" type="text" class="input" placeholder="Enter IFSC Code"  >
-                        </div>
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">Branch Name</label>
-                          <input name="branch" type="text" class="input" placeholder="Enter  Branch" >
-                        </div>
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">Bank Name</label>
-                          <input name="bank_name" type="text" class="input" placeholder="Enter Bank Name" >
-                        </div>
-
-                      </div>
-                      <div class=" mt-3 w-100 d-flex justify-content-between align-items-center">
-                        <button type="button" class="btn btn-back-2 ">Back</button>
-                        <button type="submit" class="btn submit_btn">Submit</button>
-                      </div>
-
-                      <div id="response">
-
-                      </div>
-
-                    </div>
-                  
-                </form>
-              </div>
-              
-          </div>
+            <h2 class="mission-text">Empowering Handmade Artist Worldwide</h2>
         </div>
-      </div>
-      
-  </section>
-<!--  <script>-->
-<!--const submitBtn = document.querySelector('.submit_btn');-->
 
-<!--function clearErrors(form) {-->
-<!--  form.querySelectorAll('.error-msg').forEach(e => e.remove());-->
-<!--  form.querySelectorAll('.is-invalid').forEach(i => i.classList.remove('is-invalid'));-->
-<!--}-->
+        <div class="form-section">
+            <h2 class="form-title">Create Seller Account </h2>
 
-<!--function showError(input, message) {-->
-<!--  input.classList.add('is-invalid');-->
+            <form class="form-submit-event">
 
-<!--  const error = document.createElement('small');-->
-<!--  error.className = 'error-msg';-->
-<!--  error.style.color = 'red';-->
-<!--  error.innerText = message;-->
+            <!-- STEP 1 -->
+            <div class="step1 active">
 
-<!--  input.parentElement.appendChild(error);-->
-<!--}-->
+                <div class="input-group">
+                    <label for="name">Full Name</label>
+                    <input type="text" name="name" id="name" placeholder="Full Name">
+                </div>
 
-<!--function validateForm3() {-->
-<!--  const form3 = document.querySelector('.form3');-->
-<!--  clearErrors(form3);-->
+                <div class="input-group">
+                    <label for="email">Email Address</label>
+                    <input type="email" name="email" id="email" placeholder="Email Address">
+                </div>
 
-<!--  let valid = true;-->
-<!--  const inputs = form3.querySelectorAll('input[], select[]');-->
+                <div class="input-group">
+                    <label for="mobile">Mobile Number</label>
+                    <input type="tel" name="mobile" id="mobile" placeholder="Mobile Number" maxlength="10" pattern="[0-9]*" inputmode="numeric">
+                    <span class="send-otp" id="send_otp">Send OTP</span>
+                    <span class="error-message error_mobile"></span>
+                </div>
 
-<!--  inputs.forEach(input => {-->
-<!--    if (!input.value.trim()) {-->
-<!--      showError(input, 'This field is ');-->
-<!--      valid = false;-->
-<!--      return;-->
-<!--    }-->
+                <div class="input-group" style="display:none;" id="div_otp">
+                    <label for="otp">Enter OTP</label>
+                    <input type="text" id="otp" placeholder="Enter OTP" >
+                    <span class="error-message error_otp"></span>
+                    <span class="success-message success_otp"></span>
+                </div>
 
-<!--    if (input.name === 'ifsc' &&-->
-<!--        !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(input.value)) {-->
-<!--      showError(input, 'Invalid IFSC Code');-->
-<!--      valid = false;-->
-<!--    }-->
-<!--  });-->
+                    <input type="hidden" name="phone_verified" id="phone_verified" value="0">
+                    <input type="hidden" name="firebase_uid" id="firebase_uid" value="">
+                    <input type="hidden" name="firebase_phone" id="firebase_phone" value="">
+                    <div id="recaptcha-registration"></div>
+                <button type="button" class="btn" id="verify_otp">Next</button>
+            </div>
 
-  <!--// Account number match check-->
-<!--  const acc = form3.querySelector('[name="account_number"]');-->
-<!--  const conf = form3.querySelector('[name="confirm_account_number"]');-->
-<!--  if (acc && conf && acc.value !== conf.value) {-->
-<!--    showError(conf, 'Account numbers do not match');-->
-<!--    valid = false;-->
-<!--  }-->
+            <!-- STEP 2 -->
+            <div class="step2">
 
-<!--  return valid;-->
-<!--}-->
+                <div class="input-group">
+                    <label for="password">Create Password</label>
+                    <input type="password" name="password" id="password" placeholder="Create Password">
+                    <span class="error-message" id="password-error"></span>
+                </div>
 
-<!--function submitForm(e) {-->
-<!--  e.preventDefault();-->
+                <div class="input-group">
+                    <label for="confirm_password">Confirm Password</label>
+                    <input type="password" name="confirm_password" id="confirm_password" placeholder="Confirm Password">
+                    <span class="error-message" id="confirm-password-error"></span>
+                </div>
 
-  <!--// ✅ ONLY validate third form-->
-<!--  if (!validateForm3()) return;-->
+                <button type="submit" class="btn">Sign Up</button>
+            </div>
 
-<!--  const form = document.getElementById('seller_form');-->
-<!--  const formData = new FormData(form);-->
+        </form>
 
-<!--  submitBtn.disabled = true;-->
-<!--  submitBtn.innerText = 'Submitting...';-->
-
-<!--  fetch("<?php echo base_url('seller/auth/create_seller') ?>", {-->
-<!--    method: 'POST',-->
-<!--    body: formData-->
-<!--  })-->
-<!--  .then(res => res.json())-->
-<!--  .then(data => {-->
-<!--    submitBtn.disabled = false;-->
-<!--    submitBtn.innerText = 'Submit';-->
-    
-<!--    if(data.error == false){-->
-<!--       window.location.href = base_url + 'seller/home';-->
-<!--    }-->
-
-<!--    document.getElementById('response').innerHTML =-->
-<!--      data.error-->
-<!--        ? `<div style="color:red;">${data.message}</div>`-->
-<!--        : `<div style="color:green;">${data.message}</div>`;-->
-<!--  })-->
-<!--  .catch(() => {-->
-<!--    submitBtn.disabled = false;-->
-<!--    submitBtn.innerText = 'Submit';-->
-<!--  });-->
-<!--}-->
-
-<!--submitBtn.addEventListener('click', submitForm);-->
-<!--</script>-->
-
-<!--  <script src="<?= base_url('assets/seller/js/cretzo/form.js') ?>"></script>-->
+            <div class="signup-prompt">
+                <p>Already have an account? <a href="<?= base_url('seller/auth/login') ?>" style="color: #ff9900ff; text-decoration: none;">Login</a></p>
+            </div>
+        </div>
 
 
-
-  <script>
-const submitBtn = document.querySelector('.submit_btn');
-
-function clearErrors(form) {
-  form.querySelectorAll('.error-msg').forEach(e => e.remove());
-  form.querySelectorAll('.is-invalid').forEach(i => i.classList.remove('is-invalid'));
-}
-
-function showError(input, message) {
-  input.classList.add('is-invalid');
-
-  const error = document.createElement('small');
-  error.className = 'error-msg';
-  error.style.color = 'red';
-  error.innerText = message;
-
-  input.parentElement.appendChild(error);
-}
-
-// function validateForm3() {
-//   const form3 = document.querySelector('.form3');
-//   clearErrors(form3);
-
-//   let valid = true;
-//   const inputs = form3.querySelectorAll('input[], select[]');
-
-//   inputs.forEach(input => {
-//     if (!input.value.trim()) {
-//       showError(input, 'This field is ');
-//       valid = false;
-//       return;
-//     }
-
-//     if (input.name === 'ifsc' &&
-//         !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(input.value)) {
-//       showError(input, 'Invalid IFSC Code');
-//       valid = false;
-//     }
-//   });
-
-//   // Account number match check
-//   const acc = form3.querySelector('[name="account_number"]');
-//   const conf = form3.querySelector('[name="confirm_account_number"]');
-//   if (acc && conf && acc.value !== conf.value) {
-//     showError(conf, 'Account numbers do not match');
-//     valid = false;
-//   }
-
-//   return valid;
-// }
-
-function submitForm(e) {
-  e.preventDefault();
-
-  // ✅ ONLY validate third form
-//   if (!validateForm3()) return;
-
-  const form = document.getElementById('seller_form');
-  const formData = new FormData(form);
-
-  submitBtn.disabled = true;
-  submitBtn.innerText = 'Submitting...';
-
-  fetch("<?php echo base_url('seller/auth/create_seller') ?>", {
-    method: 'POST',
-    body: formData
-  })
-  .then(res => res.json())
-  .then(data => {
-    submitBtn.disabled = false;
-    submitBtn.innerText = 'Submit';
-    
-    if(data.error == false){
-       window.location.href = base_url + 'seller/home';
-    }
-
-    document.getElementById('response').innerHTML =
-      data.error
-        ? `<div style="color:red;">${data.message}</div>`
-        : `<div style="color:green;">${data.message}</div>`;
-  })
-  .catch(() => {
-    submitBtn.disabled = false;
-    submitBtn.innerText = 'Submit';
-  });
-}
-
-submitBtn.addEventListener('click', submitForm);
-</script>
-
-  <script src="<?= base_url('assets/seller/js/cretzo/form.js') ?>"></script>
-  
-  
-<!--  <script>-->
-<!--function validateEmail() {-->
-<!--    const email = document.getElementById('email').value;-->
-
-<!--    return fetch("<?php echo base_url('seller/auth/check_email'); ?>", {-->
-<!--        method: "POST",-->
-<!--        headers: {-->
-<!--            "Content-Type": "application/json"-->
-<!--        },-->
-<!--        body: JSON.stringify({ email: email })-->
-<!--    })-->
-<!--    .then(res => res.json())-->
-<!--    .then(data => {-->
-<!--        if (data.error) {-->
-<!--            throw new Error(data.message);-->
-<!--        }-->
-<!--        return true;-->
-<!--    });-->
-<!--}-->
-
-<!--function validatePhone() {-->
-<!--    const phone = document.getElementById('phone').value;-->
-
-<!--    return fetch("<?php echo base_url('seller/auth/check_phone'); ?>", {-->
-<!--        method: "POST",-->
-<!--        headers: {-->
-<!--            "Content-Type": "application/json"-->
-<!--        },-->
-<!--        body: JSON.stringify({ phone: phone })-->
-<!--    })-->
-<!--    .then(res => res.json())-->
-<!--    .then(data => {-->
-<!--        if (data.error) {-->
-<!--            throw new Error(data.message);-->
-<!--        }-->
-<!--        return true;-->
-<!--    });-->
-<!--}-->
-<!--</script>-->
-
-
-<script>
-function validateEmail() {
-      $('#email_error').html(' ');
-    const email = document.getElementById('email').value;
-
-    const formData = new FormData();
-    formData.append('email', email);
-
-    return fetch("<?php echo base_url('seller/auth/check_email'); ?>", {
-        method: "POST",
-        body: formData
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.error) {
-            
-            $('#email_error').html(data.message);
-        }
-        return true;
-    });
-}
-
-function validatePhone() {
-    $('#phone_error').html(' ');
-    const phone = document.getElementById('phone').value;
-
-    const formData = new FormData();
-    formData.append('phone', phone);
-
-    return fetch("<?php echo base_url('seller/auth/check_phone'); ?>", {
-        method: "POST",
-        body: formData
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.error) {
-           $('#phone_error').html(data.message);
-        }
-        return true;
-    });
-}
-</script>
-
+    </div>
 
 </body>
-</html>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="<?= base_url() ?>firebase-config.js"></script>
 
+<script>
+$(document).ready(function () {
+
+    const base_url = "<?= base_url() ?>";
+    // debug: ensure firebase initialized with correct config
+    if (firebase && firebase.apps && firebase.apps.length) {
+        console.log('Firebase app options:', firebase.app().options);
+    } else {
+        console.warn('Firebase not initialized');
+    }
+
+
+    /* restrict mobile field to digits on keypress */
+    $("#mobile").on('keydown', function(e) {
+        // allow: backspace, delete, tab, escape, enter, arrow keys
+        if ($.inArray(e.keyCode, [46, 8, 9, 27, 13, 110, 190]) !== -1 ||
+            (e.keyCode >= 35 && e.keyCode <= 40)) {
+            return;
+        }
+        // allow ctrl/cmd+A, C, V, X
+        if ((e.ctrlKey || e.metaKey) &&
+            (e.keyCode === 65 || e.keyCode === 67 || e.keyCode === 86 || e.keyCode === 88)) {
+            return;
+        }
+        // ensure digit
+        if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) &&
+            (e.keyCode < 96 || e.keyCode > 105)) {
+            e.preventDefault();
+        }
+    });
+
+    /* Helper to (re)create and render recaptcha verifier before each use */
+    function createRecaptcha() {
+        // always create a fresh verifier; old tokens expire quickly
+        // clear any previous DOM / object state
+        $('#recaptcha-registration').html('');
+        if (window.recaptchaVerifier) {
+            try { 
+                window.recaptchaVerifier.clear(); 
+            } catch(e) { /* ignore */ }
+            window.recaptchaVerifier = null;
+        }
+        // reset grecaptcha widget state if it exists
+        if (window.grecaptcha && window.recaptchaWidgetId !== undefined) {
+            try { 
+                grecaptcha.reset(window.recaptchaWidgetId); 
+            } catch(ex) { /* ignore */ }
+        }
+        window.recaptchaWidgetId = undefined;
+
+        function build() {
+            window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-registration', {
+                'size': 'invisible',
+                'callback': function(response) {
+                    // recaptcha solved, will proceed with signInWithPhoneNumber
+                }
+            });
+            return window.recaptchaVerifier.render().then(function(widgetId) {
+                window.recaptchaWidgetId = widgetId;
+                if (window.grecaptcha && typeof grecaptcha.reset === 'function') {
+                    try { grecaptcha.reset(widgetId); } catch (ex) { /* ignore */ }
+                }
+                return window.recaptchaVerifier;
+            });
+        }
+
+        return new Promise(function(resolve, reject) {
+            // small delay to ensure DOM is fully cleared
+            setTimeout(function() {
+                build().then(resolve).catch(function(err) {
+                    // retry once on render conflict
+                    if (err && err.message && err.message.indexOf('already been rendered') !== -1) {
+                        console.warn('Recaptcha render conflict, wiping container and retrying');
+                        $('#recaptcha-registration').html('');
+                        try { window.recaptchaVerifier.clear(); } catch(e){ }
+                        window.recaptchaVerifier = null;
+                        window.recaptchaWidgetId = undefined;
+                        setTimeout(function() {
+                            build().then(resolve).catch(reject);
+                        }, 100);
+                    } else {
+                        reject(err);
+                    }
+                });
+            }, 50);
+        });
+    }
+
+    /* SEND OTP using Firebase (create recaptcha each time to avoid expired verifier) */
+    $("#send_otp").click(function () {
+        let name = $("#name").val().trim();
+        let email = $("#email").val().trim();
+        let mobile = $("#mobile").val().trim().replace(/\D/g, '');
+        $("#mobile").val(mobile);
+        $(".error-message").hide();
+
+        // name non-empty
+        if (name.length === 0) {
+            $("#name").focus();
+            $(".error_mobile").text("Please enter your name").show();
+            return;
+        }
+        // simple email regex
+        var emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRe.test(email)) {
+            $("#email").focus();
+            $(".error_mobile").text("Enter valid email address").show();
+            return;
+        }
+        if (!/^[6-9]\d{9}$/.test(mobile)) {
+            $(".error_mobile").text("Enter valid 10 digit mobile number").show();
+            return;
+        }
+
+        var phoneNumber = '+91' + mobile;
+        
+        // for resend: sign out first to reset auth state
+        var isResend = $("#send_otp").text() === 'Resend OTP';
+        var authResetPromise = isResend ? firebase.auth().signOut() : Promise.resolve();
+
+        authResetPromise.then(function() {
+            return createRecaptcha().then(function(appVerifier) {
+                return firebase.auth().signInWithPhoneNumber(phoneNumber, appVerifier);
+            });
+        }).then(function (confirmationResult) {
+            window.confirmationResult = confirmationResult;
+            $("#div_otp").show();
+            $("#send_otp").text("Resend OTP");
+            $(".success_otp").text("OTP sent to " + phoneNumber).show();
+        }).catch(function (error) {
+            // handle Firebase rate-limit / unusual activity errors specially
+            var code = error && error.code;
+            var msg = error && error.message ? error.message : 'Failed to send OTP';
+            if (code === 'auth/too-many-requests' || msg.toLowerCase().includes('unusual activity')) {
+                var message = "We have temporarily blocked requests from this device due to unusual activity. Please wait a few minutes and try again.";
+                $(".error_mobile").text(message).show();
+                // also alert and disable button briefly
+                alert(message);
+                $("#send_otp").prop('disabled', true).text('Please wait');
+                setTimeout(function(){
+                    $("#send_otp").prop('disabled', false).text('Send OTP');
+                }, 2 * 60 * 1000); // 2 minutes
+                return;
+            }
+            // If verifier invalid/expired, try recreating once
+            if (msg && msg.toLowerCase().indexOf('invalid application verifier') !== -1) {
+                createRecaptcha().then(function(appVerifier) {
+                    return firebase.auth().signInWithPhoneNumber(phoneNumber, appVerifier);
+                }).then(function(confirmationResult) {
+                    window.confirmationResult = confirmationResult;
+                    $("#div_otp").show();
+                    $("#send_otp").text("Resend OTP");
+                    $(".success_otp").text("OTP sent to " + phoneNumber).show();
+                }).catch(function(err2){
+                    $(".error_mobile").text(err2.message || msg).show();
+                });
+            } else {
+                $(".error_mobile").text(msg).show();
+            }
+        });
+    });
+
+    /* VERIFY OTP using Firebase */
+    $("#verify_otp").click(function () {
+        let otp = $("#otp").val().trim().replace(/\D/g, '');
+        $("#otp").val(otp);
+        $(".error_otp").hide();
+
+        if (otp.length !== 6) {
+            $(".error_otp").text("Enter valid 6 digit OTP").show();
+            return;
+        }
+
+        if (!window.confirmationResult) {
+            $(".error_otp").text("Please request OTP first").show();
+            return;
+        }
+
+        window.confirmationResult.confirm(otp).then(function (result) {
+            var user = result.user;
+            $("#phone_verified").val('1');
+            $("#firebase_uid").val(user.uid || '');
+            $("#firebase_phone").val(user.phoneNumber || $('#mobile').val());
+            $(".step1").removeClass("active");
+            $(".step2").addClass("active");
+        }).catch(function (error) {
+            $(".error_otp").text(error.message || 'Invalid OTP').show();
+        });
+    });
+
+    /* FINAL SUBMIT */
+    $(".form-submit-event").submit(function (e) {
+        e.preventDefault();
+
+        let name = $("#name").val().trim();
+        let email = $("#email").val().trim();
+        let mobile = $("#mobile").val().trim();
+        let password = $("#password").val();
+        let confirm  = $("#confirm_password").val();
+
+        $(".error-message").hide();
+
+        if (name.length === 0) {
+            $("#name").focus();
+            $(".error_mobile").text("Please enter your name").show();
+            return;
+        }
+        var emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRe.test(email)) {
+            $("#email").focus();
+            $(".error_mobile").text("Enter valid email address").show();
+            return;
+        }
+        if (!/^[6-9]\d{9}$/.test(mobile)) {
+            $(".error_mobile").text("Enter valid 10 digit mobile number").show();
+            return;
+        }
+        if (password.length < 6) {
+            $("#password-error").text("Minimum 6 characters required").show();
+            return;
+        }
+
+        if (password !== confirm) {
+            $("#confirm-password-error").text("Passwords do not match").show();
+            return;
+        }
+
+        $.post(base_url + "seller/auth/ajax_signup", $(this).serialize(), function (res) {
+            if (res.status === "success") {
+                window.location.href = base_url + "seller/home";
+            } else {
+                alert(res.message);
+            }
+        }, "json");
+    });
+
+});
+</script>
+</html>

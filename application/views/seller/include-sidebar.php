@@ -219,6 +219,13 @@
                                 </p>
                             </a>
                         </li>
+                        <!-- subscription menu for sellers -->
+                        <li class="nav-item">
+                            <a href="<?= base_url('seller/subscription/manage_subscriptions') ?>" class="nav-link">
+                                <i class="fas fa-file-invoice-dollar nav-icon"></i>
+                                <p>Subscriptions</p>
+                            </a>
+                        </li>
                     </ul>
                 </li>
 

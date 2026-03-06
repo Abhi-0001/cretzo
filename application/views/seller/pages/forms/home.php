@@ -70,6 +70,45 @@
                         </div>
                     </div>
                 </div>
+                <?php if (isset($subscription_status) && $subscription_status === 'active' && !empty($current_subscription_plan)) : ?>
+                    <div class="col-12">
+                        <div class="alert alert-warning d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>Current Plan:</strong>
+                                <?= html_escape($current_subscription_plan['name']); ?>
+                                <?php if (!empty($current_subscription_plan['validity'])) : ?>
+                                    <span class="ml-2 badge badge-light"><?= html_escape($current_subscription_plan['validity']); ?></span>
+                                <?php endif; ?>
+                                <?php if (!empty($active_subscription['end_date'])) : ?>
+                                    <span class="ml-2 text-sm text-muted">
+                                        (Valid till <?= date('d M Y', strtotime($active_subscription['end_date'])); ?>)
+                                    </span>
+                                <?php endif; ?>
+                            </div>
+                            <a href="<?= base_url('seller/subscription/manage_subscriptions'); ?>" class="btn btn-sm btn-outline-dark">
+                                Manage / Upgrade Plan
+                            </a>
+                        </div>
+                    </div>
+                <?php elseif (isset($subscription_status) && $subscription_status === 'expired' && !empty($current_subscription_plan)) : ?>
+                    <div class="col-12">
+                        <div class="alert alert-danger d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>Subscription expired:</strong>
+                                <?= html_escape($current_subscription_plan['name']); ?>
+                                <?php if (!empty($subscription_expired_on)) : ?>
+                                    <span class="ml-2">
+                                        (Expired on <?= html_escape($subscription_expired_on); ?>)
+                                    </span>
+                                <?php endif; ?>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-light" data-toggle="modal" data-target="#subscription_modal">
+                                Renew / Upgrade
+                            </button>
+                        </div>
+                    </div>
+                <?php endif; ?>
+
                 <div class="col-xl-6 col-12" id="ecommerceChartView">
                     <div class="card card-shadow chart-height">
                         <div class="m-3">Product Sales</div>
@@ -269,6 +308,138 @@
             </div>
         </div>
     </section>
+
+    <?php if (isset($show_subscription_popup) && $show_subscription_popup && !empty($subscription_plans)) : ?>
+        <div class="modal fade" id="subscription_modal" tabindex="-1" role="dialog" aria-labelledby="subscriptionModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+            <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+                <div class="modal-content">
+                    <div class="modal-header border-0">
+                        <h5 class="modal-title" id="subscriptionModalLabel">
+                            <?php if (isset($subscription_status) && $subscription_status === 'expired') : ?>
+                                Your subscription has expired
+                            <?php else : ?>
+                                Choose a Subscription Plan
+                            <?php endif; ?>
+                        </h5>
+                    </div>
+                    <div class="modal-body">
+                        <p class="mb-4">
+                            <?php if (isset($subscription_status) && $subscription_status === 'expired') : ?>
+                                Your previous subscription is no longer active. Please renew your current plan or upgrade to continue using your seller dashboard.
+                            <?php else : ?>
+                                You currently do not have an active subscription. Please select a plan to continue using your seller dashboard.
+                            <?php endif; ?>
+                        </p>
+                        <div class="row">
+                            <?php
+                            $current_price_value = 0;
+                            if (!empty($current_subscription_plan['price'])) {
+                                $clean = preg_replace('/[^\d\.]/', '', $current_subscription_plan['price']);
+                                $current_price_value = is_numeric($clean) ? (float) $clean : 0;
+                            }
+                            foreach ($subscription_plans as $plan) :
+                                $is_current = isset($current_subscription_plan['id']) && (int) $current_subscription_plan['id'] === (int) $plan['id'];
+                                $plan_price_value = 0;
+                                if (!empty($plan['price'])) {
+                                    $p_clean = preg_replace('/[^\d\.]/', '', $plan['price']);
+                                    $plan_price_value = is_numeric($p_clean) ? (float) $p_clean : 0;
+                                }
+
+                                $btn_label = 'Choose Plan';
+                                $btn_class = 'btn-warning';
+                                $btn_disabled = false;
+
+                                if (isset($subscription_status) && $subscription_status === 'active') {
+                                    if ($is_current) {
+                                        $btn_label = 'Current Plan';
+                                        $btn_class = 'btn-secondary';
+                                        $btn_disabled = true;
+                                    } elseif ($current_price_value > 0 && $plan_price_value > 0 && $plan_price_value < $current_price_value) {
+                                        $btn_label = 'Downgrade Not Allowed';
+                                        $btn_class = 'btn-outline-secondary';
+                                        $btn_disabled = true;
+                                    } else {
+                                        $btn_label = 'Upgrade';
+                                        $btn_class = 'btn-warning';
+                                        $btn_disabled = false;
+                                    }
+                                } elseif (isset($subscription_status) && $subscription_status === 'expired' && $is_current) {
+                                    $btn_label = 'Renew Plan';
+                                    $btn_class = 'btn-warning';
+                                    $btn_disabled = false;
+                                }
+                            ?>
+                                <div class="col-md-4 mb-3">
+                                    <div class="card h-100 border-warning">
+                                        <div class="card-body text-center">
+                                            <h5 class="card-title text-warning"><?= html_escape($plan['name']); ?></h5>
+                                            <?php if (!empty($plan['price'])) : ?>
+                                                <h4 class="font-weight-bold mb-2"><?= html_escape($plan['price']); ?></h4>
+                                            <?php endif; ?>
+                                            <?php if (!empty($plan['listings_limit'])) : ?>
+                                                <p class="mb-1"><strong>Listings:</strong> <?= html_escape($plan['listings_limit']); ?></p>
+                                            <?php endif; ?>
+                                            <?php if (!empty($plan['validity'])) : ?>
+                                                <p class="mb-3"><strong>Validity:</strong> <?= html_escape($plan['validity']); ?></p>
+                                            <?php endif; ?>
+                                            <button type="button"
+                                                    class="btn <?= $btn_class; ?> btn-sm purchase-plan-btn"
+                                                    data-id="<?= (int) $plan['id']; ?>"
+                                                    <?= $btn_disabled ? 'disabled' : ''; ?>>
+                                                <?= $btn_label; ?>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <div id="subscription_error_box" class="text-danger text-center mt-2"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            $(document).ready(function() {
+                $('#subscription_modal').modal('show');
+
+                $('.purchase-plan-btn').on('click', function() {
+                    var planId = $(this).data('id');
+                    var $btn = $(this);
+                    $('#subscription_error_box').text('');
+                    $btn.prop('disabled', true);
+
+                    $.ajax({
+                        url: '<?= base_url('seller/subscription/purchase'); ?>',
+                        type: 'POST',
+                        data: {
+                            subscription_id: planId,
+                            '<?= $this->security->get_csrf_token_name(); ?>': '<?= $this->security->get_csrf_hash(); ?>'
+                        },
+                        success: function(response) {
+                            $btn.prop('disabled', false);
+                            try {
+                                var res = (typeof response === 'string') ? JSON.parse(response) : response;
+                                if (res.error === false) {
+                                    $('#subscription_modal').modal('hide');
+                                    location.reload();
+                                } else {
+                                    $('#subscription_error_box').text(res.message || 'Unable to purchase subscription.');
+                                }
+                            } catch (e) {
+                                $('#subscription_error_box').text('Unexpected server response.');
+                            }
+                        },
+                        error: function() {
+                            $btn.prop('disabled', false);
+                            $('#subscription_error_box').text('Failed to contact server. Please try again.');
+                        }
+                    });
+                });
+            });
+        </script>
+    <?php endif; ?>
+
     <div class="modal fade" tabindex="-1" role="dialog" aria-hidden="true" id="transaction_modal" data-backdrop="static" data-keyboard="false">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
