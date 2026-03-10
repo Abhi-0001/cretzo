@@ -84,6 +84,17 @@ class Home extends CI_Controller
                 // exit;
 
             $this->data['fetched_data'] = output_escaping_new($this->data['fetched_data']);
+
+            $this->data['indian_banks'] = [];
+            if ($this->db->table_exists('indian_banks')) {
+                $this->data['indian_banks'] = $this->db
+                    ->select('bank_name')
+                    ->from('indian_banks')
+                    ->order_by('bank_name', 'ASC')
+                    ->get()
+                    ->result_array();
+            }
+
             $this->load->view('seller/template', $this->data);
         } else {
             redirect('seller/home', 'refresh');
