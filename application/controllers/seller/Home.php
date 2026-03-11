@@ -125,12 +125,135 @@ class Home extends CI_Controller
                 // exit;
 
             $this->data['fetched_data'] = output_escaping_new($this->data['fetched_data']);
+            // Added Bank Names Logic 
+            $this->data['indian_banks'] = [];
+            if ($this->db->table_exists('indian_banks')) {
+                $this->data['indian_banks'] = $this->db
+                    ->select('bank_name')
+                    ->from('indian_banks')
+                    ->order_by('bank_name', 'ASC')
+                    ->get()
+                    ->result_array();
+            }
+            // Adding the State District and City logic
+            $this->data['states'] = [];
+            $this->data['districts'] = [];
+            $this->data['cities'] = [];
+
+            $selected_state_name = $this->data['fetched_data'][0]['state'] ?? '';
+            $selected_district_name = $this->data['fetched_data'][0]['district'] ?? '';
+
+            $selected_state_id = null;
+            $selected_district_id = null;
+
+            if ($this->db->table_exists('states')) {
+                $this->data['states'] = $this->db
+                    ->select('id,name')
+                    ->from('states')
+                    ->order_by('name', 'ASC')
+                    ->get()
+                    ->result_array();
+
+                if (!empty($selected_state_name)) {
+                    $state = $this->db
+                        ->select('id')
+                        ->from('states')
+                        ->where('name', $selected_state_name)
+                        ->get()
+                        ->row_array();
+                    $selected_state_id = $state['id'] ?? null;
+                }
+            }
+
+            if ($this->db->table_exists('districts') && !empty($selected_state_id)) {
+                $this->data['districts'] = $this->db
+                    ->select('id,name')
+                    ->from('districts')
+                    ->where('state_id', $selected_state_id)
+                    ->order_by('name', 'ASC')
+                    ->get()
+                    ->result_array();
+
+                if (!empty($selected_district_name)) {
+                    $district = $this->db
+                        ->select('id')
+                        ->from('districts')
+                        ->where('state_id', $selected_state_id)
+                        ->where('name', $selected_district_name)
+                        ->get()
+                        ->row_array();
+                    $selected_district_id = $district['id'] ?? null;
+                }
+            }
+
+            if ($this->db->table_exists('cities') && !empty($selected_state_id) && !empty($selected_district_id)) {
+                $this->data['cities'] = $this->db
+                    ->select('id,name')
+                    ->from('cities')
+                    ->where('state_id', $selected_state_id)
+                    ->where('district_id', $selected_district_id)
+                    ->order_by('name', 'ASC')
+                    ->get()
+                    ->result_array();
+            }
+
             $this->load->view('seller/template', $this->data);
         } else {
             redirect('seller/home', 'refresh');
         }
     }
+ public function get_districts_by_state()
+    {
+        if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller())) {
+            echo json_encode([]);
+            return;
+        }
 
+        $state_id = $this->input->get('state_id', true);
+        if (empty($state_id) || !$this->db->table_exists('districts')) {
+            echo json_encode([]);
+            return;
+        }
+
+        $districts = $this->db
+            ->select('id,name')
+            ->from('districts')
+            ->where('state_id', $state_id)
+            ->order_by('name', 'ASC')
+            ->get()
+            ->result_array();
+
+        echo json_encode($districts);
+    }
+
+    public function get_cities_by_district()
+    {
+        if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller())) {
+            echo json_encode([]);
+            return;
+        }
+
+        $state_id = $this->input->get('state_id', true);
+        $district_id = $this->input->get('district_id', true);
+
+        if (empty($state_id) || empty($district_id) || !$this->db->table_exists('cities')) {
+            echo json_encode([]);
+            return;
+        }
+
+        $cities = $this->db
+            ->select('id,name')
+            ->from('cities')
+            ->where('state_id', $state_id)
+            ->where('district_id', $district_id)
+            ->order_by('name', 'ASC')
+            ->get()
+            ->result_array();
+
+        echo json_encode($cities);
+    }
+    //  End of Function for the states, cities and districts 
+    
     public function update_status()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
