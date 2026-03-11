@@ -69,10 +69,44 @@ class Login extends CI_Controller
                 return false;
                 exit();
             }
+            }
 
             $identity_column = $this->config->item('identity', 'ion_auth');
             $identity = $this->session->userdata('identity');
             $user = $this->ion_auth->user()->row();
+
+        
+            // BUG FIX #6 — Server-Side Validation (was mostly commented out)
+           
+
+            // Personal Details
+            $this->form_validation->set_rules('first_name', 'First Name', 'trim|required|xss_clean|alpha');
+            $this->form_validation->set_rules('last_name',  'Last Name',  'trim|required|xss_clean|alpha');
+            $this->form_validation->set_rules('phone', 'Phone Number', 'trim|required|xss_clean|numeric|exact_length[10]');
+            $this->form_validation->set_rules('email', 'Email', 'trim|required|xss_clean|valid_email');
+            $this->form_validation->set_rules('address1', 'Address Lane 1', 'trim|required|xss_clean');
+            $this->form_validation->set_rules('district',  'District',  'trim|required|xss_clean');
+            $this->form_validation->set_rules('city',  'City',  'trim|required|xss_clean');
+            $this->form_validation->set_rules('state', 'State', 'trim|required|xss_clean');
+            $this->form_validation->set_rules('pin', 'PIN Code', 'trim|required|xss_clean|numeric|exact_length[6]');
+
+            // Store Details
+            $this->form_validation->set_rules('shop_name',      'Shop Name',         'trim|required|xss_clean');
+            $this->form_validation->set_rules('social',         'Social Media',      'trim|required|xss_clean');
+            $this->form_validation->set_rules('shop_phone',     'Shop Phone Number', 'trim|required|xss_clean|numeric|exact_length[10]');
+            $this->form_validation->set_rules('pickup_address1','Pickup Address',    'trim|required|xss_clean');
+
+            // Account & Entity Details
+            $this->form_validation->set_rules('pan',  'PAN Number',  'trim|required|xss_clean|callback_validate_pan');
+            $this->form_validation->set_rules('gst',  'GST Number',  'trim|required|xss_clean|callback_validate_gst');
+            $this->form_validation->set_rules('account_number',         'Account Number',         'trim|required|xss_clean|numeric|min_length[9]|max_length[18]');
+            $this->form_validation->set_rules('confirm_account_number', 'Confirm Account Number', 'trim|required|xss_clean|matches[account_number]');
+            $this->form_validation->set_rules('account_holder_name',    'Account Holder Name',    'trim|required|xss_clean');
+            $this->form_validation->set_rules('ifsc',   'IFSC Code',   'trim|required|xss_clean|callback_validate_ifsc');
+            $this->form_validation->set_rules('branch', 'Branch Name', 'trim|required|xss_clean');
+            $this->form_validation->set_rules('bank_name', 'Bank Name','trim|required|xss_clean');
+
+            // Password change (only if any password field is filled)
 
             // ----------------------------------------------------------------
             // BUG FIX #6 — Server-Side Validation (was mostly commented out)
@@ -113,13 +147,23 @@ class Login extends CI_Controller
             }
 
             // File fields (only when not editing)
+            // File fields (only when not editing)
             if (!isset($_POST['edit_seller'])) {
                 $this->form_validation->set_rules('store_logo',            'Store Logo',            'trim|xss_clean');
                 $this->form_validation->set_rules('store_banner',          'Store Banner',          'trim|xss_clean');
                 $this->form_validation->set_rules('authorized_signature',  'Authorized Signature',  'trim|xss_clean');
                 $this->form_validation->set_rules('national_identity_card','National Identity Card','trim|xss_clean');
                 $this->form_validation->set_rules('address_proof',         'Address Proof',         'trim|xss_clean');
+                $this->form_validation->set_rules('store_logo',            'Store Logo',            'trim|xss_clean');
+                $this->form_validation->set_rules('store_banner',          'Store Banner',          'trim|xss_clean');
+                $this->form_validation->set_rules('authorized_signature',  'Authorized Signature',  'trim|xss_clean');
+                $this->form_validation->set_rules('national_identity_card','National Identity Card','trim|xss_clean');
+                $this->form_validation->set_rules('address_proof',         'Address Proof',         'trim|xss_clean');
             }
+
+       
+            // END OF BUG FIX #6 VALIDATION RULES
+    
 
             // ----------------------------------------------------------------
             // END OF BUG FIX #6 VALIDATION RULES
@@ -132,6 +176,7 @@ class Login extends CI_Controller
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
                 $this->response['message'] = validation_errors();
                 print_r(json_encode($this->response));
+
 
             } else {
 
@@ -505,6 +550,7 @@ class Login extends CI_Controller
                             $response['csrfName'] = $this->security->get_csrf_token_name();
                             $response['csrfHash'] = $this->security->get_csrf_hash();
                             $response['message'] = $this->ion_auth->errors();
+                            ob_clean();
                             echo json_encode($response);
                             return;
                             exit();
@@ -545,15 +591,14 @@ class Login extends CI_Controller
                         exit;
                     }
                 }
-            }
-        } else {
+            
+        else {
             redirect('seller/home', 'refresh');
-        }
-    }
+            }
+    }}
 
-    // ----------------------------------------------------------------
-    // BUG FIX #6 — Custom validation callback methods for PAN, GST, IFSC
-    // ----------------------------------------------------------------
+    // BUG FIX #6 — Validation callback methods for PAN, GST, IFSC
+
 
     public function validate_pan($pan)
     {
@@ -585,9 +630,7 @@ class Login extends CI_Controller
         return true;
     }
 
-    // ----------------------------------------------------------------
-    // END OF BUG FIX #6 CALLBACK METHODS
-    // ----------------------------------------------------------------
+    // END OF BUG FIX #6 
 
     public function auth()
     {
@@ -655,4 +698,5 @@ class Login extends CI_Controller
         $this->data['logo'] = get_settings('logo');
         $this->load->view('seller/login', $this->data);
     }
+
 }

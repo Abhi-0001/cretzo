@@ -1,4 +1,4 @@
--- Create table and seed 100 Indian banks for seller profile bank dropdown
+-- Created a table and seed 100 Indian banks for seller profile bank dropdown
 CREATE TABLE IF NOT EXISTS `indian_banks` (
   `id` INT(11) NOT NULL AUTO_INCREMENT,
   `bank_name` VARCHAR(150) NOT NULL,
