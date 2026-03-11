@@ -496,7 +496,7 @@ class Login extends CI_Controller
                 if ($user_id) {
 
                     // ----------------------------------------------------------------
-                    // BUG FIX #6 — Duplicate keys removed (account_number & bank_name
+                    // BUG FIX #6 — Duplicate keys removed (account_number pan number ifsc& bank_name
                     // were defined twice; kept the XSS-cleaned version with true flag)
                     // ----------------------------------------------------------------
                     $seller_data = array(
@@ -537,10 +537,10 @@ class Login extends CI_Controller
                         'pickup_state'             => $this->input->post('pickup_state', true) ?? null,
                         'pickup_pin'               => $this->input->post('pickup_pin', true) ?? null,
                         'entity_type'              => $this->input->post('entity_type', true) ?? null,
-                        'pan'                      => strtoupper($this->input->post('pan', true)) ?? null,
-                        'gst'                      => strtoupper($this->input->post('gst', true)) ?? null,
-                        'account_holder_name'      => $this->input->post('account_holder_name', true) ?? null,
-                        'ifsc'                     => strtoupper($this->input->post('ifsc', true)) ?? null,
+                        'pan'                      => strtoupper($this->input->post('pan', true)),
+                        'gst'                      => strtoupper($this->input->post('gst', true)),
+                        'account_holder_name'      => $this->input->post('account_holder_name', true),
+                        'ifsc'                     => strtoupper($this->input->post('ifsc', true)),
                         'branch'                   => $this->input->post('branch', true) ?? null,
                     );
 

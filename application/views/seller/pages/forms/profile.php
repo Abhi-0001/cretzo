@@ -168,17 +168,28 @@
                           <input name="pickup_address2" type="text" class="input" placeholder="Address Lane 2" value="<?=$fetched_data[0]['pickup_address2']?>">
                         </div>
                         <div class="col-md-6 mb-3">
-                          <label class="form-label">City</label>
-                          <input name="pickup_district" type="text" class="input" placeholder="Enter City" value="<?=$fetched_data[0]['pickup_city']?>">
+                          <label class="form-label">State</label>
+                          <div style="position:relative;">
+                            <input type="text" id="pickup_state_search" class="input" placeholder="Search State..." autocomplete="off">
+                            <input type="hidden" name="pickup_state" id="pickup_state_hidden" value="<?= $fetched_data[0]['pickup_state'] ?>">
+                            <div id="pickup_state_dropdown" style="display:none; border:1px solid #ccc; max-height:200px; overflow-y:auto; background:#fff; position:absolute; z-index:999; width:100%;"></div>
+                          </div>
                         </div>
                         <div class="col-md-6 mb-3">
                           <label class="form-label">District</label>
-                          <!-- FIX — Added missing name attribute, was not POSTing -->
-                          <input name="pickup_city" type="text" class="input" placeholder="Enter District" value="<?=$fetched_data[0]['pickup_district']?>">
+                          <div style="position:relative;">
+                            <input type="text" id="pickup_district_search" class="input" placeholder="Search District..." autocomplete="off">
+                            <input type="hidden" name="pickup_district" id="pickup_district_hidden" value="<?= $fetched_data[0]['pickup_district'] ?>">
+                            <div id="pickup_district_dropdown" style="display:none; border:1px solid #ccc; max-height:200px; overflow-y:auto; background:#fff; position:absolute; z-index:999; width:100%;"></div>
+                          </div>
                         </div>
                         <div class="col-md-6 mb-3">
-                          <label class="form-label">State</label>
-                          <input name="pickup_state" type="text" class="input" placeholder="Enter State" value="<?=$fetched_data[0]['pickup_state']?>">
+                          <label class="form-label">City</label>
+                          <div style="position:relative;">
+                            <input type="text" id="pickup_city_search" class="input" placeholder="Search City..." autocomplete="off">
+                            <input type="hidden" name="pickup_city" id="pickup_city_hidden" value="<?= $fetched_data[0]['pickup_city'] ?>">
+                            <div id="pickup_city_dropdown" style="display:none; border:1px solid #ccc; max-height:200px; overflow-y:auto; background:#fff; position:absolute; z-index:999; width:100%;"></div>
+                          </div>
                         </div>
                         <div class="col-md-6 mb-3">
                           <label class="form-label">PIN Code</label>
@@ -412,6 +423,61 @@ cityController = makeSearchable('city_search', 'city_hidden', 'city_dropdown', [
         .then(function(cityRows) {
           const cityData = cityRows.map(function(r) { return { label: r.name, id: r.id }; });
           cityController.setData(cityData, savedCity);
+        });
+    });
+})();
+// ── Pickup State / District / City ────────────────────────────────────────────
+let pickupDistrictController, pickupCityController;
+
+makeSearchable('pickup_state_search', 'pickup_state_hidden', 'pickup_state_dropdown', stateData, function(item) {
+  pickupDistrictController.setData([], '');
+  pickupCityController.setData([], '');
+  fetch(base_url + 'seller/home/get_districts_by_state?state_id=' + item.id)
+    .then(function(r) { return r.json(); })
+    .then(function(rows) {
+      const distData = rows.map(function(r) { return { label: r.name, id: r.id }; });
+      pickupDistrictController.setData(distData, '');
+    })
+    .catch(function(err) { console.error('Pickup districts failed:', err); });
+});
+
+pickupDistrictController = makeSearchable('pickup_district_search', 'pickup_district_hidden', 'pickup_district_dropdown', [], function(item) {
+  pickupCityController.setData([], '');
+  const stateLabel = document.getElementById('pickup_state_hidden').value;
+  const stateItem  = stateData.find(function(s) { return s.label === stateLabel; });
+  if (!stateItem) return;
+  fetch(base_url + 'seller/home/get_cities_by_district?state_id=' + stateItem.id + '&district_id=' + item.id)
+    .then(function(r) { return r.json(); })
+    .then(function(rows) {
+      const cityData = rows.map(function(r) { return { label: r.name, id: r.id }; });
+      pickupCityController.setData(cityData, '');
+    })
+    .catch(function(err) { console.error('Pickup cities failed:', err); });
+});
+
+pickupCityController = makeSearchable('pickup_city_search', 'pickup_city_hidden', 'pickup_city_dropdown', [], null);
+
+// ── Prefill pickup dropdowns on page load ─────────────────────────────────────
+(function() {
+  const savedState    = "<?= addslashes($fetched_data[0]['pickup_state']) ?>";
+  const savedDistrict = "<?= addslashes($fetched_data[0]['pickup_district']) ?>";
+  const savedCity     = "<?= addslashes($fetched_data[0]['pickup_city']) ?>";
+  if (!savedState) return;
+  const stateItem = stateData.find(function(s) { return s.label === savedState; });
+  if (!stateItem) return;
+  fetch(base_url + 'seller/home/get_districts_by_state?state_id=' + stateItem.id)
+    .then(function(r) { return r.json(); })
+    .then(function(rows) {
+      const distData = rows.map(function(r) { return { label: r.name, id: r.id }; });
+      pickupDistrictController.setData(distData, savedDistrict);
+      if (!savedDistrict) return;
+      const distItem = distData.find(function(d) { return d.label === savedDistrict; });
+      if (!distItem) return;
+      fetch(base_url + 'seller/home/get_cities_by_district?state_id=' + stateItem.id + '&district_id=' + distItem.id)
+        .then(function(r) { return r.json(); })
+        .then(function(cityRows) {
+          const cityData = cityRows.map(function(r) { return { label: r.name, id: r.id }; });
+          pickupCityController.setData(cityData, savedCity);
         });
     });
 })();
