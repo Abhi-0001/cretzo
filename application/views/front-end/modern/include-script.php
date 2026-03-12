@@ -2,9 +2,6 @@
 <script src="<?= THEME_ASSETS_URL . 'js/plugins.js' ?>"></script>
 <!-- Jquery min -->
 <script src="<?= THEME_ASSETS_URL . 'js/jquery.min.js' ?>"></script>
-<!-- theme -->
-<script src="<?= THEME_ASSETS_URL . 'js/theme.js' ?>"></script>
-<script src="<?= THEME_ASSETS_URL . 'js/theme.min.js' ?>"></script>
 
 <!-- IziModal -->
 <script src="<?= THEME_ASSETS_URL . 'js/iziModal.min.js' ?>"></script>
@@ -77,3 +74,9 @@
         });
     </script>
 <?php } ?>
+
+
+
+<!-- theme -->
+<script src="<?= THEME_ASSETS_URL . 'js/theme.js' ?>"></script>
+<script src="<?= THEME_ASSETS_URL . 'js/theme.min.js' ?>"></script>
