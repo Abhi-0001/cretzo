@@ -17,7 +17,8 @@ $font_color = (isset($settings['font_color']) && !empty($settings['font_color'])
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= $title ?></title>
     <meta name="keywords" content='<?= $keywords ?>'>
-    <meta name="description" content='<?= $description ?>'>
+    <!-- <meta name="description" content='<?= $description ?>'> -->
+    <meta name="description" content="<?= isset($description) ? $description : 'Shop handmade crafts, jewellery, footwear and artisan products at Cretzo. Discover authentic artisan collections.' ?>">
 
     <!-- for image in link -->
     <meta name="product_image" property="og:image" content='<?= isset($product_image) ? $product_image : '' ?>'>
