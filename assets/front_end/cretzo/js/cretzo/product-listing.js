@@ -1,4 +1,9 @@
 var price_filter_enabled = false;
+// paging state for infinite scroll
+var currentPage = 1;
+var perPage = 20;          // default page size for scroll
+var totalRows = 0;
+var isLoading = false;
 
 // Function to get base URL without page index
 function getBaseURL() {
@@ -16,6 +21,9 @@ function getBaseURL() {
 
 // Function to update the URL with modified GET parameters
 function updateURL() {
+    // reset paging when filters change
+    currentPage = 1;
+
     // Initialize an empty array to store the selected category IDs
     var selectedCategories = [];
     // Get all the checked category checkboxes
@@ -35,21 +43,14 @@ function updateURL() {
     // Get all the checked attribute checkboxes
     $('.filter-section.fs-attr .filter-list-item input[type="checkbox"]:checked').each(function() {
         var attributeName = $(this).closest('.filter-section').find('.filter-heading').text().trim().toLowerCase();
-        //var attributeValue = $(this).siblings('.filter-name').text().trim().toLowerCase();
         if (!selectedAttributes[attributeName]) {
             selectedAttributes[attributeName] = [];
         }
-        // selectedAttributes[attributeName].push(attributeValue);
         selectedAttributes[attributeName].push($(this).data('value'));
-
-        $(this).data('value')
     });
 
     // Construct the updated URL
     var url = getBaseURL();
-    // var url = window.location.origin + window.location.pathname;
-
-    /* Construct the params for URL */
     var params = [];
     if (selectedCategories.length > 0) {
         params.push('category=' + selectedCategories.join('|'));
@@ -61,11 +62,6 @@ function updateURL() {
         params.push('filter-' + attributeName.replace(/\s+/g, '-') + '=' + attributeValues.join('|'));
     });
 
-    /* var minPrice = $('#price-range-input').val()[0];
-    var maxPrice = $('#price-range-input').val()[1];
-    params.push('min-price=' + minPrice);
-    params.push('max-price=' + maxPrice); */
-
     if(price_filter_enabled){
         const priceInput = document.querySelectorAll(".price-input input");
         var minPrice = priceInput[0].value;
@@ -74,11 +70,15 @@ function updateURL() {
         params.push('max-price=' + maxPrice);
     }
 
-    var urlParams = new URLSearchParams(window.location.search); //get all parameters
+    var urlParams = new URLSearchParams(window.location.search);
     var seller = urlParams.get('seller');
     if(seller){
         params.push('seller=' + seller);
     }
+
+    // always include paging params for consistency
+    params.push('page=' + currentPage);
+    params.push('per-page=' + perPage);
 
     if (params.length > 0) {
         url += '?' + params.join('&');
@@ -88,7 +88,7 @@ function updateURL() {
     window.history.replaceState({}, '', url);
 
     // Reload the page to apply the changes
-    ajaxProductList(url);
+    ajaxProductList(currentPage);
 }
 
 $(document).ready(function() {
@@ -245,6 +245,7 @@ function removeSellerFilter() {
 }
 
 
+// initial load with first page
 ajaxProductList();
 
 function getQueryQ() {
@@ -255,8 +256,8 @@ function getQueryQ() {
 function getCategorySlugs() {
     const path = window.location.pathname.split('/').filter(Boolean);
 
-    const category_slug       = path[1] || '';
-    const sub_category_slug   = path[2] || '';
+    const category_slug       = path[2] || '';
+    const sub_category_slug   = path[3] || '';
 
     return {
         category_slug,
@@ -264,7 +265,8 @@ function getCategorySlugs() {
     };
 }
 
-function ajaxProductList() {
+function ajaxProductList(page = 1, append = false) {
+     currentPage = page;
      let slugData = getCategorySlugs();
      let subCategory = "";
      let searchData = "";
@@ -277,7 +279,10 @@ function ajaxProductList() {
      if(slugData.category_slug == 'search'){
          searchData = q; 
      }
-     
+
+    // always set pagination parameters
+    params.set('page', currentPage);
+    params.set('per-page', perPage);
 
     $('#productList').html(
         '<div class="text-center py-5">' +
@@ -285,10 +290,12 @@ function ajaxProductList() {
         '</div>'
     );
 
+    isLoading = true;
+
     $.ajax({
         url: base_url + 'products/ajax_get_products' +
-             (window.location.search
-                ? window.location.search + '&subCategory=' + subCategory + '&searchData=' + searchData
+             (params.toString()
+                ? '?' + params.toString() + '&subCategory=' + subCategory + '&searchData=' + searchData
                 : '?subCategory=' + subCategory + '&searchData=' + searchData
              ),
 
@@ -296,22 +303,50 @@ function ajaxProductList() {
         dataType: 'json',
 
         success: function (response) {
-           
+            isLoading = false;
             if (response.status === 'success') {
+                totalRows = response.total_rows || 0;
                 var html = renderProducts(response.products.product || []);
-                $('#productList').html(html);
-                $('.pagination-container').html(response.pagination_html || '');
+                if (append) {
+                    $('#productList').append(html);
+                } else {
+                    $('#productList').html(html);
+                }
+                // hide pagination links since using scroll
+                $('#products-pagination-nav').hide();
                 $('.result-count').text(response.result_count || '');
+
+                // update 'Showing X of Y' text
+                var shownCount = $('#productList .product').length;
+                var total = totalRows;
+                $('.product-filter .text-n.op-6').first().text('Showing ' + shownCount + ' of ' + total);
+
+                // update URL parameters to keep in sync
+                var newUrl = new URL(window.location.href);
+                newUrl.searchParams.set('page', currentPage);
+                newUrl.searchParams.set('per-page', perPage);
+                window.history.replaceState({}, '', newUrl.toString());
             }
-            
         },
 
         error: function (xhr, status, error) {
+            isLoading = false;
             $('#productList').html('<div>AJAX Error</div>');
             console.error(error);
         }
     });
 }
+// scroll handler to load more pages
+$(window).on('scroll', function() {
+    if (isLoading) return;
+    if (currentPage * perPage >= totalRows) return; // no more data
+
+    if ($(window).scrollTop() + $(window).height() >= $(document).height() - 200) {
+        // load next page
+        ajaxProductList(currentPage + 1, true);
+    }
+});
+
 function generateStarRatingHTML(product) {
     let rating = parseFloat(product.rating || 0);
     let fullStars = Math.floor(rating);

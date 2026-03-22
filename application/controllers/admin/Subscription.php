@@ -47,36 +47,95 @@ class Subscription extends CI_Controller
     }
 
     public function add_subscription()
-    {
-        if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
-            // permission checks (optional) can be added here if the permission type is defined
+{
+    if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
 
+        $this->form_validation->set_rules('name', 'Plan Name', 'trim|required|xss_clean');
+        $this->form_validation->set_rules('price', 'Price', 'trim|xss_clean');
+        $this->form_validation->set_rules('listings_limit', 'Listings Limit', 'trim|xss_clean');
+        $this->form_validation->set_rules('validity', 'Validity', 'trim|xss_clean');
+        $this->form_validation->set_rules('commission_first50', 'Commission (first 50 orders)', 'trim|numeric|xss_clean');
+        $this->form_validation->set_rules('commission_51_100', 'Commission (51-100 orders)', 'trim|numeric|xss_clean');
+        $this->form_validation->set_rules('commission_after100', 'Commission (after 100 orders)', 'trim|numeric|xss_clean');
 
-            $this->form_validation->set_rules('name', 'Plan Name', 'trim|required|xss_clean');
-            $this->form_validation->set_rules('price', 'Price', 'trim|xss_clean');
-            $this->form_validation->set_rules('listings_limit', 'Listings Limit', 'trim|xss_clean');
-            $this->form_validation->set_rules('validity', 'Validity', 'trim|xss_clean');
-            $this->form_validation->set_rules('commission_first50', 'Commission (first 50 orders)', 'trim|numeric|xss_clean');
-            $this->form_validation->set_rules('commission_51_100', 'Commission (51-100 orders)', 'trim|numeric|xss_clean');
-            $this->form_validation->set_rules('commission_after100', 'Commission (after 100 orders)', 'trim|numeric|xss_clean');
+        if (!$this->form_validation->run()) {
 
-            if (!$this->form_validation->run()) {
-                $this->response['error'] = true;
-                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = validation_errors();
-                print_r(json_encode($this->response));
-            } else {
-                $this->Subscription_model->add_subscription($_POST);
-                $this->response['error'] = false;
-                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $message = (isset($_POST['edit_subscription'])) ? 'Subscription Updated Successfully' : 'Subscription Added Successfully';
-                $this->response['message'] = $message;
-                print_r(json_encode($this->response));
-            }
-        } else {
-            redirect('admin/login', 'refresh');
+            $this->response['error'] = true;
+            $this->response['csrfName'] = $this->security->get_csrf_token_name();
+            $this->response['csrfHash'] = $this->security->get_csrf_hash();
+            $this->response['message'] = validation_errors();
+
+            echo json_encode($this->response);
+            return;
         }
+
+        /* ---------- FEATURES JSON ---------- */
+
+        $features = $this->input->post('features');
+        $features_array = [];
+
+        if (!empty($features)) {
+
+            foreach ($features as $feature) {
+
+                if (!empty($feature['description'])) {
+                    $features_array[] = [
+                        "description" => $feature['description']
+                    ];
+                }
+
+            }
+        }
+
+        /* ---------- DATA ARRAY ---------- */
+
+        $data = [
+            'name' => $this->input->post('name'),
+            'price' => $this->input->post('price'),
+            'listings_limit' => $this->input->post('listings_limit'),
+            'validity' => $this->input->post('validity'),
+            'commission_first50' => $this->input->post('commission_first50'),
+            'commission_51_100' => $this->input->post('commission_51_100'),
+            'commission_after100' => $this->input->post('commission_after100'),
+
+            // save features JSON
+            'features' => json_encode($features_array)
+        ];
+        if ($this->input->post('edit_subscription')) {
+
+            $data['edit_subscription'] = $this->input->post('edit_subscription');
+        
+        }
+
+        /* ---------- UPDATE OR INSERT ---------- */
+
+        if ($this->input->post('edit_subscription')) {
+
+            $id = $this->input->post('edit_subscription');
+
+            $this->Subscription_model->add_subscription($data);
+
+            $message = 'Subscription Updated Successfully';
+
+        } else {
+
+            $this->Subscription_model->add_subscription($data);
+
+            $message = 'Subscription Added Successfully';
+        }
+
+        $this->response['error'] = false;
+        $this->response['csrfName'] = $this->security->get_csrf_token_name();
+        $this->response['csrfHash'] = $this->security->get_csrf_hash();
+        $this->response['message'] = $message;
+
+        echo json_encode($this->response);
+
+    } else {
+
+        redirect('admin/login', 'refresh');
+
     }
+ }
 }
+

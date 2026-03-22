@@ -82,7 +82,74 @@
                                         <input type="number" step="any" class="form-control" name="commission_after100" id="commission_after100" value="<?= (isset($fetched_data[0]['commission_after100']) ? $fetched_data[0]['commission_after100'] : '') ?>">
                                     </div>
                                 </div>
-                                <div class="form-group">
+
+                                <!-- Plan Features Section -->
+                                <div class="row mt-4">
+                                    <div class="col-md-12">
+                                        <h5 class="mb-3">Plan Features</h5>
+                                        <div class="table-responsive">
+                                            <table class="table table-bordered table-striped" id="features_table">
+                                                <thead class="bg-light">
+                                                    <tr>
+                                                        <th style="width: 85%;">Description</th>
+                                                        <th style="width: 15%; text-align: center;">Action</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="features_tbody">
+
+                                            <?php
+                                            
+                                            
+                                                if (!empty($fetched_data[0]['features'])) {
+                                     
+                                                
+                                                     $json = stripslashes($fetched_data[0]['features']);
+                                                    $features = json_decode($json, true);
+                                                
+                                                    
+                                                    
+                                                    if (!empty($features)) {
+                                           
+                                                    
+                                                        foreach ($features as $index => $feature) {
+                                                ?>
+
+                                                <tr class="feature-row">
+
+                                                <td>
+                                                <textarea 
+                                                class="form-control form-control-sm feature_desc"
+                                                name="features[<?= $index ?>][description]"
+                                                rows="2"
+                                                placeholder="Feature description"><?= htmlspecialchars($feature['description']) ?></textarea>
+                                                </td>
+
+                                                <td style="text-align:center;">
+                                                <button type="button" class="btn btn-danger btn-sm delete-feature-row">
+                                                <i class="fa fa-trash"></i>
+                                                </button>
+                                                </td>
+
+                                                </tr>
+
+                                                <?php
+                                                        }
+
+                                                    }
+                                                }
+                                                ?>
+
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <button type="button" class="btn btn-primary btn-sm" id="add_feature_row">
+                                            <i class="fa fa-plus"></i> Add Feature
+                                        </button>
+                                        <input type="hidden" id="features_json" name="features_json" value="">
+                                    </div>
+                                </div>
+
+                                <div class="form-group mt-3">
                                     <button type="reset" class="btn btn-warning">Reset</button>
                                     <button type="submit" class="btn btn-success" id="submit_btn"><?= (isset($fetched_data[0]['id'])) ? 'Update Subscription' : 'Add Subscription' ?></button>
                                 </div>
@@ -140,3 +207,78 @@
     </section>
     <!-- /.content -->
 </div>
+<script>
+
+$(document).ready(function () {
+
+    // ADD FEATURE ROW
+    $(document).on("click", "#add_feature_row", function (e) {
+
+        e.preventDefault();
+
+        let tableBody = $(this).closest(".card-body").find("#features_tbody");
+
+        if (tableBody.length === 0) {
+            tableBody = $("#features_tbody");
+        }
+
+        let count = tableBody.find("tr").length;
+
+        let newRow = `
+        <tr class="feature-row">
+            <td>
+                <textarea 
+                class="form-control form-control-sm feature_desc"
+                name="features[${count}][description]"
+                placeholder="Feature description"
+                rows="2"></textarea>
+            </td>
+
+            <td style="text-align:center;">
+                <button type="button" class="btn btn-danger btn-sm delete-feature-row">
+                    <i class="fa fa-trash"></i>
+                </button>
+            </td>
+        </tr>`;
+
+        tableBody.append(newRow);
+
+    });
+
+
+
+    // DELETE FEATURE
+    $(document).on("click", ".delete-feature-row", function () {
+
+        $(this).closest("tr").remove();
+
+    });
+
+
+
+    // SERIALIZE FEATURES BEFORE SUBMIT
+    $(document).on("submit", "#subscription_form", function () {
+
+        let features = [];
+
+        $(this).find("#features_tbody tr").each(function () {
+
+            let description = $(this).find(".feature_desc").val().trim();
+
+            if (description !== "") {
+
+                features.push({
+                    description: description
+                });
+
+            }
+
+        });
+
+        $("#features_json").val(JSON.stringify(features));
+
+    });
+
+});
+
+</script>

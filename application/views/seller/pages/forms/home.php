@@ -85,7 +85,7 @@
                                     </span>
                                 <?php endif; ?>
                             </div>
-                            <a href="<?= base_url('seller/subscription/manage_subscriptions'); ?>" class="btn btn-sm btn-outline-dark">
+                            <a href="<?= base_url('seller/subscription/manage_subscriptions'); ?>" class="btn btn-sm btn-dark">
                                 Manage / Upgrade Plan
                             </a>
                         </div>
@@ -372,18 +372,18 @@
                                 <div class="col-md-4 mb-3">
                                     <div class="card h-100 border-warning">
                                         <div class="card-body text-center">
-                                            <h5 class="card-title text-warning"><?= html_escape($plan['name']); ?></h5>
-                                            <?php if (!empty($plan['price'])) : ?>
-                                                <h4 class="font-weight-bold mb-2"><?= html_escape($plan['price']); ?></h4>
+                                            <h5 class="text-warning" ><?= html_escape($plan['name']); ?></h5>
+                                            <?php if (isset($plan['price'])) : ?>
+                                                <h4 class="font-weight-bold mb-2">₹<?= html_escape($plan['price']); ?></h4>
                                             <?php endif; ?>
                                             <?php if (!empty($plan['listings_limit'])) : ?>
                                                 <p class="mb-1"><strong>Listings:</strong> <?= html_escape($plan['listings_limit']); ?></p>
                                             <?php endif; ?>
                                             <?php if (!empty($plan['validity'])) : ?>
-                                                <p class="mb-3"><strong>Validity:</strong> <?= html_escape($plan['validity']); ?></p>
+                                                <p class="mb-3" style="font-size: 13px;" ><strong>Validity:</strong> <?= html_escape($plan['validity']); ?></p>
                                             <?php endif; ?>
                                             <button type="button"
-                                                    class="btn <?= $btn_class; ?> btn-sm purchase-plan-btn"
+                                                    class="btn <?= $btn_class; ?> btn-sm purchase-plan-btn w-100 mt-2"
                                                     data-id="<?= (int) $plan['id']; ?>"
                                                     <?= $btn_disabled ? 'disabled' : ''; ?>>
                                                 <?= $btn_label; ?>
@@ -399,7 +399,78 @@
             </div>
         </div>
 
+        <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
         <script>
+            function startSubscriptionPayment(planId, serverData) {
+                if (!serverData || !serverData.razorpay_order_id || !serverData.razorpay_key_id) {
+                    $('#subscription_error_box').text('Payment configuration is missing. Please contact support.');
+                    return;
+                }
+
+                var options = {
+                    key: serverData.razorpay_key_id,
+                    amount: Math.round(parseFloat(serverData.amount) * 100),
+                    currency: serverData.currency || 'INR',
+                    name: serverData.plan_name || 'Subscription',
+                    description: 'Seller Subscription',
+                    order_id: serverData.razorpay_order_id,
+                    handler: function (response) {
+                        var postData = {
+                            subscription_id: planId,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_signature: response.razorpay_signature
+                        };
+
+                        if (serverData.csrfName && serverData.csrfHash) {
+                            postData[serverData.csrfName] = serverData.csrfHash;
+                        }
+
+                        $.ajax({
+                            url: '<?= base_url('seller/subscription/razorpay_callback'); ?>',
+                            type: 'POST',
+                            data: postData,
+                            dataType: 'json',
+                            success: function (res) {
+                                if (res.csrfName && res.csrfHash) {
+                                    serverData.csrfName = res.csrfName;
+                                    serverData.csrfHash = res.csrfHash;
+                                }
+
+                                if (res.error === false) {
+                                    $('#subscription_modal').modal('hide');
+                                    location.reload();
+                                } else {
+                                    $('#subscription_error_box').text(res.message || 'Unable to activate subscription after payment.');
+                                }
+                            },
+                            error: function () {
+                                $('#subscription_error_box').text('Failed to verify payment. Please contact support with your payment details.');
+                            }
+                        });
+                    }
+                };
+
+                if (serverData.seller_name) {
+                    options.prefill = options.prefill || {};
+                    options.prefill.name = serverData.seller_name;
+                }
+                if (serverData.seller_email) {
+                    options.prefill = options.prefill || {};
+                    options.prefill.email = serverData.seller_email;
+                }
+                if (serverData.seller_contact) {
+                    options.prefill = options.prefill || {};
+                    options.prefill.contact = serverData.seller_contact;
+                }
+
+                var rzp = new Razorpay(options);
+                rzp.on('payment.failed', function () {
+                    $('#subscription_error_box').text('Payment failed or was cancelled. Please try again.');
+                });
+                rzp.open();
+            }
+
             $(document).ready(function() {
                 $('#subscription_modal').modal('show');
 
@@ -417,16 +488,23 @@
                             '<?= $this->security->get_csrf_token_name(); ?>': '<?= $this->security->get_csrf_hash(); ?>'
                         },
                         success: function(response) {
-                            $btn.prop('disabled', false);
                             try {
                                 var res = (typeof response === 'string') ? JSON.parse(response) : response;
+
                                 if (res.error === false) {
-                                    $('#subscription_modal').modal('hide');
-                                    location.reload();
+                                    if (res.requires_payment) {
+                                        startSubscriptionPayment(planId, res);
+                                        $btn.prop('disabled', false);
+                                    } else {
+                                        $('#subscription_modal').modal('hide');
+                                        location.reload();
+                                    }
                                 } else {
+                                    $btn.prop('disabled', false);
                                     $('#subscription_error_box').text(res.message || 'Unable to purchase subscription.');
                                 }
                             } catch (e) {
+                                $btn.prop('disabled', false);
                                 $('#subscription_error_box').text('Unexpected server response.');
                             }
                         },
