@@ -1,9 +1,9 @@
 <?php $settings = get_settings('system_settings', true); ?>
 <aside class="main-sidebar elevation-2">
     <!-- Brand Logo -->
-    <a href="<?= base_url('seller/home') ?>" class="brand-link">
-        <img src="<?= base_url() . get_settings('favicon') ?>" alt="<?= $settings['app_name']; ?>" title="<?= $settings['app_name']; ?>" class="brand-image">
-        <span class="brand-text font-weight-light small"><?= $settings['app_name']; ?></span>
+    <a href="<?= base_url('seller/home') ?>" class="brand-link d-flex align-items-center">
+    <img src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/logo.png') ?>" alt="<?= $settings['app_name']; ?>" title="<?= $settings['app_name']; ?>" class="img-fluid" style="max-height:40px; width:auto; margin-left:0;">
+    <span class="brand-text font-weight-light small"><?= $settings['app_name']; ?></span>
     </a>
 
     <!-- Sidebar -->

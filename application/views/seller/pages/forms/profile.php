@@ -142,8 +142,10 @@
                               </svg>
                               <img id="photoPreview" src="" class="shop-logo hidden" style="margin-top: 1rem;">
                             </div>
-                          <label for="photoInput">Shop Logo</label>
-                          </div>
+                            <label for="photoInput" class="btn btn-sm btn-outline-secondary" style="cursor:pointer;">
+                             📷 Upload Shop Logo
+                         </label>
+                         </div>
                         </div>
                         
                       <div class="row">
@@ -307,6 +309,7 @@
 if (typeof Dropzone !== 'undefined') Dropzone.autoDiscover = false;
 const base_url = "<?php echo base_url(); ?>";
 const submitBtn = document.querySelector('.submit_btn');
+const initialSection = "<?= in_array(($current_profile_section ?? 'personal'), ['personal','store','account']) ? $current_profile_section : 'personal' ?>";
 
 // ── Searchable dropdown factory ──────────────────────────────────────────────
 function makeSearchable(searchId, hiddenId, dropdownId, data, onSelect) {
@@ -524,6 +527,37 @@ function validateForm3() {
   if (acc && conf && acc.value !== conf.value) { showError(conf, 'Account numbers do not match'); valid = false; }
   return valid;
 }
+
+function openProfileSection(section) {
+  const sectionMap = { personal: 1, store: 2, account: 3 };
+  const target = sectionMap[section] || 1;
+
+  const steps = [document.querySelector('.form1'), document.querySelector('.form2'), document.querySelector('.form3')];
+  const indicators = [document.querySelector('.form-indicator-1'), document.querySelector('.form-indicator-2'), document.querySelector('.form-indicator-3')];
+  const lines = [document.querySelector('.completion-line-1'), document.querySelector('.completion-line-2')];
+
+  steps.forEach(function(step, index) {
+    step.style.left = (index + 1 === target) ? '0' : ((index + 1 < target) ? '-500%' : '500%');
+  });
+
+  indicators.forEach(function(indicator, index) {
+    if (index + 1 <= target) {
+      indicator.classList.add('active');
+    } else {
+      indicator.classList.remove('active');
+    }
+  });
+
+  lines.forEach(function(line, index) {
+    if (index + 2 <= target) {
+      line.classList.add('active');
+    } else {
+      line.classList.remove('active');
+    }
+  });
+}
+
+openProfileSection(initialSection);
 
 // ── Submit ────────────────────────────────────────────────────────────────────
 submitBtn.addEventListener('click', function(e) {

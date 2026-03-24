@@ -41,7 +41,7 @@ class Product extends CI_Controller
             $this->data['meta_description'] = 'Add Product | ' . $settings['app_name'];
             $this->data['taxes'] = fetch_details('taxes', null,  '*');
             $this->data['seller_id'] = $seller_id;
-            $this->data['shipping_data'] = fetch_details('pickup_locations', ['status' => 1, 'seller_id' => $this->session->userdata('user_id')], 'id,pickup_location');
+            $this->response['files'] = $uploaded_files;
             $this->data['countries'] = fetch_details('countries', null, 'name,id');
             $this->data['brands'] = fetch_details('brands', null, 'name,id');
             
@@ -209,11 +209,16 @@ class Product extends CI_Controller
             }
             $this->form_validation->set_rules('pro_input_name', 'Product Name', 'trim|required|xss_clean');
             $this->form_validation->set_rules('short_description', 'Short Description', 'trim|required|xss_clean');
-            $this->form_validation->set_rules('category_id', 'Category Id', 'trim|required|xss_clean', array('required' => 'Category is required'));
+            // $this->form_validation->set_rules('category_id', 'Category Id', 'trim|required|xss_clean', array('required' => 'Category is required'));
+            $this->form_validation->set_rules('category_id', 'Category Id', 'trim|xss_clean');
             $this->form_validation->set_rules('pro_input_tax', 'Tax', 'trim|xss_clean');
             $this->form_validation->set_rules('pro_input_image', 'Image', 'trim|required|xss_clean', array('required' => 'Image is required'));
             $this->form_validation->set_rules('made_in', 'Made In', 'trim|xss_clean');
             $this->form_validation->set_rules('brand', 'Brand', 'trim|xss_clean');
+            // Sync product_type from type field if not set
+            if (empty($_POST['product_type']) && !empty($_POST['type'])) {
+                $_POST['product_type'] = trim($_POST['type']);
+            }
             $this->form_validation->set_rules('product_type', 'Product type', 'trim|required|xss_clean');
             $this->form_validation->set_rules('total_allowed_quantity', 'Total Allowed Quantity', 'trim|xss_clean');
             $this->form_validation->set_rules('minimum_order_quantity', 'Minimum Order Quantity', 'trim|xss_clean');
@@ -263,7 +268,7 @@ class Product extends CI_Controller
             }
 
             // If product type is simple			
-            if (isset($_POST['product_type']) && $_POST['product_type'] == 'simple_product' || $_POST['product_type'] == 'digital_product') {
+            if (isset($_POST['product_type']) && ($_POST['product_type'] == 'simple_product') && ($_POST['product_type'] == 'digital_product')) {
 
                 $this->form_validation->set_rules('simple_price', 'Price', 'trim|required|numeric|greater_than_equal_to[' . $this->input->post('simple_special_price') . ']|xss_clean');
                 $this->form_validation->set_rules('simple_special_price', 'Special Price', 'trim|numeric|less_than_equal_to[' . $this->input->post('simple_price') . ']|xss_clean');
@@ -320,12 +325,13 @@ class Product extends CI_Controller
                     }
                 }
             }
-
+            
             if (!$this->form_validation->run()) {
                 $this->response['error'] = true;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
                 $this->response['message'] = validation_errors();
+                
                 print_r(json_encode($this->response));
             } else {
                 if (!empty($_POST['deliverable_zipcodes'])) {
@@ -339,11 +345,12 @@ class Product extends CI_Controller
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
                 $message = (isset($_POST['edit_product_id'])) ? 'Product Updated Successfully' : 'Product Added Successfully';
                 $this->response['message'] = $message;
-                print_r(json_encode($this->response));
+                // print_r(json_encode($this->response));
             }
         } else {
             redirect('seller/login', 'refresh');
         }
+        redirect('seller/login', 'refresh');
     }
 
 

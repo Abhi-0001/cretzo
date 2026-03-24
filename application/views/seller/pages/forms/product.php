@@ -31,7 +31,7 @@
                                 <input type="hidden" id="subcategory_id_js" value="<?= (isset($product_details[0]['subcategory_id'])) ? $product_details[0]['subcategory_id'] : "" ?>">
                             <?php } ?>
                             <div class="card-body">
-
+                            <input type="file" id="seller-image-file-input" class="d-none" accept="image/*,.jpg,.jpeg,.png,.gif,.webp,.bmp" multiple>
                                 <div class="col-md-12">
                                     <label for="pro_input_text" class="col-form-label">Name <span class='text-danger text-sm'>*</span> </label>
                                     <input type="text" class="form-control" id="pro_input_text" placeholder="Product Name" name="pro_input_name" value="<?= (isset($product_details[0]['name'])) ? $product_details[0]['name'] : "" ?>">
@@ -91,9 +91,10 @@
                                                 <select class=" col-md-12 form-control country_list" id="country_list" name="made_in">
                                                     <?php if (isset($product_details[0]['made_in']) && ($product_details[0]['made_in']) != '') {
                                                     ?>
-                                                        <option value="<?= $product_details[0]['made_in'] ?>" <?= (isset($product_details[0]['made_in']) &&  $product_details[0]['made_in'] == $countries[0]['name']) ? 'selected' : ''; ?>><?= $product_details[0]['made_in'] ?></option>
+                                                    <option value="<?= $product_details[0]['made_in'] ?>" selected><?= $product_details[0]['made_in'] ?></option>
                                                     <?php } ?>
                                                     <!-- countries display here  -->
+                                                    <option value="">Select Made In</option>
                                                 </select>
                                             </div>
                                             <div class="col-md-4">
@@ -102,10 +103,10 @@
                                                     <?php
                                                     if (isset($product_details[0]['brand']) && $product_details[0]['brand'] != '') {
                                                     ?>
-                                                        <option value="<?= $product_details[0]['brand'] ?>" <?= (isset($product_details[0]['brand']) &&  $product_details[0]['brand'] == $brands[0]['name']) ? 'selected' : ''; ?>><?= $product_details[0]['brand'] ?></option>
+                                                    <option value="<?= $product_details[0]['brand'] ?>" selected><?= $product_details[0]['brand'] ?></option>
                                                     <?php } ?>
-
                                                     <!-- brands display here  -->
+                                                    <option value="">Select Brand</option>
                                                 </select>
                                             </div>
                                             <div class="col-md-4 total_allowed_quantity <?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
@@ -148,7 +149,7 @@
                                             $zipcodes = (isset($product_details[0]['deliverable_zipcodes']) &&  $product_details[0]['deliverable_zipcodes'] != NULL) ? explode(",", $product_details[0]['deliverable_zipcodes']) : "";
                                             ?>
                                             <div class="col-md-4 col-sm-12">
-                                                <label for="zipcodes" class="col-form-label">Deliverable Zipcodes</label>
+                                                <label for="zipcodes" class="col-form-label">Deliverable Zipcodes (Multiple)</label>
                                                 <div class="col-md-12">
                                                     <select name="deliverable_zipcodes[]" class="search_zipcode w-100" multiple onload="multiselect()" id="deliverable_zipcodes" <?= (isset($product_details[0]['deliverable_type']) &&  ($product_details[0]['deliverable_type'] == INCLUDED || $product_details[0]['deliverable_type'] == EXCLUDED))  ? "" : "disabled" ?>>
                                                         <?php if (isset($product_details[0]['deliverable_type']) &&  ($product_details[0]['deliverable_type'] == INCLUDED || $product_details[0]['deliverable_type'] == EXCLUDED)) {
@@ -169,14 +170,14 @@
                                         </div>
                                         <div class="row col mt-3 pickup_locations <?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
                                             <div class="col-md-8 standdard_shipping">
-                                                <label for="shipping_type" class="col-form-label">For standdard shipping <span class='text-danger text-sm'>*</span></label>
+                                                <label for="pickup_location" class="col-form-label">Pickup Locaton<span class='text-danger text-sm'>*</span></label>
                                                 <!-- drop down menu in while create product -->
                                                 <select class='form-control shiprocket_type' name="pickup_location" id="pickup_location">
-                                                    <option value="">select pickup location</option>
+                                                    <option value="">Select pickup location</option>
                                                     <?php foreach ($shipping_data as $row) {
-                                                        $pickup_location = (isset($product_details[0]['pickup_location']) && !empty($product_details[0]['pickup_location']) ? $product_details[0]['pickup_location'] : "") ?>
-                                                        <option <?php if ($row['pickup_location'] == $pickup_location) { ?> selected <?php } ?> value="<?php echo $row['pickup_location']; ?>"><?php echo $row['pickup_location']; ?></option>
-                                                    <?php } ?>
+                                                         $pickup_location = (isset($product_details[0]['pickup_location']) && !empty($product_details[0]['pickup_location']) ? $product_details[0]['pickup_location'] : "");?>
+                                                         <option <?php if ($row['pickup_location'] == $pickup_location) { ?> selected <?php } ?> value="<?php echo $row['pickup_location']; ?>"><?php echo $row['pickup_location']; ?> - <?php echo $row['address']; ?><?php if (!empty($row['address2'])) { echo ', ' . $row['address2']; } ?>, <?php echo $row['city']; ?>, <?php echo $row['state']; ?> - <?php echo $row['pin_code']; ?></option>
+                                                   <?php } ?>
                                                 </select>
                                             </div>
                                         </div>
@@ -210,7 +211,7 @@
                                             <div class="form-group">
                                                 <label for="image">Main Image <span class='text-danger text-sm'>*</span><small>(Recommended Size : 180 x 180 pixels)</small></label>
                                                 <div class="col-sm-10">
-                                                    <div class='col-md-3'><a class="uploadFile img btn btn-primary text-white btn-sm" data-input='pro_input_image' data-isremovable='0' data-is-multiple-uploads-allowed='0' data-toggle="modal" data-target="#media-upload-modal" value="Upload Photo"><i class='fa fa-upload'></i> Upload</a></div>
+                                                <div class='col-md-3'><a class="seller-image-upload btn btn-primary text-white btn-sm" data-input='pro_input_image' data-isremovable='0' data-is-multiple-uploads-allowed='0'   value="Upload Photo"><i class='fa fa-upload'></i> Upload</a></div>
                                                     <?php
                                                     if (isset($product_details[0]['id']) && !empty($product_details[0]['id'])) {
                                                     ?>
@@ -234,7 +235,7 @@
                                             <div class="form-group">
                                                 <label for="other_images">Other Images <small>(Recommended Size : 180 x 180 pixels)</small></label>
                                                 <div class="col-sm-12">
-                                                    <div class='col-md-3'><a class="uploadFile img btn btn-primary text-white btn-sm" data-input='other_images[]' data-isremovable='1' data-is-multiple-uploads-allowed='1' data-toggle="modal" data-target="#media-upload-modal" value="Upload Photo"><i class='fa fa-upload'></i> Upload</a></div>
+                                                    <div class='col-md-3'><a class="seller-image-upload btn btn-primary text-white btn-sm" data-input='other_images[]' data-isremovable='1' data-is-multiple-uploads-allowed='1' value="Upload Photo"><i class='fa fa-upload'></i> Upload</a></div>
                                                     <?php
                                                     if (isset($product_details[0]['id']) && !empty($product_details[0]['id'])) {
                                                     ?>

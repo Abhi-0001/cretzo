@@ -72,3 +72,7 @@ $route['terms-and-conditions'] = 'home/terms_and_conditions';
 $route['return-policy'] = 'home/return_policy';
 $route['shipping-policy'] = 'home/shipping_policy';
 
+$route['my-account/get-states']             = 'my_account/get_states';
+$route['my-account/get-districts-by-state'] = 'my_account/get_districts_by_state';
+$route['my-account/get-cities-by-district'] = 'my_account/get_cities_by_district';
+$route['my-account/get-pincodes-by-city']   = 'my_account/get_pincodes_by_city';

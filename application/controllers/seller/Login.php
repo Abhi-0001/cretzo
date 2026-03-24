@@ -69,7 +69,7 @@ class Login extends CI_Controller
                 return false;
                 exit();
             }
-            }
+            
 
             $identity_column = $this->config->item('identity', 'ion_auth');
             $identity = $this->session->userdata('identity');
@@ -517,7 +517,7 @@ class Login extends CI_Controller
                         'store_description'        => $this->input->post('store_description', true) ?? null,
                         'store_url'                => $this->input->post('store_url', true) ?? null,
                         'store_name'               => $this->input->post('store_name', true) ?? null,
-                        'slug'                     => create_unique_slug($this->input->post('store_name', true), 'seller_data') ?? null,
+                        'slug'                     => !empty($this->input->post('store_name', true)) ? create_unique_slug($this->input->post('store_name', true), 'seller_data') : null,
                         'first_name'               => $this->input->post('first_name', true) ?? null,
                         'last_name'                => $this->input->post('last_name', true) ?? null,
                         'phone'                    => $this->input->post('phone', true) ?? null,
@@ -574,7 +574,7 @@ class Login extends CI_Controller
                             'csrfHash' => $this->security->get_csrf_hash(),
                             'message'  => 'Seller updated successfully'
                         ];
-
+                        ob_clean();
                         echo json_encode($this->response);
                         exit;
 
@@ -592,10 +592,7 @@ class Login extends CI_Controller
                     }
                 }
             
-        else {
-            redirect('seller/home', 'refresh');
-            }
-    }}
+            }}}
 
     // BUG FIX #6 — Validation callback methods for PAN, GST, IFSC
 

@@ -4575,6 +4575,32 @@ $('#upload-media').on('click', function () {
     $('#media-upload-modal').modal('hide');
 });
 
+function getAcceptedMediaTypes(mediaType) {
+    switch (mediaType) {
+        case 'video':
+            return '.mp4,.mov,.avi,.mkv,.webm';
+        case 'archive,document':
+            return '.zip,.rar,.7z,.pdf,.doc,.docx,.xls,.xlsx,.txt';
+        case 'image':
+        default:
+            return '.jpg,.jpeg,.png,.gif,.webp,.bmp';
+    }
+}
+
+function updateDropzoneForMediaType(mediaType) {
+    if (typeof myDropzone === 'undefined') {
+        return;
+    }
+
+    var acceptedTypes = getAcceptedMediaTypes(mediaType);
+    myDropzone.options.acceptedFiles = acceptedTypes;
+
+    var fileInput = myDropzone.hiddenFileInput;
+    if (fileInput) {
+        fileInput.setAttribute('accept', acceptedTypes);
+    }
+}
+
 $(document).on('show.bs.modal', '#media-upload-modal', function (event) {
     var triggerElement = $(event.relatedTarget);
     current_selected_image = triggerElement;
@@ -4584,6 +4610,7 @@ $(document).on('show.bs.modal', '#media-upload-modal', function (event) {
     var ismultipleAllowed = $(current_selected_image).data('is-multiple-uploads-allowed');
     var media_type = ($(current_selected_image).is('[data-media_type]')) ? $(current_selected_image).data('media_type') : 'image';
     $('#media_type').val(media_type);
+    updateDropzoneForMediaType(media_type);
     if (ismultipleAllowed == 1) {
         $('#media-upload-table').bootstrapTable('refreshOptions', {
             singleSelect: false,
@@ -4679,6 +4706,8 @@ if (document.getElementById('dropzone')) {
     var myDropzone = new Dropzone("#dropzone", {
         url: base_url + from + '/media/upload',
         paramName: "documents",
+        acceptedFiles: getAcceptedMediaTypes('image'),
+        clickable: true,
         autoProcessQueue: false,
         parallelUploads: 12,
         maxFiles: 12,
@@ -4689,7 +4718,14 @@ if (document.getElementById('dropzone')) {
         dictMaxFilesExceeded: 'Only 12 files can be uploaded at a time ',
         dictResponseError: 'Error',
         uploadMultiple: true,
-        dictDefaultMessage: '<p><input type="submit" value="Select Files" class="btn btn-success" /><br> or <br> Drag & Drop Media Files Here</p>',
+        dictDefaultMessage: '<p><button type="button" class="btn btn-success dz-browse">Select Files</button><br> or <br> Drag & Drop Media Files Here</p>',
+    });
+
+    $('#dropzone').on('click', '.dz-browse', function (e) {
+        e.preventDefault();
+        if (myDropzone.hiddenFileInput) {
+            myDropzone.hiddenFileInput.click();
+        }
     });
 
     myDropzone.on("addedfile", function (file) {

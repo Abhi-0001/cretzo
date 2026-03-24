@@ -1,4 +1,8 @@
 <?php
+error_reporting(E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED);
+ini_set('display_errors', 0);
+ini_set('display_startup_errors',0);
+ob_start();
 /**
  * CodeIgniter
  *
@@ -66,8 +70,8 @@
 switch (ENVIRONMENT)
 {
 	case 'development':
-		error_reporting(-1);
-		ini_set('display_errors', 1);
+		error_reporting(E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED);
+		ini_set('display_errors', 0);
 	break;
 
 	case 'testing':

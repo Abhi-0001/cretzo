@@ -17,10 +17,19 @@ class Home extends CI_Controller
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
             $user_id = $this->session->userdata('user_id');
-            $user_res = $this->db->select('balance,username')->where('id', $user_id)->get('users')->result_array();
-            $this->data['main_page'] = FORMS . 'home';
+            // Single query for user + seller data instead of two separate queries
+            $user_res = $this->db->select('u.balance, u.username, sd.rating, sd.no_of_ratings')
+            ->from('users u')
+            ->join('seller_data sd', 'sd.user_id = u.id', 'left')
+            ->where('u.id', $user_id)
+            ->get()->row_array();
+
+            $this->data['balance']  = $user_res['balance'] ?? 0;
+            $this->data['username'] = $user_res['username'];
+            $this->data['ratings']  = [['rating' => $user_res['rating'], 'no_of_ratings' => $user_res['no_of_ratings']]];
             $settings = get_settings('system_settings', true);
             $this->data['curreny'] = get_settings('currency');
+            $this->data['profile_completion'] = $this->get_seller_profile_completion($user_id);
             $this->data['title'] = 'Seller Panel | ' . $settings['app_name'];
             $this->data['order_counter'] = orders_count("", $user_id);
             $this->data['user_counter'] = (get_seller_permission($this->ion_auth->get_user_id(), 'customer_privacy')) ? $this->Home_model->count_new_users() : 0;
@@ -29,16 +38,37 @@ class Home extends CI_Controller
             $this->data['seller_earnings'] = $this->Home_model->total_earnings($type = 'seller');
             $this->data['username'] =  $user_res[0]['username'];
             $this->data['ratings'] =  fetch_details("seller_data", ['user_id' => $user_id], "rating,no_of_ratings");
+            $this->data['profile_completion'] = $this->get_seller_profile_completion($user_id);
             $this->data['meta_description'] = 'Seller Panel | ' . $settings['app_name'];
             $this->data['count_products_low_status'] = $this->Home_model->count_products_stock_low_status($user_id);
             $this->data['count_products_availability_status'] = $this->Home_model->count_products_availability_status($user_id);
-            $orders_count['awaiting'] = orders_count("awaiting", $user_id);
-            $orders_count['received'] = orders_count("received", $user_id);
-            $orders_count['processed'] = orders_count("processed", $user_id);
-            $orders_count['shipped'] = orders_count("shipped", $user_id);
-            $orders_count['delivered'] = orders_count("delivered", $user_id);
-            $orders_count['cancelled'] = orders_count("cancelled", $user_id);
-            $orders_count['returned'] = orders_count("returned", $user_id);
+            // Single query to get all order status counts instead of 8 separate queries
+            $status_rows = $this->db->select('active_status, COUNT(id) as total')
+            ->where('seller_id', $user_id)
+            ->group_by('active_status')
+            ->get('order_items')
+            ->result_array();
+            
+            $orders_count = [
+            'awaiting'   => 0,
+            'received'   => 0,
+            'processed'  => 0,
+            'shipped'    => 0,
+            'delivered'  => 0,
+            'cancelled'  => 0,
+            'returned'   => 0,
+            ];
+            $total_orders = 0;
+            foreach ($status_rows as $row) {
+            $status = $row['active_status'];
+            if (isset($orders_count[$status])) {
+                $orders_count[$status] = $row['total'];
+            }
+            $total_orders += $row['total'];
+            }
+            $this->data['order_counter'] = $total_orders;
+            $this->data['status_counts'] = $orders_count;
+
             $this->data['status_counts'] = $orders_count;
             $this->load->view('seller/template', $this->data);
         } else {
@@ -46,6 +76,94 @@ class Home extends CI_Controller
         }
     }
 
+    private function get_seller_profile_completion($user_id)
+    {
+        $profile_data =$this->db->select('sd.first_name, sd.last_name, sd.phone, sd.email, sd.district, sd.city, sd.state, sd.pin, sd.shop_name, sd.social, sd.shop_phone, sd.pickup_address1, sd.pickup_address2, sd.pickup_district, sd.pickup_state, sd.pickup_pin, sd.entity_type, sd.pan, sd.gst, sd.account_number, sd.account_holder_name, sd.ifsc, sd.branch, sd.bank_name')
+            ->from('users u')
+            ->join('seller_data sd', 'sd.user_id = u.id', 'left')
+            ->where('u.id', $user_id)
+            ->get()
+            ->row_array();
+
+            // TEMP DEBUG
+            // file_put_contents('C:/xampp/htdocs/cretzo/debug_profile.txt', print_r($profile_data, true));      
+            
+            if (empty($profile_data)) {
+            return [
+                'percentage' => 0,
+                'missing_sections' => [
+                    ['label' => 'Complete Personal Details', 'link' => base_url('seller/home/profile?section=personal')],
+                    ['label' => 'Complete Store Details', 'link' => base_url('seller/home/profile?section=store')],
+                    ['label' => 'Add Bank Account Details', 'link' => base_url('seller/home/profile?section=account')],
+                ],
+            ];
+        }
+
+        $sections = [
+            'personal' => [
+                'weight' => 35,
+                'label' => 'Complete Personal Details',
+                'fields' => ['first_name', 'last_name', 'phone', 'email', 'district', 'city', 'state', 'pin'],
+                'link' => base_url('seller/home/profile?section=personal'),
+            ],
+            'store' => [
+                'weight' => 35,
+                'label' => 'Complete Store Details',
+                'fields' => ['shop_name', 'shop_phone', 'pickup_address1', 'entity_type', 'pan', 'gst'],
+                'link' => base_url('seller/home/profile?section=store'),
+            ],
+            'account' => [
+                'weight' => 30,
+                'label' => 'Add Bank Account Details',
+                'fields' => ['account_number', 'account_holder_name', 'ifsc', 'branch', 'bank_name'],
+                'link' => base_url('seller/home/profile?section=account'),
+            ],
+        ];
+
+        $completed_weight = 0;
+        $missing_sections = [];
+
+        foreach ($sections as $section) {
+            $is_complete = true;
+
+            foreach ($section['fields'] as $field) {
+                if (!$this->is_profile_value_present($profile_data, $field)) {
+                    $is_complete = false;
+                    break;
+                }
+            }
+
+            if ($is_complete) {
+                $completed_weight += (int) $section['weight'];
+                continue;
+            }
+
+            $missing_sections[] = [
+                'label' => $section['label'],
+                'link' => $section['link'],
+            ];
+        }
+
+        return [
+            'percentage' => $completed_weight,
+            'missing_sections' => $missing_sections,
+        ];
+        file_put_contents('C:/xampp/htdocs/cretzo/debug_completion.txt', print_r([
+            'profile_data' => $profile_data,
+            'completed_weight' => $completed_weight,
+            'missing_sections' => $missing_sections
+        ], true));
+    }
+
+    private function is_profile_value_present($profile_data, $key)
+    {
+        if (!isset($profile_data[$key])) {
+            return false;
+        }
+
+        return trim((string) $profile_data[$key]) !== '';
+    }
+   
     public function profile()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
@@ -57,6 +175,7 @@ class Home extends CI_Controller
             $this->data['main_page'] = FORMS . 'profile';
             $this->data['title'] = 'Seller Profile | ' . $settings['app_name'];
             $this->data['meta_description'] = 'Seller Profile | ' . $settings['app_name'];
+            $this->data['current_profile_section'] = $this->input->get('section', true) ?? 'personal';
             // $this->data['fetched_data'] = $this->db->select(' u.*,sd.* ')
             //     ->join('users_groups ug', ' ug.user_id = u.id ')
             //     ->join('seller_data sd', ' sd.user_id = u.id ')
@@ -161,7 +280,7 @@ class Home extends CI_Controller
             redirect('seller/home', 'refresh');
         }
     }
- public function get_districts_by_state()
+    public function get_districts_by_state()
     {
         if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller())) {
             echo json_encode([]);

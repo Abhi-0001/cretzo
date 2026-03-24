@@ -44,7 +44,7 @@ class Seller_model extends CI_Model
                 'email' => $data['email'] ?? null,
             
                 'address1' => $data['address1'] ?? null,
-                'address2' => $data['address2'] ?? null,
+                'address2' => $data['address_2'] ?? null,
                 'district' => $data['district'] ?? null,
                 'city' => $data['city'] ?? null,
                 'state' => $data['state'] ?? null,

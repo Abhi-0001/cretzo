@@ -1,3 +1,57 @@
+<style>
+    .profile-completion-wrap {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.25rem;
+        align-items: center;
+    }
+    .profile-progress-circle {
+        --progress: 0;
+        --size: 108px;
+        width: var(--size);
+        height: var(--size);
+        border-radius: 50%;
+        background: conic-gradient(#f28c28 calc(var(--progress) * 1%), #e9ecef 0);
+        display: grid;
+        place-items: center;
+        position: relative;
+        animation: circlePulse 1.8s ease-in-out infinite;
+    }
+    .profile-progress-circle::before {
+        content: '';
+        width: calc(var(--size) - 18px);
+        height: calc(var(--size) - 18px);
+        border-radius: 50%;
+        background: #fff;
+        position: absolute;
+    }
+    .profile-progress-circle img {
+        position: relative;
+        z-index: 1;
+        width: 42px;
+        height: 42px;
+        object-fit: contain;
+    }
+    .profile-progress-percent {
+        position: absolute;
+        bottom: -20px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 12px;
+        font-weight: 700;
+        color: #f28c28;
+        white-space: nowrap;
+    }
+    .profile-completion-content {
+        flex: 1;
+        min-width: 260px;
+    }
+    @keyframes circlePulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(242, 140, 40, 0.30); }
+        50% { box-shadow: 0 0 0 10px rgba(242, 140, 40, 0); }
+    }
+</style>
+
 <div class="content-wrapper">
     <section class="content">
         <div class="container-fluid p-3">
@@ -67,6 +121,46 @@
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-12">
+                    <div class="card pull-up">
+                        <div class="card-body">
+                        <div class="d-flex align-items-center gap-3 mb-3">
+                            <div class="profile-progress-circle flex-shrink-0" data-profile-progress="<?= (int)($profile_completion['percentage'] ?? 0) ?>">
+                                <img src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/profile-icon.png') ?>" alt="Profile">
+                                <span class="profile-progress-percent"><?= (int)($profile_completion['percentage'] ?? 0) ?>% Complete</span>
+                            </div>
+                            <div class="flex-grow-1">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h5 class="text-muted text-bold-500 mb-0">Profile Completion: <?= (int)($profile_completion['percentage'] ?? 0) ?>%</h5>
+                                    <a href="<?= base_url('seller/home/profile') ?>" class="btn btn-sm btn-outline-primary">Update Profile</a>
+                                </div>
+                                <div class="progress" style="height: 12px;">
+                                    <div class="progress-bar bg-success" role="progressbar" 
+                                         style="width: <?= (int)($profile_completion['percentage'] ?? 0) ?>%;"
+                                         aria-valuenow="<?= (int)($profile_completion['percentage'] ?? 0) ?>" 
+                                         aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <?php if (!empty($profile_completion['missing_sections'])): ?>
+                            <hr class="mt-2 mb-3">
+                            <p class="mb-2 text-muted small">Complete your profile to start selling.</p>
+                            <ul class="list-unstyled mb-0">
+                                <?php foreach ($profile_completion['missing_sections'] as $section): ?>
+                                    <li class="d-flex justify-content-between align-items-center mb-2">
+                                        <span><?= $section['label'] ?></span>
+                                        <a href="<?= $section['link'] ?>" class="btn btn-sm btn-primary">Complete</a>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ul>
+                        <?php else: ?>
+                            <p class="mb-0 text-success"><i class="fa fa-check-circle"></i> Your seller profile is complete.</p>
+                        <?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -323,3 +417,23 @@
         </div>
     </div>
 </div>
+<script>
+(function () {
+    var progressCircle = document.querySelector('.profile-progress-circle');
+    if (!progressCircle) return;
+
+    var target = parseInt(progressCircle.getAttribute('data-profile-progress') || '0', 10);
+    target = Math.max(0, Math.min(100, target));
+    var current = 0;
+
+    function animateProgress() {
+        current += 1;
+        progressCircle.style.setProperty('--progress', current);
+        if (current < target) {
+            requestAnimationFrame(animateProgress);
+        }
+    }
+
+    animateProgress();
+})();
+</script>

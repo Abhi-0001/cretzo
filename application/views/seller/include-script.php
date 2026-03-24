@@ -1,3 +1,8 @@
+var base_url = "<?= base_url() ?>";
+var csrfName = "<?= $this->security->get_csrf_token_name() ?>";
+var csrfHash = "<?= $this->security->get_csrf_hash() ?>";
+
+
 <aside class="control-sidebar control-sidebar-dark">
     <!-- Control sidebar content goes here -->
 </aside>
@@ -82,10 +87,123 @@
 <script type="text/javascript" src="<?= base_url('assets/admin/js/intlTelInput.js') ?>"></script>
 <script type="text/javascript" src="<?= base_url('assets/admin/js/lightbox.js') ?>"></script>
 <!-- Custom -->
- 
+<script src = "<?= base_url('assets/admin/cutom/custom.js') ?>"></script> 
 <script src="<?= base_url('assets/admin/custom/pos.js') ?>"></script>
 <!-- Demo -->
 <script src="<?= base_url('assets/admin/dist/js/demo.js') ?>"></script>
+
+<script>
+
+// Main Image upload — uses same endpoint as media modal
+$(document).on('click', '.seller-image-upload', function(e) {
+    e.preventDefault();
+
+    var $btn = $(this);
+    var inputName = $btn.data('input');
+    var isMultiple = $btn.data('is-multiple-uploads-allowed') == '1';
+    var fileInput = document.getElementById('seller-image-file-input');
+    if (!fileInput) return;
+
+    if (isMultiple) {
+        fileInput.setAttribute('multiple', 'multiple');
+    } else {
+        fileInput.removeAttribute('multiple');
+    }
+    fileInput.setAttribute('accept', 'image/*');
+    fileInput.setAttribute('data-target-input', inputName);
+    fileInput.setAttribute('data-is-multiple', isMultiple ? '1' : '0');
+
+    $(fileInput).off('change.sellerupload').on('change.sellerupload', function() {
+        var files = this.files;
+        if (!files.length) return;
+
+        var $section = $btn.closest('.col-sm-10, .col-sm-12, .col-md-12').find('.image-upload-section');
+        var isMultipleUpload = fileInput.getAttribute('data-is-multiple') == '1';
+
+        // Clear section if single upload
+        if (!isMultipleUpload) {
+            $section.html('');
+        }
+
+        var uploadCount = 0;
+        var totalFiles = files.length;
+
+        $btn.html('<i class="fa fa-spinner fa-spin"></i> Uploading...').addClass('disabled');
+
+        for (var f = 0; f < files.length; f++) {
+            (function(file) {
+                var formData = new FormData();
+                formData.append('documents[]', file, file.name);
+                formData.append(csrfName, csrfHash);
+
+                $.ajax({
+                    url: base_url + 'seller/media/upload',
+                    type: 'POST',
+                    data: formData,
+                    contentType: false,
+                    processData: false,
+                    success: function(res) {
+                        if (typeof res === 'string') {
+                            try { res = JSON.parse(res); } catch(e) { return; }
+                        }
+                        csrfName = res.csrfName;
+                        csrfHash = res.csrfHash;
+
+                        uploadCount++;
+                        if (uploadCount >= totalFiles) {
+                            $btn.html('<i class="fa fa-upload"></i> Upload').removeClass('disabled');
+                        }
+
+                        if (res.error == false && res.files && res.files.length > 0) {
+                            var uploaded = res.files[0];
+                            var imgPath = uploaded.sub_directory + uploaded.name;
+                            var imgUrl  = uploaded.url;
+                            var isRemovable = $btn.data('isremovable') == '1';
+                        
+                            var html = '<div class="col-md-3 col-sm-12 shadow p-3 mb-3 bg-white rounded m-2 text-center grow image">' +
+                                '<div class="image-upload-div"><img class="img-fluid mb-2" src="' + imgUrl + '" alt="Uploaded" style="max-height:120px;object-fit:contain;"></div>' +
+                                (isRemovable ? '<a href="javascript:void(0)" class="btn btn-block bg-gradient-danger btn-xs mt-1 remove-uploaded-img"><i class="far fa-trash-alt"></i> Remove</a>' : '') +
+                                '<input type="hidden" name="' + inputName + '" value="' + imgPath + '">' +
+                                '</div>';
+                        
+                            $section.append(html);
+                        
+                            var $toast = $('<div style="position:fixed;top:20px;right:20px;background:#28a745;color:#fff;padding:10px 20px;border-radius:6px;z-index:9999;font-weight:bold;">✅ Image uploaded successfully!</div>');
+                            $('body').append($toast);
+                            setTimeout(function() { $toast.fadeOut(function() { $(this).remove(); }); }, 3000);
+                        }
+                        else {
+                            if (typeof Toast !== 'undefined') {
+                                Toast.fire({ icon: 'error', title: res.message || 'Upload failed' });
+                            } else {
+                                alert('Upload failed: ' + (res.message || 'Unknown error'));
+                            }
+                        }
+                        
+                    },
+                    error: function() {
+                        uploadCount++;
+                        if (uploadCount >= totalFiles) {
+                            $btn.html('<i class="fa fa-upload"></i> Upload').removeClass('disabled');
+                        }
+                        alert('Upload failed. Please try again.');
+                    }
+                });
+            })(files[f]);
+        }
+
+        $(this).val('');
+    });
+
+    fileInput.click();
+});
+
+// Remove uploaded image preview
+$(document).on('click', '.remove-uploaded-img', function() {
+    $(this).closest('.col-md-3').remove();
+});
+
+</script>
 
 <?php if ($this->session->flashdata('message')) { ?>
     <script>
