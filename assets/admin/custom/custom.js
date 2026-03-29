@@ -1210,6 +1210,7 @@ function brand_query_params(p) {
 function product_query_params(p) {
     return {
         "category_id": $('#category_parent').val(),
+        "brand_id": $('#brand_filter').val(),
         "seller_id": $('#seller_filter').val(),
         "status": $('#status_filter').val(),
         limit: p.limit,
@@ -1872,6 +1873,9 @@ $(document).on('change', '#user_filter', function () {
     $('#payment_request_table').bootstrapTable('refresh');
 });
 $(document).on('change', '#status_filter', function () {
+    $('#products_table').bootstrapTable('refresh');
+});
+$(document).on('change', '#brand_filter', function () {
     $('#products_table').bootstrapTable('refresh');
 });
 
@@ -6962,8 +6966,14 @@ $(document).on('click', '#notification_count', function (e, rows) {
                 $.each(result.notifications, function (i, a) {
                     beep = (a.read_by && a.read_by == 0) ? '<span><i class="fa fa-certificate ml-3 orange text-sm"></i></span>' : "";
                     seconds_ago = a.date_sent;
-
-                    html += '  <a href="' + base_url + 'admin/orders/edit_orders' + '?edit_id=' + a.type_id + '&noti_id=' + a.id + '" class="dropdown-item">\
+                    var noti_url;
+                    if (a.type === 'seller_verification_request' || a.type === 'verification_request') {
+                        noti_url = base_url + 'admin/sellers/manage-seller' + '?edit_id=' + a.type_id + '&noti_id=' + a.id;
+                    } else {
+                        noti_url = base_url + 'admin/orders/edit_orders' + '?edit_id=' + a.type_id + '&noti_id=' + a.id;
+                    }
+                
+                    html += '  <a href="' + noti_url + '" class="dropdown-item">\
                             <div class="media">\
                                 <div class="media-body">\
                                     <h3 class="dropdown-item-title mb-2">' + a.title + beep + '</h3>\

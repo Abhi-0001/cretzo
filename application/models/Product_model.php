@@ -125,7 +125,7 @@ class Product_model extends CI_Model
             'description' => $description,
             'extra_description' => $extra_description,
             'deliverable_type' => isset($data['deliverable_type']) && !empty($data['deliverable_type']) ? $data['deliverable_type'] : 0,
-            'deliverable_zipcodes' => ($data['deliverable_type'] == ALL || $data['deliverable_type'] == NONE) ? NULL : $data['zipcodes'],
+            'deliverable_zipcodes' => (isset($data['zipcodes']) && !empty($data['zipcodes'])) ? $data['zipcodes'] : NULL,
             'hsn_code' => $hsn_code,
             'pickup_location' => $pickup_location,
             'is_attachment_required' => $is_attachment_required,
@@ -387,6 +387,7 @@ class Product_model extends CI_Model
                 $category_id = $_GET['category_id'];
             }
         }
+        $brand_id = (isset($_GET['brand_id']) && $_GET['brand_id'] !== '') ? $_GET['brand_id'] : null;
 
         $count_res = $this->db->select(' COUNT( distinct(p.id)) as `total` ')->join(" categories c", "p.category_id=c.id ")->join('product_variants', 'product_variants.product_id = p.id');
 
@@ -417,6 +418,9 @@ class Product_model extends CI_Model
 
         if (isset($p_status) && $p_status != "") {
             $count_res->where("p.status", $p_status);
+        }
+        if (!empty($brand_id)){
+            $count_res->where("p.brand", $brand_id);
         }
 
         if ($flag == 'sold') {
@@ -487,11 +491,14 @@ class Product_model extends CI_Model
         }
 
         if (isset($seller_id) && $seller_id != "") {
-            $count_res->where("p.seller_id", $seller_id);
+            $search_res->where("p.seller_id", $seller_id);
         }
 
         if (isset($p_status) && $p_status != "") {
-            $count_res->where("p.status", $p_status);
+            $search_res->where("p.status", $p_status);
+        }
+        if(!empty($brand_id)){
+            $search_res->where("p.brand",$brand_id);
         }
 
         $pro_search_res = $search_res->group_by('pid')->order_by($sort, "DESC")->limit($limit, $offset)->get('products p')->result_array();

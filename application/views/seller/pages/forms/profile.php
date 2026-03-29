@@ -55,6 +55,10 @@
                               <div class="form-indicator form-indicator-3">
                                           <p class="text-n text-capitalize">account details</p>
                               </div>
+                              <div class="completion-line completion-line-3"></div>
+                              <div class="form-indicator form-indicator-4">
+                                          <p class="text-n text-capitalize">admin verification</p>
+                              </div>
                   </div>
               </div>
 
@@ -286,9 +290,33 @@
                         <button type="button" class="btn btn-back-2">Back</button>
                         <!-- FIX 2 — Changed type="submit" to type="button" to prevent default form submit
                              which was bypassing our fetch() handler -->
-                        <button type="button" class="btn submit_btn">Submit</button>
+                        <button type="button" class="btn-next-3">Next</button>
                       </div>
 
+                    </div>
+                    
+                    <div class="form-step form4">
+                      <h3 class="mb-3">Admin Verification</h3>
+                      <?php $is_admin_verified = isset($fetched_data[0]['status']) && (string)$fetched_data[0]['status'] === '1'; ?>
+                      <?php if ($is_admin_verified): ?>
+                        <p class="text-success mb-0"><i class="fa fa-check-circle"></i> Your seller account is admin verified. Product management is unlocked.</p>
+                      <?php else: ?>
+                        <p class="mb-2 text-muted">Submit this form to request admin verification. This step contributes <strong>20%</strong> to profile completion.</p>
+                        <label for="verification_note" class="form-label">Verification note <span class="text-danger">*</span></label>
+                        <textarea id="verification_note" name="verification_note" class="input" rows="3" placeholder="Write a short note for admin review..."><?= isset($fetched_data[0]['verification_request_note']) ? htmlspecialchars($fetched_data[0]['verification_request_note']) : '' ?></textarea>
+                        <div class="mt-2">
+                          <button type="button" id="request_verification_btn" class="btn btn-primary btn-sm">Request Admin Verification</button>
+                          <?php if (!empty($fetched_data[0]['verification_requested_at'])): ?>
+                            <small class="text-muted d-block mt-2">Last requested at: <?= htmlspecialchars($fetched_data[0]['verification_requested_at']) ?></small>
+                          <?php endif; ?>
+                          <div id="verification_response" class="small mt-2"></div>
+                        </div>
+                      <?php endif; ?>
+
+                      <div class="mt-4 w-100 d-flex justify-content-between align-items-center">
+                        <button type="button" class="btn btn-back-3">Back</button>
+                        <button type="button" class="btn submit_btn">Submit</button>
+                      </div>
                     </div>
                   
                 </form>
@@ -296,11 +324,11 @@
                 <!-- FIX 3 — Moved response div OUTSIDE all form steps so it always
                      shows regardless of which step is visible when error/success occurs -->
                 <div id="response" style="margin-top:15px; padding: 0 10px;"></div>
-
-              </div>
               
-          </div>
+                </div>
+            </div>
         </div>
+        
       </div>
       
   </section>
@@ -309,8 +337,7 @@
 if (typeof Dropzone !== 'undefined') Dropzone.autoDiscover = false;
 const base_url = "<?php echo base_url(); ?>";
 const submitBtn = document.querySelector('.submit_btn');
-const initialSection = "<?= in_array(($current_profile_section ?? 'personal'), ['personal','store','account']) ? $current_profile_section : 'personal' ?>";
-
+const initialSection = "<?= in_array(($current_profile_section ?? 'personal'), ['personal','store','account','admin']) ? $current_profile_section : 'personal' ?>";
 // ── Searchable dropdown factory ──────────────────────────────────────────────
 function makeSearchable(searchId, hiddenId, dropdownId, data, onSelect) {
   const searchEl   = document.getElementById(searchId);
@@ -529,12 +556,12 @@ function validateForm3() {
 }
 
 function openProfileSection(section) {
-  const sectionMap = { personal: 1, store: 2, account: 3 };
+  const sectionMap = { personal: 1, store: 2, account: 3, admin: 4};
   const target = sectionMap[section] || 1;
-
-  const steps = [document.querySelector('.form1'), document.querySelector('.form2'), document.querySelector('.form3')];
-  const indicators = [document.querySelector('.form-indicator-1'), document.querySelector('.form-indicator-2'), document.querySelector('.form-indicator-3')];
-  const lines = [document.querySelector('.completion-line-1'), document.querySelector('.completion-line-2')];
+  
+  const steps = [document.querySelector('.form1'), document.querySelector('.form2'), document.querySelector('.form3'), document.querySelector('.form4')];
+  const indicators = [document.querySelector('.form-indicator-1'), document.querySelector('.form-indicator-2'), document.querySelector('.form-indicator-3'), document.querySelector('.form-indicator-4')];
+  const lines = [document.querySelector('.completion-line-1'), document.querySelector('.completion-line-2'), document.querySelector('.completion-line-3')];
 
   steps.forEach(function(step, index) {
     step.style.left = (index + 1 === target) ? '0' : ((index + 1 < target) ? '-500%' : '500%');
@@ -596,6 +623,69 @@ submitBtn.addEventListener('click', function(e) {
       console.error('Submit error:', err);
     });
 });
+
+
+const requestVerificationBtn = document.getElementById('request_verification_btn');
+if (requestVerificationBtn) {
+  requestVerificationBtn.addEventListener('click', function () {
+    const responseBox = document.getElementById('verification_response');
+    if (responseBox) {
+      responseBox.className = 'small mt-2 text-muted';
+      responseBox.innerText = 'Submitting verification request...';
+    }
+    const verificationNote = document.getElementById('verification_note');
+    if (!verificationNote || verificationNote.value.trim().length < 10) {
+      const toast = document.getElementById('toast-msg');
+      toast.style.cssText = 'display:block; background:#f8d7da; color:#721c24; border:1px solid #f5c6cb;';
+      toast.innerText = '❌ Verification note must be at least 10 characters.';
+      setTimeout(function () { toast.style.display = 'none'; }, 5000);
+      if (responseBox) {
+        responseBox.className = 'small mt-2 text-danger';
+        responseBox.innerText = 'Verification note must be at least 10 characters.';
+      }
+      return;
+    }
+    const verificationData = new FormData();
+    verificationData.append('verification_note', verificationNote.value.trim());
+    requestVerificationBtn.disabled = true;
+    fetch(base_url + 'seller/home/request_admin_verification', {
+      method: 'POST',
+      body: verificationData
+    })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        const toast = document.getElementById('toast-msg');
+        if (data.error) {
+          toast.style.cssText = 'display:block; background:#f8d7da; color:#721c24; border:1px solid #f5c6cb;';
+          toast.innerText = '❌ ' + (data.message || 'Unable to submit request.');
+          if (responseBox) {
+            responseBox.className = 'small mt-2 text-danger';
+            responseBox.innerText = data.message || 'Unable to submit request.';
+          }
+        } else {
+          toast.style.cssText = 'display:block; background:#d4edda; color:#155724; border:1px solid #c3e6cb;';
+          toast.innerText = '✅ ' + data.message;
+          if (responseBox) {
+            responseBox.className = 'small mt-2 text-success';
+            responseBox.innerText = data.message;
+          }
+        }
+        requestVerificationBtn.disabled = false;
+        setTimeout(function () { toast.style.display = 'none'; }, 5000);
+      })
+      .catch(function () {
+        const toast = document.getElementById('toast-msg');
+        toast.style.cssText = 'display:block; background:#f8d7da; color:#721c24; border:1px solid #f5c6cb;';
+        toast.innerText = '❌ Unable to submit verification request.';
+        if (responseBox) {
+          responseBox.className = 'small mt-2 text-danger';
+          responseBox.innerText = 'Unable to submit verification request.';
+        }
+        requestVerificationBtn.disabled = false;
+        setTimeout(function () { toast.style.display = 'none'; }, 5000);
+      });
+  });
+}
 </script>
 
 

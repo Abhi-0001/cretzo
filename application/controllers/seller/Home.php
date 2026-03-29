@@ -78,7 +78,14 @@ class Home extends CI_Controller
 
     private function get_seller_profile_completion($user_id)
     {
-        $profile_data =$this->db->select('sd.first_name, sd.last_name, sd.phone, sd.email, sd.district, sd.city, sd.state, sd.pin, sd.shop_name, sd.social, sd.shop_phone, sd.pickup_address1, sd.pickup_address2, sd.pickup_district, sd.pickup_state, sd.pickup_pin, sd.entity_type, sd.pan, sd.gst, sd.account_number, sd.account_holder_name, sd.ifsc, sd.branch, sd.bank_name')
+        $verification_requested_at_column = $this->db->field_exists('verification_requested_at', 'seller_data');
+
+        $select_fields = 'sd.first_name, sd.last_name, sd.phone, sd.email, sd.district, sd.city, sd.state, sd.pin, sd.shop_name, sd.social, sd.shop_phone, sd.pickup_address1, sd.pickup_address2, sd.pickup_district, sd.pickup_state, sd.pickup_pin, sd.entity_type, sd.pan, sd.gst, sd.account_number, sd.account_holder_name, sd.ifsc, sd.branch, sd.bank_name, sd.status';
+        if ($verification_requested_at_column) {
+            $select_fields .= ', sd.verification_requested_at';
+        }
+
+        $profile_data =$this->db->select($select_fields)
             ->from('users u')
             ->join('seller_data sd', 'sd.user_id = u.id', 'left')
             ->where('u.id', $user_id)
@@ -101,23 +108,25 @@ class Home extends CI_Controller
 
         $sections = [
             'personal' => [
-                'weight' => 35,
+                'weight' => 30,
                 'label' => 'Complete Personal Details',
                 'fields' => ['first_name', 'last_name', 'phone', 'email', 'district', 'city', 'state', 'pin'],
                 'link' => base_url('seller/home/profile?section=personal'),
             ],
             'store' => [
-                'weight' => 35,
+                'weight' => 25,
                 'label' => 'Complete Store Details',
                 'fields' => ['shop_name', 'shop_phone', 'pickup_address1', 'entity_type', 'pan', 'gst'],
                 'link' => base_url('seller/home/profile?section=store'),
             ],
             'account' => [
-                'weight' => 30,
+                'weight' => 20,
                 'label' => 'Add Bank Account Details',
                 'fields' => ['account_number', 'account_holder_name', 'ifsc', 'branch', 'bank_name'],
                 'link' => base_url('seller/home/profile?section=account'),
             ],
+            
+            
         ];
 
         $completed_weight = 0;
@@ -143,6 +152,17 @@ class Home extends CI_Controller
                 'link' => $section['link'],
             ];
         }
+        // Admin Verification Page setup
+        $is_admin_verified = isset($profile_data['status']) && (string) $profile_data['status'] === '1';
+        if ($is_admin_verified) {
+            $completed_weight += 25;
+        } else {
+            $verification_label = !empty($profile_data['verification_requested_at']) ? 'Admin Verification Pending Approval' : 'Request Admin Verification';
+            $missing_sections[] = [
+                'label' => $verification_label,
+                'link' => base_url('seller/home/profile?section=admin'),
+            ];
+        }
 
         return [
             'percentage' => $completed_weight,
@@ -153,6 +173,70 @@ class Home extends CI_Controller
             'completed_weight' => $completed_weight,
             'missing_sections' => $missing_sections
         ], true));
+    }
+
+    public function request_admin_verification()
+    {
+        if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0))) {
+            $this->response['error'] = true;
+            $this->response['message'] = 'Unauthorized access.';
+            print_r(json_encode($this->response));
+            return;
+        }
+
+        if (defined('ALLOW_MODIFICATION') && ALLOW_MODIFICATION == 0) {
+            $this->response['error'] = true;
+            $this->response['message'] = DEMO_VERSION_MSG;
+            print_r(json_encode($this->response));
+            return;
+        }
+
+        $this->form_validation->set_rules('verification_note', 'Verification note', 'trim|required|min_length[10]|xss_clean');
+        if (!$this->form_validation->run()) {
+            $this->response['error'] = true;
+            $this->response['message'] = validation_errors();
+            $this->response['csrfName'] = $this->security->get_csrf_token_name();
+            $this->response['csrfHash'] = $this->security->get_csrf_hash();
+            print_r(json_encode($this->response));
+            return;
+        }
+
+        $user_id = $this->session->userdata('user_id');
+        $payload = [];
+        if ($this->db->field_exists('verification_request_note', 'seller_data')) {
+            $payload['verification_request_note'] = $this->input->post('verification_note', true);
+        }
+        if ($this->db->field_exists('verification_requested_at', 'seller_data')) {
+            $payload['verification_requested_at'] = date('Y-m-d H:i:s');
+        }
+
+        if (empty($payload)) {
+            $this->response['error'] = true;
+            $this->response['message'] = 'Verification request columns are not available yet. Please run latest database migration.';
+            $this->response['csrfName'] = $this->security->get_csrf_token_name();
+            $this->response['csrfHash'] = $this->security->get_csrf_hash();
+            print_r(json_encode($this->response));
+            return;
+        }
+
+        $updated = $this->db->where('user_id', $user_id)->update('seller_data', $payload);
+        if ($updated) {
+            $seller_user = $this->db->select('username')->where('id', $user_id)->get('users')->row_array();
+            $seller_name = isset($seller_user['username']) ? $seller_user['username'] : ('Seller #' . $user_id);
+            $admin_notification = [
+                'title' => 'Seller verification request received',
+                'message' => $seller_name . ' has requested admin verification. Please review and approve/reject from seller management.',
+                'type' => 'seller_verification_request',
+                'type_id' => $user_id,
+                'read_by' => 0,
+            ];
+            $this->db->insert('system_notification', $admin_notification);
+        }
+        $this->response['error'] = !$updated;
+        $this->response['message'] = $updated ? 'Verification request submitted. Admin approval is required to unlock product management.' : 'Unable to submit verification request. Please try again.';
+        $this->response['csrfName'] = $this->security->get_csrf_token_name();
+        $this->response['csrfHash'] = $this->security->get_csrf_hash();
+        print_r(json_encode($this->response));
     }
 
     private function is_profile_value_present($profile_data, $key)

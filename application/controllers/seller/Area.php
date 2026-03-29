@@ -11,6 +11,22 @@ class Area extends CI_Controller
         $this->load->helper(['url', 'language', 'timezone_helper']);
         $this->load->model('Area_model');
     }
+    
+    public function manage_deliverable_locations()
+    {
+        if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
+            $this->data['main_page'] = TABLES . 'manage-deliverable-locations';
+            $settings = get_settings('system_settings', true);
+            $this->data['title'] = 'Deliverable Locations | ' . $settings['app_name'];
+            $this->data['meta_description'] = 'Deliverable Locations | ' . $settings['app_name'];
+            $this->data['has_states_table'] = $this->db->table_exists('states');
+            $this->data['has_districts_table'] = $this->db->table_exists('districts');
+            $this->load->view('seller/template', $this->data);
+        } else {
+            redirect('seller/login', 'refresh');
+        }
+    }
+
 
     public function manage_areas()
     {

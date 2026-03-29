@@ -14,7 +14,7 @@ class Pickup_location_model extends CI_Model
             'email' => $data['email'],
             'phone' => $data['phone'],
             'address' => $data['address'],
-            'address2' => $data['address_2'],
+            // 'address2' => $data['address_2'],
             'city' => $data['city'],
             'state' => $data['state'],
             'country' => $data['country'],

@@ -34,26 +34,11 @@
                     <ul class="nav nav-treeview">
 
                         <li class="nav-item">
-                            <a href="<?= base_url('seller/attribute_set/') ?>" class="nav-link">
-                                <i class="fa fa-cogs nav-icon"></i>
-                                <p>Attribute Sets</p>
-                            </a>
-                        </li>
-
-                        <li class="nav-item">
-                            <a href="<?= base_url('seller/attributes/') ?>" class="nav-link">
+                            <a href="<?= base_url('seller/attributes/manage_all') ?>" class="nav-link">
                                 <i class="fas fa-sliders-h nav-icon"></i>
-                                <p>Attributes</p>
+                                <p>Attributes Setup</p>
                             </a>
                         </li>
-
-                        <li class="nav-item">
-                            <a href="<?= base_url('seller/attribute_value/') ?>" class="nav-link">
-                                <i class="fas fa-filter nav-icon"></i>
-                                <p>Attribute Values</p>
-                            </a>
-                        </li>
-
 
                         <li class="nav-item">
                             <a href="<?= base_url('seller/taxes/') ?>" class="nav-link">
@@ -173,10 +158,10 @@
                 </li>
 
                 <li class="nav-item has-treeview">
-                    <a href="<?= base_url('seller/Pickup_location/manage_pickup_locations') ?>" class="nav-link">
+                    <a href="<?= base_url('seller/area/manage/deliverable_locations') ?>" class="nav-link">
                         <i class="nav-icon fas fa-shipping-fast text-success"></i>
                         <p>
-                            Pickup Location
+                            Deliverable Locations
                         </p>
                     </a>
                 </li>

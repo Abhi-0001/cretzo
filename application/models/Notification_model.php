@@ -116,8 +116,9 @@ class Notification_model extends CI_Model
         foreach ($city_search_res as $row) {
             $row = output_escaping($row);
             $operate = ' <a class="delete_system_noti action-btn  btn btn-danger btn-xs mr-1 mb-1 ml-1" title="Delete" href="javascript:void(0)"  data-id="' . $row['id'] . '" ><i class="fa fa-trash"></i></a>';
-            $operate .= '<a href=' . base_url('admin/orders/edit_orders') . '?edit_id=' . $row['type_id'] . '&noti_id=' . $row['id'] . ' class="btn action-btn btn-primary btn-xs ml-1 mr-1 mb-1" title="View Order" ><i class="fa fa-eye"></i></a>';
-
+            error_log("Notification type: " . $row['type'] . " | ID: " . $row['id']);
+            $operate .= '<a href=' . base_url('admin/sellers/manage-seller') . '?edit_id=' . $row['type_id'] . ' class="btn action-btn btn-primary btn-xs ml-1 mr-1 mb-1" title="View Seller" ><i class="fa fa-eye"></i></a>';
+            
             $tempRow['id'] = $row['id'];
             $tempRow['title'] = $row['title'];
             $tempRow['message'] = $row['message'];

@@ -169,11 +169,32 @@
                                             </div>
                                         </div>
                                         <div class="row col mt-3 pickup_locations <?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
-                                            <div class="col-md-8 standdard_shipping">
-                                                <label for="pickup_location" class="col-form-label">Pickup Locaton<span class='text-danger text-sm'>*</span></label>
-                                                <!-- drop down menu in while create product -->
+                                        <div class="col-md-12 mb-2">
+                                                <label class="col-form-label mb-2">Deliverable Locations Scope</label>
+                                                <div class="d-flex flex-wrap">
+                                                    <div class="form-check mr-4">
+                                                        <input class="form-check-input deliverable-location-scope" type="checkbox" id="scope_pincode" checked>
+                                                        <label class="form-check-label" for="scope_pincode">Pincode</label>
+                                                    </div>
+                                                    <div class="form-check mr-4">
+                                                        <input class="form-check-input deliverable-location-scope" type="checkbox" id="scope_city" checked>
+                                                        <label class="form-check-label" for="scope_city">City</label>
+                                                    </div>
+                                                    <div class="form-check mr-4">
+                                                        <input class="form-check-input deliverable-location-scope" type="checkbox" id="scope_state">
+                                                        <label class="form-check-label" for="scope_state">State</label>
+                                                    </div>
+                                                    <div class="form-check mr-4">
+                                                        <input class="form-check-input deliverable-location-scope" type="checkbox" id="scope_district">
+                                                        <label class="form-check-label" for="scope_district">District</label>
+                                                    </div>
+                                                </div>
+                                                <small class="text-muted">Use the scope checkboxes for location strategy, then select applicable delivery pincodes and source location.</small>
+                                            </div> 
+                                        <div class="col-md-8 standdard_shipping">
+                                        <label for="pickup_location" class="col-form-label">Deliverable Source Location<span class='text-danger text-sm'>*</span></label>
                                                 <select class='form-control shiprocket_type' name="pickup_location" id="pickup_location">
-                                                    <option value="">Select pickup location</option>
+                                                    <option value="">Select Source Location</option>
                                                     <?php foreach ($shipping_data as $row) {
                                                          $pickup_location = (isset($product_details[0]['pickup_location']) && !empty($product_details[0]['pickup_location']) ? $product_details[0]['pickup_location'] : "");?>
                                                          <option <?php if ($row['pickup_location'] == $pickup_location) { ?> selected <?php } ?> value="<?php echo $row['pickup_location']; ?>"><?php echo $row['pickup_location']; ?> - <?php echo $row['address']; ?><?php if (!empty($row['address2'])) { echo ', ' . $row['address2']; } ?>, <?php echo $row['city']; ?>, <?php echo $row['state']; ?> - <?php echo $row['pin_code']; ?></option>

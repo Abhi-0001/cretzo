@@ -89,7 +89,7 @@
 
 
 <!-- Custom -->
-<script src="<?= base_url('assets/admin/custom/custom.js') ?>"></script>
+<script src="<?= base_url('assets/admin/custom/custom.js?v=<?= time()') ?>"></script>
 
 <!-- Demo -->
 <script src="<?= base_url('assets/admin/dist/js/demo.js') ?>"></script>

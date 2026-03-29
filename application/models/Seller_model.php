@@ -34,44 +34,38 @@ class Seller_model extends CI_Model
         $profile = (!empty($profile)) ? escape_array($profile) : [];
         $com_data = (!empty($com_data)) ? escape_array($com_data) : [];
 
-        $seller_data = [
-                'user_id' => $data['user_id'] ?? null,
-                'national_identity_card' => $data['national_identity_card'] ?? null,
-            
-                'first_name' => $data['first_name'] ?? null,
-                'last_name' => $data['last_name'] ?? null,
-                'phone' => $data['phone'] ?? null,
-                'email' => $data['email'] ?? null,
-            
-                'address1' => $data['address1'] ?? null,
-                'address2' => $data['address_2'] ?? null,
-                'district' => $data['district'] ?? null,
-                'city' => $data['city'] ?? null,
-                'state' => $data['state'] ?? null,
-                'pin' => $data['pin'] ?? null,
-            
-                'logo' => $data['logo'] ?? null,
-                'shop_name' => $data['shop_name'] ?? null,
-                'social' => $data['social'] ?? null,
-                'shop_phone' => $data['shop_phone'] ?? null,
-            
-                'pickup_address1' => $data['pickup_address1'] ?? null,
-                'pickup_address2' => $data['pickup_address2'] ?? null,
-                'pickup_district' => $data['pickup_district'] ?? null,
-                'pickup_state' => $data['pickup_state'] ?? null,
-                'pickup_pin' => $data['pickup_pin'] ?? null,
-            
-                'entity_type' => $data['entity_type'] ?? null,
-                'pan' => $data['pan'] ?? null,
-                'gst' => $data['gst'] ?? null,
-            
-                'account_number' => $data['account_number'] ?? null,
-                'account_holder_name' => $data['account_holder_name'] ?? null,
-                'ifsc' => $data['ifsc'] ?? null,
-                'branch' => $data['branch'] ?? null,
-                'bank_name' => $data['bank_name'] ?? null
-            ];
+        // Only include fields that are actually present in the submitted data
+        $seller_data = [];
+        
+        $allowed_fields = [
+            'user_id', 'national_identity_card', 'first_name', 'last_name', 
+            'phone', 'email', 'address1', 'address2', 'district', 'city', 
+            'state', 'pin', 'logo', 'shop_name', 'social', 'shop_phone',
+            'pickup_address1', 'pickup_address2', 'pickup_district', 
+            'pickup_state', 'pickup_pin', 'entity_type', 'pan', 'gst',
+            'account_number', 'account_holder_name', 'ifsc', 'branch', 
+            'bank_name', 'store_name', 'store_url', 'store_description',
+            'tax_name', 'tax_number', 'pan_number', 'commission',
+            'store_logo', 'authorized_signature', 'address_proof'
+        ];
+        
+        foreach ($allowed_fields as $field) {
+            if (array_key_exists($field, $data) && $data[$field] !== null && $data[$field] !== '') {
+                $seller_data[$field] = $data[$field];
+            }
+        }
+        
+        // Always include user_id
+        $seller_data['user_id'] = $data['user_id'];
+        
+        // Status is only set if explicitly passed
+        if (isset($data['status']) && $data['status'] !== '') {
+            $seller_data['status'] = $data['status'];
+        }
 
+        if (isset($data['status']) && $data['status'] !== '') {
+            $seller_data['status'] = $data['status'];
+        }
         if (isset($data['categories']) && $data['categories'] == "seller_profile") {
             unset($seller_data['category_ids']);
             unset($seller_data['permissions']);
@@ -90,17 +84,16 @@ class Seller_model extends CI_Model
         }
         if (isset($data['edit_seller_data_id'])) {
             if (!empty($com_data)) {
-                // process update commissions and categories
                 delete_details(['seller_id' => $com_data[0]['seller_id']], 'seller_commission');
                 $this->db->insert_batch('seller_commission', $com_data);
             }
-            if ($this->db->set($seller_profile)->where('id', $data['user_id'])->update('users')) {
-                $this->db->set($seller_data)->where('user_id', $data['edit_seller_data_id'])->update('seller_data');
-                return true;
-            } else {
-                return false;
+            if (!empty($seller_profile)) {
+                $this->db->set($seller_profile)->where('id', $data['user_id'])->update('users');
             }
-        } else {
+            $this->db->set($seller_data)->where('user_id', $data['user_id'])->update('seller_data');
+            return true;
+        }
+        else {
             if (!empty($com_data)) {
                 $this->db->insert_batch('seller_commission', $com_data);
             }
