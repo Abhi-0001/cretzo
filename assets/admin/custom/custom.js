@@ -714,7 +714,12 @@ function save_product(form) {
     $('.product-variants').removeClass('disabled');
     $('.simple_stock_management_status').prop('disabled', true);
 
-    var catid = $('#product_category_tree_view_html').jstree("get_selected");
+    var catid = '';
+    if ($('#product_category_id').length) {
+        catid = $('#product_category_id').val();
+    } else if ($('#product_category_tree_view_html').length && $('#product_category_tree_view_html').data('jstree')) {
+        catid = $('#product_category_tree_view_html').jstree("get_selected");
+    }
     var formData = new FormData(form);
     var submit_btn = $('#submit_btn');
     var btn_html = $('#submit_btn').html();
@@ -2177,6 +2182,7 @@ $(document).on('click', '#save_section_order', function () {
 //form-submit-event
 $(document).on('submit', '#save-product', function (e) {
     e.preventDefault();
+    $('input[name="product_type"]').val($.trim($('#product-type').val()));
     var product_type = $('#product-type').val();
     var counter = 0;
     if (product_type != 'undefined' && product_type != ' ') {
@@ -2328,7 +2334,8 @@ $(document).on('submit', '#save-product', function (e) {
             }
         }
         if ($.trim(product_type) == 'digital_product') {
-
+            $('input[name="product_type"]').val('digital_product');
+            $('.product-attributes').removeClass('disabled');
             save_product(this);
         }
 
@@ -2597,8 +2604,7 @@ $(document).on('click', '.remove_attributes , .remove_variants', function (e) {
     });
 });
 
-$(document).on('select2:select', '#product-type', function () {
-    var value = $(this).val();
+function toggleProductTypeSettings(value){
     if ($.trim(value) != "") {
         if (value == 'simple_product') {
             $('#variant_stock_level').hide(200);
@@ -2612,7 +2618,7 @@ $(document).on('select2:select', '#product-type', function () {
             $('.is_cancelable').removeClass('d-none');
         }
         if (value == 'variable_product') {
-            $('#general_price_section').hide(200);
+            $('#general_price_section').show(200);
             $('.simple-product-level-stock-management').hide(200);
             $('.simple-product-save').hide(200);
             $('.product-attributes').addClass('disabled');
@@ -2633,6 +2639,10 @@ $(document).on('select2:select', '#product-type', function () {
         $('#variant_stock_level').hide(200);
 
     }
+}
+$(document).on('select2:select change', '#product-type', function () {
+    var value = $(this).val();
+    toggleProductTypeSettings(value);
 });
 $(document).on('change', '#product_type_menu', function () {
     var value = $(this).val();
@@ -2664,7 +2674,7 @@ $(document).on('change', '#product_type_menu', function () {
         $('.standdard_shipping').addClass('d-none');
 
     } else {
-        var html = ' <option value=" ">Select Type</option>' +
+        var html = ' <option value="">Select Type</option>' +
             '<option value="simple_product">Simple Product</option>' +
             '<option value="variable_product">Variable Product</option>';
         $('#product-type').html(html);
@@ -2683,7 +2693,45 @@ $(document).on('change', '#product_type_menu', function () {
         $('.is_attachment_required').removeClass('d-none');
         $('.standdard_shipping').removeClass('d-none');
     }
+    // CRITICAL FIX: destroy and reinit Select2 on #product-type after options replaced
+    if ($.fn.select2) {
+        $('#product-type').select2('destroy');
+        $('#product-type').select2({
+            theme: 'bootstrap4',
+            placeholder: 'Type to search and select type',
+            allowClear: false,
+        });
+
+        // Re-bind select2:select after reinit since the instance was destroyed
+        $('#product-type').off('select2:select.reinit').on('select2:select.reinit', function () {
+            var value = $.trim($(this).val());
+            $('input[name="product_type"]').val(value);
+            if (value === 'simple_product') {
+                $('#variant_stock_level').hide(200);
+                $('#general_price_section').show(200);
+                $('.simple-product-save').show(700);
+                $('.product-attributes').addClass('disabled');
+                $('.product-variants').addClass('disabled');
+                $('#digital_product_setting').hide(200);
+                $('.cod_allowed').removeClass('d-none');
+                $('.is_returnable').removeClass('d-none');
+                $('.is_cancelable').removeClass('d-none');
+            } else if (value === 'variable_product') {
+                $('#general_price_section').hide(200);
+                $('.simple-product-level-stock-management').hide(200);
+                $('.simple-product-save').hide(200);
+                $('.product-attributes').addClass('disabled');
+                $('.product-variants').addClass('disabled');
+                $('#variant_stock_level').show();
+                $('#digital_product_setting').hide(200);
+                $('.cod_allowed').removeClass('d-none');
+                $('.is_returnable').removeClass('d-none');
+                $('.is_cancelable').removeClass('d-none');
+            }
+        });
+    }
 });
+
 
 $(document).on('change', '.variant_stock_status', function () {
     if ($(this).prop("checked") == true) {
@@ -2701,6 +2749,34 @@ $(document).on('change', '.variant-stock-level-type', function () {
     }
     if ($.trim($('.variant-stock-level-type').val()) != 'product_level') {
         $('.variant-product-level-stock-management').hide();
+    }
+});
+// Fallback: native change on product-type in case select2:select doesn't fire
+$(document).on('change', '#product-type', function () {
+    var value = $.trim($(this).val());
+    $('input[name="product_type"]').val(value);
+
+    if (value === 'simple_product') {
+        $('#variant_stock_level').hide(200);
+        $('#general_price_section').show(200);
+        $('.simple-product-save').show(700);
+        $('.product-attributes').addClass('disabled');
+        $('.product-variants').addClass('disabled');
+        $('#digital_product_setting').hide(200);
+        $('.cod_allowed').removeClass('d-none');
+        $('.is_returnable').removeClass('d-none');
+        $('.is_cancelable').removeClass('d-none');
+    } else if (value === 'variable_product') {
+        $('#general_price_section').hide(200);
+        $('.simple-product-level-stock-management').hide(200);
+        $('.simple-product-save').hide(200);
+        $('.product-attributes').addClass('disabled');
+        $('.product-variants').addClass('disabled');
+        $('#variant_stock_level').show();
+        $('#digital_product_setting').hide(200);
+        $('.cod_allowed').removeClass('d-none');
+        $('.is_returnable').removeClass('d-none');
+        $('.is_cancelable').removeClass('d-none');
     }
 });
 
@@ -3000,6 +3076,9 @@ $(document).on('change', '.new-added-variant', function () {
 
 
 function get_seller_categories(seller_id, ignore_status, edit_id, from) {
+    if (!$('#product_category_tree_view_html').length) {
+        return;
+    }
     $.ajax({
         type: 'GET',
         url: base_url + from + '/category/get_seller_categories',
@@ -3078,11 +3157,13 @@ $(document).on('click', '.update_active_status', function () {
 
 });
 if (window.location.href.indexOf("seller/product") > -1) {
-    var edit_id = $('input[name="category_id"]').val();
+    var edit_id = $('#existing_category_id').val() || $('input[name="category_id"]').val();
     var seller_id = $('input[name="seller_id"]').val();
     var ignore_status = $.isNumeric(edit_id) && edit_id > 0 ? 1 : 0;
-    if ($.isNumeric(seller_id) && seller_id > 0) {
-        get_seller_categories(seller_id, ignore_status, edit_id, from);
+    if ($('#product_category_id').length) {
+        // Seller product form uses native category dropdown now.
+    } else if ($.isNumeric(seller_id) && seller_id > 0) {
+    get_seller_categories(seller_id, ignore_status, edit_id, from);
     } else {
         $.ajax({
             type: 'GET',

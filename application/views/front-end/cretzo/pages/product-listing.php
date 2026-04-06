@@ -259,18 +259,63 @@ die; */
 
             </div>
 
+            
             <div class="products" id="productList">
-                
+                        <?php if (!empty($products['product'])): ?>
+                            <?php foreach ($products['product'] as $product_row): 
+                                if (count($product_row['variants']) <= 1) {
+                                    $variant_id = $product_row['variants'][0]['id'];
+                                    $modal = "";
+                                } else {
+                                    $variant_id = "";
+                                    $modal = "#quick-view";
+                                }
+                                $variant_price = ($product_row['variants'][0]['special_price'] > 0) 
+                                    ? $product_row['variants'][0]['special_price'] 
+                                    : $product_row['variants'][0]['price'];
+                            ?>
+                                <div class="cretzo-card card-type-four product-card">
+                                    <a class="card-url" href="<?= base_url('products/details/' . $product_row['slug']) ?>"></a>
+                                    <div class="card-img">
+                                        <img class="card-img-img lazy" 
+                                            src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" 
+                                            data-src="<?= $product_row['image_sm'] ?>" 
+                                            alt="<?= $product_row['name'] ?>">
+                                        <?php echo generateStarRatingElement($product_row); ?>
+                                        <?php echo generateDiscountPercentageElement($product_row); ?>
+                                    </div>
+                                    <div class="card-des">
+                                        <p class="ta-c text-xs">
+                                            <?= isset($product_row['tags'][0]) ? $product_row['tags'][0] : $product_row['category_name'] ?>
+                                        </p>
+                                        <h1 class="ta-c text-s product-name-no-wrap"><?= $product_row['name'] ?></h1>
+                                        <?php echo generatePriceElement($product_row); ?>
+                                        <a href="#" class="add_to_cart cart-btn text-decoration-none text-s"
+                                        style="padding-bottom: 0.8em; padding-top: 12px;"
+                                        data-product-id="<?= $product_row['id'] ?>"
+                                        data-product-variant-id="<?= $variant_id ?>"
+                                        data-product-slug="<?= $product_row['slug'] ?>"
+                                        data-product-title="<?= $product_row['name'] ?>"
+                                        data-product-image="<?= $product_row['image'] ?>"
+                                        data-product-price="<?= $variant_price ?>"
+                                        data-min="1" data-step="1"
+                                        data-izimodal-open="<?= $modal ?>">
+                                            <i class="uil uil-shopping-bag"></i>&nbsp;Add to Cart
+                                        </a>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
+           
 
+            <!-- Removed the PHP if block entirely, and replaced with this -->
+            <div class="ta-c mt-4 d-none" id="no-products-msg">
+                <h1 class="h2 ta-c">No Products Found.</h1>
+                <a href="<?= base_url('products') ?>" class="cretzo btn btn-dark btn-sm rounded-pill btn-warning">
+                    <?= !empty($this->lang->line('go_to_shop')) ? $this->lang->line('go_to_shop') : 'Go to Shop' ?>
+                </a>
             </div>
-
-            <!-- No products found - TODO: DESIGN NEEDS TO BE IMPROVED -->
-            <?php if ((!isset($sub_categories) || empty($sub_categories)) && (!isset($products) || empty($products['product']))) { ?>
-                <div class="ta-c mt-4">
-                    <h1 class="h2 ta-c">No Products Found.</h1>
-                    <a href="<?= base_url('products') ?>" class="cretzo btn btn-dark btn-sm rounded-pill btn-warning"><?= !empty($this->lang->line('go_to_shop')) ? $this->lang->line('go_to_shop') : 'Go to Shop' ?></a>
-                </div>
-            <?php } ?>
 
             <!-- paging (navigation) -->
             <!-- <div class="paging-container">

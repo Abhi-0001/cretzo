@@ -445,7 +445,7 @@ class My_account extends CI_Controller
             $this->form_validation->set_rules('alternate_mobile', 'Alternative Mobile', 'trim|numeric|xss_clean');
             $this->form_validation->set_rules('address', 'Address', 'trim|xss_clean|required');
             $this->form_validation->set_rules('landmark', 'Landmark', 'trim|xss_clean');
-            $this->form_validation->set_rules('city_name', 'City', 'trim|xss_clean');
+            // $this->form_validation->set_rules('city_name', 'City', 'trim|xss_clean');
             $this->form_validation->set_rules('area_name', 'Area', 'trim|xss_clean');
             $this->form_validation->set_rules('area_id', 'Area', 'trim|xss_clean');
             $this->form_validation->set_rules('city_id', 'City', 'trim|xss_clean');

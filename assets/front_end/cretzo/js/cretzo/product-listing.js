@@ -255,8 +255,10 @@ function getQueryQ() {
 function getCategorySlugs() {
     const path = window.location.pathname.split('/').filter(Boolean);
 
-    const category_slug       = path[1] || '';
-    const sub_category_slug   = path[2] || '';
+    // Find 'products' segment and use what comes after it
+    const productsIndex = path.indexOf('products');
+    const category_slug     = productsIndex >= 0 ? (path[productsIndex + 1] || '') : '';
+    const sub_category_slug = productsIndex >= 0 ? (path[productsIndex + 2] || '') : '';
 
     return {
         category_slug,
@@ -265,6 +267,9 @@ function getCategorySlugs() {
 }
 
 function ajaxProductList() {
+    console.log('pathname:', window.location.pathname);
+    console.log('slugData:', slugData);
+    console.log('search params:', window.location.search);
      let slugData = getCategorySlugs();
      let subCategory = "";
      let searchData = "";
@@ -296,15 +301,26 @@ function ajaxProductList() {
         dataType: 'json',
 
         success: function (response) {
-           
+            console.log('AJAX response:', response);
+            console.log('Products:', response.products);
+            console.log('Product array:', response.products ? response.products.product : 'N/A');
             if (response.status === 'success') {
-                var html = renderProducts(response.products.product || []);
+                var products = response.products.product || [];
+                var html = renderProducts(products);
                 $('#productList').html(html);
+                
+                // Show or hide "No products found" message
+                if (products.length === 0) {
+                    $('#no-products-msg').removeClass('d-none');
+                } else {
+                    $('#no-products-msg').addClass('d-none');
+                }
+        
                 $('.pagination-container').html(response.pagination_html || '');
                 $('.result-count').text(response.result_count || '');
             }
-            
         },
+
 
         error: function (xhr, status, error) {
             $('#productList').html('<div>AJAX Error</div>');
@@ -329,7 +345,7 @@ function generateStarRatingHTML(product) {
 
 function renderProducts(products) {
     if (!products.length) {
-        return '<div class="text-center py-5">No products found</div>';
+        return '';
     }
 
     let html = '';
