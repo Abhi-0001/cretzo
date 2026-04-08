@@ -401,24 +401,33 @@
                                         <input type="text" class="form-control" name="hsn_code" id="hsn_code">
                                     </div>
 
-                                    <div class="col-md-4 form-group">
-                                        <label>Category Level 1 <span class="text-danger">*</span></label>
-                                        <select class="form-control" id="category_level_1">
-                                            <option value="">Select Level 1</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-4 form-group">
-                                        <label>Category Level 2</label>
-                                        <select class="form-control" id="category_level_2" disabled>
-                                            <option value="">Select Level 2</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-4 form-group">
-                                        <label>Category Level 3</label>
-                                        <select class="form-control" id="category_level_3" disabled>
-                                            <option value="">Select Level 3</option>
-                                        </select>
-                                    </div>
+                                    <!-- Replace your category_level_1 select with this -->
+<div class="col-md-4 form-group">
+    <label>Category Level 1 <span class="text-danger">*</span></label>
+    <div class="category-combo" style="position:relative;">
+        <input type="text" 
+               class="form-control" 
+               id="category_level_1_input"
+               placeholder="Search or type a new category..."
+               autocomplete="off">
+        <div id="category_dropdown" style="
+            display:none;
+            position:absolute;
+            top:100%;
+            left:0;
+            right:0;
+            background:#fff;
+            border:1px solid #ced4da;
+            border-top:none;
+            border-radius:0 0 .25rem .25rem;
+            max-height:200px;
+            overflow-y:auto;
+            z-index:9999;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        "></div>
+    </div>
+    <small class="text-muted">Select existing or type to add new</small>
+</div>
 
                                     <div class="col-md-4 form-group">
                                         <label>Total Allowed Quantity</label>
@@ -437,15 +446,42 @@
                         </div>
 
                         <div class="section-header">Bottom Block</div>
-                        <div class="row">
-                            <div class="col-md-4">
-                                <div class="card card-light h-100">
-                                    <div class="card-body">
-                                        <h6>Additional Info</h6>
-                                        <p class="text-muted mb-0">Use the information fields in the top block to provide full product details.</p>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="card card-light h-100">
+                                        <div class="card-body">
+                                            <h6>Additional Info</h6>
+                                            <div class="form-group mb-2">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" name="is_prices_inclusive_tax" id="is_prices_inclusive_tax" value="1"
+                                                        <?= !empty($product_details[0]['is_prices_inclusive_tax']) ? 'checked' : '' ?>>
+                                                    <label class="form-check-label" for="is_prices_inclusive_tax">Tax included in prices?</label>
+                                                </div>
+                                            </div>
+                                            <div class="form-group mb-2">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" name="cod_allowed" id="cod_allowed" value="1"
+                                                        <?= ($product_details[0]['cod_allowed'] ?? 1) ? 'checked' : '' ?>>
+                                                    <label class="form-check-label" for="cod_allowed">Is COD allowed?</label>
+                                                </div>
+                                            </div>
+                                            <div class="form-group mb-2">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" name="is_returnable" id="is_returnable" value="1"
+                                                        <?= !empty($product_details[0]['is_returnable']) ? 'checked' : '' ?>>
+                                                    <label class="form-check-label" for="is_returnable">Is Returnable?</label>
+                                                </div>
+                                            </div>
+                                            <div class="form-group mb-0">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" name="is_cancelable" id="is_cancelable" value="1"
+                                                        <?= !empty($product_details[0]['is_cancelable']) ? 'checked' : '' ?>>
+                                                    <label class="form-check-label" for="is_cancelable">Is Cancelable?</label>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
                             <div class="col-md-4">
                                 <div class="card card-light h-100">
                                     <div class="card-body d-flex flex-column justify-content-between">
@@ -515,5 +551,112 @@
 .create-product-page .thumb-wrapper {position: relative;border:1px solid #e5e7eb;padding: .25rem;border-radius: .25rem;}
 .create-product-page .remove-thumb {position:absolute;top:2px;right:2px;border:none;background:#dc3545;color:#fff;border-radius:50%;width:20px;height:20px;line-height:16px;}
 </style>
+<script> 
+    $(document).ready(function () {
+
+// Parse categories from the hidden input your form already has
+var allCategories = [];
+try {
+    var raw = JSON.parse($('#category_tree_data').val() || '[]');
+    raw.forEach(function (cat) {
+        // Level 1 = no parent or parent_id is 0/null
+        if (!cat.parent_id || cat.parent_id == 0) {
+            allCategories.push({ id: cat.id, name: cat.name });
+        }
+    });
+} catch(e) {}
+
+var $input    = $('#category_level_1_input');
+var $dropdown = $('#category_dropdown');
+var selectedId = null;
+
+function renderDropdown(term) {
+    $dropdown.empty();
+    var term_lower = term.toLowerCase();
+
+    var filtered = allCategories.filter(function (c) {
+        return c.name.toLowerCase().indexOf(term_lower) > -1;
+    });
+
+    if (filtered.length === 0 && term.length > 0) {
+        // Show "Add new" option
+        $dropdown.append(
+            $('<div>').text('+ Add new: "' + term + '"')
+                .css({ padding:'8px 12px', cursor:'pointer', color:'#28a745', fontWeight:'600' })
+                .on('mousedown', function (e) {
+                    e.preventDefault();
+                    selectedId = '__new__:' + term;
+                    $input.val(term);
+                    $('#selected_category_id').val('new:' + term);
+                    $dropdown.hide();
+                })
+        );
+    } else {
+        filtered.forEach(function (cat) {
+            $dropdown.append(
+                $('<div>').text(cat.name)
+                    .css({ padding:'8px 12px', cursor:'pointer' })
+                    .on('mousedown', function (e) {
+                        e.preventDefault();
+                        selectedId = cat.id;
+                        $input.val(cat.name);
+                        $('#selected_category_id').val(cat.id);
+                        $dropdown.hide();
+                    })
+                    .on('mouseenter', function () {
+                        $(this).css('background','#f0f0f0');
+                    })
+                    .on('mouseleave', function () {
+                        $(this).css('background','#fff');
+                    })
+            );
+        });
+    }
+
+    if ($dropdown.children().length > 0) {
+        $dropdown.show();
+    } else {
+        $dropdown.hide();
+    }
+}
+
+// Show all on focus
+$input.on('focus', function () {
+    renderDropdown($(this).val());
+});
+
+// Filter as user types
+$input.on('input', function () {
+    selectedId = null;
+    $('#selected_category_id').val('');
+    renderDropdown($(this).val());
+});
+
+// Hide on blur
+$input.on('blur', function () {
+    setTimeout(function () { $dropdown.hide(); }, 150);
+});
+
+// Close on outside click
+$(document).on('click', function (e) {
+    if (!$(e.target).closest('.category-combo').length) {
+        $dropdown.hide();
+    }
+});
+
+// Validate on submit
+$('#save-product').on('submit', function () {
+    var val = $('#selected_category_id').val();
+    if (!val) {
+        // User typed something but didn't pick — treat as new
+        var typed = $input.val().trim();
+        if (typed) {
+            $('#selected_category_id').val('new:' + typed);
+        }
+    }
+});
+
+});
+</script>
 
 <script src="<?= base_url('assets/seller/js/product.js') ?>"></script>

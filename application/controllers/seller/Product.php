@@ -474,6 +474,38 @@ class Product extends CI_Controller
         ];
         print_r(json_encode($response));
     }
+    public function process_category()
+{
+    $input = $this->input->post('selected_category_id', true);
+
+    if (strpos($input, 'new:') === 0) {
+
+        $category_name = trim(str_replace('new:', '', $input));
+
+        // Check if already exists
+        $existing = $this->db
+            ->where('name', $category_name)
+            ->get('categories')
+            ->row();
+
+        if ($existing) {
+            $category_id = $existing->id;
+        } else {
+            // Insert new category
+            $this->db->insert('categories', [
+                'name' => $category_name,
+                'parent_id' => 0,
+                'status' => 1
+            ]);
+            $category_id = $this->db->insert_id();
+        }
+
+    } else {
+        $category_id = (int)$input;
+    }
+
+    return $category_id;
+}
 
   
 

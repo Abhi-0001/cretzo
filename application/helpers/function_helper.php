@@ -4686,32 +4686,50 @@ function is_product_delivarable($type, $type_id, $product_id)
 {
     $ci = &get_instance();
 
+    // Step 1: resolve zipcode_id
     if ($type == 'zipcode') {
         $zipcode_id = $type_id;
     } else if ($type == 'area') {
         $res = fetch_details('areas', ['id' => $type_id], 'zipcode_id');
+        if (empty($res)) return false;
         $zipcode_id = $res[0]['zipcode_id'];
     } else {
         return false;
     }
 
-    if (!empty($zipcode_id) && $zipcode_id != 0) {
-        $ci->db->select('id');
-        $ci->db->group_Start();
-        $where = "((deliverable_type='2' and FIND_IN_SET('$zipcode_id', deliverable_zipcodes)) or deliverable_type = '1') OR (deliverable_type='3' and NOT FIND_IN_SET('$zipcode_id', deliverable_zipcodes)) ";
-        $ci->db->where($where);
-        $ci->db->group_End();
-        $ci->db->where("id = $product_id");
-        $product = $ci->db->get('products')->num_rows();
+    if (empty($zipcode_id)) return false;
 
-        if ($product > 0) {
-            return true;
-        } else {
-            return false;
+    // Step 2: get city_id from zipcode
+    $zipcode_data = fetch_details('zipcodes', ['id' => $zipcode_id], 'city_id');
+    if (empty($zipcode_data)) return false;
+    $city_id = $zipcode_data[0]['city_id'];
+
+    // Step 3: get state_id and district_id from city
+    $city_data = fetch_details('cities', ['id' => $city_id], 'state_id, district_id');
+    if (empty($city_data)) return false;
+    $state_id    = $city_data[0]['state_id'];
+    $district_id = $city_data[0]['district_id'];
+
+    // Step 4: get seller_id from product
+    $product = fetch_details('products', ['id' => $product_id], 'seller_id');
+    if (empty($product)) return false;
+    $seller_id = $product[0]['seller_id'];
+
+    // Step 5: check seller_deliverable_locations — any level match = deliverable
+    $ci->db->where('seller_id', $seller_id);
+    $ci->db->group_start();
+        $ci->db->or_where(['location_type' => 'zipcode',  'location_id' => $zipcode_id]);
+        $ci->db->or_where(['location_type' => 'city',     'location_id' => $city_id]);
+        if (!empty($district_id)) {
+            $ci->db->or_where(['location_type' => 'district', 'location_id' => $district_id]);
         }
-    } else {
-        return false;
-    }
+        if (!empty($state_id)) {
+            $ci->db->or_where(['location_type' => 'state',    'location_id' => $state_id]);
+        }
+    $ci->db->group_end();
+
+    $count = $ci->db->get('seller_deliverable_locations')->num_rows();
+    return $count > 0;
 }
 
 function check_cart_products_delivarable($user_id, $area_id = 0, $zipcode = "", $zipcode_id = "")
@@ -4725,11 +4743,10 @@ function check_cart_products_delivarable($user_id, $area_id = 0, $zipcode = "", 
         $product_weight = 0;
         for ($i = 0; $i < $cart[0]['cart_count']; $i++) {
             /* check in local shipping first */
-
+            $tmpRow['is_deliverable'] = true;
+            $tmpRow['delivery_by'] = "";
             if (isset($settings['local_shipping_method']) && $settings['local_shipping_method'] == 1) {
-                $tmpRow['is_deliverable'] = (!empty($zipcode_id) && $zipcode_id > 0) ?
-                    is_product_delivarable('zipcode', $zipcode_id, $cart[$i]['product_id'])
-                    : false;
+                $tmpRow['is_deliverable'] = is_product_delivarable('zipcode', $zipcode_id, $cart[$i]['product_id']);
                 $tmpRow['delivery_by'] = (isset($tmpRow['is_deliverable']) && $tmpRow['is_deliverable']) ? "local" : "";
             }
 
