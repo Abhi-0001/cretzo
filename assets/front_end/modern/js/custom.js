@@ -263,9 +263,17 @@ $(document).on("submit", ".form-submit-event", function (e) {
                         r.html(e.message),
                         s.html(n),
                         s.attr("disabled", !1),
-                        $(".form-submit-event")[0].reset(), "login_form" == a && cart_sync(),
-                        setTimeout(function () {
-                            location.reload()
+                        $(".form-submit-event")[0].reset(),
+                        "login_form" == a ? (function () {
+                            var modalEl = document.getElementById("modal-signin");
+                            if (modalEl && typeof bootstrap !== "undefined" && bootstrap.Modal) {
+                                var modal = bootstrap.Modal.getInstance(modalEl);
+                                if (modal) modal.hide();
+                            }
+                            cart_sync();
+                            location.reload();
+                        }()) : setTimeout(function () {
+                            location.reload();
                         }, 600))
             }
         })
@@ -3129,6 +3137,14 @@ $(function () {
 });
 
 $(document).ready(function () {
+    function closeLoginModalAndReload() {
+        var modalEl = document.getElementById("modal-signin");
+        if (modalEl && typeof bootstrap !== "undefined" && bootstrap.Modal) {
+            var modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+        }
+        location.reload();
+    }
     $("#share").jsSocials({
         showLabel: false,
         showCount: false,
@@ -3211,8 +3227,7 @@ $(document).ready(function () {
                                         },
                                         dataType: 'json',
                                         success: function (result) {
-
-                                            location.reload();
+                                            closeLoginModalAndReload();
                                         }
                                     });
                                 }
@@ -3230,7 +3245,7 @@ $(document).ready(function () {
                             },
                             dataType: 'json',
                             success: function (result) {
-                                location.reload();
+                                closeLoginModalAndReload();
                             }
                         });
                     }
@@ -3297,8 +3312,7 @@ $(document).ready(function () {
                                         },
                                         dataType: 'json',
                                         success: function (result) {
-
-                                            location.reload();
+                                            closeLoginModalAndReload();
                                         }
                                     });
                                 }
@@ -3316,7 +3330,7 @@ $(document).ready(function () {
                             },
                             dataType: 'json',
                             success: function (result) {
-                                location.reload();
+                                closeLoginModalAndReload();
                             }
                         });
                     }

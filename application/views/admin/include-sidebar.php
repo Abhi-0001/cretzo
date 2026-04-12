@@ -261,6 +261,15 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
                                     </a>
                                 </li>
                             <?php } ?>
+                            <?php // subscription menu item added ?>
+                                <li class="nav-item">
+                                    <a href="<?= base_url('admin/subscription/manage_subscriptions') ?>" class="nav-link">
+                                        <i class="fas fa-file-invoice-dollar nav-icon"></i>
+                                        <p>
+                                            Subscriptions
+                                        </p>
+                                    </a>
+                                </li>
                         </ul>
                     </li>
                 <?php } ?>
@@ -739,6 +748,7 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
                                     </a>
                                 </li>
                             <?php } ?>
+                            
                             <?php if (has_permissions('read', 'area')) { ?>
                                 <li class="nav-item">
                                     <a href="<?= base_url('admin/area/manage_countries') ?>" class="nav-link">

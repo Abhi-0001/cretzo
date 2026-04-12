@@ -179,7 +179,7 @@ class Products extends CI_Controller
         $theme = fetch_details('themes', ['status' => 1], 'name');
         // print_r($filter);
         // die;
-        $limit = ($this->input->get('per-page')) ? $this->input->get('per-page', true) : 12;
+        $limit = ($this->input->get('per-page')) ? $this->input->get('per-page', true) : 20;
         $config['base_url'] = base_url('products');
         $config['total_rows'] = $total_rows;
         $config['per_page'] = $limit;
@@ -256,6 +256,7 @@ class Products extends CI_Controller
         //         print_r($brands);
         //         die;
         $this->data['filters_key'] = 'all_products_listing';
+        $this->data['is_category_page'] = false;
         $this->data['page_main_bread_crumb'] = "Product Listing";
         $this->load->view('front-end/' . THEME . '/template', $this->data);
     }
@@ -311,7 +312,7 @@ class Products extends CI_Controller
             $has_child_or_item = 'true'
         );
 
-        $limit = ($this->input->get('per-page')) ? $this->input->get('per-page', true) : 12;
+        $limit = ($this->input->get('per-page')) ? $this->input->get('per-page', true) : 20;
         $products = fetch_product(null, '', null, $category_id, $limit, $offset, $sort, $order);
 
         // $brands = array();
@@ -454,6 +455,7 @@ class Products extends CI_Controller
         $this->data['products'] = fetch_product(null, $filter, null, $category_id, $limit, $offset, $sort, $order);
         $this->data['filters'] = (isset($this->data['products']['filters'])) ? json_encode($this->data['products']['filters']) : "";
         $this->data['filters_key'] = 'category_products_' . $category_slug;
+        $this->data['is_category_page'] = true;
         $this->data['brands'] = (isset($brands)) ? json_encode($brands) : "";
         // $this->data['categories'] = (isset($category)) ? ($category) : "";
         $this->data['single_category'] = $category;
@@ -623,7 +625,7 @@ class Products extends CI_Controller
         $filter['max_price'] = $max_price;
 
 
-        $limit = ($this->input->get('per-page')) ? $this->input->get('per-page', true) : 12;
+        $limit = ($this->input->get('per-page')) ? $this->input->get('per-page', true) : 20;
         $products = fetch_product(null, $filter, $product_ids, $product_categories, $limit, $offset, $sort, $order);
 
         // $brands = array();
@@ -938,6 +940,7 @@ class Products extends CI_Controller
         $this->data['products'] = fetch_product(null, $filter, null, null, $limit, $offset, $sort, $order);
         $this->data['filters'] = (isset($this->data['products']['filters'])) ? json_encode($this->data['products']['filters']) : "";
         $this->data['filters_key'] = 'products_search';
+        $this->data['is_category_page'] = false;
         $this->data['page_main_bread_crumb'] = $page_title;
         $this->load->view('front-end/' . THEME . '/template', $this->data);
     }
@@ -1074,6 +1077,7 @@ class Products extends CI_Controller
         $this->data['products'] = fetch_product(null, $filter, null, null, $limit, $offset, $sort, $order);
         $this->data['filters'] = (isset($this->data['products']['filters'])) ? json_encode($this->data['products']['filters']) : "";
         $this->data['filters_key'] = 'products_tags';
+        $this->data['is_category_page'] = false;
         $this->data['page_main_bread_crumb'] = $page_title;
         $this->load->view('front-end/' . THEME . '/template', $this->data);
     }
@@ -1523,7 +1527,8 @@ class Products extends CI_Controller
         }
 
         /* -------- PAGINATION -------- */
-        $limit = $get['per-page'] ?? 12;
+        // default to 20 items per page for AJAX listing (infinite scroll)
+        $limit = $get['per-page'] ?? 20;
         $page = $get['page'] ?? 1;
         $offset = ($page - 1) * $limit;
 
@@ -1562,7 +1567,7 @@ class Products extends CI_Controller
             'total_rows' => $total_rows,
             'filter' => $filter,
             'limit' => $limit,
-            'page' => $this->input->post('page') ?? 1
+            'page' => $page
         ]);
     }
 
