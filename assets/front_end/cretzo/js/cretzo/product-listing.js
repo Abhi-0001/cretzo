@@ -4,6 +4,20 @@ var currentPage = 1;
 var perPage = 20;          // default page size for scroll
 var totalRows = 0;
 var isLoading = false;
+var useAjaxInfiniteScroll = false;
+
+function getCurrentPageFromUrl() {
+    var pathParts = window.location.pathname.split('/').filter(Boolean);
+    var lastPart = pathParts.length ? pathParts[pathParts.length - 1] : '';
+    if (!isNaN(lastPart) && parseInt(lastPart, 10) > 0) {
+        return parseInt(lastPart, 10);
+    }
+    var queryPage = new URLSearchParams(window.location.search).get('page');
+    if (!isNaN(queryPage) && parseInt(queryPage, 10) > 0) {
+        return parseInt(queryPage, 10);
+    }
+    return 1;
+}
 
 // Function to get base URL without page index
 function getBaseURL() {
@@ -76,19 +90,17 @@ function updateURL() {
         params.push('seller=' + seller);
     }
 
-    // always include paging params for consistency
-    params.push('page=' + currentPage);
-    params.push('per-page=' + perPage);
+    var currentPerPage = urlParams.get('per-page');
+    if (currentPerPage) {
+        params.push('per-page=' + currentPerPage);
+    }
 
     if (params.length > 0) {
         url += '?' + params.join('&');
     }
 
-    // Update the page URL
     window.history.replaceState({}, '', url);
-
-    // Reload the page to apply the changes
-    ajaxProductList(currentPage);
+    ajaxProductList(1, false);
 }
 
 $(document).ready(function() {
@@ -121,7 +133,7 @@ $(document).ready(function() {
         price_filter_enabled = false;
         var url = getBaseURL();
         window.history.replaceState({}, '', url);
-        location.reload();
+        ajaxProductList(1, false);
     });
 
     /* Set state of price filter and related button */
@@ -245,8 +257,9 @@ function removeSellerFilter() {
 }
 
 
-// initial load with first page
-ajaxProductList();
+// Load products for the currently opened page URL.
+currentPage = getCurrentPageFromUrl();
+ajaxProductList(currentPage);
 
 function getQueryQ() {
     const params = new URLSearchParams(window.location.search);
@@ -312,8 +325,7 @@ function ajaxProductList(page = 1, append = false) {
                 } else {
                     $('#productList').html(html);
                 }
-                // hide pagination links since using scroll
-                $('#products-pagination-nav').hide();
+                $('#products-pagination-nav').html(renderPagination(totalRows, currentPage, perPage));
                 $('.result-count').text(response.result_count || '');
 
                 // update 'Showing X of Y' text
@@ -331,21 +343,61 @@ function ajaxProductList(page = 1, append = false) {
 
         error: function (xhr, status, error) {
             isLoading = false;
-            $('#productList').html('<div>AJAX Error</div>');
-            console.error(error);
+            $('#productList').html('<div class="text-center py-5">Unable to load products. Please try again.</div>');
+            console.error('AJAX Error:', status, error, xhr && xhr.responseText ? xhr.responseText : '');
         }
     });
 }
-// scroll handler to load more pages
-$(window).on('scroll', function() {
-    if (isLoading) return;
-    if (currentPage * perPage >= totalRows) return; // no more data
 
-    if ($(window).scrollTop() + $(window).height() >= $(document).height() - 200) {
-        // load next page
-        ajaxProductList(currentPage + 1, true);
+function renderPagination(total, page, pageSize) {
+    var totalPages = Math.ceil(total / pageSize);
+    if (totalPages <= 1) {
+        return '';
+    }
+
+    var html = '<ul class="pagination justify-content-center">';
+    var start = Math.max(1, page - 3);
+    var end = Math.min(totalPages, page + 3);
+
+    if (page > 1) {
+        html += '<li class="page-item"><a class="page-link ajax-page-link" href="#" data-page="' + (page - 1) + '"><i class="uil uil-arrow-left"></i></a></li>';
+    }
+
+    for (var i = start; i <= end; i++) {
+        if (i === page) {
+            html += '<li class="page-item active disabled"><a class="page-link" href="#">' + i + '</a></li>';
+        } else {
+            html += '<li class="page-item"><a class="page-link ajax-page-link" href="#" data-page="' + i + '">' + i + '</a></li>';
+        }
+    }
+
+    if (page < totalPages) {
+        html += '<li class="page-item"><a class="page-link ajax-page-link" href="#" data-page="' + (page + 1) + '"><i class="uil uil-arrow-right"></i></a></li>';
+    }
+
+    html += '</ul>';
+    return html;
+}
+
+$(document).on('click', '#products-pagination-nav .ajax-page-link', function(e) {
+    e.preventDefault();
+    var page = parseInt($(this).data('page'), 10);
+    if (!isNaN(page) && page > 0) {
+        ajaxProductList(page, false);
+        $('html, body').animate({ scrollTop: 0 }, 'fast');
     }
 });
+// Infinite scroll is disabled for product listing pagination.
+if (useAjaxInfiniteScroll) {
+    $(window).on('scroll', function() {
+        if (isLoading) return;
+        if (currentPage * perPage >= totalRows) return;
+
+        if ($(window).scrollTop() + $(window).height() >= $(document).height() - 200) {
+            ajaxProductList(currentPage + 1, true);
+        }
+    });
+}
 
 function generateStarRatingHTML(product) {
     let rating = parseFloat(product.rating || 0);

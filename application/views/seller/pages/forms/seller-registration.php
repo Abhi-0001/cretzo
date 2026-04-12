@@ -27,6 +27,7 @@
         }
 
         .login-container {
+            margin-top:3%;
             background: white;
             width: 900px;
             display: flex;
@@ -219,8 +220,8 @@
     <div class="login-container">
         <div class="brand-section">
             <div class="logo-area">
-                <a href="<?= base_url() . 'seller/login' ?>"><img src="<?= base_url() . $logo ?>"
-                        style="width: 340px;"></a>
+                <a href="/"><img src="<?= base_url() . $logo ?>"
+                        style="width: 350px;"></a>
                 <p class="tagline">Welcome to the zone of creativity</p>
             </div>
 
@@ -307,6 +308,12 @@
 $(document).ready(function () {
 
     const base_url = "<?= base_url() ?>";
+    const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+    if (isLocalHost && firebase && firebase.auth && firebase.auth().settings) {
+        firebase.auth().settings.appVerificationDisabledForTesting = true;
+    }
+
     // debug: ensure firebase initialized with correct config
     if (firebase && firebase.apps && firebase.apps.length) {
         console.log('Firebase app options:', firebase.app().options);

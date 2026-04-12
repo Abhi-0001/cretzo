@@ -152,7 +152,7 @@ body {
     <div class="login-container">
         <div class="brand-section">
             <div class="logo-area">
-                <a href="<?= base_url() . 'seller/login' ?>"><img src="<?= base_url() . $logo ?>" style="width: 340px;"></a>
+                <a href="/"><img src="<?= base_url() . $logo ?>" style="width: 340px;"></a>
                 <p class="tagline">Welcome to the zone of creativity</p>
             </div>
             
