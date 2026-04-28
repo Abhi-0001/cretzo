@@ -1,5 +1,6 @@
 <style>
-    /* Pulse animation for the progress bar container */
+    /* /Issue Seller Dashboard horizontal animateProgressBar 
+    Pulse animation for the progress bar container */
     @keyframes barPulse {
         0%, 100% { box-shadow: 0 0 0 0 rgba(242, 140, 40, 0.30); }
         50% { box-shadow: 0 0 0 8px rgba(242, 140, 40, 0); }
