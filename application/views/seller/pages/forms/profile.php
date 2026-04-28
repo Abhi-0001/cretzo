@@ -32,6 +32,56 @@
   font-size: 15px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.2);
 }
+.category-pill {
+  display: inline-flex;
+  align-items: center;
+  background: #eef2ff;
+  color: #3730a3;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  margin: 4px 6px 0 0;
+}
+.category-picker-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+.category-picker-content {
+  background: #fff;
+  width: min(640px, 92vw);
+  max-height: 80vh;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.2);
+  display: flex;
+  flex-direction: column;
+}
+.category-picker-header,
+.category-picker-footer {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+.category-picker-footer {
+  border-top: 1px solid #e5e7eb;
+  border-bottom: 0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.category-picker-list {
+  padding: 12px 16px;
+  overflow-y: auto;
+}
+.category-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+}
 </style>
 </head>
 <body>
@@ -201,6 +251,12 @@
                           <label class="form-label">PIN Code</label>
                           <input name="pickup_pin" type="text" class="input" placeholder="Enter PIN Code" value="<?=$fetched_data[0]['pickup_pin']?>" maxlength="6" onkeypress="if ( isNaN(this.value + String.fromCharCode(event.keyCode) )) return false;">
                         </div>
+                        <div class="col-md-12 mb-3">
+                          <label class="form-label">Store Categories <span class="text-danger">*</span></label>
+                          <input type="hidden" name="category_ids" id="category_ids_hidden" value="<?= htmlspecialchars($fetched_data[0]['category_ids'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                          <button type="button" class="btn btn-outline-primary btn-sm" id="open_category_picker">Select Categories</button>
+                          <div id="selected_categories_display" class="mt-2"></div>
+                        </div>
                       </div>
                       
                       <div class="mt-3 w-100 d-flex justify-content-between align-items-center">
@@ -332,12 +388,29 @@
       </div>
       
   </section>
-
+  <div class="category-picker-modal" id="category_picker_modal">
+    <div class="category-picker-content">
+      <div class="category-picker-header">
+        <strong>Select Store Categories</strong>
+        <input type="text" id="category_picker_search" class="input mt-2" placeholder="Search categories...">
+      </div>
+      <div class="category-picker-list" id="category_picker_list"></div>
+      <div class="category-picker-footer">
+        <button type="button" class="btn btn-light btn-sm" id="close_category_picker">Cancel</button>
+        <button type="button" class="btn btn-primary btn-sm" id="apply_category_picker">Apply Selection</button>
+      </div>
+    </div>
+  </div>
 <script>
 if (typeof Dropzone !== 'undefined') Dropzone.autoDiscover = false;
 const base_url = "<?php echo base_url(); ?>";
 const submitBtn = document.querySelector('.submit_btn');
 const initialSection = "<?= in_array(($current_profile_section ?? 'personal'), ['personal','store','account','admin']) ? $current_profile_section : 'personal' ?>";
+const availableCategories = [
+  <?php foreach (($all_categories ?? []) as $cat): ?>
+  { id: "<?= (int)$cat['id'] ?>", label: "<?= addslashes($cat['name']) ?>" },
+  <?php endforeach; ?>
+];
 // ── Searchable dropdown factory ──────────────────────────────────────────────
 function makeSearchable(searchId, hiddenId, dropdownId, data, onSelect) {
   const searchEl   = document.getElementById(searchId);
@@ -519,6 +592,79 @@ const bankData = [
   <?php endforeach; ?>
 ];
 makeSearchable('bank_search', 'bank_name_hidden', 'bank_dropdown', bankData, null);
+
+// ── Category multi-select picker ─────────────────────────────────────────────
+const categoryHiddenInput = document.getElementById('category_ids_hidden');
+const selectedCategoriesDisplay = document.getElementById('selected_categories_display');
+const categoryModal = document.getElementById('category_picker_modal');
+const categoryList = document.getElementById('category_picker_list');
+const categorySearch = document.getElementById('category_picker_search');
+const selectedCategoryIds = new Set(
+  (categoryHiddenInput.value || '')
+    .split(',')
+    .map(function(v) { return v.trim(); })
+    .filter(Boolean)
+);
+
+function renderSelectedCategories() {
+  const labels = availableCategories
+    .filter(function(cat) { return selectedCategoryIds.has(String(cat.id)); })
+    .map(function(cat) { return cat.label; });
+  categoryHiddenInput.value = Array.from(selectedCategoryIds).join(',');
+  if (!labels.length) {
+    selectedCategoriesDisplay.innerHTML = '<small class="text-muted">No categories selected.</small>';
+    return;
+  }
+  selectedCategoriesDisplay.innerHTML = labels.map(function(label) {
+    return '<span class="category-pill">' + label + '</span>';
+  }).join('');
+}
+
+function renderCategoryPickerList(query) {
+  const q = (query || '').toLowerCase();
+  const filtered = availableCategories.filter(function(cat) {
+    return cat.label.toLowerCase().includes(q);
+  });
+  if (!filtered.length) {
+    categoryList.innerHTML = '<small class="text-muted">No categories found.</small>';
+    return;
+  }
+  categoryList.innerHTML = filtered.map(function(cat) {
+    const checked = selectedCategoryIds.has(String(cat.id)) ? 'checked' : '';
+    return '<label class="category-picker-item">' +
+      '<input type="checkbox" class="category-picker-checkbox" value="' + cat.id + '" ' + checked + '>' +
+      '<span>' + cat.label + '</span>' +
+      '</label>';
+  }).join('');
+}
+
+document.getElementById('open_category_picker').addEventListener('click', function() {
+  renderCategoryPickerList('');
+  categorySearch.value = '';
+  categoryModal.style.display = 'flex';
+});
+document.getElementById('close_category_picker').addEventListener('click', function() {
+  categoryModal.style.display = 'none';
+});
+document.getElementById('apply_category_picker').addEventListener('click', function() {
+  renderSelectedCategories();
+  categoryModal.style.display = 'none';
+});
+categoryList.addEventListener('change', function(e) {
+  if (!e.target.classList.contains('category-picker-checkbox')) return;
+  var id = String(e.target.value);
+  if (e.target.checked) selectedCategoryIds.add(id);
+  else selectedCategoryIds.delete(id);
+});
+categorySearch.addEventListener('input', function() {
+  renderCategoryPickerList(this.value);
+});
+categoryModal.addEventListener('click', function(e) {
+  if (e.target === categoryModal) categoryModal.style.display = 'none';
+});
+renderSelectedCategories();
+
+
 
 // ── Form validation ───────────────────────────────────────────────────────────
 function clearErrors(form) {

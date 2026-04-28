@@ -113,7 +113,7 @@
                                 <div class="card-footer bg-white px-sm-3 pt-sm-4 px-0">
                                     <div class="row text-center ">
                                         <?php
-                                        $status = ["awaiting", "received", "processed", "shipped", "delivered", "cancelled", "returned"];
+                                        $status = ["awaiting", "received", "out_for_delivery","processed", "shipped", "delivered", "cancelled", "returned"];
                                         $cancelable_till = $item['cancelable_till'];
                                         $active_status = $item['active_status'];
                                         $cancellable_index = array_search($cancelable_till, $status);

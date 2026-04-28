@@ -76,3 +76,6 @@ $route['my-account/get-states']             = 'my_account/get_states';
 $route['my-account/get-districts-by-state'] = 'my_account/get_districts_by_state';
 $route['my-account/get-cities-by-district'] = 'my_account/get_cities_by_district';
 $route['my-account/get-pincodes-by-city']   = 'my_account/get_pincodes_by_city';
+
+$route['seller/shiprocket/parcel-defaults'] = 'seller/orders/get_shiprocket_parcel_defaults';
+$route['admin/shiprocket/parcel-defaults'] = 'admin/orders/get_shiprocket_parcel_defaults';

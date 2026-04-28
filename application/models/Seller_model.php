@@ -46,7 +46,7 @@ class Seller_model extends CI_Model
             'account_number', 'account_holder_name', 'ifsc', 'branch', 
             'bank_name', 'store_name', 'store_url', 'store_description',
             'tax_name', 'tax_number', 'pan_number', 'commission',
-            'store_logo', 'authorized_signature', 'address_proof'
+            'store_logo', 'authorized_signature', 'address_proof','category_ids'
         ];
         
         foreach ($allowed_fields as $field) {

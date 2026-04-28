@@ -3,6 +3,50 @@ defined('BASEPATH') or exit('No direct script access allowed');
 
 class Product extends CI_Controller
 {
+    private function resolve_selected_category_id($input)
+    {
+        $input = is_string($input) ? trim($input) : $input;
+        if (!is_string($input) || $input === '') {
+            return 0;
+        }
+
+        if (strpos($input, 'new:') !== 0) {
+            return (int) $input;
+        }
+
+        $category_name = trim(substr($input, 4));
+        if ($category_name === '') {
+            return 0;
+        }
+
+        $existing = $this->db
+            ->where('name', $category_name)
+            ->get('categories')
+            ->row();
+
+        if (!empty($existing)) {
+            return (int) $existing->id;
+        }
+
+        $slug = url_title($category_name, '-', true);
+        $base_slug = $slug;
+        $counter = 1;
+        while ($this->db->where('slug', $slug)->count_all_results('categories') > 0) {
+            $slug = $base_slug . '-' . $counter;
+            $counter++;
+        }
+
+        $this->db->insert('categories', [
+            'name' => $category_name,
+            'slug' => $slug,
+            'parent_id' => 0,
+            'status' => 1
+        ]);
+
+        return (int) $this->db->insert_id();
+    }
+
+    
     private function is_seller_admin_verified()
     {
         $seller_id = $this->session->userdata('user_id');
@@ -280,6 +324,9 @@ class Product extends CI_Controller
         if (isset($_POST['category_id']) && is_string($_POST['category_id'])) {
             $_POST['category_id'] = trim($_POST['category_id']);
         }
+        if (isset($_POST['category_id'])) {
+            $_POST['category_id'] = $this->resolve_selected_category_id($_POST['category_id']);
+        }
         
         // Set validation rules
         $this->form_validation->set_rules('pro_input_name', 'Product Name', 'trim|required|xss_clean');
@@ -477,34 +524,8 @@ class Product extends CI_Controller
     public function process_category()
 {
     $input = $this->input->post('selected_category_id', true);
-
-    if (strpos($input, 'new:') === 0) {
-
-        $category_name = trim(str_replace('new:', '', $input));
-
-        // Check if already exists
-        $existing = $this->db
-            ->where('name', $category_name)
-            ->get('categories')
-            ->row();
-
-        if ($existing) {
-            $category_id = $existing->id;
-        } else {
-            // Insert new category
-            $this->db->insert('categories', [
-                'name' => $category_name,
-                'parent_id' => 0,
-                'status' => 1
-            ]);
-            $category_id = $this->db->insert_id();
-        }
-
-    } else {
-        $category_id = (int)$input;
-    }
-
-    return $category_id;
+    return $this->resolve_selected_category_id($input);
+    
 }
 
   

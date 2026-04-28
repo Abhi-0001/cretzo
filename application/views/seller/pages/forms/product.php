@@ -403,7 +403,7 @@
 
                                     <!-- Replace your category_level_1 select with this -->
 <div class="col-md-4 form-group">
-    <label>Category Level 1 <span class="text-danger">*</span></label>
+    <label>Category  <span class="text-danger">*</span></label>
     <div class="category-combo" style="position:relative;">
         <input type="text" 
                class="form-control" 

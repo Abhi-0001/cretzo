@@ -3754,24 +3754,71 @@ $(document).on('click', '.update_delivery_boy_admin', function (e) {
     });
 });
 $(document).on('click', '.update_status_admin_bulk', function (e) {
-    var order_item_id = [];
-    if ($('input[name="seller_id"]:checked').val() != undefined) {
-        var seller_id = $('input[name="seller_id"]:checked').val();
-    } else {
-        var seller_id = $(this).data("seller_id");
+    e.preventDefault();
+    var statusScope = $(this).closest('#update_form');
+    if (statusScope.length === 0) {
+        statusScope = $('#update_form');
     }
+    var order_item_id = [];
+    var seller_id = $('input[name="seller_id"]:checked').val() || $(this).attr("data-seller_id") || $(this).data("sellerId") || $(this).data("id") || $('input[name="seller_id"]').val();
+    seller_id = $.trim(seller_id);
     var order_id = $('input[name="order_id"]').val();
-    var status = $('.status').val();
-    var deliver_by = $('#deliver_by').val();
+    var status = statusScope.find('.status').first().val() || $('.status:visible').first().val();
+    var deliver_by = statusScope.find('#deliver_by').val() || $('#deliver_by').val();
+    
+    // For seller flow: when setting shipped (out for delivery), prompt Shiprocket form first.
+    var hasShiprocketForm = $('#shiprocket_order_parcel_form').length > 0;
+    var hasPendingShiprocketOrder = $('.check_create_order').length > 0;
+    if (status == 'shipped' && hasShiprocketForm && hasPendingShiprocketOrder) {
+        if ($('.check_create_order:checked').length == 0) {
+            iziToast.error({
+                message: 'Please select pickup location and create Shiprocket order before marking Out For Delivery.'
+            });
+            return;
+        }
+        $('#order_parcel_modal').modal('show');
+        iziToast.info({
+            message: 'Create Shiprocket order to continue with Out For Delivery status update.'
+        });
+        return;
+    }
+
     var order_item_ids = $('input[name="order_item_id"]:checked').serializeArray();
     $.each(order_item_ids, function (i, field) {
-        order_item_id.push(field.value);
+        order_item_id.push($.trim(field.value));
     });
-
+    if (order_item_id.length === 0 && status != 'cancelled' && status != 'returned') {
+        var all_order_item_ids = $('input[name="order_item_id"]').serializeArray();
+        $.each(all_order_item_ids, function (i, field) {
+            order_item_id.push($.trim(field.value));
+        });
+    }
+    if (!status) {
+        Swal.fire({
+            icon: 'warning',
+            text: 'Please select status to update.',
+        });
+        return;
+    }
+    if (!seller_id) {
+        Swal.fire({
+            icon: 'warning',
+            text: 'Seller is missing. Please refresh and try again.',
+        });
+        return;
+    }
+    if (order_item_id.length === 0) {
+        Swal.fire({
+            icon: 'warning',
+            text: 'Please select at least one order item.',
+        });
+        return;
+    }
+    
     Swal.fire({
         title: 'Are You Sure!',
         text: "You won't be able to revert this!",
-        type: 'warning',
+        icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#3085d6',
         cancelButtonColor: '#d33',
@@ -3783,36 +3830,56 @@ $(document).on('click', '.update_status_admin_bulk', function (e) {
                     type: 'POST',
                     url: base_url + from + '/orders/update_order_status',
                     data: {
-                        seller_id: seller_id,
-                        order_id: order_id,
-                        status: status,
-                        deliver_by: deliver_by,
+                        seller_id:     seller_id,
+                        order_id:      order_id,
+                        status:        status,
+                        deliver_by:    deliver_by,
                         order_item_id: order_item_id,
-                        [csrfName]: csrfHash
+                        [csrfName]:    csrfHash
                     },
-
                     dataType: 'json',
                     success: function (result) {
-                        console.log(result);
                         csrfName = result['csrfName'];
                         csrfHash = result['csrfHash'];
                         if (result['error'] == false) {
-                            iziToast.success({
-                                message: result['message'],
-                            });
+                            iziToast.success({ message: result['message'] });
                         } else {
-                            iziToast.error({
-                                message: result['message'],
-                            });
+                            iziToast.error({ message: result['message'] });
                         }
                         swal.close();
                         setTimeout(function () { location.reload(); }, 1000);
+                    },
+                    error: function (xhr) {
+                        // Show actual server error so we can debug
+                        Swal.fire({ icon: 'error', title: 'AJAX Error', text: xhr.status + ' ' + xhr.statusText });
                     }
                 });
             });
         },
         allowOutsideClick: false
     });
+});
+
+$(document).on('change', '#update_form .status, select[name="status"], select[name*="status"]', function () {
+    var selectedStatus = $(this).val();
+    var updateButtons = $('.update_status_admin_bulk');
+    if (selectedStatus) {
+        updateButtons
+            .removeClass('disabled')
+            .removeAttr('disabled')                // remove the actual disabled attribute
+            .attr('aria-disabled', 'false');
+    } else {
+        updateButtons
+            .addClass('disabled')
+            .attr('disabled', 'disabled')
+            .attr('aria-disabled', 'true');
+    }
+});
+
+// Fallback — intercept anchor/button even when "disabled" class is present
+$(document).on('click', 'a.update_status_admin_bulk, button.update_status_admin_bulk', function(e) {
+    e.preventDefault();
+    $(this).trigger('click.update_status_admin_bulk');
 });
 
 $('input[type=radio][name=seller_id]').change(function () {
@@ -5759,12 +5826,12 @@ $(document).on('click', '.edit_order_tracking', function (e, rows) {
     var courier_agency = $(this).data("courier_agency");
     var tracking_id = $(this).data("tracking_id");
     var url = $(this).data("url");
-    $('#order_item_id').val(order_item_id);
+    $('#tracking_order_item_id').val(order_item_id);
     $('input[name="order_id"]').val(order_id);
     $('input[name="order_item_id"]').val(order_item_id);
     $('input[type=hidden][name="seller_id"]').val(seller_id);
     $('#order_id').val(order_id);
-    $('#order_item_id').val(order_item_id);
+    $('#tracking_order_item_id').val(order_item_id);
     $('#courier_agency').val(courier_agency);
     $('#tracking_id').val(tracking_id);
     $('#url').val(url);
@@ -8762,18 +8829,84 @@ function printDiv(divName) {
     setTimeout(function () { window.print(); }, 600);
     setTimeout(() => { document.body.innerHTML = originalContents; }, 1000);
 }
-$('.check_create_order').on('change', function (e) {
-    e.preventDefault()
-    if ($(this).is(':checked')) {
-        $('.create_shiprocket_order').attr('disabled', false)
-        var pickup_location = $(this).attr('id');
-        var seller_id = $(this).data('id');
-        $('#pickup_location').attr('value', pickup_location);
-        $('input[type=hidden][name="shiprocket_seller_id"]').val(seller_id);
-    } else {
-        $('.create_shiprocket_order').attr('disabled', true)
+function getShiprocketParcelDefaults(fromPanel, payload) {
+    var routeUrl = base_url + fromPanel + '/shiprocket/parcel-defaults';
+    return $.ajax({
+        type: 'POST',
+        url: routeUrl,
+        dataType: 'json',
+        data: payload
+    });
+}
+
+function autoSelectShiprocketPickupLocation() {
+    var pickupOptions = $('.check_create_order');
+    if (!pickupOptions.length) {
+        return;
     }
-})
+    var selectedOption = pickupOptions.filter(':checked');
+    if (!selectedOption.length && pickupOptions.length === 1) {
+        pickupOptions.eq(0).prop('checked', true).trigger('change');
+    }
+}
+
+$(document).on('change', '.check_create_order', function (e) {
+    e.preventDefault();
+    var $selectedPickup = $('.check_create_order:checked').first();
+    if (!$selectedPickup.length) {
+        $('.create_shiprocket_order').attr('disabled', true);
+        return;
+    }
+
+    $('.create_shiprocket_order').attr('disabled', false);
+    var pickup_location = $selectedPickup.attr('id');
+    var seller_id = $selectedPickup.data('id');
+    $('#pickup_location').val(pickup_location);
+    $('input[type=hidden][name="shiprocket_seller_id"]').val(seller_id);
+
+    var fromSeller = $('#fromseller').val();
+    var fromPanel = (fromSeller != 'undefined' && fromSeller == 1) ? 'seller' : 'admin';
+
+    var payload = {
+        pickup_location: pickup_location,
+        shiprocket_seller_id: seller_id,
+        order_id: $('#order_id').val(),
+        user_id: $('#user_id').val(),
+        order_items: $('#order_items').val()
+    };
+    payload[csrfName] = csrfHash;
+
+    getShiprocketParcelDefaults(fromPanel, payload).done(function (result) {
+        csrfName = result.csrfName;
+        csrfHash = result.csrfHash;
+
+        if (result.error === false && result.data) {
+            $('#parcel_weight').val(result.data.parcel_weight);
+            $('#parcel_height').val(result.data.parcel_height);
+            $('#parcel_breadth').val(result.data.parcel_breadth);
+            $('#parcel_length').val(result.data.parcel_length);
+            iziToast.info({
+                title: 'Shiprocket',
+                message: 'Pickup location auto-selected. Please confirm parcel size before creating order.'
+            });
+        } else if (result.message) {
+            iziToast.warning({
+                title: 'Shiprocket',
+                message: result.message
+            });
+        }
+    });
+});
+
+$(document).ready(function () {
+    autoSelectShiprocketPickupLocation();
+});
+
+$(document).on('click', '.create_shiprocket_order', function () {
+    if ($('.check_create_order:checked').length === 0) {
+        $('.check_create_order').first().prop('checked', true).trigger('change');
+    }
+});
 
 $(document).on('submit', '#shiprocket_order_parcel_form', function (e) {
     e.preventDefault();

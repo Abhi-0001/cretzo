@@ -192,6 +192,7 @@
                                                 <option value="received">Received</option>
                                                 <option value="processed">Processed</option>
                                                 <option value="shipped">Shipped</option>
+                                                <option value="out_for_delivery">Out For Delivery</option>
                                                 <option value="delivered">Delivered</option>
                                                 <option value="cancelled">Cancelled</option>
                                                 <option value="returned">Returned</option>

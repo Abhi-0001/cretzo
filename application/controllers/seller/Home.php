@@ -301,6 +301,17 @@ class Home extends CI_Controller
             $this->data['states'] = [];
             $this->data['districts'] = [];
             $this->data['cities'] = [];
+            $this->data['all_categories'] = [];
+
+            if ($this->db->table_exists('categories')) {
+                $this->data['all_categories'] = $this->db
+                    ->select('id,name')
+                    ->from('categories')
+                    ->where('status', 1)
+                    ->order_by('name', 'ASC')
+                    ->get()
+                    ->result_array();
+            }
 
             $selected_state_name = $this->data['fetched_data'][0]['state'] ?? '';
             $selected_district_name = $this->data['fetched_data'][0]['district'] ?? '';

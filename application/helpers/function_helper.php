@@ -1478,7 +1478,7 @@ function validate_order_status($order_ids, $status, $table = 'order_items', $use
     $returnable_count = 0;
     $cancelable_count = 0;
     $return_request = 0;
-    $check_status = ['received', 'processed', 'shipped', 'delivered', 'cancelled', 'returned'];
+    $check_status = ['received', 'processed', 'shipped','out_for_delivery', 'delivered', 'cancelled', 'returned'];
     $group = array('admin', 'delivery_boy');
     if (in_array(strtolower(trim($status)), $check_status)) {
         if ($table == 'order_items') {
@@ -1516,11 +1516,13 @@ function validate_order_status($order_ids, $status, $table = 'order_items', $use
             'received' => 0,
             'processed' => 1,
             'shipped' => 2,
-            'delivered' => 3,
-            'return_request_pending' => 4,
-            'return_request_approved' => 5,
-            'cancelled' => 6,
-            'returned' => 7,
+            'out_for_delivery' => 3,
+            'delivered' => 4,
+            'return_request_pending' => 5,
+            'return_request_approved' => 6,
+            'cancelled' => 7,
+            'returned' => 8,
+            
         ];
 
         $is_posted_status_set = $canceling_delivered_item = $returning_non_delivered_item = false;
@@ -2410,10 +2412,11 @@ function fetch_orders($order_id = NULL, $user_id = NULL, $status = NULL, $delive
 
         $pr_condition = ($user_id != NULL && !empty(trim($user_id)) && is_numeric($user_id)) ? " and pr.user_id = $user_id " : "";
         $weight_select = $t->db->field_exists('weight', 'product_variants') ? 'pv.weight' : 'NULL as weight';
-        $t->db->select('oi.*,p.id as product_id,p.is_cancelable,p.is_prices_inclusive_tax,p.cancelable_till,p.type,p.slug,p.download_allowed,p.download_link,sd.store_name,u.longitude as seller_longitude,u.mobile as seller_mobile,u.address as seller_address,u.latitude as seller_latitude,(select username from users where id=oi.delivery_boy_id) as delivery_boy_name ,sd.store_description,sd.rating as seller_rating,sd.logo as seller_profile,ot.courier_agency,ot.tracking_id,ot.awb_code,ot.url,u.username as seller_name,p.is_returnable,
+        $awb_select = $t->db->field_exists('awb_code', 'order_tracking') ? 'ot.awb_code' : 'NULL as awb_code';
+        $t->db->select('oi.*,p.id as product_id,p.is_cancelable,p.is_prices_inclusive_tax,p.cancelable_till,p.type,p.slug,p.download_allowed,p.download_link,sd.store_name,u.longitude as seller_longitude,u.mobile as seller_mobile,u.address as seller_address,u.latitude as seller_latitude,(select username from users where id=oi.delivery_boy_id) as delivery_boy_name ,sd.store_description,sd.rating as seller_rating,sd.logo as seller_profile,ot.courier_agency,ot.tracking_id,'.$awb_select.',ot.url,u.username as seller_name,p.is_returnable,
         pv.special_price,pv.price as main_price,p.image,p.name,p.short_description,p.pickup_location,'.$weight_select.',p.rating as product_rating,p.type,pr.rating as user_rating, pr.images as user_rating_images, pr.comment as user_rating_comment,oi.status as status,
         (Select count(id) from order_items where order_id = oi.order_id ) as order_counter ,
-        (Select count(active_status) from order_items where active_status ="cancelled" and order_id = oi.order_id ) as order_cancel_counter , (Select count(active_status) from order_items where active_status ="returned" and order_id = oi.order_id ) as order_return_counter ')
+        (Select count(active_status) from order_items where active_status ="cancelled" and order_id = oi.order_id ) as order_cancel_counter , (Select count(active_status) from order_items where active_status ="returned" and order_id = oi.order_id ) as order_return_counter ',false)
             ->join('product_variants pv', 'pv.id=oi.product_variant_id', 'left')
             ->join('products p', 'pv.product_id=p.id', 'left')
             ->join('product_rating pr', 'pv.product_id=pr.product_id ' . $pr_condition, 'left')

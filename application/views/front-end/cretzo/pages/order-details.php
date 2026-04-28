@@ -77,9 +77,14 @@ if(empty($order_item)){
                         <p class="mb-1"></p>
 
                         <div class="delivery-date <?=$order_item['active_status']?>">
-                            <img class="delivered-icon" src="<?= base_url("assets/front_end/cretzo/img/new_cretzo/{$order_item['active_status']}.png") ?>">
+                        <?php
+                            $order_status_key = $order_item['active_status'];
+                            $order_status_image = ($order_status_key == 'out_for_delivery') ? 'shipped' : $order_status_key;
+                            $order_status_label = ($order_status_key == 'received') ? 'Placed' : (($order_status_key == "out_for_delivery") ? 'Out For Delivery' : ucfirst(str_replace('_', ' ', $order_status_key)));
+                            ?>
+                            <img class="delivered-icon" src="<?= base_url("assets/front_end/cretzo/img/new_cretzo/{$order_status_image}.png") ?>">
                             <div class="ml-2" style="text-align: start;">
-                                <p class="text-s"><?= ucfirst($order_item['active_status']) ?></p>
+                                <p class="text-s"><?= $order_status_label ?></p>
                                 <!-- <p class="sub-heading delivered-text"><?= ucwords($order_item['active_status']) ?></h1>                                     -->
                                 <p class="text-es delivered-date">On <?= orderStatusTimeToHumanReadableString($order_item['status'][array_key_last($order_item['status'])][1]) ?></p>
                             </div>
@@ -239,7 +244,7 @@ if(empty($order_item)){
                                         <?php } ?>
                                         <h4 class="mt-3 mb-2 bold"> <span class="mt-5"><i><?= $settings['currency'] ?></i></span> <?= number_format(($item['price'] * $item['quantity']), 2) ?> <span class="small text-muted"></span></h4>
                                         <?php
-                                        $status = ["awaiting", "received", "processed", "shipped", "delivered", "cancelled", "returned"];
+                                        $status = ["awaiting", "received", "processed", "shipped", "out_for_delivery","delivered", "cancelled", "returned"];
                                         $cancelable_till = $item['cancelable_till'];
                                         $active_status = $item['active_status'];
                                         $cancellable_index = array_search($cancelable_till, $status);
@@ -286,7 +291,7 @@ if(empty($order_item)){
                                         <div class="container py-14 py-md-16">
                                             <div class="row gx-lg-8 gx-xl-12 gy-6 process-wrapper line" id="progressbar">
                                                 <?php
-                                                $status = array('received', 'processed', 'shipped', 'delivered');
+                                                $status = array('received', 'processed', 'shipped', "out_for_delivery", 'delivered');
                                                 $i = 1;
                                                 // echo "<pre>";
                                                 // print_R($item['status']);
@@ -389,7 +394,7 @@ if(empty($order_item)){
                         <div class="card-footer bg-white px-sm-3 pt-sm-4 px-0">
                             <div class="row text-center ">
                                 <?php
-                                $status = ["awaiting", "received", "processed", "shipped", "delivered", "cancelled", "returned"];
+                                $status = ["awaiting", "received", "processed", "shipped", "out_for_delivery", "delivered", "cancelled", "returned"];
                                 $cancelable_till = $item['cancelable_till'];
                                 $active_status = $item['active_status'];
                                 $cancellable_index = array_search($cancelable_till, $status);

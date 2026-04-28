@@ -95,10 +95,26 @@ class My_account extends CI_Controller
             $this->data['keywords'] = 'Orders, ' . $this->data['web_settings']['meta_keywords'];
             $this->data['description'] = 'Orders | ' . $this->data['web_settings']['meta_description'];
 
-            /* Added search for Cretzo, for filtering order items based on search query */
-            $search_2 = ($this->input->get('search')) ? $this->input->get('search') : null;
+              /* Search + date filters for my-account orders */
+            $search_2 = ($this->input->get('search')) ? trim($this->input->get('search')) : null;
+            $start_date = ($this->input->get('start_date')) ? trim($this->input->get('start_date')) : null;
+            $end_date = ($this->input->get('end_date')) ? trim($this->input->get('end_date')) : null;
 
-            $total = fetch_orders(false, $this->data['user']->id, false, false, 1, NULL, NULL, NULL, NULL, $search_2);
+            if (!empty($start_date) && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $start_date)) {
+                $start_date = null;
+            }
+            if (!empty($end_date) && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $end_date)) {
+                $end_date = null;
+            }
+
+            $this->data['filters'] = [
+                'search' => $search_2,
+                'start_date' => $start_date,
+                'end_date' => $end_date,
+            ];
+
+            $total = fetch_orders(false, $this->data['user']->id, false, false, 1, NULL, NULL, NULL, NULL, $start_date, $end_date, $search_2, NULL, NULL, NULL, '', true, $search_2);
+            
             
             $limit = 10;
             $config['base_url'] = base_url('my-account/orders');
@@ -143,7 +159,7 @@ class My_account extends CI_Controller
             $offset = ($page_no - 1) * $limit;
             $this->pagination->initialize($config);
             $this->data['links'] =  $this->pagination->create_links();
-            $this->data['orders'] = fetch_orders(false, $this->data['user']->id, false, false, $limit, $offset, 'date_added', 'DESC', NULL, NULL, NULL, NULL, NULL, NULL, NULL, '', true, $search_2);
+            $this->data['orders'] = fetch_orders(false, $this->data['user']->id, false, false, $limit, $offset, 'date_added', 'DESC', NULL, $start_date, $end_date, $search_2, NULL, NULL, NULL, '', true, $search_2);
             $this->data['payment_methods'] = get_settings('payment_method', true);
             $this->load->view('front-end/' . THEME . '/template', $this->data);
         } else {

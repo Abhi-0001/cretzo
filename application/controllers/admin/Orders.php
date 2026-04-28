@@ -1437,6 +1437,67 @@ class Orders extends CI_Controller
         }
     }
 
+    public function get_shiprocket_parcel_defaults()
+    {
+        if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
+            $this->form_validation->set_rules('pickup_location', 'Pickup Location', 'trim|required|xss_clean');
+            $this->form_validation->set_rules('shiprocket_seller_id', 'Seller', 'trim|required|xss_clean');
+            $this->form_validation->set_rules('order_items', 'Order Items', 'trim|required');
+
+            if (!$this->form_validation->run()) {
+                $this->response['error'] = true;
+                $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                $this->response['message'] = validation_errors();
+                $this->response['data'] = [];
+                print_r(json_encode($this->response));
+                return;
+            }
+
+            $decoded_items = json_decode($_POST['order_items'], true);
+            $order_items = array_values(is_array($decoded_items) ? $decoded_items : []);
+
+            $total_weight = 0;
+            $max_height = 0;
+            $max_breadth = 0;
+            $max_length = 0;
+
+            foreach ($order_items as $row) {
+                if (
+                    isset($row['pickup_location'], $row['seller_id']) &&
+                    $row['pickup_location'] == $_POST['pickup_location'] &&
+                    $row['seller_id'] == $_POST['shiprocket_seller_id']
+                ) {
+                    $quantity = (float)(isset($row['quantity']) ? $row['quantity'] : 1);
+                    $weight = (float)(isset($row['weight']) ? $row['weight'] : 0);
+                    $height = (float)(isset($row['height']) ? $row['height'] : 0);
+                    $breadth = (float)(isset($row['breadth']) ? $row['breadth'] : 0);
+                    $length = (float)(isset($row['length']) ? $row['length'] : 0);
+
+                    $total_weight += ($weight * $quantity);
+                    $max_height = max($max_height, $height);
+                    $max_breadth = max($max_breadth, $breadth);
+                    $max_length = max($max_length, $length);
+                }
+            }
+
+            $this->response['error'] = false;
+            $this->response['csrfName'] = $this->security->get_csrf_token_name();
+            $this->response['csrfHash'] = $this->security->get_csrf_hash();
+            $this->response['message'] = 'Recommended parcel details loaded successfully';
+            $this->response['data'] = [
+                'pickup_location' => $_POST['pickup_location'],
+                'parcel_weight' => ($total_weight > 0) ? number_format($total_weight, 2, '.', '') : '',
+                'parcel_height' => ($max_height > 0) ? ceil($max_height) : 1,
+                'parcel_breadth' => ($max_breadth > 0) ? ceil($max_breadth) : 1,
+                'parcel_length' => ($max_length > 0) ? ceil($max_length) : 1,
+            ];
+            print_r(json_encode($this->response));
+        } else {
+            redirect('admin/login', 'refresh');
+        }
+    }
+
     public function generate_awb()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
