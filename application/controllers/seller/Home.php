@@ -297,6 +297,7 @@ class Home extends CI_Controller
                     ->get()
                     ->result_array();
             }
+            // Seller Profile Updation
             // Adding the State District and City logic
             $this->data['states'] = [];
             $this->data['districts'] = [];

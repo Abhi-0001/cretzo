@@ -150,6 +150,7 @@
                         </div>
                         <div class="col-md-6 mb-3">
                           <label class="form-label">State <span class="text-danger">*</span></label>
+                          <!-- Seller Profile -->
                           <!-- GET STATES BY FILTERING THE NAME -->
                           <div style="position:relative;">
                             <input type="text" id="state_search" class="input" placeholder="Search State..." autocomplete="off">
@@ -180,7 +181,7 @@
                           <input name="pin" type="text" class="input" placeholder="Enter PIN Code" value="<?=$fetched_data[0]['pin']?>" required maxlength="6" onkeypress="if ( isNaN(this.value + String.fromCharCode(event.keyCode) )) return false;">
                         </div>
                       </div>
-                        
+                        <!-- Seller Profile  -->
                         <div class="text-center mt-3">
                           <button type="button" class="btn btn-next-1">Next</button>
                         </div>
