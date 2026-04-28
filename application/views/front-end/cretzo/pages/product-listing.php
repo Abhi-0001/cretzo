@@ -56,6 +56,7 @@ die; */
                 </div>
 
                 <div class="filter-container-inner-section">
+                    <?php if (!isset($is_category_page) || !$is_category_page): ?>
                     <div class="filter-section fs-category">
                         <h1 class="text-n filter-heading">Categories</h1>
                         <ul class="list filter-list">
@@ -95,6 +96,7 @@ die; */
                             <?php  } ?>
                         </ul>
                     </div>
+                    <?php endif; ?>
                 
 
                     <!-- slider -->
@@ -272,48 +274,10 @@ die; */
                 </div>
             <?php } ?>
 
-            <!-- paging (navigation) -->
-            <!-- <div class="paging-container">
-                <div class="flex-1"></div>
-                <div class="paging">
-                    <p class="text-n op-6">1 of 20 pages</p>
-                    <img class="paging-icon first-page-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/first-page.png') ?> ">
-                    <img class="paging-icon previous-page-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/next-page.png') ?> ">
-                    <img class="paging-icon next-page-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/next-page.png') ?> ">
-                    <img class="paging-icon last-page-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/last-page.png') ?> ">
-                </div>
-            </div> -->
+            <nav id="products-pagination-nav" class="text-center mt-14" aria-label="pagination">
+                <?= (isset($links)) ? $links : '' ?>
+            </nav>
 
-            
-            <p class="text-n op-8 ta-c mt-14" style="text-transform: none;">Page <?= $page_no ?> of <?= $num_pages ?></p>
-
-            <!-- <nav id="products-pagination-nav" class="text-center d-flex overflow-auto mt-2" aria-label="pagination">
-                        <?= (isset($links)) ? $links : '' ?>
-                    </nav> -->
-            
-            
-            <?php 
-                if(isset($links) && $links != ''){
-                ?>
-                    <nav id="products-pagination-nav" class="text-center d-flex overflow-auto mt-2" aria-label="pagination">
-                        <?= (isset($links)) ? $links : '' ?>
-                    </nav>
-                <?php
-                }
-                else{
-                ?>
-                    <ul class="pagination justify-content-center">
-                        <li class="page-item page-link active disabled"> 
-                            <i class="uil uil-arrow-left"></i>
-                        </li>
-                        <li class="page-item page-link active disabled">1</li>
-                        <li class="page-item page-link active disabled"> 
-                            <i class="uil uil-arrow-right"></i>
-                        </li>
-                    </ul>
-                <?php
-                }
-            ?>
         
         </div>
 

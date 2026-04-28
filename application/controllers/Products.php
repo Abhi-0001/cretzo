@@ -68,9 +68,24 @@ class Products extends CI_Controller
         $filter['attribute_value_ids'] = get_attribute_ids_by_value($attribute_values, $attribute_names);
         $filter['attribute_value_ids'] = implode(',', $filter['attribute_value_ids']);
 
-        $category_id = ($this->input->get('category')) ? $this->input->get('category') : null;
-        // print_r($category_id);
-        // die;
+        $category_param = $this->input->get('category', true);
+        $category_id = null;
+        if (!empty($category_param)) {
+            $category_ids = [];
+            $category_values = array_filter(array_map('trim', explode('|', $category_param)));
+            foreach ($category_values as $category_value) {
+                if (ctype_digit((string)$category_value)) {
+                    $category_ids[] = (int)$category_value;
+                } else {
+                    $category_details = fetch_details('categories', ['slug' => urldecode($category_value)], 'id');
+                    if (!empty($category_details) && isset($category_details[0]['id'])) {
+                        $category_ids[] = (int)$category_details[0]['id'];
+                    }
+                }
+            }
+            $category_ids = array_values(array_unique($category_ids));
+            $category_id = !empty($category_ids) ? $category_ids : null;
+        }
 
 
         /* filter within price range */
@@ -100,17 +115,12 @@ class Products extends CI_Controller
             $filter['brands'] = $brand_slug;
         }
 
-        $category_slug = (isset($_GET['category']) && !empty($_GET['category']) && $_GET['category'] != "") ? $this->input->get('category', true) : '';
-        // print_r($category_slug);
-        // die;
-
-
         $offset = 0;
         $sort = 'row_order';
         $order = 'ASC';
         $brands = $this->brand_model->get_brands('', $limit = NULL, $offset, $sort, $order, 'false');
 
-        $products = fetch_product(null, $filter, null, $category_slug, $limit = NULL, $offset, $sort, $order);
+        $products = fetch_product(null, $filter, null, $category_id, $limit = NULL, $offset, $sort, $order);
         // echo "<pre>";
         // print_r($brands);
         // die;
@@ -139,9 +149,6 @@ class Products extends CI_Controller
             $ignore_categories_with_no_products = 'true'
         );
 
-        if (!empty($category_id)) {
-            $category_id = explode('|', $category_id);
-        }
         $user_id = NULL;
         if ($this->data['is_logged_in']) {
             $user_id = $this->data['user']->id;
@@ -179,7 +186,7 @@ class Products extends CI_Controller
         $theme = fetch_details('themes', ['status' => 1], 'name');
         // print_r($filter);
         // die;
-        $limit = ($this->input->get('per-page')) ? $this->input->get('per-page', true) : 12;
+        $limit = ($this->input->get('per-page')) ? $this->input->get('per-page', true) : 20;
         $config['base_url'] = base_url('products');
         $config['total_rows'] = $total_rows;
         $config['per_page'] = $limit;
@@ -256,6 +263,7 @@ class Products extends CI_Controller
         //         print_r($brands);
         //         die;
         $this->data['filters_key'] = 'all_products_listing';
+        $this->data['is_category_page'] = false;
         $this->data['page_main_bread_crumb'] = "Product Listing";
         $this->load->view('front-end/' . THEME . '/template', $this->data);
     }
@@ -311,7 +319,7 @@ class Products extends CI_Controller
             $has_child_or_item = 'true'
         );
 
-        $limit = ($this->input->get('per-page')) ? $this->input->get('per-page', true) : 12;
+        $limit = ($this->input->get('per-page')) ? $this->input->get('per-page', true) : 20;
         $products = fetch_product(null, '', null, $category_id, $limit, $offset, $sort, $order);
 
         // $brands = array();
@@ -454,6 +462,7 @@ class Products extends CI_Controller
         $this->data['products'] = fetch_product(null, $filter, null, $category_id, $limit, $offset, $sort, $order);
         $this->data['filters'] = (isset($this->data['products']['filters'])) ? json_encode($this->data['products']['filters']) : "";
         $this->data['filters_key'] = 'category_products_' . $category_slug;
+        $this->data['is_category_page'] = true;
         $this->data['brands'] = (isset($brands)) ? json_encode($brands) : "";
         // $this->data['categories'] = (isset($category)) ? ($category) : "";
         $this->data['single_category'] = $category;
@@ -623,7 +632,7 @@ class Products extends CI_Controller
         $filter['max_price'] = $max_price;
 
 
-        $limit = ($this->input->get('per-page')) ? $this->input->get('per-page', true) : 12;
+        $limit = ($this->input->get('per-page')) ? $this->input->get('per-page', true) : 20;
         $products = fetch_product(null, $filter, $product_ids, $product_categories, $limit, $offset, $sort, $order);
 
         // $brands = array();
@@ -938,6 +947,7 @@ class Products extends CI_Controller
         $this->data['products'] = fetch_product(null, $filter, null, null, $limit, $offset, $sort, $order);
         $this->data['filters'] = (isset($this->data['products']['filters'])) ? json_encode($this->data['products']['filters']) : "";
         $this->data['filters_key'] = 'products_search';
+        $this->data['is_category_page'] = false;
         $this->data['page_main_bread_crumb'] = $page_title;
         $this->load->view('front-end/' . THEME . '/template', $this->data);
     }
@@ -1074,6 +1084,7 @@ class Products extends CI_Controller
         $this->data['products'] = fetch_product(null, $filter, null, null, $limit, $offset, $sort, $order);
         $this->data['filters'] = (isset($this->data['products']['filters'])) ? json_encode($this->data['products']['filters']) : "";
         $this->data['filters_key'] = 'products_tags';
+        $this->data['is_category_page'] = false;
         $this->data['page_main_bread_crumb'] = $page_title;
         $this->load->view('front-end/' . THEME . '/template', $this->data);
     }
@@ -1446,24 +1457,41 @@ class Products extends CI_Controller
     {
         $get = $this->input->get(null, true);
         $filter = [];
-        $filter = [];
 
         /* -------- ATTRIBUTE FILTERS -------- */
         $attribute_values = '';
         $attribute_names = '';
-        if($get['searchData']){
+        if (!empty($get['searchData'])) {
             $filter['search'] = $get['searchData'];
         }
-         /* -------- CATEGORY -------- */
-        $category_id = $get['category'] ?? null;
-        if($get['subCategory']){
-             $category_id = get_category_id_by_slug($get['subCategory']);
+
+        /* -------- CATEGORY -------- */
+        $category_id = null;
+        if (!empty($get['subCategory'])) {
+            $category_id = get_category_id_by_slug($get['subCategory']);
+        } elseif (!empty($get['category'])) {
+            $category_values = array_filter(array_map('trim', explode('|', $get['category'])));
+            $category_ids = [];
+            foreach ($category_values as $category_value) {
+                if (ctype_digit((string)$category_value)) {
+                    $category_ids[] = (int)$category_value;
+                } else {
+                    $category_details = fetch_details('categories', ['slug' => urldecode($category_value)], 'id');
+                    if (!empty($category_details) && isset($category_details[0]['id'])) {
+                        $category_ids[] = (int)$category_details[0]['id'];
+                    }
+                }
+            }
+            $category_ids = array_values(array_unique($category_ids));
+            if (!empty($category_ids)) {
+                $category_id = count($category_ids) === 1 ? $category_ids[0] : $category_ids;
+            }
         }
 
         foreach ($get as $key => $value) {
             if (strpos($key, 'filter-') === 0) {
                 $attribute_values .= ($attribute_values ? '|' : '') . $value;
-                $attribute_names .= ($attribute_names ? '|' : str_replace('filter-', '', $key));
+                $attribute_names .= ($attribute_names ? '|' : '') . str_replace('filter-', '', $key);
             }
         }
 
@@ -1481,7 +1509,7 @@ class Products extends CI_Controller
 
         /* -------- BRAND -------- */
         if (!empty($get['brand'])) {
-            $filter['brands'] = str_replace('|', ',', $get['brand']);
+            $filter['brands'] = $get['brand'];
         }
 
        
@@ -1518,13 +1546,13 @@ class Products extends CI_Controller
                 $order = 'DESC';
                 break;
             default:
-                $sort = 'pv.row_order';
+                $sort = 'p.row_order';
                 $order = 'ASC';
         }
 
         /* -------- PAGINATION -------- */
-        $limit = $get['per-page'] ?? 12;
-        $page = $get['page'] ?? 1;
+        $limit = (isset($get['per-page']) && is_numeric($get['per-page']) && (int)$get['per-page'] > 0) ? (int)$get['per-page'] : 20;
+        $page = (isset($get['page']) && is_numeric($get['page']) && (int)$get['page'] > 0) ? (int)$get['page'] : 1;
         $offset = ($page - 1) * $limit;
 
         /* -------- FETCH -------- */
@@ -1535,7 +1563,7 @@ class Products extends CI_Controller
             $category_id,
             $limit,
             $offset,
-            null,
+            $sort,
             $order,
             null,
             null,
@@ -1562,7 +1590,7 @@ class Products extends CI_Controller
             'total_rows' => $total_rows,
             'filter' => $filter,
             'limit' => $limit,
-            'page' => $this->input->post('page') ?? 1
+            'page' => $page
         ]);
     }
 

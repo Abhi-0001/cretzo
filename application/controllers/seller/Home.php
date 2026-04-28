@@ -10,7 +10,7 @@ class Home extends CI_Controller
         $this->load->database();
         $this->load->library(['ion_auth', 'form_validation']);
         $this->load->helper(['url', 'language']);
-        $this->load->model(['Home_model', 'Order_model']);
+        $this->load->model(['Home_model', 'Order_model', 'Subscription_model', 'Seller_subscription_model']);
     }
 
     public function index()
@@ -40,6 +40,47 @@ class Home extends CI_Controller
             $orders_count['cancelled'] = orders_count("cancelled", $user_id);
             $orders_count['returned'] = orders_count("returned", $user_id);
             $this->data['status_counts'] = $orders_count;
+
+            // subscription status for seller
+            $active_subscription = $this->Seller_subscription_model->get_active_subscription($user_id);
+            $latest_subscription = $this->Seller_subscription_model->get_latest_subscription($user_id);
+
+            $subscription_status = 'none'; // none | active | expired
+            $current_subscription = null;
+            if (!empty($active_subscription)) {
+                $subscription_status = 'active';
+                $current_subscription = $active_subscription;
+            } elseif (!empty($latest_subscription)) {
+                $subscription_status = 'expired';
+                $current_subscription = $latest_subscription;
+            }
+
+            $current_plan = null;
+            $subscription_expired_on = null;
+            if (!empty($current_subscription)) {
+                $current_plan = $this->Subscription_model->get_plan($current_subscription['subscription_id']);
+                if (!empty($current_subscription['end_date']) && $subscription_status === 'expired') {
+                    $subscription_expired_on = date('d M Y', strtotime($current_subscription['end_date']));
+                }
+            }
+
+            $this->data['active_subscription'] = $active_subscription;
+            $this->data['latest_subscription'] = $latest_subscription;
+            $this->data['subscription_status'] = $subscription_status;
+            $this->data['current_subscription_plan'] = $current_plan;
+            $this->data['subscription_expired_on'] = $subscription_expired_on;
+
+            $this->data['subscription_plans'] = [];
+            $this->data['show_subscription_popup'] = false;
+
+            if ($subscription_status !== 'active') {
+                $plans = $this->Subscription_model->get_plans();
+                if (!empty($plans)) {
+                    $this->data['subscription_plans'] = $plans;
+                    $this->data['show_subscription_popup'] = true;
+                }
+            }
+
             $this->load->view('seller/template', $this->data);
         } else {
             redirect('seller/login', 'refresh');
