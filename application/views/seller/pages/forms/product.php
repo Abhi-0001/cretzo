@@ -401,7 +401,7 @@
                                         <input type="text" class="form-control" name="hsn_code" id="hsn_code">
                                     </div>
 
-                                    <!-- Replace your category_level_1 select with this -->
+                                    <!-- Category -->
 <div class="col-md-4 form-group">
     <label>Category  <span class="text-danger">*</span></label>
     <div class="category-combo" style="position:relative;">

@@ -289,7 +289,7 @@ class Product extends CI_Controller
             redirect('seller/login', 'refresh');
         }
     }
-
+// Product validation 
     public function add_product()
     {
         ob_start();
