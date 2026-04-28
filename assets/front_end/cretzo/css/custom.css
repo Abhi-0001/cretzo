@@ -2396,3 +2396,8 @@ position:absolute;
     background: #eeeeee;
     cursor: pointer;
 }
+.product-image,
+.product-gallery {
+    position: relative !important;
+    top: auto !important;
+}
