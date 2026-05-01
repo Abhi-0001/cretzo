@@ -182,13 +182,32 @@ function validateForm(form) {
       showError(input, 'Enter valid PIN');
       valid = false;
     }
+    
+    if (input.name === 'pan' &&
+      !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(input.value.toUpperCase())) {
+    showError(input, 'Invalid PAN. Example: ABCDE1234F');
+    valid = false;
+  }
 
-    if (input.name === 'ifsc' &&
-        !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(input.value)) {
+  if (input.name === 'gst' &&
+      !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(input.value.toUpperCase())) {
+    showError(input, 'Invalid GST. Example: 22ABCDE0000A1Z5');
+    valid = false;
+  }
+
+    if (input.name === 'ifsc' && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(input.value.toUpperCase())) {
       showError(input, 'Invalid IFSC code');
       valid = false;
     }
   });
+  
+  const accountInput = form.querySelector('[name="account_number"]');
+  const confirmAccountInput = form.querySelector('[name="confirm_account_number"]');
+  if (accountInput && confirmAccountInput && accountInput.value !== confirmAccountInput.value) {
+    showError(confirmAccountInput, 'Account numbers do not match');
+    valid = false;
+  }
+
 
   return valid;
 }
