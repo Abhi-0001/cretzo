@@ -584,8 +584,13 @@ $auth_settings = get_settings('authentication_settings', true);
     }
 
     function generateMegaMenu($categories, $noOfRows) {
+        $noOfRows = max(1, (int) $noOfRows);
         $totalCategories = count($categories);
-        $categoriesPerRow = ceil($totalCategories / $noOfRows);
+        if ($totalCategories === 0) {
+            echo '<div class="mega-menu"></div>';
+            return;
+        }
+        $categoriesPerRow = max(1, (int) ceil($totalCategories / $noOfRows));
         
         $chunks = array_chunk($categories, $categoriesPerRow);
         

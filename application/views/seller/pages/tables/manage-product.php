@@ -163,7 +163,18 @@
                                         <option value='0'>Deactivated</option>
                                     </select>
                                 </div>
-                            </div>
+                            <div class="col-md-3">
+                                    <label for="brand_filter" class="col-form-label">Filter By Brand</label>
+                                    <select class='form-control' name='brand_filter' id="brand_filter">
+                                        <option value=''>Select Brand</option>
+                                        <?php if (!empty($brands)): ?>
+                                            <?php foreach ($brands as $brand): ?>
+                                                <option value="<?= $brand['id'] ?>"><?= $brand['name'] ?></option>
+                                            <?php endforeach; ?>
+                                        <?php endif; ?>
+                                    </select>
+                                </div>
+                                            </div>
                             <div class="gaps-1-5x"></div>
                             <table class='table-striped' id='products_table' data-toggle="table" data-url="<?= isset($_GET['flag']) ? base_url('seller/product/get_product_data?flag=') . $_GET['flag'] : base_url('seller/product/get_product_data') ?>" data-click-to-select="true" data-side-pagination="server" data-pagination="true" data-page-list="[5, 10, 20, 50, 100, 200]" data-search="true" data-show-columns="true" data-show-refresh="true" data-trim-on-search="false" data-sort-name="id" data-sort-order="desc" data-mobile-responsive="true" data-toolbar="" data-show-export="true" data-maintain-selected="true" data-export-types='["txt","excel","csv"]' data-export-options='{"fileName": "products-list","ignoreColumn": ["state"] }' data-query-params="product_query_params">
                                 <thead>

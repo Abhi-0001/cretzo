@@ -33,12 +33,14 @@ die; */
 
             <div class="search-filter-container">
                 <div class="search-input-wrapper">
-                    <input class="input" type="text" id="search-input" placeholder="Search orders..." value="<?= isset($_GET['search']) ? htmlspecialchars($_GET['search']) : '' ?>">
+                <input class="input" type="text" id="search-input" placeholder="Search orders & returns..." value="<?= isset($filters['search']) ? htmlspecialchars($filters['search']) : '' ?>">
                     <span id="clear-search" style="display: none; cursor: pointer;">✕</span>
                 </div>
+                <input class="input" type="date" id="end-date-input" value="<?= isset($filters['end_date']) ? htmlspecialchars($filters['end_date']) : '' ?>" title="End date">
                 <button class="cretzo btn light-btn" id="search-btn">
-                    <img class="filter-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/filter-icon.png') ?>">FILTER
+                <img class="filter-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/filter-icon.png') ?>">APPLY
                 </button>
+                <button class="cretzo btn light-btn" id="reset-filter-btn" type="button">RESET</button>
             </div>
 
 
@@ -58,12 +60,16 @@ die; */
                         <li class="ordered-product-list-item">
                             <a href="<?= base_url('my-account/order-details/' . $row['id'] . '/' . $item['id']) ?>" class='card-url text-decoration-none'></a>
                             <div class="delivered-icon-container">
-                                <img class="delivered-icon" src="<?= base_url("assets/front_end/cretzo/img/new_cretzo/{$item['active_status']}.png") ?>">
+                            <?php
+                                $status_key = $item['active_status'];
+                                $status_image = ($status_key == 'out_for_delivery') ? 'shipped' : $status_key;
+                                $status_label = ($status_key == 'received') ? 'Placed' : (($status_key == 'out_for_delivery') ? 'Out For Delivery' : ucwords(str_replace('_', ' ', $status_key)));
+                                ?>
+                                <img class="delivered-icon" src="<?= base_url("assets/front_end/cretzo/img/new_cretzo/{$status_image}.png") ?>">
                                 <div>
 
                                     <!-- <h1 class="sub-heading delivered-text"><?= ucwords($item['status'][array_key_last($item['status'])][0]) ?></h1> -->
-                                    <h1 class="sub-heading delivered-text"><?= ucwords($item['active_status']) ?></h1>
-                                    
+                                    <h1 class="sub-heading delivered-text"><?= $status_label ?></h1>
                                     <p class="text-s delivered-date">On <?= orderStatusTimeToHumanReadableString($item['status'][array_key_last($item['status'])][1]) ?></p>
                                 </div>
                                 
@@ -109,7 +115,7 @@ die; */
 
                                 <div>
                                     <?php
-                                        $status = ["awaiting", "received", "processed", "shipped", "delivered", "cancelled", "returned"];
+                                        $status = ["awaiting", "received", "processed", "shipped","out_for_delivery", "delivered", "cancelled", "returned"];
                                         $cancelable_till = $item['cancelable_till'];
                                         $active_status = $item['active_status'];
                                         $cancellable_index = array_search($cancelable_till, $status);

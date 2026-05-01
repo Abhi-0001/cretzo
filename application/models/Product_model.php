@@ -51,8 +51,28 @@ class Product_model extends CI_Model
 
     public function add_product($data)
     {
+        log_message('error', 'ADD_PRODUCT_DATA: ' . json_encode(array_keys($data)));
+        
+        file_put_contents(FCPATH . 'debug_log.txt', "STEP 1 - START\n", FILE_APPEND);
+        
         $data = escape_array($data);
-
+        file_put_contents(FCPATH . 'debug_log.txt', "STEP 2 - after escape_array\n", FILE_APPEND);
+        
+        $data = array_merge($data);
+        file_put_contents(FCPATH . 'debug_log.txt', "STEP 3 - after merge\n", FILE_APPEND);
+        
+        $data = escape_array($data);
+        $data = array_merge([
+            'pro_input_description' => '',
+            'extra_input_description' => '',
+            'short_description' => '',
+            'tags' => '',
+            'other_images' => [],
+            'attribute_values' => '',
+            'deliverable_type' => 0,
+            'pro_input_video' => '',
+            'video' => '',
+        ], $data);
 
         if ($data['product_type'] == 'simple_product' || $data['product_type'] == 'variable_product') {
             $pro_type = ($data['product_type'] == 'simple_product') ? 'simple_product' : 'variable_product';
@@ -65,7 +85,17 @@ class Product_model extends CI_Model
 
         // get seller product release permission
         $permits = fetch_details('seller_data', ['user_id' => $seller_id], 'permissions');
-        $s_permits = json_decode($permits[0]['permissions'], true);
+        file_put_contents(FCPATH . 'debug_log.txt', "STEP 4 - permits: " . json_encode($permits) . "\n", FILE_APPEND);
+        if (!empty($permits[0]['permissions'])) {
+            $decoded = json_decode($permits[0]['permissions'], true);
+            $s_permits = is_array($decoded) ? $decoded : [];
+        }
+        file_put_contents(FCPATH . 'debug_log.txt', "STEP 5 - after permits\n", FILE_APPEND);
+
+        
+
+        // Then this line becomes safe:
+        $is_permit = (isset($s_permits['require_products_approval']) && $s_permits['require_products_approval'] == 0) ? 1 : 2;
         if (isset($data['edit_product_id']) && !empty($data['edit_product_id'])) {
             $edit_status = fetch_details('products', ['id' => $data['edit_product_id']], 'status');
             $require_products_approval = isset($data['status']) && ($data['status'] != '') ? $data['status'] : $edit_status[0]['status'];
@@ -80,7 +110,7 @@ class Product_model extends CI_Model
         $extra_description = $data['extra_input_description'];
         $tags = (!empty($data['tags'])) ? $data['tags'] : "";
         $slug   = create_unique_slug($data['pro_input_name'], 'products');
-        $main_image_name = $data['pro_input_image'];
+        $main_image_name = isset($data['pro_input_image']) ? $data['pro_input_image'] : '';
         $other_images = (isset($data['other_images']) && !empty($data['other_images'])) ? $data['other_images'] : [];
         if (isset($data['product_type']) && $data['product_type'] == 'digital_product') {
             $total_allowed_quantity = 1;
@@ -125,7 +155,7 @@ class Product_model extends CI_Model
             'description' => $description,
             'extra_description' => $extra_description,
             'deliverable_type' => isset($data['deliverable_type']) && !empty($data['deliverable_type']) ? $data['deliverable_type'] : 0,
-            'deliverable_zipcodes' => ($data['deliverable_type'] == ALL || $data['deliverable_type'] == NONE) ? NULL : $data['zipcodes'],
+            'deliverable_zipcodes' => (isset($data['zipcodes']) && !empty($data['zipcodes'])) ? $data['zipcodes'] : NULL,
             'hsn_code' => $hsn_code,
             'pickup_location' => $pickup_location,
             'is_attachment_required' => $is_attachment_required,
@@ -208,14 +238,17 @@ class Product_model extends CI_Model
         } else {
             $pro_data['other_images'] = json_encode($other_images, 1);
             $this->db->insert('products', $pro_data);
+            file_put_contents(FCPATH . 'debug_log.txt', "STEP 6 - after insert: " . $this->db->last_query() . "\n", FILE_APPEND);
         }
         $pro_variance_data['weight'] = 0.0;
         $p_id = (isset($data['edit_product_id'])) ? $data['edit_product_id'] : $this->db->insert_id();
+        file_put_contents(FCPATH . 'debug_log.txt', "STEP 7 - p_id: " . $p_id . "\n", FILE_APPEND);
         $pro_variance_data['product_id'] = $p_id;
         $pro_attr_data = [
             'product_id' => $p_id,
-            'attribute_value_ids' => strval($data['attribute_values']),
+            'attribute_value_ids' => isset($data['attribute_values']) ? strval($data['attribute_values']) : '',
         ];
+        file_put_contents(FCPATH . 'debug_log.txt', "STEP 8 - pro_attr_data ready\n", FILE_APPEND);
         // print_r($pro_attr_data);
 
 
@@ -223,28 +256,42 @@ class Product_model extends CI_Model
             $this->db->where('product_id', $data['edit_product_id'])->update('product_attributes', $pro_attr_data);
         } else {
             $this->db->insert('product_attributes', $pro_attr_data);
+            file_put_contents(FCPATH . 'debug_log.txt', "STEP 9 - after product_attributes insert\n", FILE_APPEND);
         }
 
         if ($pro_type == 'simple_product') {
+            file_put_contents(FCPATH . 'debug_log.txt', "STEP 10 - pro_type is: " . $pro_type . "\n", FILE_APPEND);
+
+            file_put_contents(FCPATH . 'debug_log.txt', "STEP 10a - simple_product_stock_status: " . json_encode(isset($data['simple_product_stock_status']) ? $data['simple_product_stock_status'] : 'NOT SET') . "\n", FILE_APPEND);
+
+
             $pro_variance_data = [
                 'product_id' => $p_id,
                 'price' => $data['simple_price'],
                 'special_price' => (isset($data['simple_special_price']) && !empty($data['simple_special_price'])) ? $data['simple_special_price'] : '0',
-                'weight' => (isset($data['weight'])) ? floatval($data['weight']) : 0,
-                'height' => (isset($data['height'])) ? $data['height'] : 0,
-                'breadth' => (isset($data['breadth'])) ? $data['breadth'] : 0,
-                'length' => (isset($data['length'])) ? $data['length'] : 0,
-            ];
+                // 'weight' => (isset($data['weight'])) ? floatval(is_array($data['weight']) ? $data['weight'][0] : $data['weight']) : 0,
+                // 'height' => (isset($data['height'])) ? (is_array($data['height']) ? $data['height'][0] : $data['height']) : 0,
+                // 'breadth' => (isset($data['breadth'])) ? (is_array($data['breadth']) ? $data['breadth'][0] : $data['breadth']) : 0,
+                // 'length' => (isset($data['length'])) ? (is_array($data['length']) ? $data['length'][0] : $data['length']) : 0,
+            ]; 
+            file_put_contents(FCPATH . 'debug_log.txt', "STEP 10b - variance_data: " . json_encode($pro_variance_data) . "\n", FILE_APPEND);
+
 
             if (isset($data['edit_product_id'])) {
                 if (isset($_POST['reset_settings']) && trim($_POST['reset_settings']) == '1') {
                     $this->db->insert('product_variants', $pro_variance_data);
+                    file_put_contents(FCPATH . 'debug_log.txt', "STEP 11 - after variant insert\n", FILE_APPEND);
+                    file_put_contents(FCPATH . 'debug_log.txt', "STEP 11 - last query: " . $this->db->last_query() . "\n", FILE_APPEND);
+                    
                 } else {
                     $this->db->where('product_id', $data['edit_product_id'])->update('product_variants', $pro_variance_data);
                 }
             } else {
                 $this->db->insert('product_variants', $pro_variance_data);
+
+            file_put_contents(FCPATH . 'debug_log.txt', "STEP 11 - after variant insert: " . $this->db->last_query() . "\n", FILE_APPEND);
             }
+            file_put_contents(FCPATH . 'debug_log.txt', "STEP 12 - MODEL COMPLETE\n", FILE_APPEND);
         } elseif ($pro_type == 'digital_product') {
             $pro_variance_data = [
                 'product_id' => $p_id,
@@ -271,10 +318,10 @@ class Product_model extends CI_Model
                     $pro_variance_data['availability']  = $data['variant_status'];
                     $variant_price = $data['variant_price'];
                     $variant_special_price = (isset($data['variant_special_price']) && !empty($data['variant_special_price'])) ? $data['variant_special_price'] : '0';
-                    $variant_weight = $data['weight'];
-                    $variant_height = (isset($data['height'])) ? $data['height'] : 0.0;
-                    $variant_breadth = (isset($data['breadth'])) ? $data['breadth'] : 0.0;
-                    $variant_length = (isset($data['length'])) ? $data['length'] : 0.0;
+                    // $variant_weight = $data['weight'];
+                    // $variant_height = (isset($data['height'])) ? $data['height'] : 0.0;
+                    // $variant_breadth = (isset($data['breadth'])) ? $data['breadth'] : 0.0;
+                    // $variant_length = (isset($data['length'])) ? $data['length'] : 0.0;
                 } else {
                     $flag = "variant_level";
                     $variant_price = $data['variant_price'];
@@ -289,12 +336,16 @@ class Product_model extends CI_Model
                 }
             } else {
 
-                $variant_price = $data['variant_price'];
-                $variant_special_price = (isset($data['variant_special_price']) && !empty($data['variant_special_price'])) ? $data['variant_special_price'] : '0';
-                $variant_weight = $data['weight'];
-                $variant_height = (isset($data['height'])) ? $data['height'] : 0.0;
-                $variant_breadth = (isset($data['breadth'])) ? $data['breadth'] : 0.0;
-                $variant_length = (isset($data['length'])) ? $data['length'] : 0.0;
+                $variant_price = isset($data['variant_price']) ? $data['variant_price'] : [];
+                $variant_special_price = isset($data['variant_special_price']) ? $data['variant_special_price'] : [];
+                $variant_sku = isset($data['variant_sku']) ? $data['variant_sku'] : [];
+                $variant_total_stock = isset($data['variant_total_stock']) ? $data['variant_total_stock'] : [];
+                $variant_stock_status = isset($data['variant_level_stock_status']) ? $data['variant_level_stock_status'] : [];
+                $variant_weight = isset($data['weight']) ? $data['weight'] : [];
+                $variant_height = isset($data['height']) ? $data['height'] : [];
+                $variant_breadth = isset($data['breadth']) ? $data['breadth'] : [];
+                $variant_length = isset($data['length']) ? $data['length'] : [];
+            
             }
 
             if (!empty($data['variants_ids'])) {
@@ -387,6 +438,7 @@ class Product_model extends CI_Model
                 $category_id = $_GET['category_id'];
             }
         }
+        $brand_id = (isset($_GET['brand_id']) && $_GET['brand_id'] !== '') ? $_GET['brand_id'] : null;
 
         $count_res = $this->db->select(' COUNT( distinct(p.id)) as `total` ')->join(" categories c", "p.category_id=c.id ")->join('product_variants', 'product_variants.product_id = p.id');
 
@@ -417,6 +469,9 @@ class Product_model extends CI_Model
 
         if (isset($p_status) && $p_status != "") {
             $count_res->where("p.status", $p_status);
+        }
+        if (!empty($brand_id)){
+            $count_res->where("p.brand", $brand_id);
         }
 
         if ($flag == 'sold') {
@@ -487,11 +542,14 @@ class Product_model extends CI_Model
         }
 
         if (isset($seller_id) && $seller_id != "") {
-            $count_res->where("p.seller_id", $seller_id);
+            $search_res->where("p.seller_id", $seller_id);
         }
 
         if (isset($p_status) && $p_status != "") {
-            $count_res->where("p.status", $p_status);
+            $search_res->where("p.status", $p_status);
+        }
+        if(!empty($brand_id)){
+            $search_res->where("p.brand",$brand_id);
         }
 
         $pro_search_res = $search_res->group_by('pid')->order_by($sort, "DESC")->limit($limit, $offset)->get('products p')->result_array();

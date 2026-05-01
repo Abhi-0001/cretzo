@@ -95,10 +95,26 @@ class My_account extends CI_Controller
             $this->data['keywords'] = 'Orders, ' . $this->data['web_settings']['meta_keywords'];
             $this->data['description'] = 'Orders | ' . $this->data['web_settings']['meta_description'];
 
-            /* Added search for Cretzo, for filtering order items based on search query */
-            $search_2 = ($this->input->get('search')) ? $this->input->get('search') : null;
+              /* Search + date filters for my-account orders */
+            $search_2 = ($this->input->get('search')) ? trim($this->input->get('search')) : null;
+            $start_date = ($this->input->get('start_date')) ? trim($this->input->get('start_date')) : null;
+            $end_date = ($this->input->get('end_date')) ? trim($this->input->get('end_date')) : null;
 
-            $total = fetch_orders(false, $this->data['user']->id, false, false, 1, NULL, NULL, NULL, NULL, $search_2);
+            if (!empty($start_date) && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $start_date)) {
+                $start_date = null;
+            }
+            if (!empty($end_date) && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $end_date)) {
+                $end_date = null;
+            }
+
+            $this->data['filters'] = [
+                'search' => $search_2,
+                'start_date' => $start_date,
+                'end_date' => $end_date,
+            ];
+
+            $total = fetch_orders(false, $this->data['user']->id, false, false, 1, NULL, NULL, NULL, NULL, $start_date, $end_date, $search_2, NULL, NULL, NULL, '', true, $search_2);
+            
             
             $limit = 10;
             $config['base_url'] = base_url('my-account/orders');
@@ -143,7 +159,7 @@ class My_account extends CI_Controller
             $offset = ($page_no - 1) * $limit;
             $this->pagination->initialize($config);
             $this->data['links'] =  $this->pagination->create_links();
-            $this->data['orders'] = fetch_orders(false, $this->data['user']->id, false, false, $limit, $offset, 'date_added', 'DESC', NULL, NULL, NULL, NULL, NULL, NULL, NULL, '', true, $search_2);
+            $this->data['orders'] = fetch_orders(false, $this->data['user']->id, false, false, $limit, $offset, 'date_added', 'DESC', NULL, $start_date, $end_date, $search_2, NULL, NULL, NULL, '', true, $search_2);
             $this->data['payment_methods'] = get_settings('payment_method', true);
             $this->load->view('front-end/' . THEME . '/template', $this->data);
         } else {
@@ -365,6 +381,10 @@ class My_account extends CI_Controller
             $this->data['keywords'] = 'Address, ' . $this->data['web_settings']['meta_keywords'];
             $this->data['description'] = 'Address | ' . $this->data['web_settings']['meta_description'];
             $this->data['cities'] = get_cities();
+            $this->data['states'] = []; // Initialize states list for state dropdown.
+            if ($this->db->table_exists('states')) {
+                $this->data['states'] = $this->db->select('id,name')->from('states')->order_by('name', 'ASC')->get()->result_array(); // Load all states sorted by name.
+            }
             $this->data['areas'] = fetch_details('areas', NULL);
 
             // added for Cretzo theme, fetch cusotmer's address while loading page.
@@ -441,11 +461,15 @@ class My_account extends CI_Controller
             $this->form_validation->set_rules('alternate_mobile', 'Alternative Mobile', 'trim|numeric|xss_clean');
             $this->form_validation->set_rules('address', 'Address', 'trim|xss_clean|required');
             $this->form_validation->set_rules('landmark', 'Landmark', 'trim|xss_clean');
-            $this->form_validation->set_rules('city_name', 'City', 'trim|xss_clean');
+            // $this->form_validation->set_rules('city_name', 'City', 'trim|xss_clean');
             $this->form_validation->set_rules('area_name', 'Area', 'trim|xss_clean');
             $this->form_validation->set_rules('area_id', 'Area', 'trim|xss_clean');
             $this->form_validation->set_rules('city_id', 'City', 'trim|xss_clean');
-            $this->form_validation->set_rules('pincode', 'Pincode', 'trim|numeric|xss_clean|required');
+            if (isset($_POST['pincode_name']) && !empty($_POST['pincode_name'])) { // Validate manually entered pincode if provided.
+                $this->form_validation->set_rules('pincode_name', 'Pincode Name', 'trim|exact_length[6]|xss_clean|required'); // Require 6-digit custom pincode.
+            } else {
+                $this->form_validation->set_rules('pincode', 'Pincode', 'trim|numeric|xss_clean|required'); // Validate selected pincode id/value.
+            }
             $this->form_validation->set_rules('state', 'State', 'trim|xss_clean|required');
             $this->form_validation->set_rules('country', 'Country', 'trim|xss_clean|required');
             $this->form_validation->set_rules('latitude', 'Latitude', 'trim|xss_clean');
@@ -460,7 +484,8 @@ class My_account extends CI_Controller
                 return false;
             }
 
-            $arr = $this->input->post(null, true);
+            $arr = $this->input->post(null, true); // Read sanitized form payload.
+            $arr = $this->resolve_location_details($arr); // Resolve and persist missing location master data.
             $arr['user_id'] = $this->data['user']->id;
             $this->address_model->set_address($arr);
             $res = $this->address_model->get_address($this->data['user']->id, false, true);
@@ -509,8 +534,9 @@ class My_account extends CI_Controller
                 return false;
             }
             // print_R($_POST);
-            $this->address_model->set_address($_POST);
-            $res = $this->address_model->get_address(null, $_POST['id'], true);
+            $payload = $this->input->post(null, true); // Read sanitized edit payload.
+            $payload = $this->resolve_location_details($payload); // Resolve and persist missing location master data.
+            $this->address_model->set_address($payload);
             $this->response['error'] = false;
             $this->response['message'] = 'Address updated Successfully';
             $this->response['data'] = $res;
@@ -720,7 +746,221 @@ class My_account extends CI_Controller
             return false;
         }
     }
+    
+    public function get_districts_by_state()
+    {
+        if (!$this->ion_auth->logged_in()) { // Restrict API to authenticated users.
+            echo json_encode([]); // Return empty result when unauthorized.
+            return;
+        }
 
+        $state_id = $this->input->get('state_id', true); // Read selected state id.
+        if (empty($state_id) || !$this->db->table_exists('districts')) { // Validate input and table availability.
+            echo json_encode([]); // Return empty response when data source is unavailable.
+            return;
+        }
+
+        $districts = $this->db->select('id,name')->from('districts')->where('state_id', $state_id)->order_by('name', 'ASC')->get()->result_array(); // Fetch districts for selected state.
+        echo json_encode($districts); // Return districts as JSON.
+    }
+
+    public function get_cities_by_district()
+    {
+        if (!$this->ion_auth->logged_in()) { // Restrict API to authenticated users.
+            echo json_encode([]); // Return empty result when unauthorized.
+            return;
+        }
+
+        $state_id = $this->input->get('state_id', true); // Read selected state id.
+        $district_id = $this->input->get('district_id', true); // Read selected district id.
+        if (empty($state_id) || empty($district_id) || !$this->db->table_exists('cities')) { // Validate required filters and source table.
+            echo json_encode([]); // Return empty response for invalid/missing data.
+            return;
+        }
+
+        $this->db->select('id,name')->from('cities'); // Prepare city query.
+        if ($this->db->field_exists('state_id', 'cities')) {
+            $this->db->where('state_id', $state_id); // Filter by selected state.
+        }
+        if ($this->db->field_exists('district_id', 'cities')) {
+            $this->db->where('district_id', $district_id); // Filter by selected district.
+        }
+
+        $cities = $this->db->order_by('name', 'ASC')->get()->result_array(); // Fetch cities for cascading dropdown.
+        echo json_encode($cities); // Return cities as JSON.
+    }
+
+    public function get_pincodes_by_city()
+{
+    if (!$this->ion_auth->logged_in()) {
+        echo json_encode([]);
+        return;
+    }
+
+    $city_id = $this->input->get('city_id', true);
+    if (empty($city_id)) {
+        echo json_encode([]);
+        return;
+    }
+
+    // Use zipcodes table which has the actual imported pincode data
+    $rows = $this->db->select('id, zipcode as name')
+        ->from('zipcodes')
+        ->where('city_id', $city_id)
+        ->order_by('zipcode', 'ASC')
+        ->get()->result_array();
+    echo json_encode($rows);
+}
+   
+public function get_states()
+{
+    if (!$this->ion_auth->logged_in()) {
+        echo json_encode([]);
+        return;
+    }
+
+    // Return all states sorted alphabetically for the address form dropdowns
+    $states = $this->db->table_exists('states')
+        ? $this->db->select('id,name')->from('states')->order_by('name','ASC')->get()->result_array()
+        : [];
+    echo json_encode($states);
+}
+
+    private function ensure_pincode_table()
+    {
+        if ($this->db->table_exists('pincodes')) { // Skip creation when pincode table is already present.
+            return;
+        }
+
+        $this->load->dbforge(); // Load DB forge to create pincode table dynamically.
+        $this->dbforge->add_field([
+            'id' => ['type' => 'INT', 'constraint' => 11, 'unsigned' => true, 'auto_increment' => true],
+            'name' => ['type' => 'VARCHAR', 'constraint' => '20', 'null' => false],
+            'city_id' => ['type' => 'INT', 'constraint' => 11, 'null' => false, 'default' => 0],
+        ]);
+        $this->dbforge->add_key('id', true); // Add primary key on id.
+        $this->dbforge->create_table('pincodes', true); // Create pincodes table if missing.
+    }
+
+    private function resolve_location_details($data)
+    {
+        $this->ensure_pincode_table(); // Ensure pincode master table exists before writes.
+
+        $state_name = trim($data['state'] ?? ''); // Read state name from payload.
+        $district_name = trim($data['district'] ?? ''); // Read district name from payload.
+        // Form posts city as 'city_name' (from hidden field name="city_name")
+        $city_name = trim($data['city_name'] ?? $data['other_city'] ?? '');
+        $pincode_value = trim($data['pincode'] ?? '');
+
+        $state_id = !empty($data['state_id']) ? (int)$data['state_id'] : null; // Read selected state id.
+        $district_id = !empty($data['district_id']) ? (int)$data['district_id'] : null; // Read selected district id.
+        $city_id = !empty($data['city_id']) ? (int)$data['city_id'] : null; // Read selected city id.
+
+        if ($this->db->table_exists('states')) {
+            if (!empty($state_id)) {
+                $state_row = $this->db->select('id,name')->from('states')->where('id', $state_id)->get()->row_array();
+                if (!empty($state_row)) {
+                    $state_name = $state_row['name'];
+                }
+            } elseif (!empty($state_name)) {
+                $state_row = $this->db->select('id,name')->from('states')->where('name', $state_name)->get()->row_array();
+                if (empty($state_row)) {
+                    $this->db->insert('states', ['name' => $state_name]);
+                    $state_id = (int)$this->db->insert_id();
+                } else {
+                    $state_id = (int)$state_row['id'];
+                }
+            }
+        }
+
+        if ($this->db->table_exists('districts')) {
+            if (!empty($district_id)) {
+                $district_row = $this->db->select('id,name')->from('districts')->where('id', $district_id)->get()->row_array();
+                if (!empty($district_row)) {
+                    $district_name = $district_row['name'];
+                }
+            } elseif (!empty($district_name) && !empty($state_id)) {
+                $district_row = $this->db->select('id,name')->from('districts')->where('name', $district_name)->where('state_id', $state_id)->get()->row_array();
+                if (empty($district_row)) {
+                    $this->db->insert('districts', ['name' => $district_name, 'state_id' => $state_id]);
+                    $district_id = (int)$this->db->insert_id();
+                } else {
+                    $district_id = (int)$district_row['id'];
+                }
+            }
+        }
+
+        if ($this->db->table_exists('cities')) {
+            if (!empty($city_id)) {
+                $city_row = $this->db->select('id,name')->from('cities')->where('id', $city_id)->get()->row_array();
+                if (!empty($city_row)) {
+                    $city_name = $city_row['name'];
+                }
+            } elseif (!empty($city_name)) {
+                $this->db->select('id,name')->from('cities')->where('name', $city_name);
+                if (!empty($state_id) && $this->db->field_exists('state_id', 'cities')) {
+                    $this->db->where('state_id', $state_id);
+                }
+                if (!empty($district_id) && $this->db->field_exists('district_id', 'cities')) {
+                    $this->db->where('district_id', $district_id);
+                }
+                $city_row = $this->db->get()->row_array();
+
+                if (empty($city_row)) {
+                    $insert_city = ['name' => $city_name];
+                    if (!empty($state_id) && $this->db->field_exists('state_id', 'cities')) {
+                        $insert_city['state_id'] = $state_id;
+                    }
+                    if (!empty($district_id) && $this->db->field_exists('district_id', 'cities')) {
+                        $insert_city['district_id'] = $district_id;
+                    }
+                    $this->db->insert('cities', $insert_city);
+                    $city_id = (int)$this->db->insert_id();
+                } else {
+                    $city_id = (int)$city_row['id'];
+                }
+            }
+        }
+
+        
+
+        // Pincode comes from hidden field name="pincode" as a 6-digit number (typed or selected)
+        
+        if (!empty($city_id) && !empty($pincode_value) && is_numeric($pincode_value)) {
+            // Check if this pincode already exists for this city, insert if not
+            $pincode_row = $this->db->select('id,name')
+                ->from('pincodes')
+                ->where('name', $pincode_value)
+                ->where('city_id', $city_id)
+                ->get()->row_array();
+        
+            if (empty($pincode_row)) {
+                // Save new pincode linked to city for future use
+                $this->db->insert('pincodes', [
+                    'name'    => $pincode_value,
+                    'city_id' => $city_id
+                ]);
+            }
+            // Always keep pincode as the actual number in the address record
+            $data['pincode'] = $pincode_value;
+        }
+
+        if (!empty($state_name)) {
+            $data['state'] = $state_name;
+        }
+        if (!empty($city_name)) {
+            $data['other_city'] = $city_name;
+        }
+        if (!empty($city_id)) {
+            $data['city_id'] = $city_id;
+        }
+        if (!empty($district_name)) {
+            $data['district'] = $district_name;
+        }
+
+        return $data;
+    }
+    
     public function favorites()
     {
         $web_doctor_brown = get_settings('web_doctor_brown', true);
