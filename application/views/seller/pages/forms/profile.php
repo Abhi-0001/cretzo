@@ -189,17 +189,21 @@
 
                     <div class="form-step form2">
                         <div>
-                          <div class="photo-upload d-flex gap-4 justify-content-between align-items-center mb-3">
-                            <input type="file" class="hidden" name="store_logo" id="photoInput" accept="image/*">
-                            <div class="preview-container">
-                              <svg class="profile-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-person" viewBox="0 0 16 16">
-                                <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6m2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0m4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4m-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10s-3.516.68-4.168 1.332c-.678.678-.83 1.418-.832 1.664z"/>
-                              </svg>
-                              <img id="photoPreview" src="" class="shop-logo hidden" style="margin-top: 1rem;">
+                        <div class="shop-logo-card mb-3">
+                            <div class="photo-upload d-flex gap-4 justify-content-between align-items-center">
+                              <input type="file" class="hidden" name="store_logo" id="photoInput" accept="image/*">
+                              <div class="preview-container" title="Shop Logo Preview">
+                                <svg id="logoPlaceholder" class="profile-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                  <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6m2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0m4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4m-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10s-3.516.68-4.168 1.332c-.678.678-.83 1.418-.832 1.664z"/>
+                                </svg>
+                                <img id="photoPreview" src="<?= !empty($fetched_data[0]['logo']) ? base_url($fetched_data[0]['logo']) : '' ?>" class="shop-logo <?= empty($fetched_data[0]['logo']) ? 'hidden' : '' ?>" alt="Shop logo">
+                              </div>
+                              <div class="logo-upload-content">
+                                <label for="photoInput" class="btn btn-sm btn-outline-secondary logo-upload-btn" style="cursor:pointer;">📷 Upload Shop Logo</label>
+                                <small class="text-muted d-block mt-1">Use a square logo for best display quality.</small>
+                              </div>
                             </div>
-                            <label for="photoInput" class="btn btn-sm btn-outline-secondary" style="cursor:pointer;">
-                             📷 Upload Shop Logo
-                         </label>
+                            
                          </div>
                         </div>
                         
@@ -359,6 +363,13 @@
                         <p class="text-success mb-0"><i class="fa fa-check-circle"></i> Your seller account is admin verified. Product management is unlocked.</p>
                       <?php else: ?>
                         <p class="mb-2 text-muted">Submit this form to request admin verification. This step contributes <strong>20%</strong> to profile completion.</p>
+                        <div class="validation-logo-block">
+                          <span class="validation-logo-title">Shop logo preview</span>
+                          <div class="validation-logo-frame">
+                            <img id="validationLogoPreview" src="<?= !empty($fetched_data[0]['logo']) ? base_url($fetched_data[0]['logo']) : '' ?>" class="validation-logo-img <?= empty($fetched_data[0]['logo']) ? 'hidden' : '' ?>" alt="Validation shop logo">
+                            <span id="validationLogoPlaceholder" class="text-muted <?= !empty($fetched_data[0]['logo']) ? 'hidden' : '' ?>">Upload logo from Store Details to show here.</span>
+                          </div>
+                        </div>
                         <label for="verification_note" class="form-label">Verification note <span class="text-danger">*</span></label>
                         <textarea id="verification_note" name="verification_note" class="input" rows="3" placeholder="Write a short note for admin review..."><?= isset($fetched_data[0]['verification_request_note']) ? htmlspecialchars($fetched_data[0]['verification_request_note']) : '' ?></textarea>
                         <div class="mt-2">
@@ -412,6 +423,39 @@ const availableCategories = [
   { id: "<?= (int)$cat['id'] ?>", label: "<?= addslashes($cat['name']) ?>" },
   <?php endforeach; ?>
 ];
+const photoInput = document.getElementById('photoInput');
+const photoPreview = document.getElementById('photoPreview');
+const logoPlaceholder = document.getElementById('logoPlaceholder');
+const validationLogoPreview = document.getElementById('validationLogoPreview');
+const validationLogoPlaceholder = document.getElementById('validationLogoPlaceholder');
+
+function syncLogoPreview(imageSrc) {
+  const hasLogo = !!imageSrc;
+  if (photoPreview) {
+    photoPreview.src = imageSrc || '';
+    photoPreview.classList.toggle('hidden', !hasLogo);
+  }
+  if (logoPlaceholder) logoPlaceholder.classList.toggle('hidden', hasLogo);
+  if (validationLogoPreview) {
+    validationLogoPreview.src = imageSrc || '';
+    validationLogoPreview.classList.toggle('hidden', !hasLogo);
+  }
+  if (validationLogoPlaceholder) validationLogoPlaceholder.classList.toggle('hidden', hasLogo);
+}
+
+if (photoInput) {
+  photoInput.addEventListener('change', function (event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      syncLogoPreview(e.target.result);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+syncLogoPreview((photoPreview && photoPreview.getAttribute('src')) || '');
 // ── Searchable dropdown factory ──────────────────────────────────────────────
 function makeSearchable(searchId, hiddenId, dropdownId, data, onSelect) {
   const searchEl   = document.getElementById(searchId);
