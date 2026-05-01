@@ -56,6 +56,7 @@ die; */
                 </div>
 
                 <div class="filter-container-inner-section">
+                    <?php if (!isset($is_category_page) || !$is_category_page): ?>
                     <div class="filter-section fs-category">
                         <h1 class="text-n filter-heading">Categories</h1>
                         <ul class="list filter-list">
@@ -95,6 +96,7 @@ die; */
                             <?php  } ?>
                         </ul>
                     </div>
+                    <?php endif; ?>
                 
 
                     <!-- slider -->
@@ -317,6 +319,7 @@ die; */
                 </a>
             </div>
 
+<<<<<<< seller-profile
             <!-- paging (navigation) -->
             <!-- <div class="paging-container">
                 <div class="flex-1"></div>
@@ -331,34 +334,20 @@ die; */
 
             
             <p class="text-n op-8 ta-c mt-14" style="text-transform: none;">Page <?= $page_no ?> of <?= $num_pages ?></p>
+=======
+            <!-- No products found - TODO: DESIGN NEEDS TO BE IMPROVED -->
+            <?php if ((!isset($sub_categories) || empty($sub_categories)) && (!isset($products) || empty($products['product']))) { ?>
+                <div class="ta-c mt-4">
+                    <h1 class="h2 ta-c">No Products Found.</h1>
+                    <a href="<?= base_url('products') ?>" class="cretzo btn btn-dark btn-sm rounded-pill btn-warning"><?= !empty($this->lang->line('go_to_shop')) ? $this->lang->line('go_to_shop') : 'Go to Shop' ?></a>
+                </div>
+            <?php } ?>
 
-            <!-- <nav id="products-pagination-nav" class="text-center d-flex overflow-auto mt-2" aria-label="pagination">
-                        <?= (isset($links)) ? $links : '' ?>
-                    </nav> -->
-            
-            
-            <?php 
-                if(isset($links) && $links != ''){
-                ?>
-                    <nav id="products-pagination-nav" class="text-center d-flex overflow-auto mt-2" aria-label="pagination">
-                        <?= (isset($links)) ? $links : '' ?>
-                    </nav>
-                <?php
-                }
-                else{
-                ?>
-                    <ul class="pagination justify-content-center">
-                        <li class="page-item page-link active disabled"> 
-                            <i class="uil uil-arrow-left"></i>
-                        </li>
-                        <li class="page-item page-link active disabled">1</li>
-                        <li class="page-item page-link active disabled"> 
-                            <i class="uil uil-arrow-right"></i>
-                        </li>
-                    </ul>
-                <?php
-                }
-            ?>
+            <nav id="products-pagination-nav" class="text-center mt-14" aria-label="pagination">
+                <?= (isset($links)) ? $links : '' ?>
+            </nav>
+>>>>>>> main
+
         
         </div>
 

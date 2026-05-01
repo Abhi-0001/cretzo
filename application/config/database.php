@@ -76,6 +76,9 @@ $query_builder = TRUE;
 
 
 if(ENVIRONMENT === 'development'){
+	// $t_database_name = 'crezo_db';
+	// $t_username = 'root';
+	// $t_password = '';
     $t_database_name = 'u554344800_cretzo_new';
 	$t_username = 'root';
 	$t_password = 'Ankith@5space';

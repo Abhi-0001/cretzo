@@ -199,7 +199,7 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
 
     $discount_filter_data = (isset($filter['discount']) && !empty($filter['discount'])) ? ' pv.*,( if(pv.special_price > 0,( (pv.price-pv.special_price)/pv.price)*100,0)) as cal_discount_percentage, ' : '';
 
-    $t->db->select($discount_filter_data . ' (select count(id)  from products where products.category_id=c.id ) as total,count(p.id) as sales, p.stock_type ,
+    $t->db->select($discount_filter_data . ' IF(ss.id IS NOT NULL, 1, 0) as has_subscription, (select count(id)  from products where products.category_id=c.id ) as total,count(p.id) as sales, p.stock_type ,
      p.is_prices_inclusive_tax, p.type ,GROUP_CONCAT(DISTINCT(pa.attribute_value_ids)) as attr_value_ids,sd.rating as seller_rating,sd.slug as seller_slug,sd.no_of_ratings as seller_no_of_ratings,sd.logo as seller_profile, sd.store_name as store_name,sd.store_description, p.seller_id, u.username as seller_name,
      p.id,p.stock,p.name,p.category_id,p.short_description,p.slug,p.description,p.extra_description,p.total_allowed_quantity,p.status,p.deliverable_type,p.is_attachment_required,p.deliverable_zipcodes,p.minimum_order_quantity,p.sku,
      p.quantity_step_size,p.cod_allowed,p.row_order,p.rating,p.no_of_ratings,p.image,p.is_returnable,p.is_cancelable,p.cancelable_till,p.indicator,p.other_images, 
@@ -210,7 +210,8 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
         ->join(" users u", "p.seller_id=u.id", 'LEFT')
         ->join('`product_variants` pv', 'p.id = pv.product_id', 'LEFT')
         ->join('`taxes` tax', 'tax.id = p.tax', 'LEFT')
-        ->join('`product_attributes` pa', ' pa.product_id = p.id ', 'LEFT');
+        ->join('`product_attributes` pa', ' pa.product_id = p.id ', 'LEFT')
+        ->join('`seller_subscriptions` ss', 'ss.seller_id = p.seller_id AND ss.is_active = 1', 'LEFT');
 
 
     if (isset($filter['show_only_stock_product']) && $filter['show_only_stock_product'] == 1) {
@@ -386,6 +387,7 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
     if (isset($filter['discount']) && !empty($filter['discount']) && $filter['discount'] != "") {
         $t->db->order_by('cal_discount_percentage', 'DESC');
     } else {
+        $t->db->order_by('has_subscription', 'DESC');
         if ($sort != null || $order != null && $sort != 'pv.price') {
             $t->db->order_by($sort, $order);
         }
