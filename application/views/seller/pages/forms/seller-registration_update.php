@@ -110,7 +110,7 @@
                             <span class="text-danger">*</span>
                           </label>
                           <input name="pin" type="text" class="input" placeholder="Enter PIN Code" required maxlength="6" onkeypress="if ( isNaN(this.value + String.fromCharCode(event.keyCode) )) return false;">
-                        </dig126v>
+                        </div>
                       
                       </div>
                         
@@ -158,24 +158,23 @@
                           <input name="pickup_address2" type="text" class="input" placeholder="Address Lane 2">
                         </div>
                         <div class="col-md-6 mb-3">
-                          <label class="form-label">City</label>
+                          <label class="form-label">State</label>
                           <div style="position:relative;">
-                            <input type="text" id="pickup_district_search" class="input" placeholder="Search District..." autocomplete="off">
+                          <input type="text" id="pickup_state_search" class="input" placeholder="Search State..." autocomplete="off">
+                            <input type="hidden" name="pickup_state" id="pickup_state_hidden">
+                            <div id="pickup_state_dropdown" style="display:none; border:1px solid #ccc; max-height:200px; overflow-y:auto; background:#fff; position:absolute; z-index:999; width:100%;"></div>
+                          </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                          <label class="form-label">District</label>
+                          <div style="position:relative;">
+                          <input type="text" id="pickup_district_search" class="input" placeholder="Search District..." autocomplete="off">
                             <input type="hidden" name="pickup_district" id="pickup_district_hidden">
                             <div id="pickup_district_dropdown" style="display:none; border:1px solid #ccc; max-height:200px; overflow-y:auto; background:#fff; position:absolute; z-index:999; width:100%;"></div>
                           </div>
                         </div>
                         <div class="col-md-6 mb-3">
-                          <label name="pickup_city" class="form-label">District</label>
-                          <div style="position:relative;">
-                            <input type="text" id="pickup_city_search" class="input" placeholder="Search City..." autocomplete="off">
-                            <input type="hidden" name="pickup_city" id="pickup_city_hidden">
-                            <div id="pickup_city_dropdown" style="display:none; border:1px solid #ccc; max-height:200px; overflow-y:auto; background:#fff; position:absolute; z-index:999; width:100%;"></div>
-                          </div>
-                        </div>
-                        
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">State</label>
+                          <label name = "pickup_city" class = "form-label">City</label>
                           <div style="position:relative;">
                             <input type="text" id="pickup_city_search" class="input" placeholder="Search City..." autocomplete="off">
                             <input type="hidden" name="pickup_city" id="pickup_city_hidden">
@@ -254,9 +253,13 @@
                         </div>
                         <div class="col-md-6 mb-3">
                           <label class="form-label">Bank Name<span class="text-danger">*</span></label>
-                          <input name="ifsc" type="text" class="input" placeholder="Enter IFSC Code" maxlength="11" required>
+                          <div style="position:relative;">
+                            <input type="text" id="bank_search" class="input" placeholder="Search Bank Name..." autocomplete="off">
+                            <input type="hidden" name="bank_name" id="bank_name_hidden" required>
+                            <div id="bank_dropdown" style="display:none; border:1px solid #ccc; max-height:200px; overflow-y:auto; background:#fff; position:absolute; z-index:999; width:100%;"></div>
                           </div>
                         </div>
+                      </div>
 
                       </div>
                       <div class=" mt-3 w-100 d-flex justify-content-between align-items-center">
@@ -323,6 +326,7 @@
       }).catch(function(){
         submitBtn.disabled = false;
       });
+    });
   </script>
   <script src="<?= base_url('assets/seller/js/cretzo/form.js') ?>"></script>
 </body>
