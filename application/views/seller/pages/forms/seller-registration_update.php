@@ -476,7 +476,7 @@ makeSearchable('state_search', 'state_hidden', 'state_dropdown', stateData, func
   // State selected → load districts
   districtController.setData([], '');
   cityController.setData([], '');
-  fetch(base_url + 'seller/home/get_districts_by_state?state_id=' + item.id)
+  fetch(base_url + 'seller/auth/get_districts_by_state?state_id=' + item.id)
     .then(function(r) { return r.json(); })
     .then(function(rows) {
       const distData = rows.map(function(r) { return { label: r.name, id: r.id }; });
@@ -484,6 +484,25 @@ makeSearchable('state_search', 'state_hidden', 'state_dropdown', stateData, func
     })
     .catch(function(err) { console.error('Districts failed:', err); });
 });
+function resolveStateByLabel(label) {
+  if (!label) return null;
+  const normalized = label.trim().toLowerCase();
+  return stateData.find(function(s) { return String(s.label).trim().toLowerCase() === normalized; }) || null;
+}
+
+function loadDistrictsForCurrentState() {
+  const stateLabel = document.getElementById('state_hidden').value || document.getElementById('state_search').value;
+  const stateItem = resolveStateByLabel(stateLabel);
+  if (!stateItem) return;
+  document.getElementById('state_hidden').value = stateItem.label;
+  fetch(base_url + 'seller/auth/get_districts_by_state?state_id=' + stateItem.id)
+    .then(function(r) { return r.json(); })
+    .then(function(rows) {
+      const distData = rows.map(function(r) { return { label: r.name, id: r.id }; });
+      districtController.setData(distData, '');
+    })
+    .catch(function(err) { console.error('Districts failed:', err); });
+}
 
 // ── Wire up district searchable ───────────────────────────────────────────────
 districtController = makeSearchable('district_search', 'district_hidden', 'district_dropdown', [], function(item) {
@@ -493,7 +512,7 @@ districtController = makeSearchable('district_search', 'district_hidden', 'distr
     ? stateData.find(function(s) { return s.label === document.getElementById('state_hidden').value; })
     : null;
   if (!stateId) return;
-  fetch(base_url + 'seller/home/get_cities_by_district?state_id=' + stateId.id + '&district_id=' + item.id)
+  fetch(base_url + 'seller/auth/get_cities_by_district?state_id=' + stateId.id + '&district_id=' + item.id)
     .then(function(r) { return r.json(); })
     .then(function(rows) {
       const cityData = rows.map(function(r) { return { label: r.name, id: r.id }; });
@@ -513,7 +532,7 @@ cityController = makeSearchable('city_search', 'city_hidden', 'city_dropdown', [
   if (!savedState) return;
   const stateItem = stateData.find(function(s) { return s.label === savedState; });
   if (!stateItem) return;
-  fetch(base_url + 'seller/home/get_districts_by_state?state_id=' + stateItem.id)
+  fetch(base_url + 'seller/auth/get_districts_by_state?state_id=' + stateItem.id)
     .then(function(r) { return r.json(); })
     .then(function(rows) {
       const distData = rows.map(function(r) { return { label: r.name, id: r.id }; });
@@ -521,7 +540,7 @@ cityController = makeSearchable('city_search', 'city_hidden', 'city_dropdown', [
       if (!savedDistrict) return;
       const distItem = distData.find(function(d) { return d.label === savedDistrict; });
       if (!distItem) return;
-      fetch(base_url + 'seller/home/get_cities_by_district?state_id=' + stateItem.id + '&district_id=' + distItem.id)
+      fetch(base_url + 'seller/auth/get_cities_by_district?state_id=' + stateItem.id + '&district_id=' + distItem.id)
         .then(function(r) { return r.json(); })
         .then(function(cityRows) {
           const cityData = cityRows.map(function(r) { return { label: r.name, id: r.id }; });
@@ -535,7 +554,7 @@ let pickupDistrictController, pickupCityController;
 makeSearchable('pickup_state_search', 'pickup_state_hidden', 'pickup_state_dropdown', stateData, function(item) {
   pickupDistrictController.setData([], '');
   pickupCityController.setData([], '');
-  fetch(base_url + 'seller/home/get_districts_by_state?state_id=' + item.id)
+  fetch(base_url + 'seller/auth/get_districts_by_state?state_id=' + item.id)
     .then(function(r) { return r.json(); })
     .then(function(rows) {
       const distData = rows.map(function(r) { return { label: r.name, id: r.id }; });
@@ -549,7 +568,7 @@ pickupDistrictController = makeSearchable('pickup_district_search', 'pickup_dist
   const stateLabel = document.getElementById('pickup_state_hidden').value;
   const stateItem  = stateData.find(function(s) { return s.label === stateLabel; });
   if (!stateItem) return;
-  fetch(base_url + 'seller/home/get_cities_by_district?state_id=' + stateItem.id + '&district_id=' + item.id)
+  fetch(base_url + 'seller/auth/get_cities_by_district?state_id=' + stateItem.id + '&district_id=' + item.id)
     .then(function(r) { return r.json(); })
     .then(function(rows) {
       const cityData = rows.map(function(r) { return { label: r.name, id: r.id }; });
@@ -568,7 +587,7 @@ pickupCityController = makeSearchable('pickup_city_search', 'pickup_city_hidden'
   if (!savedState) return;
   const stateItem = stateData.find(function(s) { return s.label === savedState; });
   if (!stateItem) return;
-  fetch(base_url + 'seller/home/get_districts_by_state?state_id=' + stateItem.id)
+  fetch(base_url + 'seller/auth/get_districts_by_state?state_id=' + stateItem.id)
     .then(function(r) { return r.json(); })
     .then(function(rows) {
       const distData = rows.map(function(r) { return { label: r.name, id: r.id }; });
@@ -576,7 +595,7 @@ pickupCityController = makeSearchable('pickup_city_search', 'pickup_city_hidden'
       if (!savedDistrict) return;
       const distItem = distData.find(function(d) { return d.label === savedDistrict; });
       if (!distItem) return;
-      fetch(base_url + 'seller/home/get_cities_by_district?state_id=' + stateItem.id + '&district_id=' + distItem.id)
+      fetch(base_url + 'seller/auth/get_cities_by_district?state_id=' + stateItem.id + '&district_id=' + distItem.id)
         .then(function(r) { return r.json(); })
         .then(function(cityRows) {
           const cityData = cityRows.map(function(r) { return { label: r.name, id: r.id }; });
@@ -753,7 +772,7 @@ submitBtn.addEventListener('click', function(e) {
       if (data.error == false) {
         toast.style.cssText = 'display:block; background:#d4edda; color:#155724; border:1px solid #c3e6cb;';
         toast.innerText = '✅ Updated successfully! Redirecting...';
-        setTimeout(function() { window.location.href = base_url + 'seller/home'; }, 2000);
+        setTimeout(function() { window.location.href = base_url + 'seller/auth'; }, 2000);
         return;
       }
       toast.style.cssText = 'display:block; background:#f8d7da; color:#721c24; border:1px solid #f5c6cb;';
@@ -794,7 +813,7 @@ if (requestVerificationBtn) {
     const verificationData = new FormData();
     verificationData.append('verification_note', verificationNote.value.trim());
     requestVerificationBtn.disabled = true;
-    fetch(base_url + 'seller/home/request_admin_verification', {
+    fetch(base_url + 'seller/auth/request_admin_verification', {
       method: 'POST',
       body: verificationData
     })
