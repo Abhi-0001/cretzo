@@ -361,11 +361,9 @@
                         <label for="verification_note" class="form-label">Verification note <span class="text-danger">*</span></label>
                         <textarea id="verification_note" name="verification_note" class="input" rows="3" placeholder="Write a short note for admin review..."><?= isset($fetched_data[0]['verification_request_note']) ? htmlspecialchars($fetched_data[0]['verification_request_note']) : '' ?></textarea>
                         <div class="mt-2">
-                          <button type="button" id="request_verification_btn" class="btn btn-primary btn-sm">Request Admin Verification</button>
                           <?php if (!empty($fetched_data[0]['verification_requested_at'])): ?>
                             <small class="text-muted d-block mt-2">Last requested at: <?= htmlspecialchars($fetched_data[0]['verification_requested_at']) ?></small>
                           <?php endif; ?>
-                          <div id="verification_response" class="small mt-2"></div>
                         </div>
                       <?php endif; ?>
 
@@ -701,6 +699,17 @@ function validateForm3() {
   return valid;
 }
 
+function applyServerFieldErrors(fieldErrors) {
+  if (!fieldErrors || typeof fieldErrors !== 'object') return;
+  Object.keys(fieldErrors).forEach(function(fieldName) {
+    var message = fieldErrors[fieldName];
+    if (!message) return;
+    var input = document.querySelector('[name="' + fieldName + '"]');
+    if (input) showError(input, message);
+  });
+}
+
+
 function openProfileSection(section) {
   const sectionMap = { personal: 1, store: 2, account: 3, admin: 4};
   const target = sectionMap[section] || 1;
@@ -752,12 +761,17 @@ submitBtn.addEventListener('click', function(e) {
       const toast = document.getElementById('toast-msg');
       if (data.error == false) {
         toast.style.cssText = 'display:block; background:#d4edda; color:#155724; border:1px solid #c3e6cb;';
-        toast.innerText = '✅ Submitted successfully!';
+        toast.innerText = '✅ Submitted successfully! Redirecting to seller dashboard...';
+        setTimeout(function() {
+          window.location.href = base_url + 'seller/home';
+        }, 1200);
         return;
       }
       toast.style.cssText = 'display:block; background:#f8d7da; color:#721c24; border:1px solid #f5c6cb;';
-      toast.innerText = '❌ ' + data.message;
-      setTimeout(function() { toast.style.display = 'none'; }, 5000);
+       clearErrors(document.getElementById('seller_form'));
+      applyServerFieldErrors(data.field_errors || {});
+      toast.innerText = '❌ ' + (data.message || 'Submission failed. Please check highlighted fields.');
+      setTimeout(function() { toast.style.display = 'none'; }, 7000);
     })
     .catch(function(err) {
       submitBtn.disabled = false; submitBtn.innerText = 'Submit';
@@ -769,68 +783,6 @@ submitBtn.addEventListener('click', function(e) {
     });
 });
 
-
-const requestVerificationBtn = document.getElementById('request_verification_btn');
-if (requestVerificationBtn) {
-  requestVerificationBtn.addEventListener('click', function () {
-    const responseBox = document.getElementById('verification_response');
-    if (responseBox) {
-      responseBox.className = 'small mt-2 text-muted';
-      responseBox.innerText = 'Submitting verification request...';
-    }
-    const verificationNote = document.getElementById('verification_note');
-    if (!verificationNote || verificationNote.value.trim().length < 10) {
-      const toast = document.getElementById('toast-msg');
-      toast.style.cssText = 'display:block; background:#f8d7da; color:#721c24; border:1px solid #f5c6cb;';
-      toast.innerText = '❌ Verification note must be at least 10 characters.';
-      setTimeout(function () { toast.style.display = 'none'; }, 5000);
-      if (responseBox) {
-        responseBox.className = 'small mt-2 text-danger';
-        responseBox.innerText = 'Verification note must be at least 10 characters.';
-      }
-      return;
-    }
-    const verificationData = new FormData();
-    verificationData.append('verification_note', verificationNote.value.trim());
-    requestVerificationBtn.disabled = true;
-    fetch(base_url + 'seller/auth/request_admin_verification', {
-      method: 'POST',
-      body: verificationData
-    })
-      .then(function (res) { return res.json(); })
-      .then(function (data) {
-        const toast = document.getElementById('toast-msg');
-        if (data.error) {
-          toast.style.cssText = 'display:block; background:#f8d7da; color:#721c24; border:1px solid #f5c6cb;';
-          toast.innerText = '❌ ' + (data.message || 'Unable to submit request.');
-          if (responseBox) {
-            responseBox.className = 'small mt-2 text-danger';
-            responseBox.innerText = data.message || 'Unable to submit request.';
-          }
-        } else {
-          toast.style.cssText = 'display:block; background:#d4edda; color:#155724; border:1px solid #c3e6cb;';
-          toast.innerText = '✅ ' + data.message;
-          if (responseBox) {
-            responseBox.className = 'small mt-2 text-success';
-            responseBox.innerText = data.message;
-          }
-        }
-        requestVerificationBtn.disabled = false;
-        setTimeout(function () { toast.style.display = 'none'; }, 5000);
-      })
-      .catch(function () {
-        const toast = document.getElementById('toast-msg');
-        toast.style.cssText = 'display:block; background:#f8d7da; color:#721c24; border:1px solid #f5c6cb;';
-        toast.innerText = '❌ Unable to submit verification request.';
-        if (responseBox) {
-          responseBox.className = 'small mt-2 text-danger';
-          responseBox.innerText = 'Unable to submit verification request.';
-        }
-        requestVerificationBtn.disabled = false;
-        setTimeout(function () { toast.style.display = 'none'; }, 5000);
-      });
-  });
-}
 </script>
 
 
