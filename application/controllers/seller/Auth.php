@@ -44,19 +44,34 @@ class Auth extends CI_Controller
 
     public function sign_up()
     {
-        
         $this->data['main_page'] = FORMS . 'seller-registration_update';
         $settings = get_settings('system_settings', true);
         $this->data['title'] = 'Sign Up Seller | ' . $settings['app_name'];
         $this->data['meta_description'] = 'Sign Up Seller | ' . $settings['app_name'];
         $this->data['logo'] = get_settings('logo');
 
+        $this->data['current_profile_section'] = 'personal';
+        $this->data['fetched_data'] = [[]];
+        $this->data['states'] = [];
+        $this->data['indian_banks'] = [];
+        $this->data['all_categories'] = [];
+
+        if ($this->db->table_exists('states')) {
+            $this->data['states'] = $this->db->select('id,name')->from('states')->order_by('name', 'ASC')->get()->result_array();
+        }
+        if ($this->db->table_exists('indian_banks')) {
+            $this->data['indian_banks'] = $this->db->select('bank_name')->from('indian_banks')->order_by('bank_name', 'ASC')->get()->result_array();
+        }
+        if ($this->db->table_exists('categories')) {
+            $this->data['all_categories'] = $this->db->select('id,name')->from('categories')->where('status', 1)->order_by('name', 'ASC')->get()->result_array();
+        }
+
         if (isset($_SESSION['to_be_seller_name']) && !empty($_SESSION['to_be_seller_name']) && isset($_SESSION['to_be_seller_mobile']) && !empty($_SESSION['to_be_seller_mobile']) && isset($_SESSION['to_be_seller_id']) && !empty($_SESSION['to_be_seller_id'])) {
             $this->data['title'] = 'Update Seller | ' . $settings['app_name'];
             $this->data['meta_description'] = 'Update Seller | ' . $settings['app_name'];
             $this->data['user_data'] = $_SESSION;
         }
-        
+
         $this->load->view('seller/signup', $this->data);
     }
 
@@ -99,6 +114,73 @@ class Auth extends CI_Controller
         }
     }
 
+
+
+    public function get_districts_by_state()
+    {
+        $state_id = $this->input->get('state_id', true);
+        if (empty($state_id) || !$this->db->table_exists('districts')) {
+            echo json_encode([]);
+            return;
+        }
+
+        $districts = $this->db->select('id,name')->from('districts')->where('state_id', $state_id)->order_by('name', 'ASC')->get()->result_array();
+        echo json_encode($districts);
+    }
+
+    public function get_cities_by_district()
+    {
+        $state_id = $this->input->get('state_id', true);
+        $district_id = $this->input->get('district_id', true);
+        if (empty($state_id) || empty($district_id) || !$this->db->table_exists('cities')) {
+            echo json_encode([]);
+            return;
+        }
+
+        $cities = $this->db->select('id,name')->from('cities')->where('state_id', $state_id)->where('district_id', $district_id)->order_by('name', 'ASC')->get()->result_array();
+        echo json_encode($cities);
+    }
+
+    public function request_admin_verification()
+    {
+        $user_id = (int) ($this->session->userdata('user_id') ?? ($_SESSION['to_be_seller_id'] ?? 0));
+        if ($user_id <= 0) {
+            $this->output->set_content_type('application/json')->set_output(json_encode(['error' => true, 'message' => 'Unauthorized access.']));
+            return;
+        }
+
+        $this->form_validation->set_rules('verification_note', 'Verification note', 'trim|required|min_length[10]|xss_clean');
+        if (!$this->form_validation->run()) {
+            $this->output->set_content_type('application/json')->set_output(json_encode([
+                'error' => true,
+                'message' => validation_errors(),
+                'csrfName' => $this->security->get_csrf_token_name(),
+                'csrfHash' => $this->security->get_csrf_hash(),
+            ]));
+            return;
+        }
+
+        $payload = [];
+        if ($this->db->field_exists('verification_request_note', 'seller_data')) {
+            $payload['verification_request_note'] = $this->input->post('verification_note', true);
+        }
+        if ($this->db->field_exists('verification_requested_at', 'seller_data')) {
+            $payload['verification_requested_at'] = date('Y-m-d H:i:s');
+        }
+
+        if (empty($payload)) {
+            $this->output->set_content_type('application/json')->set_output(json_encode(['error' => true, 'message' => 'Verification request columns are not available yet.']));
+            return;
+        }
+
+        $updated = $this->db->where('user_id', $user_id)->update('seller_data', $payload);
+        $this->output->set_content_type('application/json')->set_output(json_encode([
+            'error' => !$updated,
+            'message' => $updated ? 'Verification request submitted.' : 'Unable to submit verification request. Please try again.',
+            'csrfName' => $this->security->get_csrf_token_name(),
+            'csrfHash' => $this->security->get_csrf_hash(),
+        ]));
+    }
     public function verify_otp(){
         $mobile = $this->input->post('mobile', true);
         $otp = (int) $this->input->post('otp', true);
