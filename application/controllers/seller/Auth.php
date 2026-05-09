@@ -406,6 +406,11 @@ class Auth extends CI_Controller
             $response['error'] = true;
             $response['message'] = validation_errors();
             // print_r(json_encode($this->response));
+            $response['field_errors'] = [
+                'first_name' => trim(strip_tags(form_error('first_name'))),
+                'phone' => trim(strip_tags(form_error('phone'))),
+                'email' => trim(strip_tags(form_error('email'))),
+            ];
         } else {
 
             $seler_register = [
@@ -415,15 +420,19 @@ class Auth extends CI_Controller
                 'address' => $this->input->post('address1') . ', ' . $this->input->post('address2') . ', ' . $this->input->post('district')
             ];
 
-            $user_id = $this->ion_auth->register($seler_register['mobile'], '123456', $seler_register['first_name'], ['phone' => $seler_register['mobile']], [4]);
+            $user_id = $this->ion_auth->register($seler_register['mobile'], '123456', $seler_register['email'], ['phone' => $seler_register['mobile'], 'first_name' => $seler_register['first_name']], [4]);
 
             if (!$user_id) {
                 $response['error'] = true;
-                $response['message'] = 'Failed to register user';
+                $response['message'] = !empty($this->ion_auth->errors()) ? strip_tags($this->ion_auth->errors()) : 'Failed to register user';
                 $response['data'] = $seler_register;
-            } else {
-                $seler_register['user_id'] = $user_id;
+                $response['csrfName'] = $this->security->get_csrf_token_name();
+                $response['csrfHash'] = $this->security->get_csrf_hash();
+                echo json_encode($response);
+                return;
+            
             }
+            $seler_register['user_id'] = $user_id;
 
             if (!empty($_FILES['store_logo']['name'])) {
 
@@ -516,7 +525,9 @@ class Auth extends CI_Controller
                 'account_holder_name' => $this->input->post('account_holder_name') ?? null,
                 'ifsc' => $this->input->post('ifsc') ?? null,
                 'branch' => $this->input->post('branch') ?? null,
-                'bank_name' => $this->input->post('bank_name') ?? null
+                'bank_name' => $this->input->post('bank_name') ?? null,
+                'category_ids' => $this->input->post('category_ids') ?? null
+                
             ];
 
             $this->Seller_model->seller_cereate_user($seller_data);
