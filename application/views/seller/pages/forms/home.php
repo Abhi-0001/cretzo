@@ -160,33 +160,50 @@
                         </div>
                     </div>
                 </div>
-                <div class="col-xl-6 col-12" id="ecommerceChartView">
-                    <div class="card card-shadow chart-height">
-                        <div class="m-3">Product Sales</div>
-                        <div class="card-header card-header-transparent py-20 border-0">
-                            <ul class="nav nav-pills nav-pills-rounded chart-action float-right btn-group sales-tab" role="group">
-                                <li class="nav-item"><a class="nav-link active" data-toggle="tab" href="#scoreLineToDay">Day</a></li>
-                                <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#scoreLineToWeek">Week</a></li>
-                                <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#scoreLineToMonth">Month</a></li>
-                            </ul>
+                <div class="container-fluid">
+                    <div class="row">
+                
+                        <!-- Product Sales Card -->
+                        <div class="col-xl-6 col-md-12 mb-4" id="ecommerceChartView">
+                            <div class="card card-shadow chart-height">
+                                <div class="m-3">Product Sales</div>
+                
+                                <div class="card-header card-header-transparent py-20 border-0">
+                                    <ul class="nav nav-pills nav-pills-rounded chart-action float-right btn-group sales-tab" role="group">
+                                        <li class="nav-item">
+                                            <a class="nav-link active" data-toggle="tab" href="#scoreLineToDay">Day</a>
+                                        </li>
+                
+                                        <li class="nav-item">
+                                            <a class="nav-link" data-toggle="tab" href="#scoreLineToWeek">Week</a>
+                                        </li>
+                
+                                        <li class="nav-item">
+                                            <a class="nav-link" data-toggle="tab" href="#scoreLineToMonth">Month</a>
+                                        </li>
+                                    </ul>
+                                </div>
+                
+                                <div class="widget-content tab-content bg-white p-20">
+                                    <div class="ct-chart tab-pane active scoreLineShadow" id="scoreLineToDay"></div>
+                                    <div class="ct-chart tab-pane scoreLineShadow" id="scoreLineToWeek"></div>
+                                    <div class="ct-chart tab-pane scoreLineShadow" id="scoreLineToMonth"></div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="widget-content tab-content bg-white p-20">
-                            <div class="ct-chart tab-pane active scoreLineShadow" id="scoreLineToDay"></div>
-                            <div class="ct-chart tab-pane scoreLineShadow" id="scoreLineToWeek"></div>
-                            <div class="ct-chart tab-pane scoreLineShadow" id="scoreLineToMonth"></div>
+                
+                        <!-- Category Wise count Card -->
+                        <div class="col-xl-6 col-md-12 mb-4">
+                            <div class="card">
+                                <h3 class="card-title m-3">Category Wise Product's Count</h3>
+                
+                                <div class="card-body">
+                                    <div id="piechart_3d" class="piechat_height"></div>
+                                </div>
+                            </div>
                         </div>
+                
                     </div>
-                </div>
-                <div class="col-md-6">
-                    <!-- Category Wise Product's Sales -->
-                    <div class="card ">
-                        <h3 class="card-title m-3">Category Wise Product's Count</h3>
-                        <div class="card-body">
-                            <div id="piechart_3d" class='piechat_height'></div>
-                        </div>
-                        <!-- /.card-body -->
-                    </div>
-                    <!-- /.card -->
                 </div>
                 <div class="col-md-6 col-xs-12">
                     <div class="alert alert-danger alert-dismissible">
