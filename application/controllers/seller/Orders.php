@@ -190,7 +190,7 @@ class Orders extends CI_Controller
                 $this->form_validation->set_rules('deliver_by', 'Delvery Boy Id', 'trim|numeric|xss_clean');
             }
             if (isset($_POST['status']) && !empty($_POST['status']) && $_POST['status'] != '') {
-                $this->form_validation->set_rules('status', 'Status', 'trim|xss_clean|in_list[received,processed,shipped,out_for_delivery,delivered,cancelled,returned]');
+                $this->form_validation->set_rules('status', 'Status', 'trim|xss_clean|in_list[received,processed,shipped,delivered,cancelled,returned]');
             }
             if (empty($_POST['status']) && empty($_POST['deliver_by'])) {
                 $this->form_validation->set_rules('status', 'Status', 'trim|required|xss_clean', array('required' => "Please select status or delivery boy for updation."));
@@ -224,22 +224,36 @@ class Orders extends CI_Controller
                 print_r(json_encode($this->response));
                 return false;
             }
-            $has_is_sent_column = $this->db->field_exists('is_sent', 'order_items');
-            $order_item_detail_fields = $has_is_sent_column ? 'is_sent,hash_link' : 'hash_link';
+
             $s = [];
             foreach ($order_itam_ids as $ids) {
-                $order_detail = fetch_details('order_items', ['id' => $ids], $order_item_detail_fields);
-                if (empty($order_detail) || !isset($order_detail[0])) {
-                    continue;
-                }
-                if (
-                    $has_is_sent_column &&
-                    (empty($order_detail[0]['hash_link']) || $order_detail[0]['hash_link'] == '' || $order_detail[0]['hash_link'] == null)
-                ) {
-                array_push($s, $order_detail[0]['is_sent']);
+                $order_detail = fetch_details('order_items', ['id' => $ids], 'is_sent,hash_link');
+                if (empty($order_detail[0]['hash_link']) || $order_detail[0]['hash_link'] == '' || $order_detail[0]['hash_link'] == null) {
+                    array_push($s, $order_detail[0]['is_sent']);
                 }
             }
+            $order_data = fetch_details('order_items', ['id' => $order_itam_ids[0]], 'product_variant_id')[0]['product_variant_id'];
+            $product_id = fetch_details('product_variants', ['id' => $order_data], 'product_id')[0]['product_id'];
+            $product_type = fetch_details('products', ['id' => $product_id], 'type')[0]['type'];
+            if ($product_type == 'digital_product' && in_array(0, $s)) {
+                $this->response['error'] = true;
+                $this->response['message'] = 'Some of the items have not been sent yet,Please send digital items before mark it as delivered.';
+                $this->response['data'] = array();
+                $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                print_r(json_encode($this->response));
+                return false;
+            }
             $order_items = fetch_details('order_items', "",  '*', "", "", "", "", "id", $order_itam_ids);
+            if (isset($_POST['status']) && !empty($_POST['status']) && $_POST['status'] == 'delivered') {
+                if (!get_seller_permission($order_items[0]['seller_id'], "view_order_otp")) {
+                    $this->response['error'] = true;
+                    $this->response['message'] = 'You are not allowed to update delivered status on the item.';
+                    $this->response['data'] = array();
+                    print_r(json_encode($this->response));
+                    return false;
+                }
+            }
             if (empty($order_items)) {
                 $this->response['error'] = true;
                 $this->response['message'] = 'No Order Item Found';
@@ -250,47 +264,6 @@ class Orders extends CI_Controller
                 return false;
             }
 
-            $order_data = fetch_details('order_items', ['id' => $order_itam_ids[0]], 'product_variant_id');
-            if (empty($order_data) || !isset($order_data[0]['product_variant_id'])) {
-                $this->response['error'] = true;
-                $this->response['message'] = 'Unable to find order variant details.';
-                $this->response['data'] = array();
-                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                print_r(json_encode($this->response));
-                return false;
-            }
-            $product_variant = fetch_details('product_variants', ['id' => $order_data[0]['product_variant_id']], 'product_id');
-            if (empty($product_variant) || !isset($product_variant[0]['product_id'])) {
-                $this->response['error'] = true;
-                $this->response['message'] = 'Unable to find product details for selected order.';
-                $this->response['data'] = array();
-                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                print_r(json_encode($this->response));
-                return false;
-            }
-            $product_data = fetch_details('products', ['id' => $product_variant[0]['product_id']], 'type');
-            $product_type = (!empty($product_data) && isset($product_data[0]['type'])) ? $product_data[0]['type'] : '';
-            if ($product_type == 'digital_product' && in_array(0, $s)) {
-                $this->response['error'] = true;
-                $this->response['message'] = 'Some of the items have not been sent yet,Please send digital items before mark it as delivered.';
-                $this->response['data'] = array();
-                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                print_r(json_encode($this->response));
-                return false;
-            }
-            if (isset($_POST['status']) && !empty($_POST['status']) && $_POST['status'] == 'delivered') {
-                if (!get_seller_permission($order_items[0]['seller_id'], "view_order_otp")) {
-                    $this->response['error'] = true;
-                    $this->response['message'] = 'You are not allowed to update delivered status on the item.';
-                    $this->response['data'] = array();
-                    print_r(json_encode($this->response));
-                    return false;
-                }
-            }
-           
             if (count($order_itam_ids) != count($order_items)) {
                 $this->response['error'] = true;
                 $this->response['message'] = 'Some item was not found on status update';
@@ -315,8 +288,20 @@ class Orders extends CI_Controller
             $delivery_boy_updated = 0;
             $delivery_boy_id = (isset($_POST['deliver_by']) && !empty(trim($_POST['deliver_by']))) ? $this->input->post('deliver_by', true) : 0;
 
-           
-            
+            // validate delivery boy when status is shipped
+
+            if (isset($_POST['status']) && !empty($_POST['status']) && $_POST['status'] == 'shipped') {
+                if ((!isset($current_status[0]['delivery_boy_id']) || empty($current_status[0]['delivery_boy_id']) || $current_status[0]['delivery_boy_id'] == 0) && (empty($_POST['deliver_by']) || $_POST['deliver_by'] == '')) {
+                    $this->response['error'] = true;
+                    $this->response['message'] = "Please select delivery boy to mark this order as shipped.";
+                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                    $this->response['data'] = array();
+                    print_r(json_encode($this->response));
+                    return false;
+                }
+            }
+
             if (!empty($delivery_boy_id)) {
                 if ($awaitingPresent) {
                     $this->response['error'] = true;
@@ -354,7 +339,7 @@ class Orders extends CI_Controller
                                 $type = ['type' => "customer_order_received"];
                             } elseif ($_POST['status'] == 'processed') {
                                 $type = ['type' => "customer_order_processed"];
-                            } elseif ($_POST['status'] == 'shipped'|| $_POST['status'] == 'out_for_delivery') {
+                            } elseif ($_POST['status'] == 'shipped') {
                                 $type = ['type' => "customer_order_shipped"];
                             } elseif ($_POST['status'] == 'delivered') {
                                 $type = ['type' => "customer_order_delivered"];
@@ -480,7 +465,7 @@ class Orders extends CI_Controller
                     }
 
                     // processing order items
-                    $order_item_res = $this->db->select(' * , (Select count(id) from order_items where order_id = oi.order_id ) as order_counter ,(Select count(active_status) from order_items where active_status ="cancelled" and order_id = oi.order_id ) as order_cancel_counter , (Select count(active_status) from order_items where active_status ="returned" and order_id = oi.order_id ) as order_return_counter,(Select count(active_status) from order_items where active_status ="delivered" and order_id = oi.order_id ) as order_delivered_counter , (Select count(active_status) from order_items where active_status ="processed" and order_id = oi.order_id ) as order_processed_counter , (Select count(active_status) from order_items where active_status ="shipped" and order_id = oi.order_id ) as order_shipped_counter , (Select count(active_status) from order_items where active_status ="out_for_delivery" and order_id = oi.order_id ) as order_out_for_delivery_counter , (Select status from orders where id = oi.order_id ) as order_status ')
+                    $order_item_res = $this->db->select(' * , (Select count(id) from order_items where order_id = oi.order_id ) as order_counter ,(Select count(active_status) from order_items where active_status ="cancelled" and order_id = oi.order_id ) as order_cancel_counter , (Select count(active_status) from order_items where active_status ="returned" and order_id = oi.order_id ) as order_return_counter,(Select count(active_status) from order_items where active_status ="delivered" and order_id = oi.order_id ) as order_delivered_counter , (Select count(active_status) from order_items where active_status ="processed" and order_id = oi.order_id ) as order_processed_counter , (Select count(active_status) from order_items where active_status ="shipped" and order_id = oi.order_id ) as order_shipped_counter , (Select status from orders where id = oi.order_id ) as order_status ')
                         ->where(['id' => $order_item_id])
                         ->get('order_items oi')->result_array();
 
@@ -491,7 +476,7 @@ class Orders extends CI_Controller
                             $data = fetch_details('order_items', ['id' => $order_item_id], 'product_variant_id,quantity');
                             update_stock($data[0]['product_variant_id'], $data[0]['quantity'], 'plus');
                         }
-                        if (($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_cancel_counter']) + 1 && $_POST['status'] == 'cancelled') ||  ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_return_counter']) + 1 && $_POST['status'] == 'returned') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_delivered_counter']) + 1 && $_POST['status'] == 'delivered') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_processed_counter']) + 1 && $_POST['status'] == 'processed') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_shipped_counter']) + 1 && $_POST['status'] == 'shipped') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_out_for_delivery_counter']) + 1 && $_POST['status'] == 'out_for_delivery')) {
+                        if (($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_cancel_counter']) + 1 && $_POST['status'] == 'cancelled') ||  ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_return_counter']) + 1 && $_POST['status'] == 'returned') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_delivered_counter']) + 1 && $_POST['status'] == 'delivered') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_processed_counter']) + 1 && $_POST['status'] == 'processed') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_shipped_counter']) + 1 && $_POST['status'] == 'shipped')) {
                             /* process the refer and earn */
                             $user = fetch_details('orders', ['id' => $order_item_res[0]['order_id']], 'user_id');
                             $user_id = $user[0]['user_id'];
@@ -511,7 +496,7 @@ class Orders extends CI_Controller
                         $type = ['type' => "customer_order_received"];
                     } elseif ($_POST['status'] == 'processed') {
                         $type = ['type' => "customer_order_processed"];
-                    } elseif ($_POST['status'] == 'shipped' || $_POST['status'] == 'out_for_delivery') {
+                    } elseif ($_POST['status'] == 'shipped') {
                         $type = ['type' => "customer_order_shipped"];
                     } elseif ($_POST['status'] == 'delivered') {
                         $type = ['type' => "customer_order_delivered"];
@@ -628,18 +613,6 @@ class Orders extends CI_Controller
                             $this->response['message'] = "Not Inserted. Try again later.";
                         }
                     }
-                    // Auto-mark order item as shipped (out for delivery) only after tracking is set.
-                    $order_item = fetch_details('order_items', ['id' => $ids['id']], 'active_status,status');
-                    if (!empty($order_item)) {
-                        $current_status = strtolower($order_item[0]['active_status']);
-                        if (in_array($current_status, ['received', 'processed', 'shipped'])) {
-                            $history = json_encode(array(array('shipped', date("d-m-Y h:i:sa"))));
-                            update_details(['active_status' => 'shipped'], ['id' => $ids['id']], 'order_items');
-                            update_details(['status' => $history], ['id' => $ids['id']], 'order_items', false);
-                            $this->response['message'] = "Tracking saved and status updated to out for delivery.";
-                        }
-                    }
-                
                 }
                 print_r(json_encode($this->response));
             }
@@ -842,67 +815,6 @@ class Orders extends CI_Controller
                 }
                 print_r(json_encode($this->response));
             }
-        } else {
-            redirect('admin/login', 'refresh');
-        }
-    }
-
-    public function get_shiprocket_parcel_defaults()
-    {
-        if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
-            $this->form_validation->set_rules('pickup_location', 'Pickup Location', 'trim|required|xss_clean');
-            $this->form_validation->set_rules('shiprocket_seller_id', 'Seller', 'trim|required|xss_clean');
-            $this->form_validation->set_rules('order_items', 'Order Items', 'trim|required');
-
-            if (!$this->form_validation->run()) {
-                $this->response['error'] = true;
-                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = validation_errors();
-                $this->response['data'] = [];
-                print_r(json_encode($this->response));
-                return;
-            }
-
-            $decoded_items = json_decode($_POST['order_items'], true);
-            $order_items = array_values(is_array($decoded_items) ? $decoded_items : []);
-
-            $total_weight = 0;
-            $max_height = 0;
-            $max_breadth = 0;
-            $max_length = 0;
-
-            foreach ($order_items as $row) {
-                if (
-                    isset($row['pickup_location'], $row['seller_id']) &&
-                    $row['pickup_location'] == $_POST['pickup_location'] &&
-                    $row['seller_id'] == $_POST['shiprocket_seller_id']
-                ) {
-                    $quantity = (float)(isset($row['quantity']) ? $row['quantity'] : 1);
-                    $weight = (float)(isset($row['weight']) ? $row['weight'] : 0);
-                    $height = (float)(isset($row['height']) ? $row['height'] : 0);
-                    $breadth = (float)(isset($row['breadth']) ? $row['breadth'] : 0);
-                    $length = (float)(isset($row['length']) ? $row['length'] : 0);
-
-                    $total_weight += ($weight * $quantity);
-                    $max_height = max($max_height, $height);
-                    $max_breadth = max($max_breadth, $breadth);
-                    $max_length = max($max_length, $length);
-                }
-            }
-
-            $this->response['error'] = false;
-            $this->response['csrfName'] = $this->security->get_csrf_token_name();
-            $this->response['csrfHash'] = $this->security->get_csrf_hash();
-            $this->response['message'] = 'Recommended parcel details loaded successfully';
-            $this->response['data'] = [
-                'pickup_location' => $_POST['pickup_location'],
-                'parcel_weight' => ($total_weight > 0) ? number_format($total_weight, 2, '.', '') : '',
-                'parcel_height' => ($max_height > 0) ? ceil($max_height) : 1,
-                'parcel_breadth' => ($max_breadth > 0) ? ceil($max_breadth) : 1,
-                'parcel_length' => ($max_length > 0) ? ceil($max_length) : 1,
-            ];
-            print_r(json_encode($this->response));
         } else {
             redirect('admin/login', 'refresh');
         }

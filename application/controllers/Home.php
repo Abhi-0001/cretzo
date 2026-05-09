@@ -257,7 +257,7 @@ class Home extends CI_Controller
             }
             $order = (isset($_GET['order']) && !empty(trim($_GET['order']))) ? $_GET['order'] : 'DESC';
             $sort = (isset($_GET['sort']) && !empty(trim($_GET['sort']))) ? $_GET['sort'] : 'p.id';
-            $filters['search'] =  (isset($_GET['search'])) ? $_GET['search'] : (isset($_GET['q']) ? $_GET['q']: null);
+            $filters['search'] =  (isset($_GET['search'])) ? $_GET['search'] : null;
             $filters['attribute_value_ids'] = (isset($_GET['attribute_value_ids'])) ? $_GET['attribute_value_ids'] : null;
             $category_id = (isset($_GET['category_id'])) ? $_GET['category_id'] : null;
             $product_id = (isset($_GET['id'])) ? $_GET['id'] : null;

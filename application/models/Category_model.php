@@ -8,28 +8,68 @@ class Category_model extends CI_Model
         $this->load->library(['ion_auth', 'form_validation']);
         $this->load->helper(['url', 'language', 'function_helper']);
     }
-    
     public function get_categories($id = NULL, $limit = '', $offset = '', $sort = 'row_order', $order = 'ASC', $has_child_or_item = 'true', $slug = '', $ignore_status = '', $seller_id = '', $ignore_categories_with_no_products = 'false')
-{
-    $level = 0;
-    $query = $this->db->get('categories');  // no where_in filter
-    $categories = $query->result();
-    $count_res = $this->db->count_all_results('categories');
-    $i = 0;
-    foreach ($categories as $p_cat) {
-        $categories[$i]->text = output_escaping($p_cat->name);
-        $categories[$i]->name = output_escaping($categories[$i]->name);
-        $categories[$i]->state = ['opened' => true];
-        $categories[$i]->icon = "jstree-folder";
-        $categories[$i]->image = get_image_url($categories[$i]->image, 'thumb', 'sm');
-        $categories[$i]->banner = get_image_url($categories[$i]->banner, 'thumb', 'md');
-        $i++;
+    {
+        $level = 0;
+        if ($ignore_status == 1) {
+            $where = (isset($id) && !empty($id)) ? ['c1.id' => $id] : ['c1.parent_id' => 0];
+        } else {
+            $where = (isset($id) && !empty($id)) ? ['c1.id' => $id, 'c1.status' => 1] : ['c1.parent_id' => 0, 'c1.status' => 1];
+        }
+
+        $this->db->select('c1.*');
+        $this->db->where($where);
+        if (!empty($slug)) {
+            $this->db->where('c1.slug', $slug);
+        }
+
+        /* Added for cretzo */
+        if (!empty($seller_id)) {
+            $this->db->join('products p3', 'p3.category_id = c1.id AND p3.seller_id = ' . $this->db->escape($seller_id), 'inner');
+        }
+
+        if ($has_child_or_item == 'false') {
+            $this->db->join('categories c2', 'c2.parent_id = c1.id', 'left');
+            $this->db->join('products p2', ' p2.category_id = c1.id', 'left');
+            $this->db->group_start();
+            $this->db->or_where(['c1.id ' => ' p2.category_id ', ' c2.parent_id ' => ' c1.id '], NULL, FALSE);
+            $this->db->group_End();
+            $this->db->group_by('c1.id');
+        }
+
+        if ($ignore_categories_with_no_products == 'true') {
+            $this->db->join('products p', 'p.category_id = c1.id AND p.status = 1', 'left');
+            $this->db->group_by('c1.id');
+            $this->db->having('COUNT(p.id) > 0');
+        }
+
+        if (!empty($limit) || !empty($offset)) {
+            $this->db->offset($offset);
+            $this->db->limit($limit);
+        }
+
+        $this->db->order_by((string)$sort, (string)$order);
+
+        $parent = $this->db->get('categories c1');
+        $categories = $parent->result();
+        $count_res = $this->db->count_all_results('categories c1');
+        $i = 0;
+        foreach ($categories as $p_cat) {
+            $categories[$i]->children = $this->sub_categories($p_cat->id, $level);
+            $categories[$i]->text = output_escaping($p_cat->name);
+            $categories[$i]->name = output_escaping($categories[$i]->name);
+            $categories[$i]->state = ['opened' => true];
+            $categories[$i]->icon = "jstree-folder";
+            $categories[$i]->level = $level;
+            $categories[$i]->image = get_image_url($categories[$i]->image, 'thumb', 'sm');
+            $categories[$i]->banner = get_image_url($categories[$i]->banner, 'thumb', 'md');
+            $i++;
+        }
+        if (isset($categories[0])) {
+            $categories[0]->total = $count_res;
+        }
+        return  json_decode(json_encode($categories), 1);
     }
-    if (isset($categories[0])) {
-        $categories[0]->total = $count_res;
-    }
-    return json_decode(json_encode($categories), 1);
-}
 
     public function get_categories_by_ids($category_ids) {
         $category_ids_array = explode(',', $category_ids);
@@ -296,36 +336,4 @@ class Category_model extends CI_Model
 
         print_r(json_encode($data));
     }
-    public function process_category()
-{
-    $input = $this->input->post('selected_category_id', true);
-
-    if (strpos($input, 'new:') === 0) {
-
-        $category_name = trim(str_replace('new:', '', $input));
-
-        // Check if already exists
-        $existing = $this->db
-            ->where('name', $category_name)
-            ->get('categories')
-            ->row();
-
-        if ($existing) {
-            $category_id = $existing->id;
-        } else {
-            // Insert new category
-            $this->db->insert('categories', [
-                'name' => $category_name,
-                'parent_id' => 0,
-                'status' => 1
-            ]);
-            $category_id = $this->db->insert_id();
-        }
-
-    } else {
-        $category_id = (int)$input;
-    }
-
-    return $category_id;
-}
 }

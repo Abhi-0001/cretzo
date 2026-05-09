@@ -1,50 +1,3 @@
-<style>
-    /* Pulse animation for the progress bar container */
-    @keyframes barPulse {
-        0%, 100% { box-shadow: 0 0 0 0 rgba(242, 140, 40, 0.30); }
-        50% { box-shadow: 0 0 0 8px rgba(242, 140, 40, 0); }
-    }
-
-    .progress {
-        height: 12px;
-        border-radius: 10px;
-        background-color: #e9ecef;
-        overflow: visible; /* Allows the pulse shadow to be seen */
-        animation: barPulse 1.8s ease-in-out infinite;
-    }
-
-    .progress-bar {
-        border-radius: 10px;
-        transition: width 0.1s ease-in-out;
-        /* Start with the orange color from your circle scheme */
-        background-color: #f28c28 !important; 
-        position: relative;
-    }
-
-    /* Optional: adds a shine effect to the bar */
-    .progress-bar::after {
-        content: '';
-        position: absolute;
-        top: 0; left: 0; bottom: 0; right: 0;
-        background-image: linear-gradient(
-            45deg, 
-            rgba(255,255,255,.15) 25%, 
-            transparent 25%, 
-            transparent 50%, 
-            rgba(255,255,255,.15) 50%, 
-            rgba(255,255,255,.15) 75%, 
-            transparent 75%, 
-            transparent
-        );
-        background-size: 1rem 1rem;
-    }
-
-    .profile-completion-content {
-        flex: 1;
-        min-width: 260px;
-    }
-</style>
-
 <div class="content-wrapper">
     <section class="content">
         <div class="container-fluid p-3">
@@ -117,51 +70,6 @@
                         </div>
                     </div>
                 </div>
-<<<<<<< seller-profile
-                
-                <d  iv class="col-12">
-                    <div class="card pull-up">
-                        <div class="card-body">
-                            <div class="d-flex align-items-center gap-3 mb-3">
-                                <div class="flex-grow-1">
-                                    <div class="d-flex justify-content-between align-items-center mb-2">
-                                        <h5 class="text-muted text-bold-500 mb-0">
-                                            Profile Completion: <span id="percent-text">0</span>%
-                                        </h5>
-                                        <a href="<?= base_url('seller/home/profile') ?>" class="btn btn-sm btn-outline-primary">Update Profile</a>
-                                    </div>
-                                    <div class="progress">
-                                        <div id="profile-bar" 
-                                             class="progress-bar" 
-                                             role="progressbar" 
-                                             style="width: 0%;"
-                                             data-target-width="<?= (int)($profile_completion['percentage'] ?? 0) ?>"
-                                             aria-valuemin="0" 
-                                             aria-valuemax="100">
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                          
-                        <?php if (!empty($profile_completion['missing_sections'])): ?>
-                            <hr class="mt-2 mb-3">
-                            <p class="mb-2 text-muted small">Complete your profile to start selling.</p>
-                            <ul class="list-unstyled mb-0">
-                                <?php foreach ($profile_completion['missing_sections'] as $section): ?>
-                                    <li class="d-flex justify-content-between align-items-center mb-2">
-                                        <span><?= $section['label'] ?></span>
-                                        <a href="<?= $section['link'] ?>" class="btn btn-sm btn-primary">Complete</a>
-                                    </li>
-                                <?php endforeach; ?>
-                            </ul>
-                        <?php else: ?>
-                            <p class="mb-0 text-success"><i class="fa fa-check-circle"></i> Your seller profile is complete.</p>
-                        <?php endif; ?>
-                        </div>
-                    </div>
-                </div>
-=======
                 <?php if (isset($subscription_status) && $subscription_status === 'active' && !empty($current_subscription_plan)) : ?>
                     <div class="col-12">
                         <div class="alert alert-warning d-flex justify-content-between align-items-center">
@@ -201,7 +109,6 @@
                     </div>
                 <?php endif; ?>
 
->>>>>>> main
                 <div class="col-xl-6 col-12" id="ecommerceChartView">
                     <div class="card card-shadow chart-height">
                         <div class="m-3">Product Sales</div>
@@ -665,37 +572,3 @@
         </div>
     </div>
 </div>
-<script>
-(function () {
-    var progressBar = document.getElementById('profile-bar');
-    var percentText = document.getElementById('percent-text');
-    if (!progressBar) return;
-
-    var target = parseInt(progressBar.getAttribute('data-target-width') || '0', 10);
-    target = Math.max(0, Math.min(100, target));
-    var current = 0;
-
-    function animateProgressBar() {
-        if (current <= target) {
-            // Update bar width
-            progressBar.style.width = current + '%';
-            // Update text counter
-            percentText.textContent = current;
-
-            // Optional: Dynamic color shifting
-            // If completion is high, shift from orange to green
-            if (current > 70) {
-                progressBar.style.backgroundColor = '#28a745'; // Success Green
-            } else if (current > 40) {
-                progressBar.style.backgroundColor = '#ffc107'; // Warning Yellow
-            }
-
-            current += 1;
-            requestAnimationFrame(animateProgressBar);
-        }
-    }
-
-    // Start animation
-    setTimeout(animateProgressBar, 300); 
-})();
-</script>
