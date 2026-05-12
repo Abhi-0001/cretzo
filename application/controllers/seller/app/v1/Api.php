@@ -485,7 +485,7 @@ Defined Methods:-
             order_item_id:1 // only when status is cancelled / returned
             order_id:991
             seller_id : 8
-            status : received / processed / shipped / out_for_delivery / delivered / cancelled / returned
+            status : received / processed / shipped / delivered / cancelled / returned
             delivery_boy_id: 15 {optional}
         */
 
@@ -502,7 +502,7 @@ Defined Methods:-
         $this->form_validation->set_rules('delivery_boy_id', 'Delvery Boy Id', 'trim|numeric|xss_clean');
         $this->form_validation->set_rules('order_id', 'Order ID', 'trim|numeric|required|xss_clean');
 
-        $this->form_validation->set_rules('status', 'Status', 'trim|required|xss_clean|in_list[received,processed,shipped,out_for_delivery,delivered,cancelled,returned]');
+        $this->form_validation->set_rules('status', 'Status', 'trim|required|xss_clean|in_list[received,processed,shipped,delivered,cancelled,returned]');
 
         if (!$this->form_validation->run()) {
             $this->response['error'] = true;
@@ -596,7 +596,7 @@ Defined Methods:-
                             $type = ['type' => "customer_order_received"];
                         } elseif ($_POST['status'] == 'processed') {
                             $type = ['type' => "customer_order_processed"];
-                        } elseif ($_POST['status'] == 'shipped' || $_POST['status'] == 'out_for_delivery') {
+                        } elseif ($_POST['status'] == 'shipped') {
                             $type = ['type' => "customer_order_shipped"];
                         } elseif ($_POST['status'] == 'delivered') {
                             $type = ['type' => "customer_order_delivered"];
@@ -728,13 +728,14 @@ Defined Methods:-
                 }
 
                 // processing order items
-                $order_item_res = $this->db->select(' * , (Select count(id) from order_items where order_id = oi.order_id ) as order_counter ,(Select count(active_status) from order_items where active_status ="cancelled" and order_id = oi.order_id ) as order_cancel_counter , (Select count(active_status) from order_items where active_status ="returned" and order_id = oi.order_id ) as order_return_counter,(Select count(active_status) from order_items where active_status ="delivered" and order_id = oi.order_id ) as order_delivered_counter , (Select count(active_status) from order_items where active_status ="processed" and order_id = oi.order_id ) as order_processed_counter , (Select count(active_status) from order_items where active_status ="shipped" and order_id = oi.order_id ) as order_shipped_counter , (Select count(active_status) from order_items where active_status ="out_for_delivery" and order_id = oi.order_id ) as order_out_for_delivery_counter , (Select status from orders where id = oi.order_id ) as order_status ')
+                $order_item_res = $this->db->select(' * , (Select count(id) from order_items where order_id = oi.order_id ) as order_counter ,(Select count(active_status) from order_items where active_status ="cancelled" and order_id = oi.order_id ) as order_cancel_counter , (Select count(active_status) from order_items where active_status ="returned" and order_id = oi.order_id ) as order_return_counter,(Select count(active_status) from order_items where active_status ="delivered" and order_id = oi.order_id ) as order_delivered_counter , (Select count(active_status) from order_items where active_status ="processed" and order_id = oi.order_id ) as order_processed_counter , (Select count(active_status) from order_items where active_status ="shipped" and order_id = oi.order_id ) as order_shipped_counter , (Select status from orders where id = oi.order_id ) as order_status ')
                     ->where(['id' => $order_item_id])
                     ->get('order_items oi')->result_array();
                 process_refund($order_item_res[0]['id'], $_POST['status'], 'order_items');
                 if ($this->order_model->update_order(['status' => $_POST['status']], ['id' => $order_item_res[0]['id']], true, 'order_items')) {
                     $this->order_model->update_order(['active_status' => $_POST['status']], ['id' => $order_item_res[0]['id']], false, 'order_items');
-                    if (($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_cancel_counter']) + 1 && $_POST['status'] == 'cancelled') ||  ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_return_counter']) + 1 && $_POST['status'] == 'returned') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_delivered_counter']) + 1 && $_POST['status'] == 'delivered') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_processed_counter']) + 1 && $_POST['status'] == 'processed') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_shipped_counter']) + 1 && $_POST['status'] == 'shipped') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_out_for_delivery_counter']) + 1 && $_POST['status'] == 'out_for_delivery')) {
+                    if (($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_cancel_counter']) + 1 && $_POST['status'] == 'cancelled') ||  ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_return_counter']) + 1 && $_POST['status'] == 'returned') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_delivered_counter']) + 1 && $_POST['status'] == 'delivered') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_processed_counter']) + 1 && $_POST['status'] == 'processed') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_shipped_counter']) + 1 && $_POST['status'] == 'shipped')) {
+
                         /* process the refer and earn */
                         $user = fetch_details('orders', ['id' => $order_item_res[0]['order_id']], 'user_id');
                         $user_id = $user[0]['user_id'];
@@ -758,7 +759,7 @@ Defined Methods:-
                     $type = ['type' => "customer_order_received"];
                 } elseif ($_POST['status'] == 'processed') {
                     $type = ['type' => "customer_order_processed"];
-                } elseif ($_POST['status'] == 'shipped'  || $_POST['status'] == 'out_for_delivery') {
+                } elseif ($_POST['status'] == 'shipped') {
                     $type = ['type' => "customer_order_shipped"];
                 } elseif ($_POST['status'] == 'delivered') {
                     $type = ['type' => "customer_order_delivered"];

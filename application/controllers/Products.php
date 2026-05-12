@@ -866,9 +866,7 @@ class Products extends CI_Controller
         //Product Sorting
         $sort = '';
         $order = '';
-        $raw_q = $this->input->get('q', true);
-        // Strip the " (Category Name)" suffix appended by the search dropdown
-        $filter['search'] = trim(preg_replace('/\s*\([^)]*\)\s*$/', '', $raw_q));
+        $filter['search'] = $this->input->get('q', true);
         if ($sort_by == "top-rated") {
             $filter['product_type'] = "top_rated_product_including_all_products";
         } elseif ($sort_by == "date-desc") {
@@ -927,7 +925,7 @@ class Products extends CI_Controller
         $offset = ($page_no - 1) * $limit;
         $this->pagination->initialize($config);
         $this->data['links'] = $this->pagination->create_links();
-        $page_title = 'Search Result for "' . html_escape($filter['search']) . '"';
+        $page_title = 'Search Result for "' . html_escape($_GET['q']) . '"';
         $this->data['main_page'] = 'product-listing';
         $this->data['title'] = $page_title . ' | ' . $this->data['web_settings']['site_title'];
         $this->data['keywords'] = $page_title . ',Product Section, ' . $this->data['web_settings']['meta_keywords'];

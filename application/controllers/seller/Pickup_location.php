@@ -43,7 +43,7 @@ class Pickup_location extends CI_Controller
             $this->form_validation->set_rules('country', ' Country ', 'trim|required|xss_clean');
             $this->form_validation->set_rules('pincode', ' Pincode ', 'trim|required|xss_clean');
             $this->form_validation->set_rules('address', ' Address ', 'trim|required|xss_clean');
-            // f$this->form_validation->set_rules('address2', ' Address 2 ', 'trim|required|xss_clean');
+            $this->form_validation->set_rules('address2', ' Address 2 ', 'trim|required|xss_clean');
             $this->form_validation->set_rules('latitude', ' Latitude ', 'trim|required|numeric|xss_clean');
             $this->form_validation->set_rules('longitude', ' Longitude ', 'trim|required|numeric|xss_clean');
 
@@ -63,7 +63,7 @@ class Pickup_location extends CI_Controller
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
                 $message = (isset($_POST['edit_pickup_location'])) ? 'Update Pickup Location' : 'Add Pickup Location';
                 $this->response['message'] = $message;
-                // print_r(json_encode($this->response));
+                print_r(json_encode($this->response));
             }
         } else {
             redirect('seller/login', 'refresh');

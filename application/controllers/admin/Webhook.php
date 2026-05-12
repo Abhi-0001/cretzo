@@ -625,49 +625,6 @@ class Webhook extends CI_Controller
                                 $status = json_encode(array(array('delivered', date("d-m-Y h:i:sa"))));
                                 update_details(['active_status' => 'delivered'], ['id' => $order_id], 'orders');
                                 update_details(['status' => $status], ['id' => $order_id], 'orders', false);
-                                // Update all shippable order items to delivered when tracking service confirms delivery.
-                                $order_items = fetch_details('order_items', ['order_id' => $order_id], 'id,seller_id,active_status');
-                                $seller_ids = [];
-                                if (!empty($order_items)) {
-                                    foreach ($order_items as $order_item) {
-                                        if (!in_array(strtolower($order_item['active_status']), ['cancelled', 'returned', 'delivered'])) {
-                                            update_details(['active_status' => 'delivered'], ['id' => $order_item['id']], 'order_items');
-                                            update_details(['status' => $status], ['id' => $order_item['id']], 'order_items', false);
-                                        }
-                                        if (!empty($order_item['seller_id'])) {
-                                            $seller_ids[] = $order_item['seller_id'];
-                                        }
-                                    }
-                                }
-
-                                // Notify seller(s) after final delivery confirmation from tracking service.
-                                $seller_ids = array_values(array_unique($seller_ids));
-                                if (!empty($seller_ids)) {
-                                    $settings = get_settings('system_settings', true);
-                                    $app_name = isset($settings['app_name']) && !empty($settings['app_name']) ? $settings['app_name'] : 'Store';
-                                    $sellers = fetch_details('users', "", 'username,fcm_id,email,mobile', "", "", "", "", "id", $seller_ids);
-
-                                    foreach ($sellers as $seller) {
-                                        $seller_msg = 'Order #' . $order_id . ' is delivered as confirmed by tracking service.';
-                                        if (!empty($seller['fcm_id'])) {
-                                            $fcm_ids = [[$seller['fcm_id']]];
-                                            $fcmMsg = array(
-                                                'title' => $app_name . ' Delivery Update',
-                                                'body' => $seller_msg,
-                                                'type' => "order",
-                                                'order_id' => $order_id,
-                                            );
-                                            send_notification($fcmMsg, $fcm_ids);
-                                        }
-                                        notify_event(
-                                            "customer_order_delivered",
-                                            ["seller" => [$seller['email']]],
-                                            ["seller" => [$seller['mobile']]],
-                                            ["orders.id" => $order_id]
-                                        );
-                                    }
-                                }
-                                
                                 $res['error'] = false;
                                 $res['message'] = "order Updated successfully";
                                 echo json_encode($res);

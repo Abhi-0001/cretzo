@@ -269,15 +269,8 @@ function getQueryQ() {
 function getCategorySlugs() {
     const path = window.location.pathname.split('/').filter(Boolean);
 
-<<<<<<< seller-profile
-    // Find 'products' segment and use what comes after it
-    const productsIndex = path.indexOf('products');
-    const category_slug     = productsIndex >= 0 ? (path[productsIndex + 1] || '') : '';
-    const sub_category_slug = productsIndex >= 0 ? (path[productsIndex + 2] || '') : '';
-=======
     const category_slug       = path[2] || '';
     const sub_category_slug   = path[3] || '';
->>>>>>> main
 
     return {
         category_slug,
@@ -285,15 +278,8 @@ function getCategorySlugs() {
     };
 }
 
-<<<<<<< seller-profile
-function ajaxProductList() {
-    console.log('pathname:', window.location.pathname);
-    console.log('slugData:', slugData);
-    console.log('search params:', window.location.search);
-=======
 function ajaxProductList(page = 1, append = false) {
      currentPage = page;
->>>>>>> main
      let slugData = getCategorySlugs();
      let subCategory = "";
      let searchData = "";
@@ -330,24 +316,6 @@ function ajaxProductList(page = 1, append = false) {
         dataType: 'json',
 
         success: function (response) {
-<<<<<<< seller-profile
-            console.log('AJAX response:', response);
-            console.log('Products:', response.products);
-            console.log('Product array:', response.products ? response.products.product : 'N/A');
-            if (response.status === 'success') {
-                var products = response.products.product || [];
-                var html = renderProducts(products);
-                $('#productList').html(html);
-                
-                // Show or hide "No products found" message
-                if (products.length === 0) {
-                    $('#no-products-msg').removeClass('d-none');
-                } else {
-                    $('#no-products-msg').addClass('d-none');
-                }
-        
-                $('.pagination-container').html(response.pagination_html || '');
-=======
             isLoading = false;
             if (response.status === 'success') {
                 totalRows = response.total_rows || 0;
@@ -358,7 +326,6 @@ function ajaxProductList(page = 1, append = false) {
                     $('#productList').html(html);
                 }
                 $('#products-pagination-nav').html(renderPagination(totalRows, currentPage, perPage));
->>>>>>> main
                 $('.result-count').text(response.result_count || '');
 
                 // update 'Showing X of Y' text
@@ -373,7 +340,6 @@ function ajaxProductList(page = 1, append = false) {
                 window.history.replaceState({}, '', newUrl.toString());
             }
         },
-
 
         error: function (xhr, status, error) {
             isLoading = false;
@@ -450,7 +416,7 @@ function generateStarRatingHTML(product) {
 
 function renderProducts(products) {
     if (!products.length) {
-        return '';
+        return '<div class="text-center py-5">No products found</div>';
     }
 
     let html = '';
