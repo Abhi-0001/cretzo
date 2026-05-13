@@ -777,7 +777,7 @@ function openProfileSection(section) {
 
 openProfileSection(initialSection);
 
-// ── Submit ────────────────────────────────────────────────────────────────────
+// ─ ─ Submit ────────────────────────────────────────────────────────────────────
 submitBtn.addEventListener('click', function(e) {
   e.preventDefault();
   document.getElementById('response').innerHTML = '';

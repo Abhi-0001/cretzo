@@ -319,7 +319,7 @@ class Home extends CI_Controller
 
             $selected_state_id = null;
             $selected_district_id = null;
-
+ 
             if ($this->db->table_exists('states')) {
                 $this->data['states'] = $this->db
                     ->select('id,name')
