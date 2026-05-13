@@ -14,7 +14,7 @@
     width: 100%;
 }
 #login_div .login{
-    width: 60vw;
+    width: 100%;
     max-width: 800px;
     min-height: 300px;
     background-color: white;
@@ -23,6 +23,7 @@
     /* box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1); */
     display: flex;
     overflow: hidden;
+    position: relative;
 }
 #login_div .login-left{
     width: 70%;
@@ -81,26 +82,32 @@
 
 
 /* --- Style overrides over default template STARTS --- */
-#modal-signin .modal-content{
-    /* background-color: transparent !important; */
-}
 #modal-signin .modal-body{
     padding: 0px;
 }
+#modal-signin .modal-dialog{
+    margin: 1rem auto;
+    width: calc(100% - 1rem);
+    max-width: 800px;
+}
+#modal-signin{
+    padding-right: 0 !important;
+}
+body.modal-open{
+    padding-right: 0 !important;
+}
 #login_div .btn-close {
-    position: relative;
-    align-self: baseline;
-    top: initial;
-    left: initial;
-    right: initial;
-    bottom: initial;
-    margin: 12px;
-    pointer-events: auto;
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    margin: 0;
+    z-index: 4;
 }
 #login_div input.form-control{
     line-height: normal;
 }
 #login_div input[type='checkbox']{
+    appearance: checkbox !important;
     -webkit-appearance: checkbox !important;
 }
 #login_div #forgot_password_link{
@@ -125,6 +132,107 @@
 }
 #login_div .cretzo.btn{
     padding: 4px 60px;
+}
+
+.auth-login-loading{
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    background: rgba(0, 0, 0, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.auth-login-loading-box{
+    background: #fff;
+    border-radius: 10px;
+    padding: 16px 18px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.auth-login-loading-copy{
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.auth-login-loading-title{
+    font-size: 14px;
+    color: #111;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.auth-login-spinner{
+    width: 18px;
+    height: 18px;
+    border: 2px solid #e6e6e6;
+    border-top-color: var(--color-orange);
+    border-radius: 50%;
+    animation: authSpin .8s linear infinite;
+}
+
+.auth-login-loading-text{
+    font-size: 13px;
+    color: #4f4f4f;
+    font-weight: 500;
+}
+
+.auth-login-dots{
+    display: inline-flex;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.auth-login-dots span{
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--color-orange);
+    opacity: .35;
+    animation: authDots 1s ease-in-out infinite;
+}
+
+.auth-login-dots span:nth-child(2){
+    animation-delay: .15s;
+}
+
+.auth-login-dots span:nth-child(3){
+    animation-delay: .3s;
+}
+
+.auth-social-loading{
+    opacity: 0.85;
+}
+
+.auth-inline-spinner{
+    width: 14px;
+    height: 14px;
+    border: 2px solid #e6e6e6;
+    border-top-color: var(--color-orange);
+    border-radius: 50%;
+    animation: authSpin .8s linear infinite;
+}
+
+@keyframes authSpin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes authDots {
+    0%, 80%, 100% {
+        transform: translateY(0);
+        opacity: .35;
+    }
+    40% {
+        transform: translateY(-4px);
+        opacity: 1;
+    }
 }
 /* --- Style overrides over default template ENDS --- */
 

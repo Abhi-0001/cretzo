@@ -149,23 +149,6 @@ class Point_of_sale extends CI_Controller
             $product_variant_id = array_column($post_data, "variant_id");
             $quantity = array_column($post_data, "quantity");
             $user_id = $_POST['user_id'];
-            $is_shippable_order = false;
-
-            if (!empty($product_variant_id)) {
-                $product_variants = fetch_details('product_variants', "", 'product_id', "", "", "", "", "id", $product_variant_id);
-                if (!empty($product_variants)) {
-                    $product_ids = array_values(array_unique(array_column($product_variants, 'product_id')));
-                    $products = fetch_details('products', "", 'type', "", "", "", "", "id", $product_ids);
-                    if (!empty($products)) {
-                        foreach ($products as $product) {
-                            if (isset($product['type']) && $product['type'] != 'digital_product') {
-                                $is_shippable_order = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
 
             $place_order_data = array();
             $place_order_data['product_variant_id'] = implode(",", $product_variant_id);
@@ -178,7 +161,7 @@ class Point_of_sale extends CI_Controller
             $place_order_data['discount'] = $_POST['discount'];
             $place_order_data['is_delivery_charge_returnable'] = 0;
             $place_order_data['wallet_balance_used'] = 0;
-            $place_order_data['active_status'] = $is_shippable_order ? "received" : "delivered";
+            $place_order_data['active_status'] = "delivered";
             $place_order_data['is_pos_order'] = 1;
             $payment_method_name = (isset($_POST['payment_method_name']) && !empty($_POST['payment_method_name'])) ? $this->input->post('payment_method_name', true) : NULL;
             $place_order_data['payment_method'] = (isset($_POST['payment_method']) && !empty($_POST['payment_method']) && $_POST['payment_method'] != "other") ? $this->input->post('payment_method', true) : $payment_method_name;

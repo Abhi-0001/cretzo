@@ -30,7 +30,17 @@ $auth_settings = get_settings('authentication_settings', true);
     background: #fff;
     border-top: none;
     z-index: 9999;     /* highest z-index */
-    display: block;     
+    display: block;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+#append_mobile_search {
+    width: 100%;
+    background: #fff;
+    z-index: 9999;
+    max-height: 320px;
+    overflow-y: auto;
 }
 
 /* Each suggestion */
@@ -574,13 +584,8 @@ $auth_settings = get_settings('authentication_settings', true);
     }
 
     function generateMegaMenu($categories, $noOfRows) {
-        $noOfRows = max(1, (int) $noOfRows);
         $totalCategories = count($categories);
-        if ($totalCategories === 0) {
-            echo '<div class="mega-menu"></div>';
-            return;
-        }
-        $categoriesPerRow = max(1, (int) ceil($totalCategories / $noOfRows));
+        $categoriesPerRow = ceil($totalCategories / $noOfRows);
         
         $chunks = array_chunk($categories, $categoriesPerRow);
         

@@ -13,8 +13,6 @@ class Media extends CI_Controller
     } 
     public function index()
     {
-         // Suppress deprecation warnings so they don't pollute JSON response
-        $prev = error_reporting(E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED);
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
             $this->data['main_page'] = VIEW . 'media-gallary';
             $settings = get_settings('system_settings', true);
@@ -43,7 +41,7 @@ class Media extends CI_Controller
             mkdir($target_path, 0777, true);
         }
 
-        $temp_array = $media_ids = $other_images_new_name = $uploaded_files = array();
+        $temp_array = $media_ids = $other_images_new_name = array();
         $files = $_FILES;
         $other_image_info_error = "";
         $allowed_media_types = implode('|', allowed_media_types());
@@ -65,17 +63,9 @@ class Media extends CI_Controller
                 } else {
                     $temp_array = $other_img->data();
                     $temp_array['sub_directory'] = $sub_directory;
-                    $media_ids[] = $media_id = $this->media_model->set_media($temp_array);
-                    resize_image($temp_array, $target_path, $media_id);
+                    $media_ids[] = $media_id = $this->media_model->set_media($temp_array); /* set media in database */
+                    resize_image($temp_array,  $target_path, $media_id);
                     $other_images_new_name[$i] = $temp_array['file_name'];
-                    // Save uploaded file path before resetting arrays
-                    $uploaded_files[] = [
-                        'id'            => $media_id,
-                        'name'          => $temp_array['file_name'],
-                        'sub_directory' => $sub_directory,
-                        'url'           => base_url($sub_directory . $temp_array['file_name'])
-                    ];
-                    $temp_array = $media_ids = $other_images_new_name = array(); // Don't reset $uploaded_files
                 }
             } else {
 
@@ -104,16 +94,13 @@ class Media extends CI_Controller
             $this->response['csrfName'] = $this->security->get_csrf_token_name();
             $this->response['csrfHash'] = $this->security->get_csrf_hash();
             $this->response['message'] = (empty($_FILES)) ? "Files not Uploaded Successfully..!" :  $other_image_info_error;
-            ob_clean();
             print_r(json_encode($this->response));
         } else {
             $this->response['error'] = false;
             $this->response['csrfName'] = $this->security->get_csrf_token_name();
             $this->response['csrfHash'] = $this->security->get_csrf_hash();
             $this->response['message'] = "Files Uploaded Successfully..!";
-            $this->response['files'] = $uploaded_files;
             $this->response['error'] = (isset($other_image_info_error) && !empty($other_image_info_error)) ? $other_image_info_error : false;
-            ob_clean();
             print_r(json_encode($this->response));
         }
     }
