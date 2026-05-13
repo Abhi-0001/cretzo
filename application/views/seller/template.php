@@ -27,4 +27,4 @@
     <?php $this->load->view('seller/include-script.php'); ?>
 </body>
 
-</html>
+</html> 

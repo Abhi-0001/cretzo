@@ -315,7 +315,7 @@ class Home extends CI_Controller
 
             $selected_state_name = $this->data['fetched_data'][0]['state'] ?? '';
             $selected_district_name = $this->data['fetched_data'][0]['district'] ?? '';
-
+ 
             $selected_state_id = null;
             $selected_district_id = null;
 

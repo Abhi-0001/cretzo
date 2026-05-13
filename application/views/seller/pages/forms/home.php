@@ -187,7 +187,7 @@
                         </div>
                         <!-- /.card-body -->
                     </div>
-                    <!-- /.card -->
+                    <!-- /.card --> 
                 </div>
                 <div class="col-md-6 col-xs-12">
                     <div class="alert alert-danger alert-dismissible">

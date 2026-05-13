@@ -789,7 +789,7 @@ if (requestVerificationBtn) {
         responseBox.className = 'small mt-2 text-danger';
         responseBox.innerText = 'Verification note must be at least 10 characters.';
       }
-      return;
+      return; 
     }
     const verificationData = new FormData();
     verificationData.append('verification_note', verificationNote.value.trim());

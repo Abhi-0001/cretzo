@@ -10,7 +10,7 @@ class Media extends CI_Controller
         $this->load->library(['ion_auth', 'form_validation', 'upload']);
         $this->load->helper(['url', 'language', 'file']);
         $this->load->model(['media_model']);
-    }
+    } 
     public function index()
     {
          // Suppress deprecation warnings so they don't pollute JSON response
