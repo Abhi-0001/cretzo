@@ -27,39 +27,112 @@ class Search extends CI_Controller
      */
     public function search_data()
     {
-        // Always return JSON
         $this->output->set_content_type('application/json');
 
-        // Read search parameter
         $search_term = trim($this->input->get_post('search', true));
-        $limit       = $this->input->get_post('limit', true) ?: 10;
+        $limit = (int) $this->input->get_post('limit', true);
+        if ($limit <= 0) {
+            $limit = 12;
+        }
+        if ($limit > 30) {
+            $limit = 30;
+        }
 
-        // Validate input
         if (empty($search_term)) {
             return $this->output->set_output(json_encode([
-                            'csrfName' => $this->security->get_csrf_token_name(),
-                            'csrfHash' => $this->security->get_csrf_hash(),
-                            'error'    => true,
-                            'message'  => 'Search term is required',
-                            'data'     => []
-                        ]));
-                    }
+                'csrfName' => $this->security->get_csrf_token_name(),
+                'csrfHash' => $this->security->get_csrf_hash(),
+                'error'    => false,
+                'message'  => 'Search term is required',
+                'data'     => []
+            ]));
+        }
 
-    // Load model
-        $this->load->model('product_model');
+        $results = [];
 
-    // Get product search results
-    $results = $this->product_model->search_products_by_name($search_term, $limit);
+        // Categories (all levels)
+        $categories = $this->db->select('id, name, slug, parent_id')
+            ->from('categories')
+            ->like('name', $search_term)
+            ->where('status', 1)
+            ->order_by('name', 'ASC')
+            ->limit($limit)
+            ->get()
+            ->result_array();
 
-    // Send response
-    return $this->output->set_output(json_encode([
+        foreach ($categories as $cat) {
+            $type = 'category';
+            if (!empty($cat['parent_id']) && (int)$cat['parent_id'] > 0) {
+                $parent = $this->db->select('id, parent_id')
+                    ->from('categories')
+                    ->where('id', (int)$cat['parent_id'])
+                    ->where('status', 1)
+                    ->get()
+                    ->row_array();
+
+                if (!empty($parent) && !empty($parent['parent_id']) && (int)$parent['parent_id'] > 0) {
+                    $type = 'child_category';
+                } else {
+                    $type = 'sub_category';
+                }
+            }
+
+            $results[] = [
+                'id' => 'c-' . $cat['id'],
+                'type' => $type,
+                'name' => $cat['name'],
+                'meta' => ucwords(str_replace('_', ' ', $type)),
+                'url' => base_url('products/category/' . $cat['slug'])
+            ];
+        }
+
+        // Products
+        $products = $this->db->select('p.id, p.name, p.slug, c.name as category_name')
+            ->from('products p')
+            ->join('categories c', 'c.id = p.category_id', 'left')
+            ->group_start()
+            ->like('p.name', $search_term)
+            ->or_like('c.name', $search_term)
+            ->group_end()
+            ->where('p.status', 1)
+            ->where('c.status', 1)
+            ->order_by('p.name', 'ASC')
+            ->limit($limit)
+            ->get()
+            ->result_array();
+
+        foreach ($products as $row) {
+            $results[] = [
+                'id' => 'p-' . $row['id'],
+                'type' => 'product',
+                'name' => $row['name'],
+                'meta' => !empty($row['category_name']) ? 'Product in ' . $row['category_name'] : 'Product',
+                'url' => base_url('products/details/' . $row['slug'])
+            ];
+        }
+
+        // Deduplicate and cap while preserving priority order:
+        // categories/sub-categories/child-categories first, then products.
+        $unique = [];
+        $final = [];
+        foreach ($results as $row) {
+            if (!isset($unique[$row['id']])) {
+                $unique[$row['id']] = true;
+                $final[] = $row;
+            }
+            if (count($final) >= $limit) {
+                break;
+            }
+        }
+
+        return $this->output->set_output(json_encode([
                 'csrfName' => $this->security->get_csrf_token_name(),
                 'csrfHash' => $this->security->get_csrf_hash(),
                 'error'    => false,
                 'message'  => 'Search results retrieved successfully',
-                'data'     => $results
+                'data'     => $final
             ]));
-}
+    }
 
 
 }

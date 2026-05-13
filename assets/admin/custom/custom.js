@@ -714,12 +714,7 @@ function save_product(form) {
     $('.product-variants').removeClass('disabled');
     $('.simple_stock_management_status').prop('disabled', true);
 
-    var catid = '';
-    if ($('#product_category_id').length) {
-        catid = $('#product_category_id').val();
-    } else if ($('#product_category_tree_view_html').length && $('#product_category_tree_view_html').data('jstree')) {
-        catid = $('#product_category_tree_view_html').jstree("get_selected");
-    }
+    var catid = $('#product_category_tree_view_html').jstree("get_selected");
     var formData = new FormData(form);
     var submit_btn = $('#submit_btn');
     var btn_html = $('#submit_btn').html();
@@ -1215,7 +1210,6 @@ function brand_query_params(p) {
 function product_query_params(p) {
     return {
         "category_id": $('#category_parent').val(),
-        "brand_id": $('#brand_filter').val(),
         "seller_id": $('#seller_filter').val(),
         "status": $('#status_filter').val(),
         limit: p.limit,
@@ -1880,9 +1874,6 @@ $(document).on('change', '#user_filter', function () {
 $(document).on('change', '#status_filter', function () {
     $('#products_table').bootstrapTable('refresh');
 });
-$(document).on('change', '#brand_filter', function () {
-    $('#products_table').bootstrapTable('refresh');
-});
 
 //Summer-note
 $(document).ready(function () {
@@ -2182,7 +2173,6 @@ $(document).on('click', '#save_section_order', function () {
 //form-submit-event
 $(document).on('submit', '#save-product', function (e) {
     e.preventDefault();
-    $('input[name="product_type"]').val($.trim($('#product-type').val()));
     var product_type = $('#product-type').val();
     var counter = 0;
     if (product_type != 'undefined' && product_type != ' ') {
@@ -2334,8 +2324,7 @@ $(document).on('submit', '#save-product', function (e) {
             }
         }
         if ($.trim(product_type) == 'digital_product') {
-            $('input[name="product_type"]').val('digital_product');
-            $('.product-attributes').removeClass('disabled');
+
             save_product(this);
         }
 
@@ -2604,7 +2593,8 @@ $(document).on('click', '.remove_attributes , .remove_variants', function (e) {
     });
 });
 
-function toggleProductTypeSettings(value){
+$(document).on('select2:select', '#product-type', function () {
+    var value = $(this).val();
     if ($.trim(value) != "") {
         if (value == 'simple_product') {
             $('#variant_stock_level').hide(200);
@@ -2618,7 +2608,7 @@ function toggleProductTypeSettings(value){
             $('.is_cancelable').removeClass('d-none');
         }
         if (value == 'variable_product') {
-            $('#general_price_section').show(200);
+            $('#general_price_section').hide(200);
             $('.simple-product-level-stock-management').hide(200);
             $('.simple-product-save').hide(200);
             $('.product-attributes').addClass('disabled');
@@ -2639,10 +2629,6 @@ function toggleProductTypeSettings(value){
         $('#variant_stock_level').hide(200);
 
     }
-}
-$(document).on('select2:select change', '#product-type', function () {
-    var value = $(this).val();
-    toggleProductTypeSettings(value);
 });
 $(document).on('change', '#product_type_menu', function () {
     var value = $(this).val();
@@ -2674,7 +2660,7 @@ $(document).on('change', '#product_type_menu', function () {
         $('.standdard_shipping').addClass('d-none');
 
     } else {
-        var html = ' <option value="">Select Type</option>' +
+        var html = ' <option value=" ">Select Type</option>' +
             '<option value="simple_product">Simple Product</option>' +
             '<option value="variable_product">Variable Product</option>';
         $('#product-type').html(html);
@@ -2693,45 +2679,7 @@ $(document).on('change', '#product_type_menu', function () {
         $('.is_attachment_required').removeClass('d-none');
         $('.standdard_shipping').removeClass('d-none');
     }
-    // CRITICAL FIX: destroy and reinit Select2 on #product-type after options replaced
-    if ($.fn.select2) {
-        $('#product-type').select2('destroy');
-        $('#product-type').select2({
-            theme: 'bootstrap4',
-            placeholder: 'Type to search and select type',
-            allowClear: false,
-        });
-
-        // Re-bind select2:select after reinit since the instance was destroyed
-        $('#product-type').off('select2:select.reinit').on('select2:select.reinit', function () {
-            var value = $.trim($(this).val());
-            $('input[name="product_type"]').val(value);
-            if (value === 'simple_product') {
-                $('#variant_stock_level').hide(200);
-                $('#general_price_section').show(200);
-                $('.simple-product-save').show(700);
-                $('.product-attributes').addClass('disabled');
-                $('.product-variants').addClass('disabled');
-                $('#digital_product_setting').hide(200);
-                $('.cod_allowed').removeClass('d-none');
-                $('.is_returnable').removeClass('d-none');
-                $('.is_cancelable').removeClass('d-none');
-            } else if (value === 'variable_product') {
-                $('#general_price_section').hide(200);
-                $('.simple-product-level-stock-management').hide(200);
-                $('.simple-product-save').hide(200);
-                $('.product-attributes').addClass('disabled');
-                $('.product-variants').addClass('disabled');
-                $('#variant_stock_level').show();
-                $('#digital_product_setting').hide(200);
-                $('.cod_allowed').removeClass('d-none');
-                $('.is_returnable').removeClass('d-none');
-                $('.is_cancelable').removeClass('d-none');
-            }
-        });
-    }
 });
-
 
 $(document).on('change', '.variant_stock_status', function () {
     if ($(this).prop("checked") == true) {
@@ -2749,34 +2697,6 @@ $(document).on('change', '.variant-stock-level-type', function () {
     }
     if ($.trim($('.variant-stock-level-type').val()) != 'product_level') {
         $('.variant-product-level-stock-management').hide();
-    }
-});
-// Fallback: native change on product-type in case select2:select doesn't fire
-$(document).on('change', '#product-type', function () {
-    var value = $.trim($(this).val());
-    $('input[name="product_type"]').val(value);
-
-    if (value === 'simple_product') {
-        $('#variant_stock_level').hide(200);
-        $('#general_price_section').show(200);
-        $('.simple-product-save').show(700);
-        $('.product-attributes').addClass('disabled');
-        $('.product-variants').addClass('disabled');
-        $('#digital_product_setting').hide(200);
-        $('.cod_allowed').removeClass('d-none');
-        $('.is_returnable').removeClass('d-none');
-        $('.is_cancelable').removeClass('d-none');
-    } else if (value === 'variable_product') {
-        $('#general_price_section').hide(200);
-        $('.simple-product-level-stock-management').hide(200);
-        $('.simple-product-save').hide(200);
-        $('.product-attributes').addClass('disabled');
-        $('.product-variants').addClass('disabled');
-        $('#variant_stock_level').show();
-        $('#digital_product_setting').hide(200);
-        $('.cod_allowed').removeClass('d-none');
-        $('.is_returnable').removeClass('d-none');
-        $('.is_cancelable').removeClass('d-none');
     }
 });
 
@@ -3076,9 +2996,6 @@ $(document).on('change', '.new-added-variant', function () {
 
 
 function get_seller_categories(seller_id, ignore_status, edit_id, from) {
-    if (!$('#product_category_tree_view_html').length) {
-        return;
-    }
     $.ajax({
         type: 'GET',
         url: base_url + from + '/category/get_seller_categories',
@@ -3157,13 +3074,11 @@ $(document).on('click', '.update_active_status', function () {
 
 });
 if (window.location.href.indexOf("seller/product") > -1) {
-    var edit_id = $('#existing_category_id').val() || $('input[name="category_id"]').val();
+    var edit_id = $('input[name="category_id"]').val();
     var seller_id = $('input[name="seller_id"]').val();
     var ignore_status = $.isNumeric(edit_id) && edit_id > 0 ? 1 : 0;
-    if ($('#product_category_id').length) {
-        // Seller product form uses native category dropdown now.
-    } else if ($.isNumeric(seller_id) && seller_id > 0) {
-    get_seller_categories(seller_id, ignore_status, edit_id, from);
+    if ($.isNumeric(seller_id) && seller_id > 0) {
+        get_seller_categories(seller_id, ignore_status, edit_id, from);
     } else {
         $.ajax({
             type: 'GET',
@@ -3754,11 +3669,6 @@ $(document).on('click', '.update_delivery_boy_admin', function (e) {
     });
 });
 $(document).on('click', '.update_status_admin_bulk', function (e) {
-    e.preventDefault();
-    var statusScope = $(this).closest('#update_form');
-    if (statusScope.length === 0) {
-        statusScope = $('#update_form');
-    }
     var order_item_id = [];
     var seller_id = $('input[name="seller_id"]:checked').val() || $(this).attr("data-seller_id") || $(this).data("sellerId") || $(this).data("id") || $('input[name="seller_id"]').val();
     seller_id = $.trim(seller_id);
@@ -3782,43 +3692,18 @@ $(document).on('click', '.update_status_admin_bulk', function (e) {
         });
         return;
     }
-
+    var order_id = $('input[name="order_id"]').val();
+    var status = $('.status').val();
+    var deliver_by = $('#deliver_by').val();
     var order_item_ids = $('input[name="order_item_id"]:checked').serializeArray();
     $.each(order_item_ids, function (i, field) {
-        order_item_id.push($.trim(field.value));
+        order_item_id.push(field.value);
     });
-    if (order_item_id.length === 0 && status != 'cancelled' && status != 'returned') {
-        var all_order_item_ids = $('input[name="order_item_id"]').serializeArray();
-        $.each(all_order_item_ids, function (i, field) {
-            order_item_id.push($.trim(field.value));
-        });
-    }
-    if (!status) {
-        Swal.fire({
-            icon: 'warning',
-            text: 'Please select status to update.',
-        });
-        return;
-    }
-    if (!seller_id) {
-        Swal.fire({
-            icon: 'warning',
-            text: 'Seller is missing. Please refresh and try again.',
-        });
-        return;
-    }
-    if (order_item_id.length === 0) {
-        Swal.fire({
-            icon: 'warning',
-            text: 'Please select at least one order item.',
-        });
-        return;
-    }
-    
+
     Swal.fire({
         title: 'Are You Sure!',
         text: "You won't be able to revert this!",
-        icon: 'warning',
+        type: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#3085d6',
         cancelButtonColor: '#d33',
@@ -3830,56 +3715,36 @@ $(document).on('click', '.update_status_admin_bulk', function (e) {
                     type: 'POST',
                     url: base_url + from + '/orders/update_order_status',
                     data: {
-                        seller_id:     seller_id,
-                        order_id:      order_id,
-                        status:        status,
-                        deliver_by:    deliver_by,
+                        seller_id: seller_id,
+                        order_id: order_id,
+                        status: status,
+                        deliver_by: deliver_by,
                         order_item_id: order_item_id,
-                        [csrfName]:    csrfHash
+                        [csrfName]: csrfHash
                     },
+
                     dataType: 'json',
                     success: function (result) {
+                        console.log(result);
                         csrfName = result['csrfName'];
                         csrfHash = result['csrfHash'];
                         if (result['error'] == false) {
-                            iziToast.success({ message: result['message'] });
+                            iziToast.success({
+                                message: result['message'],
+                            });
                         } else {
-                            iziToast.error({ message: result['message'] });
+                            iziToast.error({
+                                message: result['message'],
+                            });
                         }
                         swal.close();
                         setTimeout(function () { location.reload(); }, 1000);
-                    },
-                    error: function (xhr) {
-                        // Show actual server error so we can debug
-                        Swal.fire({ icon: 'error', title: 'AJAX Error', text: xhr.status + ' ' + xhr.statusText });
                     }
                 });
             });
         },
         allowOutsideClick: false
     });
-});
-
-$(document).on('change', '#update_form .status, select[name="status"], select[name*="status"]', function () {
-    var selectedStatus = $(this).val();
-    var updateButtons = $('.update_status_admin_bulk');
-    if (selectedStatus) {
-        updateButtons
-            .removeClass('disabled')
-            .removeAttr('disabled')                // remove the actual disabled attribute
-            .attr('aria-disabled', 'false');
-    } else {
-        updateButtons
-            .addClass('disabled')
-            .attr('disabled', 'disabled')
-            .attr('aria-disabled', 'true');
-    }
-});
-
-// Fallback — intercept anchor/button even when "disabled" class is present
-$(document).on('click', 'a.update_status_admin_bulk, button.update_status_admin_bulk', function(e) {
-    e.preventDefault();
-    $(this).trigger('click.update_status_admin_bulk');
 });
 
 $('input[type=radio][name=seller_id]').change(function () {
@@ -4727,32 +4592,6 @@ $('#upload-media').on('click', function () {
     $('#media-upload-modal').modal('hide');
 });
 
-function getAcceptedMediaTypes(mediaType) {
-    switch (mediaType) {
-        case 'video':
-            return '.mp4,.mov,.avi,.mkv,.webm';
-        case 'archive,document':
-            return '.zip,.rar,.7z,.pdf,.doc,.docx,.xls,.xlsx,.txt';
-        case 'image':
-        default:
-            return '.jpg,.jpeg,.png,.gif,.webp,.bmp';
-    }
-}
-
-function updateDropzoneForMediaType(mediaType) {
-    if (typeof myDropzone === 'undefined') {
-        return;
-    }
-
-    var acceptedTypes = getAcceptedMediaTypes(mediaType);
-    myDropzone.options.acceptedFiles = acceptedTypes;
-
-    var fileInput = myDropzone.hiddenFileInput;
-    if (fileInput) {
-        fileInput.setAttribute('accept', acceptedTypes);
-    }
-}
-
 $(document).on('show.bs.modal', '#media-upload-modal', function (event) {
     var triggerElement = $(event.relatedTarget);
     current_selected_image = triggerElement;
@@ -4762,7 +4601,6 @@ $(document).on('show.bs.modal', '#media-upload-modal', function (event) {
     var ismultipleAllowed = $(current_selected_image).data('is-multiple-uploads-allowed');
     var media_type = ($(current_selected_image).is('[data-media_type]')) ? $(current_selected_image).data('media_type') : 'image';
     $('#media_type').val(media_type);
-    updateDropzoneForMediaType(media_type);
     if (ismultipleAllowed == 1) {
         $('#media-upload-table').bootstrapTable('refreshOptions', {
             singleSelect: false,
@@ -4858,8 +4696,6 @@ if (document.getElementById('dropzone')) {
     var myDropzone = new Dropzone("#dropzone", {
         url: base_url + from + '/media/upload',
         paramName: "documents",
-        acceptedFiles: getAcceptedMediaTypes('image'),
-        clickable: true,
         autoProcessQueue: false,
         parallelUploads: 12,
         maxFiles: 12,
@@ -4870,14 +4706,7 @@ if (document.getElementById('dropzone')) {
         dictMaxFilesExceeded: 'Only 12 files can be uploaded at a time ',
         dictResponseError: 'Error',
         uploadMultiple: true,
-        dictDefaultMessage: '<p><button type="button" class="btn btn-success dz-browse">Select Files</button><br> or <br> Drag & Drop Media Files Here</p>',
-    });
-
-    $('#dropzone').on('click', '.dz-browse', function (e) {
-        e.preventDefault();
-        if (myDropzone.hiddenFileInput) {
-            myDropzone.hiddenFileInput.click();
-        }
+        dictDefaultMessage: '<p><input type="submit" value="Select Files" class="btn btn-success" /><br> or <br> Drag & Drop Media Files Here</p>',
     });
 
     myDropzone.on("addedfile", function (file) {
@@ -5826,12 +5655,12 @@ $(document).on('click', '.edit_order_tracking', function (e, rows) {
     var courier_agency = $(this).data("courier_agency");
     var tracking_id = $(this).data("tracking_id");
     var url = $(this).data("url");
-    $('#tracking_order_item_id').val(order_item_id);
+    $('#order_item_id').val(order_item_id);
     $('input[name="order_id"]').val(order_id);
     $('input[name="order_item_id"]').val(order_item_id);
     $('input[type=hidden][name="seller_id"]').val(seller_id);
     $('#order_id').val(order_id);
-    $('#tracking_order_item_id').val(order_item_id);
+    $('#order_item_id').val(order_item_id);
     $('#courier_agency').val(courier_agency);
     $('#tracking_id').val(tracking_id);
     $('#url').val(url);
@@ -7114,14 +6943,8 @@ $(document).on('click', '#notification_count', function (e, rows) {
                 $.each(result.notifications, function (i, a) {
                     beep = (a.read_by && a.read_by == 0) ? '<span><i class="fa fa-certificate ml-3 orange text-sm"></i></span>' : "";
                     seconds_ago = a.date_sent;
-                    var noti_url;
-                    if (a.type === 'seller_verification_request' || a.type === 'verification_request') {
-                        noti_url = base_url + 'admin/sellers/manage-seller' + '?edit_id=' + a.type_id + '&noti_id=' + a.id;
-                    } else {
-                        noti_url = base_url + 'admin/orders/edit_orders' + '?edit_id=' + a.type_id + '&noti_id=' + a.id;
-                    }
-                
-                    html += '  <a href="' + noti_url + '" class="dropdown-item">\
+
+                    html += '  <a href="' + base_url + 'admin/orders/edit_orders' + '?edit_id=' + a.type_id + '&noti_id=' + a.id + '" class="dropdown-item">\
                             <div class="media">\
                                 <div class="media-body">\
                                     <h3 class="dropdown-item-title mb-2">' + a.title + beep + '</h3>\
@@ -8829,84 +8652,18 @@ function printDiv(divName) {
     setTimeout(function () { window.print(); }, 600);
     setTimeout(() => { document.body.innerHTML = originalContents; }, 1000);
 }
-function getShiprocketParcelDefaults(fromPanel, payload) {
-    var routeUrl = base_url + fromPanel + '/shiprocket/parcel-defaults';
-    return $.ajax({
-        type: 'POST',
-        url: routeUrl,
-        dataType: 'json',
-        data: payload
-    });
-}
-
-function autoSelectShiprocketPickupLocation() {
-    var pickupOptions = $('.check_create_order');
-    if (!pickupOptions.length) {
-        return;
+$('.check_create_order').on('change', function (e) {
+    e.preventDefault()
+    if ($(this).is(':checked')) {
+        $('.create_shiprocket_order').attr('disabled', false)
+        var pickup_location = $(this).attr('id');
+        var seller_id = $(this).data('id');
+        $('#pickup_location').attr('value', pickup_location);
+        $('input[type=hidden][name="shiprocket_seller_id"]').val(seller_id);
+    } else {
+        $('.create_shiprocket_order').attr('disabled', true)
     }
-    var selectedOption = pickupOptions.filter(':checked');
-    if (!selectedOption.length && pickupOptions.length === 1) {
-        pickupOptions.eq(0).prop('checked', true).trigger('change');
-    }
-}
-
-$(document).on('change', '.check_create_order', function (e) {
-    e.preventDefault();
-    var $selectedPickup = $('.check_create_order:checked').first();
-    if (!$selectedPickup.length) {
-        $('.create_shiprocket_order').attr('disabled', true);
-        return;
-    }
-
-    $('.create_shiprocket_order').attr('disabled', false);
-    var pickup_location = $selectedPickup.attr('id');
-    var seller_id = $selectedPickup.data('id');
-    $('#pickup_location').val(pickup_location);
-    $('input[type=hidden][name="shiprocket_seller_id"]').val(seller_id);
-
-    var fromSeller = $('#fromseller').val();
-    var fromPanel = (fromSeller != 'undefined' && fromSeller == 1) ? 'seller' : 'admin';
-
-    var payload = {
-        pickup_location: pickup_location,
-        shiprocket_seller_id: seller_id,
-        order_id: $('#order_id').val(),
-        user_id: $('#user_id').val(),
-        order_items: $('#order_items').val()
-    };
-    payload[csrfName] = csrfHash;
-
-    getShiprocketParcelDefaults(fromPanel, payload).done(function (result) {
-        csrfName = result.csrfName;
-        csrfHash = result.csrfHash;
-
-        if (result.error === false && result.data) {
-            $('#parcel_weight').val(result.data.parcel_weight);
-            $('#parcel_height').val(result.data.parcel_height);
-            $('#parcel_breadth').val(result.data.parcel_breadth);
-            $('#parcel_length').val(result.data.parcel_length);
-            iziToast.info({
-                title: 'Shiprocket',
-                message: 'Pickup location auto-selected. Please confirm parcel size before creating order.'
-            });
-        } else if (result.message) {
-            iziToast.warning({
-                title: 'Shiprocket',
-                message: result.message
-            });
-        }
-    });
-});
-
-$(document).ready(function () {
-    autoSelectShiprocketPickupLocation();
-});
-
-$(document).on('click', '.create_shiprocket_order', function () {
-    if ($('.check_create_order:checked').length === 0) {
-        $('.check_create_order').first().prop('checked', true).trigger('change');
-    }
-});
+})
 
 $(document).on('submit', '#shiprocket_order_parcel_form', function (e) {
     e.preventDefault();

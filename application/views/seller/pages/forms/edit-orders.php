@@ -35,7 +35,7 @@
                                 <form class="form-horizontal form-submit-event" id="digital_product_management" action="<?= base_url('seller/orders/send_digital_product'); ?>" method="POST" enctype="multipart/form-data">
                                     <div class="card-body">
                                         <input type="hidden" name="order_id" value="<?= $order_detls[0]['order_id'] ?>">
-                                        <input type="hidden" name="digital_order_item_id" value="<?= $this->input->get('edit_id') ?>">
+                                        <input type="hidden" name="order_item_id" value="<?= $this->input->get('edit_id') ?>">
                                         <input type="hidden" name="username" value="<?= $order_detls[0]['uname']  ?>">
                                         <div class="row form-group">
                                             <div class="col-12">
@@ -94,7 +94,7 @@
                                             <!-- form start -->
                                             <form class="form-horizontal " id="order_tracking_form" action="<?= base_url('seller/orders/update-order-tracking/'); ?>" method="POST" enctype="multipart/form-data">
                                                 <input type="hidden" name="order_id" id="order_id">
-                                                <input type="hidden" name="tracking_order_item_id" id="order_item_id">
+                                                <input type="hidden" name="order_item_id" id="order_item_id">
                                                 <input type="hidden" name="seller_id" id="seller_id">
                                                 <div class="card-body pad">
                                                     <div class="form-group ">
@@ -301,7 +301,7 @@
                                             <?php } else { ?>
                                                 <div class="row">
                                                     <div class="col-md-12 mb-2">
-                                                    <lable class="badge badge-success">Select status which you want to update</lable>
+                                                        <lable class="badge badge-success">Select status <?= get_seller_permission($seller_id, 'assign_delivery_boy') ? 'and delivery boy' : '' ?> which you want to update</lable>
                                                     </div>
 
                                                     <div class="col-md-3">
@@ -309,7 +309,10 @@
                                                             <option value=''>Select Status</option>
                                                             <option value="received">Received</option>
                                                             <option value="processed">Processed</option>
-                                                            <option value="shipped">Out For Delivery</option>
+                                                            <?php if (get_seller_permission($seller_id, 'assign_delivery_boy')) {
+                                                            ?>
+                                                                <option value="shipped">Shipped</option>
+                                                            <?php } ?>
                                                             <?php if (get_seller_permission($seller_id, 'view_order_otp') == true) { ?>
                                                                 <option value="delivered">Delivered</option>
                                                             <?php } ?>
@@ -317,11 +320,17 @@
                                                             <option value="returned">Returned</option>
                                                         </select>
                                                     </div>
-                                                            <option value="cancelled">Cancel</option>
-                                                            <option value="returned">Returned</option>
-                                                        </select>
-                                                    </div>
-                                                    
+                                                    <?php if (get_seller_permission($seller_id, 'assign_delivery_boy')) {
+                                                    ?>
+                                                        <div class="col-md-3">
+                                                            <select id='deliver_by' name='deliver_by' class='form-control'>
+                                                                <option value=''>Select Delivery Boy</option>
+                                                                <?php foreach ($delivery_res as $row) { ?>
+                                                                    <option value="<?= $row['user_id'] ?>"><?= $row['username'] ?></option>
+                                                                <?php  } ?>
+                                                            </select>
+                                                        </div>
+                                                    <?php } ?>
                                                     <div class="col-md-6">
                                                         <a href="javascript:void(0)" class="edit_order_tracking btn btn-success btn-xl col-md-1" title="Order Tracking" data-order_id=' <?= $order_detls[0]['id']; ?>' data-seller_id="<?= $items[0]['seller_id'] ?>" data-target="#transaction_modal" data-toggle="modal" style="height:35px;width:38px;"><i class="fa fa-map-marker-alt"></i></a>
                                                         <a href="javascript:void(0);" title="Bulk Update" data-seller_id="<?= $items[0]['seller_id'] ?>" class="btn btn-primary col-md-3 ml-1 update_status_admin_bulk">
@@ -436,7 +445,7 @@
                                                     <div class="row">
                                                         <div class="col-sm-0 ml-4 m-2 text-left mt-3">
                                                             <?php if ($item['product_type'] != 'digital_product' && empty($order_tracking_data[0]['shipment_id'])) { ?>
-                                                                <input type="radio" name="pickup_location" class="check_create_order" data-id="<?= $this->session->userdata('user_id') ?>" data-pickup-location="<?= html_escape($pickup_location[$j]); ?>" id="pickup_location_<?= $j; ?>" />
+                                                                <input type="radio" name="pickup_location" class="check_create_order" data-id="<?= $this->session->userdata('user_id') ?>" id="<?php print_r($pickup_location[$j]); ?>" />
                                                             <?php } ?>
                                                         </div>
                                                         <div class="col-md-6 m-2 text-left mt-3">
@@ -502,24 +511,6 @@
 
                                                 $total = 0;
                                                 $tax_amount = 0;
-                                                ?>
-                                                <div class="row mb-3">
-                                                    <div class="col-md-4">
-                                                        <label class="mb-1">Filter items by status</label>
-                                                        <select id="seller_order_item_status_filter" class="form-control">
-                                                            <option value="">All Statuses</option>
-                                                            <option value="awaiting">Awaiting</option>
-                                                            <option value="received">Received</option>
-                                                            <option value="processed">Processed</option>
-                                                            <option value="shipped">Shipped</option>
-                                                            <option value="out_for_delivery">Out For Delivery</option>
-                                                            <option value="delivered">Delivered</option>
-                                                            <option value="cancelled">Cancelled</option>
-                                                            <option value="returned">Returned</option>
-                                                        </select>
-                                                    </div>
-                                                </div>
-                                                <?php
                                                 echo '<div class="container-fluid row">';
                                                 foreach ($items as $item) {
 
@@ -531,7 +522,7 @@
                                                     // $total += $subtotal;
                                                     if ($pickup_location[$j] == $item['pickup_location']) {
                                                 ?>
-                                                         <div class="card col-md-3 col-sm-12 p-3 mb-2 bg-white rounded m-1 grow seller-order-item-card" data-active-status="<?= $item['active_status'] ?>">
+                                                        <div class="  card col-md-3 col-sm-12 p-3 mb-2 bg-white rounded m-1 grow">
                                                             <div class="mb-2">
                                                                 <input type="checkbox" id="<?= $sellers[$i] ?>" name="order_item_id" value=' <?= $item['id'] ?> '>
                                                             </div>
@@ -559,7 +550,7 @@
                                                             <div><span class="text-bold">Discounted Price : </span> <?= $item['discounted_price'] ?> </div>
                                                             <div><span class="text-bold">Subtotal : </span><?= $item['price'] * $item['quantity'] ?> </div>
                                                             <?php
-                                                               $badges = ["awaiting" => "secondary", "received" => "primary", "processed" => "info", "shipped" => "warning", "out_for_delivery" => "warning", "delivered" => "success", "returned" => "danger", "cancelled" => "danger", "return_request_approved" => "danger", "return_request_decline" => "danger", "return_request_pending" => "danger"]
+                                                            $badges = ["awaiting" => "secondary", "received" => "primary", "processed" => "info", "shipped" => "warning", "delivered" => "success", "returned" => "danger", "cancelled" => "danger", "return_request_approved" => "danger", "return_request_decline" => "danger", "return_request_pending" => "danger"]
                                                             ?>
                                                             <?php if (isset($item['updated_by'])) { ?>
                                                                 <div><span class="text-bold">Updated By : </span><?= $item['updated_by'] ?> </div>

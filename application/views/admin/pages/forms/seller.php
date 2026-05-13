@@ -239,18 +239,6 @@
                                     </div>
                                 </div>
                                 <div class="form-group row">
-                                    <label for="verification_requested_at" class="col-sm-2 col-form-label">Verification Requested At</label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="verification_requested_at" value="<?= @$fetched_data[0]['verification_requested_at'] ?>" readonly>
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <label for="verification_request_note" class="col-sm-2 col-form-label">Verification Request Note</label>
-                                    <div class="col-sm-10">
-                                        <textarea class="form-control" id="verification_request_note" rows="3" readonly><?= @$fetched_data[0]['verification_request_note'] ?></textarea>
-                                    </div>
-                                </div>
-                                <div class="form-group row">
                                     <label for="national_identity_card" class="col-sm-2 col-form-label">National Identity Card <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
                                         <?php if (isset($fetched_data[0]['national_identity_card']) && !empty($fetched_data[0]['national_identity_card'])) { ?>
