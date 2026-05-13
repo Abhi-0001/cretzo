@@ -64,8 +64,8 @@ class Cart_model extends CI_Model
         if (!empty($product_variant_id)) {
             $q->where('c.product_variant_id', $product_variant_id);
         }
-        $weight_select = $this->db->field_exists('weight', 'product_variants') ? 'pv.weight' : 'NULL as weight';
-        $res =  $q->select('c.*,p.is_prices_inclusive_tax,p.name,p.type,p.id,p.slug as product_slug,p.image,p.short_description,p.seller_id,p.minimum_order_quantity,p.quantity_step_size,p.pickup_location,' . $weight_select . ',p.total_allowed_quantity,pv.price,pv.special_price,pv.id as product_variant_id,tax.percentage as tax_percentage')->order_by('c.id', 'DESC')->get('cart c')->result_array();
+        $res =  $q->select('c.*,p.is_prices_inclusive_tax,p.name,p.type,p.id,p.slug as product_slug,p.image,p.short_description,p.seller_id,p.minimum_order_quantity,p.quantity_step_size,p.pickup_location,pv.weight,p.total_allowed_quantity,pv.price,pv.special_price,pv.id as product_variant_id,tax.percentage as tax_percentage')->order_by('c.id', 'DESC')->get('cart c')->result_array();
+
 
         if (!empty($res)) {
             $res = array_map(function ($d) {

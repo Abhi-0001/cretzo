@@ -76,9 +76,12 @@ $query_builder = TRUE;
 
 
 if(ENVIRONMENT === 'development'){
+	// $t_database_name = 'crezo_db';
+	// $t_username = 'root';
+	// $t_password = '';
     $t_database_name = 'u554344800_cretzo_new';
-	$t_username = 'root';
-	$t_password = 'Ankith@5space';
+	$t_username = 'u554344800_cretzo_new';
+	$t_password = 'Geet@cretzo123';
 // 	$t_database_name = 'id21984800_cretzo';
 // 	$t_username = 'id21984800_cretzo';
 // 	$t_password = 'cretZo@#12;';
@@ -90,7 +93,7 @@ if(ENVIRONMENT === 'development'){
 
 $db['default'] = array(
 	'dsn'	=> '',
-	'hostname' => '127.0.0.1',
+	'hostname' => 'localhost',
 	//'username' => 'u554344800_cretzo',
 	'username' => $t_username,
 	'password' => $t_password,
@@ -99,7 +102,7 @@ $db['default'] = array(
 	'dbdriver' => 'mysqli',
 	'dbprefix' => '',
 	'pconnect' => FALSE,
-	'db_debug' => TRUE,
+	'db_debug' => (ENVIRONMENT !== 'production'),
 	'cache_on' => FALSE,
 	'cachedir' => '',
 	'char_set' => 'utf8',

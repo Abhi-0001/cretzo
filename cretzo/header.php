@@ -79,7 +79,7 @@
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
-            <span class=""><a href="ndex.php"><img src="./assets//img/logo.png" class="d-lg-none" width="100" height="auto" style="margin-bottom:8px;" alt=""></a></span>
+            <span class=""><a href="index.php"><img src="./assets//img/logo.png" class="d-lg-none" width="100" height="auto" style="margin-bottom:8px;" alt=""></a></span>
         </div>
         <span class="navbar-brand d-lg-none">
             <span class="position-relative mx-2 bg-none">
