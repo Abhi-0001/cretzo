@@ -3,7 +3,7 @@ $(document).ready(function() {
     initAddressSearchables();
     checkForAddOrEditAddressInQuery();
 });
-
+ 
 // ── Searchable dropdown factory (same as seller form) ─────────────────────────
 function makeSearchable(searchId, hiddenId, dropdownId, data, onSelect) {
     const searchEl   = document.getElementById(searchId);

@@ -6,7 +6,7 @@
 #edit-address-modal .modal-content {
     overflow: visible;
 }
-
+ 
 /* Searchable dropdown item styling */
 #state_dropdown div, #district_dropdown div, #city_dropdown div, #pincode_dropdown div,
 #edit_state_dropdown div, #edit_district_dropdown div, #edit_city_dropdown div, #edit_pincode_dropdown div {
