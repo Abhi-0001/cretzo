@@ -25,21 +25,6 @@ class Attributes extends CI_Controller
 		}
 	}
 
-		
-
-    public function manage_all()
-    {
-        if($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)){
-            $this->data['main_page'] = TABLES . 'manage-attributes-hub';
-            $settings = get_settings('system_settings', true);
-            $this->data['title'] = 'Attributes Setup | ' . $settings['app_name'];
-            $this->data['meta_description'] = 'Attributes Setup | ' . $settings['app_name'];
-            $this->load->view('seller/template', $this->data);
-        } else {
-            redirect('seller/login', 'refresh');
-        }
-    }
-
 	public function attribute_list()
 	{
 		if($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)){

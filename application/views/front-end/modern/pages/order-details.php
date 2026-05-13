@@ -100,7 +100,7 @@
                                     <?php } ?>
                                     <h4 class="mt-3 mb-2 bold"> <span class="mt-5"><i><?= $settings['currency'] ?></i></span> <?= number_format(($item['price'] * $item['quantity']), 2) ?> <span class="small text-muted"></span></h4>
                                     <?php
-                                    $status = ["awaiting", "received", "processed", "shipped", "out_for_delivery","delivered", "cancelled", "returned"];
+                                    $status = ["awaiting", "received", "processed", "shipped", "delivered", "cancelled", "returned"];
                                     $cancelable_till = $item['cancelable_till'];
                                     $active_status = $item['active_status'];
                                     $cancellable_index = array_search($cancelable_till, $status);
@@ -147,7 +147,7 @@
                                     <div class="container py-14 py-md-16">
                                         <div class="row gx-lg-8 gx-xl-12 gy-6 process-wrapper line" id="progressbar">
                                             <?php
-                                            $status = array('received', 'processed', 'shipped','out_for_delivery', 'delivered');
+                                            $status = array('received', 'processed', 'shipped', 'delivered');
                                             $i = 1;
                                             // echo "<pre>";
                                             // print_R($item['status']);
@@ -250,7 +250,7 @@
                     <div class="card-footer bg-white px-sm-3 pt-sm-4 px-0">
                         <div class="row text-center ">
                             <?php
-                            $status = ["awaiting", "received", "processed","out_for_delivery", "shipped", "delivered", "cancelled", "returned"];
+                            $status = ["awaiting", "received", "processed", "shipped", "delivered", "cancelled", "returned"];
                             $cancelable_till = $item['cancelable_till'];
                             $active_status = $item['active_status'];
                             $cancellable_index = array_search($cancelable_till, $status);
