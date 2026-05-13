@@ -360,7 +360,7 @@
                     <?php } ?>
 
 
-                    <nav class="text-center mt-14 d-flex overflow-auto" aria-label="pagination">
+                    <nav class="text-center mt-14" aria-label="pagination">
                         <?= (isset($links)) ? $links : '' ?>
                     </nav>
                     <!-- /nav -->
@@ -456,17 +456,26 @@
                                     <div class="category_filter mb-5 mt-2">
                                         <?php
                                         $categories_filter = json_decode(($categories), true);
+                                        $selected_category = $this->input->get('category', true);
                                         // echo "<pre>";
                                         // print_r($categories_filter);
                                         // die;
-                                        foreach ($categories_filter as $key => $value) {
+                                        ?>
+                                        <div class="form-check">
+                                            <input class="form-check-input category" type="radio" name="categoryRadio" data-value="" id="category-all-desktop" value="" <?= (empty($selected_category)) ? 'checked' : '' ?>>
+                                            <label class="form-check-label" for="category-all-desktop">
+                                                <?= label('all_products', 'All Products') ?>
+                                            </label>
+                                        </div>
+                                        <?php foreach ($categories_filter as $key => $value) {
                                             // echo "<pre>";
                                             //     print_r($value);
                                             //     die;
+                                            $is_selected_category = (!empty($selected_category) && ($selected_category == $value['slug'] || $selected_category == $value['id']));
                                         ?>
                                             <div class="form-check">
-                                                <input class="form-check-input category" type="radio" name="categoryRadio" data-value="<?= $value['id'] ?>" id="<?= $value['id'] ?>" value="" checked>
-                                                <label class="form-check-label" for="<?= $value['id'] ?>">
+                                                <input class="form-check-input category" type="radio" name="categoryRadio" data-value="<?= $value['slug'] ?>" id="category-desktop-<?= $value['id'] ?>" value="" <?= $is_selected_category ? 'checked' : '' ?>>
+                                                <label class="form-check-label" for="category-desktop-<?= $value['id'] ?>">
                                                     <?= $value['name'] ?>
                                                 </label>
                                             </div>
@@ -578,11 +587,20 @@
                                         <div class="category_filter mb-5 mt-2">
                                             <?php
                                             $categories_filter = json_decode(($categories), true);
-                                            foreach ($categories_filter as $key => $value) {
+                                            $selected_category = $this->input->get('category', true);
+                                            ?>
+                                            <div class="form-check">
+                                                <input class="form-check-input category" type="radio" name="categoryRadio" data-value="" id="category-all-mobile" value="" <?= (empty($selected_category)) ? 'checked' : '' ?>>
+                                                <label class="form-check-label" for="category-all-mobile">
+                                                    <?= label('all_products', 'All Products') ?>
+                                                </label>
+                                            </div>
+                                            <?php foreach ($categories_filter as $key => $value) {
+                                                $is_selected_category = (!empty($selected_category) && ($selected_category == $value['slug'] || $selected_category == $value['id']));
                                             ?>
                                                 <div class="form-check">
-                                                    <input class="form-check-input category" type="radio" name="categoryRadio" data-value="<?= $value['id'] ?>" id="<?= $value['id'] ?>" value="" checked>
-                                                    <label class="form-check-label" for="<?= $value['id'] ?>">
+                                                    <input class="form-check-input category" type="radio" name="categoryRadio" data-value="<?= $value['slug'] ?>" id="category-mobile-<?= $value['id'] ?>" value="" <?= $is_selected_category ? 'checked' : '' ?>>
+                                                    <label class="form-check-label" for="category-mobile-<?= $value['id'] ?>">
                                                         <?= $value['name'] ?>
                                                     </label>
                                                 </div>

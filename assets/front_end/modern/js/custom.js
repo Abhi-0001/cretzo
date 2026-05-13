@@ -263,9 +263,17 @@ $(document).on("submit", ".form-submit-event", function (e) {
                         r.html(e.message),
                         s.html(n),
                         s.attr("disabled", !1),
-                        $(".form-submit-event")[0].reset(), "login_form" == a && cart_sync(),
-                        setTimeout(function () {
-                            location.reload()
+                        $(".form-submit-event")[0].reset(),
+                        "login_form" == a ? (function () {
+                            var modalEl = document.getElementById("modal-signin");
+                            if (modalEl && typeof bootstrap !== "undefined" && bootstrap.Modal) {
+                                var modal = bootstrap.Modal.getInstance(modalEl);
+                                if (modal) modal.hide();
+                            }
+                            cart_sync();
+                            location.reload();
+                        }()) : setTimeout(function () {
+                            location.reload();
                         }, 600))
             }
         })
@@ -1661,6 +1669,10 @@ function setUrlParameter(e, t, a) {
     return e.search(r) >= 0 ? e.replace(r, "$1" + a + "$2") : (e = e.replace(/[?#]$/, "")) + (e.indexOf("?") > 0 ? "&" : "?") + t + "=" + a
 }
 
+function resetProductListingPageUrl(e) {
+    return e.replace(/(\/products(?:\/category\/[^\/?]+)?)(?:\/\d+)(\?.*)?$/i, "$1$2");
+}
+
 $("#back_to_top").on("click", function () {
     $("html, body").animate({
         scrollTop: 0
@@ -1669,7 +1681,7 @@ $("#back_to_top").on("click", function () {
     $("#per_page_products a").on("click", function (e) {
         e.preventDefault();
         var t = $(this).data("value");
-        $(this).parent().siblings("a.dropdown-toggle").text($(this).text()), location.href = setUrlParameter(location.href, "per-page", t)
+        $(this).parent().siblings("a.dropdown-toggle").text($(this).text()), location.href = setUrlParameter(resetProductListingPageUrl(location.href), "per-page", t)
     }),
     $("#per_page_sellers a").on("click", function (e) {
         e.preventDefault();
@@ -1679,7 +1691,7 @@ $("#back_to_top").on("click", function () {
     $("#product_sort_by").on("change", function (e) {
         e.preventDefault();
         var t = $(this).val();
-        location.href = setUrlParameter(location.href, "sort", t)
+        location.href = setUrlParameter(resetProductListingPageUrl(location.href), "sort", t)
     }),
 
     $("#seller_search").on("focusout", function (e) {
@@ -1692,14 +1704,14 @@ $("#back_to_top").on("click", function () {
     $(".sub-category").on("click", function (e) {
         e.preventDefault();
         var t = $(this).data("value");
-        custom_url = setUrlParameter(custom_url, "category", t),
+        custom_url = setUrlParameter(resetProductListingPageUrl(custom_url), "category", t),
             location.href = custom_url
     }),
 
     $(document).on("change", ".brand", function (e) {
         e.preventDefault();
         var t = $(this).data("value");
-        custom_url = setUrlParameter(custom_url, "brand", t);
+        custom_url = setUrlParameter(resetProductListingPageUrl(custom_url), "brand", t);
 
         const brand_name = getUrlParameter('brand');
         var brands = $('[data-value="' + brand_name + '"]');
@@ -1712,7 +1724,7 @@ $("#back_to_top").on("click", function () {
     $(document).on("change", ".category", function (e) {
         e.preventDefault();
         var t = $(this).data("value");
-        custom_url = setUrlParameter(custom_url, "category", t);
+        custom_url = setUrlParameter(resetProductListingPageUrl(custom_url), "category", t);
 
         const category_id = getUrlParameter('category');
         var categories = $('[data-value="' + category_id + '"]');
@@ -1729,7 +1741,7 @@ $("#back_to_top").on("click", function () {
             r = $(this).val();
         if (null == a && (a = ""), this.checked) var s = buildUrlParameterValue(t, r, "add", custom_url);
         else s = buildUrlParameterValue(t, r, "remove", custom_url);
-        custom_url = setUrlParameter(custom_url, t, s)
+        custom_url = setUrlParameter(resetProductListingPageUrl(custom_url), t, s)
     }),
 
     $(".product_filter_btn").on("click", function (e) {
@@ -1747,7 +1759,7 @@ function arrays_equal(e, t) {
 }
 
 $("#reload").on("click", function (e) {
-    window.location = window.location.href.split("?")[0];
+    window.location = resetProductListingPageUrl(window.location.href).split("?")[0];
 });
 
 function display_cart(e) {
@@ -3129,6 +3141,14 @@ $(function () {
 });
 
 $(document).ready(function () {
+    function closeLoginModalAndReload() {
+        var modalEl = document.getElementById("modal-signin");
+        if (modalEl && typeof bootstrap !== "undefined" && bootstrap.Modal) {
+            var modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+        }
+        location.reload();
+    }
     $("#share").jsSocials({
         showLabel: false,
         showCount: false,
@@ -3211,8 +3231,7 @@ $(document).ready(function () {
                                         },
                                         dataType: 'json',
                                         success: function (result) {
-
-                                            location.reload();
+                                            closeLoginModalAndReload();
                                         }
                                     });
                                 }
@@ -3230,7 +3249,7 @@ $(document).ready(function () {
                             },
                             dataType: 'json',
                             success: function (result) {
-                                location.reload();
+                                closeLoginModalAndReload();
                             }
                         });
                     }
@@ -3297,8 +3316,7 @@ $(document).ready(function () {
                                         },
                                         dataType: 'json',
                                         success: function (result) {
-
-                                            location.reload();
+                                            closeLoginModalAndReload();
                                         }
                                     });
                                 }
@@ -3316,7 +3334,7 @@ $(document).ready(function () {
                             },
                             dataType: 'json',
                             success: function (result) {
-                                location.reload();
+                                closeLoginModalAndReload();
                             }
                         });
                     }

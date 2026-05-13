@@ -1,4 +1,23 @@
 var price_filter_enabled = false;
+// paging state for infinite scroll
+var currentPage = 1;
+var perPage = 20;          // default page size for scroll
+var totalRows = 0;
+var isLoading = false;
+var useAjaxInfiniteScroll = false;
+
+function getCurrentPageFromUrl() {
+    var pathParts = window.location.pathname.split('/').filter(Boolean);
+    var lastPart = pathParts.length ? pathParts[pathParts.length - 1] : '';
+    if (!isNaN(lastPart) && parseInt(lastPart, 10) > 0) {
+        return parseInt(lastPart, 10);
+    }
+    var queryPage = new URLSearchParams(window.location.search).get('page');
+    if (!isNaN(queryPage) && parseInt(queryPage, 10) > 0) {
+        return parseInt(queryPage, 10);
+    }
+    return 1;
+}
 
 // Function to get base URL without page index
 function getBaseURL() {
@@ -16,6 +35,9 @@ function getBaseURL() {
 
 // Function to update the URL with modified GET parameters
 function updateURL() {
+    // reset paging when filters change
+    currentPage = 1;
+
     // Initialize an empty array to store the selected category IDs
     var selectedCategories = [];
     // Get all the checked category checkboxes
@@ -35,21 +57,14 @@ function updateURL() {
     // Get all the checked attribute checkboxes
     $('.filter-section.fs-attr .filter-list-item input[type="checkbox"]:checked').each(function() {
         var attributeName = $(this).closest('.filter-section').find('.filter-heading').text().trim().toLowerCase();
-        //var attributeValue = $(this).siblings('.filter-name').text().trim().toLowerCase();
         if (!selectedAttributes[attributeName]) {
             selectedAttributes[attributeName] = [];
         }
-        // selectedAttributes[attributeName].push(attributeValue);
         selectedAttributes[attributeName].push($(this).data('value'));
-
-        $(this).data('value')
     });
 
     // Construct the updated URL
     var url = getBaseURL();
-    // var url = window.location.origin + window.location.pathname;
-
-    /* Construct the params for URL */
     var params = [];
     if (selectedCategories.length > 0) {
         params.push('category=' + selectedCategories.join('|'));
@@ -61,11 +76,6 @@ function updateURL() {
         params.push('filter-' + attributeName.replace(/\s+/g, '-') + '=' + attributeValues.join('|'));
     });
 
-    /* var minPrice = $('#price-range-input').val()[0];
-    var maxPrice = $('#price-range-input').val()[1];
-    params.push('min-price=' + minPrice);
-    params.push('max-price=' + maxPrice); */
-
     if(price_filter_enabled){
         const priceInput = document.querySelectorAll(".price-input input");
         var minPrice = priceInput[0].value;
@@ -74,21 +84,23 @@ function updateURL() {
         params.push('max-price=' + maxPrice);
     }
 
-    var urlParams = new URLSearchParams(window.location.search); //get all parameters
+    var urlParams = new URLSearchParams(window.location.search);
     var seller = urlParams.get('seller');
     if(seller){
         params.push('seller=' + seller);
+    }
+
+    var currentPerPage = urlParams.get('per-page');
+    if (currentPerPage) {
+        params.push('per-page=' + currentPerPage);
     }
 
     if (params.length > 0) {
         url += '?' + params.join('&');
     }
 
-    // Update the page URL
     window.history.replaceState({}, '', url);
-
-    // Reload the page to apply the changes
-    ajaxProductList(url);
+    ajaxProductList(1, false);
 }
 
 $(document).ready(function() {
@@ -121,7 +133,7 @@ $(document).ready(function() {
         price_filter_enabled = false;
         var url = getBaseURL();
         window.history.replaceState({}, '', url);
-        location.reload();
+        ajaxProductList(1, false);
     });
 
     /* Set state of price filter and related button */
@@ -245,7 +257,9 @@ function removeSellerFilter() {
 }
 
 
-ajaxProductList();
+// Load products for the currently opened page URL.
+currentPage = getCurrentPageFromUrl();
+ajaxProductList(currentPage);
 
 function getQueryQ() {
     const params = new URLSearchParams(window.location.search);
@@ -255,10 +269,8 @@ function getQueryQ() {
 function getCategorySlugs() {
     const path = window.location.pathname.split('/').filter(Boolean);
 
-    // Find 'products' segment and use what comes after it
-    const productsIndex = path.indexOf('products');
-    const category_slug     = productsIndex >= 0 ? (path[productsIndex + 1] || '') : '';
-    const sub_category_slug = productsIndex >= 0 ? (path[productsIndex + 2] || '') : '';
+    const category_slug       = path[2] || '';
+    const sub_category_slug   = path[3] || '';
 
     return {
         category_slug,
@@ -282,7 +294,10 @@ function ajaxProductList() {
      if(slugData.category_slug == 'search'){
          searchData = q; 
      }
-     
+
+    // always set pagination parameters
+    params.set('page', currentPage);
+    params.set('per-page', perPage);
 
     $('#productList').html(
         '<div class="text-center py-5">' +
@@ -290,10 +305,12 @@ function ajaxProductList() {
         '</div>'
     );
 
+    isLoading = true;
+
     $.ajax({
         url: base_url + 'products/ajax_get_products' +
-             (window.location.search
-                ? window.location.search + '&subCategory=' + subCategory + '&searchData=' + searchData
+             (params.toString()
+                ? '?' + params.toString() + '&subCategory=' + subCategory + '&searchData=' + searchData
                 : '?subCategory=' + subCategory + '&searchData=' + searchData
              ),
 
@@ -301,33 +318,89 @@ function ajaxProductList() {
         dataType: 'json',
 
         success: function (response) {
-            console.log('AJAX response:', response);
-            console.log('Products:', response.products);
-            console.log('Product array:', response.products ? response.products.product : 'N/A');
+            isLoading = false;
             if (response.status === 'success') {
-                var products = response.products.product || [];
-                var html = renderProducts(products);
-                $('#productList').html(html);
-                
-                // Show or hide "No products found" message
-                if (products.length === 0) {
-                    $('#no-products-msg').removeClass('d-none');
+                totalRows = response.total_rows || 0;
+                var html = renderProducts(response.products.product || []);
+                if (append) {
+                    $('#productList').append(html);
                 } else {
-                    $('#no-products-msg').addClass('d-none');
+                    $('#productList').html(html);
                 }
-        
-                $('.pagination-container').html(response.pagination_html || '');
+                $('#products-pagination-nav').html(renderPagination(totalRows, currentPage, perPage));
                 $('.result-count').text(response.result_count || '');
+
+                // update 'Showing X of Y' text
+                var shownCount = $('#productList .product').length;
+                var total = totalRows;
+                $('.product-filter .text-n.op-6').first().text('Showing ' + shownCount + ' of ' + total);
+
+                // update URL parameters to keep in sync
+                var newUrl = new URL(window.location.href);
+                newUrl.searchParams.set('page', currentPage);
+                newUrl.searchParams.set('per-page', perPage);
+                window.history.replaceState({}, '', newUrl.toString());
             }
         },
 
-
         error: function (xhr, status, error) {
-            $('#productList').html('<div>AJAX Error</div>');
-            console.error(error);
+            isLoading = false;
+            $('#productList').html('<div class="text-center py-5">Unable to load products. Please try again.</div>');
+            console.error('AJAX Error:', status, error, xhr && xhr.responseText ? xhr.responseText : '');
         }
     });
 }
+
+function renderPagination(total, page, pageSize) {
+    var totalPages = Math.ceil(total / pageSize);
+    if (totalPages <= 1) {
+        return '';
+    }
+
+    var html = '<ul class="pagination justify-content-center">';
+    var start = Math.max(1, page - 3);
+    var end = Math.min(totalPages, page + 3);
+
+    if (page > 1) {
+        html += '<li class="page-item"><a class="page-link ajax-page-link" href="#" data-page="' + (page - 1) + '"><i class="uil uil-arrow-left"></i></a></li>';
+    }
+
+    for (var i = start; i <= end; i++) {
+        if (i === page) {
+            html += '<li class="page-item active disabled"><a class="page-link" href="#">' + i + '</a></li>';
+        } else {
+            html += '<li class="page-item"><a class="page-link ajax-page-link" href="#" data-page="' + i + '">' + i + '</a></li>';
+        }
+    }
+
+    if (page < totalPages) {
+        html += '<li class="page-item"><a class="page-link ajax-page-link" href="#" data-page="' + (page + 1) + '"><i class="uil uil-arrow-right"></i></a></li>';
+    }
+
+    html += '</ul>';
+    return html;
+}
+
+$(document).on('click', '#products-pagination-nav .ajax-page-link', function(e) {
+    e.preventDefault();
+    var page = parseInt($(this).data('page'), 10);
+    if (!isNaN(page) && page > 0) {
+        ajaxProductList(page, false);
+        $('html, body').animate({ scrollTop: 0 }, 'fast');
+    }
+});
+// Infinite scroll is disabled for product listing pagination.
+if (useAjaxInfiniteScroll) {
+    $(window).on('scroll', function() {
+        if (isLoading) return;
+        if (currentPage * perPage >= totalRows) return;
+
+        if ($(window).scrollTop() + $(window).height() >= $(document).height() - 200) {
+            ajaxProductList(currentPage + 1, true);
+        }
+    });
+}
+
 function generateStarRatingHTML(product) {
     let rating = parseFloat(product.rating || 0);
     let fullStars = Math.floor(rating);
@@ -345,7 +418,7 @@ function generateStarRatingHTML(product) {
 
 function renderProducts(products) {
     if (!products.length) {
-        return '';
+        return '<div class="text-center py-5">No products found</div>';
     }
 
     let html = '';

@@ -776,7 +776,6 @@ Defined Methods:-
                 } else {
                     $data = array();
                     $_POST['is_delivery_charge_returnable'] = isset($_POST['delivery_charge']) && !empty($_POST['delivery_charge']) && $_POST['delivery_charge'] != '' && $_POST['delivery_charge'] > 0 ? 1 : 0;
-                    $_POST['payment_method'] = 'COD';
                     $res = $this->order_model->place_order($_POST);
 
                     if (!empty($res)) {
@@ -798,7 +797,6 @@ Defined Methods:-
             } else {
                 $data = array();
                 $_POST['is_delivery_charge_returnable'] = isset($_POST['delivery_charge']) && !empty($_POST['delivery_charge']) && $_POST['delivery_charge'] != '' && $_POST['delivery_charge'] > 0 ? 1 : 0;
-                $_POST['payment_method'] = 'COD';
                 $res = $this->order_model->place_order($_POST);
                 if (!empty($res)) {
 

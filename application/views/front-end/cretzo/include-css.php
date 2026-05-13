@@ -102,7 +102,32 @@ $path = ($is_rtl == 1) ? 'rtl/' : "";
 
 <!-- We need a common stylesheet for some my-account pages, so we include it before the main page -->
 <?php
-    if((str_contains(strtolower(current_url()), 'my-account') || str_contains(strtolower(current_url()), 'my_account')) && $main_page != 'dashboard'){
+   // if((str_contains(strtolower(current_url()), 'my-account') || str_contains(strtolower(current_url()), 'my_account')) && $main_page != 'dashboard'){
+?>
+        <!-- <link rel="stylesheet" href="<?= THEME_ASSETS_URL  .  'css/'. $path . THEME . '/' . $path . 'my-account.css' ?>">
+        <link rel="stylesheet" href="<?= THEME_ASSETS_URL  .  'css/'. $path . THEME . '/' . $path . 'my-account-override.css' ?>"> -->
+<?php
+   // }
+?>
+<!-- --------------------------------------------------------------------------------------------------------------------- -->
+<!-- We need a common stylesheet for seller_details page, so we include it before the main page -->
+<?php
+   // if((str_contains(strtolower(current_url()), 'seller_details') || str_contains(strtolower(current_url()), 'seller-details'))){
+?>
+        <!-- <link rel="stylesheet" href="<?= THEME_ASSETS_URL  .  'css/'. $path . THEME . '/' . $path . 'product-page.css' ?>">
+        <link rel="stylesheet" href="<?= THEME_ASSETS_URL  .  'css/'. $path . THEME . '/' . $path . 'product-page-override.css' ?>"> -->
+<?php
+   // }
+?>
+<!-- --------------------------------------------------------------------------------------------------------------------- -->
+
+<?php
+    $currentUrl = strtolower(current_url());
+
+    if (
+        (strpos($currentUrl, 'my-account') !== false || strpos($currentUrl, 'my_account') !== false)
+        && $main_page != 'dashboard'
+    ){
 ?>
         <link rel="stylesheet" href="<?= THEME_ASSETS_URL  .  'css/'. $path . THEME . '/' . $path . 'my-account.css' ?>">
         <link rel="stylesheet" href="<?= THEME_ASSETS_URL  .  'css/'. $path . THEME . '/' . $path . 'my-account-override.css' ?>">
@@ -112,15 +137,15 @@ $path = ($is_rtl == 1) ? 'rtl/' : "";
 <!-- --------------------------------------------------------------------------------------------------------------------- -->
 <!-- We need a common stylesheet for seller_details page, so we include it before the main page -->
 <?php
-    if((str_contains(strtolower(current_url()), 'seller_details') || str_contains(strtolower(current_url()), 'seller-details'))){
+    if (
+        (strpos($currentUrl, 'seller_details') !== false || strpos($currentUrl, 'seller-details') !== false)
+    ){
 ?>
         <link rel="stylesheet" href="<?= THEME_ASSETS_URL  .  'css/'. $path . THEME . '/' . $path . 'product-page.css' ?>">
         <link rel="stylesheet" href="<?= THEME_ASSETS_URL  .  'css/'. $path . THEME . '/' . $path . 'product-page-override.css' ?>">
 <?php
     }
 ?>
-<!-- --------------------------------------------------------------------------------------------------------------------- -->
-
 
 
 <!-- --------------------------------------------------------------------------------------------------------------------- -->

@@ -252,6 +252,91 @@ function formatRepoSelection(e) {
     return e.name || e.text
 }
 
+function ensureAuthLoadingLayer() {
+    var $loginModal = $("#modal-signin");
+    if (!$loginModal.length) return;
+
+    if (!$loginModal.find(".auth-login-loading").length) {
+        $loginModal.append(
+            '<div class="auth-login-loading d-none">' +
+            '<div class="auth-login-loading-box">' +
+            '<div class="auth-login-spinner"></div>' +
+            '<div class="auth-login-loading-copy">' +
+            '<div class="auth-login-loading-title">Signing in</div>' +
+            '<div class="auth-login-loading-text">Please wait while we complete sign-in...</div>' +
+            '<div class="auth-login-dots"><span></span><span></span><span></span></div>' +
+            '</div>' +
+            '</div>' +
+            '</div>'
+        );
+    }
+}
+
+function setSocialButtonLoading(provider, isLoading) {
+    var selector = provider === 'google' ? '#googleLogin' : '#facebookLogin';
+    var label = provider === 'google' ? 'Google' : 'Facebook';
+    $(selector).each(function () {
+        var $btn = $(this).find('.media-container');
+        if (!$btn.length) return;
+        if (!$btn.attr('data-original-html')) {
+            $btn.attr('data-original-html', $btn.html());
+        }
+        if (isLoading) {
+            $btn.addClass('auth-social-loading');
+            $btn.html('<span class="auth-inline-spinner"></span><p class="text-s">Signing in with ' + label + '...</p>');
+            $(this).css('pointer-events', 'none');
+        } else {
+            $btn.removeClass('auth-social-loading');
+            $btn.html($btn.attr('data-original-html'));
+            $(this).css('pointer-events', '');
+        }
+    });
+}
+
+function toggleAuthLoading(show, text) {
+    ensureAuthLoadingLayer();
+    var $loader = $("#modal-signin .auth-login-loading");
+    if (!$loader.length) return;
+
+    if (text) {
+        $loader.find(".auth-login-loading-title").text(text);
+    }
+
+    if (show) {
+        $loader.removeClass("d-none");
+    } else {
+        $loader.addClass("d-none");
+    }
+}
+
+function closeLoginPopupFast() {
+    var $loginModal = $("#modal-signin");
+    if (!$loginModal.length) return;
+
+    try {
+        if (window.bootstrap && bootstrap.Modal) {
+            var instance = bootstrap.Modal.getInstance($loginModal[0]);
+            if (instance) {
+                instance.hide();
+            } else {
+                $loginModal.modal('hide');
+            }
+        } else if (typeof $loginModal.modal === 'function') {
+            $loginModal.modal('hide');
+        }
+    } catch (err) {
+        // no-op
+    }
+
+    // Fallback cleanup in case modal plugin leaves overlay behind.
+    $loginModal.removeClass("show").css("display", "none");
+    $(".modal-backdrop").remove();
+    $("body").removeClass("modal-open").css("padding-right", "");
+    setSocialButtonLoading('google', false);
+    setSocialButtonLoading('facebook', false);
+    toggleAuthLoading(false);
+}
+
 $(document).on("submit", ".form-submit-event", function (e) {
     e.preventDefault();
     var t = new FormData(this),
@@ -267,7 +352,13 @@ $(document).on("submit", ".form-submit-event", function (e) {
             url: $(this).attr("action"),
             data: t,
             beforeSend: function () {
-                s.html("Please Wait.."), s.attr("disabled", !0)
+                if ("login_form" == a) {
+                    toggleAuthLoading(true, "Signing in...");
+                    s.html("Signing in...");
+                } else {
+                    s.html("Please Wait..");
+                }
+                s.attr("disabled", !0)
             },
             cache: !1,
             contentType: !1,
@@ -277,15 +368,19 @@ $(document).on("submit", ".form-submit-event", function (e) {
                 csrfName = e.csrfName, csrfHash = e.csrfHash, 1 == e.error ? (r.addClass("rounded p-3 alert alert-danger").removeClass("d-none alert-success"),
                     r.show().delay(5e3).fadeOut(),
                     r.html(e.message),
-                    s.html(n), s.attr("disabled", !1)) : (r.addClass("rounded p-3 alert alert-success").removeClass("d-none alert-danger"),
+                    s.html(n), s.attr("disabled", !1),
+                    "login_form" == a && toggleAuthLoading(false)) : (r.addClass("rounded p-3 alert alert-success").removeClass("d-none alert-danger"),
                         r.show().delay(3e3).fadeOut(),
                         r.html(e.message),
                         s.html(n),
                         s.attr("disabled", !1),
                         $(".form-submit-event")[0].reset(), "login_form" == a && cart_sync(),
-                        setTimeout(function () {
-                            location.reload()
-                        }, 600))
+                        "login_form" == a ? (closeLoginPopupFast(),
+                            setTimeout(function () {
+                                location.reload()
+                            }, 120)) : setTimeout(function () {
+                                location.reload()
+                            }, 600))
             }
         })
 }),
@@ -3375,9 +3470,13 @@ $(document).ready(function () {
     });
 
     function googleSignIn() {
+        toggleAuthLoading(true, 'Opening Google sign-in...');
+        setSocialButtonLoading('google', true);
         var provider = new firebase.auth.GoogleAuthProvider();
         provider.addScope('email');
         firebase.auth().signInWithPopup(provider).then(function (result) {
+
+            toggleAuthLoading(true, 'Signing in with Google...');
 
 
             var type = 'google';
@@ -3430,8 +3529,10 @@ $(document).ready(function () {
                                         },
                                         dataType: 'json',
                                         success: function (result) {
-
-                                            location.reload();
+                                            closeLoginPopupFast();
+                                            setTimeout(function () {
+                                                location.reload();
+                                            }, 120);
                                         }
                                     });
                                 }
@@ -3449,7 +3550,10 @@ $(document).ready(function () {
                             },
                             dataType: 'json',
                             success: function (result) {
-                                location.reload();
+                                closeLoginPopupFast();
+                                setTimeout(function () {
+                                    location.reload();
+                                }, 120);
                             }
                         });
                     }
@@ -3457,14 +3561,24 @@ $(document).ready(function () {
             });
 
         }).catch(function (error) {
-
+            setSocialButtonLoading('google', false);
+            toggleAuthLoading(false);
+            if (error && (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user')) {
+                toggleAuthLoading(true, 'Redirecting to Google sign-in...');
+                firebase.auth().signInWithRedirect(provider);
+                return;
+            }
             console.log(error.message);
         });
     }
     function facebookSignIn() {
+        toggleAuthLoading(true, 'Opening Facebook sign-in...');
+        setSocialButtonLoading('facebook', true);
         var provider = new firebase.auth.FacebookAuthProvider();
         provider.addScope('email');
         firebase.auth().signInWithPopup(provider).then(function (result) {
+
+            toggleAuthLoading(true, 'Signing in with Facebook...');
 
             var type = 'facebook';
             var name = result.user.displayName;
@@ -3516,8 +3630,10 @@ $(document).ready(function () {
                                         },
                                         dataType: 'json',
                                         success: function (result) {
-
-                                            location.reload();
+                                            closeLoginPopupFast();
+                                            setTimeout(function () {
+                                                location.reload();
+                                            }, 120);
                                         }
                                     });
                                 }
@@ -3535,7 +3651,10 @@ $(document).ready(function () {
                             },
                             dataType: 'json',
                             success: function (result) {
-                                location.reload();
+                                closeLoginPopupFast();
+                                setTimeout(function () {
+                                    location.reload();
+                                }, 120);
                             }
                         });
                     }
@@ -3544,7 +3663,13 @@ $(document).ready(function () {
 
             console.log(result);
         }).catch(function (error) {
-
+            setSocialButtonLoading('facebook', false);
+            toggleAuthLoading(false);
+            if (error && (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user')) {
+                toggleAuthLoading(true, 'Redirecting to Facebook sign-in...');
+                firebase.auth().signInWithRedirect(provider);
+                return;
+            }
             console.log(error);
         });
     }

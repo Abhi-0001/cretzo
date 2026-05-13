@@ -650,9 +650,8 @@ class Cart extends CI_Controller
                 if (isset($_POST['product_type']) && $_POST['product_type'] != 'digital_product') {
                     $area_id = fetch_details('addresses', ['id' => $_POST['address_id']], ['area_id', 'area', 'pincode']);
                     $zipcode = $area_id[0]['pincode'];
-                    $zipcode_data = fetch_details('zipcodes', ['zipcode' => $zipcode], 'id');
-                    $zipcode_id = (!empty($zipcode_data) && isset($zipcode_data[0]['id'])) ? $zipcode_data[0]['id'] : 0;
-                    $product_delivarable = check_cart_products_delivarable($_POST['user_id'], $area_id[0]['area_id'], $zipcode, $zipcode_id);
+                    $zipcode_id = fetch_details('zipcodes', ['zipcode' => $zipcode], 'id')[0];
+                    $product_delivarable = check_cart_products_delivarable($_POST['user_id'], $area_id[0]['area_id'], $zipcode, $zipcode_id['id']);
                     if (!empty($product_delivarable)) {
                         $product_not_delivarable = array_filter($product_delivarable, function ($var) {
                             return ($var['is_deliverable'] == false && $var['product_id'] != null);
@@ -785,7 +784,7 @@ class Cart extends CI_Controller
                 } else {
                     $_POST['address_id'] = '';
                 }
-                $_POST['payment_method'] = 'COD';
+
                 $res = $this->order_model->place_order($_POST);
                 $order = fetch_details('orders', ['id' => $res['order_id']], 'final_total');
 
@@ -896,10 +895,9 @@ class Cart extends CI_Controller
                 $overall_amount = $overall_amount - $wallet_balance;
             }
             $area_id = fetch_details('addresses', ['id' => $_POST['address_id']], ['area_id', 'area', 'pincode']);
-            $zipcode_data = fetch_details('zipcodes', ['zipcode' => $zipcode], 'id');
-            $zipcode_id = (!empty($zipcode_data) && isset($zipcode_data[0]['id'])) ? $zipcode_data[0]['id'] : 0;
-            $product_delivarable = check_cart_products_delivarable($_POST['user_id'], $area_id[0]['area_id'], $zipcode, $zipcode_id);
             $zipcode = $area_id[0]['pincode'];
+            $zipcode_id = fetch_details('zipcodes', ['zipcode' => $zipcode], 'id')[0];
+            $product_delivarable = check_cart_products_delivarable($_POST['user_id'], $area_id[0]['area_id'], $zipcode, $zipcode_id['id']);
             if ($_POST['product_type'] != 'digital_product') {
                 if (!empty($product_delivarable)) {
                     $product_not_delivarable = array_filter($product_delivarable, function ($var) {
@@ -932,22 +930,22 @@ class Cart extends CI_Controller
                     $overall_amount = $overall_amount - $validate['data'][0]['final_discount'];
                 }
             }
-            // if ($_POST['payment_method'] == "Razorpay") {
-            //     $order = $this->razorpay->create_order(($overall_amount * 100));
-            //     if (!isset($order['error'])) {
-            //         $this->response['order_id'] = $order['id'];
-            //         $this->response['error'] = false;
-            //         $this->response['message'] = "Client Secret Get Successfully.";
-            //         print_r(json_encode($this->response));
-            //         return false;
-            //     } else {
-            //         $this->response['error'] = true;
-            //         $this->response['message'] = $order['error']['description'];
-            //         $this->response['details'] = $order;
-            //         print_r(json_encode($this->response));
-            //         return false;
-            //     }
-            // }
+            if ($_POST['payment_method'] == "Razorpay") {
+                $order = $this->razorpay->create_order(($overall_amount * 100));
+                if (!isset($order['error'])) {
+                    $this->response['order_id'] = $order['id'];
+                    $this->response['error'] = false;
+                    $this->response['message'] = "Client Secret Get Successfully.";
+                    print_r(json_encode($this->response));
+                    return false;
+                } else {
+                    $this->response['error'] = true;
+                    $this->response['message'] = $order['error']['description'];
+                    $this->response['details'] = $order;
+                    print_r(json_encode($this->response));
+                    return false;
+                }
+            }
             $this->response['error'] = false;
             $this->response['message'] = "Client Secret Get Successfully.";
             print_r(json_encode($this->response));
@@ -983,9 +981,9 @@ class Cart extends CI_Controller
         if (isset($address_id) && !empty($address_id)) {
             $area_id = fetch_details('addresses', ['id' => $address_id], ['area_id', 'area', 'pincode']);
             $zipcode = $area_id[0]['pincode'];
-            $zipcode_data = fetch_details('zipcodes', ['zipcode' => $zipcode], 'id');
-            $zipcode_id = (!empty($zipcode_data) && isset($zipcode_data[0]['id'])) ? $zipcode_data[0]['id'] : 0;
-            $product_availability = check_cart_products_delivarable($this->data['user']->id, $area_id[0]['area_id'], $zipcode, $zipcode_id);
+            $zipcode_id = fetch_details('zipcodes', ['zipcode' => $zipcode], 'id')[0];
+            $product_availability = check_cart_products_delivarable($this->data['user']->id, $area_id[0]['area_id'], $zipcode, $zipcode_id['id']);
+
             $product_not_delivarable = array_filter((array)$product_availability, function ($product) {
                 return ($product['is_deliverable'] == false);
             });
@@ -1198,9 +1196,8 @@ class Cart extends CI_Controller
             $address_id = $this->input->post('address_id', true);
             $area_id = fetch_details('addresses', ['id' => $address_id], ['area_id', 'area', 'pincode']);
             $zipcode = $area_id[0]['pincode'];
-            $zipcode_data = fetch_details('zipcodes', ['zipcode' => $zipcode], 'id');
-            $zipcode_id = (!empty($zipcode_data) && isset($zipcode_data[0]['id'])) ? $zipcode_data[0]['id'] : 0;
-            $product_delivarable = check_cart_products_delivarable($this->data['user']->id, $area_id[0]['area_id'], $zipcode, $zipcode_id);
+            $zipcode_id = fetch_details('zipcodes', ['zipcode' => $zipcode], 'id')[0];
+            $product_delivarable = check_cart_products_delivarable($this->data['user']->id, $area_id[0]['area_id'], $zipcode, $zipcode_id['id']);
             if (!empty($product_delivarable)) {
                 $product_not_delivarable = array_filter($product_delivarable, function ($var) {
                     return ($var['is_deliverable'] == false);

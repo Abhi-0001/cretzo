@@ -43,31 +43,27 @@ class Brand_model extends CI_Model
         $response = TRUE;
         return $response;
     }
-    public function get_brands($id = NULL, $limit = '', $offset = '', $sort = 'row_order', $order = 'ASC', $has_child_or_item = 'true', $slug = '', $ignore_status = '', $seller_id = '')
+
+    public function get_brands($id = NULL, $limit = '', $offset = '', $sort = 'row_order', $order = 'ASC')
     {
-        $this->db->select('b.id as brand_id , b.name as brand_name, b.slug as brand_slug, b.image as brand_img');
-        $this->db->from('brands b'); // Explicitly set the from table
+        $this->db->select('b.id as brand_id, b.name as brand_name, b.slug as brand_slug, b.image as brand_img');
+
         $this->db->join('products p', 'p.brand = b.name', 'left');
-        
-        // If you only want brands that have products, keep this. 
-        // If you want ALL brands regardless of products, you can remove the where clause.
-        $this->db->where('p.brand IS NOT NULL'); 
-        
+
         $this->db->group_by('b.id');
-    
+
         if (!empty($limit) || !empty($offset)) {
-            $this->db->limit($limit, $offset);
+            $this->db->offset($offset);
+            $this->db->limit($limit);
         }
-    
-        // Fix the ambiguous column error here
-        $sort_column = ($sort == 'row_order') ? 'b.row_order' : $sort;
-        $this->db->order_by($sort_column, $order);
-    
-        $brands = $this->db->get()->result();
-    
-        return json_decode(json_encode($brands), 1);
+
+        // ✅ FIXED HERE
+        $this->db->order_by('b.' . $sort, $order);
+
+        $query = $this->db->get('brands b');
+        return $query->result_array();
     }
-     
+
     public function get_brand_list()
     {
         $offset = 0;

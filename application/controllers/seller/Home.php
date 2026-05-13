@@ -10,26 +10,17 @@ class Home extends CI_Controller
         $this->load->database();
         $this->load->library(['ion_auth', 'form_validation']);
         $this->load->helper(['url', 'language']);
-        $this->load->model(['Home_model', 'Order_model']);
+        $this->load->model(['Home_model', 'Order_model', 'Subscription_model', 'Seller_subscription_model']);
     }
 
     public function index()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
             $user_id = $this->session->userdata('user_id');
-            // Single query for user + seller data instead of two separate queries
-            $user_res = $this->db->select('u.balance, u.username, sd.rating, sd.no_of_ratings')
-            ->from('users u')
-            ->join('seller_data sd', 'sd.user_id = u.id', 'left')
-            ->where('u.id', $user_id)
-            ->get()->row_array();
-
-            $this->data['balance']  = $user_res['balance'] ?? 0;
-            $this->data['username'] = $user_res['username'];
-            $this->data['ratings']  = [['rating' => $user_res['rating'], 'no_of_ratings' => $user_res['no_of_ratings']]];
+            $user_res = $this->db->select('balance,username')->where('id', $user_id)->get('users')->result_array();
+            $this->data['main_page'] = FORMS . 'home';
             $settings = get_settings('system_settings', true);
             $this->data['curreny'] = get_settings('currency');
-            $this->data['profile_completion'] = $this->get_seller_profile_completion($user_id);
             $this->data['title'] = 'Seller Panel | ' . $settings['app_name'];
             $this->data['order_counter'] = orders_count("", $user_id);
             $this->data['user_counter'] = (get_seller_permission($this->ion_auth->get_user_id(), 'customer_privacy')) ? $this->Home_model->count_new_users() : 0;
@@ -38,216 +29,64 @@ class Home extends CI_Controller
             $this->data['seller_earnings'] = $this->Home_model->total_earnings($type = 'seller');
             $this->data['username'] =  $user_res[0]['username'];
             $this->data['ratings'] =  fetch_details("seller_data", ['user_id' => $user_id], "rating,no_of_ratings");
-            $this->data['profile_completion'] = $this->get_seller_profile_completion($user_id);
             $this->data['meta_description'] = 'Seller Panel | ' . $settings['app_name'];
             $this->data['count_products_low_status'] = $this->Home_model->count_products_stock_low_status($user_id);
             $this->data['count_products_availability_status'] = $this->Home_model->count_products_availability_status($user_id);
-            // Single query to get all order status counts instead of 8 separate queries
-            $status_rows = $this->db->select('active_status, COUNT(id) as total')
-            ->where('seller_id', $user_id)
-            ->group_by('active_status')
-            ->get('order_items')
-            ->result_array();
-            
-            $orders_count = [
-            'awaiting'   => 0,
-            'received'   => 0,
-            'processed'  => 0,
-            'shipped'    => 0,
-            'delivered'  => 0,
-            'cancelled'  => 0,
-            'returned'   => 0,
-            ];
-            $total_orders = 0;
-            foreach ($status_rows as $row) {
-            $status = $row['active_status'];
-            if (isset($orders_count[$status])) {
-                $orders_count[$status] = $row['total'];
-            }
-            $total_orders += $row['total'];
-            }
-            $this->data['order_counter'] = $total_orders;
+            $orders_count['awaiting'] = orders_count("awaiting", $user_id);
+            $orders_count['received'] = orders_count("received", $user_id);
+            $orders_count['processed'] = orders_count("processed", $user_id);
+            $orders_count['shipped'] = orders_count("shipped", $user_id);
+            $orders_count['delivered'] = orders_count("delivered", $user_id);
+            $orders_count['cancelled'] = orders_count("cancelled", $user_id);
+            $orders_count['returned'] = orders_count("returned", $user_id);
             $this->data['status_counts'] = $orders_count;
 
-            $this->data['status_counts'] = $orders_count;
+            // subscription status for seller
+            $active_subscription = $this->Seller_subscription_model->get_active_subscription($user_id);
+            $latest_subscription = $this->Seller_subscription_model->get_latest_subscription($user_id);
+
+            $subscription_status = 'none'; // none | active | expired
+            $current_subscription = null;
+            if (!empty($active_subscription)) {
+                $subscription_status = 'active';
+                $current_subscription = $active_subscription;
+            } elseif (!empty($latest_subscription)) {
+                $subscription_status = 'expired';
+                $current_subscription = $latest_subscription;
+            }
+
+            $current_plan = null;
+            $subscription_expired_on = null;
+            if (!empty($current_subscription)) {
+                $current_plan = $this->Subscription_model->get_plan($current_subscription['subscription_id']);
+                if (!empty($current_subscription['end_date']) && $subscription_status === 'expired') {
+                    $subscription_expired_on = date('d M Y', strtotime($current_subscription['end_date']));
+                }
+            }
+
+            $this->data['active_subscription'] = $active_subscription;
+            $this->data['latest_subscription'] = $latest_subscription;
+            $this->data['subscription_status'] = $subscription_status;
+            $this->data['current_subscription_plan'] = $current_plan;
+            $this->data['subscription_expired_on'] = $subscription_expired_on;
+
+            $this->data['subscription_plans'] = [];
+            $this->data['show_subscription_popup'] = false;
+
+            if ($subscription_status !== 'active') {
+                $plans = $this->Subscription_model->get_plans();
+                if (!empty($plans)) {
+                    $this->data['subscription_plans'] = $plans;
+                    $this->data['show_subscription_popup'] = true;
+                }
+            }
+
             $this->load->view('seller/template', $this->data);
         } else {
             redirect('seller/login', 'refresh');
         }
     }
 
-    private function get_seller_profile_completion($user_id)
-    {
-        $verification_requested_at_column = $this->db->field_exists('verification_requested_at', 'seller_data');
-
-        $select_fields = 'sd.first_name, sd.last_name, sd.phone, sd.email, sd.district, sd.city, sd.state, sd.pin, sd.shop_name, sd.social, sd.shop_phone, sd.pickup_address1, sd.pickup_address2, sd.pickup_district, sd.pickup_state, sd.pickup_pin, sd.entity_type, sd.pan, sd.gst, sd.account_number, sd.account_holder_name, sd.ifsc, sd.branch, sd.bank_name, sd.status';
-        if ($verification_requested_at_column) {
-            $select_fields .= ', sd.verification_requested_at';
-        }
-
-        $profile_data =$this->db->select($select_fields)
-            ->from('users u')
-            ->join('seller_data sd', 'sd.user_id = u.id', 'left')
-            ->where('u.id', $user_id)
-            ->get()
-            ->row_array();
-
-            // TEMP DEBUG
-            // file_put_contents('C:/xampp/htdocs/cretzo/debug_profile.txt', print_r($profile_data, true));      
-            
-            if (empty($profile_data)) {
-            return [
-                'percentage' => 0,
-                'missing_sections' => [
-                    ['label' => 'Complete Personal Details', 'link' => base_url('seller/home/profile?section=personal')],
-                    ['label' => 'Complete Store Details', 'link' => base_url('seller/home/profile?section=store')],
-                    ['label' => 'Add Bank Account Details', 'link' => base_url('seller/home/profile?section=account')],
-                ],
-            ];
-        }
-
-        $sections = [
-            'personal' => [
-                'weight' => 30,
-                'label' => 'Complete Personal Details',
-                'fields' => ['first_name', 'last_name', 'phone', 'email', 'district', 'city', 'state', 'pin'],
-                'link' => base_url('seller/home/profile?section=personal'),
-            ],
-            'store' => [
-                'weight' => 25,
-                'label' => 'Complete Store Details',
-                'fields' => ['shop_name', 'shop_phone', 'pickup_address1', 'entity_type', 'pan', 'gst'],
-                'link' => base_url('seller/home/profile?section=store'),
-            ],
-            'account' => [
-                'weight' => 20,
-                'label' => 'Add Bank Account Details',
-                'fields' => ['account_number', 'account_holder_name', 'ifsc', 'branch', 'bank_name'],
-                'link' => base_url('seller/home/profile?section=account'),
-            ],
-            
-            
-        ];
-
-        $completed_weight = 0;
-        $missing_sections = [];
-
-        foreach ($sections as $section) {
-            $is_complete = true;
-
-            foreach ($section['fields'] as $field) {
-                if (!$this->is_profile_value_present($profile_data, $field)) {
-                    $is_complete = false;
-                    break;
-                }
-            }
-
-            if ($is_complete) {
-                $completed_weight += (int) $section['weight'];
-                continue;
-            }
-
-            $missing_sections[] = [
-                'label' => $section['label'],
-                'link' => $section['link'],
-            ];
-        }
-        // Admin Verification Page setup
-        $is_admin_verified = isset($profile_data['status']) && (string) $profile_data['status'] === '1';
-        if ($is_admin_verified) {
-            $completed_weight += 25;
-        } else {
-            $verification_label = !empty($profile_data['verification_requested_at']) ? 'Admin Verification Pending Approval' : 'Request Admin Verification';
-            $missing_sections[] = [
-                'label' => $verification_label,
-                'link' => base_url('seller/home/profile?section=admin'),
-            ];
-        }
-
-        return [
-            'percentage' => $completed_weight,
-            'missing_sections' => $missing_sections,
-        ];
-        file_put_contents('C:/xampp/htdocs/cretzo/debug_completion.txt', print_r([
-            'profile_data' => $profile_data,
-            'completed_weight' => $completed_weight,
-            'missing_sections' => $missing_sections
-        ], true));
-    }
-
-    public function request_admin_verification()
-    {
-        if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0))) {
-            $this->response['error'] = true;
-            $this->response['message'] = 'Unauthorized access.';
-            print_r(json_encode($this->response));
-            return;
-        }
-
-        if (defined('ALLOW_MODIFICATION') && ALLOW_MODIFICATION == 0) {
-            $this->response['error'] = true;
-            $this->response['message'] = DEMO_VERSION_MSG;
-            print_r(json_encode($this->response));
-            return;
-        }
-
-        $this->form_validation->set_rules('verification_note', 'Verification note', 'trim|required|min_length[10]|xss_clean');
-        if (!$this->form_validation->run()) {
-            $this->response['error'] = true;
-            $this->response['message'] = validation_errors();
-            $this->response['csrfName'] = $this->security->get_csrf_token_name();
-            $this->response['csrfHash'] = $this->security->get_csrf_hash();
-            print_r(json_encode($this->response));
-            return;
-        }
-
-        $user_id = $this->session->userdata('user_id');
-        $payload = [];
-        if ($this->db->field_exists('verification_request_note', 'seller_data')) {
-            $payload['verification_request_note'] = $this->input->post('verification_note', true);
-        }
-        if ($this->db->field_exists('verification_requested_at', 'seller_data')) {
-            $payload['verification_requested_at'] = date('Y-m-d H:i:s');
-        }
-
-        if (empty($payload)) {
-            $this->response['error'] = true;
-            $this->response['message'] = 'Verification request columns are not available yet. Please run latest database migration.';
-            $this->response['csrfName'] = $this->security->get_csrf_token_name();
-            $this->response['csrfHash'] = $this->security->get_csrf_hash();
-            print_r(json_encode($this->response));
-            return;
-        }
-
-        $updated = $this->db->where('user_id', $user_id)->update('seller_data', $payload);
-        if ($updated) {
-            $seller_user = $this->db->select('username')->where('id', $user_id)->get('users')->row_array();
-            $seller_name = isset($seller_user['username']) ? $seller_user['username'] : ('Seller #' . $user_id);
-            $admin_notification = [
-                'title' => 'Seller verification request received',
-                'message' => $seller_name . ' has requested admin verification. Please review and approve/reject from seller management.',
-                'type' => 'seller_verification_request',
-                'type_id' => $user_id,
-                'read_by' => 0,
-            ];
-            $this->db->insert('system_notification', $admin_notification);
-        }
-        $this->response['error'] = !$updated;
-        $this->response['message'] = $updated ? 'Verification request submitted. Admin approval is required to unlock product management.' : 'Unable to submit verification request. Please try again.';
-        $this->response['csrfName'] = $this->security->get_csrf_token_name();
-        $this->response['csrfHash'] = $this->security->get_csrf_hash();
-        print_r(json_encode($this->response));
-    }
-
-    private function is_profile_value_present($profile_data, $key)
-    {
-        if (!isset($profile_data[$key])) {
-            return false;
-        }
-
-        return trim((string) $profile_data[$key]) !== '';
-    }
-   
     public function profile()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
@@ -259,7 +98,6 @@ class Home extends CI_Controller
             $this->data['main_page'] = FORMS . 'profile';
             $this->data['title'] = 'Seller Profile | ' . $settings['app_name'];
             $this->data['meta_description'] = 'Seller Profile | ' . $settings['app_name'];
-            $this->data['current_profile_section'] = $this->input->get('section', true) ?? 'personal';
             // $this->data['fetched_data'] = $this->db->select(' u.*,sd.* ')
             //     ->join('users_groups ug', ' ug.user_id = u.id ')
             //     ->join('seller_data sd', ' sd.user_id = u.id ')
@@ -375,58 +213,7 @@ class Home extends CI_Controller
             redirect('seller/home', 'refresh');
         }
     }
-    public function get_districts_by_state()
-    {
-        if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller())) {
-            echo json_encode([]);
-            return;
-        }
 
-        $state_id = $this->input->get('state_id', true);
-        if (empty($state_id) || !$this->db->table_exists('districts')) {
-            echo json_encode([]);
-            return;
-        }
-
-        $districts = $this->db
-            ->select('id,name')
-            ->from('districts')
-            ->where('state_id', $state_id)
-            ->order_by('name', 'ASC')
-            ->get()
-            ->result_array();
-
-        echo json_encode($districts);
-    }
-
-    public function get_cities_by_district()
-    {
-        if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller())) {
-            echo json_encode([]);
-            return;
-        }
-
-        $state_id = $this->input->get('state_id', true);
-        $district_id = $this->input->get('district_id', true);
-
-        if (empty($state_id) || empty($district_id) || !$this->db->table_exists('cities')) {
-            echo json_encode([]);
-            return;
-        }
-
-        $cities = $this->db
-            ->select('id,name')
-            ->from('cities')
-            ->where('state_id', $state_id)
-            ->where('district_id', $district_id)
-            ->order_by('name', 'ASC')
-            ->get()
-            ->result_array();
-
-        echo json_encode($cities);
-    }
-    //  End of Function for the states, cities and districts 
-    
     public function update_status()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
