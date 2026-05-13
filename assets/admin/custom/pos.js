@@ -528,11 +528,7 @@ $('#pos_form').on('submit', function(e) {
                         message: '<span style="text-transform:capitalize">' + result.message + '</span> ',
                     });
                     delete_cart_items();
-                    if (result.redirect_url) {
-                        setTimeout(function() { window.location.href = result.redirect_url; }, 700);
-                    } else {
-                        setTimeout(function() { location.reload(); }, 600);
-                    }
+                    setTimeout(function() { location.reload(); }, 600);
                 }
             }
         });

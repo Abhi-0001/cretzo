@@ -11,10 +11,10 @@
                 </div>
             </div>
 
-            <nav class="navbar navbar-expand-sm mt-4 bg-dark navbar-dark flex-column flex-md-row rounded">    
-            <ul class="navbar-nav flex-row d-md-flex ">
+            <nav class="navbar navbar-expand-sm  mt-4 bg-dark navbar-dark flex-column flex-md-row">
+                <ul class="navbar-nav flex-row d-md-flex ">
                     <li class="nav-item">
-                    <a class="nav-link active" href="javascript:void(0)">All Products</a>
+                        <a class="nav-link" href="">All Products</a>
                     </li>
                     <!-- Dropdown -->
                     <li id="get_categories" class="nav-item dropdown">
@@ -29,7 +29,7 @@
                         </div>
                     </li>
                     <li class="nav-item ">
-                        <input type="search" name="search_products" class="form-control" id="search_products" value="" placeholder="Search Products By Name">
+                        <input type="search" name="search_products" class="form-control" id="search_products" value="" placeholder="Search Products">
                     </li>
                 </ul>
             </nav>
@@ -42,7 +42,6 @@
                             <input type="hidden" name="offset" id="offset" value="0" />
                             <input type="hidden" name="total" id="total_products" />
                             <input type="hidden" name="current_page" id="current_page" value="0" />
-                            <a class="nav-link active" href="javascript:void(0)">All Products</a>
                             <div class="row d-flex justify-content-center p-2 align-content-center" class="img-thumbnail" id="get_products">
                                 <!-- product display in this container -->
                             </div>
@@ -53,10 +52,10 @@
                         <div class="card">
                             <section class="container content-section mt-4">
                                 <form id="pos_form" method="post" action='<?= base_url('seller/point_of_sale/place_order') ?>'>
-                                <div class="mt-2 d-flex justify-content-center align-items-center">
-                                        <span class="font-weight-bold">Already registered customer?</span>
-                                        <input type="button" class="btn btn-xs btn-outline-secondary mx-3" id="clear_user_search" value="Clear">
-                                </div>
+                                    <div class="mt-2 d-flex justify-content-center">
+                                        Already Registered?
+                                        <input type="button" class="btn btn-xs btn-secondary mx-5" id="clear_user_search" value="Clear">
+                                    </div>
                                     <!-- select user -->
                                     <input type="hidden" name=" <?php echo $this->security->get_csrf_token_name(); ?>" value="<?php echo $this->security->get_csrf_hash(); ?>" />
                                     <input type="hidden" name="user_id" id="pos_user_id" value="">
@@ -69,8 +68,7 @@
                                         </select>
                                     </div>
                                     <div class="mt-3">
-                                    <span class="font-weight-bold">Don’t have an account?</span> Register new buyer here.
-                                    <div class=""><a href="javascript:void(0)" class="btn btn-sm btn-success btn-rounded mt-3" data-toggle="modal" data-target="#register">Register Buyer</a></div>
+                                        Don't Have An Account? Register Here
                                         <div class=""><a href="" class="btn btn-sm btn-success btn-rounded mt-3" data-toggle="modal" data-target="#register">Register</a></div>
                                     </div>
                                     <div class="mt-3">
@@ -153,15 +151,15 @@
                                             </label>
                                         </div>
                                         <div class="payment_method_name mt-3">
-                                        <p>Enter Payment method name <input type="text" class="form-control" name="payment_method_name" id="payment_method_name" placeholder="e.g. Wallet transfer"></p>
+                                            <p>Enter Payment method Name <input type="text" class="form-control" name="payment_method_name" id="payment_method_name"></p>
                                         </div>
                                         <div class="transaction_id mt-3">
-                                        <p>Enter transaction ID <input type="text" class="form-control" name="transaction_id" id="transaction_id" placeholder="e.g. TXN123456"></p>
+                                            <p>Enter Transaction ID <input type="text" class="form-control" name="transaction_id" id="transaction_id"></p>
                                         </div>
                                     </div>
 
                                     <div class="text-center mt-4">
-                                    <button class="btn btn-sm btn-clear_cart btn-outline-danger mb-2 mx-3" type="button" id="clear_cart_btn">Clear Cart</button>
+                                        <button class="btn btn-sm btn-clear_cart btn-danger mb-2 mx-3" type="submit" id="place_order_btn">Clear Cart</button>
                                         <button class="btn btn-sm btn-purchase btn-primary mb-2" type="submit" id="place_order_btn">Place Order</button>
 
                                     </div>
