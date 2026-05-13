@@ -308,7 +308,7 @@ die; */
                         <?php endif; ?>
                     </div>
            
-
+ 
             <!-- Removed the PHP if block entirely, and replaced with this -->
             <div class="ta-c mt-4 d-none" id="no-products-msg">
                 <h1 class="h2 ta-c">No Products Found.</h1>

@@ -265,7 +265,7 @@ function getCategorySlugs() {
         sub_category_slug
     };
 }
-
+ 
 function ajaxProductList() {
     console.log('pathname:', window.location.pathname);
     console.log('slugData:', slugData);
