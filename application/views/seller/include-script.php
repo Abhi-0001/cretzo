@@ -70,7 +70,7 @@ var csrfHash = "<?= $this->security->get_csrf_hash() ?>";
 <script type="text/javascript" src="<?= base_url('assets/admin/js/sortable.js') ?>"></script>
 <!-- Sortable.min.js -->
 <script type="text/javascript" src="<?= base_url('assets/admin/js/jquery-sortable.js') ?>"></script>
-
+ 
 <script type="text/javascript" src="<?= base_url('assets/admin/js/tagify.min.js') ?>"></script>
 <script type="text/javascript" src="<?= base_url('assets/admin/js/jquery.validate.min.js') ?>"></script>
 <!-- Markdown -->

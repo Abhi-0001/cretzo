@@ -400,7 +400,7 @@
                                         <label>HSN Code</label>
                                         <input type="text" class="form-control" name="hsn_code" id="hsn_code">
                                     </div>
-
+ 
                                     <!-- Category -->
 <div class="col-md-4 form-group">
     <label>Category  <span class="text-danger">*</span></label>

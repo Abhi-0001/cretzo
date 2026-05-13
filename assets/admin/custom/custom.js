@@ -3765,7 +3765,7 @@ $(document).on('click', '.update_status_admin_bulk', function (e) {
     var order_id = $('input[name="order_id"]').val();
     var status = statusScope.find('.status').first().val() || $('.status:visible').first().val();
     var deliver_by = statusScope.find('#deliver_by').val() || $('#deliver_by').val();
-    
+     
     // For seller flow: when setting shipped (out for delivery), prompt Shiprocket form first.
     var hasShiprocketForm = $('#shiprocket_order_parcel_form').length > 0;
     var hasPendingShiprocketOrder = $('.check_create_order').length > 0;
