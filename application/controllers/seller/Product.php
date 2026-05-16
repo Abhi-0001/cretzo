@@ -518,7 +518,7 @@ class Product extends CI_Controller
             redirect('seller/login', 'refresh');
         }
     }
- 
+
     public function bulk_upload()
     {
 

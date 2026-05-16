@@ -119,22 +119,16 @@
 
                     <div class="form-step form2">
                         <div>
-                        <div class="shop-logo-card mb-3">
-                            <div class="photo-upload d-flex gap-4 justify-content-between align-items-center">
-                              <input type="file" class="hidden" name="store_logo" id="photoInput" accept="image/*">
-                              <div class="preview-container" title="Shop Logo Preview">
-                                <svg id="logoPlaceholder" class="profile-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                                  <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6m2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0m4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4m-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10s-3.516.68-4.168 1.332c-.678.678-.83 1.418-.832 1.664z"/>
-                                </svg>
-                                <img id="photoPreview" src="<?= !empty($fetched_data[0]['logo']) ? base_url($fetched_data[0]['logo']) : '' ?>" class="shop-logo <?= empty($fetched_data[0]['logo']) ? 'hidden' : '' ?>" alt="Shop logo">
-                              </div>
-                              <div class="logo-upload-content">
-                                <label for="photoInput" class="btn btn-sm btn-outline-secondary logo-upload-btn" style="cursor:pointer;">📷 Upload Shop Logo</label>
-                                <small class="text-muted d-block mt-1">Use a square logo for best display quality.</small>
-                              </div>
+                          <div class="photo-upload d-flex gap-4 justify-content-between align-items-center mb-3">
+                            <input type="file" class="hidden" name="store_logo"  id="photoInput" accept="image/*">
+                            <div class="preview-container ">
+                              <svg class="profile-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-person" viewBox="0 0 16 16">
+                                <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6m2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0m4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4m-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10s-3.516.68-4.168 1.332c-.678.678-.83 1.418-.832 1.664z"/>
+                              </svg>
+                              <img id="photoPreview" src="" class="shop-logo hidden" style="margin-top: 1rem;">
                             </div>
-                            
-                         </div>
+                          <label for="photoInput">Shop Logo</label>
+                          </div>
                         </div>
                         
                       <div class="row">
@@ -253,32 +247,7 @@
                         <button type="submit" class="btn submit_btn">Submit</button>
                       </div>
 
-                    </div>
-                    
-                    <div class="form-step form4">
-                      <h3 class="mb-3">Admin Verification</h3>
-                      <?php $is_admin_verified = isset($fetched_data[0]['status']) && (string)$fetched_data[0]['status'] === '1'; ?>
-                      <?php if ($is_admin_verified): ?>
-                        <p class="text-success mb-0"><i class="fa fa-check-circle"></i> Your seller account is admin verified. Product management is unlocked.</p>
-                      <?php else: ?>
-                        <p class="mb-2 text-muted">Submit this form to request admin verification. This step contributes <strong>20%</strong> to profile completion.</p>
-                        <div class="validation-logo-block">
-                          <span class="validation-logo-title">Shop logo preview</span>
-                          <div class="validation-logo-frame">
-                            <img id="validationLogoPreview" src="<?= !empty($fetched_data[0]['logo']) ? base_url($fetched_data[0]['logo']) : '' ?>" class="validation-logo-img <?= empty($fetched_data[0]['logo']) ? 'hidden' : '' ?>" alt="Validation shop logo">
-                            <span id="validationLogoPlaceholder" class="text-muted <?= !empty($fetched_data[0]['logo']) ? 'hidden' : '' ?>">Upload logo from Store Details to show here.</span>
-                          </div>
-                        </div>
-                        <label for="verification_note" class="form-label">Verification note <span class="text-danger">*</span></label>
-                        <textarea id="verification_note" name="verification_note" class="input" rows="3" placeholder="Write a short note for admin review..."><?= isset($fetched_data[0]['verification_request_note']) ? htmlspecialchars($fetched_data[0]['verification_request_note']) : '' ?></textarea>
-                        <div class="mt-2">
-                          <button type="button" id="request_verification_btn" class="btn btn-primary btn-sm">Request Admin Verification</button>
-                          <?php if (!empty($fetched_data[0]['verification_requested_at'])): ?>
-                            <small class="text-muted d-block mt-2">Last requested at: <?= htmlspecialchars($fetched_data[0]['verification_requested_at']) ?></small>
-                          <?php endif; ?>
-                          <div id="verification_response" class="small mt-2"></div>
-                        </div>
-                      <?php endif; ?>
+                      <div id="response">
 
                       </div>
 
@@ -292,270 +261,6 @@
       </div>
       
   </section>
-  <div class="category-picker-modal" id="category_picker_modal">
-    <div class="category-picker-content">
-      <div class="category-picker-header">
-        <strong>Select Store Categories</strong>
-        <input type="text" id="category_picker_search" class="input mt-2" placeholder="Search categories...">
-      </div>
-      <div class="category-picker-list" id="category_picker_list"></div>
-      <div class="category-picker-footer">
-        <button type="button" class="btn btn-light btn-sm" id="close_category_picker">Cancel</button>
-        <button type="button" class="btn btn-primary btn-sm" id="apply_category_picker">Apply Selection</button>
-      </div>
-    </div>
-  </div>
-<script>
-if (typeof Dropzone !== 'undefined') Dropzone.autoDiscover = false;
-const base_url = "<?php echo base_url(); ?>";
-const submitBtn = document.querySelector('.submit_btn');
-const initialSection = "<?= in_array(($current_profile_section ?? 'personal'), ['personal','store','account','admin']) ? $current_profile_section : 'personal' ?>";
-const availableCategories = [
-  <?php foreach (($all_categories ?? []) as $cat): ?>
-  { id: "<?= (int)$cat['id'] ?>", label: "<?= addslashes($cat['name']) ?>" },
-  <?php endforeach; ?>
-];
-const photoInput = document.getElementById('photoInput');
-const photoPreview = document.getElementById('photoPreview');
-const logoPlaceholder = document.getElementById('logoPlaceholder');
-const validationLogoPreview = document.getElementById('validationLogoPreview');
-const validationLogoPlaceholder = document.getElementById('validationLogoPlaceholder');
-
-function syncLogoPreview(imageSrc) {
-  const hasLogo = !!imageSrc;
-  if (photoPreview) {
-    photoPreview.src = imageSrc || '';
-    photoPreview.classList.toggle('hidden', !hasLogo);
-  }
-  if (logoPlaceholder) logoPlaceholder.classList.toggle('hidden', hasLogo);
-  if (validationLogoPreview) {
-    validationLogoPreview.src = imageSrc || '';
-    validationLogoPreview.classList.toggle('hidden', !hasLogo);
-  }
-  if (validationLogoPlaceholder) validationLogoPlaceholder.classList.toggle('hidden', hasLogo);
-}
-
-if (photoInput) {
-  photoInput.addEventListener('change', function (event) {
-    const file = event.target.files && event.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = function (e) {
-      syncLogoPreview(e.target.result);
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
-syncLogoPreview((photoPreview && photoPreview.getAttribute('src')) || '');
-// ── Searchable dropdown factory ──────────────────────────────────────────────
-function makeSearchable(searchId, hiddenId, dropdownId, data, onSelect) {
-  const searchEl   = document.getElementById(searchId);
-  const hiddenEl   = document.getElementById(hiddenId);
-  const dropdownEl = document.getElementById(dropdownId);
-
-  if (hiddenEl.value) searchEl.value = hiddenEl.value;
-
-  function renderDropdown(items) {
-    dropdownEl.innerHTML = '';
-    if (!items.length) { dropdownEl.style.display = 'none'; return; }
-    items.forEach(function(item) {
-      const div = document.createElement('div');
-      div.textContent = item.label;
-      div.style.cssText = 'padding:8px 12px; cursor:pointer;';
-      div.addEventListener('mouseenter', function() { this.style.background = '#f0f0f0'; });
-      div.addEventListener('mouseleave', function() { this.style.background = '#fff'; });
-      div.addEventListener('click', function() {
-        searchEl.value  = item.label;
-        hiddenEl.value  = item.label;
-        dropdownEl.style.display = 'none';
-        if (onSelect) onSelect(item);
-      });
-      dropdownEl.appendChild(div);
-    });
-    dropdownEl.style.display = 'block';
-  }
-
-  searchEl.addEventListener('input', function() {
-    const q = this.value.toLowerCase();
-    if (!q) { dropdownEl.style.display = 'none'; hiddenEl.value = ''; return; }
-    const matches = data.filter(function(item) {
-      return item.label.toLowerCase().includes(q);
-    });
-    renderDropdown(matches);
-  });
-
-  document.addEventListener('click', function(e) {
-    if (e.target !== searchEl) dropdownEl.style.display = 'none';
-  });
-
-  // expose so cascade can call it
-  return { setData: function(newData, selectedLabel) {
-    data = newData;
-    dropdownEl.style.display = 'none';
-    searchEl.value  = selectedLabel || '';
-    hiddenEl.value  = selectedLabel || '';
-  }};
-}
-
-// ── State data from PHP ───────────────────────────────────────────────────────
-const stateData = [
-  <?php foreach ($states as $s): ?>
-  { label: "<?= addslashes($s['name']) ?>", id: "<?= $s['id'] ?>" },
-  <?php endforeach; ?>
-];
-
-// ── District + City controllers (filled by cascade) ──────────────────────────
-let districtController, cityController;
-
-// ── Wire up state searchable ──────────────────────────────────────────────────
-makeSearchable('state_search', 'state_hidden', 'state_dropdown', stateData, function(item) {
-  // State selected → load districts
-  districtController.setData([], '');
-  cityController.setData([], '');
-  fetch(base_url + 'seller/home/get_districts_by_state?state_id=' + item.id)
-    .then(function(r) { return r.json(); })
-    .then(function(rows) {
-      const distData = rows.map(function(r) { return { label: r.name, id: r.id }; });
-      districtController.setData(distData, '');
-    })
-    .catch(function(err) { console.error('Districts failed:', err); });
-});
-
-// ── Wire up district searchable ───────────────────────────────────────────────
-districtController = makeSearchable('district_search', 'district_hidden', 'district_dropdown', [], function(item) {
-  // District selected → load cities
-  cityController.setData([], '');
-  const stateId = document.getElementById('state_hidden').value
-    ? stateData.find(function(s) { return s.label === document.getElementById('state_hidden').value; })
-    : null;
-  if (!stateId) return;
-  fetch(base_url + 'seller/home/get_cities_by_district?state_id=' + stateId.id + '&district_id=' + item.id)
-    .then(function(r) { return r.json(); })
-    .then(function(rows) {
-      const cityData = rows.map(function(r) { return { label: r.name, id: r.id }; });
-      cityController.setData(cityData, '');
-    })
-    .catch(function(err) { console.error('Cities failed:', err); });
-});
-
-// ── Wire up city searchable ───────────────────────────────────────────────────
-cityController = makeSearchable('city_search', 'city_hidden', 'city_dropdown', [], null);
-
-// ── On page load: prefill districts and cities for existing saved values ──────
-(function() {
-  const savedState    = "<?= addslashes($fetched_data[0]['state']) ?>";
-  const savedDistrict = "<?= addslashes($fetched_data[0]['district']) ?>";
-  const savedCity     = "<?= addslashes($fetched_data[0]['city']) ?>";
-  if (!savedState) return;
-  const stateItem = stateData.find(function(s) { return s.label === savedState; });
-  if (!stateItem) return;
-  fetch(base_url + 'seller/home/get_districts_by_state?state_id=' + stateItem.id)
-    .then(function(r) { return r.json(); })
-    .then(function(rows) {
-      const distData = rows.map(function(r) { return { label: r.name, id: r.id }; });
-      districtController.setData(distData, savedDistrict);
-      if (!savedDistrict) return;
-      const distItem = distData.find(function(d) { return d.label === savedDistrict; });
-      if (!distItem) return;
-      fetch(base_url + 'seller/home/get_cities_by_district?state_id=' + stateItem.id + '&district_id=' + distItem.id)
-        .then(function(r) { return r.json(); })
-        .then(function(cityRows) {
-          const cityData = cityRows.map(function(r) { return { label: r.name, id: r.id }; });
-          cityController.setData(cityData, savedCity);
-        });
-    });
-})();
-// ── Pickup State / District / City ────────────────────────────────────────────
-let pickupDistrictController, pickupCityController;
-
-makeSearchable('pickup_state_search', 'pickup_state_hidden', 'pickup_state_dropdown', stateData, function(item) {
-  pickupDistrictController.setData([], '');
-  pickupCityController.setData([], '');
-  fetch(base_url + 'seller/home/get_districts_by_state?state_id=' + item.id)
-    .then(function(r) { return r.json(); })
-    .then(function(rows) {
-      const distData = rows.map(function(r) { return { label: r.name, id: r.id }; });
-      pickupDistrictController.setData(distData, '');
-    })
-    .catch(function(err) { console.error('Pickup districts failed:', err); });
-});
-
-pickupDistrictController = makeSearchable('pickup_district_search', 'pickup_district_hidden', 'pickup_district_dropdown', [], function(item) {
-  pickupCityController.setData([], '');
-  const stateLabel = document.getElementById('pickup_state_hidden').value;
-  const stateItem  = stateData.find(function(s) { return s.label === stateLabel; });
-  if (!stateItem) return;
-  fetch(base_url + 'seller/home/get_cities_by_district?state_id=' + stateItem.id + '&district_id=' + item.id)
-    .then(function(r) { return r.json(); })
-    .then(function(rows) {
-      const cityData = rows.map(function(r) { return { label: r.name, id: r.id }; });
-      pickupCityController.setData(cityData, '');
-    })
-    .catch(function(err) { console.error('Pickup cities failed:', err); });
-});
-
-pickupCityController = makeSearchable('pickup_city_search', 'pickup_city_hidden', 'pickup_city_dropdown', [], null);
-
-// ── Prefill pickup dropdowns on page load ─────────────────────────────────────
-(function() {
-  const savedState    = "<?= addslashes($fetched_data[0]['pickup_state']) ?>";
-  const savedDistrict = "<?= addslashes($fetched_data[0]['pickup_district']) ?>";
-  const savedCity     = "<?= addslashes($fetched_data[0]['pickup_city']) ?>";
-  if (!savedState) return;
-  const stateItem = stateData.find(function(s) { return s.label === savedState; });
-  if (!stateItem) return;
-  fetch(base_url + 'seller/home/get_districts_by_state?state_id=' + stateItem.id)
-    .then(function(r) { return r.json(); })
-    .then(function(rows) {
-      const distData = rows.map(function(r) { return { label: r.name, id: r.id }; });
-      pickupDistrictController.setData(distData, savedDistrict);
-      if (!savedDistrict) return;
-      const distItem = distData.find(function(d) { return d.label === savedDistrict; });
-      if (!distItem) return;
-      fetch(base_url + 'seller/home/get_cities_by_district?state_id=' + stateItem.id + '&district_id=' + distItem.id)
-        .then(function(r) { return r.json(); })
-        .then(function(cityRows) {
-          const cityData = cityRows.map(function(r) { return { label: r.name, id: r.id }; });
-          pickupCityController.setData(cityData, savedCity);
-        });
-    });
-})();
-
-// ── Bank searchable ───────────────────────────────────────────────────────────
-const bankData = [
-  <?php foreach ($indian_banks as $bank): ?>
-  { label: "<?= addslashes($bank['bank_name']) ?>", id: "<?= addslashes($bank['bank_name']) ?>" },
-  <?php endforeach; ?>
-];
-makeSearchable('bank_search', 'bank_name_hidden', 'bank_dropdown', bankData, null);
-
-// ── Category multi-select picker ─────────────────────────────────────────────
-const categoryHiddenInput = document.getElementById('category_ids_hidden');
-const selectedCategoriesDisplay = document.getElementById('selected_categories_display');
-const categoryModal = document.getElementById('category_picker_modal');
-const categoryList = document.getElementById('category_picker_list');
-const categorySearch = document.getElementById('category_picker_search');
-const selectedCategoryIds = new Set(
-  (categoryHiddenInput.value || '')
-    .split(',')
-    .map(function(v) { return v.trim(); })
-    .filter(Boolean)
-);
-
-function renderSelectedCategories() {
-  const labels = availableCategories
-    .filter(function(cat) { return selectedCategoryIds.has(String(cat.id)); })
-    .map(function(cat) { return cat.label; });
-  categoryHiddenInput.value = Array.from(selectedCategoryIds).join(',');
-  if (!labels.length) {
-    selectedCategoriesDisplay.innerHTML = '<small class="text-muted">No categories selected.</small>';
-    return;
-  }
-  selectedCategoriesDisplay.innerHTML = labels.map(function(label) {
-    return '<span class="category-pill">' + label + '</span>';
-  }).join('');
-}
 
   <script>
 const submitBtn = document.querySelector('.submit_btn');
@@ -617,12 +322,6 @@ function submitForm(e) {
   const form = document.getElementById('seller_form');
   const formData = new FormData(form);
 
-// ─ ─ Submit ────────────────────────────────────────────────────────────────────
-submitBtn.addEventListener('click', function(e) {
-  e.preventDefault();
-  document.getElementById('response').innerHTML = '';
-  if (!validateForm3()) return;
-  const formData = new FormData(document.getElementById('seller_form'));
   submitBtn.disabled = true;
   submitBtn.innerText = 'Submitting...';
 
