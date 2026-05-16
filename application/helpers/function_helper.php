@@ -78,7 +78,7 @@ defined('BASEPATH') or exit('No direct script access allowed');
 function create_unique_slug($string, $table, $field = 'slug', $key = NULL, $value = NULL)
 {
     $t = &get_instance();
-    $slug = url_title($string);
+    $slug = url_title($string ?? '', '-', TRUE);
     $slug = strtolower($slug);
     $i = 0;
     $params = array();
