@@ -90,17 +90,22 @@
 const form1 = document.querySelector('.form1');
 const form2 = document.querySelector('.form2');
 const form3 = document.querySelector('.form3');
+const form4 = document.querySelector('.form4');
 
 const btnNext1 = document.querySelector('.btn-next-1');
 const btnNext2 = document.querySelector('.btn-next-2');
+const btnNext3 = document.querySelector('.btn-next-3');
 const btnBack1 = document.querySelector('.btn-back-1');
 const btnBack2 = document.querySelector('.btn-back-2');
+const btnBack3 = document.querySelector('.btn-back-3');
 
 const sliderLine1 = document.querySelector('.completion-line-1');
 const sliderLine2 = document.querySelector('.completion-line-2');
+const sliderLine3 = document.querySelector('.completion-line-3');
 
 const formIndicator2 = document.querySelector('.form-indicator-2');
 const formIndicator3 = document.querySelector('.form-indicator-3');
+const formIndicator4 = document.querySelector('.form-indicator-4');
 
 /* =====================
    IMAGE PREVIEW
@@ -110,9 +115,12 @@ const photoContainer = document.querySelector('.preview-container');
 const photoPreview = document.getElementById('photoPreview');
 const profileIcon = document.querySelector('.profile-icon');
 
-photoContainer.addEventListener('click', () => photoInput.click());
+if (photoContainer && photoInput) {
+  photoContainer.addEventListener('click', () => photoInput.click());
+}
 
-photoInput.addEventListener('change', function () {
+if (photoInput) {
+  photoInput.addEventListener('change', function () {
   const file = this.files[0];
   if (file && file.type.startsWith('image/')) {
     const reader = new FileReader();
@@ -124,6 +132,7 @@ photoInput.addEventListener('change', function () {
     reader.readAsDataURL(file);
   }
 });
+}
 
 /* =====================
    VALIDATION FUNCTIONS
@@ -173,17 +182,36 @@ function validateForm(form) {
       showError(input, 'Enter valid PIN');
       valid = false;
     }
+    
+    if ( input.name === 'pan' &&
+      !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(input.value.toUpperCase())) {
+    showError(input, 'Invalid PAN. Example: ABCDE1234F');
+    valid = false;
+   }
 
-    if (input.name === 'ifsc' &&
-        !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(input.value)) {
+  if (input.name === 'gst' &&
+      !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(input.value.toUpperCase())) {
+    showError(input, 'Invalid GST. Example: 22ABCDE0000A1Z5');
+    valid = false;
+  }
+
+    if (input.name === 'ifsc' && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(input.value.toUpperCase())) {
       showError(input, 'Invalid IFSC code');
       valid = false;
     }
+
   });
+  
+  const accountInput = form.querySelector('[name="account_number"]');
+  const confirmAccountInput = form.querySelector('[name="confirm_account_number"]');
+  if (accountInput && confirmAccountInput && accountInput.value !== confirmAccountInput.value) {
+    showError(confirmAccountInput, 'Account numbers do not match');
+    valid = false;
+  }
+
 
   return valid;
 }
-
 /* =====================
    NEXT / BACK BUTTONS
 ===================== */
@@ -204,6 +232,15 @@ btnNext2.addEventListener('click', () => {
   sliderLine2.classList.add('active');
   formIndicator3.classList.add('active');
 });
+if (btnNext3 && form3 && form4) {
+  btnNext3.addEventListener('click', () => {
+    if (!validateForm(form3)) return;
+    form3.style.left = '-500%';
+    form4.style.left = '0';
+    sliderLine3.classList.add('active');
+    formIndicator4.classList.add('active');
+  });
+}
 
 btnBack1.addEventListener('click', () => {
   form1.style.left = '0';
@@ -218,6 +255,15 @@ btnBack2.addEventListener('click', () => {
   sliderLine2.classList.remove('active');
   formIndicator3.classList.remove('active');
 });
+
+if (btnBack3 && form3 && form4) {
+  btnBack3.addEventListener('click', () => {
+    form3.style.left = '0';
+    form4.style.left = '500%';
+    sliderLine3.classList.remove('active');
+    formIndicator4.classList.remove('active');
+  });
+}
 
 
 $('#entity_type').on('change', function(){
