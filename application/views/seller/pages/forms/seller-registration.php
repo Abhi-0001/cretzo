@@ -4,225 +4,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cretzo - Seller Login</title>
+    <title>Cretzo - Seller Signup</title>
 
     <link
         href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=Poppins:wght@300;400&display=swap"
         rel="stylesheet">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Poppins', sans-serif;
-        }
-
-        body {
-            background: #fef8e8;
-            /* Matching the soft cream background */
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .login-container {
-            margin-top:3%;
-            background: white;
-            width: 900px;
-            display: flex;
-            padding: 60px;
-            border-radius: 8px;
-            /* Optional shadow for depth */
-            /* box-shadow: 0 10px 30px rgba(0,0,0,0.05); */
-        }
-
-        /* LEFT SECTION */
-        .brand-section {
-            flex: 1;
-            text-align: center;
-            padding-right: 40px;
-        }
-
-        .logo {
-            font-family: 'Playfair Display', serif;
-            font-size: 48px;
-            letter-spacing: -2px;
-        }
-
-        .logo span {
-            color: #E07A48;
-        }
-
-        .tagline {
-            font-family: 'Playfair Display', serif;
-            font-size: 18px;
-            margin-bottom: 30px;
-        }
-
-        .illustration img {
-            width: 100%;
-            max-width: 300px;
-            margin-bottom: 20px;
-        }
-
-        .mission-text {
-            font-family: 'Playfair Display', serif;
-            color: #5D6D5E;
-            /* Muted olive/grey tone */
-            font-size: 24px;
-            line-height: 1.2;
-        }
-
-        /* RIGHT SECTION */
-        .form-section {
-            flex: 1;
-            padding-left: 40px;
-        }
-
-        .form-title {
-            font-family: 'Playfair Display', serif;
-            font-size: 32px;
-            margin-bottom: 30px;
-        }
-
-        .input-group {
-            margin-bottom: 20px;
-        }
-
-        .input-group label {
-            font-family: 'Playfair Display', serif;
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 500;
-        }
-
-        .input-group input {
-            width: 100%;
-            padding: 12px;
-            border: 1.5px solid #333;
-            border-radius: 6px;
-            background: transparent;
-        }
-
-        .forgot-password {
-            text-align: right;
-            margin-top: 5px;
-        }
-
-        .forgot-password a {
-            font-size: 13px;
-            color: #333;
-            text-decoration: none;
-        }
-
-        .btn-login {
-            width: 100%;
-            padding: 14px;
-            background-color: #E07A48;
-            color: white;
-            border: none;
-            border-radius: 25px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            margin-top: 10px;
-        }
-
-        .signup-prompt {
-            text-align: center;
-            margin-top: 20px;
-        }
-
-        .signup-prompt p {
-            font-size: 14px;
-            margin-bottom: 15px;
-        }
-
-        .btn-create {
-            width: 100%;
-            padding: 10px;
-            background: white;
-            border: 1.5px solid #333;
-            color: #E07A48;
-            font-weight: 600;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-        
-        .error-message {
-            color: #e74c3c;
-            font-size: 12px;
-            margin-top: 5px;
-            display: none;
-        }
-   
-
-        .login-container {
-            width: 900px;
-            background: #fff;
-            padding: 40px;
-            border-radius: 8px;
-            display: flex;
-        }
-
-        .form-section { width: 100%; }
-
-        .input-group {
-            margin-bottom: 15px;
-        }
-
-        input {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid #333;
-            border-radius: 6px;
-        }
-
-        .btn {
-            width: 100%;
-            padding: 12px;
-            background: #E07A48;
-            border: none;
-            color: #fff;
-            font-weight: bold;
-            border-radius: 25px;
-            cursor: pointer;
-        }
-
-        .send-otp {
-            font-size: 13px;
-            color: #E07A48;
-            cursor: pointer;
-            display: inline-block;
-            margin-top: 5px;
-        }
-
-        .error-message {
-            color: red;
-            font-size: 12px;
-            display: none;
-        }
-
-        .success-message {
-            color: green;
-            font-size: 12px;
-            display: none;
-        }
-
-        .step1, .step2 { display: none; }
-        .step1.active, .step2.active { display: block; }
-    </style>
+    <link rel="stylesheet" href="<?= base_url('assets/admin/css/seller-auth.css') ?>">
 </head>
 
-<body style="background:#fef8e8">
+<body>
 
     <div class="login-container">
         <div class="brand-section">
             <div class="logo-area">
-                <a href="/"><img src="<?= base_url() . $logo ?>"
-                        style="width: 350px;"></a>
-                <p class="tagline">Welcome to the zone of creativity</p>
+                <a href="/"><img src="<?= base_url() . $logo ?>" alt="Cretzo logo"></a>
             </div>
 
             <div class="illustration">
@@ -292,7 +87,7 @@
         </form>
 
             <div class="signup-prompt">
-                <p>Already have an account? <a href="<?= base_url('seller/auth/login') ?>" style="color: #ff9900ff; text-decoration: none;">Login</a></p>
+                <p>Already have an account? <a href="<?= base_url('seller/auth/login') ?>">Login</a></p>
             </div>
         </div>
 
@@ -493,8 +288,10 @@ $(document).ready(function () {
             $("#phone_verified").val('1');
             $("#firebase_uid").val(user.uid || '');
             $("#firebase_phone").val(user.phoneNumber || $('#mobile').val());
+            $(".error-message").hide();
             $(".step1").removeClass("active");
             $(".step2").addClass("active");
+            $("#password").focus();
         }).catch(function (error) {
             $(".error_otp").text(error.message || 'Invalid OTP').show();
         });

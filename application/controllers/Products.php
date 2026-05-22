@@ -306,6 +306,20 @@ class Products extends CI_Controller
         $order = 'ASC';
         $brands = $this->brand_model->get_brands('', $limit = NULL, $offset, $sort, $order, 'false');
 
+        // If $category_slug is empty (possible on some server configs),
+        // try to extract a non-numeric slug from URI segments as a fallback.
+        if (empty($category_slug)) {
+            $segments = $this->uri->segment_array();
+            foreach ($segments as $seg) {
+                if (empty($seg)) continue;
+                $seg = urldecode($seg);
+                if (!is_numeric($seg) && $seg !== 'products' && $seg !== 'category') {
+                    $category_slug = $seg;
+                    break;
+                }
+            }
+        }
+
         $category_id = get_category_id_by_slug($category_slug);
         if (empty($category_id)) {
             redirect(base_url('products'));

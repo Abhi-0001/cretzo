@@ -557,8 +557,66 @@ search_products.on("select2:select", function (e) {
                     
                     r.removeAttr("disabled"); */
 
-                    /* we have decided to simply reload the page */
-                    csrfName = e.csrfName, csrfHash = e.csrfHash, location.reload();
+                    /* Update UI in-place (no reload) */
+                    csrfName = e.csrfName;
+                    csrfHash = e.csrfHash;
+
+                    // Toggle button state if present
+                    try {
+                        // buttons that carry an <i> icon and a <span>
+                        var t_i = r.find('i');
+                        var t_span = r.find('span');
+
+                        if (t_i && t_i.length) {
+                            if (t_i.hasClass('fa-heart-o')) {
+                                t_i.removeClass('fa-heart-o').addClass('fa-heart');
+                                t_i.css('color', 'red');
+                            } else if (t_i.hasClass('fa-heart')) {
+                                t_i.removeClass('fa-heart').addClass('fa-heart-o');
+                                t_i.css('color', '');
+                            }
+                        }
+
+                        // toggle classes for text buttons
+                        if (r.hasClass('add-fav')) {
+                            r.removeClass('add-fav').addClass('remove-fav');
+                            if (t_span && t_span.length) t_span.text('Remove from Wishlist');
+                        } else if (r.hasClass('remove-fav')) {
+                            r.removeClass('remove-fav').addClass('add-fav');
+                            if (t_span && t_span.length) t_span.text('Wishlist');
+                        }
+
+                        // For simple heart anchors (fa icons without span)
+                        if (r.hasClass('fa-heart-o')) {
+                            r.removeClass('fa-heart-o').addClass('fa-heart').css('color', 'red');
+                        } else if (r.hasClass('fa-heart')) {
+                            r.removeClass('fa-heart').addClass('fa-heart-o').css('color', '');
+                        }
+
+                        // Update wishlist count badges in header (if present)
+                        try {
+                            var $count = $('.icon-num, .icon-num-m').not('#cart-count').not('.cart-count').not('.cart-count-checked');
+                            if ($count && $count.length && typeof e.total !== 'undefined') {
+                                $count.text(e.total);
+                            } else if ($count && $count.length) {
+                                // best-effort: increment/decrement based on message
+                                var cur = parseInt($count.first().text()) || 0;
+                                var delta = /added|added to favorite|added to favorites/i.test(e.message) ? 1 : (/removed/i.test(e.message) ? -1 : 0);
+                                cur = Math.max(0, cur + delta);
+                                $count.text(cur);
+                            }
+                        } catch (ex) { /* ignore */ }
+
+                    } catch (ex) { /* non-fatal UI update error */ }
+
+                    // show success toast
+                    Toast.fire({
+                        icon: 'success',
+                        title: e.message || 'Wishlist updated'
+                    });
+
+                    // restore button state
+                    r.removeAttr('disabled');
 
                     /* if (r.hasClass("fa-heart-o")) {
                         r.removeClass("fa-heart-o");
