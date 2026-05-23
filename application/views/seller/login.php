@@ -34,19 +34,15 @@
 			<div class="input-group">
                     <label>Email and Mobile</label>
                     <input type="<?= $identity_column ?>" name="identity" id="mobile" placeholder="Enter Your <?= ucfirst($identity_column)  ?>" value="<?= (ALLOW_MODIFICATION == 0) ? '9988776655' : '' ?>" required>
+                    <span class="error-message error_identity"></span>
                 </div>
 
                 <div class="input-group">
                     <label>Password</label>
-                    <input type="password" name="password" id="password" placeholder="Enter Your Password" value="<?= (ALLOW_MODIFICATION == 0) ? '12345678' : '' ?>"	required>
-                    <span style="color:red">
-                        <?php if (isset($_GET['error']) && $_GET['error'] === 'true') { ?>
-                            Invalid Credentials
-                        <?php } ?>
-
-                        </span>
+                    <input type="password" name="password" id="password" placeholder="Enter Your Password" value="<?= (ALLOW_MODIFICATION == 0) ? '12345678' : '' ?>" required>
+                    <span class="error-message error_password"></span>
                     <div class="forgot-password">
-                        <a href="<?= base_url('/seller/login/forgot_password') ?>">Forgot Password ?</a>
+                        <a href="<?= base_url('/seller/login/forgot_password') ?>">Forgot Password?</a>
                     </div>
                 </div>
 
@@ -63,10 +59,50 @@
     </div>
 
 </body>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
-	function signupPage() {
-		window.location.href = "<?= base_url('seller/auth/sign_up') ?>";
-	}
+    function signupPage() {
+        window.location.href = "<?= base_url('seller/auth/sign_up') ?>";
+    }
+
+    $(document).ready(function() {
+        // Show error from URL parameter
+        <?php if (isset($_GET['error']) && $_GET['error'] === 'true') { ?>
+            $(".error_identity").addClass('show').text("Invalid credentials. Please try again.");
+            $("#mobile").focus();
+        <?php } ?>
+
+        // Clear errors on input
+        $("#mobile, #password").on('input', function() {
+            $(".error-message").removeClass('show').text('');
+        });
+
+        // Form validation
+        $(".form-submit-event").submit(function(e) {
+            let identity = $("#mobile").val().trim();
+            let password = $("#password").val().trim();
+            let hasError = false;
+
+            $(".error-message").removeClass('show').text('');
+
+            if (identity.length === 0) {
+                $(".error_identity").addClass('show').text("Mobile number or email is required");
+                $("#mobile").focus();
+                hasError = true;
+            }
+
+            if (password.length === 0) {
+                $(".error_password").addClass('show').text("Password is required");
+                if (!hasError) $("#password").focus();
+                hasError = true;
+            }
+
+            if (hasError) {
+                e.preventDefault();
+                return false;
+            }
+        });
+    });
 </script>
 </html>
 

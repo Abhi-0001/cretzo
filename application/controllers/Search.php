@@ -90,10 +90,7 @@ class Search extends CI_Controller
         $products = $this->db->select('p.id, p.name, p.slug, c.name as category_name')
             ->from('products p')
             ->join('categories c', 'c.id = p.category_id', 'left')
-            ->group_start()
             ->like('p.name', $search_term)
-            ->or_like('c.name', $search_term)
-            ->group_end()
             ->where('p.status', 1)
             ->where('c.status', 1)
             ->order_by('p.name', 'ASC')
@@ -106,8 +103,28 @@ class Search extends CI_Controller
                 'id' => 'p-' . $row['id'],
                 'type' => 'product',
                 'name' => $row['name'],
-                'meta' => !empty($row['category_name']) ? 'Product in ' . $row['category_name'] : 'Product',
+                'meta' => '',
                 'url' => base_url('products/details/' . $row['slug'])
+            ];
+        }
+
+        // Brands
+        $brands = $this->db->select('id, name, slug')
+            ->from('brands')
+            ->like('name', $search_term)
+            ->where('status', 1)
+            ->order_by('name', 'ASC')
+            ->limit($limit)
+            ->get()
+            ->result_array();
+
+        foreach ($brands as $brand) {
+            $results[] = [
+                'id' => 'b-' . $brand['id'],
+                'type' => 'brand',
+                'name' => $brand['name'],
+                'meta' => '',
+                'url' => base_url('products/brand/' . $brand['slug'])
             ];
         }
 

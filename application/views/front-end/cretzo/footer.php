@@ -637,18 +637,12 @@ $(document).ready(function () {
 
             $.each(data, function (index, item) {
                 const rawName = String(item.name || '');
-                const displayName = rawName.replace(/[0-9]/g, '').replace(/\s+/g, ' ').trim();
-                const safeName = rawName.replace(/"/g, '&quot;');
-                const safeDisplayName = (displayName.length ? displayName : rawName).replace(/"/g, '&quot;');
-                const rawMeta = String(item.meta || '');
-                const displayMeta = rawMeta.replace(/[0-9]/g, '').replace(/\s+/g, ' ').trim();
-                const safeMeta = (displayMeta.length ? displayMeta : rawMeta).replace(/"/g, '&quot;');
+                const safeName = rawName.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
                 const safeUrl = String(item.url || '').replace(/"/g, '&quot;');
 
                 html += `
                     <div class="search-item text-n mega-list-item" onclick="selectSuggestion(&quot;${safeName}&quot;,&quot;${safeUrl}&quot;)">
-                        <div>${safeDisplayName}</div>
-                        <small class="text-muted">${safeMeta}</small>
+                        <div>${safeName}</div>
                     </div>
                 `;
             });

@@ -46,7 +46,7 @@ $auth_settings = get_settings('authentication_settings', true);
 /* Each suggestion */
 .search-item {
     color:black;
-    padding: 5px;
+    /* padding: 5px; */
     padding-left:30px;
     cursor: pointer;
     border-bottom: 1px solid #eee;

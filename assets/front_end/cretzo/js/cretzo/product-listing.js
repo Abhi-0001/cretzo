@@ -95,6 +95,12 @@ function updateURL() {
         params.push('per-page=' + currentPerPage);
     }
 
+    // Include sort parameter if a value is set (skip if the option has no 'value' attribute)
+    var sortAttr = $('#product_sort_by').find('option:selected').attr('value');
+    if (typeof sortAttr !== 'undefined' && sortAttr !== null && sortAttr !== '') {
+        params.push('sort=' + sortAttr);
+    }
+
     if (params.length > 0) {
         url += '?' + params.join('&');
     }
@@ -162,6 +168,29 @@ $(document).ready(function() {
         }
     });
 
+    // Sort by change - ensure no other handlers cause a full page reload.
+    (function() {
+        var $sort = $('#product_sort_by');
+        if (!$sort.length) return;
+
+        // Preserve current selection
+        var currentVal = $sort.val();
+
+        // Replace the element with a clone without event listeners (removes other handlers)
+        var $clone = $sort.clone(false);
+        $sort.replaceWith($clone);
+
+        var $newSort = $('#product_sort_by');
+        $newSort.val(currentVal);
+
+        // Bind our AJAX handler only
+        $newSort.on('change.cretzo', function(e) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            updateURL();
+        });
+    })();
+
     // Add event listener for tapping on #bg-overlay
     $('#bg-overlay').on('click', function() {
         // Hide background overlay
@@ -170,6 +199,70 @@ $(document).ready(function() {
 
         // Remove active class from filter-container
         $('.filter-container').removeClass('active');
+    });
+
+    // Override wishlist handler to prevent stale UI state and ensure red heart toggles correctly
+    $(document).off('click', '#add_to_favorite_btn');
+    $(document).on('click', '#add_to_favorite_btn', function(e) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+
+        var $button = $(this);
+        var $icon = $button.find('.heart-icon');
+        var $label = $button.find('span');
+        var productId = $button.data('product-id');
+        var originalText = $label.text().trim() || 'Wishlist';
+
+        var formData = new FormData();
+        formData.append(csrfName, csrfHash);
+        formData.append('product_id', productId);
+
+        $button.attr('disabled', true);
+        $label.text('Please wait');
+
+        $.ajax({
+            type: 'POST',
+            url: base_url + 'my-account/manage-favorites',
+            data: formData,
+            cache: false,
+            contentType: false,
+            processData: false,
+            dataType: 'json',
+            success: function(response) {
+                csrfName = response.csrfName;
+                csrfHash = response.csrfHash;
+
+                if (response.error == 1) {
+                    $label.text(originalText);
+                    $button.attr('disabled', false);
+                    if (typeof Toast !== 'undefined') {
+                        Toast.fire({ icon: 'error', title: response.message });
+                    }
+                    return;
+                }
+
+                // Toggle heart icon classes and color
+                if ($icon.hasClass('fa-heart-o')) {
+                    $icon.removeClass('fa-heart-o').addClass('fa-heart').css('color', 'red');
+                    $button.addClass('is-fav');
+                    $button.data('is-fav', 'true');
+                } else {
+                    $icon.removeClass('fa-heart').addClass('fa-heart-o').css('color', '');
+                    $button.removeClass('is-fav');
+                    $button.data('is-fav', 'false');
+                }
+
+                $label.text(originalText);
+                $button.attr('disabled', false);
+            },
+            error: function() {
+                $label.text(originalText);
+                $button.attr('disabled', false);
+                if (typeof Toast !== 'undefined') {
+                    Toast.fire({ icon: 'error', title: 'Unable to update wishlist. Please try again.' });
+                }
+            }
+        });
     });
 
     /* Setup Price Filter */
