@@ -1,0 +1,213 @@
+body {
+    background-color: #fef8e8;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    font-family: 'Poppins', sans-serif;
+    margin: 0;
+    padding: 50px 0;
+}
+
+.login-container {
+    margin: 0;
+    background: #ffffff;
+    width: 900px;
+    max-width: 100%;
+    display: flex;
+    padding: 60px;
+    border-radius: 12px;
+    box-sizing: border-box;
+}
+
+.brand-section {
+    flex: 1;
+    text-align: center;
+    padding-right: 40px;
+}
+
+.logo-area {
+    display: inline-block;
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.logo-area img {
+    width: 340px;
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+}
+
+.tagline {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px;
+    margin-top: 20px;
+    margin-bottom: 30px;
+}
+
+.illustration img {
+    width: 100%;
+    max-width: 300px;
+    margin: 0 auto 20px;
+    display: block;
+}
+
+.mission-text {
+    font-family: 'Playfair Display', serif;
+    color: #5d6d5e;
+    font-size: 24px;
+    line-height: 1.3;
+    margin-top: 0;
+}
+
+.form-section {
+    flex: 1;
+    padding-left: 40px;
+}
+
+.form-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 32px;
+    margin-bottom: 30px;
+}
+
+.input-group {
+    margin-bottom: 20px;
+}
+
+.input-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+.input-group input,
+.form-control,
+.btn {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.step1,
+.step2 {
+    display: none;
+}
+
+.step1.active,
+.step2.active {
+    display: block;
+}
+
+.input-group input {
+    padding: 12px;
+    border: 1.5px solid #333;
+    border-radius: 6px;
+    background: transparent;
+}
+
+.btn {
+    width: 100%;
+    padding: 14px;
+    font-size: 16px;
+    font-weight: 600;
+    border-radius: 25px;
+    cursor: pointer;
+    border: none;
+    background-color: #e07a48;
+    color: #ffffff;
+    display: inline-block;
+}
+
+.send-otp {
+    display: inline-block;
+    margin-top: 8px;
+    color: #e07a48;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.success-message {
+    color: #2ecc71;
+    font-size: 12px;
+    margin-top: 5px;
+    display: none;
+}
+
+.forgot-password {
+    text-align: right;
+    margin-top: 5px;
+}
+
+.forgot-password a {
+    font-size: 13px;
+    color: #333;
+    text-decoration: none;
+}
+
+.btn-login,
+.btn-create,
+.btn-signin {
+    width: 100%;
+    padding: 14px;
+    font-size: 16px;
+    font-weight: 600;
+    border-radius: 25px;
+    cursor: pointer;
+    border: none;
+}
+
+.btn-login,
+.btn-signin {
+    background-color: #e07a48;
+    color: #ffffff;
+}
+
+.btn-create {
+    background: #ffffff;
+    border: 1.5px solid #333;
+    color: #e07a48;
+}
+
+.signup-prompt {
+    text-align: center;
+    margin-top: 20px;
+}
+
+.signup-prompt p {
+    font-size: 14px;
+    margin-bottom: 15px;
+}
+
+.signup-prompt a {
+    color: #ff9900;
+    text-decoration: none;
+}
+
+.signup-prompt a:hover {
+    text-decoration: underline;
+}
+
+.error-message {
+    color: #e74c3c;
+    font-size: 12px;
+    margin-top: 5px;
+    display: none;
+}
+
+@media (max-width: 980px) {
+    .login-container {
+        flex-direction: column;
+        padding: 30px;
+    }
+
+    .brand-section,
+    .form-section {
+        padding: 0;
+    }
+
+    .form-section {
+        margin-top: 30px;
+    }
+}

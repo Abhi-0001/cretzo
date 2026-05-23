@@ -78,7 +78,7 @@ defined('BASEPATH') or exit('No direct script access allowed');
 function create_unique_slug($string, $table, $field = 'slug', $key = NULL, $value = NULL)
 {
     $t = &get_instance();
-    $slug = url_title($string);
+    $slug = url_title($string ?? '', '-', TRUE);
     $slug = strtolower($slug);
     $i = 0;
     $params = array();
@@ -3262,9 +3262,31 @@ function get_category_id_by_slug($slug)
 {
     $t = &get_instance();
     $slug = urldecode($slug);
-    return $t->db->select("id")
+    // Try exact match first
+    $res = $t->db->select('id')
         ->where('slug', $slug)
-        ->get('categories')->row_array()['id'];
+        ->get('categories')->row_array();
+
+    // Fallback: try rawurldecode (in case of different encoding)
+    if (empty($res)) {
+        $alt = rawurldecode($slug);
+        if ($alt !== $slug) {
+            $res = $t->db->select('id')->where('slug', $alt)->get('categories')->row_array();
+        }
+    }
+
+    // Fallback: case-insensitive match
+    if (empty($res)) {
+        $res = $t->db->select('id')->where("LOWER(slug)", strtolower($slug), FALSE)->get('categories')->row_array();
+    }
+
+    if (!empty($res) && isset($res['id'])) {
+        return $res['id'];
+    }
+
+    // Log missing slug for production debugging
+    log_message('error', "get_category_id_by_slug: slug not found [$slug] on " . current_url());
+    return null;
 }
 
 function get_variant_attributes($product_id)
