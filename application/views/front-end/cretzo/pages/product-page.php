@@ -425,46 +425,46 @@
 
                 <?php if (isset($product['product'][0]['cod_allowed']) && !empty($product['product'][0]['cod_allowed']) && $product['product'][0]['cod_allowed'] == 1) {  ?>
                     <div class="shipping-option">
-                        <img class="ship-icon h-6 lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= base_url('assets/front_end/classic/images/cod_logo.png') ?>">
+                        <img class="ship-icon h-6 lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" src="<?= base_url('assets/front_end/classic/images/cod_logo.png') ?>"
                         <p class="text-n">COD</p>
                     </div>
                 <?php } ?>
 
                 <?php if (isset($product['product'][0]['is_cancelable']) && !empty($product['product'][0]['is_cancelable']) && $product['product'][0]['is_cancelable'] == 1) {  ?>
                     <div class="shipping-option">
-                        <img class="ship-icon h-6 lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= base_url('assets/front_end/classic/images/cancelable.png') ?>">
+                        <img class="ship-icon h-6 lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" src="<?= base_url('assets/front_end/classic/images/cancelable_logo.png') ?>">
                         <p class="text-n">Cancelable <br> till<?= ' ' . $product['product'][0]['cancelable_till'] ?></p>
                     </div>
                 <?php } else { ?>
                     <div class="shipping-option">
-                        <img class="ship-icon h-6 lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= base_url('assets/front_end/classic/images/notcancelable.png') ?>">
+                        <img class="ship-icon h-6 lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" src="<?= base_url('assets/front_end/classic/images/_logo.png') ?>">
                         <p class="text-n">Not Cancellable</p>
                     </div>
                 <?php  } ?>
 
                 <?php if (isset($product['product'][0]['is_returnable']) && !empty($product['product'][0]['is_returnable']) && $product['product'][0]['is_returnable'] == 1) {  ?>
                     <div class="shipping-option">
-                        <img class="ship-icon h-6 lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= base_url('assets/front_end/classic/images/returnable.png') ?>">
+                        <img class="ship-icon h-6 lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" src="<?= base_url('assets/front_end/classic/images/returnable_logo.png') ?>">
                         <p class="text-n"><?= $settings['max_product_return_days'] ?> Days Returnable</p>
                     </div>
                 <?php } else { ?>
                     <div class="shipping-option">
-                        <img class="ship-icon h-6 lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= base_url('assets/front_end/classic/images/notreturnable.png') ?>">
+                        <img class="ship-icon h-6 lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" src="<?= base_url('assets/front_end/classic/images/notreturnable_logo.png') ?>">
                         <p class="text-n">Not Returnable</p>
                     </div>
                 <?php  } ?>
 
                 <?php if (isset($product['product'][0]['guarantee_period']) && !empty($product['product'][0]['guarantee_period'])) {  ?>
                     <div class="shipping-option">
-                        <img class="ship-icon h-6 lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= base_url('assets/front_end/classic/images/guarantee.png') ?>">
+                        <img class="ship-icon h-6 lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" src="<?= base_url('assets/front_end/classic/images/guarantee_logo.png') ?>">
                         <p class="text-n"><?= $product['product'][0]['guarantee_period'] ?> <br> Guarantee</p>
                     </div>
                 <?php } ?>
 
                 <?php if (isset($product['product'][0]['warranty_period']) && !empty($product['product'][0]['warranty_period'])) {  ?>
                     <div class="shipping-option">
-                        <img class="ship-icon h-6 lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= base_url('assets/front_end/classic/images/warranty.png') ?>">
-                        <p class="text-n"><?= $product['product'][0]['warranty_period'] ?> <br> Warranty</p>
+                        <img class="ship-icon h-6 lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" src="<?= base_url('assets/front_end/classic/images/warranty_logo.png') ?>">
+                        <p class="text-n"><?= $product['product'][0]['warranty_period'] ?> <br> Warranty</p>src="<?= base_url('assets/front_end/classic/images/warranty_logo.png') ?>"
                     </div>
                 <?php } ?>
 

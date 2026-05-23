@@ -2401,3 +2401,36 @@ position:absolute;
     position: relative !important;
     top: auto !important;
 }
+
+.modal,
+.popup,
+.cart-popup,
+.address-popup {
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    z-index: 99999 !important;
+}
+body {
+    margin: 0 !important;
+    overflow-x: hidden;
+}
+.product-img {
+    transition: transform 0.3s ease;
+}
+
+.project:hover .product-img {
+    transform: scale(1.08);
+}
+
+/* 🔥 CLEAN WHOLE CARD HOVER (NO IMAGE CHANGE) */
+
+.product-card {
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.product-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 12px 30px rgba(0,0,0,0.12);
+}
