@@ -119,6 +119,45 @@
                     </div>
                 </div>
                 
+                  <?php if (isset($subscription_status) && $subscription_status === 'active' && !empty($current_subscription_plan)) : ?>
+                    <div class="col-12">
+                        <div class="alert alert-warning d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>Current Plan:</strong>
+                                <?= html_escape($current_subscription_plan['name']); ?>
+                                <?php if (!empty($current_subscription_plan['validity'])) : ?>
+                                    <span class="ml-2 badge badge-light"><?= html_escape($current_subscription_plan['validity']); ?></span>
+                                <?php endif; ?>
+                                <?php if (!empty($active_subscription['end_date'])) : ?>
+                                    <span class="ml-2 text-sm text-muted">
+                                        (Valid till <?= date('d M Y', strtotime($active_subscription['end_date'])); ?>)
+                                    </span>
+                                <?php endif; ?>
+                            </div>
+                            <a href="<?= base_url('seller/subscription/manage_subscriptions'); ?>" class="btn btn-sm btn-dark">
+                                Manage / Upgrade Plan
+                            </a>
+                        </div>
+                    </div>
+                <?php elseif (isset($subscription_status) && $subscription_status === 'expired' && !empty($current_subscription_plan)) : ?>
+                    <div class="col-12">
+                        <div class="alert alert-danger d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>Subscription expired:</strong>
+                                <?= html_escape($current_subscription_plan['name']); ?>
+                                <?php if (!empty($subscription_expired_on)) : ?>
+                                    <span class="ml-2">
+                                        (Expired on <?= html_escape($subscription_expired_on); ?>)
+                                    </span>
+                                <?php endif; ?>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-light" data-toggle="modal" data-target="#subscription_modal">
+                                Renew / Upgrade
+                            </button>
+                        </div>
+                    </div>
+                <?php endif; ?>
+                
                 <div class="col-12">
                     <div class="card pull-up">
                         <div class="card-body">
