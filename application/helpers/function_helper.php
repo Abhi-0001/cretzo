@@ -388,7 +388,7 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
         $t->db->order_by('cal_discount_percentage', 'DESC');
     } else {
         $t->db->order_by('has_subscription', 'DESC');
-        if ($sort != null || $order != null && $sort != 'pv.price') {
+        if ($sort != null && $sort != 'pv.price') {
             $t->db->order_by($sort, $order);
         }
         $t->db->order_by('p.row_order', 'ASC');
@@ -2513,8 +2513,10 @@ function fetch_orders($order_id = NULL, $user_id = NULL, $status = NULL, $delive
             
             
             if (isset($order_item_data[$k]['quantity']) && $order_item_data[$k]['quantity'] != 0) {
-                $price = $order_item_data[$k]['special_price'] != '' && $order_item_data[$k]['special_price'] != null && $order_item_data[$k]['special_price'] > 0 && $order_item_data[$k]['special_price'] < $order_item_data[$k]['main_price'] ? $order_item_data[$k]['special_price'] : $order_item_data[$k]['main_price'];
-                $amount = $order_item_data[$k]['quantity'] * $price;
+                $price = $order_item_data[$k]['special_price'] != '' && $order_item_data[$k]['special_price'] != null && is_numeric($order_item_data[$k]['special_price']) && $order_item_data[$k]['special_price'] > 0 && $order_item_data[$k]['special_price'] < $order_item_data[$k]['main_price'] ? $order_item_data[$k]['special_price'] : $order_item_data[$k]['main_price'];
+                $quantity = is_numeric($order_item_data[$k]['quantity']) ? (float)$order_item_data[$k]['quantity'] : 0;
+                $price = is_numeric($price) ? (float)$price : 0;
+                $amount = $quantity * $price;
             }
             if (!empty($order_item_data)) {
                 

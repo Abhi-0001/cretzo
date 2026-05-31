@@ -148,6 +148,33 @@
             margin-top: 30px;
             cursor: pointer;
         }
+
+        .features-list {
+            margin-top: 15px;
+            text-align: left;
+            padding-left: 20px;
+        }
+
+        .features-list li {
+            margin-bottom: 8px;
+        }
+
+        .hidden-features {
+            display: none;
+        }
+
+        .view-all-link {
+            color: var(--orange);
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 10px;
+            display: inline-block;
+            text-decoration: underline;
+        }
+
+        .view-all-link:hover {
+            text-decoration: none;
+        }
             </style>
 
             <div class="card">
@@ -186,12 +213,23 @@
                                                 $json = stripslashes($plan['features']);
                                                 $features = json_decode($json, true);
                                                 if (!empty($features)) :
+                                                    $total_features = count($features);
+                                                    $show_view_all = $total_features > 10;
                                             ?>
-                                                    <ul style="margin-top: 15px; text-align: left; padding-left: 20px;">
-                                                        <?php foreach ($features as $feature) : ?>
-                                                            <li><?= html_escape($feature['description']); ?></li>
+                                                    <ul class="features-list" id="features-plan-<?= (int) $plan['id']; ?>">
+                                                        <?php foreach ($features as $index => $feature) : 
+                                                            $is_hidden = $index >= 5 ? 'hidden-features' : '';
+                                                        ?>
+                                                            <li class="<?= $is_hidden; ?>">
+                                                                <?= html_escape($feature['description']); ?>
+                                                            </li>
                                                         <?php endforeach; ?>
                                                     </ul>
+                                                    <?php if ($show_view_all) : ?>
+                                                        <span class="view-all-link" onclick="toggleFeatures(<?= (int) $plan['id']; ?>, this)">
+                                                            View All Features
+                                                        </span>
+                                                    <?php endif; ?>
                                             <?php
                                                 endif;
                                             endif; ?>
@@ -418,6 +456,28 @@
                             $btn.prop('disabled', false).text('Change Plan');
                         }
                     });
+                }
+
+                function toggleFeatures(planId, element) {
+                    var featuresList = document.getElementById('features-plan-' + planId);
+                    if (!featuresList) return;
+
+                    var hiddenItems = featuresList.querySelectorAll('.hidden-features');
+                    var isExpanded = element.textContent.includes('Hide');
+
+                    if (isExpanded) {
+                        // Collapse
+                        hiddenItems.forEach(function (item) {
+                            item.style.display = 'none';
+                        });
+                        element.textContent = 'View All Features';
+                    } else {
+                        // Expand
+                        hiddenItems.forEach(function (item) {
+                            item.style.display = 'list-item';
+                        });
+                        element.textContent = 'Hide Features';
+                    }
                 }
             </script>
         </div>
