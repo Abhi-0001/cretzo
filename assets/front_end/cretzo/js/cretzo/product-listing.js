@@ -226,9 +226,13 @@ $(document).ready(function() {
             return;
         }
 
-        var $icon = $button.find('.heart-icon');
+        var $icon = $button.find('i.fa').first();
         var $label = $button.find('span');
-        var originalText = $label.text().trim() || 'Wishlist';
+        var addLabel = 'Add to Wishlist';
+        var removeLabel = 'Wishlist';
+        var isFavoriteBefore = $button.attr('data-is-fav') === 'true' || $icon.hasClass('fa-heart');
+        var isNowFavorite = !isFavoriteBefore;
+        var originalText = $label.text().trim() || (isFavoriteBefore ? removeLabel : addLabel);
 
         var formData = new FormData();
         formData.append(csrfName, csrfHash);
@@ -260,15 +264,12 @@ $(document).ready(function() {
                     return;
                 }
 
-                // Determine if product is now in favorites (toggle logic)
-                var isNowFavorite = $icon.hasClass('fa-heart-o'); // If it was outline, now will be filled
-
-                // Toggle heart icon classes and color
+                // Toggle heart icon classes and color based on current state
                 if (isNowFavorite) {
                     $icon.removeClass('fa-heart-o').addClass('fa-heart').css('color', 'red');
                     $button.addClass('is-fav').attr('data-is-fav', 'true');
                     if ($label.length) {
-                        $label.text('Remove from Wishlist');
+                        $label.text('Wishlist');
                     }
                     showToast('✓ Added to Wishlist', 'success');
                 } else {
@@ -282,8 +283,23 @@ $(document).ready(function() {
 
                 $button.attr('disabled', false);
 
-                // Update wishlist count if display element exists
-                updateWishlistCount();
+                // Determine new wishlist count from server if available, else apply delta
+                var serverCount = null;
+                if (typeof response.favorites_count !== 'undefined') {
+                    serverCount = response.favorites_count;
+                } else if (typeof response.favorite_count !== 'undefined') {
+                    serverCount = response.favorite_count;
+                } else if (response.data && typeof response.data.favorites_count !== 'undefined') {
+                    serverCount = response.data.favorites_count;
+                } else if (response.data && typeof response.data.favorite_count !== 'undefined') {
+                    serverCount = response.data.favorite_count;
+                }
+
+                if (serverCount !== null) {
+                    setWishlistCount(parseInt(serverCount, 10));
+                } else {
+                    updateWishlistCount(isNowFavorite ? 1 : -1);
+                }
             },
             error: function(jqXHR, textStatus, errorThrown) {
                 $button.attr('disabled', false);
@@ -297,26 +313,112 @@ $(document).ready(function() {
 
     // Helper function to show toast messages
     function showToast(message, type) {
-        if (typeof Toast !== 'undefined') {
+        var icon = type === 'success' ? 'success' : (type === 'error' ? 'error' : 'info');
+
+        if (typeof Toast !== 'undefined' && typeof Toast.fire === 'function') {
             Toast.fire({
-                icon: type === 'success' ? 'success' : (type === 'error' ? 'error' : 'info'),
+                icon: icon,
                 title: message
             });
-        } else if (typeof toastr !== 'undefined') {
-            toastr[type](message);
-        } else {
-            console.log('[Toast] ' + type.toUpperCase() + ': ' + message);
+            return;
         }
+
+        if (typeof Swal !== 'undefined' && typeof Swal.fire === 'function') {
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 3000,
+                timerProgressBar: true,
+                icon: icon,
+                title: message
+            });
+            return;
+        }
+
+        if (typeof toastr !== 'undefined') {
+            toastr[type](message);
+            return;
+        }
+
+        // Fallback: inject a simple top-right toast container and show a minimal message
+        var container = document.getElementById('custom-toast-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'custom-toast-container';
+            container.style.position = 'fixed';
+            container.style.top = '20px';
+            container.style.right = '20px';
+            container.style.zIndex = '99999';
+            container.style.display = 'flex';
+            container.style.flexDirection = 'column';
+            container.style.gap = '10px';
+            document.body.appendChild(container);
+        }
+
+        var toast = document.createElement('div');
+        toast.style.minWidth = '220px';
+        toast.style.padding = '10px 14px';
+        toast.style.borderRadius = '8px';
+        toast.style.boxShadow = '0 5px 14px rgba(0,0,0,0.15)';
+        toast.style.color = '#fff';
+        toast.style.fontSize = '14px';
+        toast.style.lineHeight = '1.4';
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+        toast.style.transform = 'translateX(20px)';
+
+        if (type === 'success') {
+            toast.style.background = '#28a745';
+        } else if (type === 'error') {
+            toast.style.background = '#dc3545';
+        } else {
+            toast.style.background = '#333';
+        }
+
+        toast.textContent = message;
+        container.appendChild(toast);
+
+        requestAnimationFrame(function() {
+            toast.style.opacity = '1';
+            toast.style.transform = 'translateX(0)';
+        });
+
+        setTimeout(function() {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(20px)';
+            setTimeout(function() {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+                if (container.childNodes.length === 0 && container.parentNode) {
+                    container.parentNode.removeChild(container);
+                }
+            }, 250);
+        }, 3200);
     }
 
     // Helper function to update wishlist count
-    function updateWishlistCount() {
-        // Look for wishlist count element and update if needed
-        var countElement = $('[data-wishlist-count]');
+    function updateWishlistCount(delta) {
+        var countElement = $('[data-wishlist-count], #wishlist-count');
         if (countElement.length > 0) {
-            var currentCount = parseInt(countElement.text()) || 0;
-            // Note: This is a simple implementation; in production, fetch from server
-            countElement.text(currentCount);
+            countElement.each(function() {
+                var currentCount = parseInt($(this).text()) || 0;
+                var updated = currentCount + (parseInt(delta, 10) || 0);
+                if (updated < 0) {
+                    updated = 0;
+                }
+                $(this).text(updated);
+            });
+        }
+    }
+
+    function setWishlistCount(value) {
+        var countElement = $('[data-wishlist-count], #wishlist-count');
+        if (countElement.length > 0) {
+            countElement.each(function() {
+                $(this).text(parseInt(value, 10) || 0);
+            });
         }
     }
 
