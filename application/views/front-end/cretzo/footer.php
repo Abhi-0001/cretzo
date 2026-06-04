@@ -270,7 +270,7 @@ $system_settings = get_settings('system_settings', true); ?>
                                 <?php if ((true || !empty($system_settings['google_login']) && $system_settings['google_login'] == 1) || (!empty($system_settings['facebook_login']) && $system_settings['facebook_login'] == 1)) { ?>
                                     <div class="login-with-container">
                                         <?php if (true || !empty($system_settings['google_login']) && ($system_settings['google_login'] == 1 || $system_settings['google_login'] == '1')) { ?>
-                                            <a href="#" id="googleLogin" class="text-decoration-none">
+                                            <a href="#" class="text-decoration-none social-auth-link" data-auth-provider="google">
                                                 <div class="media-container">
                                                     <img class="media-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/google-icon.jpg') ?>">
                                                     <p class="text-s">Sign in with Google</p>
@@ -278,7 +278,7 @@ $system_settings = get_settings('system_settings', true); ?>
                                             </a>
                                         <?php } ?>
                                         <?php if (true || !empty($system_settings['facebook_login']) && ($system_settings['facebook_login'] == 1 || $system_settings['facebook_login'] == '1')) { ?>
-                                            <a href="#" id="facebookLogin" class="text-decoration-none">
+                                            <a href="#" class="text-decoration-none social-auth-link" data-auth-provider="facebook">
                                                 <div class="media-container">
                                                     <img class="media-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/facebook-icon.jpg') ?>">
                                                     <p class="text-s">Login with Facebook</p>
@@ -408,7 +408,7 @@ $system_settings = get_settings('system_settings', true); ?>
                                 <?php if ((true || !empty($system_settings['google_login']) && $system_settings['google_login'] == 1) || (!empty($system_settings['facebook_login']) && $system_settings['facebook_login'] == 1)) { ?>
                                     <div class="login-with-container mt-3">
                                         <?php if (true || !empty($system_settings['google_login']) && ($system_settings['google_login'] == 1 || $system_settings['google_login'] == '1')) { ?>
-                                            <a href="#" id="googleLogin" class="text-decoration-none">
+                                            <a href="#" class="text-decoration-none social-auth-link" data-auth-provider="google">
                                                 <div class="media-container">
                                                     <img class="media-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/google-icon.jpg') ?>">
                                                     <p class="text-s">Signup in with Google</p>
@@ -416,7 +416,7 @@ $system_settings = get_settings('system_settings', true); ?>
                                             </a>
                                         <?php } ?>
                                         <?php if (true || !empty($system_settings['facebook_login']) && ($system_settings['facebook_login'] == 1 || $system_settings['facebook_login'] == '1')) { ?>
-                                            <a href="#" id="facebookLogin" class="text-decoration-none">
+                                            <a href="#" class="text-decoration-none social-auth-link" data-auth-provider="facebook">
                                                 <div class="media-container">
                                                     <img class="media-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/facebook-icon.jpg') ?>">
                                                     <p class="text-s">Signup with Facebook</p>
