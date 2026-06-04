@@ -201,16 +201,33 @@ $(document).ready(function() {
         $('.filter-container').removeClass('active');
     });
 
-    // Override wishlist handler to prevent stale UI state and ensure red heart toggles correctly
+    // Override wishlist handler with login check, toast messages, and proper UI management
     $(document).off('click', '#add_to_favorite_btn');
     $(document).on('click', '#add_to_favorite_btn', function(e) {
         e.preventDefault();
         e.stopImmediatePropagation();
 
         var $button = $(this);
+        var productId = $button.data('product-id');
+
+        // Check if user is logged in using the hidden input
+        var isLoggedIn = parseInt($('#is_loggedin').val()) === 1;
+        
+        if (!isLoggedIn) {
+            // Show login modal/popup
+            var loginModal = $('#modal-signin') || $('#login_modal') || document.querySelector('[data-bs-toggle="modal"][href="#login"]');
+            if (loginModal && loginModal.length > 0) {
+                $(loginModal).modal('show');
+            } else if (loginModal = document.getElementById('modal-signin')) {
+                var modal = new (typeof bootstrap !== 'undefined' ? bootstrap.Modal : Object)(loginModal);
+                modal.show();
+            }
+            showToast('Please login to add items to wishlist', 'info');
+            return;
+        }
+
         var $icon = $button.find('.heart-icon');
         var $label = $button.find('span');
-        var productId = $button.data('product-id');
         var originalText = $label.text().trim() || 'Wishlist';
 
         var formData = new FormData();
@@ -218,7 +235,9 @@ $(document).ready(function() {
         formData.append('product_id', productId);
 
         $button.attr('disabled', true);
-        $label.text('Please wait');
+        if ($label.length) {
+            $label.text('Please wait...');
+        }
 
         $.ajax({
             type: 'POST',
@@ -232,38 +251,74 @@ $(document).ready(function() {
                 csrfName = response.csrfName;
                 csrfHash = response.csrfHash;
 
-                if (response.error == 1) {
-                    $label.text(originalText);
+                if (response.error == 1 || response.error === true) {
                     $button.attr('disabled', false);
-                    if (typeof Toast !== 'undefined') {
-                        Toast.fire({ icon: 'error', title: response.message });
+                    if ($label.length) {
+                        $label.text(originalText);
                     }
+                    showToast(response.message, 'error');
                     return;
                 }
 
+                // Determine if product is now in favorites (toggle logic)
+                var isNowFavorite = $icon.hasClass('fa-heart-o'); // If it was outline, now will be filled
+
                 // Toggle heart icon classes and color
-                if ($icon.hasClass('fa-heart-o')) {
+                if (isNowFavorite) {
                     $icon.removeClass('fa-heart-o').addClass('fa-heart').css('color', 'red');
-                    $button.addClass('is-fav');
-                    $button.data('is-fav', 'true');
+                    $button.addClass('is-fav').attr('data-is-fav', 'true');
+                    if ($label.length) {
+                        $label.text('Remove from Wishlist');
+                    }
+                    showToast('✓ Added to Wishlist', 'success');
                 } else {
                     $icon.removeClass('fa-heart').addClass('fa-heart-o').css('color', '');
-                    $button.removeClass('is-fav');
-                    $button.data('is-fav', 'false');
+                    $button.removeClass('is-fav').attr('data-is-fav', 'false');
+                    if ($label.length) {
+                        $label.text(originalText);
+                    }
+                    showToast('✓ Removed from Wishlist', 'success');
                 }
 
-                $label.text(originalText);
                 $button.attr('disabled', false);
+
+                // Update wishlist count if display element exists
+                updateWishlistCount();
             },
-            error: function() {
-                $label.text(originalText);
+            error: function(jqXHR, textStatus, errorThrown) {
                 $button.attr('disabled', false);
-                if (typeof Toast !== 'undefined') {
-                    Toast.fire({ icon: 'error', title: 'Unable to update wishlist. Please try again.' });
+                if ($label.length) {
+                    $label.text(originalText);
                 }
+                showToast('Unable to update wishlist. Please try again.', 'error');
             }
         });
     });
+
+    // Helper function to show toast messages
+    function showToast(message, type) {
+        if (typeof Toast !== 'undefined') {
+            Toast.fire({
+                icon: type === 'success' ? 'success' : (type === 'error' ? 'error' : 'info'),
+                title: message
+            });
+        } else if (typeof toastr !== 'undefined') {
+            toastr[type](message);
+        } else {
+            console.log('[Toast] ' + type.toUpperCase() + ': ' + message);
+        }
+    }
+
+    // Helper function to update wishlist count
+    function updateWishlistCount() {
+        // Look for wishlist count element and update if needed
+        var countElement = $('[data-wishlist-count]');
+        if (countElement.length > 0) {
+            var currentCount = parseInt(countElement.text()) || 0;
+            // Note: This is a simple implementation; in production, fetch from server
+            countElement.text(currentCount);
+        }
+    }
 
     /* Setup Price Filter */
     const rangeInput = document.querySelectorAll(".range-input input"),
