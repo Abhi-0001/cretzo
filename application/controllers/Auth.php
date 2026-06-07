@@ -317,6 +317,130 @@ class Auth extends CI_Controller
         redirect('auth/login');
     }
 
+    /**
+     * Generic social login endpoint for client-side OAuth (Firebase)
+     * Accepts POST: provider, uid, name, email, photo
+     * Creates account if not exists, or logs in existing account by email
+     */
+    public function social_login()
+    {
+        if (!$this->input->is_ajax_request()) {
+            show_error('Invalid request');
+            return;
+        }
+
+        $provider = $this->input->post('provider', true);
+        $uid = $this->input->post('uid', true);
+        $name = $this->input->post('name', true);
+        $email = $this->input->post('email', true);
+        $photo = $this->input->post('photo', true);
+
+        $response = [
+            'error' => true,
+            'csrfName' => $this->security->get_csrf_token_name(),
+            'csrfHash' => $this->security->get_csrf_hash(),
+            'message' => 'Invalid social login data.'
+        ];
+
+        if (empty($provider) || empty($uid)) {
+            echo json_encode($response);
+            return;
+        }
+
+        // Try find existing user by email (preferred) or by provider id column
+        $existing = null;
+        if (!empty($email)) {
+            $this->ion_auth->clear_messages();
+            $existing = $this->ion_auth->where('email', $email)->users()->row();
+        }
+
+        // If not found by email, try provider-specific column
+        $tables = $this->config->item('tables', 'ion_auth');
+        $users_table = isset($tables['login_users']) ? $tables['login_users'] : 'users';
+        $provider_col = $provider . '_id'; // e.g., facebook_id, google_id
+        if (!$existing && $this->db->field_exists($provider_col, $users_table)) {
+            $existing = $this->db->where($provider_col, $uid)->get($users_table)->row();
+        }
+
+        if ($existing) {
+            // login existing user
+            $this->session->set_userdata([
+                'user_id' => $existing->id,
+                'user_name' => isset($existing->first_name) ? trim($existing->first_name . ' ' . $existing->last_name) : (isset($existing->username) ? $existing->username : ''),
+                'email' => isset($existing->email) ? $existing->email : '',
+                'logged_in' => TRUE,
+            ]);
+
+            $response['error'] = false;
+            $response['message'] = 'Logged in successfully.';
+            echo json_encode($response);
+            return;
+        }
+
+        // Create new user
+        $identity_column = $this->config->item('identity', 'ion_auth');
+        if ($identity_column === 'email' && empty($email)) {
+            $response['message'] = 'Email is required to create an account. Please sign up with email.';
+            echo json_encode($response);
+            return;
+        }
+
+        // Build identity and password
+        if ($identity_column === 'email') {
+            $identity = $email;
+        } else {
+            $identity = $provider . '_' . $uid;
+        }
+        $password = substr(md5(uniqid(rand(), true)), 0, 10);
+
+        // Split name into first/last
+        $first_name = $name;
+        $last_name = '';
+        if (!empty($name) && strpos($name, ' ') !== false) {
+            $parts = explode(' ', $name);
+            $first_name = array_shift($parts);
+            $last_name = implode(' ', $parts);
+        }
+
+        $additional_data = [
+            'first_name' => $first_name,
+            'last_name' => $last_name,
+        ];
+
+        $register = $this->ion_auth->register($identity, $password, $email, $additional_data);
+        if ($register) {
+            // find user and update provider id if column exists
+            $user = null;
+            if (!empty($email)) {
+                $user = $this->ion_auth->where('email', $email)->users()->row();
+            }
+            if (!$user) {
+                $user = $this->ion_auth->where($identity_column, $identity)->users()->row();
+            }
+
+            if ($user) {
+                if ($this->db->field_exists($provider_col, $users_table)) {
+                    $this->db->where('id', $user->id)->update($users_table, [$provider_col => $uid]);
+                }
+
+                $this->session->set_userdata([
+                    'user_id' => $user->id,
+                    'user_name' => isset($user->first_name) ? trim($user->first_name . ' ' . $user->last_name) : (isset($user->username) ? $user->username : ''),
+                    'email' => isset($user->email) ? $user->email : '',
+                    'logged_in' => TRUE,
+                ]);
+
+                $response['error'] = false;
+                $response['message'] = 'Account created and logged in.';
+                echo json_encode($response);
+                return;
+            }
+        }
+
+        $response['message'] = 'Unable to create user account.';
+        echo json_encode($response);
+    }
+
 
     /**
      * Change password

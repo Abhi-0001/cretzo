@@ -38,6 +38,30 @@ function facebookLogin() {
       localStorage.setItem('user_email', user.email);
       localStorage.setItem('user_name', user.displayName);
       localStorage.setItem('user_photo', user.photoURL);
+
+      // Notify server to create or login account (prevents duplicate accounts)
+      try {
+        var postData = {};
+        postData['provider'] = 'facebook';
+        postData['uid'] = user.uid;
+        postData['name'] = user.displayName || '';
+        postData['email'] = user.email || '';
+        postData['photo'] = user.photoURL || '';
+        postData[csrfName] = csrfHash;
+
+        fetch(base_url + 'auth/social_login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams(postData)
+        }).then(function(res){ return res.json(); }).then(function(sres){
+          if (sres && sres.error === false) {
+            // redirect to dashboard
+            setTimeout(function () { window.location.href = 'dashboard.php'; }, 800);
+          } else {
+            console.warn('Server social login failed', sres);
+          }
+        }).catch(function(err){ console.error('social_login request failed', err); });
+      } catch (e) { console.error(e); }
       
       // Show success message
       showAlert('success', 'Login successful! Redirecting...');
@@ -49,6 +73,11 @@ function facebookLogin() {
     })
     .catch((error) => {
       console.error('Facebook Login Error:', error);
+      // Fallback to redirect if popup is blocked or closed
+      if (error && (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user')) {
+        firebase.auth().signInWithRedirect(provider);
+        return;
+      }
       showAlert('error', 'Facebook login failed: ' + error.message);
     });
 }
@@ -79,6 +108,11 @@ function googleLogin() {
     })
     .catch((error) => {
       console.error('Google Login Error:', error);
+      // Fallback to redirect if popup is blocked or closed
+      if (error && (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user')) {
+        firebase.auth().signInWithRedirect(provider);
+        return;
+      }
       showAlert('error', 'Google login failed: ' + error.message);
     });
 }

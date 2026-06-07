@@ -39,7 +39,7 @@
                         <!-- Social Login Options -->
                         <div class="my-3">
                             <div class="text-center">
-                                    <a href="index.php/auth/facebook_login" class="btn btn-primary w-100 shadow-sm mb-3" style="border-radius: 8px; display:inline-block; padding:0.5rem 1rem; text-align:center;">
+                                    <a href="#" id="facebook-login-btn" class="btn btn-primary w-100 shadow-sm mb-3" style="border-radius: 8px; display:inline-block; padding:0.5rem 1rem; text-align:center;">
                                         <i class="bi bi-facebook"></i> Login with Facebook
                                     </a>
                                 </div>
