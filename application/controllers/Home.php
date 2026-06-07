@@ -665,7 +665,7 @@ class Home extends CI_Controller
 
     public function verifyUser()
     {
-        $this->form_validation->set_data($this->input->get());
+        $this->form_validation->set_data($this->input->post());
         $this->form_validation->set_rules('email', 'Mail', 'trim|required|xss_clean|valid_email');
         if (!$this->form_validation->run()) {
             $this->response['error'] = true;
@@ -673,7 +673,7 @@ class Home extends CI_Controller
             $this->response['data'] = array();
             print_r(json_encode($this->response));
         } else {
-            $user_data = fetch_details('users', ['email' => $_POST['email'], 'type' => $_POST['type']]);
+            $user_data = fetch_details('users', ['email' => $_POST['email']]);
             if (!empty($user_data)) {
                 $this->response['error'] = false;
                 $this->response['message'] = 'data retrived';

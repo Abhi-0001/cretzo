@@ -3594,6 +3594,13 @@ $(document).ready(function () {
                                             }, 120);
                                         }
                                     });
+                                } else {
+                                    setSocialButtonLoading('google', false);
+                                    toggleAuthLoading(false);
+                                    Toast.fire({
+                                        icon: 'error',
+                                        title: result.message || 'Email already exists. Please login with your existing account.'
+                                    });
                                 }
                             }
                         });
@@ -3694,6 +3701,13 @@ $(document).ready(function () {
                                                 location.reload();
                                             }, 120);
                                         }
+                                    });
+                                } else {
+                                    setSocialButtonLoading('facebook', false);
+                                    toggleAuthLoading(false);
+                                    Toast.fire({
+                                        icon: 'error',
+                                        title: result.message || 'Email already exists. Please login with your existing account.'
                                     });
                                 }
                             }

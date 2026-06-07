@@ -179,6 +179,23 @@
 
             <div class="card">
                 <div class="card-body subscription-page-body">
+                    <style>
+                        .cretzo-progress { display:flex; align-items:center; justify-content:center; gap:12px; margin-bottom:18px; font-size:20px }
+                        .cretzo-progress .step { color:#111; font-weight:600; padding:0 6px; }
+                        .cretzo-progress .step.active { color:#F28C38; font-weight:600; }
+                        .cretzo-progress .connector { width:160px; height:4px; border-radius:6px; }
+                        .cretzo-progress .connector.orange { background: repeating-linear-gradient(90deg, #F28C38 0 12px, transparent 12px 24px); }
+                        .cretzo-progress .connector.dark { background: repeating-linear-gradient(90deg, #222 0 12px, transparent 12px 24px); }
+                        @media(max-width:800px){ .cretzo-progress .connector{ width:80px } }
+                    </style>
+
+                    <div class="cretzo-progress" aria-hidden="true">
+                        <div class="step active">Choose Plan</div>
+                        <div class="connector orange" aria-hidden="true"></div>
+                        <div class="step">Payment</div>
+                        <div class="connector dark" aria-hidden="true"></div>
+                        <div class="step">Confirmation</div>
+                    </div>
                     <section class="subscription-header">
                         <h1>Subscription Plans</h1>
                         <p class="subtitle">Choose a plan that fits your creative journey</p>
@@ -202,10 +219,10 @@
                                         <div class="price">₹<?= html_escape($price); ?></div>
                                         <div class="listings"><?= html_escape($listings_text); ?></div>
                                         <div class="validity"><?= html_escape($validity_text); ?></div>
-                                        <?php if ($is_active) : ?>
+                                            <?php if ($is_active) : ?>
                                             <button class="upgrade-btn" disabled>Active</button>
                                         <?php else : ?>
-                                            <button class="upgrade-btn" onclick="purchasePlan(<?= (int) $plan['id']; ?>, this)">Change Plan</button>
+                                            <button class="upgrade-btn" onclick="window.location.href= base_url + 'seller/subscription/details/<?= (int) $plan['id']; ?>'">Choose Plan</button>
                                         <?php endif; ?>
 
                                         <div>

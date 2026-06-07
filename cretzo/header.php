@@ -22,6 +22,18 @@
 }
 
     </style>
+    
+    <!-- Facebook SDK -->
+    <script>
+        window.fbAsyncInit = function() {
+            FB.init({
+                appId: '1541338137599309',
+                xfbml: true,
+                version: 'v18.0'
+            });
+        };
+    </script>
+    <script async defer crossorigin="anonymous" src="https://connect.facebook.net/en_US/sdk.js#xfbml=1&version=v18.0"></script>
 </head>
 <header>
     <div class="container-fluid D-none">

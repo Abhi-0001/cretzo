@@ -191,6 +191,132 @@ class Auth extends CI_Controller
         redirect('auth/login', 'refresh');
     }
 
+    /**
+     * Start Facebook login (redirect to FB)
+     */
+    public function facebook_login()
+    {
+        $this->config->load('facebook');
+        $fb = new \Facebook\Facebook([
+            'app_id' => $this->config->item('facebook_app_id'),
+            'app_secret' => $this->config->item('facebook_app_secret'),
+            'default_graph_version' => $this->config->item('facebook_graph_version'),
+        ]);
+
+        $helper = $fb->getRedirectLoginHelper();
+        $permissions = $this->config->item('facebook_permissions');
+        $loginUrl = $helper->getLoginUrl($this->config->item('facebook_redirect'), $permissions);
+        redirect((string)$loginUrl);
+    }
+
+    /**
+     * Facebook callback URI
+     */
+    public function facebook_callback()
+    {
+        $this->config->load('facebook');
+        $fb = new \Facebook\Facebook([
+            'app_id' => $this->config->item('facebook_app_id'),
+            'app_secret' => $this->config->item('facebook_app_secret'),
+            'default_graph_version' => $this->config->item('facebook_graph_version'),
+        ]);
+
+        $helper = $fb->getRedirectLoginHelper();
+        try {
+            $accessToken = $helper->getAccessToken();
+        } catch (\Facebook\Exceptions\FacebookResponseException $e) {
+            log_message('error', 'FB Graph error: ' . $e->getMessage());
+            $this->session->set_flashdata('message', 'Facebook returned an error.');
+            redirect('auth/login');
+        } catch (\Facebook\Exceptions\FacebookSDKException $e) {
+            log_message('error', 'FB SDK error: ' . $e->getMessage());
+            $this->session->set_flashdata('message', 'Facebook SDK error.');
+            redirect('auth/login');
+        }
+
+        if (!isset($accessToken)) {
+            $err = $helper->getError();
+            log_message('error', 'FB callback no access token: ' . json_encode($err));
+            $this->session->set_flashdata('message', 'Failed to receive access token from Facebook.');
+            redirect('auth/login');
+        }
+
+        try {
+            $response = $fb->get('/me?fields=id,name,email', $accessToken);
+            $fbUser = $response->getGraphUser();
+        } catch (\Exception $e) {
+            log_message('error', 'FB user fetch error: ' . $e->getMessage());
+            $this->session->set_flashdata('message', 'Failed to fetch Facebook user data.');
+            redirect('auth/login');
+        }
+
+        $facebook_id = $fbUser->getId();
+        $name = $fbUser->getName();
+        $email = $fbUser->getEmail();
+
+        // Try to find existing user by email
+        $existing = null;
+        if (!empty($email)) {
+            $this->ion_auth->clear_messages();
+            $existing = $this->ion_auth->where('email', $email)->users()->row();
+        }
+
+        if ($existing) {
+            // login existing user by setting session
+            $this->session->set_userdata([
+                'user_id' => $existing->id,
+                'user_name' => $existing->first_name . ' ' . $existing->last_name,
+                'email' => $existing->email,
+                'logged_in' => TRUE,
+            ]);
+            redirect(base_url());
+        }
+
+        // Create new user using Ion Auth
+        $identity_column = $this->config->item('identity', 'ion_auth');
+        if ($identity_column === 'email') {
+            $identity = $email;
+        } else {
+            // use a safe unique identity when primary identity is not email
+            $identity = 'fb_' . $facebook_id;
+        }
+        $password = substr(md5(uniqid(rand(), true)), 0, 10);
+        $additional_data = [
+            'first_name' => $name,
+        ];
+
+        $register = $this->ion_auth->register($identity, $password, $email, $additional_data);
+        if ($register) {
+            $user = null;
+            if (!empty($email)) {
+                $user = $this->ion_auth->where('email', $email)->users()->row();
+            }
+            // fallback: try to find by identity (in case email was empty)
+            if (!$user) {
+                $user = $this->ion_auth->where($identity_column, $identity)->users()->row();
+            }
+            if ($user) {
+                // store facebook_id if users table has the column
+                $tables = $this->config->item('tables', 'ion_auth');
+                $users_table = isset($tables['login_users']) ? $tables['login_users'] : 'users';
+                if ($this->db->field_exists('facebook_id', $users_table)) {
+                    $this->db->where('id', $user->id)->update($users_table, ['facebook_id' => $facebook_id]);
+                }
+                $this->session->set_userdata([
+                    'user_id' => $user->id,
+                    'user_name' => $user->first_name . ' ' . $user->last_name,
+                    'email' => $user->email,
+                    'logged_in' => TRUE,
+                ]);
+                redirect(base_url());
+            }
+        }
+
+        // fallback
+        $this->session->set_flashdata('message', 'Unable to create or find user account.');
+        redirect('auth/login');
+    }
+
 
     /**
      * Change password
@@ -959,12 +1085,7 @@ class Auth extends CI_Controller
         // print_r($_POST);
 
         $this->form_validation->set_rules('name', 'Name', 'trim|required|xss_clean');
-        $this->form_validation->set_rules('email', 'Mail', 'trim|required|xss_clean');
-        if (isset($_POST['type']) && !empty($_POST['type']) && $_POST['type'] == 'phone') {
-            $this->form_validation->set_rules('email', 'Mail', 'trim|required|xss_clean|valid_email|is_unique[users.email]', array('is_unique' => ' The email is already registered . Please login'));
-        } else {
-            $this->form_validation->set_rules('email', 'Mail', 'trim|required|xss_clean|valid_email');
-        }
+        $this->form_validation->set_rules('email', 'Mail', 'trim|required|xss_clean|valid_email|is_unique[users.email]', array('is_unique' => 'The email is already registered. Please login.'));
         if (isset($_POST['type']) && !empty($_POST['type']) && $_POST['type'] == 'phone') {
             $this->form_validation->set_rules('mobile', 'Mobile', 'trim|required|xss_clean|min_length[5]|numeric|is_unique[users.mobile]', array('is_unique' => ' The mobile number is already registered . Please login'));
             $this->form_validation->set_rules('country_code', 'Country Code', 'trim|required|xss_clean');
