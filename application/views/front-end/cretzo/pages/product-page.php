@@ -376,7 +376,7 @@
                 if ($isNotFav) { ?>
                     <button style="display: inline-block;" class="cretzo btn btn-light wishlist-btn add-fav" id="add_to_favorite_btn" data-is-fav="false" data-product-id="<?= $product['product'][0]['id'] ?>"> <i class="fa fa-heart-o mr-1"></i> <span>Add to Wishlist</span> </button>
                 <?php } else { ?>
-                    <button style="display: inline-block;" class="cretzo btn btn-light wishlist-btn remove-fav" id="add_to_favorite_btn" data-is-fav="true" data-product-id="<?= $product['product'][0]['id'] ?>"> <i class="fa fa-heart mr-1"></i> <span>Remove from Wishlist</span> </button>
+                    <button style="display: inline-block; color: red;" class="cretzo btn btn-light wishlist-btn remove-fav" id="add_to_favorite_btn" data-is-fav="true" data-product-id="<?= $product['product'][0]['id'] ?>"> <i class="fa fa-heart mr-1"></i> <span>Wishlist</span> </button>
                 <?php } ?>
 
             </div>

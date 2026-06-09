@@ -273,7 +273,7 @@ function ensureAuthLoadingLayer() {
 }
 
 function setSocialButtonLoading(provider, isLoading) {
-    var selector = provider === 'google' ? '#googleLogin' : '#facebookLogin';
+    var selector = '.social-auth-link[data-auth-provider="' + provider + '"]';
     var label = provider === 'google' ? 'Google' : 'Facebook';
     $(selector).each(function () {
         var $btn = $(this).find('.media-container');
@@ -3506,13 +3506,14 @@ $(document).ready(function () {
         showCount: false,
         shares: ["twitter", "facebook", "whatsapp", "pinterest", "linkedin", "googleplus"]
     });
-    $(document).on('click', '#googleLogin', function (e) {
+    $(document).on('click', '.social-auth-link', function (e) {
         e.preventDefault();
-        googleSignIn();
-    });
-    $(document).on('click', '#facebookLogin', function (e) {
-        e.preventDefault();
-        facebookSignIn();
+        var provider = $(this).data('auth-provider');
+        if (provider === 'facebook') {
+            facebookSignIn();
+        } else if (provider === 'google') {
+            googleSignIn();
+        }
     });
     $(document).on('click', '#googleLogout', function (e) {
         e.preventDefault();
@@ -3592,6 +3593,13 @@ $(document).ready(function () {
                                                 location.reload();
                                             }, 120);
                                         }
+                                    });
+                                } else {
+                                    setSocialButtonLoading('google', false);
+                                    toggleAuthLoading(false);
+                                    Toast.fire({
+                                        icon: 'error',
+                                        title: result.message || 'Email already exists. Please login with your existing account.'
                                     });
                                 }
                             }
@@ -3693,6 +3701,13 @@ $(document).ready(function () {
                                                 location.reload();
                                             }, 120);
                                         }
+                                    });
+                                } else {
+                                    setSocialButtonLoading('facebook', false);
+                                    toggleAuthLoading(false);
+                                    Toast.fire({
+                                        icon: 'error',
+                                        title: result.message || 'Email already exists. Please login with your existing account.'
                                     });
                                 }
                             }

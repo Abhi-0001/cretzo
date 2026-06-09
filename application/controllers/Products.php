@@ -1569,9 +1569,15 @@ class Products extends CI_Controller
         $page = (isset($get['page']) && is_numeric($get['page']) && (int)$get['page'] > 0) ? (int)$get['page'] : 1;
         $offset = ($page - 1) * $limit;
 
+        /* -------- GET LOGGED-IN USER ID -------- */
+        $user_id = null;
+        if ($this->data['is_logged_in']) {
+            $user_id = $this->data['user']->id;
+        }
+
         /* -------- FETCH -------- */
         $products = fetch_product(
-            null,
+            $user_id,
             $filter,
             null,
             $category_id,
@@ -1585,7 +1591,7 @@ class Products extends CI_Controller
         );
 
         $total_rows = fetch_product(
-            null,
+            $user_id,
             $filter,
             null,
             $category_id,
