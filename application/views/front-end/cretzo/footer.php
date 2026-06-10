@@ -607,11 +607,9 @@ $system_settings = get_settings('system_settings', true); ?>
 <?php } ?>
 
 <div class="fixed-icon">
-    <?php if ($this->ion_auth->logged_in()) { ?>
-        <div id="chat-button"><i class="uil uil-comments"></i></div>
-        <!-- Floating chat iframe -->
-        <iframe src="<?= base_url('my-account/floating_chat_modern') ?>" id="chat-iframe" style="display: none; position: fixed; bottom: 80px; right: 20px; width: 450px; height: 600px; border: none;z-index:999;"></iframe>
-    <?php } ?>
+<div id="chat-button"><i class="uil uil-comments"></i></div>
+    <!-- Floating chat iframe -->
+    <iframe src="<?= base_url('my-account/floating_chat_modern') ?>" id="chat-iframe" style="display: none; position: fixed; bottom: 80px; right: 20px; width: 450px; height: 600px; border: none;z-index:999;"></iframe>
     <div class="progress-wrap mt-2">
         <svg class="progress-circle svg-content" width="100%" height="100%" viewBox="-1 -1 102 102">
             <path d="M50,1 a49,49 0 0,1 0,98 a49,49 0 0,1 0,-98" />

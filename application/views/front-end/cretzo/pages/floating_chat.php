@@ -62,7 +62,7 @@
 /* BUTTONS */
 .chat-row {
     display: flex;
-    gap: 10px;
+    gap: 1px;
     margin-top: 8px;
 }
 
@@ -165,18 +165,18 @@ Choose an option below or type your question
 <div class="chat-actions">
 
 <div class="chat-row">
-    <div class="chat-btn" onclick="sendMsg('track order')">📦 Track Order</div>
-    <div class="chat-btn" onclick="sendMsg('cancel order')">❌ Cancel Order</div>
+<div class="chat-btn" data-chat-action="track_order" data-chat-message="track order">📦 Track Order</div>
+<div class="chat-btn" data-chat-action="cancel_order" data-chat-message="cancel order">❌ Cancel Order</div>
 </div>
 
 <div class="chat-row">
-    <div class="chat-btn" onclick="sendMsg('return item')">🔄 Return Item</div>
-    <div class="chat-btn" onclick="sendMsg('payment issue')">💳 Payment Issue</div>
+<div class="chat-btn" data-chat-action="return_item" data-chat-message="return item">🔄 Return Item</div>
+<div class="chat-btn" data-chat-action="payment_issue" data-chat-message="payment issue">💳 Payment Issue</div>
 </div>
 
 <div class="chat-row">
-    <div class="chat-btn" onclick="sendMsg('product inquiry')">🛍️ Product Inquiry</div>
-    <div class="chat-btn" onclick="sendMsg('support')">🎧 Talk to Support</div>
+<div class="chat-btn" data-chat-action="product_inquiry" data-chat-message="product inquiry">🛍️ Product Inquiry</div>
+<div class="chat-btn" data-chat-action="support" data-chat-message="support">🎧 Talk to Support</div>
 </div>
 
 </div>
@@ -187,11 +187,10 @@ Choose an option below or type your question
 <div class="popular-title">Popular Questions</div>
 
 <div class="chat-row">
-    <div class="chat-btn" onclick="sendMsg('where is my order')">📦 Where is my order?</div>
-    <div class="chat-btn" onclick="sendMsg('start return')">🔄 How do I return?</div>
+<div class="chat-btn" data-chat-action="track_order" data-chat-message="where is my order">📦 Where is my order?</div>
+    <div class="chat-btn" data-chat-action="return_item" data-chat-message="start return">🔄 How do I return?</div>
 </div>
-
-<div class="chat-btn" onclick="sendMsg('payment problem')">
+<div class="chat-btn" data-chat-action="payment_issue" data-chat-message="payment problem">
 💳 I need help with a payment problem
 </div>
 
@@ -211,79 +210,88 @@ Choose an option below or type your question
 // =====================
 // MAIN SEND FUNCTION
 // =====================
-function sendMsg(text) {
-
+let pendingAction = "";
+function appendMessage(className, text) {
     let chatBox = document.getElementById("chat-box");
 
     if (!chatBox) {
         console.log("❌ chat-box not found");
-        return;
+        return null ;
     }
 
     // USER MESSAGE
-    let user = document.createElement("div");
-    user.className = "user-msg";
-    user.innerText = text;
-    chatBox.appendChild(user);
-
+    
+    let message = document.createElement("div");
+    message.className = className;
+    message.innerText = text;
+    chatBox.appendChild(message);
     chatBox.scrollTop = chatBox.scrollHeight;
 
     // TYPING INDICATOR
-    let typing = document.createElement("div");
-    typing.className = "bot-msg typing";
-    typing.innerText = "Typing...";
-    chatBox.appendChild(typing);
+   return message;
+}
+function getPromptForAction(action) {
+    const prompts = {
+        track_order: "Sure — please enter your Order ID so I can estimate how many days are left for delivery.",
+        cancel_order: "I can guide you through cancellation. If your order is already shipped, please share the Order ID with support for a manual check.",
+        return_item: "Returns are handled from My Account → My Orders → Return. Tell me what went wrong with the item if you need extra help.",
+        payment_issue: "Payment issue noted. Please share whether money was debited, the payment method, and any payment reference/order ID.",
+        product_inquiry: "Please send the product name or product link, and I’ll help with availability, variants, or delivery questions.",
+        support: "Support request started. Please describe the issue with any order ID, product link, or payment reference."
+    };
 
-    chatBox.scrollTop = chatBox.scrollHeight;
+    return prompts[action] || "Please type your question and I’ll help.";
+}
+
+function sendChatRequest(text, action, orderId) {
+    let typing = appendMessage("bot-msg typing", "Typing...");
+
+    const params = new URLSearchParams();
+    params.append("message", text || "");
+
+    if (action) {
+        params.append("action", action);
+    }
 
     // =====================
     // API CALL
     // =====================
-    fetch("/cretzo/chat/send", {
+    if (action === "track_order" && orderId) {
+        params.append("order_id", orderId);
+    }
+    fetch("<?= base_url('chat/send') ?>", {
         method: "POST",
         headers: {
-            "Content-Type": "application/x-www-form-urlencoded"
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Accept": "application/json"
         },
         body: "message=" + encodeURIComponent(text)
     })
-    .then(res => res.text()) // safer than json directly
+    .then(res => res.text()) 
     .then(data => {
 
         console.log("RAW RESPONSE:", data);
 
-        typing.remove();
+        if (typing) {
+            typing.remove();
+        }
 
         try {
             let json = JSON.parse(data);
-
-            let bot = document.createElement("div");
-            bot.className = "bot-msg";
-            bot.innerText = json.reply || "No response";
-
-            chatBox.appendChild(bot);
-            chatBox.scrollTop = chatBox.scrollHeight;
+            appendMessage("bot-msg", json.reply || "No response");
 
         } catch (e) {
             console.log("❌ JSON ERROR:", e);
+            appendMessage("bot-msg", "Server error ⚠️");
 
-            let bot = document.createElement("div");
-            bot.className = "bot-msg";
-            bot.innerText = "Server error ⚠️";
-
-            chatBox.appendChild(bot);
         }
     })
     .catch(err => {
 
         console.log("❌ FETCH ERROR:", err);
+        appendMessage("bot-msg", "Connection error ⚠️");
 
-        typing.remove();
 
-        let bot = document.createElement("div");
-        bot.className = "bot-msg";
-        bot.innerText = "Connection error ⚠️";
-
-        chatBox.appendChild(bot);
     });
 }
 
@@ -291,8 +299,26 @@ function sendMsg(text) {
 // =====================
 // BUTTON + ENTER SUPPORT
 // =====================
-document.addEventListener("DOMContentLoaded", function () {
+window.sendMsg = function (text, action) {
+    text = (text || "").trim();
+    action = action || "";
+    if (!text && !action) {
+        return;
+    }
 
+    pendingAction = "";
+    appendMessage("user-msg", text || getPromptForAction(action));
+
+    if (action === "track_order") {
+        pendingAction = "track_order";
+        appendMessage("bot-msg", getPromptForAction(action));
+        return;
+    }
+
+    sendChatRequest(text, action, "");
+};
+
+document.addEventListener("DOMContentLoaded", function () {
     let input = document.getElementById("userInput");
     let sendBtn = document.getElementById("sendBtn");
 
@@ -302,13 +328,29 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     // CLICK SEND
+    document.querySelectorAll("[data-chat-message]").forEach(function (button) {
+        button.addEventListener("click", function () {
+            pendingAction = "";
+            window.sendMsg(button.dataset.chatMessage, button.dataset.chatAction || "");
+        });
+    });
     sendBtn.addEventListener("click", function () {
 
         let text = input.value.trim();
+        if (text === "") {
+            return;
+        }
 
-        if (text !== "") {
-            sendMsg(text.toLowerCase());
-            input.value = "";
+        if (pendingAction === "track_order") {
+            appendMessage("user-msg", text);
+            sendChatRequest(text, "track_order", text);
+            pendingAction = "";
+        } else {
+            window.sendMsg(text, "");
+        
+        input.value = "";
+
+      
         }
     });
 
