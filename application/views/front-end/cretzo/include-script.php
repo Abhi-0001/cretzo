@@ -85,7 +85,7 @@
 <script src="<?= THEME_ASSETS_URL . 'js/' . $path . THEME . '/' . $path . 'header-footer.js' ?>"></script>
 <script src="<?= THEME_ASSETS_URL . 'js/' . $path . THEME . '/' . $path . 'navbar.js' ?>"></script>
 <script src="<?= THEME_ASSETS_URL . 'js/' . $path . THEME . '/' . $path . $main_page . '.js' ?>"></script>
-<script src="<?= base_url('assets/front_end/cretzo/js/cretzo-fixes.js') ?>"></script>
+
 <!-- <script src="<?//= base_url('assets/front_end/classic/js/custom.js') ?>"></script> -->
 <?php if ($this->session->flashdata('message')) { ?>
     <script>
