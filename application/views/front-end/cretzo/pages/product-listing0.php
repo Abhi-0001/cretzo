@@ -139,30 +139,11 @@
                                         </div>
                                     </div>
                                     <div class="col-md-8">
-                                        
-                                <!-- ✅ RETURNABLE ICONS START -->
-<div class="product-badge-icons">
-
-  <?php if (!empty($row['is_returnable'])): ?>
-    <span class="product-badge-icon badge-returnable">
-      <img src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/returnable.png') ?>" class="product-icon-badge" alt="Returnable">
-      Returnable
-    </span>
-  <?php else: ?>
-    <span class="product-badge-icon badge-not-returnable">
-      <img src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/notreturnable.png') ?>" class="product-icon-badge" alt="Not Returnable">
-      Not Returnable
-    </span>
-  <?php endif; ?>
-
-  <?php if (!empty($row['is_cancelable']) && $row['is_cancelable'] == 0): ?>
-    <span class="product-badge-icon badge-not-cancellable">
-      Not Cancellable
-    </span>
-  <?php endif; ?>
-
-</div>
-<!-- ✅ RETURNABLE ICONS END -->
+                                        <div class="product-content">
+                                            <h4 class="list-product-title title" title="<?= $row['name']; ?>"><a class="text-decoration-none text-dark" href="<?= base_url('products/details/' . $row['slug']) ?>"><?= $row['name'] ?></a></h4>
+                                            <div class="col-md-12 mb-3 product-rating-small ps-0 " dir="ltr">
+                                                <input id="input" name="rating" class="rating rating-loading d-none" data-size="xs" value="<?= $row['rating'] ?>" data-show-clear="false" data-show-caption="false" readonly>
+                                            </div>
 
                                             <div class="mt-n2">
                                                 <p class="text-muted list-product-desc"><?= short_description_word_limit(output_escaping(str_replace('\r\n', '&#13;&#10;', strip_tags($row['short_description']))), 80); ?></p>
