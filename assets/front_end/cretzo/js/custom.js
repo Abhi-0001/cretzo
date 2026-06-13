@@ -3501,6 +3501,24 @@ $(function () {
 });
 
 $(document).ready(function () {
+    // Handle Redirect Sign-in Result on page load
+    firebase.auth().getRedirectResult().then(function (result) {
+        if (result && result.user) {
+            var provider = 'google';
+            if (result.credential && result.credential.providerId.indexOf('facebook') !== -1) {
+                provider = 'facebook';
+            } else if (result.user.providerData && result.user.providerData[0] && result.user.providerData[0].providerId.indexOf('facebook') !== -1) {
+                provider = 'facebook';
+            }
+            toggleAuthLoading(true, 'Signing in with ' + provider + '...');
+            setSocialButtonLoading(provider, true);
+            handleSocialLogin(result.user, provider);
+        }
+    }).catch(function (error) {
+        console.error("Redirect sign-in error: ", error);
+        toggleAuthLoading(false);
+    });
+
     $("#share").jsSocials({
         showLabel: false,
         showCount: false,
@@ -3528,104 +3546,106 @@ $(document).ready(function () {
             });
     });
 
+    function handleSocialLogin(user, providerName) {
+        var type = providerName;
+        var name = user.displayName;
+        var email = '';
+        if (user.email != null && user.email != '') {
+            email = user.email;
+        } else if (user.providerData && user.providerData[0] && user.providerData[0].email != null && user.providerData[0].email != '') {
+            email = user.providerData[0].email;
+        } else if (user.email == null && user.providerData && user.providerData[0]) {
+            email = user.email || '';
+        }
+        var password = user.uid;
+        
+        $.ajax({
+            type: 'POST',
+            url: base_url + 'home/verifyUser',
+            data: {
+                email: email,
+                type: type,
+                [csrfName]: csrfHash
+            },
+            dataType: 'json',
+            success: function (result) {
+                csrfName = result['csrfName'];
+                csrfHash = result['csrfHash'];
+
+                if (result.error == true) {
+                    $.ajax({
+                        type: 'POST',
+                        url: base_url + 'auth/register_user',
+                        data: {
+                            type: type,
+                            name: name,
+                            email: email,
+                            password: password,
+                            [csrfName]: csrfHash
+                        },
+                        dataType: 'json',
+                        success: function (result) {
+                            csrfName = result['csrfName'];
+                            csrfHash = result['csrfHash'];
+                            if (result.error == false) {
+                                $.ajax({
+                                    type: 'POST',
+                                    url: base_url + 'home/login',
+                                    data: {
+                                        identity: email,
+                                        type: type,
+                                        password: password,
+                                        [csrfName]: csrfHash
+                                    },
+                                    dataType: 'json',
+                                    success: function (result) {
+                                        closeLoginPopupFast();
+                                        setTimeout(function () {
+                                            location.reload();
+                                        }, 120);
+                                    }
+                                });
+                            } else {
+                                setSocialButtonLoading(providerName, false);
+                                toggleAuthLoading(false);
+                                Toast.fire({
+                                    icon: 'error',
+                                    title: result.message || 'Email already exists. Please login with your existing account.'
+                                });
+                            }
+                        }
+                    });
+                } else {
+                    $.ajax({
+                        type: 'POST',
+                        url: base_url + 'home/login',
+                        data: {
+                            identity: email,
+                            type: type,
+                            password: password,
+                            [csrfName]: csrfHash
+                        },
+                        dataType: 'json',
+                        success: function (result) {
+                            closeLoginPopupFast();
+                            setTimeout(function () {
+                                location.reload();
+                            }, 120);
+                        }
+                    });
+                }
+            }
+        });
+    }
+
     function googleSignIn() {
         toggleAuthLoading(true, 'Opening Google sign-in...');
         setSocialButtonLoading('google', true);
         var provider = new firebase.auth.GoogleAuthProvider();
         provider.addScope('email');
         firebase.auth().signInWithPopup(provider).then(function (result) {
-
             toggleAuthLoading(true, 'Signing in with Google...');
-
-
-            var type = 'google';
-            var name = result.user.displayName;
-            if (result.user.email != null && result.user.email != '') {
-                var email = result.user.email
-            } else if (result.user.providerData[0].email != null && result.user.providerData[0].email != '') {
-                var email = result.user.providerData[0].email
-            } else {
-                var email = result.additionalUserInfo.profile.email
-            }
-            var password = result.user.uid;
-            $.ajax({
-                type: 'POST',
-                url: base_url + 'home/verifyUser',
-                data: {
-                    email: email,
-                    type: type,
-                    [csrfName]: csrfHash
-                },
-                dataType: 'json',
-                success: function (result) {
-                    csrfName = result['csrfName'];
-                    csrfHash = result['csrfHash'];
-
-                    if (result.error == true) {
-                        $.ajax({
-                            type: 'POST',
-                            url: base_url + 'auth/register_user',
-                            data: {
-                                type: type,
-                                name: name,
-                                email: email,
-                                password: password,
-                                [csrfName]: csrfHash
-                            },
-                            dataType: 'json',
-                            success: function (result) {
-                                csrfName = result['csrfName'];
-                                csrfHash = result['csrfHash'];
-                                if (result.error == false) {
-                                    $.ajax({
-                                        type: 'POST',
-                                        url: base_url + 'home/login',
-                                        data: {
-                                            identity: email,
-                                            type: type,
-                                            password: password,
-                                            [csrfName]: csrfHash
-                                        },
-                                        dataType: 'json',
-                                        success: function (result) {
-                                            closeLoginPopupFast();
-                                            setTimeout(function () {
-                                                location.reload();
-                                            }, 120);
-                                        }
-                                    });
-                                } else {
-                                    setSocialButtonLoading('google', false);
-                                    toggleAuthLoading(false);
-                                    Toast.fire({
-                                        icon: 'error',
-                                        title: result.message || 'Email already exists. Please login with your existing account.'
-                                    });
-                                }
-                            }
-                        });
-                    } else {
-                        $.ajax({
-                            type: 'POST',
-                            url: base_url + 'home/login',
-                            data: {
-                                identity: email,
-                                type: type,
-                                password: password,
-                                [csrfName]: csrfHash
-                            },
-                            dataType: 'json',
-                            success: function (result) {
-                                closeLoginPopupFast();
-                                setTimeout(function () {
-                                    location.reload();
-                                }, 120);
-                            }
-                        });
-                    }
-                }
-            });
-
+            handleSocialLogin(result.user, 'google');
         }).catch(function (error) {
             setSocialButtonLoading('google', false);
             toggleAuthLoading(false);
@@ -3643,98 +3663,8 @@ $(document).ready(function () {
         var provider = new firebase.auth.FacebookAuthProvider();
         provider.addScope('email');
         firebase.auth().signInWithPopup(provider).then(function (result) {
-
             toggleAuthLoading(true, 'Signing in with Facebook...');
-
-            var type = 'facebook';
-            var name = result.user.displayName;
-            if (result.user.email != null && result.user.email != '') {
-                var email = result.user.email
-            } else if (result.user.providerData[0].email != null && result.user.providerData[0].email != '') {
-                var email = result.user.providerData[0].email
-            } else {
-                var email = result.additionalUserInfo.profile.email
-            }
-            var password = result.user.uid;
-            $.ajax({
-                type: 'POST',
-                url: base_url + 'home/verifyUser',
-                data: {
-                    email: email,
-                    type: type,
-                    [csrfName]: csrfHash
-                },
-                dataType: 'json',
-                success: function (result) {
-                    csrfName = result['csrfName'];
-                    csrfHash = result['csrfHash'];
-
-                    if (result.error == true) {
-                        $.ajax({
-                            type: 'POST',
-                            url: base_url + 'auth/register_user',
-                            data: {
-                                type: type,
-                                name: name,
-                                email: email,
-                                password: password,
-                                [csrfName]: csrfHash
-                            },
-                            dataType: 'json',
-                            success: function (result) {
-                                csrfName = result['csrfName'];
-                                csrfHash = result['csrfHash'];
-                                if (result.error == false) {
-                                    $.ajax({
-                                        type: 'POST',
-                                        url: base_url + 'home/login',
-                                        data: {
-                                            identity: email,
-                                            type: type,
-                                            password: password,
-                                            [csrfName]: csrfHash
-                                        },
-                                        dataType: 'json',
-                                        success: function (result) {
-                                            closeLoginPopupFast();
-                                            setTimeout(function () {
-                                                location.reload();
-                                            }, 120);
-                                        }
-                                    });
-                                } else {
-                                    setSocialButtonLoading('facebook', false);
-                                    toggleAuthLoading(false);
-                                    Toast.fire({
-                                        icon: 'error',
-                                        title: result.message || 'Email already exists. Please login with your existing account.'
-                                    });
-                                }
-                            }
-                        });
-                    } else {
-                        $.ajax({
-                            type: 'POST',
-                            url: base_url + 'home/login',
-                            data: {
-                                identity: email,
-                                type: type,
-                                password: password,
-                                [csrfName]: csrfHash
-                            },
-                            dataType: 'json',
-                            success: function (result) {
-                                closeLoginPopupFast();
-                                setTimeout(function () {
-                                    location.reload();
-                                }, 120);
-                            }
-                        });
-                    }
-                }
-            });
-
-            console.log(result);
+            handleSocialLogin(result.user, 'facebook');
         }).catch(function (error) {
             setSocialButtonLoading('facebook', false);
             toggleAuthLoading(false);

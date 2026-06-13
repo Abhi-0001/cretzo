@@ -213,15 +213,15 @@ $system_settings = get_settings('system_settings', true); ?>
                 <button type="submit" class="submit_btn  btn btn-primary btn-block"><?= !empty($this->lang->line('login')) ? $this->lang->line('login') : 'Login' ?></button>
             </footer>
             <br>
-            <?php if ((!empty($system_settings['google_login']) && $system_settings['google_login'] == 1) || (!empty($system_settings['facebook_login']) && $system_settings['facebook_login'] == 1)) { ?>
+            <?php if (true || (!empty($system_settings['google_login']) && $system_settings['google_login'] == 1) || (!empty($system_settings['facebook_login']) && $system_settings['facebook_login'] == 1)) { ?>
                 <div class="separator">OR</div>
                 <div class="row">
                     <div class="social-login col-md-12 text-center mt-3">
-                        <?php if (!empty($system_settings['google_login']) && ($system_settings['google_login'] == 1 || $system_settings['google_login'] == '1')) { ?>
+                        <?php if (true || !empty($system_settings['google_login']) && ($system_settings['google_login'] == 1 || $system_settings['google_login'] == '1')) { ?>
                             <a href="#" id="googleLogin" class="btn google-btn">
                                 <img src="<?= base_url('assets/front_end/classic/images/google_logo.png') ?>" class="mr-2" style="height:30px;width:30px">Google</a>
                         <?php } ?>
-                        <?php if (!empty($system_settings['facebook_login']) && ($system_settings['facebook_login'] == 1 || $system_settings['facebook_login'] == '1')) { ?>
+                        <?php if (true || !empty($system_settings['facebook_login']) && ($system_settings['facebook_login'] == 1 || $system_settings['facebook_login'] == '1')) { ?>
                             <a href="#" id="facebookLogin" class="btn facebook_btn ml-2">
                                 <img src="<?= base_url('assets/front_end/classic/images/facebook_logo.png') ?>" class="mr-2" style="height:30px;width:30px">
                                 Facebook</a>
@@ -255,16 +255,16 @@ $system_settings = get_settings('system_settings', true); ?>
                 <button type="button" data-iziModal-close><?= !empty($this->lang->line('cancel')) ? $this->lang->line('cancel') : 'Cancel' ?></button>
                 <button id='send-otp-button'><?= !empty($this->lang->line('send_otp')) ? $this->lang->line('send_otp') : 'Send OTP' ?></button>
             </footer>
-            <?php if ((!empty($system_settings['google_login']) && $system_settings['google_login'] == 1) || (!empty($system_settings['facebook_login']) && $system_settings['facebook_login'] == 1)) { ?>
+            <?php if (true || (!empty($system_settings['google_login']) && $system_settings['google_login'] == 1) || (!empty($system_settings['facebook_login']) && $system_settings['facebook_login'] == 1)) { ?>
                 <br>
                 <div class="separator">OR</div>
                 <div class="row">
                     <div class="social-login col-md-12 text-center mt-3">
-                        <?php if (!empty($system_settings['google_login']) && ($system_settings['google_login'] == 1 || $system_settings['google_login'] == '1')) { ?>
+                        <?php if (true || !empty($system_settings['google_login']) && ($system_settings['google_login'] == 1 || $system_settings['google_login'] == '1')) { ?>
                             <a href="#" id="googleLogin" class="btn google-btn">
                                 <img src="<?= base_url('assets/front_end/classic/images/google_logo.png') ?>" class="mr-2" style="height:30px;width:30px">Google</a>
                         <?php  } ?>
-                        <?php if (!empty($system_settings['facebook_login']) && ($system_settings['facebook_login'] == 1 || $system_settings['facebook_login'] == '1')) { ?>
+                        <?php if (true || !empty($system_settings['facebook_login']) && ($system_settings['facebook_login'] == 1 || $system_settings['facebook_login'] == '1')) { ?>
                             <a href="#" id="facebookLogin" class="btn facebook_btn ml-2">
                                 <img src="<?= base_url('assets/front_end/classic/images/facebook_logo.png') ?>" class="mr-2" style="height:30px;width:30px">
                                 Facebook</a>
