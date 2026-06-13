@@ -157,7 +157,13 @@ if (auth_settings == "firebase") {
 
     function resetRecaptcha() {
         return window.recaptchaVerifier.render().then(function (widgetId) {
-            grecaptcha.reset(widgetId);
+            if (typeof grecaptcha !== 'undefined' && typeof grecaptcha.reset === 'function') {
+                try {
+                    grecaptcha.reset(widgetId);
+                } catch (e) {
+                    console.error("Error resetting recaptcha: ", e);
+                }
+            }
         });
 
     }
@@ -259,7 +265,13 @@ if (auth_settings == "sms") {
 
     function resetRecaptcha() {
         return window.recaptchaVerifier.render().then(function (widgetId) {
-            grecaptcha.reset(widgetId);
+            if (typeof grecaptcha !== 'undefined' && typeof grecaptcha.reset === 'function') {
+                try {
+                    grecaptcha.reset(widgetId);
+                } catch (e) {
+                    console.error("Error resetting recaptcha: ", e);
+                }
+            }
         });
 
     }
@@ -370,7 +382,13 @@ $(document).on('click', '#resend-otp', function (e) {
 
 function resetRecaptcha() {
     return window.recaptchaVerifier.render().then(function (widgetId) {
-        grecaptcha.reset(widgetId);
+        if (typeof grecaptcha !== 'undefined' && typeof grecaptcha.reset === 'function') {
+            try {
+                grecaptcha.reset(widgetId);
+            } catch (e) {
+                console.error("Error resetting recaptcha: ", e);
+            }
+        }
     });
 
 }
@@ -1807,7 +1825,13 @@ $(function () {
 
         window.recaptchaVerifier.render().then(function (widgetId) {
 
-            grecaptcha.reset(widgetId);
+            if (typeof grecaptcha !== 'undefined' && typeof grecaptcha.reset === 'function') {
+                try {
+                    grecaptcha.reset(widgetId);
+                } catch (e) {
+                    console.error("Error resetting recaptcha: ", e);
+                }
+            }
 
         });
 
@@ -5928,7 +5952,13 @@ $(document).on('click', "#forgot_password_link", function (e) {
 
     window.recaptchaVerifier.render().then(function (widgetId) {
 
-        grecaptcha.reset(widgetId);
+        if (typeof grecaptcha !== 'undefined' && typeof grecaptcha.reset === 'function') {
+            try {
+                grecaptcha.reset(widgetId);
+            } catch (e) {
+                console.error("Error resetting recaptcha: ", e);
+            }
+        }
 
     });
 

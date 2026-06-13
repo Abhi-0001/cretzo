@@ -121,7 +121,9 @@ if (auth_settings == "firebase") {
 }
 function resetRecaptcha() {
     return window.recaptchaVerifier.render().then(function (e) {
-        grecaptcha.reset(e)
+        if (typeof grecaptcha !== 'undefined' && typeof grecaptcha.reset === 'function') {
+            try { grecaptcha.reset(e); } catch (ex) { }
+        }
     })
 }
 
@@ -216,7 +218,9 @@ if (auth_settings == "sms") {
 
     function resetRecaptcha() {
         return window.recaptchaVerifier.render().then(function (e) {
-            grecaptcha.reset(e)
+            if (typeof grecaptcha !== 'undefined' && typeof grecaptcha.reset === 'function') {
+                try { grecaptcha.reset(e); } catch (ex) { }
+            }
         })
     }
 }
@@ -1255,7 +1259,9 @@ search_products.on("select2:select", function (e) {
                     $(".send-otp-form").show(), $(".sign-up-form")[0].reset(), $(".sign-up-form").hide(),
 
                     $("#is-user-exist-error").html(""), $("#sign-up-error").html(""), $("#recaptcha-container").html(""), window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier("recaptcha-container"), window.recaptchaVerifier.render().then(function (e) {
-                        grecaptcha.reset(e)
+                        if (typeof grecaptcha !== 'undefined' && typeof grecaptcha.reset === 'function') {
+                            try { grecaptcha.reset(e); } catch (ex) { }
+                        }
                     });
                 var e = $("#phone-number"),
                     t = $("#error-msg"),
@@ -2666,7 +2672,9 @@ function customer_wallet_query_paramss(e) {
     }),
     $(document).on("click", "#forgot_password_link", function (e) {
         e.preventDefault(), $(".auth-modal").find("header a").removeClass("active"), $("#forgot_password_div").removeClass("d-none").siblings("section").addClass("d-none"), $("#recaptcha-container-2").html(""), window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier("recaptcha-container-2"), window.recaptchaVerifier.render().then(function (e) {
-            grecaptcha.reset(e)
+            if (typeof grecaptcha !== 'undefined' && typeof grecaptcha.reset === 'function') {
+                try { grecaptcha.reset(e); } catch (ex) { }
+            }
         }),
             $("#forgot_password_number").intlTelInput({
                 allowExtensions: !0,
