@@ -2,251 +2,328 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <?php $this->load->view('front-end/' . THEME . '/include-css', $data); ?>
-    <script type="module" src="<?= base_url('assets/front_end/modern/js/components-chat-box.js') ?>"></script>
-    <script src="<?= THEME_ASSETS_URL . 'js/select2.full.min.js' ?>"></script>
-    <?php $this->load->view('front-end/' . THEME . '/include-script'); ?>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<?php $this->load->view('front-end/' . THEME . '/include-css', $data); ?>
+<?php $this->load->view('front-end/' . THEME . '/include-script'); ?>
+
+<style>
+
+/* MAIN BOX */
+.chat-ui {
+    background: #fff;
+    border-radius: 18px;
+    padding: 15px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+}
+
+/* HEADER */
+.chat-header {
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: #333;
+}
+
+/* CHAT AREA */
+.chat-box {
+    max-height: 200px;
+    overflow-y: auto;
+    margin-bottom: 10px;
+}
+
+/* BOT MSG */
+.bot-msg {
+    background: #f8f8f8;
+    padding: 10px;
+    border-radius: 12px;
+    margin-bottom: 8px;
+    max-width: 80%;
+}
+
+/* USER MSG */
+.user-msg {
+    background: #ffe9cc;
+    padding: 10px;
+    border-radius: 12px;
+    margin-bottom: 8px;
+    margin-left: auto;
+    max-width: 80%;
+}
+
+/* MESSAGE INTRO */
+.chat-message {
+    background: #f8f8f8;
+    padding: 12px;
+    border-radius: 12px;
+    margin-bottom: 10px;
+}
+
+/* BUTTONS */
+.chat-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+.chat-btn {
+    flex: 1;
+    padding: 10px;
+    border-radius: 10px;
+    background: #fff;
+    border: 1px solid #eee;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    font-size: 13px;
+}
+
+/* 🔥 PREMIUM HOVER */
+.chat-btn:hover {
+    background: linear-gradient(135deg, #fff4e5, #ffe0b3);
+    border-color: #f4a742;
+    color: #b96d00;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(244,167,66,0.25);
+}
+
+/* POPULAR */
+.popular-title {
+    font-weight: 600;
+    margin-top: 10px;
+}
+
+/* INPUT */
+.chat-input {
+    display: flex;
+    gap: 8px;
+}
+
+.chat-input input {
+    width: 100%;
+    padding: 10px;
+    border-radius: 20px;
+    border: 1px solid #ddd;
+}
+
+/* SEND BUTTON (added only) */
+#sendBtn {
+    background: #f4a742;
+    border: none;
+    color: white;
+    padding: 10px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+#sendBtn:hover {
+    background: #e6952f;
+}
+
+/* TYPING */
+.typing {
+    opacity: 0.6;
+    font-style: italic;
+}
+
+/* ANIMATION */
+.bot-msg, .user-msg {
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from {opacity:0; transform:translateY(10px);}
+    to {opacity:1; transform:translateY(0);}
+}
+
+</style>
+
 </head>
 
-<body id="chat-body">
-    <!-- <section class="my-account-section">
-    <div class="main-content"> -->
-    <?php
-    // echo "<pre>";
-    // print_r($supporters);
-    // die;
-    ?>
-    <div class="container mt-2"><h1>Chat</h1></div>
-    <div id="floating_chat_view" class="h-100 mt-0">
+<body>
 
-        <div class="row h-100">
+<div class="container mt-3">
 
-            <div class="col-lg-2 floating-chat-users" style="padding: 0px;">
-                <div class="card chat-theme-light chat-scroll chat-min">
-                    <select name="select_user_id[]" id="chat_user" class="search_user w-100" multiple data-placeholder="Type to search support team and seller" onload="multiselect()">
-                        <?php
-                        $user_details = fetch_details('users', ['active' => 1],);
-                        if (!empty($user_details)) {
-                        ?>
-                            <option value="<?= $user_details[0]['id'] ?>"> <?= $user_details[0]['username'] ?></option>
-                        <?php
-                        }
+<div class="chat-ui">
 
-                        ?>
-                    </select>
-                    <div id="add-scroll-js ">
-                        <div class="card-header chat-card-header text-color mt-4">
-                            <h4 class="fw-semibold">Personal Chat</h4>
-                        </div>
-                        <div class="chat-card-body">
-                            <ul class="list-unstyled list-unstyled-border chat-list-unstyled-border">
-                                <?php if (!empty($users)) {
+<!-- HEADER -->
+<div class="chat-header">
+🤖 E-Shop Assistant ●
+</div>
 
-                                    foreach ($users as $user) {
-                                        if ($user['id'] == $_SESSION['user_id']) {
-                                ?>
-                                            <li class="media">
-                                                <div class="media-body">
-                                                    <div class="chat-person" data-picture="" data-type="person" data-id="<?= $user['opponent_user_id'] ?>"><i class="<?= ($user['is_online'] == 1) ? 'fa fa-circle text-success' : 'fa fa-circle'; ?> "></i> <?= $user['opponent_username'] ?> (You)</div>
-                                                </div>
-                                            </li>
-                                    <?php }
-                                    }
-                                } else { ?>
-                                    <p class="card-body p-0 px-5 text-muted">It seems there are no chats available at the moment</p>
-                                <?php } ?>
+<!-- CHAT BOX -->
+<div id="chat-box" class="chat-box">
+    <div class="bot-msg">Hi 👋 I’m here to help. What can I assist you with today?</div>
+</div>
 
+<!-- MESSAGE -->
+<div class="chat-message">
+Choose an option below or type your question
+</div>
 
-                                <?php if (!empty($users)) {
-                                    foreach ($users as $user) {
-                                        if (isset($user['id']) && !empty($user['id']) && $user['id'] != '' && $user['id'] != $_SESSION['user_id']) { ?>
-                                            <li class="media">
-                                                <div class="media-body">
-                                                    <div data-unread_msg="<?= $user['unread_msg'] ?>" class="chat-person <?= ($user['unread_msg'] > 0) ? 'new-msg-rcv' : ''; ?>" data-picture="<?= $user['picture'] ?>" data-type="person" data-id="<?= $user['opponent_user_id'] ?>"><i class="<?= ($user['is_online'] == 1) ? 'fa fa-circle text-success' : 'fa fa-circle'; ?> "></i> <?= $user['opponent_username'] ?>
-                                                        <?= ($user['unread_msg'] > 0) ? (($user['unread_msg'] > 9) ? '<div class="badge-chat">9 +</div>' : '<div class="badge-chat">' . $user['unread_msg'] . '</div>') : ''; ?>
-                                                    </div>
-                                                </div>
-                                            </li>
-                                <?php }
-                                    }
-                                } ?>
-                            </ul>
-                        </div>
-                        <div class="card-header chat-card-header d-flex text-color">
-                            <h4 class="fw-semibold"><?= !empty($this->lang->line('support_chat')) ? $this->lang->line('support_chat') : 'Support Team '; ?></h4>
-                        </div>
-                        <div class="chat-card-body">
-                            <ul class="list-unstyled list-unstyled-border chat-list-unstyled-border">
+<!-- ACTIONS -->
+<div class="chat-actions">
 
-                                <?php if (!empty($supporters)) {
+<div class="chat-row">
+    <div class="chat-btn" onclick="sendMsg('track order')">📦 Track Order</div>
+    <div class="chat-btn" onclick="sendMsg('cancel order')">❌ Cancel Order</div>
+</div>
 
-                                    foreach ($supporters as $supporter) {
-                                        $date = strtotime('now');
-                                        $to_id = $this->session->userdata('user_id');
+<div class="chat-row">
+    <div class="chat-btn" onclick="sendMsg('return item')">🔄 Return Item</div>
+    <div class="chat-btn" onclick="sendMsg('payment issue')">💳 Payment Issue</div>
+</div>
 
-                                        if ($to_id == $supporter['user_permission_id']) {
-                                            $supporter['is_online'] = 1;
-                                        } else {
-                                            if ($supporter['last_online'] > $date) {
-                                                $supporter['is_online'] = 1;
-                                            } else {
-                                                $supporter['is_online'] = 0;
-                                            }
-                                        }
-                                        // echo "<pre>";
-                                        // print_r($supporter);
-                                ?>
+<div class="chat-row">
+    <div class="chat-btn" onclick="sendMsg('product inquiry')">🛍️ Product Inquiry</div>
+    <div class="chat-btn" onclick="sendMsg('support')">🎧 Talk to Support</div>
+</div>
 
-                                        <li class="media">
-                                            <div class="media-body">
-                                                <div class="chat-person" data-id="<?= $supporter['userto_id'] ?>" data-type="person">
-                                                    <i class="<?= ($supporter['is_online'] == 1) ? 'fa fa-circle text-success' : 'fa fa-circle'; ?> "></i> <?= $supporter['username'] ?>
-                                                </div>
-                                            </div>
-                                        </li>
+</div>
 
-                                    <?php }
-                                } else { ?>
-                                    <p class="card-body p-0 px-5 text-muted">No support team available </p>
-                                <?php } ?>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-12 col-sm-8 col-lg-9 d-none" id="chat_area_wait">
-            </div>
-            <!-- <div class="col-12 col-sm-8 col-lg-9 d-none" id="you_not_in_group">
+<!-- POPULAR -->
+<div class="chat-popular">
 
-                <div class="pricing pricing-highlight chat-min">
-                    <div class="pricing-padding">
-                        <div class="pricing-price">
-                            <div>You are not in this group</div>
-                            <div>Join group and access all the details.</div>
-                        </div>
-                        <a class="btn btn-success text-white" id="you_not_in_group_btn">Join Group</a>
-                    </div>
-                </div>
+<div class="popular-title">Popular Questions</div>
 
-            </div> -->
-            <div class="col-lg-6 d-none" style="padding: 0px;" id="chat_area">
-                <div class="card chat-box chat-theme-light chat-min " id="mychatbox2">
-                    <div class="align-items-center card-header chat-card-header d-flex">
-                        <a href="#" class="px-2 floating-chat-back-btn"><i class="fa fa-arrow-left"></i></a>
-                        <div class="mr-3" id="chat-avtar-main">#</div>
-                        <div class="media-body">
-                            <div class="mt-0 mb-1 font-weight-bold text-color" id="chat_title"></div>
-                            <div class="text-small font-600-bold" id="chat_online_status"></div>
-                        </div>
-                        <!-- <form class="card-header-form">
-                            <div class="input-group">
-                                <input type="text" name="search" id="modal-search-msg" class="form-control chat-search-box" placeholder="Search">
+<div class="chat-row">
+    <div class="chat-btn" onclick="sendMsg('where is my order')">📦 Where is my order?</div>
+    <div class="chat-btn" onclick="sendMsg('start return')">🔄 How do I return?</div>
+</div>
 
-                            </div>
-                        </form> -->
-                    </div>
-                    <div id="chat-box-content" class="chat-bg card-body chat-scroll chat-content">
-                        <div class="chat_loader">Loading...</div>
-                    </div>
-                    <div class="card-body d-none" id="chat-dropbox">
-                        <div class="dropzone" id="myAlbum"></div>
-                        <div class="text-center mt-3">
-                            <button class="btn btn-danger shadow-none" onclick="closeDropZone();"><?= !empty($this->lang->line('label_close')) ? $this->lang->line('label_close') : 'Close'; ?>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="form-control theme-inputs d-none" id="chat-input-textarea-result"></div>
-                    <div class="card-footer chat-form p-1">
-                        <form id="chat-form2" autocomplete="off">
-                            <div class="row">
-                                <div class="input-group">
-                                    <input type="hidden" id="opposite_user_id" name="opposite_user_id" value="">
-                                    <input type="hidden" id="my_user_id" name="my_user_id" value="<?= $_SESSION['user_id'] ?>" data-picture="">
-                                    <input type="hidden" id="chat_type" name="chat_type" value="">
-                                    <textarea class="form-control theme-inputs mb-n5" id="chat-input-textarea" rows="1" name="chat-input-textarea"></textarea>
-                                </div>
-                            </div>
-                            <div class="">
-                                <span class="input-group-append  mb-n1">
-                                    <div class="form-group">
+<div class="chat-btn" onclick="sendMsg('payment problem')">
+💳 I need help with a payment problem
+</div>
 
-                                        <a class="bg-success go-to-bottom-btn text-center btn-arrow">
-                                            <i class="fs-20 uil uil-arrow-down"></i>
-                                        </a>
+</div>
 
-                                        <button class="btn btn-danger btn-send-msg">
-                                            <i class="fa fa-paper-plane fs-13"></i>
-                                        </button>
+<!-- INPUT (ONLY UPDATED PART) -->
+<div class="chat-input">
+    <input id="userInput" placeholder="Type a message..." />
+    <button id="sendBtn">Send</button>
+</div>
 
-                                        <button class="btn-file btn btn-primary" onclick="showDropZone();">
-                                            <i class="uil uil-paperclip"></i>
-                                        </button>
-                                    </div>
-                                </span>
-                            </div>
+</div>
 
-                        </form>
-                    </div>
-                </div>
-            </div>
-            <!--end col-->
-        </div>
-    </div>
+<!-- JS -->
+<script>
 
-    <!--end row-->
+// =====================
+// MAIN SEND FUNCTION
+// =====================
+function sendMsg(text) {
+
+    let chatBox = document.getElementById("chat-box");
+
+    if (!chatBox) {
+        console.log("❌ chat-box not found");
+        return;
+    }
+
+    // USER MESSAGE
+    let user = document.createElement("div");
+    user.className = "user-msg";
+    user.innerText = text;
+    chatBox.appendChild(user);
+
+    chatBox.scrollTop = chatBox.scrollHeight;
+
+    // TYPING INDICATOR
+    let typing = document.createElement("div");
+    typing.className = "bot-msg typing";
+    typing.innerText = "Typing...";
+    chatBox.appendChild(typing);
+
+    chatBox.scrollTop = chatBox.scrollHeight;
+
+    // =====================
+    // API CALL
+    // =====================
+    fetch("/cretzo/chat/send", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: "message=" + encodeURIComponent(text)
+    })
+    .then(res => res.text()) // safer than json directly
+    .then(data => {
+
+        console.log("RAW RESPONSE:", data);
+
+        typing.remove();
+
+        try {
+            let json = JSON.parse(data);
+
+            let bot = document.createElement("div");
+            bot.className = "bot-msg";
+            bot.innerText = json.reply || "No response";
+
+            chatBox.appendChild(bot);
+            chatBox.scrollTop = chatBox.scrollHeight;
+
+        } catch (e) {
+            console.log("❌ JSON ERROR:", e);
+
+            let bot = document.createElement("div");
+            bot.className = "bot-msg";
+            bot.innerText = "Server error ⚠️";
+
+            chatBox.appendChild(bot);
+        }
+    })
+    .catch(err => {
+
+        console.log("❌ FETCH ERROR:", err);
+
+        typing.remove();
+
+        let bot = document.createElement("div");
+        bot.className = "bot-msg";
+        bot.innerText = "Connection error ⚠️";
+
+        chatBox.appendChild(bot);
+    });
+}
 
 
+// =====================
+// BUTTON + ENTER SUPPORT
+// =====================
+document.addEventListener("DOMContentLoaded", function () {
 
-    <div class="modal" tabindex="-1" role="dialog" id="chat-search-modal">
-        <div class="modal-dialog" role="document">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Search</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
-                </div>
-                <div class="modal-body">
-                    <form class="modal-part" id="modal-search-msg-part">
-                        <div id="modal-title" class="d-none"><?= !empty($this->lang->line('label_search')) ? $this->lang->line('label_search') : 'Search'; ?></div>
-                        <div class="row">
-                            <div class="col-md-12 form-group">
-                                <div class="input-group">
-                                    <div class="input-group-prepend">
-                                        <div class="input-group-text">
-                                            <i class="fa fa-search"></i>
-                                        </div>
-                                    </div>
-                                    <input type="text" class="form-control" name="in-chat-search" id="in-chat-search">
-                                </div>
-                            </div>
+    let input = document.getElementById("userInput");
+    let sendBtn = document.getElementById("sendBtn");
 
-                            <div class="col-md-12 d-none" id="show-search-result">
-                                <div class="card">
-                                    <div class="card-header">
-                                        <h4><?= !empty($this->lang->line('label_search_result')) ? $this->lang->line('label_search_result') : 'Search Result'; ?></h4>
-                                    </div>
-                                    <div class="card-body">
-                                        <ul class="list-unstyled list-unstyled-border" id="search-result">
+    if (!input || !sendBtn) {
+        console.log("❌ Input or Button missing");
+        return;
+    }
 
-                                        </ul>
-                                    </div>
-                                </div>
-                            </div>
+    // CLICK SEND
+    sendBtn.addEventListener("click", function () {
 
-                        </div>
+        let text = input.value.trim();
 
-                    </form>
-                </div>
+        if (text !== "") {
+            sendMsg(text.toLowerCase());
+            input.value = "";
+        }
+    });
 
-            </div>
-        </div>
-    </div>
+    // ENTER KEY
+    input.addEventListener("keypress", function (e) {
 
-    <!-- chat -->
+        if (e.key === "Enter") {
+            e.preventDefault();
+            sendBtn.click();
+        }
+    });
+
+});
+
+</script>
+
 </body>
-
-
 </html>

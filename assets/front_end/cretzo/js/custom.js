@@ -3908,3 +3908,517 @@ $(document).ready(function () {
         }
     });
 });
+"use strict";
+
+    /* ═══════════════════════════════════════════════
+       FIX 2: FILTERS — collect ALL and Apply at once
+    ═══════════════════════════════════════════════ */
+    $(document).on('click', '#cretzo-apply-filter', function (e) {
+        e.preventDefault();
+        var base   = window.location.pathname;
+        var params = {};
+        var keep   = ['seller', 'seller_search', 'sort', 'type', 'per-page'];
+        keep.forEach(function(k) { var v = getParam(k); if (v) params[k] = v; });
+
+        // Categories
+        var cats = [];
+        $('.fs-category input[type="checkbox"]:checked').each(function () {
+            var v = $(this).data('value') || $(this).val();
+            if (v) cats.push(v);
+        });
+        if (cats.length) params['category'] = cats.join('|');
+
+        // Brands
+        var brands = [];
+        $('.fs-brand input[type="checkbox"]:checked').each(function () {
+            var v = $(this).data('value') || $(this).val();
+            if (v) brands.push(v);
+        });
+        if (brands.length) params['brand'] = brands.join('|');
+
+        // Price range sliders
+        var rangeMin = $('.range-min').val();
+        var rangeMax = $('.range-max').val();
+        if (rangeMin) params['min-price'] = rangeMin;
+        if (rangeMax) params['max-price'] = rangeMax;
+        // Price text inputs override sliders
+        var textMin = $('.price-input input').first().val();
+        var textMax = $('.price-input input').last().val();
+        if (textMin) params['min-price'] = textMin;
+        if (textMax) params['max-price'] = textMax;
+
+        // Attributes
+        $('.fs-attr').each(function () {
+            var attrName = $(this).find('.filter-heading').text().trim().toLowerCase().replace(/\s+/g, '-');
+            var vals = [];
+            $(this).find('input[type="checkbox"]:checked').each(function () {
+                var v = $(this).data('value') || $(this).val();
+                if (v) vals.push(v.toLowerCase());
+            });
+            if (vals.length) params['filter-' + attrName] = vals.join('|');
+        });
+
+        var qs = Object.keys(params).map(function(k) {
+            return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+        }).join('&');
+        location.href = base + (qs ? '?' + qs : '');
+    });
+
+    $(document).on('click', '#cretzo-clear-filter, #clear-all-filters-btn', function (e) {
+        e.preventDefault();
+        location.href = window.location.pathname;
+    });
+
+    $(document).on('input', '.range-min', function () {
+        $(this).closest('.filter-section').find('.price-input input').first().val($(this).val());
+    });
+    $(document).on('input', '.range-max', function () {
+        $(this).closest('.filter-section').find('.price-input input').last().val($(this).val());
+    });
+
+    /* ═══════════════════════════════════════════════
+       FIX 3: RUPEE SYMBOL — replace all Rs. with ₹
+    ═══════════════════════════════════════════════ */
+    function fixRupeeIn(selector) {
+        $(selector).find('*').addBack().contents().filter(function () {
+            return this.nodeType === 3;
+        }).each(function () {
+            var old = this.nodeValue;
+            var updated = old.replace(/Rs\.?\s*/g, '₹');
+            if (updated !== old) this.nodeValue = updated;
+        });
+    }
+    $(document).ready(function () { fixRupeeIn('body'); });
+    $(document).ajaxComplete(function () {
+        fixRupeeIn('.price-container, .discounted-price, .original-price, .cart-item, #cart-item-sidebar');
+    });
+
+    /* ═══════════════════════════════════════════════
+       FIX 4: ADDRESS POPUP — Select2 inside modal
+    ═══════════════════════════════════════════════ */
+    function initModalSelect2(modalId) {
+        if (typeof $.fn.select2 === 'undefined') return;
+        $('#' + modalId + ' .form-select2').each(function () {
+            if (!$(this).hasClass('select2-hidden-accessible')) {
+                $(this).select2({
+                    dropdownParent: $('#' + modalId),
+                    placeholder: $(this).find('option:first').text(),
+                    allowClear: true
+                });
+            }
+        });
+    }
+    $(document).ready(function () {
+        $('#add-address-modal').on('shown.bs.modal',  function () { initModalSelect2('add-address-modal');  });
+        $('#edit-address-modal').on('shown.bs.modal', function () { initModalSelect2('edit-address-modal'); });
+    });
+
+    /* ═══════════════════════════════════════════════
+       FIX 5: CART SHOW MORE
+    ═══════════════════════════════════════════════ */
+    $(document).on('click', '.show-more-text', function () {
+        var $section = $(this).closest('.cart-left-two');
+        var $hidden  = $section.find('.more-offers');
+        if ($hidden.length) {
+            $hidden.slideToggle(200);
+            var isOpen = $hidden.is(':visible');
+            $(this).html(isOpen
+                ? 'Show Less <img class="show-more-img" src="' + (typeof base_url !== 'undefined' ? base_url : '/') + 'assets/front_end/cretzo/img/new_cretzo/orange-arrow.png" style="transform:rotate(180deg);">'
+                : 'Show More <img class="show-more-img" src="' + (typeof base_url !== 'undefined' ? base_url : '/') + 'assets/front_end/cretzo/img/new_cretzo/orange-arrow.png">');
+        } else {
+            var extraOffers = [
+                '10% off on HDFC Bank Credit Cards. Min spend ₹1,500.',
+                '5% cashback on Paytm UPI transactions.',
+                'No cost EMI on orders above ₹4,999.'
+            ];
+            var html = '<div class="more-offers" style="display:none;">';
+            extraOffers.forEach(function(o) { html += '<p class="text-s" style="margin-top:6px;">' + o + '</p>'; });
+            html += '</div>';
+            $(this).before(html);
+            $section.find('.more-offers').slideDown(200);
+            $(this).html('Show Less <img class="show-more-img" src="' + (typeof base_url !== 'undefined' ? base_url : '/') + 'assets/front_end/cretzo/img/new_cretzo/orange-arrow.png" style="transform:rotate(180deg);">');
+        }
+    });
+
+    /* ═══════════════════════════════════════════════
+       FIX 6: BANNERS — use each banner's own href
+    ═══════════════════════════════════════════════ */
+    $(document).ready(function () {
+        // Remove any overriding click on banner links — let natural href work
+        $(document).off('click', '.swiper-slide .slide-img a');
+    });
+
+   
+"use strict";
+
+(function ($) {
+
+    /* =========================================================
+       Helpers
+    ========================================================= */
+
+    function debounce(fn, delay) {
+        let timer;
+
+        return function () {
+            clearTimeout(timer);
+
+            const context = this;
+            const args = arguments;
+
+            timer = setTimeout(function () {
+                fn.apply(context, args);
+            }, delay);
+        };
+    }
+
+    function safeValue(value, fallback = "") {
+        return value !== undefined && value !== null ? value : fallback;
+    }
+
+    function updateCsrf(res) {
+        if (res.csrfName) csrfName = res.csrfName;
+        if (res.csrfHash) csrfHash = res.csrfHash;
+    }
+
+    /* =========================================================
+       Product Ratings
+    ========================================================= */
+
+    function renderStars(rating, count = 0) {
+
+        let html = '<div class="rating-stars">';
+
+        for (let i = 1; i <= 5; i++) {
+
+            if (rating >= i) {
+                html += '<i class="fa fa-star text-warning"></i>';
+
+            } else if (rating >= i - 0.5) {
+                html += '<i class="fa fa-star-half-o text-warning"></i>';
+
+            } else {
+                html += '<i class="fa fa-star-o text-muted"></i>';
+            }
+        }
+
+        if (count > 0) {
+            html += `<small class="text-muted ms-1">(${count})</small>`;
+        }
+
+        html += '</div>';
+
+        return html;
+    }
+
+    function initRatings() {
+
+        $('[data-rating]').each(function () {
+
+            const rating = parseFloat($(this).data('rating')) || 0;
+            const count = parseInt($(this).data('count')) || 0;
+
+            if (!$(this).find('.fa-star').length) {
+                $(this).html(renderStars(rating, count));
+            }
+        });
+    }
+
+    /* =========================================================
+       Filters
+    ========================================================= */
+
+    function buildFilterUrl() {
+
+        const params = new URLSearchParams();
+
+        // Category
+        const categories = [];
+
+        $('.category-filter-input:checked').each(function () {
+            categories.push($(this).data('value'));
+        });
+
+        if (categories.length) {
+            params.set('category', categories.join('|'));
+        }
+
+        // Brands
+        const brands = [];
+
+        $('.brand-filter-input:checked').each(function () {
+            brands.push($(this).data('value'));
+        });
+
+        if (brands.length) {
+            params.set('brand', brands.join('|'));
+        }
+
+        // Price
+        const minPrice = $('#price-min-input').val();
+        const maxPrice = $('#price-max-input').val();
+
+        if (minPrice) params.set('min_price', minPrice);
+        if (maxPrice) params.set('max_price', maxPrice);
+
+        // Sort
+        const sort = $('#product_sort_by').val();
+
+        if (sort) {
+            params.set('sort', sort);
+        }
+
+        return window.location.pathname + '?' + params.toString();
+    }
+
+    $(document).on('click', '.product_filter_btn', function (e) {
+
+        e.preventDefault();
+
+        window.location.href = buildFilterUrl();
+    });
+
+    $(document).on('click', '.clear-filters-btn', function (e) {
+
+        e.preventDefault();
+
+        window.location.href = window.location.pathname;
+    });
+
+    $(document).on('change', '#product_sort_by', function () {
+
+        const sort = $(this).val();
+
+        const url = new URL(window.location.href);
+
+        url.searchParams.set('sort', sort);
+
+        window.location.href = url.toString();
+    });
+
+    /* =========================================================
+       Pincode Check
+    ========================================================= */
+
+    $(document).on(
+        'input',
+        '#pincode_text_input',
+        debounce(function () {
+
+            const pincode = $(this).val();
+
+            if (pincode.length < 6) return;
+
+            $.ajax({
+                type: 'POST',
+                url: base_url + 'cart/check-pincode',
+                data: {
+                    pincode: pincode,
+                    [csrfName]: csrfHash
+                },
+                dataType: 'json',
+
+                success: function (res) {
+
+                    updateCsrf(res);
+
+                    const cls = res.error
+                        ? 'text-danger'
+                        : 'text-success';
+
+                    const icon = res.error
+                        ? 'fa-times'
+                        : 'fa-check';
+
+                    $('.pincode-result').html(`
+                        <span class="${cls}">
+                            <i class="fa ${icon}"></i>
+                            ${res.message}
+                        </span>
+                    `);
+                }
+            });
+
+        }, 500)
+    );
+
+    /* =========================================================
+       Promo Code
+    ========================================================= */
+
+    $(document).on('click', '#apply-promo-btn', function (e) {
+
+        e.preventDefault();
+
+        const promoCode = $('#promocode_input').val().trim();
+
+        if (!promoCode) {
+
+            Toast.fire({
+                icon: 'warning',
+                title: 'Please enter promo code'
+            });
+
+            return;
+        }
+
+        const $btn = $(this);
+
+        $btn.prop('disabled', true).text('Applying...');
+
+        $.ajax({
+            type: 'POST',
+            url: base_url + 'cart/apply-promo-code',
+
+            data: {
+                promo_code: promoCode,
+                [csrfName]: csrfHash
+            },
+
+            dataType: 'json',
+
+            success: function (res) {
+
+                updateCsrf(res);
+
+                $btn.prop('disabled', false).text('Apply');
+
+                if (!res.error) {
+
+                    Toast.fire({
+                        icon: 'success',
+                        title: res.message
+                    });
+
+                    $('.promo-discount-display').text(
+                        `- ₹${res.discount}`
+                    );
+
+                } else {
+
+                    Toast.fire({
+                        icon: 'error',
+                        title: res.message
+                    });
+                }
+            },
+
+            error: function () {
+
+                $btn.prop('disabled', false).text('Apply');
+
+                Toast.fire({
+                    icon: 'error',
+                    title: 'Something went wrong'
+                });
+            }
+        });
+    });
+
+    /* =========================================================
+       Banner Redirects
+    ========================================================= */
+
+    $(document).on(
+        'click',
+        '.banner-item, .slider-banner',
+        function (e) {
+
+            const redirectUrl =
+                $(this).data('href') ||
+                $(this).data('url');
+
+            if (redirectUrl) {
+
+                e.preventDefault();
+
+                window.location.href = redirectUrl;
+            }
+        }
+    );
+
+    /* =========================================================
+       Profile Photo Upload
+    ========================================================= */
+
+    $(document).on(
+        'click',
+        '#profile-photo-upload-btn',
+        function () {
+
+            $('#profile-photo-upload-input').trigger('click');
+        }
+    );
+
+    $(document).on(
+        'change',
+        '#profile-photo-upload-input',
+        function () {
+
+            const file = this.files[0];
+
+            if (!file) return;
+
+            const formData = new FormData();
+
+            formData.append('profile_image', file);
+            formData.append(csrfName, csrfHash);
+
+            $.ajax({
+                type: 'POST',
+                url: base_url + 'my-account/update-profile-image',
+
+                data: formData,
+
+                processData: false,
+                contentType: false,
+                dataType: 'json',
+
+                success: function (res) {
+
+                    updateCsrf(res);
+
+                    if (!res.error) {
+
+                        Toast.fire({
+                            icon: 'success',
+                            title: 'Profile updated'
+                        });
+
+                        if (res.image_url) {
+
+                            $('.profile-photo-img').attr(
+                                'src',
+                                res.image_url
+                            );
+                        }
+
+                    } else {
+
+                        Toast.fire({
+                            icon: 'error',
+                            title: res.message
+                        });
+                    }
+                }
+            });
+        }
+    );
+
+    /* =========================================================
+       Initialize
+    ========================================================= */
+
+    $(document).ready(function () {
+
+        initRatings();
+
+        console.log('CRETZO fixes loaded successfully');
+    });
+
+    $(document).ajaxComplete(function () {
+
+        initRatings();
+    });
+
+})(jQuery);
