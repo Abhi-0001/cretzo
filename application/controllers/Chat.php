@@ -2,165 +2,347 @@
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 class Chat extends CI_Controller {
+    const STATE_ORDER_ID = 'waiting_order_id';
+    const STATE_PAYMENT_ISSUE = 'waiting_payment_issue';
+    const STATE_PRODUCT_NAME = 'waiting_product_name';
+
+    public function __construct()
+    {
+        parent::__construct();
+        $this->load->database();
+        $this->load->library('session');
+    }
 
     public function send() {
-        $message = trim((string) $this->input->post('message'));
-        $action = trim((string) $this->input->post('action'));
-        $order_id = trim((string) $this->input->post('order_id'));
+        $message = $this->sanitize_message($this->input->post('message', true));
+        $user_id = $this->get_chat_user_id();
+        $session_id = session_id();
 
-        $this->output->set_content_type('application/json');
+        $this->log_message_row($user_id, $message, 'user');
+        $state = $this->session->userdata('chat_state');
 
-        if ($message === '' && $action === '') {
+        if ($state === self::STATE_ORDER_ID) {
+            $this->clear_chat_state();
+            $reply = $this->reply_with_order_status($message);
+        }
+        elseif ($state === self::STATE_PAYMENT_ISSUE) {
+            $this->clear_chat_state();
+            $reply = $this->reply_with_payment_issue($message);
+        }
+        elseif ($state === self::STATE_PRODUCT_NAME) {
+            $this->clear_chat_state();
+            $reply = $this->reply_with_product_matches($message);
+        }
+        else {
+            $reply = $this->get_bot_reply($message);
+        }
+
+       
+        if ($message === '') {
             echo json_encode([
-                'reply' => 'Please type a message first.'
+                'reply' => 'Please enter a message.',
+                'messages' => []
             ]);
             return;
         }
 
-        $this->save_message($message, 'user');
-
-        $reply = $this->get_reply($message, $action, $order_id);
-
-        $this->save_message($reply, 'bot');
+        if (empty($reply)) {
+            $reply = "Thanks We'll help you shortly.";
+        }
 
         echo json_encode([
-            'reply' => $reply
+            'reply' => $reply,
+            'messages' => []
         ]);
     }
 
+    
 
-    private function get_reply($message, $action, $order_id) {
-        switch ($action) {
-            case 'track_order':
-                return $this->track_order($order_id ?: $message); 
-            
-            case 'cancel_order':
-                return 'To cancel an order, open My Account → My Orders, choose the order, then tap Cancel. If the order is already packed/shipped, please share the order ID with support so we can check whether cancellation is still possible.';
-            case 'return_item':
-                return 'For returns, open My Account → My Orders → Return. Keep the product unused with original packaging. If the return button is unavailable, the item may be outside the return window or already processed.';
-            case 'payment_issue':
-                return 'For payment issues, first check whether the amount was debited. If it was debited but the order was not created, wait a few minutes and share the payment reference/order ID with support for verification.';
-            case 'product_inquiry':
-                return 'For product questions, send the product name or product link. I can help with availability, delivery options, size/variant confusion, and seller questions.';
-            case 'support':
-                return 'I can connect you with support. Please describe your issue in one message with any order ID, payment reference, or product link so the team can help faster.';
+    private function get_bot_reply($message)
+    {
+        $normalized = $this->normalize($message);
+    
+        if ($this->matches_any($normalized, ['track order', 'order status', 'where is my order', 'delivery status'])) {
+            return $this->start_order_tracking_flow();
         }
-
-        if (ctype_digit($message)) {
-            return $this->track_order($message);
+    
+        if ($this->matches_any($normalized, ['cancel order', 'cancel my order'])) {
+            return 'Go to My Orders → Cancel ❌';
         }
-        if (stripos($message, 'track') !== false || stripos($message, 'where is my order') !== false || stripos($message, 'order') !== false) {
-            return 'Please enter your Order ID so I can estimate the delivery timeline.';
+    
+        if ($this->matches_any($normalized, ['payment issue', 'payment problem', 'payment'])) {
+            return $this->start_payment_issue_flow();
         }
-        if (stripos($message, 'cancel') !== false) {
-            return $this->get_reply($message, 'cancel_order', '');
+    
+        if ($this->matches_any($normalized, ['product inquiry', 'product enquiry', 'product'])) {
+            return $this->start_product_enquiry_flow();
         }
-        if (stripos($message, 'return') !== false) {
-            return $this->get_reply($message, 'return_item', '');
+    
+        if ($this->matches_any($normalized, ['return item', 'start return', 'return'])) {
+            return $this->return_policy_reply();
         }
-        if (stripos($message, 'payment') !== false) {
-            return $this->get_reply($message, 'payment_issue', '');
-        }
-        if (stripos($message, 'product') !== false) {
-            return $this->get_reply($message, 'product_inquiry', '');
-        }
-        if (stripos($message, 'support') !== false || stripos($message, 'help') !== false) {
-            return $this->get_reply($message, 'support', '');
-        }
-
-        return "Thanks 👍 We'll help you shortly. You can also choose Track Order, Cancel Order, Return Item, Payment Issue, Product Inquiry, or Support for faster help.";
+    
+    
+        return $this->fallback_reply();
     }
 
-    private function track_order($order_id) {
-        $order_id = preg_replace('/[^0-9]/', '', (string) $order_id);
+    private function get_customer_user_id()
+    {
+        $user_id = $this->session->userdata('user_id');
+        return !empty($user_id) ? (int) $user_id : null;
+    }
 
-        if ($order_id === '') {
-            return 'Please enter a valid numeric Order ID so I can check the expected arrival.';
+    
+    
+    private function start_order_tracking_flow() {
+        $this->session->set_userdata('chat_state', self::STATE_ORDER_ID);
+        return 'Please enter your Order ID.';
+    }
+
+    private function start_payment_issue_flow() {
+        $this->session->set_userdata('chat_state', self::STATE_PAYMENT_ISSUE);
+        return 'Please describe your payment issue.';
+    }
+
+    private function start_product_enquiry_flow() {
+        $this->session->set_userdata('chat_state', self::STATE_PRODUCT_NAME);
+        return 'Please enter the product name.';
+    }
+
+    private function reply_with_order_status($order_id) {
+        $order_id = trim($order_id);
+
+        if (!ctype_digit($order_id)) {
+            return 'We could not find an order with that ID. Please check and try again.';
         }
 
-        if (!$this->db->table_exists('orders')) {
-            return 'I could not access order tracking right now. Please share your Order ID with support and we will check it manually.';
+        $select = ['o.id'];
+        foreach (['active_status', 'delivery_date', 'delivery_time', 'estimated_delivery_date', 'estimated_delivery_time', 'expected_delivery_date', 'expected_delivery_time'] as $field) {
+            if ($this->db->field_exists($field, 'orders')) {
+                $select[] = 'o.' . $field;
+            }
         }
 
-        $this->db->select('id, user_id, delivery_date, delivery_time, date_added');
-        $this->db->where('id', $order_id);
-
-        if ($this->ion_auth->logged_in()) {
-            $this->db->where('user_id', (int) $this->session->userdata('user_id'));
-        }
-
-        $order = $this->db->get('orders')->row_array();
+        $order = $this->db->select(implode(',', $select))
+            ->where('o.id', (int) $order_id)
+            ->limit(1)
+            ->get('orders o')
+            ->row_array();
 
         if (empty($order)) {
-            return 'I could not find Order #' . $order_id . '. Please check the ID and try again, or contact support if you placed the order as a guest.';
+            return 'We could not find an order with that ID. Please check and try again.';
         }
 
-        $status = $this->get_order_status($order_id);
-        if (in_array($status, ['delivered', 'cancelled', 'returned'], true)) {
-            return 'Order #' . $order_id . ' is already marked as ' . ucfirst($status) . '.';
-        }
+        $status = $this->get_order_status_from_database((int) $order_id, $order);
+        $estimated_delivery = $this->get_estimated_delivery_from_database($order);
 
-        $estimated_date = $this->get_estimated_delivery_date($order);
-        if ($estimated_date === '') {
-            return 'Order #' . $order_id . ' is ' . ucfirst($status ?: 'being processed') . '. I could not find an estimated delivery date, so please contact support for the latest update.';
-        }
-
-        $today = new DateTime(date('Y-m-d'));
-        $delivery = new DateTime($estimated_date);
-        $days_left = (int) $today->diff($delivery)->format('%r%a');
-
-        if ($days_left > 1) {
-            $arrival = $days_left . ' days left';
-        } elseif ($days_left === 1) {
-            $arrival = '1 day left';
-        } elseif ($days_left === 0) {
-            $arrival = 'arriving today';
-        } else {
-            $arrival = 'delivery date has passed; please contact support for an updated ETA';
-        }
-
-        return 'Order #' . $order_id . ' is ' . ucfirst($status ?: 'in progress') . '. Estimated delivery: ' . date('d M Y', strtotime($estimated_date)) . ' (' . $arrival . ').';
+        return 'Your order #' . $order['id'] . ' is currently ' . $status . '. Estimated delivery: ' . $estimated_delivery . '.';
     }
 
-    private function get_order_status($order_id) {
-        if (!$this->db->table_exists('order_items')) {
-            return '';
+    private function get_order_status_from_database($order_id, $order) {
+        if (!empty($order['active_status'])) {
+            return $order['active_status'];
         }
 
-        $this->db->select('active_status');
-        $this->db->where('order_id', $order_id);
-        $this->db->order_by('id', 'DESC');
-        $item = $this->db->get('order_items')->row_array();
+        if ($this->db->table_exists('order_items') && $this->db->field_exists('active_status', 'order_items')) {
+            $items = $this->db->select('active_status')
+                ->where('order_id', $order_id)
+                ->get('order_items')
+                ->result_array();
 
-        return !empty($item['active_status']) ? $item['active_status'] : '';
+            $statuses = [];
+            foreach ($items as $item) {
+                if (!empty($item['active_status'])) {
+                    $statuses[] = $item['active_status'];
+                }
+            }
+            $statuses = array_values(array_unique($statuses));
+
+            if (count($statuses) === 1) {
+                return $statuses[0];
+            }
+            if (count($statuses) > 1) {
+                return implode(', ', $statuses);
+            }
+        }
+
+        return 'not available';
     }
 
-    private function get_estimated_delivery_date($order) {
-        if (!empty($order['delivery_date']) && $order['delivery_date'] !== '0000-00-00') {
-            return date('Y-m-d', strtotime($order['delivery_date']));
+    private function get_estimated_delivery_from_database($order) {
+        $date_fields = ['delivery_date', 'estimated_delivery_date', 'expected_delivery_date'];
+        $time_fields = ['delivery_time', 'estimated_delivery_time', 'expected_delivery_time'];
+        $date = '';
+        $time = '';
+
+        foreach ($date_fields as $field) {
+            if (!empty($order[$field]) && $order[$field] !== '0000-00-00') {
+                $date = $order[$field];
+                break;
+            }
         }
 
-        if (!empty($order['date_added'])) {
-            return date('Y-m-d', strtotime($order['date_added'] . ' + 7 days'));
+        foreach ($time_fields as $field) {
+            if (!empty($order[$field])) {
+                $time = $order[$field];
+                break;
+            }
+        }
+
+        $delivery = trim($date . ' ' . $time);
+        return $delivery !== '' ? $delivery : 'Not available';
+    }
+
+    private function reply_with_payment_issue($message) {
+        $normalized = $this->normalize($message);
+
+        if ($this->matches_any($normalized, ['deducted', 'debited', 'money taken', 'amount deducted'])) {
+            return 'We can see that your payment may have been processed without successful order creation. Please wait up to 30 minutes. If the amount is not reversed, contact support with your transaction reference.';
+        }
+        if ($this->matches_any($normalized, ['pending', 'processing', 'waiting'])) {
+            return 'Your payment appears to be pending. Please avoid making another payment until the current transaction is completed.';
+        }
+        if ($this->matches_any($normalized, ['refund', 'money back', 'refund pending'])) {
+            return 'Refunds typically take 5-7 business days depending on your bank. Please check your registered payment method.';
+        }
+        if ($this->matches_any($normalized, ['upi', 'gpay', 'phonepe', 'paytm'])) {
+            return 'Please verify your UPI transaction ID and ensure the payment was successfully completed.';
+        }
+        if ($this->matches_any($normalized, ['card', 'visa', 'mastercard', 'credit card', 'debit card'])) {
+            return 'Please verify whether your bank approved the transaction. Failed authorizations are generally reversed automatically.';
+        }
+
+        return 'Please provide your order ID and transaction reference number so our support team can assist further.';
+    }
+
+    private function reply_with_product_matches($product_name) {
+        $product_name = trim($product_name);
+
+        if ($product_name === '' || !$this->db->table_exists('products')) {
+            return 'No matching products were found.';
+        }
+
+        $this->db->select('p.name as product_name, MIN(CASE WHEN pv.special_price IS NOT NULL AND pv.special_price > 0 THEN pv.special_price ELSE pv.price END) as product_price, u.username as seller_name, sd.store_name', false)
+            ->from('products p')
+            ->join('product_variants pv', 'p.id = pv.product_id', 'left')
+            ->join('users u', 'p.seller_id = u.id', 'left')
+            ->join('seller_data sd', 'p.seller_id = sd.user_id', 'left')
+            ->like('p.name', $product_name)
+            ->group_by(['p.id', 'p.name', 'u.username', 'sd.store_name'])
+            ->limit(5);
+
+        if ($this->db->field_exists('status', 'products')) {
+            $this->db->where('p.status', '1');
+        }
+
+        $products = $this->db->get()->result_array();
+
+        if (empty($products)) {
+            return 'No matching products were found.';
+        }
+
+        $lines = [];
+        foreach ($products as $product) {
+            $price = $product['product_price'];
+            $seller_name = !empty($product['store_name']) ? $product['store_name'] : $product['seller_name'];
+
+            $lines[] = 'Product: ' . $product['product_name'] . "\n" .
+                'Price: ' . $this->format_price($price) . "\n" .
+                'Seller: ' . ($seller_name !== '' ? $seller_name : 'Not available');
+        }
+
+        return implode("\n\n", $lines);
+    }
+
+    private function return_policy_reply() {
+        $return_days = $this->get_return_window_days();
+
+        if ($return_days !== '') {
+            return 'Items can be returned within ' . $return_days . ' days, subject to the platform return policy and product eligibility shown on the product page.';
+        }
+
+        return 'Items can generally be returned within the allowed return period shown on the product page.';
+    }
+
+    private function get_return_window_days() {
+        if (function_exists('get_settings')) {
+            $settings = get_settings('system_settings', true);
+            if (!empty($settings['max_product_return_days'])) {
+                return $settings['max_product_return_days'];
+            }
         }
 
         return '';
     }
 
-    private function save_message($message, $sender) {
-        if ($message === '') {
-            return;
-        }
+    private function fallback_reply() {
+        return "I can help with:\n• Order Tracking\n• Order Cancellation\n• Payment Issues\n• Product Enquiries\n• Returns\n• Customer Support\n\nPlease select one of the available options.";
+    }
 
-        if (!$this->db->table_exists('chat_messages')) {
-            log_message('debug', 'Skipping floating chat persistence because chat_messages table does not exist.');
-            return;
-        }
-
+    private function log_message_row($user_id, $message, $sender)
+    {
+        $session_id = session_id();
+    
         $this->db->insert('chat_messages', [
-            'user_id' => (int) $this->session->userdata('user_id'),
-            'message' => $message,
-            'sender' => $sender
+            'chat_session_id' => 1,
+            'user_id' => $user_id > 0 ? $user_id : null,
+            'session_id' => $session_id,
+            'sender' => $sender,
+            'message' => $message
         ]);
     }
+
+    private function get_chat_message_table() {
+        if ($this->db->table_exists('chat_message')) {
+            return 'chat_message';
+        }
+        if ($this->db->table_exists('chat_messages')) {
+            return 'chat_messages';
+        }
+        return 'chat_message';
+    }
+    private function get_chat_user_id() {
+        $user_id = $this->session->userdata('user_id');
+        return !empty($user_id) && ctype_digit((string) $user_id) ? (int) $user_id : 0;
+    }
+
+    private function clear_chat_state() {
+        $this->session->unset_userdata('chat_state');
+    }
+
+    private function sanitize_message($message) {
+        return trim(strip_tags((string) $message));
+    }
+
+    private function normalize($message) {
+        return strtolower(trim($message));
+    }
+
+    private function matches_any($message, $keywords) {
+        foreach ($keywords as $keyword) {
+            if (stripos($message, $keyword) !== false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private function matches_greeting($message) {
+        return (bool) preg_match('/\b(hello|hi|hey|good morning|good evening)\b/i', $message);
+    }
+
+    private function format_price($price) {
+        if ($price === null || $price === '') {
+            return 'Not available';
+        }
+
+        if (is_numeric($price)) {
+            return '₹' . number_format((float) $price, 2);
+        }
+
+        return '₹' . $price;
+    }
+    
+    
+
 }

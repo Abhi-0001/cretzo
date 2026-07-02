@@ -176,7 +176,7 @@ Choose an option below or type your question
 
 <div class="chat-row">
 <div class="chat-btn" data-chat-action="product_inquiry" data-chat-message="product inquiry">🛍️ Product Inquiry</div>
-<div class="chat-btn" data-chat-action="support" data-chat-message="support">🎧 Talk to Support</div>
+<div class="chat-btn" onclick="openWhatsApp()">🎧 WhatsApp Support </div>
 </div>
 
 </div>
@@ -237,7 +237,7 @@ function getPromptForAction(action) {
         return_item: "Returns are handled from My Account → My Orders → Return. Tell me what went wrong with the item if you need extra help.",
         payment_issue: "Payment issue noted. Please share whether money was debited, the payment method, and any payment reference/order ID.",
         product_inquiry: "Please send the product name or product link, and I’ll help with availability, variants, or delivery questions.",
-        support: "Support request started. Please describe the issue with any order ID, product link, or payment reference."
+        support: "Click WhatsApp Support to chat directly with our support team."
     };
 
     return prompts[action] || "Please type your question and I’ll help.";
@@ -294,6 +294,17 @@ function sendChatRequest(text, action, orderId) {
 
     });
 }
+
+//Whatsapp direct connection
+function openWhatsApp()
+{
+    window.open(
+        "https://wa.me/919266708387?text=Hello%20Cretzo%20Support",
+        "_blank"
+    );
+}
+
+
 
 
 // =====================

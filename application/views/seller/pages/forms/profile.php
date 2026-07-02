@@ -30,6 +30,17 @@
 .pincode-lookup-status.success {
   color: #198754;
 }
+.pincode-lookup-status {
+  display: block;
+  font-size: 12px;
+  margin-top: 4px;
+}
+.pincode-lookup-status.error {
+  color: #dc3545;
+}
+.pincode-lookup-status.success {
+  color: #198754;
+}
 #toast-msg {
   display: none;
   position: fixed;
@@ -43,10 +54,61 @@
   font-size: 15px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.2);
 }
+.category-pill {
+  display: inline-flex;
+  align-items: center;
+  background: #eef2ff;
+  color: #3730a3;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  margin: 4px 6px 0 0;
+}
+.category-picker-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+.category-picker-content {
+  background: #fff;
+  width: min(640px, 92vw);
+  max-height: 80vh;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.2);
+  display: flex;
+  flex-direction: column;
+}
+.category-picker-header,
+.category-picker-footer {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+.category-picker-footer {
+  border-top: 1px solid #e5e7eb;
+  border-bottom: 0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.category-picker-list {
+  padding: 12px 16px;
+  overflow-y: auto;
+}
+.category-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+}
 </style>
 </head>
 <body>
 <div id="toast-msg"></div>
+
 
   <section class="content w-100 seller-form">
       <div class="container-fluid">
@@ -77,8 +139,8 @@
 
                 <!-- FIX 1 — Removed onSubmit="submitForm(e)" (e was undefined, caused silent crash)
                      Form submission now handled entirely by JS event listener below -->
-                <form id="seller_form" enctype="multipart/form-data">
-
+                <form id="seller_form" enctype="multipart/form-data"> 
+                  
                     <div class="form-step form1">
                       <div class="row gap-xl-5">
                         <div class="col-md-6 mb-3">
@@ -105,10 +167,7 @@
                           <label class="form-label">Address <span class="text-danger">*</span></label>
                           <input name="address1" type="text" class="input" placeholder="Street 1" value="<?=$fetched_data[0]['address1']?>" required>
                         </div>
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">&nbsp;</label>
-                          <input name="address2" type="text" class="input" placeholder="Street 2" value="<?=$fetched_data[0]['address2']?>">
-                        </div>
+                        
                         <div class="col-md-6 mb-3">
                           <label class="form-label">PIN Code <span class="text-danger">*</span></label>
                           <input name="pin" id="pin" type="text" class="input" placeholder="Enter PIN Code" value="<?=$fetched_data[0]['pin']?>" required maxlength="6" onkeypress="if ( isNaN(this.value + String.fromCharCode(event.keyCode) )) return false;">
@@ -281,7 +340,7 @@
                         <button type="button" class="btn btn-back-2">Back</button>
                         <!-- FIX 2 — Changed type="submit" to type="button" to prevent default form submit
                              which was bypassing our fetch() handler -->
-                        <button type="button" class="btn-next-3">Next</button>
+                        <button type="button" class="btn btn-next-3">Next</button>
                       </div>
 
                     </div>
