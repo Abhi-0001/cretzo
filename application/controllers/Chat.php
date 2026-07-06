@@ -342,7 +342,6 @@ class Chat extends CI_Controller {
 
         return '₹' . $price;
     }
-    
-    
+
 
 }
