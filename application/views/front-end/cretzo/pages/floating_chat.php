@@ -259,13 +259,15 @@ function sendChatRequest(text, action, orderId) {
     if (action === "track_order" && orderId) {
         params.append("order_id", orderId);
     }
+    console.log("Sending:");
+    console.log(params.toString());
     fetch("<?= base_url('chat/send') ?>", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-            "Accept": "application/json"
-        },
-        body: "message=" + encodeURIComponent(text)
+    method: "POST",
+    headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json"
+    },
+    body: params.toString()
     })
     .then(res => res.text()) 
     .then(data => {
@@ -299,7 +301,7 @@ function sendChatRequest(text, action, orderId) {
 function openWhatsApp()
 {
     window.open(
-        "https://wa.me/919266708387?text=Hello%20Cretzo%20Support",
+        "https://wa.me/917290024349?text=Hello%20Cretzo%20Support",
         "_blank"
     );
 }
@@ -319,6 +321,7 @@ window.sendMsg = function (text, action) {
 
     pendingAction = "";
     appendMessage("user-msg", text || getPromptForAction(action));
+    sendChatRequest(text, action, "");
 
     if (action === "track_order") {
         pendingAction = "track_order";
@@ -359,10 +362,10 @@ document.addEventListener("DOMContentLoaded", function () {
         } else {
             window.sendMsg(text, "");
         
-        input.value = "";
+        
 
       
-        }
+        }input.value = "";
     });
 
     // ENTER KEY
