@@ -3,6 +3,80 @@ defined('BASEPATH') or exit('No direct script access allowed');
 
 class Product extends CI_Controller
 {
+    private function resolve_selected_category_id($input)
+    {
+        $input = is_string($input) ? trim($input) : $input;
+        if (!is_string($input) || $input === '') {
+            return 0;
+        }
+
+        if (strpos($input, 'new:') !== 0) {
+            return (int) $input;
+        }
+
+        $category_name = trim(substr($input, 4));
+        if ($category_name === '') {
+            return 0;
+        }
+
+        $existing = $this->db
+            ->where('name', $category_name)
+            ->get('categories')
+            ->row();
+
+        if (!empty($existing)) {
+            return (int) $existing->id;
+        }
+
+        $slug = url_title($category_name, '-', true);
+        $base_slug = $slug;
+        $counter = 1;
+        while ($this->db->where('slug', $slug)->count_all_results('categories') > 0) {
+            $slug = $base_slug . '-' . $counter;
+            $counter++;
+        }
+
+        $this->db->insert('categories', [
+            'name' => $category_name,
+            'slug' => $slug,
+            'parent_id' => 0,
+            'status' => 1
+        ]);
+
+        return (int) $this->db->insert_id();
+    }
+
+    
+    private function is_seller_admin_verified()
+    {
+        $seller_id = $this->session->userdata('user_id');
+        $seller = $this->db->select('status')->where('user_id', $seller_id)->get('seller_data')->row_array();
+        return !empty($seller) && (string) $seller['status'] === '1';
+    }
+
+    private function ensure_product_access($expects_json = false)
+    {
+        if ($this->is_seller_admin_verified()) {
+            return true;
+        }
+
+        if ($expects_json) {
+            $response = [
+                'error' => true,
+                'message' => 'Product management is locked until admin verification is approved.',
+                'total' => 0,
+                'rows' => []
+            ];
+            print_r(json_encode($response));
+            return false;
+        }
+
+        $this->session->set_flashdata('message', 'Please submit/complete admin verification. Product section unlocks only after admin approval.');
+        redirect('seller/home/profile?section=admin', 'refresh');
+        return false;
+    }
+    // admin verification added to add the product y the seller
+
 
     public function __construct()
     {
@@ -11,29 +85,42 @@ class Product extends CI_Controller
         $this->load->library(['ion_auth', 'form_validation', 'upload']);
         $this->load->helper(['url', 'language', 'file']);
         $this->load->model(['product_model', 'category_model', 'rating_model']);
+        $this->response = [];
     }
     public function index()
-    {
-        if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
-            $seller_id = $this->session->userdata('user_id');
-            $this->data['main_page'] = TABLES . 'manage-product';
-            $settings = get_settings('system_settings', true);
-            $this->data['title'] = 'Product Management | ' . $settings['app_name'];
-            $this->data['meta_description'] = 'Product Management |' . $settings['app_name'];
-            if (isset($_GET['edit_id'])) {
-                $this->data['fetched_data'] = fetch_details('product_faqs', ['id' => $_GET['edit_id']]);
-            }
-            $this->data['categories'] = json_decode(json_encode($this->category_model->get_seller_categories($seller_id)), 1);
-            $this->load->view('seller/template', $this->data);
-        } else {
-            redirect('seller/login', 'refresh');
-        }
+{
+    if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0))) {
+        redirect('seller/login', 'refresh');
+        return;
     }
+
+    $seller_id = $this->session->userdata('user_id');
+
+    if (!$this->ensure_product_access()) {
+        return;
+    }
+
+    $this->data['main_page'] = TABLES . 'manage-product';
+    $settings = get_settings('system_settings', true);
+    $this->data['title'] = 'Product Management | ' . $settings['app_name'];
+    $this->data['meta_description'] = 'Product Management | ' . $settings['app_name'];
+
+    if (isset($_GET['edit_id'])) {
+        $this->data['fetched_data'] = fetch_details('product_faqs', ['id' => $_GET['edit_id']]);
+    }
+
+    $this->data['categories'] = json_decode(json_encode($this->category_model->get_seller_categories($seller_id)), 1);
+    $this->data['brands'] = fetch_details('brands', ['status' => 1], 'id,name');
+    $this->load->view('seller/template', $this->data);
+}
 
     public function create_product()
     {
 
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
+            if (!$this->ensure_product_access()){
+                return;
+             }
             $seller_id = $this->session->userdata('user_id');
             $this->data['main_page'] = FORMS . 'product';
             $settings = get_settings('system_settings', true);
@@ -41,7 +128,7 @@ class Product extends CI_Controller
             $this->data['meta_description'] = 'Add Product | ' . $settings['app_name'];
             $this->data['taxes'] = fetch_details('taxes', null,  '*');
             $this->data['seller_id'] = $seller_id;
-            $this->data['shipping_data'] = fetch_details('pickup_locations', ['status' => 1, 'seller_id' => $this->session->userdata('user_id')], 'id,pickup_location');
+            // $this->response['files'] = $uploaded_files;
             $this->data['countries'] = fetch_details('countries', null, 'name,id');
             $this->data['brands'] = fetch_details('brands', null, 'name,id');
             
@@ -181,6 +268,9 @@ class Product extends CI_Controller
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
 
+            if (!$this->ensure_product_access()){
+                return;
+            }
             if (print_msg(!is_modification_allowed('create'), DEMO_VERSION_MSG, 'product', false)) {
                 return false;
             }
@@ -202,154 +292,250 @@ class Product extends CI_Controller
 
     public function add_product()
     {
-        if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
-
-            if (print_msg(!is_modification_allowed('create'), DEMO_VERSION_MSG, 'product', false)) {
-                return false;
-            }
-            $this->form_validation->set_rules('pro_input_name', 'Product Name', 'trim|required|xss_clean');
-            $this->form_validation->set_rules('short_description', 'Short Description', 'trim|required|xss_clean');
-            $this->form_validation->set_rules('category_id', 'Category Id', 'trim|required|xss_clean', array('required' => 'Category is required'));
-            $this->form_validation->set_rules('pro_input_tax', 'Tax', 'trim|xss_clean');
-            $this->form_validation->set_rules('pro_input_image', 'Image', 'trim|required|xss_clean', array('required' => 'Image is required'));
-            $this->form_validation->set_rules('made_in', 'Made In', 'trim|xss_clean');
-            $this->form_validation->set_rules('brand', 'Brand', 'trim|xss_clean');
-            $this->form_validation->set_rules('product_type', 'Product type', 'trim|required|xss_clean');
-            $this->form_validation->set_rules('total_allowed_quantity', 'Total Allowed Quantity', 'trim|xss_clean');
-            $this->form_validation->set_rules('minimum_order_quantity', 'Minimum Order Quantity', 'trim|xss_clean');
-            $this->form_validation->set_rules('quantity_step_size', 'Quantity Step Size', 'trim|xss_clean');
-            $this->form_validation->set_rules('warranty_period', 'Warranty Period', 'trim|xss_clean');
-            $this->form_validation->set_rules('guarantee_period', 'Guarantee Period', 'trim|xss_clean');
-            $this->form_validation->set_rules('hsn_code', 'HSN_Code', 'trim|xss_clean');
-            $this->form_validation->set_rules('video', 'Video', 'trim|xss_clean');
-            $this->form_validation->set_rules('video_type', 'Video Type', 'trim|xss_clean');
-            $this->form_validation->set_rules('deliverable_type', 'Deliverable Type', 'required|trim|xss_clean');
-            $this->form_validation->set_rules('seller_id', 'Seller Id', 'required|trim|xss_clean|numeric');
-
-            if (isset($_POST['video_type']) && $_POST['video_type'] != '') {
-                if ($_POST['video_type'] == 'youtube' || $_POST['video_type'] == 'vimeo') {
-                    $this->form_validation->set_rules('video', 'Video link', 'trim|required|xss_clean', array('required' => " Please paste a %s in the input box. "));
-                } else {
-                    $this->form_validation->set_rules('pro_input_video', 'Video file', 'trim|required|xss_clean', array('required' => " Please choose a %s to be set. "));
-                }
-            }
-            if (isset($_POST['download_allowed']) && $_POST['download_allowed'] != '' && !empty($_POST['download_allowed']) && $_POST['download_allowed'] == 'on') {
-                $this->form_validation->set_rules('download_link_type', 'Download Link Type', 'required|xss_clean');
-                if (isset($_POST['download_link_type']) && $_POST['download_link_type'] != '' && !empty($_POST['download_link_type']) && $_POST['download_link_type'] == 'self_hosted') {
-                    $this->form_validation->set_rules('pro_input_zip', 'Zip file for download', 'required|xss_clean');
-                }
-                if (isset($_POST['download_link_type']) && $_POST['download_link_type'] != '' && !empty($_POST['download_link_type']) && $_POST['download_link_type'] == 'add_link') {
-                    $this->form_validation->set_rules('download_link', 'Digital Product URL/Link', 'required|xss_clean');
-                }
-            }
-
-            if (isset($_POST['tags']) && $_POST['tags'] != '') {
-                $_POST['tags'] = json_decode($_POST['tags'], 1);
-                $tags = array_column($_POST['tags'], 'value');
-                $_POST['tags'] = implode(",", $tags);
-            }
-
-            if (isset($_POST['is_cancelable']) && $_POST['is_cancelable'] == '1') {
-                $this->form_validation->set_rules('cancelable_till', 'Till which status', 'trim|required|xss_clean');
-            }
-            if (isset($_POST['cod_allowed'])) {
-                $this->form_validation->set_rules('cod_allowed', 'COD allowed', 'trim|xss_clean');
-            }
-            if (isset($_POST['is_prices_inclusive_tax'])) {
-                $this->form_validation->set_rules('is_prices_inclusive_tax', 'Tax included in prices', 'trim|xss_clean');
-            }
-            if ($_POST['deliverable_type'] == INCLUDED || $_POST['deliverable_type'] == EXCLUDED) {
-                $this->form_validation->set_rules('deliverable_zipcodes[]', 'Deliverable Zipcodes', 'trim|required|xss_clean');
-            }
-
-            // If product type is simple			
-            if (isset($_POST['product_type']) && $_POST['product_type'] == 'simple_product' || $_POST['product_type'] == 'digital_product') {
-
-                $this->form_validation->set_rules('simple_price', 'Price', 'trim|required|numeric|greater_than_equal_to[' . $this->input->post('simple_special_price') . ']|xss_clean');
-                $this->form_validation->set_rules('simple_special_price', 'Special Price', 'trim|numeric|less_than_equal_to[' . $this->input->post('simple_price') . ']|xss_clean');
-
-
-                if (isset($_POST['simple_product_stock_status']) && in_array($_POST['simple_product_stock_status'], array('0', '1'))) {
-
-                    $this->form_validation->set_rules('product_sku', 'SKU', 'trim|xss_clean');
-                    $this->form_validation->set_rules('product_total_stock', 'Total Stock', 'trim|required|numeric|xss_clean');
-                    $this->form_validation->set_rules('simple_product_stock_status', 'Stock Status', 'trim|required|numeric|xss_clean');
-                }
-            } elseif (isset($_POST['product_type']) && $_POST['product_type'] == 'variable_product') { //If product type is variant	
-                if (isset($_POST['variant_stock_status']) && $_POST['variant_stock_status'] == '0') {
-                    if ($_POST['variant_stock_level_type'] == "product_level") {
-
-                        $this->form_validation->set_rules('sku_pro_type', 'SKU', 'trim|xss_clean');
-                        $this->form_validation->set_rules('total_stock_variant_type', 'Total Stock', 'trim|required|xss_clean');
-                        $this->form_validation->set_rules('variant_stock_status', 'Stock Status', 'trim|required|xss_clean');
-                        if (isset($_POST['variant_price']) && isset($_POST['variant_special_price'])) {
-                            foreach ($_POST['variant_price'] as $key => $value) {
-                                $this->form_validation->set_rules('variant_price[' . $key . ']', 'Price', 'trim|required|numeric|xss_clean|greater_than_equal_to[' . $this->input->post('variant_special_price[' . $key . ']') . ']');
-                                $this->form_validation->set_rules('variant_special_price[' . $key . ']', 'Special Price', 'trim|numeric|xss_clean|less_than_equal_to[' . $this->input->post('variant_price[' . $key . ']') . ']');
-                            }
-                        } else {
-                            $this->form_validation->set_rules('variant_price', 'Price', 'trim|required|numeric|xss_clean|greater_than_equal_to[' . $this->input->post('variant_special_price') . ']');
-                            $this->form_validation->set_rules('variant_special_price', 'Special Price', 'trim|numeric|xss_clean|less_than_equal_to[' . $this->input->post('variant_price') . ']');
-                        }
-                    } else {
-                        if (isset($_POST['variant_price']) && isset($_POST['variant_special_price']) && isset($_POST['variant_sku']) && isset($_POST['variant_total_stock']) && isset($_POST['variant_stock_status'])) {
-                            foreach ($_POST['variant_price'] as $key => $value) {
-                                $this->form_validation->set_rules('variant_price[' . $key . ']', 'Price', 'trim|required|numeric|xss_clean|greater_than_equal_to[' . $this->input->post('variant_special_price[' . $key . ']') . ']');
-                                $this->form_validation->set_rules('variant_special_price[' . $key . ']', 'Special Price', 'trim|numeric|xss_clean|less_than_equal_to[' . $this->input->post('variant_price[' . $key . ']') . ']');
-                                $this->form_validation->set_rules('variant_sku[' . $key . ']', 'SKU', 'trim|xss_clean');
-                                $this->form_validation->set_rules('variant_total_stock[' . $key . ']', 'Total Stock asd', 'trim|required|numeric|xss_clean');
-                                $this->form_validation->set_rules('variant_level_stock_status[' . $key . ']', 'Stock Status', 'trim|required|numeric|xss_clean');
-                            }
-                        } else {
-                            $this->form_validation->set_rules('variant_price', 'Price', 'trim|required|numeric|xss_clean|greater_than_equal_to[' . $this->input->post('variant_special_price') . ']');
-                            $this->form_validation->set_rules('variant_special_price', 'Special Price', 'trim|numeric|xss_clean|less_than_equal_to[' . $this->input->post('variant_price') . ']');
-                            $this->form_validation->set_rules('variant_sku', 'SKU', 'trim|xss_clean');
-                            $this->form_validation->set_rules('variant_total_stock', 'Total Stock asd', 'trim|required|numeric|xss_clean');
-                            $this->form_validation->set_rules('variant_level_stock_status', 'Stock Status', 'trim|required|numeric|xss_clean');
-                        }
-                    }
-                } else {
-                    if (isset($_POST['variant_price']) && isset($_POST['variant_special_price'])) {
-                        foreach ($_POST['variant_price'] as $key => $value) {
-                            $this->form_validation->set_rules('variant_price[' . $key . ']', 'Price', 'trim|required|numeric|xss_clean|greater_than_equal_to[' . $this->input->post('variant_special_price[' . $key . ']') . ']');
-                            $this->form_validation->set_rules('variant_special_price[' . $key . ']', 'Special Price', 'trim|numeric|xss_clean|less_than_equal_to[' . $this->input->post('variant_price[' . $key . ']') . ']');
-                        }
-                    } else {
-                        $this->form_validation->set_rules('variant_price', 'Price', 'trim|required|numeric|xss_clean|greater_than_equal_to[' . $this->input->post('variant_special_price') . ']');
-                        $this->form_validation->set_rules('variant_special_price', 'Special Price', 'trim|numeric|xss_clean|less_than_equal_to[' . $this->input->post('variant_price') . ']');
-                    }
-                }
-            }
-
-            if (!$this->form_validation->run()) {
-                $this->response['error'] = true;
-                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = validation_errors();
-                print_r(json_encode($this->response));
-            } else {
-                if (!empty($_POST['deliverable_zipcodes'])) {
-                    $_POST['zipcodes'] = implode(",", $_POST['deliverable_zipcodes']);
-                } else {
-                    $_POST['zipcodes'] = NULL;
-                }
-                $this->product_model->add_product($_POST);
-                $this->response['error'] = false;
-                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $message = (isset($_POST['edit_product_id'])) ? 'Product Updated Successfully' : 'Product Added Successfully';
-                $this->response['message'] = $message;
-                print_r(json_encode($this->response));
-            }
-        } else {
+        ob_start();
+        error_reporting(E_ALL);
+        ini_set('display_errors',1);
+        if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0))) {
             redirect('seller/login', 'refresh');
+            return;
+        }
+    
+        if (!$this->ensure_product_access(true)) {
+            return;
+        }
+    
+        if (print_msg(!is_modification_allowed('create'), DEMO_VERSION_MSG, 'product', false)) {
+            return false;
+        }
+    
+        // Sync product_type from type field if not set
+        if (empty($_POST['product_type']) && !empty($_POST['type'])) {
+            $_POST['product_type'] = trim($_POST['type']);
+        }
+
+        // ADD THIS RIGHT HERE, before any validation rules
+        $product_type = isset($_POST['product_type']) ? trim($_POST['product_type']) : '';
+       
+       
+        // Normalize category_id (can arrive as array from tree widgets or duplicated form fields)
+        if (isset($_POST['category_id']) && is_array($_POST['category_id'])) {
+            $_POST['category_id'] = reset($_POST['category_id']);
+        }
+        if (isset($_POST['category_id']) && is_string($_POST['category_id'])) {
+            $_POST['category_id'] = trim($_POST['category_id']);
+        }
+        if (isset($_POST['category_id'])) {
+            $_POST['category_id'] = $this->resolve_selected_category_id($_POST['category_id']);
+        }
+        
+        // Set validation rules
+        $this->form_validation->set_rules('pro_input_name', 'Product Name', 'trim|required|xss_clean');
+        $this->form_validation->set_rules('short_description', 'Short Description', 'trim|required|xss_clean');
+        $this->form_validation->set_rules('category_id', 'Category Id', 'trim|required|numeric|xss_clean', array('required' => 'Category is required'));
+        $this->form_validation->set_rules('pro_input_tax', 'Tax', 'trim|xss_clean');
+        $image_rule = (isset($_POST['edit_product_id']) && !empty($_POST['edit_product_id'])) ? 'trim|xss_clean' : 'trim|required|xss_clean';
+        $this->form_validation->set_rules('pro_input_image', 'Image', $image_rule, ['required' => 'Image is required']);
+        $this->form_validation->set_rules('pro_input_image', 'Image', $image_rule, ['required' => 'Image is required']);
+        // $this->form_validation->set_rules('pro_input_image', 'Image', 'trim|required|xss_clean', ['required' => 'Image is required']);
+        $this->form_validation->set_rules('made_in', 'Made In', 'trim|xss_clean');
+        $this->form_validation->set_rules('brand', 'Brand', 'trim|xss_clean');
+        $this->form_validation->set_rules('product_type', 'Product type', 'trim|required|xss_clean');
+        $this->form_validation->set_rules('total_allowed_quantity', 'Total Allowed Quantity', 'trim|xss_clean');
+        $this->form_validation->set_rules('minimum_order_quantity', 'Minimum Order Quantity', 'trim|xss_clean');
+        $this->form_validation->set_rules('quantity_step_size', 'Quantity Step Size', 'trim|xss_clean');
+        $this->form_validation->set_rules('warranty_period', 'Warranty Period', 'trim|xss_clean');
+        $this->form_validation->set_rules('guarantee_period', 'Guarantee Period', 'trim|xss_clean');
+        $this->form_validation->set_rules('hsn_code', 'HSN Code', 'trim|xss_clean');
+        $this->form_validation->set_rules('video', 'Video', 'trim|xss_clean');
+        $this->form_validation->set_rules('video_type', 'Video Type', 'trim|xss_clean');
+        $this->form_validation->set_rules('deliverable_type', 'Deliverable Type', 'trim|xss_clean');
+        $this->form_validation->set_rules('seller_id', 'Seller Id', 'required|trim|xss_clean|numeric');
+    
+        // Video validation
+        if (isset($_POST['video_type']) && $_POST['video_type'] != '') {
+            if ($_POST['video_type'] == 'youtube' || $_POST['video_type'] == 'vimeo') {
+                $this->form_validation->set_rules('video', 'Video link', 'trim|required|xss_clean', ['required' => 'Please paste a %s in the input box.']);
+            } else {
+                $this->form_validation->set_rules('pro_input_video', 'Video file', 'trim|required|xss_clean', ['required' => 'Please choose a %s to be set.']);
+            }
+        }
+    
+        // Download validation
+        if (isset($_POST['download_allowed']) && $_POST['download_allowed'] == 'on') {
+            $this->form_validation->set_rules('download_link_type', 'Download Link Type', 'required|xss_clean');
+            if (isset($_POST['download_link_type']) && $_POST['download_link_type'] == 'self_hosted') {
+                $this->form_validation->set_rules('pro_input_zip', 'Zip file for download', 'required|xss_clean');
+            }
+            if (isset($_POST['download_link_type']) && $_POST['download_link_type'] == 'add_link') {
+                $this->form_validation->set_rules('download_link', 'Digital Product URL/Link', 'required|xss_clean');
+            }
+        }
+    
+        // Tags processing
+        if (isset($_POST['tags']) && $_POST['tags'] != '') {
+            $decoded_tags = json_decode($_POST['tags'], true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded_tags)) {
+            $tags = array_column($decoded_tags, 'value');
+            $_POST['tags'] = implode(",", array_filter($tags, 'strlen'));
+            } else {
+            $_POST['tags'] = trim((string)$_POST['tags']);
+        }
+        }
+    
+        // Cancelable validation
+        if (isset($_POST['is_cancelable']) && $_POST['is_cancelable'] == '1') {
+            $this->form_validation->set_rules('cancelable_till', 'Till which status', 'trim|required|xss_clean');
+        }
+    
+        if (isset($_POST['cod_allowed'])) {
+            $this->form_validation->set_rules('cod_allowed', 'COD allowed', 'trim|xss_clean');
+        }
+    
+        if (isset($_POST['is_prices_inclusive_tax'])) {
+            $this->form_validation->set_rules('is_prices_inclusive_tax', 'Tax included in prices', 'trim|xss_clean');
+        }
+    
+        // Deliverable zipcodes validation
+        if (isset($_POST['deliverable_type']) && ($_POST['deliverable_type'] == INCLUDED || $_POST['deliverable_type'] == EXCLUDED)) {
+            $this->form_validation->set_rules('deliverable_zipcodes[]', 'Deliverable Zipcodes', 'trim|required|xss_clean');
+        }
+    
+        // Product type specific validation
+    
+        if ($product_type == 'simple_product' || $product_type == 'digital_product') {
+            $this->form_validation->set_rules('simple_price', 'Price', 'trim|required|numeric|xss_clean');
+            $this->form_validation->set_rules('simple_special_price', 'Special Price', 'trim|numeric|xss_clean');
+    
+            if (isset($_POST['simple_product_stock_status']) && in_array($_POST['simple_product_stock_status'], ['0', '1'])) {
+                $this->form_validation->set_rules('product_sku', 'SKU', 'trim|xss_clean');
+                $this->form_validation->set_rules('product_total_stock', 'Total Stock', 'trim|required|numeric|xss_clean');
+                $this->form_validation->set_rules('simple_product_stock_status', 'Stock Status', 'trim|required|numeric|xss_clean');
+            }
+        } elseif ($product_type == 'variable_product') {
+            if (isset($_POST['variant_stock_status']) && $_POST['variant_stock_status'] == '0') {
+                if (isset($_POST['variant_stock_level_type']) && $_POST['variant_stock_level_type'] == 'product_level') {
+                    $this->form_validation->set_rules('sku_pro_type', 'SKU', 'trim|xss_clean');
+                    $this->form_validation->set_rules('total_stock_variant_type', 'Total Stock', 'trim|required|xss_clean');
+                    $this->form_validation->set_rules('variant_stock_status', 'Stock Status', 'trim|required|xss_clean');
+    
+                    if (isset($_POST['variant_price']) && is_array($_POST['variant_price'])) {
+                        foreach ($_POST['variant_price'] as $key => $value) {
+                            $this->form_validation->set_rules('variant_price[' . $key . ']', 'Price', 'trim|required|numeric|xss_clean');
+                            $this->form_validation->set_rules('variant_special_price[' . $key . ']', 'Special Price', 'trim|numeric|xss_clean');
+                        }
+                    }
+                } else {
+                    if (isset($_POST['variant_price']) && is_array($_POST['variant_price'])) {
+                        foreach ($_POST['variant_price'] as $key => $value) {
+                            $this->form_validation->set_rules('variant_price[' . $key . ']', 'Price', 'trim|required|numeric|xss_clean');
+                            $this->form_validation->set_rules('variant_special_price[' . $key . ']', 'Special Price', 'trim|numeric|xss_clean');
+                            $this->form_validation->set_rules('variant_sku[' . $key . ']', 'SKU', 'trim|xss_clean');
+                            $this->form_validation->set_rules('variant_total_stock[' . $key . ']', 'Total Stock', 'trim|required|numeric|xss_clean');
+                            $this->form_validation->set_rules('variant_level_stock_status[' . $key . ']', 'Stock Status', 'trim|required|numeric|xss_clean');
+                        }
+                    }
+                }
+            } else {
+                if (isset($_POST['variant_price']) && is_array($_POST['variant_price'])) {
+                    foreach ($_POST['variant_price'] as $key => $value) {
+                        $this->form_validation->set_rules('variant_price[' . $key . ']', 'Price', 'trim|required|numeric|xss_clean');
+                        $this->form_validation->set_rules('variant_special_price[' . $key . ']', 'Special Price', 'trim|numeric|xss_clean');
+                    }
+                }
+            }
+        }
+
+         // Run validation
+         if (!$this->form_validation->run()) {
+             $this->response['error'] = true;
+             $this->response['csrfName'] = $this->security->get_csrf_token_name();
+             $this->response['csrfHash'] = $this->security->get_csrf_hash();
+             $this->response['message'] = validation_errors();
+             $this->response['errors'] = $this->form_validation->error_array();
+             print_r(json_encode($this->response));
+             return;
+         }
+     
+         // Process zipcodes
+         if (!empty($_POST['deliverable_zipcodes']) && is_array($_POST['deliverable_zipcodes'])) {
+             $_POST['zipcodes'] = implode(",", $_POST['deliverable_zipcodes']);
+         } else {
+             $_POST['zipcodes'] = NULL;
+         }
+     
+         // Save product
+         $this->product_model->add_product($_POST);
+         file_put_contents(FCPATH . 'debug_log.txt', "CONTROLLER - after model, about to send response\n", FILE_APPEND);
+
+         $message = isset($_POST['edit_product_id']) ? 'Product Updated Successfully' : 'Product Added Successfully';
+        
+        // Add this line to store the message in the session
+        $this->session->set_flashdata('message', $message);
+        $this->session->set_flashdata('message_type', 'success');
+        
+        $this->response['error'] = false;
+        $this->response['csrfName'] = $this->security->get_csrf_token_name();
+        $this->response['csrfHash'] = $this->security->get_csrf_hash();
+        $this->response['message'] = $message;
+        $this->response['redirect'] = base_url('seller/product');
+        file_put_contents(FCPATH . 'debug_log.txt', "CONTROLLER - response: " . json_encode($this->response) . "\n", FILE_APPEND);
+        print_r(json_encode($this->response));
+        $debug_output = ob_get_clean();
+        if (!empty($debug_output)) {
+            file_put_contents(FCPATH . 'debug_log.txt', date('Y-m-d H:i:s') . "\n" . $debug_output . "\n\n", FILE_APPEND);
         }
     }
+        
+        
+         
+   
 
+    public function get_subcategories()
+    {
+        if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0))) {
+            redirect('seller/login', 'refresh');
+            return;
+        }
+
+        $parent_id = (int) $this->input->get('parent_id', true);
+        $seller_id = (int) $this->session->userdata('user_id');
+        $category_ids = [];
+        $seller_data = fetch_details('seller_data', ['user_id' => $seller_id], 'category_ids');
+        if (!empty($seller_data[0]['category_ids'])) {
+            $category_ids = array_filter(array_map('intval', explode(',', $seller_data[0]['category_ids'])));
+        }
+
+        $this->db->select('id,name,parent_id');
+        $this->db->from('categories');
+        $this->db->where(['parent_id' => $parent_id, 'status' => 1]);
+        if (!empty($category_ids)) {
+            $this->db->where_in('id', $category_ids);
+        }
+        $rows = $this->db->order_by('name', 'ASC')->get()->result_array();
+
+        $response = [
+            'error' => false,
+            'rows' => $rows,
+            'csrfName' => $this->security->get_csrf_token_name(),
+            'csrfHash' => $this->security->get_csrf_hash()
+        ];
+        print_r(json_encode($response));
+    }
+    public function process_category()
+{
+    $input = $this->input->post('selected_category_id', true);
+    return $this->resolve_selected_category_id($input);
+    
+}
+
+  
 
     public function get_product_data()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
+            if (!$this->ensure_product_access(true)) {
+                return;
+            }
             $seller_id =  (isset($_GET['seller_id']) && !empty($_GET['seller_id'])) ? $this->input->get('seller_id', true) : $this->session->userdata('user_id');
             $status =  (isset($_GET['status']) && $_GET['status'] != "") ? $this->input->get('status', true) : NULL;
             if (isset($_GET['flag']) && !empty($_GET['flag'])) {
@@ -990,16 +1176,16 @@ class Product extends CI_Controller
                                 print_r(json_encode($this->response));
                                 return false;
                             }
-                            if ($row[27] != "") {
-                                if ($row[27] != 0 && $row[27] != 1 && $row[27] != 2 && $row[27] != 3) {
-                                    $this->response['error'] = true;
-                                    $this->response['message'] = 'Not valid value for deliverable_type at row ' . $temp;
-                                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                    print_r(json_encode($this->response));
-                                    return false;
-                                }
-                            }
+                            // if ($row[27] != "") {
+                            //     if ($row[27] != 0 && $row[27] != 1 && $row[27] != 2 && $row[27] != 3) {
+                            //         $this->response['error'] = true;
+                            //         $this->response['message'] = 'Not valid value for deliverable_type at row ' . $temp;
+                            //         $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                            //         $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                            //         print_r(json_encode($this->response));
+                            //         return false;
+                            //     }
+                            // }
 
                             if ($row[27] != "" && ($row[27] == INCLUDED || $row[27] == EXCLUDED)) {
                                 if (empty($row[28])) {

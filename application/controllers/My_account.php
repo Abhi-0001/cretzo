@@ -1725,6 +1725,15 @@ class My_account extends CI_Controller
             /* redirect him to the page where he can enter the purchase code */
             redirect(base_url("maintenance"));
         }
+        if (THEME == 'cretzo') {
+            $settings = get_settings('system_settings', true);
+            $this->data['main_page'] = 'floating_chat';
+            $this->data['title'] = 'Chat | ' . $settings['app_name'];
+            $this->data['meta_description'] = 'Chat | ' . $settings['app_name'];
+            $this->load->view('front-end/' . THEME . '/pages/floating_chat', $this->data);
+            return;
+        }
+        
         if ($this->ion_auth->logged_in()) {
             $this->data['title'] = 'Transactions | ' . $this->data['web_settings']['site_title'];
             $this->data['keywords'] = 'Transactions, ' . $this->data['web_settings']['meta_keywords'];
