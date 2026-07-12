@@ -16,9 +16,8 @@
 
     .progress-bar {
         border-radius: 10px;
-        transition: width 0.5s ease-in-out;
-        /* Start with the orange color from your circle scheme */
-        background-color: #f28c28 !important; 
+        transition: none;
+        background-color: #f28c28 !important;
         position: relative;
     }
 
@@ -457,33 +456,37 @@
 (function () {
     var progressBar = document.getElementById('profile-bar');
     var percentText = document.getElementById('percent-text');
+
     if (!progressBar) return;
 
     var target = parseInt(progressBar.getAttribute('data-target-width') || '0', 10);
     target = Math.max(0, Math.min(100, target));
-    var current = 0;
 
-    function animateProgressBar() {
-        if (current <= target) {
-            // Update bar width
-            progressBar.style.width = current + '%';
-            // Update text counter
-            percentText.textContent = current;
+    var duration = 1000; // 2 seconds
+    var startTime = null;
 
-            // Optional: Dynamic color shifting
-            // If completion is high, shift from orange to green
-            if (current > 70) {
-                progressBar.style.backgroundColor = '#28a745'; // Success Green
-            } else if (current > 40) {
-                progressBar.style.backgroundColor = '#ffc107'; // Warning Yellow
-            }
+    function animate(timestamp) {
+        if (!startTime) startTime = timestamp;
 
-            current += 1;
-            requestAnimationFrame(animateProgressBar);
+        var progress = Math.min((timestamp - startTime) / duration, 1);
+
+        var current = Math.floor(progress * target);
+
+        progressBar.style.width = current + '%';
+        percentText.textContent = current;
+
+        if (current > 70) {
+            progressBar.style.backgroundColor = '#28a745';
+        } else if (current > 40) {
+            progressBar.style.backgroundColor = '#ffc107';
+        }
+
+        if (progress < 1) {
+            requestAnimationFrame(animate);
         }
     }
 
-    // Start animation
-    setTimeout(animateProgressBar, 300); 
+    requestAnimationFrame(animate);
+
 })();
 </script>

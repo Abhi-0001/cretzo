@@ -86,8 +86,8 @@ if(ENVIRONMENT === 'development'){
 // 	$t_username = 'id21984800_cretzo';
 // 	$t_password = 'cretZo@#12;';
 } elseif (ENVIRONMENT === 'production') {
-	$t_database_name = 'cretzo_new';
-	$t_username = 'cretzo_new';
+	$t_database_name = 'u554344800_cretzo_new';
+	$t_username = 'u554344800_cretzo_new';
 	$t_password = 'Geet@cretzo123';
 }
 
