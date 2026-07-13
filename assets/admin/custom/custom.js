@@ -9271,7 +9271,7 @@ function load_sms_body_section(cat_html, is_edit = false, body_keys = [], body_v
     var body_keys = sms_data.body_key;
     var body_values = sms_data.body_value;
     // console.log(body_keys);
-    // console.log(body_values);
+    // console.log(body_values); 
 
     if (is_edit == true) {
 
