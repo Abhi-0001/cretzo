@@ -67,7 +67,7 @@
     <script src="https://www.gstatic.com/firebasejs/7.20.0/firebase-messaging.js"></script>
     <link rel="stylesheet" href="<?= base_url('assets/admin/css/tagify.min.css') ?>">
     <script type="text/javascript">
-      // missing of var caused the stuck
+      // missing of var caused the stuck 
       var  base_url = "<?= base_url() ?>";
       var  csrfName = "<?= $this->security->get_csrf_token_name() ?>";
       var  csrfHash = "<?= $this->security->get_csrf_hash() ?>";
