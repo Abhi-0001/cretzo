@@ -62,7 +62,7 @@
 /* BUTTONS */
 .chat-row {
     display: flex;
-    gap: 1px;
+    gap: 10px;
     margin-top: 8px;
 }
 

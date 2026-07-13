@@ -4121,6 +4121,7 @@ $(document).on('click', '.delete-sellers', function () {
 $('.select_multiple').each(function () {
     $(this).select2({
         theme: 'bootstrap4',
+        dropdownParent: $('#add-address-modal'),
         width: $(this).data('width') ? $(this).data('width') : $(this).hasClass('w-100') ? '100%' : 'style',
         placeholder: $(this).data('placeholder'),
         allowClear: Boolean($(this).data('allow-clear')),
@@ -8638,7 +8639,13 @@ $(document).on('click', "#forgot_password_link", function (e) {
         $('#recaptcha-container-2').html('');
         window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container-2');
         window.recaptchaVerifier.render().then(function (widgetId) {
-            grecaptcha.reset(widgetId);
+            if (typeof grecaptcha !== 'undefined' && typeof grecaptcha.reset === 'function') {
+                try {
+                    grecaptcha.reset(widgetId);
+                } catch (e) {
+                    console.error("Error resetting recaptcha: ", e);
+                }
+            }
         });
     }
     var telInput = $("#forgot_password_number");
@@ -8698,7 +8705,13 @@ $(document).ready(function () {
         $('#recaptcha-container-2').html('');
         window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container-2');
         window.recaptchaVerifier.render().then(function (widgetId) {
-            grecaptcha.reset(widgetId);
+            if (typeof grecaptcha !== 'undefined' && typeof grecaptcha.reset === 'function') {
+                try {
+                    grecaptcha.reset(widgetId);
+                } catch (e) {
+                    console.error("Error resetting recaptcha: ", e);
+                }
+            }
         });
     }
     var telInput = $("#forgot_password_number"),
@@ -8803,7 +8816,13 @@ $(document).on('submit', '#send_forgot_password_otp_form', function (e) {
 
 function resetRecaptcha() {
     return window.recaptchaVerifier.render().then(function (widgetId) {
-        grecaptcha.reset(widgetId);
+        if (typeof grecaptcha !== 'undefined' && typeof grecaptcha.reset === 'function') {
+            try {
+                grecaptcha.reset(widgetId);
+            } catch (e) {
+                console.error("Error resetting recaptcha: ", e);
+            }
+        }
     });
 }
 $(".auth-modal").on('click', 'header a', function (event) {
