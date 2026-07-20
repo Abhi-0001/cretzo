@@ -38,7 +38,7 @@
                         </style>
 
                         <style>
-                            .cretzo-progress { display:flex; align-items:center; justify-content:center; gap:12px; margin-bottom:18px; font-size:20px }
+                            .cretzo-progress { display:flex; align-items:center; justify-content:center; gap:12px; margin-bottom:50px; font-size:20px }
                             .cretzo-progress .step { color:#111; font-weight:600; padding:0 6px; }
                             .cretzo-progress .step.active { color:#F28C38; font-weight:800; }
                             .cretzo-progress .connector { width:160px; border:dashed 1.5px #222; }

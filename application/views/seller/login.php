@@ -58,6 +58,13 @@ $is_forgot_password = (isset($main_page) && strpos($main_page, 'forgot-password'
             </div>
 
             <h2 class="mission-text">Empowering Handmade Artist Worldwide</h2>
+
+            <?php if (!empty($launch_offer_active)) : ?>
+            <div class="launch-offer-banner" role="note">
+                <span class="lo-icon" aria-hidden="true">&#127881;</span>
+                <span class="lo-text"><strong>Launch Offer</strong>First 100 vendors get 50 free listings for 1 year</span>
+            </div>
+            <?php endif; ?>
         </div>
 		
         <div class="form-section">
@@ -110,13 +117,6 @@ $is_forgot_password = (isset($main_page) && strpos($main_page, 'forgot-password'
                 </form>
             <?php } else { ?>
                 <h2 class="form-title">Seller Login</h2>
-
-                <?php if (!empty($launch_offer_active)) : ?>
-                <div class="launch-offer-banner" role="note">
-                    <span class="lo-icon" aria-hidden="true">&#127881;</span>
-                    <span class="lo-text"><strong>Launch Offer</strong>First 100 vendors get 50 free listings for 1 year</span>
-                </div>
-                <?php endif; ?>
 
                 <form action="<?= base_url('/seller/auth/login') ?>" class='form-submit-event' method="post">
                 <input type='hidden' name='<?= $this->security->get_csrf_token_name() ?>' value='<?= $this->security->get_csrf_hash() ?>'>   

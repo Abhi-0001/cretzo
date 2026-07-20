@@ -60,18 +60,22 @@
             justify-content: center;
             gap: 12px;
             max-width: 760px;
-            margin: 10px auto 6px;
+            margin: 10px auto 20px;
             padding: 14px 20px;
             border-radius: 14px;
-            background: linear-gradient(135deg, var(--orange) 0%, #d96d1a 100%);
+            /* background: linear-gradient(135deg, var(--orange) 0%, #d96d1a 100%);
             color: #ffffff;
-            box-shadow: 0 12px 26px -12px rgba(242, 140, 56, 0.8);
+            box-shadow: 0 12px 26px -12px rgba(242, 140, 56, 0.8); */
             text-align: left;
             line-height: 1.35;
+            background: linear-gradient(135deg, #fff3e3 0%, #ffe7cc 100%);
+            border: 1px solid rgba(224, 122, 72, 0.28);
+            color: var(--cz-ink);
+            box-shadow: 0 8px 18px -12px rgba(224, 122, 72, 0.45);
         }
-        .subscription-launch-banner .slb-icon { font-size: 26px; line-height: 1; flex-shrink: 0; }
-        .subscription-launch-banner .slb-title { font-weight: bold; font-size: 15px; display: block; }
-        .subscription-launch-banner .slb-sub { font-size: 13px; opacity: 0.95; }
+        .subscription-launch-banner .slb-icon { font-size: 60px; line-height: 1; flex-shrink: 0; }
+        .subscription-launch-banner .slb-title { font-weight: bold; font-size: 23px; display: block; }
+        .subscription-launch-banner .slb-sub { font-size: 22px; opacity: 0.95; }
 
         .subscription-header { padding: 10px 5px; }
         h1 { font-size: 32px; margin-bottom: 5px; }
@@ -81,27 +85,37 @@
         .subscription-plans-container {
             display: flex;
             justify-content: center;
+            align-items: stretch;
             gap: 20px;
             flex-wrap: wrap;
             padding: 10px;
         }
 
         .subscription-card {
-            background-color: var(--card-yellow);
-            border-radius: 15px;
-            width: 250px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            background-color: #ffffff;
+            border-radius: 16px;
+            width: 210px;
             max-width: 100%;
-            padding: 30px 20px;
+            padding: 20px 15px;
             position: relative;
-            transition: transform 0.2s;
-            border: 2px solid transparent;
-            margin-bottom: 10px;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            border: 1px solid #f0e6cf;
+            box-shadow: 0 6px 18px -12px rgba(120, 72, 20, 0.35);
+        }
+
+        .subscription-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 14px 28px -16px rgba(120, 72, 20, 0.45);
         }
 
         /* Active Plan Highlight */
         .subscription-card.active {
             border-color: var(--orange);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            box-shadow: 0 10px 24px -14px rgba(242, 140, 56, 0.6);
         }
 
         .active-badge {
@@ -120,22 +134,38 @@
 
         .subscription-card.active .active-badge { display: block; }
 
-        .subscription-card h2 { color: var(--orange); margin-top: 0; }
-        .price { font-size: 24px; font-weight: bold; margin: 15px 0; }
-        .listings { font-weight: bold; }
-        
+        .subscription-card h2 {
+            color: var(--orange);
+            margin: 0 0 6px;
+            font-size: 22px;
+        }
+        .price {
+            font-size: 28px;
+            font-weight: 700;
+            margin: 4px 0 14px;
+            padding-bottom: 14px;
+            width: 100%;
+            border-bottom: 1px solid #f0e6cf;
+        }
+        .listings { font-weight: 600; font-size: 15px; }
+        .validity { color: var(--cz-muted, #6b6b6b); font-size: 13.5px; margin-top: 2px; }
+
         .upgrade-btn {
-            margin-top: 20px;
+            margin-top: 18px;
+            width: 100%;
             background: var(--orange);
             color: white;
             border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
+            padding: 10px;
+            border-radius: 8px;
             cursor: pointer;
-            font-weight: bold;
+            font-size: 14px;
+            font-weight: 600;
+            transition: background 0.2s ease;
         }
 
-        .upgrade-btn:disabled { background: #ccc; cursor: not-allowed; }
+        .upgrade-btn:hover:not(:disabled) { background: #d96d1a; }
+        .upgrade-btn:disabled { background: #e2e2e2; color: #888; cursor: not-allowed; }
 
         /* Commission Section */
         .subscription-commission-sec {
@@ -175,7 +205,8 @@
         }
 
         .features-list li {
-            margin-bottom: 8px;
+            font-size: 12px;
+            margin-bottom: 4px;
         }
 
         .hidden-features {
@@ -199,7 +230,7 @@
             <div class="card">
                 <div class="card-body subscription-page-body">
                     <style>
-                        .cretzo-progress { display:flex; align-items:center; justify-content:center; gap:12px; margin-bottom:18px; font-size:20px }
+                        .cretzo-progress { display:flex; align-items:center; justify-content:center; gap:12px; margin-bottom:50px; font-size:20px }
                         .cretzo-progress .step { color:#111; font-weight:600; padding:0 6px; }
                         .cretzo-progress .step.active { color:#F28C38; font-weight:600; }
                         .cretzo-progress .connector { width:160px; border:dashed 1.5px #222; }
@@ -265,7 +296,7 @@
                                     <div class="subscription-card <?= $is_active ? 'active' : '' ?>" id="plan-<?= (int) $plan['id']; ?>">
                                         <div class="active-badge">CURRENT PLAN</div>
                                         <h2><?= html_escape($plan['name']); ?></h2>
-                                        <div class="price"><?= $is_free ? 'Free' : '₹' . html_escape($price_raw); ?></div>
+                                        <div class="price"><?= $is_free ? 'Free&#127881;' : '₹' . html_escape($price_raw); ?></div>
                                         <div class="listings"><?= html_escape($listings_text); ?></div>
                                         <div class="validity"><?= html_escape($validity_text); ?></div>
                                             <?php if ($is_active) : ?>
