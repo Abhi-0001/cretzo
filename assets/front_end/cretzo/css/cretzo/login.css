@@ -26,14 +26,14 @@
     position: relative;
 }
 #login_div .login-left{
-    width: 70%;
-    padding: 60px 60px 20px 60px;
+    width: 58%;
+    padding: 50px 50px 20px 50px;
 }
 #login_div .input{
     margin-bottom: 10px;
 }
 #login_div .login-right{
-    width: 30%;
+    width: 42%;
     /* background-image: url(../images/login-img.png); */
     background-repeat: no-repeat;
     background-size: cover;
@@ -48,7 +48,7 @@
 #login_div .login-with-container{
     margin: 20px 0;
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     gap: 5px;
     align-items: center;
 }
@@ -56,7 +56,7 @@
     padding: 10px;
     border: 1px solid rgba(0, 0, 0, 0.1);
     border-radius: 2px;
-    width: 200px;
+    width: 180px;
     /* box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.04); */
     display: flex;
     align-items: center;
@@ -98,10 +98,20 @@ body.modal-open{
 }
 #login_div .btn-close {
     position: absolute;
-    top: 10px;
+    top: 12px;
     right: 12px;
     margin: 0;
     z-index: 4;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    background-color: rgba(255, 255, 255, 0.9);
+    border-radius: 50%;
+    opacity: 1;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+    background-size: 12px;
+    background-position: center;
+    background-origin: border-box;
 }
 #login_div input.form-control{
     line-height: normal;
@@ -252,7 +262,7 @@ body.modal-open{
         width: 90vw;
     }
     #login_div .login-left{
-        padding: 40px 40px 10px 40px;
+        padding: 35px 35px 10px 35px;
     }
 }
 @media screen and (max-width: 600px){
@@ -277,7 +287,7 @@ body.modal-open{
     }
     #login_div .login-right{
         width: 100%;
-        min-height: 120px;
+        min-height: 250px;
     }
 }
 @media screen and (max-width: 400px){

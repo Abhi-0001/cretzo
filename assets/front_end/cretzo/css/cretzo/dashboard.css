@@ -1,145 +1,261 @@
 .accounts-container{
     min-height: 60vh;
     width: 100%;
+    padding: 40px 20px;
+    background: #faf7f4;
 }
 .overview-container{
-    margin: 40px;
-    max-width: 1200px;
+    max-width: 1180px;
     margin-inline: auto;
-    border: 1px solid rgba(0, 0, 0, 0.1);
+    background: #fff;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    /* the single simple orange line accent along the top */
+    border-top: 3px solid var(--color-orange, #F2822E);
+    border-radius: 12px;
+    overflow: hidden;
 }
+
+/* ------------ profile header ------------ */
 .overview-upper{
-    padding: 20px;
-    background-color: rgba(0, 0, 0, 0.06);
     display: flex;
-    gap: 20px;
     align-items: center;
-    position: relative;
-}
-.overview-upper .profile-icon-big{
-    height: 140px;
-    width: auto;
-}
-.overview-upper .heading-b{
-    margin-bottom: 10px;
-}
-.overview-upper .btn{
-    font-weight: bold;
-    padding: 6px 20px;
-    color: black;
-    border: 2px solid black;
-    border-radius: 4px;
-    background: none;
-    position: absolute;
-    top: 20px;
-    right: 20px;
-}
-.overview-lower{
-    padding: 20px;
-    display: grid;
-    gap: 20px 10px;
     justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 20px;
+    padding: 28px 32px;
+    background: var(--color-orange, #F2822E);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+}
+.profile-info{
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    min-width: 0;
+}
+.profile-avatar{
+    height: 92px;
+    width: 92px;
+    border-radius: 50%;
+    background: #f4f4f4;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+.profile-avatar img{
+    height: 62px;
+    width: 62px;
+    object-fit: contain;
+    opacity: 0.75;
+}
+.profile-meta{
+    min-width: 0;
+}
+.overview-upper .profile-name{
+    margin-bottom: 6px;
+    font-weight: 500;
+    line-height: 1.2;
+    color: #fff;
+}
+.overview-upper .profile-detail{
+    margin: 2px 0;
+    color: rgba(255, 255, 255, 0.92);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 400;
+    font-size: var(--font-size-text-s, 14px);
+    word-break: break-word;
+}
+.overview-upper .profile-detail i{
+    color: #fff;
+}
+.hero-actions{
+    display: flex;
+    gap: 10px;
+    flex-shrink: 0;
+}
+.overview-upper .hero-btn{
+    font-weight: 500;
+    padding: 8px 18px;
+    border-radius: 6px;
+    background: #fff;
+    border: 1px solid #fff;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--font-size-text-s, 14px);
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    white-space: nowrap;
+}
+.overview-upper .edit-profile-btn{
+    color: var(--color-orange-dark, #db7323);
+}
+.overview-upper .logout-btn{
+    color: var(--color-theme-red, #CE2031);
+}
+/* On the orange header a fill-with-orange hover would vanish, so we invert to
+   a solid dark pill with a white outline to keep the button distinct. */
+.overview-upper .edit-profile-btn:hover{
+    background: var(--color-orange-dark, #db7323);
+    color: #fff;
+    border-color: #fff;
+}
+.overview-upper .logout-btn:hover{
+    background: var(--color-theme-red, #CE2031);
+    color: #fff;
+    border-color: #fff;
+}
+
+/* ------------ quick action cards ------------ */
+.overview-lower{
+    padding: 28px 32px;
+    display: grid;
+    gap: 18px;
     grid-template-columns: repeat(4, 1fr);
 }
 .overview-box{
-    margin-inline: auto;
-    padding: 20px;
-    width: 260px;
-    height: 220px;
+    position: relative;
+    padding: 24px 22px;
     border: 1px solid rgba(0, 0, 0, 0.1);
-    text-align: center;
+    border-radius: 10px;
+    text-align: left;
     cursor: pointer;
+    background: #fff;
+    transition: border-color 0.15s ease;
 }
 .overview-box:hover{
-    border: 1px solid var(--color-orange);
+    border-color: var(--color-orange, #F2822E);
 }
 .overview-box:hover .heading-n{
-    color:  var(--color-orange);
+    color: var(--color-orange-dark, #db7323);
 }
-.overview-box .text-n{
-    opacity: 0.6;
-    line-height: 1px;
+.overview-box:hover .overview-box-arrow{
+    opacity: 1;
+    color: var(--color-orange, #F2822E);
+}
+.overview-box-icon-wrap{
+    height: 60px;
+    width: 60px;
+    border-radius: 12px;
+    background: var(--color-orange-light, #F3812D24);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
 }
 .overview-box-icon{
-    margin-bottom: 20px;
-    height: 80px;
-    width: 80px;
+    height: 34px;
+    width: 34px;
     aspect-ratio: 1/1;
+    object-fit: contain;
 }
-.logout-btn-container{
-    width: 100%;
-    text-align: center;
-    padding: 40px 0 20px 0;
+.overview-box .heading-n{
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: #222;
 }
-.logout-btn{
-    font-weight: bold;
-    padding: 10px 100px;
-    border-radius: 4px;
+.overview-box .text-n{
+    color: var(--color-grey, #6e6e6e);
+    line-height: 1.45;
+    font-size: var(--font-size-text-s, 14px);
+    margin: 0;
+}
+.overview-box-arrow{
+    position: absolute;
+    top: 22px;
+    right: 20px;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    color: var(--color-grey, #6e6e6e);
+    font-size: 20px;
 }
 
-/* responsive */
-@media screen and (max-width: 1200px) {
+/* ------------ responsive ------------ */
+@media screen and (max-width: 1100px) {
     .overview-lower{
         grid-template-columns: repeat(3, 1fr);
     }
 }
-@media screen and (max-width: 800px) {
-    .overview-upper {
-        padding: 10px;
-    }
-    .overview-upper .profile-icon-big {
-        height: 120px;
-        width: auto;
-    }
-    .overview-upper .btn {
-        top: 10px;
-        right: 10px;
-    }
-    .overview-lower {
-        padding: 10px;
-        gap: 10px;
-    }
-    .overview-box{
-        padding: 20px;
-        height: 160px;
-        width: 100%;
-        border: 1px solid rgba(0, 0, 0, 0.1);
-    }
-    .overview-box-icon{
-        margin-bottom: 10px;
-        height: 40px;
-        width: 40px;
-    }
-}
-@media screen and (max-width: 600px) {
-    .logout-btn {
-        width: 100%;
-        padding: 10px;
-    }
-}
-@media screen and (max-width: 500px) {
+@media screen and (max-width: 850px) {
     .overview-lower{
         grid-template-columns: repeat(2, 1fr);
     }
-    .overview-upper .profile-icon-big {
-        height: 100px;
-        width: auto;
+    .overview-upper{
+        padding: 24px 20px;
+    }
+    .overview-lower{
+        padding: 24px 20px;
     }
 }
-@media screen and (max-width: 400px) {
-    .overview-upper {
-        gap: 10px;
+@media screen and (max-width: 600px) {
+    .accounts-container{
+        padding: 20px 12px;
     }
-    .overview-upper .profile-icon-big {
+    .overview-upper{
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+    }
+    .profile-avatar{
         height: 80px;
-        width: auto;
+        width: 80px;
     }
-    .overview-upper .heading-b {
-        margin-bottom: 0px;
+    .profile-avatar img{
+        height: 54px;
+        width: 54px;
     }
-    .overview-upper .btn {
-        top: 5px;
-        right: 5px;
+    .hero-actions{
+        width: 100%;
+    }
+    .overview-upper .hero-btn{
+        flex: 1;
+        justify-content: center;
+        padding: 8px 12px;
+    }
+
+    .overview-lower{
+        padding: 20px 14px;
+        gap: 12px;
+    }
+    .overview-box{
+        padding: 18px 14px;
+    }
+    .overview-box-icon-wrap{
+        height: 50px;
+        width: 50px;
+        border-radius: 10px;
+        margin-bottom: 12px;
+    }
+    .overview-box-icon{
+        height: 28px;
+        width: 28px;
+    }
+    .overview-box .heading-n{
+        font-size: 15px;
+        margin-bottom: 5px;
+    }
+    .overview-box .text-n{
+        font-size: 12px;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    .overview-box-arrow{
+        display: none;
     }
 }
-/* /responsive */
+@media screen and (max-width: 420px) {
+    .overview-lower{
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+@media screen and (max-width: 320px) {
+    .overview-lower{
+        grid-template-columns: 1fr;
+    }
+}

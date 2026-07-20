@@ -213,32 +213,32 @@
                                         <tbody>
                                             <tr>
                                                 <th><?= !empty($this->lang->line('total_order_price')) ? $this->lang->line('total_order_price') : 'Total Order Price' ?></th>
-                                                <td>+ <?= $settings['currency'] . ' ' . number_format($order['total'], 2) ?></td>
+                                                <td>+ <?= $settings['currency'] . number_format($order['total'], 2) ?></td>
                                             </tr>
                                             <?php if ($item['type'] != 'digital_product') { ?>
                                                 <tr>
                                                     <th><?= !empty($this->lang->line('delivery_charge')) ? $this->lang->line('delivery_charge') : 'Delivery Charge' ?></th>
-                                                    <td>+ <?= $settings['currency'] . ' ' . number_format($order['delivery_charge'], 2) ?></td>
+                                                    <td>+ <?= $settings['currency'] . number_format($order['delivery_charge'], 2) ?></td>
                                                 </tr>
                                             <?php } ?>
                                             <tr class="d-none">
                                                 <th><?= !empty($this->lang->line('tax')) ? $this->lang->line('tax') : 'Tax' ?> - (<?= $order['total_tax_percent'] ?>%)</th>
-                                                <td>+ <?= $settings['currency'] . ' ' . number_format($order['total_tax_amount'], 2) ?></td>
+                                                <td>+ <?= $settings['currency'] . number_format($order['total_tax_amount'], 2) ?></td>
                                             </tr>
                                             <?php if (!empty($order['promo_code']) && !empty($order['promo_discount'])) { ?>
                                                 <tr>
                                                     <th><?= !empty($this->lang->line('promocode_discount')) ? $this->lang->line('promocode_discount') : 'Promocode Discount' ?> - (<?= $order['promo_code'] ?>)
                                                     </th>
-                                                    <td>- <?= $settings['currency'] . ' ' . number_format($order['promo_discount'], 2) ?></td>
+                                                    <td>- <?= $settings['currency'] . number_format($order['promo_discount'], 2) ?></td>
                                                 </tr>
                                             <?php } ?>
                                             <tr>
                                                 <th><?= !empty($this->lang->line('wallet_used')) ? $this->lang->line('wallet_used') : 'Wallet Used' ?></th>
-                                                <td>- <?= $settings['currency'] . ' ' . number_format($order['wallet_balance'], 2) ?></td>
+                                                <td>- <?= $settings['currency'] . number_format($order['wallet_balance'], 2) ?></td>
                                             </tr>
                                             <tr class="h6">
                                                 <th><?= !empty($this->lang->line('final_total')) ? $this->lang->line('final_total') : 'Final Total' ?></th>
-                                                <td><?= $settings['currency'] . ' ' . number_format($order['final_total'], 2) ?><span class="small text-muted"> <?= !empty($this->lang->line('via')) ? $this->lang->line('via') : 'via' ?> (<?= $order['payment_method'] ?>) </span></td>
+                                                <td><?= $settings['currency'] . number_format($order['final_total'], 2) ?><span class="small text-muted"> <?= !empty($this->lang->line('via')) ? $this->lang->line('via') : 'via' ?> (<?= $order['payment_method'] ?>) </span></td>
                                             </tr>
                                         </tbody>
                                     </table>

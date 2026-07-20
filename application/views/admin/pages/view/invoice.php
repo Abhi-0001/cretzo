@@ -221,11 +221,11 @@
                                                                 <td class="w-25"><?= $row['pname'] ?><br></td>
                                                                 <td class="w-25"><?= $product_variants ?><br></td>
                                                                 <td><?= $hsn_code ?><br></td>
-                                                                <td><?= $settings['currency'] . ' ' . number_format($price_without_tax, 2) ?><br></td>
+                                                                <td><?= $settings['currency'] . number_format($price_without_tax, 2) ?><br></td>
                                                                 <td><?= ($row['tax_percent']) ? $row['tax_percent'] : '0' ?><br></td>
                                                                 <td><?= number_format($tax_amount,2) ?><br></td>
                                                                 <td><?= $row['quantity'] ?><br></td>
-                                                                <td><?= $settings['currency'] . ' ' . number_format($sub_total, 2); ?><br></td>
+                                                                <td><?= $settings['currency'] . number_format($sub_total, 2); ?><br></td>
                                                                 <td class="d-none"><?= $row['active_status'] ?><br></td>
                                                             </tr>
                                                     <?php $j++;
@@ -245,7 +245,7 @@
                                                         <th> <?= $quantity ?>
                                                             <br>
                                                         </th>
-                                                        <th> <?= $settings['currency'] . ' ' . number_format($final_sub_total, 2) ?><br></th>
+                                                        <th> <?= $settings['currency'] . number_format($final_sub_total, 2) ?><br></th>
                                                     </tr>
                                                     <!-- <?php $total_order_price +=  $final_sub_total; ?> -->
                                                 </tbody>

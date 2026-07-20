@@ -62,15 +62,16 @@
     <script src="<?= base_url('assets/admin/js/jquery.min.js') ?>"></script>
     <!-- Star rating js -->
     <script type="text/javascript" src="<?= base_url('assets/admin/js/star-rating.js') ?>"></script>
-    <!--<script type="text/javascript" src="<?= base_url('assets/admin/js/theme.min.js') ?>"></script>
+    <script type="text/javascript" src="<?= base_url('assets/admin/js/theme.min.js') ?>"></script> 
     <script src="https://www.gstatic.com/firebasejs/7.20.0/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/7.20.0/firebase-messaging.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.20.0/firebase-messaging.js"></script>
     <link rel="stylesheet" href="<?= base_url('assets/admin/css/tagify.min.css') ?>">
     <script type="text/javascript">
-        base_url = "<?= base_url() ?>";
-        csrfName = "<?= $this->security->get_csrf_token_name() ?>";
-        csrfHash = "<?= $this->security->get_csrf_hash() ?>";
-        form_name = '<?= '#' . $main_page . '_form' ?>';
+      // missing of var caused the stuck 
+      var  base_url = "<?= base_url() ?>";
+      var  csrfName = "<?= $this->security->get_csrf_token_name() ?>";
+      var  csrfHash = "<?= $this->security->get_csrf_hash() ?>";
+      var  form_name = '<?= '#' . $main_page . '_form' ?>';
     </script>
 
 </head>

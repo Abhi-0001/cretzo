@@ -818,7 +818,8 @@ section #progressbar div.active:after {
 /* Extra small devices (phones, 600px and down) */
 
 @media only screen and (max-width: 600px) {
-    .swiper-container.swiper-thumbs-container {
+    /* .swiper-container */
+    .swiper-thumbs-container {
         display: none;
     }
 
@@ -2327,8 +2328,7 @@ top:82px;
 left:1340px;
 position:absolute;
 }
-.iconsax-linear/searchnormal1
-{
+.iconsax-linear .searchnormal1{
 background-color:#f7f7f7;
 height:20px;
 width:20px;
@@ -2348,9 +2348,9 @@ top:0px;
 position:absolute;
 }
 
-.swiper-container {
+/* .swiper-container {
     height: 70vh !important;
-}
+} */
 
 .swiper-slide {
     height: 70vh !important;
@@ -2362,7 +2362,7 @@ position:absolute;
     object-fit: cover;
 }
 @media (max-width: 768px) {
-    .swiper-container,
+    /* .swiper-container, */
     .swiper-slide {
         height: 50vh !important;
     }

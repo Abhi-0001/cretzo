@@ -523,72 +523,79 @@ $system_settings = get_settings('system_settings', true); ?>
 
 <!-- quick view -->
 <div id="quick-view" data-iziModal-group="grupo3" class='product-page-content'>
-    <button data-izimodal-close="" class="icon-close btn btn-circle bg-soft-primary" style="top: 9px;right: 9px;">
-        <i class="fa fa-close fs-18 text-dark"></i>
+    <button data-izimodal-close="" class="icon-close qv-close" aria-label="Close">
+        <i class="fa fa-close"></i>
     </button>
-    <div class="row p-4">
+    <div class="row g-0 qv-grid">
 
-        <!-- /.swiper-container -->
-        <div class="col-12 col-sm-6 product-preview-image-section-md swiper-thumbs-container">
+        <!-- Gallery (desktop) -->
+        <div class="col-12 col-lg-6 qv-gallery product-preview-image-section-md swiper-thumbs-container">
             <div class="swiper-container gallery-top overflow-hidden">
                 <div class="swiper-wrapper-main swiper-wrapper"></div>
             </div>
-            <div class="swiper-container gallery-thumbs overflow-hidden mt-10">
+            <div class="swiper-container gallery-thumbs overflow-hidden">
                 <div class="swiper-wrapper-thumbs swiper-wrapper"></div>
             </div>
         </div>
-        <!-- Mobile Product Image Slider -->
-        <div class="col-12 col-sm-6 product-preview-image-section-sm">
+        <!-- Gallery (mobile) -->
+        <div class="col-12 qv-gallery-mobile product-preview-image-section-sm">
             <div class="swiper-container mobile-image-swiper">
                 <div class="mobile-swiper swiper-wrapper-mobile swiper-wrapper"></div>
-                <!-- <div class="swiper-pagination mobile-image-swiper-pagination text-center"></div> -->
             </div>
         </div>
 
-        <div class="col-12 col-sm-6 product-page-details">
-            <h3 class="my-3 product-title" id="modal-product-title"></h3>
-            <div id="modal-product-sellers"></div>
-            <div id="modal-product-statistics"></div>
-            <div id="modal-product-brand" class="d-flex gap-1"></div>
-            <p id="modal-product-short-description"></p>
-            <hr class="mb-2 mt-2">
+        <!-- Details — mirrors the product detail page layout/typography -->
+        <div class="col-12 col-lg-6 qv-details product-page-details">
 
-            <input type="text" id="modal-product-rating" class="d-none" data-size="xs" value="0" data-show-clear="false" data-show-caption="false" readonly>
-            (<span class="rating-status" id="modal-product-no-of-ratings">1203</span> <?= !empty($this->lang->line('reviews')) ? $this->lang->line('reviews') : 'reviews' ?> )
-            <!-- </div> -->
-            <p class="mb-0 price">
+            <!-- seller ("Sold by …", injected) -->
+            <div id="modal-product-sellers" class="qv-seller text-b op-6"></div>
+
+            <!-- title -->
+            <h1 class="heading-b product-name qv-title" id="modal-product-title"></h1>
+
+            <!-- rating -->
+            <div class="qv-rating-row rating-star-container">
+                <input type="text" id="modal-product-rating" class="d-none" data-size="xs" value="0" data-show-clear="false" data-show-caption="false" readonly>
+                <span class="qv-review-count text-n">(<span class="rating-status" id="modal-product-no-of-ratings">0</span> <?= !empty($this->lang->line('reviews')) ? $this->lang->line('reviews') : 'reviews' ?>)</span>
+            </div>
+
+            <div id="modal-product-brand" class="d-flex gap-1 qv-brand"></div>
+
+            <!-- price + discount -->
+            <p class="price qv-price">
                 <span id="modal-product-price"></span>
-                <sup>
-                    <span class="striped-price text-danger" id="modal-product-special-price-div">
-                        <s id="modal-product-special-price"></s>
-                    </span>
-                </sup>
+                <span class="striped-price qv-old-price" id="modal-product-special-price-div">
+                    <s id="modal-product-special-price"></s>
+                </span>
+                <span class="qv-discount" id="modal-product-discount"></span>
             </p>
-            <div id="modal-product-variant-attributes"></div>
+
+            <!-- stock (injected) -->
+            <div class="qv-stock product-stock" id="modal-product-stock"></div>
+
+            <!-- short description -->
+            <p id="modal-product-short-description" class="text-n product-description qv-desc"></p>
+
+            <!-- variant options + zipcode (injected) -->
+            <div class="qv-options" id="modal-product-variant-attributes"></div>
             <div id="modal-product-variants-div"></div>
-            <div class="num-block skin-2 py-2 pt-4 pb-4 mt-2">
-                <div class="num-in form-control d-flex align-items-center">
-                    <span class="minus dis"></span>
-                    <input type="text" class="in-num" id="modal-product-quantity">
-                    <span class="plus"></span>
+
+            <!-- buy row: quantity + add to cart + wishlist + compare -->
+            <div class="qv-buy-row">
+                <div class="num-block skin-2 qv-qty">
+                    <div class="num-in form-control d-flex align-items-center">
+                        <span class="minus dis" data-min="1" data-step="1"></span>
+                        <input type="text" class="in-num" id="modal-product-quantity" value="1" data-min="1" data-step="1" data-max="">
+                        <span class="plus" data-max="" data-step="1"></span>
+                    </div>
                 </div>
-            </div>
-            <div class="d-flex mb-3 mt-2 text-center text-md-left gap-2">
-                <!-- <div> -->
-                <button class="m-0 add_to_cart mt-1 btn btn-sm btn-yellow rounded-pill w-100" id="modal-add-to-cart-button">&nbsp;<i class="uil uil-shopping-bag fs-16"></i> <?= !empty($this->lang->line('add_to_cart')) ? $this->lang->line('add_to_cart') : 'Add To Cart' ?></button>
-                <!-- </div>
-                <div> -->
-                <button type="button" name="compare" class="btn btn-sm btn-outline-blue rounded-pill h-9 m-0 mt-1 compare" id="compare"><i class="uil uil-exchange-alt fs-20"></i></button>
-                <!-- </div>
-                <div> -->
-                <button class="btn btn-sm btn-outline-red rounded-pill h-9 m-0 add-fav mt-1" id="add_to_favorite_btn"><i class="fa fa-heart fs-20"></i></button>
-                <!-- </div> -->
+                <button class="add_to_cart btn qv-add-btn" id="modal-add-to-cart-button"><i class="uil uil-shopping-bag"></i> <?= !empty($this->lang->line('add_to_cart')) ? $this->lang->line('add_to_cart') : 'Add To Cart' ?></button>
+                <button type="button" class="wishlist-icon-btn qv-fav add-fav" id="add_to_favorite_btn" aria-label="Add to wishlist" title="Add to wishlist"><i class="fa fa-heart-o"></i></button>
+                <button type="button" class="wishlist-icon-btn qv-compare compare-soon-btn" id="compare" aria-label="Compare product" title="Compare"><i class="uil uil-exchange-alt"></i></button>
             </div>
 
-            <div class="mt-2">
-                <span>
-                    <div id="modal-product-tags"></div>
-                </span>
+            <div class="qv-tags">
+                <div id="modal-product-tags"></div>
             </div>
         </div>
     </div>
@@ -607,11 +614,9 @@ $system_settings = get_settings('system_settings', true); ?>
 <?php } ?>
 
 <div class="fixed-icon">
-    <?php if ($this->ion_auth->logged_in()) { ?>
-        <div id="chat-button"><i class="uil uil-comments"></i></div>
-        <!-- Floating chat iframe -->
-        <iframe src="<?= base_url('my-account/floating_chat_modern') ?>" id="chat-iframe" style="display: none; position: fixed; bottom: 80px; right: 20px; width: 450px; height: 600px; border: none;z-index:999;"></iframe>
-    <?php } ?>
+<div id="chat-button"><i class="uil uil-comments"></i></div>
+    <!-- Floating chat iframe -->
+    <iframe src="<?= base_url('my-account/floating_chat_modern') ?>" id="chat-iframe" style="display: none; position: fixed; bottom: 80px; right: 20px; width: 450px; height: 600px; border: none;z-index:999;"></iframe>
     <div class="progress-wrap mt-2">
         <svg class="progress-circle svg-content" width="100%" height="100%" viewBox="-1 -1 102 102">
             <path d="M50,1 a49,49 0 0,1 0,98 a49,49 0 0,1 0,-98" />
@@ -728,17 +733,55 @@ $(document).click(function (e) {
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@10"></script>
 
 <style>
+/* ─────────────────────────────────────────────────────────────
+   Cart / global notifications (SweetAlert2 toasts): sit just BELOW
+   the header instead of overlapping it. The Toast mixin uses
+   position:"top" (top-center); these rules push it down clear of the
+   header. Offsets are tunable per header height.
+   ───────────────────────────────────────────────────────────── */
+body.swal2-toast-shown .swal2-container.swal2-top,
+body.swal2-toast-shown .swal2-container.swal2-top-start,
+body.swal2-toast-shown .swal2-container.swal2-top-end {
+    top: 110px !important;   /* clears the desktop header + category navbar */
+}
+@media (max-width: 768px) {
+    body.swal2-toast-shown .swal2-container.swal2-top,
+    body.swal2-toast-shown .swal2-container.swal2-top-start,
+    body.swal2-toast-shown .swal2-container.swal2-top-end {
+        top: 80px !important; /* shorter mobile header */
+    }
+}
+
+/* Legacy toastr styling kept for any remaining toastr.* calls (harmless if unused). */
+#toast-container.toast-top-center {
+    top: 90px;            /* clears the desktop header */
+    right: 0;
+    left: 0;
+    margin: 0 auto;
+    width: auto;
+    pointer-events: none; /* don't block header clicks behind it */
+}
+#toast-container.toast-top-center > div {
+    margin: 0 auto 6px auto;
+    pointer-events: auto;
+}
+@media (max-width: 768px) {
+    #toast-container.toast-top-center { top: 70px; } /* shorter mobile header */
+}
+
 /* Target the success toast specifically */
 #toast-container > .toast-success {
-    background-color: #f59b58 !important; /* Your Orange */
+    background-color: var(--color-orange, #F2822E) !important; /* theme orange */
     color: #fff !important;
     opacity: 1;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    
-    /* Making it smaller */
-    width: 200px !important; 
+    border-radius: 8px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+
+    /* Compact pill */
+    width: auto !important;
+    max-width: 320px;
     min-height: 40px !important;
-    padding: 10px 15px 10px 45px !important; /* Adjusted for icon space */
+    padding: 12px 18px 12px 45px !important; /* room for the icon */
     font-size: 13px;
 }
 
@@ -750,7 +793,7 @@ $(document).click(function (e) {
 
 /* Ensure the icon stays white */
 .toast-success {
-    background-image: none !important; /* Optional: removes default icon if it looks crowded */
+    background-image: none !important; /* removes default icon if it looks crowded */
 }
 </style>
 
@@ -761,7 +804,7 @@ function addtocartMessage() {
         "debug": false,
         "newestOnTop": true,
         "progressBar": true,
-        "positionClass": "toast-top-right",
+        "positionClass": "toast-top-center",
         "preventDuplicates": true,
         "showDuration": "300",
         "hideDuration": "300",

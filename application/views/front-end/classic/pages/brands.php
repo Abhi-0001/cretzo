@@ -22,7 +22,7 @@
                 </div>
             <?php } ?>
         </div>
-        <nav class="text-center mt-14 d-flex overflow-auto" aria-label="pagination">
+        <nav class="text-center mt-7 mb-5 d-flex overflow-auto" aria-label="pagination">
             <?= (isset($links)) ? $links : '' ?>
         </nav>
     </div>

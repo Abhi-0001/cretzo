@@ -240,9 +240,9 @@
 .delivery-list-item > div:nth-child(2){
     flex: 1;
 }
-.delivery-list-item > div:nth-child(2) .text-n{
+/* .delivery-list-item > div:nth-child(2) .text-n{
     text-align: right;
-}
+} */
 .cart-right-three{
     padding: 20px 0;
 }

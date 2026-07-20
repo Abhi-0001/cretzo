@@ -1,3 +1,38 @@
+/* Copy a promo code to the clipboard and show a confirmation toast.
+   Uses the async Clipboard API when available, with a hidden-textarea
+   fallback for older browsers / non-secure contexts. */
+function copyPromoCode(code) {
+    if (!code) {
+        return;
+    }
+    code = String(code);
+
+    function notifyCopied() {
+        if (typeof Toast !== 'undefined' && Toast.fire) {
+            Toast.fire({ icon: 'success', title: 'Code "' + code + '" copied!' });
+        }
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(code).then(notifyCopied).catch(function () {
+            fallbackCopyText(code);
+            notifyCopied();
+        });
+    } else {
+        fallbackCopyText(code);
+        notifyCopied();
+    }
+}
+
+function fallbackCopyText(text) {
+    var $temp = $('<textarea>').css({ position: 'fixed', top: '-9999px', opacity: 0 }).val(text).appendTo('body');
+    $temp[0].select();
+    try {
+        document.execCommand('copy');
+    } catch (err) { /* clipboard not available */ }
+    $temp.remove();
+}
+
 function updateCartDetails(){
     var cart_count = 0;
 
@@ -204,11 +239,12 @@ $(document).ready(function() {
         refreshBill();
     })
 
-    $(document).on('click', '#redeem_promocode', function () {
+    $(document).on('click', '#redeem_promocode', function (event) {
         event.preventDefault();
         var promo_code = $(this).data('value')
         // $('#promocode_input').val(promo_code);
         $('.promocode_input').val(promo_code);
+        copyPromoCode(promo_code);
     })
 
     document.getElementById("promo-code-modal").addEventListener("show.bs.modal", () => {
@@ -226,16 +262,24 @@ $(document).ready(function() {
                 var html = '';
                 if ((data.promo_codes).length != 0) {
                     $.each(data.promo_codes, function (i, e) {
-                        html += '<div class="card mb-2"><label for="promo-code-' + e.id + '"><li class="list-group-item d-flex align-item-center mt-3">' +
-                            '<div class="promo-code-img"><img src="' + e.image + '" style="max-width:80px;max-height:80px;"/></div>' +
-                            '<div class="text-start">' +
-                            '<div class="text-dark p-2 copy-promo-code" title="Copy promocode" id="redeem_promocode" data-value = ' + e.promo_code + '>' + e.promo_code + '<i class="fa fa-copy text-blue"></i></div>' +
-                            '<small class="text-muted">' + e.message + '</small>' +
+                        html += '<li class="promo-card">' +
+                            '<div class="promo-card-top">' +
+                            '<div class="promo-card-img">' +
+                            '<img src="' + e.image + '" alt="' + e.promo_code + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\';"/>' +
+                            '<i class="fa fa-gift promo-card-img-fallback" style="display:none;"></i>' +
                             '</div>' +
-                            '</li></label></div>';
+                            '<div class="promo-card-right">' +
+                            '<div class="promo-card-code copy-promo-code" title="Copy promocode" id="redeem_promocode" data-value="' + e.promo_code + '">' +
+                            '<span class="promo-card-code-text">' + e.promo_code + '</span>' +
+                            '<i class="fa fa-copy promo-card-copy"></i>' +
+                            '</div>' +
+                            '<p class="promo-card-desc">' + e.message + '</p>' +
+                            '</div>' +
+                            '</div>' +
+                            '</li>';
                     });
                 } else {
-                    html += '<div class="col-12 text-dark d-flex justify-content-center">Opps...No Offers Avilable</small>';
+                    html += '<li class="promo-empty">Oops... No offers available</li>';
                 }
                 $('#promocode-list').html(html);
             }
