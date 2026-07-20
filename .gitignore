@@ -15,4 +15,3 @@ application/config/database.php
 *.psd
 /vendor/
 composer.lock
-composer.phar

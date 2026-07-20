@@ -9,9 +9,7 @@ const is_loggedin = $("#is_loggedin").val();
 
 const Toast = Swal.mixin({
     toast: !0,
-    /* cretzo: show notifications centered just BELOW the header (was "top-end",
-       which overlapped the header). Vertical offset is applied via CSS in footer.php. */
-    position: "top",
+    position: "top-end",
     showConfirmButton: !1,
     timer: 3e3,
     timerProgressBar: !0,
@@ -123,9 +121,7 @@ if (auth_settings == "firebase") {
 }
 function resetRecaptcha() {
     return window.recaptchaVerifier.render().then(function (e) {
-        if (typeof grecaptcha !== 'undefined' && typeof grecaptcha.reset === 'function') {
-            try { grecaptcha.reset(e); } catch (ex) { }
-        }
+        grecaptcha.reset(e)
     })
 }
 
@@ -220,9 +216,7 @@ if (auth_settings == "sms") {
 
     function resetRecaptcha() {
         return window.recaptchaVerifier.render().then(function (e) {
-            if (typeof grecaptcha !== 'undefined' && typeof grecaptcha.reset === 'function') {
-                try { grecaptcha.reset(e); } catch (ex) { }
-            }
+            grecaptcha.reset(e)
         })
     }
 }
@@ -342,45 +336,6 @@ function closeLoginPopupFast() {
     setSocialButtonLoading('facebook', false);
     toggleAuthLoading(false);
 }
-
-// Bootstrap 4 JS (bootstrap.min.js) and Bootstrap 5 JS (plugins.js) are BOTH loaded
-// while only BS4 CSS is present. In that mixed setup a modal hide can leave an orphaned
-// .modal-backdrop + body.modal-open (overflow:hidden) behind, greying out and locking the
-// whole page. This strips those artifacts whenever no modal/offcanvas is genuinely open.
-function cleanupModalArtifacts() {
-    if ($('.modal.show').length || $('.offcanvas.show').length) return;
-    $('.modal-backdrop').remove();
-    $('body').removeClass('modal-open')
-             .css({ 'overflow': '', 'overflow-y': '', 'padding-right': '' });
-}
-
-// Normal path: Bootstrap finished hiding a modal/offcanvas (BS4 and BS5 both fire these,
-// and BS5's native events bubble so this jQuery delegate catches both).
-$(document).on('hidden.bs.modal', '.modal', cleanupModalArtifacts);
-$(document).on('hidden.bs.offcanvas', '.offcanvas', cleanupModalArtifacts);
-
-// Any dismiss trigger — BS5 (data-bs-dismiss) or BS4 (data-dismiss).
-$(document).on('click',
-    '[data-bs-dismiss="modal"], [data-dismiss="modal"], [data-bs-dismiss="offcanvas"], [data-dismiss="offcanvas"]',
-    function () { setTimeout(cleanupModalArtifacts, 400); });
-
-// Escape hatch: an ORPHANED backdrop (no modal actually visible) must never trap the page —
-// clicking the grey area force-clears it. If a modal is genuinely open, let Bootstrap handle it.
-$(document).on('click', '.modal-backdrop', function () {
-    if ($('.modal.show').length || $('.offcanvas.show').length) {
-        setTimeout(cleanupModalArtifacts, 400);
-        return;
-    }
-    $(this).remove();
-    cleanupModalArtifacts();
-});
-
-// Safety net: ESC key close.
-$(document).on('keydown', function (e) {
-    if (e.key === 'Escape' || e.keyCode === 27) {
-        setTimeout(cleanupModalArtifacts, 400);
-    }
-});
 
 $(document).on("submit", ".form-submit-event", function (e) {
     e.preventDefault();
@@ -615,7 +570,7 @@ search_products.on("select2:select", function (e) {
                         if (t_i && t_i.length) {
                             if (t_i.hasClass('fa-heart-o')) {
                                 t_i.removeClass('fa-heart-o').addClass('fa-heart');
-                                t_i.css('color', ''); // let CSS theme the filled heart (orange, not red)
+                                t_i.css('color', 'red');
                             } else if (t_i.hasClass('fa-heart')) {
                                 t_i.removeClass('fa-heart').addClass('fa-heart-o');
                                 t_i.css('color', '');
@@ -832,26 +787,18 @@ search_products.on("select2:select", function (e) {
                                 "data-max": data.total_allowed_quantity // values (or variables) here
                             })
                         } else {
-                            // No configured cap -> leave max empty (unlimited on the
-                            // client, same as the product detail page). A hard "1" here
-                            // locked the +/- stepper so it could never increment.
                             $(".in-num").attr({
-                                "data-max": '' // values (or variables) here
+                                "data-max": 1 // values (or variables) here
                             });
                             $(".plus").attr({
-                                "data-max": '' // values (or variables) here
+                                "data-max": 1 // values (or variables) here
                             });
                             $("#modal-add-to-cart-button").attr({
-                                "data-max": '' // values (or variables) here
+                                "data-max": 1 // values (or variables) here
                             })
                         }
 
-                        // jQuery caches .data() on first read and does NOT refresh it
-                        // when .attr() changes the underlying data-* attribute. Clear the
-                        // cache so the stepper handler re-reads this product's min/max/step.
-                        $(".in-num, .minus, .plus").removeData("min").removeData("max").removeData("step");
-
-                        $("#modal-product-quantity").val(data.minimum_order_quantity ? data.minimum_order_quantity : 1);
+                        $("#modal-product-quantity").val(data.minimum_order_quantity);
                         var title_slug = "";
 
                         if (data.name) {
@@ -866,26 +813,11 @@ search_products.on("select2:select", function (e) {
                         // var price = data.get_price.range
                         if ((data.variants[0].special_price < data.variants[0].price) && (data.variants[0].special_price != 0)) {
                             var price = data.variants[0].special_price
-                            $('#modal-product-special-price').text(currency + data.variants[0].price);
-                            $('#modal-product-special-price-div').show();
-                            // Discount %, mirroring the product detail page's "(NN% OFF)"
-                            var qvDiscount = Math.round((data.variants[0].price - data.variants[0].special_price) / data.variants[0].price * 100);
-                            $('#modal-product-discount').text(qvDiscount > 0 ? '(' + qvDiscount + '% OFF)' : '');
                         } else {
                             var price = data.variants[0].price
-                            $('#modal-product-special-price-div').hide();
-                            $('#modal-product-discount').text('');
                         }
                         // var price = data.variants[0].price
-                        $('#modal-product-price').html(currency + price);
-
-                        // Stock indicator, mirroring the product detail page ("N in stock")
-                        var qvStock = (data.variants[0] && data.variants[0].stock != null) ? data.variants[0].stock : data.stock;
-                        if (qvStock !== undefined && qvStock !== null && qvStock !== '') {
-                            $('#modal-product-stock').html('<i class="uil uil-check-circle"></i> ' + qvStock + ' in stock').show();
-                        } else {
-                            $('#modal-product-stock').empty().hide();
-                        }
+                        $('#modal-product-price').html(price);
 
 
                         //Quick View Product Modal Gallery Swiper
@@ -1026,7 +958,7 @@ search_products.on("select2:select", function (e) {
 
                                     is_color = 1;
 
-                                    color_code = ' style="background-color:' + swatche_values[j] + ' !important;"';
+                                    color_code = 'style="background-color:' + swatche_values[j] + '";';
 
                                     variant_attributes += '<style> .product-page-details .btn-group>.active { border: 1px solid black;}</style>' +
 
@@ -1067,18 +999,14 @@ search_products.on("select2:select", function (e) {
 
                         if (data.type != "digital_product") {
                             variant_attributes +=
-                                '<div class="d-flex flex-row qv-delivery-heading">' +
-                                '<h4 class="text-n mb-2 fw-bold opacity-75">DELIVERY OPTIONS</h4>' +
-                                '<i class="uil uil-truck ship-icon ml-2"></i>' +
-                                '</div>' +
                                 '<form class="mt-2 validate_zipcode_quick_view "   method="post" >' +
                                 '<div class="d-flex flex-nowrap input-group">' +
                                 '<div class="pl-0">' +
                                 '<input type="hidden" name="product_id" value="' + data.id + '">' +
                                 '<input type="hidden" name="' + csrfName + '" value="' + csrfHash + '">' +
-                                '<input type="text" class="form-control rounded" id="zipcode" placeholder="Enter Pincode" name="zipcode" autocomplete="off" required value="' + data.zipcode + '">' +
+                                '<input type="text" class="form-control" id="zipcode" placeholder="Zipcode" name="zipcode" required value="' + data.zipcode + '">' +
                                 '</div>' +
-                                '<button type="submit" class="cretzo btn btn-sm ml-0 btn-primary check-availability" data-product_id="' + data.id + '"  data-zipcode="' + data.zipcode + '"  id="validate_zipcode">Check Availability</button>' +
+                                '<button type="submit" class="btn btn-sm ml-0 btn-primary check-availability" data-product_id="' + data.id + '"  data-zipcode="' + data.zipcode + '"  id="validate_zipcode">Check Availability</button>' +
                                 '</div>' +
                                 '<div class="mt-2" id="error_box1">' +
                                 err_msg +
@@ -1125,23 +1053,21 @@ search_products.on("select2:select", function (e) {
 
                         $('#modal-product-variants-div').html(variants);
 
-                        // Reset the wishlist button fully each open (the modal is reused,
-                        // so stale add-fav/remove-fav + heart icon from a previous product
-                        // must be cleared). Outline heart = not saved, filled = saved —
-                        // same visual language as the product detail page.
-                        var $favBtn = $('#add_to_favorite_btn');
-                        $favBtn.attr('data-product-id', data.id);
-                        var $favIcon = $favBtn.find('i');
+                        $('#add_to_favorite_btn').attr('data-product-id', data.id);
+
                         if (data.is_favorite == 1) {
-                            $favBtn.removeClass('add-fav').addClass('remove-fav');
-                            $favIcon.removeClass('fa-heart-o').addClass('fa-heart');
-                            $favBtn.attr('data-is-fav', 'true');
+
+                            $('#add_to_favorite_btn').addClass('remove-fav');
+
+                            $('#add_to_favorite_btn').find('span').text('Remove From Favorite');
+
                         } else {
-                            $favBtn.removeClass('remove-fav').addClass('add-fav');
-                            $favIcon.removeClass('fa-heart').addClass('fa-heart-o');
-                            $favBtn.attr('data-is-fav', 'false');
+
+                            $('#add_to_favorite_btn').addClass('add-fav');
+
+                            $('#add_to_favorite_btn').find('span').text('Add to Favorite');
+
                         }
-                        $favIcon.css('color', '');
 
                         $('#compare').attr('data-product-id', data.id);
 
@@ -1228,7 +1154,7 @@ search_products.on("select2:select", function (e) {
                                 a = u[t])
                         }), i ? (quickViewgalleryTop.slideTo(a, 500, !1),
                             mobile_image_swiper.slideTo(a, 500, !1),
-                            n[0].special_price < n[0].price && 0 != n[0].special_price ? (s = n[0].special_price, $("#modal-product-price").text(currency + s), $("#modal-product-special-price").text(currency + n[0].price), $("#modal-add-to-cart-button").attr("data-product-variant-id", e), $("#modal-product-special-price-div").show()) : (s = n[0].price, $("#modal-product-price").html(currency + s), $("#modal-product-special-price-div").hide(), $("#modal-add-to-cart-button").attr("data-product-variant-id", e))) : $("#modal-product-special-price-div").hide()
+                            n[0].special_price < n[0].price && 0 != n[0].special_price ? (s = n[0].special_price, $("#modal-product-price").text(currency + " " + s), $("#modal-product-special-price").text(currency + " " + n[0].price), $("#modal-add-to-cart-button").attr("data-product-variant-id", e), $("#modal-product-special-price-div").show()) : (s = n[0].price, $("#modal-product-price").html(currency + " " + s), $("#modal-product-special-price-div").hide(), $("#modal-add-to-cart-button").attr("data-product-variant-id", e))) : $("#modal-product-special-price-div").hide()
                     }
                 })
             }),
@@ -1277,7 +1203,7 @@ search_products.on("select2:select", function (e) {
                                 console.log(t);
                                 void 0 !== t.product_variants.variant_values && null != t.product_variants.variant_values && t.product_variants.variant_values;
                                 var a = t.special_price < t.price && 0 != t.special_price ? t.special_price : t.price;
-                                n += '<div class="shopping-cart"><div class="shopping-cart-item d-flex justify-content-between mb-4" title = "' + t.name + '"><div class="d-flex flex-row gap-3"><figure class="rounded cart-img"><a href="' + base_url + 'products/details/' + t.slug + '"><img src="' + base_url + t.image + '" alt="Not Found" style="object-fit: contain;"></a></figure><div class="w-100 cart-title"><a href="' + base_url + 'products/details/' + t.slug + '"><h3 class="post-title fs-16 lh-xs mb-1" title = " ' + t.name + '">' + t.name + "</h3></a><span>" + t.product_variants.variant_values + '</span><p class="price"><ins><span class="amount">' + currency + a + '</span></ins></p><div class="product-pricing d-flex py-2 px-1 w-100"><div class="align-items-center d-flex p-2 w-15"><input type="number" name="header_qty" class="form-control d-flex align-items-center" value="' + c + '" data-id="' + t.product_variant_id + '" data-price="' + t.price + '" min="' + c + '" max="' + l + '" step="' + d + '" ></div><div class="product-line-price align-self-center px-1">' + currency + (t.qty * a) + '</div></div></div></div><div class="product-sm-removal"><button class="remove-product btn btn-sm btn-danger rounded-1 p-1 py-0" data-id="' + t.product_variant_id + '"><i class="uil uil-trash-alt"></i></button></div></div></div>'
+                                n += '<div class="shopping-cart"><div class="shopping-cart-item d-flex justify-content-between mb-4" title = "' + t.name + '"><div class="d-flex flex-row gap-3"><figure class="rounded cart-img"><a href="' + base_url + 'products/details/' + t.slug + '"><img src="' + base_url + t.image + '" alt="Not Found" style="object-fit: contain;"></a></figure><div class="w-100 cart-title"><a href="' + base_url + 'products/details/' + t.slug + '"><h3 class="post-title fs-16 lh-xs mb-1" title = " ' + t.name + '">' + t.name + "</h3></a><span>" + t.product_variants.variant_values + '</span><p class="price"><ins><span class="amount">' + currency + " " + a + '</span></ins></p><div class="product-pricing d-flex py-2 px-1 w-100"><div class="align-items-center d-flex p-2 w-15"><input type="number" name="header_qty" class="form-control d-flex align-items-center" value="' + c + '" data-id="' + t.product_variant_id + '" data-price="' + t.price + '" min="' + c + '" max="' + l + '" step="' + d + '" ></div><div class="product-line-price align-self-center px-1">' + currency + (t.qty * a) + '</div></div></div></div><div class="product-sm-removal"><button class="remove-product btn btn-sm btn-danger rounded-1 p-1 py-0" data-id="' + t.product_variant_id + '"><i class="uil uil-trash-alt"></i></button></div></div></div>'
                             }), $("#cart-item-sidebar").html(n)
                         } else {
                             if (0 == is_loggedin) {
@@ -1329,9 +1255,7 @@ search_products.on("select2:select", function (e) {
                     $(".send-otp-form").show(), $(".sign-up-form")[0].reset(), $(".sign-up-form").hide(),
 
                     $("#is-user-exist-error").html(""), $("#sign-up-error").html(""), $("#recaptcha-container").html(""), window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier("recaptcha-container"), window.recaptchaVerifier.render().then(function (e) {
-                        if (typeof grecaptcha !== 'undefined' && typeof grecaptcha.reset === 'function') {
-                            try { grecaptcha.reset(e); } catch (ex) { }
-                        }
+                        grecaptcha.reset(e)
                     });
                 var e = $("#phone-number"),
                     t = $("#error-msg"),
@@ -1511,7 +1435,7 @@ search_products.on("select2:select", function (e) {
             
             /* s.children(".product-line-price").each(function () {
                 $(this).fadeOut(a, function () {
-                    $(this).text(currency + i.toFixed(2)), r(), usercartTotal(), $(this).fadeIn(a)
+                    $(this).text(currency + " " + i.toFixed(2)), r(), usercartTotal(), $(this).fadeIn(a)
                 })
             }) */
 
@@ -1522,25 +1446,14 @@ search_products.on("select2:select", function (e) {
                 var parent = $(e).closest('.cart-item-detail-span');
                 parent.find(".discounted-price").each(function () {
                     $(this).fadeOut(a, function () {
-                        $(this).text(currency + i.toFixed(2)), r(), usercartTotal(), $(this).fadeIn(a)
+                        $(this).text(currency + " " + i.toFixed(2)), r(), usercartTotal(), $(this).fadeIn(a)
                     })
                 })
                 parent.find(".actual-price").each(function () {
                     $(this).fadeOut(a, function () {
-                        $(this).text(currency + totalMRP.toFixed(2)), usercartTotal(), $(this).fadeIn(a)
+                        $(this).text(currency + " " + totalMRP.toFixed(2)), usercartTotal(), $(this).fadeIn(a)
                     })
                 })
-            }
-            else {
-                // cretzo: mini-cart (header offcanvas) — the original line-price
-                // updater above is commented out and the cart-page branch never runs
-                // here, so the displayed line total never changed when the quantity
-                // changed. Update the ".product-line-price" that sits beside this
-                // quantity input so the sum reflects the new quantity.
-                s.find(".product-line-price").fadeOut(a, function () {
-                    $(this).text(currency + i.toFixed(2));
-                    $(this).fadeIn(a);
-                });
             }
         }
 
@@ -2104,7 +2017,7 @@ function display_cart(e) {
     null !== e && e.length > 0 && e.forEach(e => {
         console.log(e);
 
-        //a += '<div class="shopping-cart"><div class="shopping-cart-item d-flex justify-content-between mb-4"><div class="d-flex flex-row gap-3"  title = " ' + e.title + '"><figure class="rounded cart-img"><a href="' + base_url + 'products/details/' + e.slug + '"><img src="' + e.image + '" alt="Not Found" style="object-fit: contain;"></a></figure><div class="w-100"><a href="' + base_url + 'products/details/' + e.slug + '"><h3 class="post-title fs-16 lh-xs mb-1" title = " ' + e.title + '">' + e.title + '</h3></a><p class="price"><ins><span class="amount">' + currency + e.price + '</span></ins></p><div class="product-pricing d-flex py-2 px-1 w-100"><div class="align-items-center d-flex p-2 w-15"><input type="number" name="header_qty" class="form-control d-flex align-items-center" value="' + e.qty + '" data-id="' + e.product_variant_id + '" data-price="' + e.price + '" min="' + e.min + '" max="' + e.max + '" step="' + e.step + '" ></div><div class="product-line-price align-self-center px-1">' + currency + (e.qty * e.price) + '</div></div></div></div><div class="product-sm-removal"><button class="remove-product btn btn-sm btn-danger rounded-1 p-1 py-0" data-id="' + e.product_variant_id + '"><i class="uil uil-trash-alt"></i></button>   </div></div></div>'
+        //a += '<div class="shopping-cart"><div class="shopping-cart-item d-flex justify-content-between mb-4"><div class="d-flex flex-row gap-3"  title = " ' + e.title + '"><figure class="rounded cart-img"><a href="' + base_url + 'products/details/' + e.slug + '"><img src="' + e.image + '" alt="Not Found" style="object-fit: contain;"></a></figure><div class="w-100"><a href="' + base_url + 'products/details/' + e.slug + '"><h3 class="post-title fs-16 lh-xs mb-1" title = " ' + e.title + '">' + e.title + '</h3></a><p class="price"><ins><span class="amount">' + currency + " " + e.price + '</span></ins></p><div class="product-pricing d-flex py-2 px-1 w-100"><div class="align-items-center d-flex p-2 w-15"><input type="number" name="header_qty" class="form-control d-flex align-items-center" value="' + e.qty + '" data-id="' + e.product_variant_id + '" data-price="' + e.price + '" min="' + e.min + '" max="' + e.max + '" step="' + e.step + '" ></div><div class="product-line-price align-self-center px-1">' + currency + (e.qty * e.price) + '</div></div></div></div><div class="product-sm-removal"><button class="remove-product btn btn-sm btn-danger rounded-1 p-1 py-0" data-id="' + e.product_variant_id + '"><i class="uil uil-trash-alt"></i></button>   </div></div></div>'
 
         var variant_tag = "";
         if(e.product_variants != null && e.product_variants != "" && void 0 !== e.product_variants[0].variant_values && null != e.product_variants[0].variant_values){
@@ -2116,7 +2029,7 @@ function display_cart(e) {
         var slug = base_url + 'products/details/' + (e.slug).replace(base_url + 'products/details/', "");
         var s = e.special_price < e.price && 0 != e.special_price ? e.special_price : e.price;
 
-        a += '<div class="shopping-cart"><div class="shopping-cart-item d-flex justify-content-between mb-4"><div class="d-flex flex-row gap-3" title=" ' + e.name + '"><figure class="rounded cart-img"><a href="' + slug + '"><img src="' + img + '" alt="' + e.name + '" title="' + e.name + '" style="object-fit: contain;"></a></figure><div class="w-100 cart-title"><a href="' + slug + '"><h3 class="post-title fs-16 lh-xs mb-1 no-wrap" title=" ' + e.name + '">' + e.name + '</h3></a>' + variant_tag + '<p class="price"><ins><span class="amount">' + currency + s + '</span></ins></p><div class="product-pricing d-flex py-2 w-100"><div class="product-quantity product-sm-quantity"><input type="number" name="header_qty" class="form-control d-flex align-content-center w-14" value="' + e.qty + '" data-id="' + e.product_variant_id + '" data-price="' + e.price + '" min="' + e.min + '" max="' + e.max + '" step="' + e.step + '"></div><div class="product-line-price align-self-center px-1 no-wrap" style="color: #F2822E;">' + currency + (e.qty * s) + '</div></div></div>            </div><div class="product-sm-removal"><button class="remove-product btn btn-sm btn-danger rounded-1 p-1 py-0" data-id="' + e.product_variant_id + '"><i class="uil uil-trash-alt"></i></button></div></div></div>'        
+        a += '<div class="shopping-cart"><div class="shopping-cart-item d-flex justify-content-between mb-4"><div class="d-flex flex-row gap-3" title=" ' + e.name + '"><figure class="rounded cart-img"><a href="' + slug + '"><img src="' + img + '" alt="' + e.name + '" title="' + e.name + '" style="object-fit: contain;"></a></figure><div class="w-100 cart-title"><a href="' + slug + '"><h3 class="post-title fs-16 lh-xs mb-1 no-wrap" title=" ' + e.name + '">' + e.name + '</h3></a>' + variant_tag + '<p class="price"><ins><span class="amount">' + currency + " " + s + '</span></ins></p><div class="product-pricing d-flex py-2 w-100"><div class="product-quantity product-sm-quantity"><input type="number" name="header_qty" class="form-control d-flex align-content-center h-9 w-14" value="' + e.qty + '" data-id="' + e.product_variant_id + '" data-price="' + e.price + '" min="' + e.min + '" max="' + e.max + '" step="' + e.step + '"></div><div class="product-line-price align-self-center px-1 no-wrap">' + currency + (e.qty * s) + '</div></div></div>            </div><div class="product-sm-removal"><button class="remove-product btn btn-sm btn-danger rounded-1 p-1 py-0" data-id="' + e.product_variant_id + '"><i class="uil uil-trash-alt"></i></button></div></div></div>'        
 
     }),
         //  console.log(a), 
@@ -2129,7 +2042,7 @@ function display_cart(e) {
 //     var a = "";
 //     null !== e && e.length > 0 && e.forEach(e => {
 //         console.log(e);
-//         a += '<div class="shopping-cart"><div class="shopping-cart-item d-flex justify-content-between mb-4"><div class="d-flex flex-row gap-3"  title = " ' + e.title + '"><figure class="rounded cart-img"><a href="' + base_url + 'products/details/' + e.product_slug + '"><img src="' + base_url + e.image + '" alt="Not Found" style="object-fit: contain;"></a></figure><div class="w-100"><a href="' + base_url + 'products/details/' + e.product_slug + '"><h3 class="post-title fs-16 lh-xs mb-1" title = " ' + e.name + '">' + e.name + '</h3></a><p class="price"><ins><span class="amount">' + currency + e.price + '</span></ins></p><div class="product-pricing d-flex py-2 px-1 w-100"><div class="align-items-center d-flex p-2 w-15"><input type="number" name="header_qty" class="form-control d-flex align-items-center" value="' + e.minimum_order_quantity + '" data-id="' + e.product_variant_id + '" data-price="' + e.price + '" min="' + e.minimum_order_quantity + '" max="' + e.total_allowed_quantity + '" step="' + e.quantity_step_size + '" ></div><div class="product-line-price align-self-center px-1">' + currency + (e.qty * e.price) + '</div></div></div></div><div class="product-sm-removal"><button class="remove-product btn btn-sm btn-danger rounded-1 p-1 py-0" data-id="' + e.product_variant_id + '"><i class="uil uil-trash-alt"></i></button>   </div></div></div>'
+//         a += '<div class="shopping-cart"><div class="shopping-cart-item d-flex justify-content-between mb-4"><div class="d-flex flex-row gap-3"  title = " ' + e.title + '"><figure class="rounded cart-img"><a href="' + base_url + 'products/details/' + e.product_slug + '"><img src="' + base_url + e.image + '" alt="Not Found" style="object-fit: contain;"></a></figure><div class="w-100"><a href="' + base_url + 'products/details/' + e.product_slug + '"><h3 class="post-title fs-16 lh-xs mb-1" title = " ' + e.name + '">' + e.name + '</h3></a><p class="price"><ins><span class="amount">' + currency + " " + e.price + '</span></ins></p><div class="product-pricing d-flex py-2 px-1 w-100"><div class="align-items-center d-flex p-2 w-15"><input type="number" name="header_qty" class="form-control d-flex align-items-center" value="' + e.minimum_order_quantity + '" data-id="' + e.product_variant_id + '" data-price="' + e.price + '" min="' + e.minimum_order_quantity + '" max="' + e.total_allowed_quantity + '" step="' + e.quantity_step_size + '" ></div><div class="product-line-price align-self-center px-1">' + currency + (e.qty * e.price) + '</div></div></div></div><div class="product-sm-removal"><button class="remove-product btn btn-sm btn-danger rounded-1 p-1 py-0" data-id="' + e.product_variant_id + '"><i class="uil uil-trash-alt"></i></button>   </div></div></div>'
 //     }),
 //         // console.log(a),
 //         $("#cart-item-sidebar").html(a)
@@ -2295,13 +2208,13 @@ function customer_wallet_query_paramss(e) {
                         if (prices[0].special_price < prices[0].price && prices[0].special_price != 0) {
                             let normalPrice = prices[0].price;
                             price = prices[0].special_price;
-                            $('#price').html(currency + price);
-                            $('#striped-price').html(currency + normalPrice);
+                            $('#price').html(currency + ' ' + price);
+                            $('#striped-price').html(currency + ' ' + normalPrice);
                             $('#striped-price-div').show();
                             $('#add_cart').removeAttr('disabled');
 
-                            $('#discounted-price').html(currency + price);
-                            $('#normal-price').html(currency + normalPrice);
+                            $('#discounted-price').html(currency + ' ' + price);
+                            $('#normal-price').html(currency + ' ' + normalPrice);
 
                             if (price < normalPrice) {
                                 let discountPercentage = Math.round(((normalPrice - price) / normalPrice) * 100);
@@ -2311,11 +2224,11 @@ function customer_wallet_query_paramss(e) {
                             $('#add_cart').attr('data-product-price', price);
                         } else {
                             price = prices[0].price;
-                            $('#price').html(currency + price);
+                            $('#price').html(currency + ' ' + price);
                             $('#striped-price-div').hide();
                             $('#add_cart').removeAttr('disabled');
 
-                            $('#normal-price').html(currency + price);
+                            $('#normal-price').html(currency + ' ' + price);
 
                             $('#add_cart').attr('data-product-price', price);
                         }
@@ -2367,6 +2280,8 @@ function customer_wallet_query_paramss(e) {
             },
             dataType: "json",
             beforeSend: function () {
+                 addtocartMessage();
+                // d.html("Please Wait").text("Please Wait").attr("disabled", !0)
             },
             success: function (e) {
                 if (csrfName = e.csrfName, csrfHash = e.csrfHash, d.html(u).attr("disabled", !1), 0 == e.error) {
@@ -2389,7 +2304,7 @@ function customer_wallet_query_paramss(e) {
                         console.log(a);
                         var r = void 0 !== a.product_variants.variant_values && null != a.product_variants.variant_values ? a.product_variants.variant_values : "",
                             s = a.special_price < a.price && 0 != a.special_price ? a.special_price : a.price;
-                        t += '<div class="shopping-cart"><div class="shopping-cart-item d-flex justify-content-between mb-4" title = " ' + a.name + '"><div class="d-flex flex-row gap-3"><figure class="rounded cart-img"><a href="' + base_url + 'products/details/' + a.slug + '"><img src="' + base_url + a.image + '" alt="Not Found" style="object-fit: contain;"></a></figure><div class="w-100"><a href="' + base_url + 'products/details/' + a.slug + '"><h3 class="post-title fs-16 lh-xs mb-1"  title = " ' + a.name + '">' + a.name + "</h3></a><span>" + r + '</span><p class="price"><ins><span class="amount">' + currency + s + '</span></ins></p><div class="product-pricing d-flex py-2 px-1 w-100"><div class="align-items-center d-flex p-2 w-15"><input type="number" name="header_qty" class="form-control d-flex align-items-center" value="' + n + '" data-id="' + a.product_variant_id + '" data-price="' + a.price + '" min="' + n + '" max="' + c + '" step="' + l + '" ></div><div class="product-line-price align-self-center px-1">' + currency + (a.qty * s) + '</div></div></div></div><div class="product-sm-removal"><button class="remove-product btn btn-sm btn-danger rounded-1 p-1 py-0" data-id="' + a.product_variant_id + '"><i class="uil uil-trash-alt"></i></button></div></div></div>'
+                        t += '<div class="shopping-cart"><div class="shopping-cart-item d-flex justify-content-between mb-4" title = " ' + a.name + '"><div class="d-flex flex-row gap-3"><figure class="rounded cart-img"><a href="' + base_url + 'products/details/' + a.slug + '"><img src="' + base_url + a.image + '" alt="Not Found" style="object-fit: contain;"></a></figure><div class="w-100"><a href="' + base_url + 'products/details/' + a.slug + '"><h3 class="post-title fs-16 lh-xs mb-1"  title = " ' + a.name + '">' + a.name + "</h3></a><span>" + r + '</span><p class="price"><ins><span class="amount">' + currency + " " + s + '</span></ins></p><div class="product-pricing d-flex py-2 px-1 w-100"><div class="align-items-center d-flex p-2 w-15"><input type="number" name="header_qty" class="form-control d-flex align-items-center" value="' + n + '" data-id="' + a.product_variant_id + '" data-price="' + a.price + '" min="' + n + '" max="' + c + '" step="' + l + '" ></div><div class="product-line-price align-self-center px-1">' + currency + (a.qty * s) + '</div></div></div></div><div class="product-sm-removal"><button class="remove-product btn btn-sm btn-danger rounded-1 p-1 py-0" data-id="' + a.product_variant_id + '"><i class="uil uil-trash-alt"></i></button></div></div></div>'
                     }),
                         $("#cart-item-sidebar").html(t) */
                 } else {
@@ -2587,18 +2502,105 @@ function customer_wallet_query_paramss(e) {
             }
         })
     }),
+    $('#pincode').on('change', function (e) {
+        e.preventDefault();
+        var value = $(this).val()
+        if (value == 0 || value == -1) {
+            $('.pincode_name').removeClass('d-none')
+        } else {
+            $('.pincode_name').addClass('d-none')
+            $('input[name="pincode_name"]').val("");
+        }
+    }),
+    $('#edit_pincode').on('change', function (e) {
+        e.preventDefault();
+        var value = $(this).val()
+        console.log('value' + value);
+        if (value == 0 || value == -1) {
+            $('.other_pincode').removeClass('d-none')
+        } else {
+            $('.other_pincode').addClass('d-none')
+            $('input[name="pincode_name"]').val("");
+            // $('#other_pincode_value').val();
+        }
+    }),
+    $("#city").select2({
+        ajax: {
+            url: base_url + 'my-account/get_cities',
+            type: "GET",
+            dataType: 'json',
+            delay: 250,
+            data: function (params) {
+                return {
+                    search: params.term, // search term
+                };
+            },
+            processResults: function (response) {
+                return {
+                    results: response
+                };
+            },
+            cache: true
+        },
+
+        minimumInputLength: 1,
+        theme: 'bootstrap4',
+        placeholder: 'Search for cities',
+        dropdownParent: $("#add-address-form"), // added for cretzo
+        // Set the predefined options as selected
+
+    }),
     $('#city').on('change', function (e) {
         e.preventDefault();
         var value = $(this).val()
         if (value == 0 || value == -1) {
             $('.city_name').removeClass('d-none')
             $('.area_name').removeClass('d-none')
+            $('.pincode_name').removeClass('d-none')
             $('.area').addClass('d-none')
+            $('.pincode').addClass('d-none')
         } else {
+            $('#edit_pincode').empty()
+            $('.city').trigger('change')
             $('.city').removeClass('d-none')
             $('.area').removeClass('d-none')
+            $('.pincode').removeClass('d-none')
             $('.city_name').addClass('d-none')
             $('.area_name').addClass('d-none')
+            $('.pincode_name').addClass('d-none')
+            $.ajax({
+                type: 'POST',
+                data: {
+                    'city_id': $(this).val(),
+                    [csrfName]: csrfHash,
+                },
+                url: base_url + 'my-account/get-zipcode',
+                dataType: 'json',
+                success: function (result) {
+                    console.log(result);
+                    csrfName = result.csrfName;
+                    csrfHash = result.csrfHash;
+                    if (result.error == false) {
+                        var html = '';
+                        html += '<option value="">--Select Zipcode--</option>';
+                        html += '<option value="0">Other</option>';
+                        $.each(result.data, function (i, e) {
+                            html += '<option value=' + e.zipcode + '>' + e.zipcode + '</option>';
+                        });
+
+                        $('#pincode').html(html);
+
+                    } else {
+                        var html = '';
+                        html += '<option value="">--Select Zipcode--</option>';
+                        html += '<option value="0">Other</option>';
+
+                        $('#pincode').html(html);
+                    }
+
+                }
+
+            })
         }
 
     }), $("#edit-address-form").on("submit", function (e) {
@@ -2664,9 +2666,7 @@ function customer_wallet_query_paramss(e) {
     }),
     $(document).on("click", "#forgot_password_link", function (e) {
         e.preventDefault(), $(".auth-modal").find("header a").removeClass("active"), $("#forgot_password_div").removeClass("d-none").siblings("section").addClass("d-none"), $("#recaptcha-container-2").html(""), window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier("recaptcha-container-2"), window.recaptchaVerifier.render().then(function (e) {
-            if (typeof grecaptcha !== 'undefined' && typeof grecaptcha.reset === 'function') {
-                try { grecaptcha.reset(e); } catch (ex) { }
-            }
+            grecaptcha.reset(e)
         }),
             $("#forgot_password_number").intlTelInput({
                 allowExtensions: !0,
@@ -2843,21 +2843,84 @@ function customer_wallet_query_paramss(e) {
             }
         })
     }),
-    $('#edit_city').on('change', function (e) {
+    $("#edit_city").select2({
+        ajax: {
+            url: base_url + 'my-account/get_cities',
+            type: "GET",
+            dataType: 'json',
+            delay: 250,
+            data: function (params) {
+                return {
+                    search: params.term, // search term
+                };
+            },
+            processResults: function (response) {
+                return {
+                    results: response
+                };
+            },
+            cache: true
+        },
+
+        minimumInputLength: 1,
+        theme: 'bootstrap4',
+        dropdownParent: $("#edit-address-form"),
+        placeholder: 'Search for cities',
+    }),
+    $('#edit_city').on('change', function (e, pincode) {
 
         e.preventDefault();
 
+        var city_id = $(this).val();
         var value = $(this).val()
         if (value == 0 || value == '') {
             $('.edit_area').addClass('d-none')
             $('#edit_area').val('')
+            // $('.edit_city').addClass('d-none')
+            $('.edit_pincode').addClass('d-none')
             $('.other_city').removeClass('d-none')
             $('.other_areas').removeClass('d-none')
+            $('.other_pincode').removeClass('d-none')
         } else {
             $('.edit_area').removeClass('d-none')
+            $('.edit_pincode').removeClass('d-none')
             $('.edit_city').removeClass('d-none')
             $('.other_city').addClass('d-none')
             $('.other_areas').addClass('d-none')
+            $('.other_pincode').addClass('d-none')
+
+            $.ajax({
+                type: 'POST',
+                data: {
+                    'city_id': $(this).val(),
+                    [csrfName]: csrfHash,
+                },
+                url: base_url + 'my-account/get-zipcode',
+                dataType: 'json',
+                success: function (result) {
+                    console.log(result);
+                    csrfName = result.csrfName;
+                    csrfHash = result.csrfHash;
+                    var html = '';
+                    if (result.error == false) {
+                        console.log(result.data);
+                        html += '<option value="0">Other</option>';
+                        $.each(result.data, function (i, e) {
+                            var is_selected = (e.zipcode == pincode) ? "selected" : "";
+
+                            html += '<option value=' + e.zipcode + ' ' + is_selected + '>' + e.zipcode + '</option>';
+                        });
+                        $('#edit_pincode').html(html);
+
+                    } else {
+                        Toast.fire({
+                            icon: 'error',
+                            title: result.message
+                        });
+                        $('#edit_pincode').html('');
+                    }
+                }
+            })
         }
     }))
 
@@ -3438,24 +3501,6 @@ $(function () {
 });
 
 $(document).ready(function () {
-    // Handle Redirect Sign-in Result on page load
-    firebase.auth().getRedirectResult().then(function (result) {
-        if (result && result.user) {
-            var provider = 'google';
-            if (result.credential && result.credential.providerId.indexOf('facebook') !== -1) {
-                provider = 'facebook';
-            } else if (result.user.providerData && result.user.providerData[0] && result.user.providerData[0].providerId.indexOf('facebook') !== -1) {
-                provider = 'facebook';
-            }
-            toggleAuthLoading(true, 'Signing in with ' + provider + '...');
-            setSocialButtonLoading(provider, true);
-            handleSocialLogin(result.user, provider);
-        }
-    }).catch(function (error) {
-        console.error("Redirect sign-in error: ", error);
-        toggleAuthLoading(false);
-    });
-
     $("#share").jsSocials({
         showLabel: false,
         showCount: false,
@@ -3483,106 +3528,104 @@ $(document).ready(function () {
             });
     });
 
-    function handleSocialLogin(user, providerName) {
-        var type = providerName;
-        var name = user.displayName;
-        var email = '';
-        if (user.email != null && user.email != '') {
-            email = user.email;
-        } else if (user.providerData && user.providerData[0] && user.providerData[0].email != null && user.providerData[0].email != '') {
-            email = user.providerData[0].email;
-        } else if (user.email == null && user.providerData && user.providerData[0]) {
-            email = user.email || '';
-        }
-        var password = user.uid;
-        
-        $.ajax({
-            type: 'POST',
-            url: base_url + 'home/verifyUser',
-            data: {
-                email: email,
-                type: type,
-                [csrfName]: csrfHash
-            },
-            dataType: 'json',
-            success: function (result) {
-                csrfName = result['csrfName'];
-                csrfHash = result['csrfHash'];
-
-                if (result.error == true) {
-                    $.ajax({
-                        type: 'POST',
-                        url: base_url + 'auth/register_user',
-                        data: {
-                            type: type,
-                            name: name,
-                            email: email,
-                            password: password,
-                            [csrfName]: csrfHash
-                        },
-                        dataType: 'json',
-                        success: function (result) {
-                            csrfName = result['csrfName'];
-                            csrfHash = result['csrfHash'];
-                            if (result.error == false) {
-                                $.ajax({
-                                    type: 'POST',
-                                    url: base_url + 'home/login',
-                                    data: {
-                                        identity: email,
-                                        type: type,
-                                        password: password,
-                                        [csrfName]: csrfHash
-                                    },
-                                    dataType: 'json',
-                                    success: function (result) {
-                                        closeLoginPopupFast();
-                                        setTimeout(function () {
-                                            location.reload();
-                                        }, 120);
-                                    }
-                                });
-                            } else {
-                                setSocialButtonLoading(providerName, false);
-                                toggleAuthLoading(false);
-                                Toast.fire({
-                                    icon: 'error',
-                                    title: result.message || 'Email already exists. Please login with your existing account.'
-                                });
-                            }
-                        }
-                    });
-                } else {
-                    $.ajax({
-                        type: 'POST',
-                        url: base_url + 'home/login',
-                        data: {
-                            identity: email,
-                            type: type,
-                            password: password,
-                            [csrfName]: csrfHash
-                        },
-                        dataType: 'json',
-                        success: function (result) {
-                            closeLoginPopupFast();
-                            setTimeout(function () {
-                                location.reload();
-                            }, 120);
-                        }
-                    });
-                }
-            }
-        });
-    }
-
     function googleSignIn() {
         toggleAuthLoading(true, 'Opening Google sign-in...');
         setSocialButtonLoading('google', true);
         var provider = new firebase.auth.GoogleAuthProvider();
         provider.addScope('email');
         firebase.auth().signInWithPopup(provider).then(function (result) {
+
             toggleAuthLoading(true, 'Signing in with Google...');
-            handleSocialLogin(result.user, 'google');
+
+
+            var type = 'google';
+            var name = result.user.displayName;
+            if (result.user.email != null && result.user.email != '') {
+                var email = result.user.email
+            } else if (result.user.providerData[0].email != null && result.user.providerData[0].email != '') {
+                var email = result.user.providerData[0].email
+            } else {
+                var email = result.additionalUserInfo.profile.email
+            }
+            var password = result.user.uid;
+            $.ajax({
+                type: 'POST',
+                url: base_url + 'home/verifyUser',
+                data: {
+                    email: email,
+                    type: type,
+                    [csrfName]: csrfHash
+                },
+                dataType: 'json',
+                success: function (result) {
+                    csrfName = result['csrfName'];
+                    csrfHash = result['csrfHash'];
+
+                    if (result.error == true) {
+                        $.ajax({
+                            type: 'POST',
+                            url: base_url + 'auth/register_user',
+                            data: {
+                                type: type,
+                                name: name,
+                                email: email,
+                                password: password,
+                                [csrfName]: csrfHash
+                            },
+                            dataType: 'json',
+                            success: function (result) {
+                                csrfName = result['csrfName'];
+                                csrfHash = result['csrfHash'];
+                                if (result.error == false) {
+                                    $.ajax({
+                                        type: 'POST',
+                                        url: base_url + 'home/login',
+                                        data: {
+                                            identity: email,
+                                            type: type,
+                                            password: password,
+                                            [csrfName]: csrfHash
+                                        },
+                                        dataType: 'json',
+                                        success: function (result) {
+                                            closeLoginPopupFast();
+                                            setTimeout(function () {
+                                                location.reload();
+                                            }, 120);
+                                        }
+                                    });
+                                } else {
+                                    setSocialButtonLoading('google', false);
+                                    toggleAuthLoading(false);
+                                    Toast.fire({
+                                        icon: 'error',
+                                        title: result.message || 'Email already exists. Please login with your existing account.'
+                                    });
+                                }
+                            }
+                        });
+                    } else {
+                        $.ajax({
+                            type: 'POST',
+                            url: base_url + 'home/login',
+                            data: {
+                                identity: email,
+                                type: type,
+                                password: password,
+                                [csrfName]: csrfHash
+                            },
+                            dataType: 'json',
+                            success: function (result) {
+                                closeLoginPopupFast();
+                                setTimeout(function () {
+                                    location.reload();
+                                }, 120);
+                            }
+                        });
+                    }
+                }
+            });
+
         }).catch(function (error) {
             setSocialButtonLoading('google', false);
             toggleAuthLoading(false);
@@ -3600,8 +3643,98 @@ $(document).ready(function () {
         var provider = new firebase.auth.FacebookAuthProvider();
         provider.addScope('email');
         firebase.auth().signInWithPopup(provider).then(function (result) {
+
             toggleAuthLoading(true, 'Signing in with Facebook...');
-            handleSocialLogin(result.user, 'facebook');
+
+            var type = 'facebook';
+            var name = result.user.displayName;
+            if (result.user.email != null && result.user.email != '') {
+                var email = result.user.email
+            } else if (result.user.providerData[0].email != null && result.user.providerData[0].email != '') {
+                var email = result.user.providerData[0].email
+            } else {
+                var email = result.additionalUserInfo.profile.email
+            }
+            var password = result.user.uid;
+            $.ajax({
+                type: 'POST',
+                url: base_url + 'home/verifyUser',
+                data: {
+                    email: email,
+                    type: type,
+                    [csrfName]: csrfHash
+                },
+                dataType: 'json',
+                success: function (result) {
+                    csrfName = result['csrfName'];
+                    csrfHash = result['csrfHash'];
+
+                    if (result.error == true) {
+                        $.ajax({
+                            type: 'POST',
+                            url: base_url + 'auth/register_user',
+                            data: {
+                                type: type,
+                                name: name,
+                                email: email,
+                                password: password,
+                                [csrfName]: csrfHash
+                            },
+                            dataType: 'json',
+                            success: function (result) {
+                                csrfName = result['csrfName'];
+                                csrfHash = result['csrfHash'];
+                                if (result.error == false) {
+                                    $.ajax({
+                                        type: 'POST',
+                                        url: base_url + 'home/login',
+                                        data: {
+                                            identity: email,
+                                            type: type,
+                                            password: password,
+                                            [csrfName]: csrfHash
+                                        },
+                                        dataType: 'json',
+                                        success: function (result) {
+                                            closeLoginPopupFast();
+                                            setTimeout(function () {
+                                                location.reload();
+                                            }, 120);
+                                        }
+                                    });
+                                } else {
+                                    setSocialButtonLoading('facebook', false);
+                                    toggleAuthLoading(false);
+                                    Toast.fire({
+                                        icon: 'error',
+                                        title: result.message || 'Email already exists. Please login with your existing account.'
+                                    });
+                                }
+                            }
+                        });
+                    } else {
+                        $.ajax({
+                            type: 'POST',
+                            url: base_url + 'home/login',
+                            data: {
+                                identity: email,
+                                type: type,
+                                password: password,
+                                [csrfName]: csrfHash
+                            },
+                            dataType: 'json',
+                            success: function (result) {
+                                closeLoginPopupFast();
+                                setTimeout(function () {
+                                    location.reload();
+                                }, 120);
+                            }
+                        });
+                    }
+                }
+            });
+
+            console.log(result);
         }).catch(function (error) {
             setSocialButtonLoading('facebook', false);
             toggleAuthLoading(false);
@@ -3837,517 +3970,3 @@ $(document).ready(function () {
         }
     });
 });
-"use strict";
-
-    /* ═══════════════════════════════════════════════
-       FIX 2: FILTERS — collect ALL and Apply at once
-    ═══════════════════════════════════════════════ */
-    $(document).on('click', '#cretzo-apply-filter', function (e) {
-        e.preventDefault();
-        var base   = window.location.pathname;
-        var params = {};
-        var keep   = ['seller', 'seller_search', 'sort', 'type', 'per-page'];
-        keep.forEach(function(k) { var v = getParam(k); if (v) params[k] = v; });
-
-        // Categories
-        var cats = [];
-        $('.fs-category input[type="checkbox"]:checked').each(function () {
-            var v = $(this).data('value') || $(this).val();
-            if (v) cats.push(v);
-        });
-        if (cats.length) params['category'] = cats.join('|');
-
-        // Brands
-        var brands = [];
-        $('.fs-brand input[type="checkbox"]:checked').each(function () {
-            var v = $(this).data('value') || $(this).val();
-            if (v) brands.push(v);
-        });
-        if (brands.length) params['brand'] = brands.join('|');
-
-        // Price range sliders
-        var rangeMin = $('.range-min').val();
-        var rangeMax = $('.range-max').val();
-        if (rangeMin) params['min-price'] = rangeMin;
-        if (rangeMax) params['max-price'] = rangeMax;
-        // Price text inputs override sliders
-        var textMin = $('.price-input input').first().val();
-        var textMax = $('.price-input input').last().val();
-        if (textMin) params['min-price'] = textMin;
-        if (textMax) params['max-price'] = textMax;
-
-        // Attributes
-        $('.fs-attr').each(function () {
-            var attrName = $(this).find('.filter-heading').text().trim().toLowerCase().replace(/\s+/g, '-');
-            var vals = [];
-            $(this).find('input[type="checkbox"]:checked').each(function () {
-                var v = $(this).data('value') || $(this).val();
-                if (v) vals.push(v.toLowerCase());
-            });
-            if (vals.length) params['filter-' + attrName] = vals.join('|');
-        });
-
-        var qs = Object.keys(params).map(function(k) {
-            return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
-        }).join('&');
-        location.href = base + (qs ? '?' + qs : '');
-    });
-
-    $(document).on('click', '#cretzo-clear-filter, #clear-all-filters-btn', function (e) {
-        e.preventDefault();
-        location.href = window.location.pathname;
-    });
-
-    $(document).on('input', '.range-min', function () {
-        $(this).closest('.filter-section').find('.price-input input').first().val($(this).val());
-    });
-    $(document).on('input', '.range-max', function () {
-        $(this).closest('.filter-section').find('.price-input input').last().val($(this).val());
-    });
-
-    /* ═══════════════════════════════════════════════
-       FIX 3: RUPEE SYMBOL — replace all Rs. with ₹
-    ═══════════════════════════════════════════════ */
-    function fixRupeeIn(selector) {
-        $(selector).find('*').addBack().contents().filter(function () {
-            return this.nodeType === 3;
-        }).each(function () {
-            var old = this.nodeValue;
-            var updated = old.replace(/Rs\.?\s*/g, '₹');
-            if (updated !== old) this.nodeValue = updated;
-        });
-    }
-    $(document).ready(function () { fixRupeeIn('body'); });
-    $(document).ajaxComplete(function () {
-        fixRupeeIn('.price-container, .discounted-price, .original-price, .cart-item, #cart-item-sidebar');
-    });
-
-    /* ═══════════════════════════════════════════════
-       FIX 4: ADDRESS POPUP — Select2 inside modal
-    ═══════════════════════════════════════════════ */
-    function initModalSelect2(modalId) {
-        if (typeof $.fn.select2 === 'undefined') return;
-        $('#' + modalId + ' .form-select2').each(function () {
-            if (!$(this).hasClass('select2-hidden-accessible')) {
-                $(this).select2({
-                    dropdownParent: $('#' + modalId),
-                    placeholder: $(this).find('option:first').text(),
-                    allowClear: true
-                });
-            }
-        });
-    }
-    $(document).ready(function () {
-        $('#add-address-modal').on('shown.bs.modal',  function () { initModalSelect2('add-address-modal');  });
-        $('#edit-address-modal').on('shown.bs.modal', function () { initModalSelect2('edit-address-modal'); });
-    });
-
-    /* ═══════════════════════════════════════════════
-       FIX 5: CART SHOW MORE
-    ═══════════════════════════════════════════════ */
-    $(document).on('click', '.show-more-text', function () {
-        var $section = $(this).closest('.cart-left-two');
-        var $hidden  = $section.find('.more-offers');
-        if ($hidden.length) {
-            $hidden.slideToggle(200);
-            var isOpen = $hidden.is(':visible');
-            $(this).html(isOpen
-                ? 'Show Less <img class="show-more-img" src="' + (typeof base_url !== 'undefined' ? base_url : '/') + 'assets/front_end/cretzo/img/new_cretzo/orange-arrow.png" style="transform:rotate(180deg);">'
-                : 'Show More <img class="show-more-img" src="' + (typeof base_url !== 'undefined' ? base_url : '/') + 'assets/front_end/cretzo/img/new_cretzo/orange-arrow.png">');
-        } else {
-            var extraOffers = [
-                '10% off on HDFC Bank Credit Cards. Min spend ₹1,500.',
-                '5% cashback on Paytm UPI transactions.',
-                'No cost EMI on orders above ₹4,999.'
-            ];
-            var html = '<div class="more-offers" style="display:none;">';
-            extraOffers.forEach(function(o) { html += '<p class="text-s" style="margin-top:6px;">' + o + '</p>'; });
-            html += '</div>';
-            $(this).before(html);
-            $section.find('.more-offers').slideDown(200);
-            $(this).html('Show Less <img class="show-more-img" src="' + (typeof base_url !== 'undefined' ? base_url : '/') + 'assets/front_end/cretzo/img/new_cretzo/orange-arrow.png" style="transform:rotate(180deg);">');
-        }
-    });
-
-    /* ═══════════════════════════════════════════════
-       FIX 6: BANNERS — use each banner's own href
-    ═══════════════════════════════════════════════ */
-    $(document).ready(function () {
-        // Remove any overriding click on banner links — let natural href work
-        $(document).off('click', '.swiper-slide .slide-img a');
-    });
-
-   
-"use strict";
-
-(function ($) {
-
-    /* =========================================================
-       Helpers
-    ========================================================= */
-
-    function debounce(fn, delay) {
-        let timer;
-
-        return function () {
-            clearTimeout(timer);
-
-            const context = this;
-            const args = arguments;
-
-            timer = setTimeout(function () {
-                fn.apply(context, args);
-            }, delay);
-        };
-    }
-
-    function safeValue(value, fallback = "") {
-        return value !== undefined && value !== null ? value : fallback;
-    }
-
-    function updateCsrf(res) {
-        if (res.csrfName) csrfName = res.csrfName;
-        if (res.csrfHash) csrfHash = res.csrfHash;
-    }
-
-    /* =========================================================
-       Product Ratings
-    ========================================================= */
-
-    function renderStars(rating, count = 0) {
-
-        let html = '<div class="rating-stars">';
-
-        for (let i = 1; i <= 5; i++) {
-
-            if (rating >= i) {
-                html += '<i class="fa fa-star text-warning"></i>';
-
-            } else if (rating >= i - 0.5) {
-                html += '<i class="fa fa-star-half-o text-warning"></i>';
-
-            } else {
-                html += '<i class="fa fa-star-o text-muted"></i>';
-            }
-        }
-
-        if (count > 0) {
-            html += `<small class="text-muted ms-1">(${count})</small>`;
-        }
-
-        html += '</div>';
-
-        return html;
-    }
-
-    function initRatings() {
-
-        $('[data-rating]').each(function () {
-
-            const rating = parseFloat($(this).data('rating')) || 0;
-            const count = parseInt($(this).data('count')) || 0;
-
-            if (!$(this).find('.fa-star').length) {
-                $(this).html(renderStars(rating, count));
-            }
-        });
-    }
-
-    /* =========================================================
-       Filters
-    ========================================================= */
-
-    function buildFilterUrl() {
-
-        const params = new URLSearchParams();
-
-        // Category
-        const categories = [];
-
-        $('.category-filter-input:checked').each(function () {
-            categories.push($(this).data('value'));
-        });
-
-        if (categories.length) {
-            params.set('category', categories.join('|'));
-        }
-
-        // Brands
-        const brands = [];
-
-        $('.brand-filter-input:checked').each(function () {
-            brands.push($(this).data('value'));
-        });
-
-        if (brands.length) {
-            params.set('brand', brands.join('|'));
-        }
-
-        // Price
-        const minPrice = $('#price-min-input').val();
-        const maxPrice = $('#price-max-input').val();
-
-        if (minPrice) params.set('min_price', minPrice);
-        if (maxPrice) params.set('max_price', maxPrice);
-
-        // Sort
-        const sort = $('#product_sort_by').val();
-
-        if (sort) {
-            params.set('sort', sort);
-        }
-
-        return window.location.pathname + '?' + params.toString();
-    }
-
-    $(document).on('click', '.product_filter_btn', function (e) {
-
-        e.preventDefault();
-
-        window.location.href = buildFilterUrl();
-    });
-
-    $(document).on('click', '.clear-filters-btn', function (e) {
-
-        e.preventDefault();
-
-        window.location.href = window.location.pathname;
-    });
-
-    $(document).on('change', '#product_sort_by', function () {
-
-        const sort = $(this).val();
-
-        const url = new URL(window.location.href);
-
-        url.searchParams.set('sort', sort);
-
-        window.location.href = url.toString();
-    });
-
-    /* =========================================================
-       Pincode Check
-    ========================================================= */
-
-    $(document).on(
-        'input',
-        '#pincode_text_input',
-        debounce(function () {
-
-            const pincode = $(this).val();
-
-            if (pincode.length < 6) return;
-
-            $.ajax({
-                type: 'POST',
-                url: base_url + 'cart/check-pincode',
-                data: {
-                    pincode: pincode,
-                    [csrfName]: csrfHash
-                },
-                dataType: 'json',
-
-                success: function (res) {
-
-                    updateCsrf(res);
-
-                    const cls = res.error
-                        ? 'text-danger'
-                        : 'text-success';
-
-                    const icon = res.error
-                        ? 'fa-times'
-                        : 'fa-check';
-
-                    $('.pincode-result').html(`
-                        <span class="${cls}">
-                            <i class="fa ${icon}"></i>
-                            ${res.message}
-                        </span>
-                    `);
-                }
-            });
-
-        }, 500)
-    );
-
-    /* =========================================================
-       Promo Code
-    ========================================================= */
-
-    $(document).on('click', '#apply-promo-btn', function (e) {
-
-        e.preventDefault();
-
-        const promoCode = $('#promocode_input').val().trim();
-
-        if (!promoCode) {
-
-            Toast.fire({
-                icon: 'warning',
-                title: 'Please enter promo code'
-            });
-
-            return;
-        }
-
-        const $btn = $(this);
-
-        $btn.prop('disabled', true).text('Applying...');
-
-        $.ajax({
-            type: 'POST',
-            url: base_url + 'cart/apply-promo-code',
-
-            data: {
-                promo_code: promoCode,
-                [csrfName]: csrfHash
-            },
-
-            dataType: 'json',
-
-            success: function (res) {
-
-                updateCsrf(res);
-
-                $btn.prop('disabled', false).text('Apply');
-
-                if (!res.error) {
-
-                    Toast.fire({
-                        icon: 'success',
-                        title: res.message
-                    });
-
-                    $('.promo-discount-display').text(
-                        `- ₹${res.discount}`
-                    );
-
-                } else {
-
-                    Toast.fire({
-                        icon: 'error',
-                        title: res.message
-                    });
-                }
-            },
-
-            error: function () {
-
-                $btn.prop('disabled', false).text('Apply');
-
-                Toast.fire({
-                    icon: 'error',
-                    title: 'Something went wrong'
-                });
-            }
-        });
-    });
-
-    /* =========================================================
-       Banner Redirects
-    ========================================================= */
-
-    $(document).on(
-        'click',
-        '.banner-item, .slider-banner',
-        function (e) {
-
-            const redirectUrl =
-                $(this).data('href') ||
-                $(this).data('url');
-
-            if (redirectUrl) {
-
-                e.preventDefault();
-
-                window.location.href = redirectUrl;
-            }
-        }
-    );
-
-    /* =========================================================
-       Profile Photo Upload
-    ========================================================= */
-
-    $(document).on(
-        'click',
-        '#profile-photo-upload-btn',
-        function () {
-
-            $('#profile-photo-upload-input').trigger('click');
-        }
-    );
-
-    $(document).on(
-        'change',
-        '#profile-photo-upload-input',
-        function () {
-
-            const file = this.files[0];
-
-            if (!file) return;
-
-            const formData = new FormData();
-
-            formData.append('profile_image', file);
-            formData.append(csrfName, csrfHash);
-
-            $.ajax({
-                type: 'POST',
-                url: base_url + 'my-account/update-profile-image',
-
-                data: formData,
-
-                processData: false,
-                contentType: false,
-                dataType: 'json',
-
-                success: function (res) {
-
-                    updateCsrf(res);
-
-                    if (!res.error) {
-
-                        Toast.fire({
-                            icon: 'success',
-                            title: 'Profile updated'
-                        });
-
-                        if (res.image_url) {
-
-                            $('.profile-photo-img').attr(
-                                'src',
-                                res.image_url
-                            );
-                        }
-
-                    } else {
-
-                        Toast.fire({
-                            icon: 'error',
-                            title: res.message
-                        });
-                    }
-                }
-            });
-        }
-    );
-
-    /* =========================================================
-       Initialize
-    ========================================================= */
-
-    $(document).ready(function () {
-
-        initRatings();
-
-        console.log('CRETZO fixes loaded successfully');
-    });
-
-    $(document).ajaxComplete(function () {
-
-        initRatings();
-    });
-
-})(jQuery);

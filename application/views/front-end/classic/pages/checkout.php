@@ -562,7 +562,7 @@
                                             <?php if (!empty($cart['tax_percentage'])) { ?>
                                                 <tr class="cart-product-tax d-none">
                                                     <td class="text-muted"><?= !empty($this->lang->line('tax')) ? $this->lang->line('tax') : 'Tax' ?> (<?= $cart['tax_percentage'] ?>%)</td>
-                                                    <td class="text-muted"><?= $settings['currency'] . number_format($cart['tax_amount'], 2) ?></td>
+                                                    <td class="text-muted"><?= $settings['currency'] . ' ' . number_format($cart['tax_amount'], 2) ?></td>
                                                 </tr>
                                             <?php } ?>
                                             <?php
@@ -584,7 +584,7 @@
                                                                 <?= !empty($this->lang->line('shipping_method')) ? $this->lang->line('shipping_method') : 'shipping method' ?>
                                                             </div>
                                                             <div class="column text-muted deliverycharge_currency">
-                                                                <?= $settings['currency'] ?><span class="shipping_method"></span>
+                                                                <?= $settings['currency'] . ' ' ?><span class="shipping_method"></span>
                                                             </div>
                                                         </div>
                                                         <div class="row mt-2 ">
@@ -592,7 +592,7 @@
                                                                 <h3><?= !empty($this->lang->line('delivery_charge_with_cod')) ? $this->lang->line('delivery_charge_with_cod') : 'Delivery Charge with COD :' ?></h3>
                                                             </div>
                                                             <div class="column text-muted deliverycharge_currency">
-                                                                <?= $settings['currency'] ?><span class="delivery_charge_with_cod"></span>
+                                                                <?= $settings['currency'] . ' ' ?><span class="delivery_charge_with_cod"></span>
                                                                 <input type="hidden" name="delivery_charge_with_cod" class="delivery_charge_with_cod" value="" />
 
                                                             </div>
@@ -602,7 +602,7 @@
                                                                 <h3><?= !empty($this->lang->line('delivery_charge_without_cod')) ? $this->lang->line('delivery_charge_without_cod') : 'Delivery Charge without COD :' ?></h3>
                                                             </div>
                                                             <div class="text-muted deliverycharge_currency">
-                                                                <?= $settings['currency'] ?><span class="delivery_charge_without_cod"></span>
+                                                                <?= $settings['currency'] . ' ' ?><span class="delivery_charge_without_cod"></span>
                                                                 <input type="hidden" name="delivery_charge_without_cod" class="delivery_charge_without_cod" value="" />
                                                             </div>
                                                         </div>
@@ -622,7 +622,7 @@
 
                                                     <!-- <tr>
                                                         <td class="text-muted"><?= !empty($this->lang->line('delivery_charge')) ? $this->lang->line('delivery_charge') : 'Delivery Charge' ?></td>
-                                                        <td class="text-muted"><?= $settings['currency'] ?><span class="delivery-charge"><?= $cart['delivery_charge'] ?></span></td>
+                                                        <td class="text-muted"><?= $settings['currency'] . ' ' ?><span class="delivery-charge"><?= $cart['delivery_charge'] ?></span></td>
                                                     </tr> -->
                                                     <tr>
                                                         <td>
@@ -637,7 +637,7 @@
                                                                     <h3><?= !empty($this->lang->line('delivery_charge_with_cod')) ? $this->lang->line('delivery_charge_with_cod') : 'Delivery Charge with COD :' ?></h3>
                                                                 </div>
                                                                 <div class="column text-muted deliverycharge_currency">
-                                                                    <?= $settings['currency'] ?><span class="delivery_charge_with_cod"></span>
+                                                                    <?= $settings['currency'] . ' ' ?><span class="delivery_charge_with_cod"></span>
                                                                     <input type="hidden" name="delivery_charge_with_cod" class="delivery_charge_with_cod" value="" />
 
                                                                 </div>
@@ -647,7 +647,7 @@
                                                                     <h3><?= !empty($this->lang->line('delivery_charge_without_cod')) ? $this->lang->line('delivery_charge_without_cod') : 'Delivery Charge without COD :' ?></h3>
                                                                 </div>
                                                                 <div class="text-muted deliverycharge_currency">
-                                                                    <?= $settings['currency'] ?><span class="delivery_charge_without_cod"></span>
+                                                                    <?= $settings['currency'] . ' ' ?><span class="delivery_charge_without_cod"></span>
                                                                     <input type="hidden" name="delivery_charge_without_cod" class="delivery_charge_without_cod" value="" />
                                                                 </div>
                                                             </div>
@@ -661,7 +661,7 @@
 
                                             <tr>
                                                 <td class="text-muted"><?= !empty($this->lang->line('wallet')) ? $this->lang->line('wallet') : 'Wallet' ?></td>
-                                                <td class="text-muted"><?= $settings['currency'] ?><span class="wallet_used">0.00<span></td>
+                                                <td class="text-muted"><?= $settings['currency'] ?> <span class="wallet_used">0.00<span></td>
 
                                             </tr>
                                             <tr id="promocode_div" class="d-none">

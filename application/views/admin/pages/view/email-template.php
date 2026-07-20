@@ -449,7 +449,7 @@
                                                             <table cellpadding="0" cellspacing="0" width="100%" role="presentation" style="mso-table-lspace:0pt;mso-table-rspace:0pt;border-collapse:collapse;border-spacing:0px">
                                                                 <tr style="border-collapse:collapse">
                                                                     <td align="left" style="padding:0;Margin:0">
-                                                                        <p style="Margin:0;-webkit-text-size-adjust:none;-ms-text-size-adjust:none;mso-line-height-rule:exactly;font-size:16px;font-family:'open sans', 'helvetica neue', helvetica, arial, sans-serif;line-height:24px;color:#333333"><?= $settings['currency'] . $row['sub_total'] ?></p>
+                                                                        <p style="Margin:0;-webkit-text-size-adjust:none;-ms-text-size-adjust:none;mso-line-height-rule:exactly;font-size:16px;font-family:'open sans', 'helvetica neue', helvetica, arial, sans-serif;line-height:24px;color:#333333"><?= $settings['currency'] . ' ' . $row['sub_total'] ?></p>
                                                                     </td>
                                                                 </tr>
                                                             </table>
@@ -474,7 +474,7 @@
                                                                                 <h4 style="Margin:0;line-height:120%;mso-line-height-rule:exactly;font-family:'open sans', 'helvetica neue', helvetica, arial, sans-serif">Total (+)</h4>
                                                                             </td>
                                                                             <td width="20%" style="padding:0;Margin:0">
-                                                                                <h4 style="Margin:0;line-height:120%;mso-line-height-rule:exactly;font-family:'open sans', 'helvetica neue', helvetica, arial, sans-serif">&nbsp; &nbsp; &nbsp; &nbsp;<?= $settings['currency'] . $order_data['total_amount'] ?></h4>
+                                                                                <h4 style="Margin:0;line-height:120%;mso-line-height-rule:exactly;font-family:'open sans', 'helvetica neue', helvetica, arial, sans-serif">&nbsp; &nbsp; &nbsp; &nbsp;<?= $settings['currency'] . ' ' . $order_data['total_amount'] ?></h4>
                                                                             </td>
                                                                         </tr>
                                                                     </table>
@@ -488,7 +488,7 @@
                                                                                 <h4 style="Margin:0;line-height:120%;mso-line-height-rule:exactly;font-family:'open sans', 'helvetica neue', helvetica, arial, sans-serif"><b>Delivery Charge (+)</b></h4>
                                                                             </td>
                                                                             <td width="20%" style="padding:0;Margin:0">
-                                                                                <h4 style="Margin:0;line-height:120%;mso-line-height-rule:exactly;font-family:'open sans', 'helvetica neue', helvetica, arial, sans-serif">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;<?= $settings['currency'] . $order_data['delivery_charge'] ?></h4>
+                                                                                <h4 style="Margin:0;line-height:120%;mso-line-height-rule:exactly;font-family:'open sans', 'helvetica neue', helvetica, arial, sans-serif">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;<?= $settings['currency'] . ' ' . $order_data['delivery_charge'] ?></h4>
                                                                             </td>
                                                                         </tr>
                                                                     </table>
@@ -503,7 +503,7 @@
                                                                                 <h4 style="Margin:0;line-height:120%;mso-line-height-rule:exactly;font-family:'open sans', 'helvetica neue', helvetica, arial, sans-serif">Discount (-)</h4>
                                                                             </td>
                                                                             <td width="20%" style="padding:0;Margin:0">
-                                                                                <h4 style="Margin:0;line-height:120%;mso-line-height-rule:exactly;font-family:'open sans', 'helvetica neue', helvetica, arial, sans-serif">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;<?= $settings['currency'] . $order_data['discount'] ?></h4>
+                                                                                <h4 style="Margin:0;line-height:120%;mso-line-height-rule:exactly;font-family:'open sans', 'helvetica neue', helvetica, arial, sans-serif">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;<?= $settings['currency'] . ' ' . $order_data['discount'] ?></h4>
                                                                             </td>
                                                                         </tr>
                                                                     </table>
@@ -517,7 +517,7 @@
                                                                                 <h4 style="Margin:0;line-height:120%;mso-line-height-rule:exactly;font-family:'open sans', 'helvetica neue', helvetica, arial, sans-serif"><b>Wallet Amount (-)</b></h4>
                                                                             </td>
                                                                             <td width="20%" style="padding:0;Margin:0">
-                                                                                <h4 style="Margin:0;line-height:120%;mso-line-height-rule:exactly;font-family:'open sans', 'helvetica neue', helvetica, arial, sans-serif">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;<?= $settings['currency'] . $order_data['wallet'] ?></h4>
+                                                                                <h4 style="Margin:0;line-height:120%;mso-line-height-rule:exactly;font-family:'open sans', 'helvetica neue', helvetica, arial, sans-serif">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;<?= $settings['currency'] . ' ' . $order_data['wallet'] ?></h4>
                                                                             </td>
                                                                         </tr>
                                                                     </table>
@@ -531,7 +531,7 @@
                                                                                 <h4 style="Margin:0;line-height:120%;mso-line-height-rule:exactly;font-family:'open sans', 'helvetica neue', helvetica, arial, sans-serif"><b>Final Total</b></h4>
                                                                             </td>
                                                                             <td width="20%" style="padding:0;Margin:0">
-                                                                                <h4 style="Margin:0;line-height:120%;mso-line-height-rule:exactly;font-family:'open sans', 'helvetica neue', helvetica, arial, sans-serif">&nbsp; &nbsp; &nbsp; &nbsp;<?= $settings['currency'] . $order_data['total_payable'] ?></h4>
+                                                                                <h4 style="Margin:0;line-height:120%;mso-line-height-rule:exactly;font-family:'open sans', 'helvetica neue', helvetica, arial, sans-serif">&nbsp; &nbsp; &nbsp; &nbsp;<?= $settings['currency'] . ' ' . $order_data['total_payable'] ?></h4>
                                                                             </td>
                                                                         </tr>
                                                                     </table>

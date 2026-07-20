@@ -37,7 +37,7 @@
 }
 .form-container-main{
   background-color: #fff;
-  max-width: 100%;
+  max-width: 50%;
   height: 100vh;
   margin-top: 100vh;
   position: relative;
@@ -162,34 +162,24 @@ body {
 }
 
 .photo-upload{
-  width: 100%;
-  /* max-width: 24rem; */
+  width: 10rem;
 }
 
 .profile-icon {
   width: 3rem;
   height: 3rem;
-  color: var(--color-grey);
 }
 
 .preview-container{
-  border-radius: 50%;
+  border-radius: 100%;
   width: 5rem;
   height: 5rem;
-  aspect-ratio: 1;      /* keep it perfectly round */
-  flex-shrink: 0;       /* stop the flex row squishing it into an oval */
   background-color: #f7f7f7;
-  border: 2px solid var(--color-secondary);
   display: flex;
   justify-content: center;
   align-items: center;
   overflow: hidden;
   cursor: pointer;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-.preview-container:hover{
-  border-color: var(--color-orange);
-  box-shadow: 0 0 0 4px var(--color-orange-light);
 }
 .hidden{
   display: none;
@@ -197,35 +187,6 @@ body {
 .shop-logo{
   width: 100%;
   height: 100%;
-  object-fit: cover;    /* fill the circle without distortion */
-}
-
-/* ===== Upload shop logo button ===== */
-.btn-upload-logo{
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  background-color: var(--color-orange);
-  color: #fff;
-  border: none;
-  border-radius: 0.6rem;
-  padding: 0.6rem 1.2rem;
-  font-weight: 600;
-  font-size: 0.9rem;
-  white-space: nowrap;
-  cursor: pointer;
-  box-shadow: 0 2px 6px rgba(242, 130, 46, 0.35);
-  transition: background-color 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
-}
-.btn-upload-logo:hover{
-  background-color: var(--color-orange-dark);
-  color: #fff;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 10px rgba(242, 130, 46, 0.45);
-}
-.btn-upload-logo:active{
-  transform: translateY(0);
-  box-shadow: 0 2px 4px rgba(242, 130, 46, 0.3);
 }
 
 .check-input{

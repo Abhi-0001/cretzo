@@ -4,87 +4,211 @@
     <div class="overview-container">
 
         <?php $this->load->view('front-end/' . THEME . '/partials/my-account-sidebar', ['active_menu' => $main_page]); ?>
-
+        
         <div class="overview-right">
+            
+            <div class="d-flex gap-2">
+                <div class="col-md-4" style="padding: 0px;">
+                    <div class="card chat-theme-light chat-scroll chat-min">
+                        <?php
+                        // echo "<pre>";
+                        // print_r($supporters);
+                        // die;
+                        ?>
+                        <select name="select_user_id[]" id="chat_user" class="search_user w-100" data-placeholder=" Type to search and select users">
+                            <?php
+                            $user_details = fetch_details('users', ['active' => 1],);
+                            if (!empty($user_details)) {
+                            ?>
+                                <option value="<?= $user_details[0]['id'] ?>"> <?= $user_details[0]['username'] ?></option>
+                            <?php
+                            }
 
-            <div class="cs-chat-soon">
-                <div class="cs-chat-soon__badge">
-                    <i class="uil uil-comments-alt"></i>
-                    <span class="cs-chat-soon__pulse"></span>
+                            ?>
+                        </select>
+                        <div id="add-scroll-js ">
+                            <div class="card-header chat-card-header text-color mt-4">
+                                <h4>Personal Chat</h4>
+                            </div>
+                            <div class="chat-card-body">
+                                <ul class="list-unstyled list-unstyled-border chat-list-unstyled-border">
+                                    <?php if (!empty($users)) {
+
+                                        foreach ($users as $user) {
+                                            if ($user['id'] == $_SESSION['user_id']) {
+                                    ?>
+                                                <li class="media">
+                                                    <div class="media-body">
+                                                        <div class="chat-person" data-picture="" data-type="person" data-id="<?= $user['opponent_user_id'] ?>"><i class="<?= ($user['is_online'] == 1) ? 'fa fa-circle text-success' : 'fa fa-circle'; ?> "></i> <?= $user['opponent_username'] ?> (You)</div>
+                                                    </div>
+                                                </li>
+                                    <?php }
+                                        }
+                                    } ?>
+
+
+                                    <?php if (!empty($users)) {
+                                        foreach ($users as $user) {
+                                            if (isset($user['id']) && !empty($user['id']) && $user['id'] != '' &&  $user['id'] != $_SESSION['user_id']) { ?>
+                                                <li class="media">
+                                                    <div class="media-body">
+                                                        <div data-unread_msg="<?= $user['unread_msg'] ?>" class="chat-person <?= ($user['unread_msg'] > 0) ? 'new-msg-rcv' : ''; ?>" data-picture="<?= $user['picture'] ?>" data-type="person" data-id="<?= $user['opponent_user_id'] ?>"><i class="<?= ($user['is_online'] == 1) ? 'fa fa-circle text-success' : 'fa fa-circle'; ?> "></i> <?= $user['opponent_username'] ?>
+                                                            <?= ($user['unread_msg'] > 0) ? (($user['unread_msg'] > 9) ? '<div class="badge-chat">9 +</div>' : '<div class="badge-chat">' . $user['unread_msg'] . '</div>') : ''; ?>
+                                                        </div>
+                                                    </div>
+                                                </li>
+                                    <?php }
+                                        }
+                                    } ?>
+                                </ul>
+                            </div>
+                            <div class="card-header chat-card-header d-flex text-color">
+                                <h4><?= !empty($this->lang->line('support_chat')) ? $this->lang->line('support_chat') : 'Support Team '; ?></h4>
+                            </div>
+                            <div class="chat-card-body">
+                                <ul class="list-unstyled list-unstyled-border chat-list-unstyled-border">
+
+                                    <?php if (!empty($supporters)) {
+
+                                        foreach ($supporters as $supporter) {
+                                            $date = strtotime('now');
+                                            $to_id = $this->session->userdata('user_id');
+
+                                            if ($to_id == $supporter['user_permission_id']) {
+                                                $supporter['is_online'] = 1;
+                                            } else {
+                                                if ($supporter['last_online'] > $date) {
+                                                    $supporter['is_online'] = 1;
+                                                } else {
+                                                    $supporter['is_online'] = 0;
+                                                }
+                                            }
+                                            // echo "<pre>";
+                                            // print_r($supporter);
+                                    ?>
+
+                                            <li class="media">
+                                                <div class="media-body">
+                                                    <div class="chat-person" data-id="<?= $supporter['userto_id'] ?>" data-type="person">
+                                                        <i class="<?= ($supporter['is_online'] == 1) ? 'fa fa-circle text-success' : 'fa fa-circle'; ?> "></i> <?= $supporter['username'] ?>
+                                                    </div>
+                                                </div>
+                                            </li>
+
+                                    <?php }
+                                    } ?>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <span class="cs-chat-soon__chip">Coming Soon</span>
-                <h2 class="cs-chat-soon__title">Live Chat</h2>
-                <p class="cs-chat-soon__text">We’re working on launching our <strong>Live Chat Support</strong> feature to provide you with a faster and smoother support experience.</p>
-                <p class="cs-chat-soon__text">For now, you can get instant assistance through our <strong>AI Assistant</strong> or connect with us via <strong>WhatsApp Support</strong> using the chatbot in the bottom-right corner.</p>
+                <div class="col-12 col-sm-8 col-lg-9" id="chat_area_wait">
+                </div>
+
+                <div class="col-md-8 d-none" style="padding: 0px;" id="chat_area">
+                    <div class="card chat-box chat-theme-light chat-min " id="mychatbox2">
+                        <div class="align-items-center card-header chat-card-header d-flex">
+                            <div class="mr-3" id="chat-avtar-main">#</div>
+                            <div class="media-body">
+                                <div class="mt-0 mb-1 font-weight-bold text-color" id="chat_title"></div>
+                                <div class="text-small font-600-bold" id="chat_online_status"></div>
+                            </div>
+
+                        </div>
+                        <div id="chat-box-content" class="chat-bg card-body chat-scroll chat-content">
+                            <div class="chat_loader">Loading...</div>
+                        </div>
+                        <div class="card-body d-none" id="chat-dropbox">
+                            <div class="dropzone" id="myAlbum"></div>
+                            <div class="text-center mt-3">
+                                <button class="btn btn-danger shadow-none" onclick="closeDropZone();"><?= !empty($this->lang->line('label_close')) ? $this->lang->line('label_close') : 'Close'; ?>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="form-control theme-inputs d-none" id="chat-input-textarea-result"></div>
+                        <div class="card-footer chat-form">
+                            <form id="chat-form2" autocomplete="off">
+                                <div class="row">
+                                    <div class="input-group">
+                                        <input type="hidden" id="opposite_user_id" name="opposite_user_id" value="">
+                                        <input type="hidden" id="my_user_id" name="my_user_id" value="<?= $_SESSION['user_id'] ?>" data-picture="">
+                                        <input type="hidden" id="chat_type" name="chat_type" value="">
+                                        <textarea class="form-control theme-inputs" id="chat-input-textarea" rows="2" name="chat-input-textarea"></textarea>
+                                    </div>
+                                </div>
+                                <div class="row mt-2">
+                                    <span class="input-group-append ">
+                                        <div class="form-group">
+                                            <a class="bg-success go-to-bottom-btn text-center btn btn-arrow">
+                                                <i class="fs-20 uil uil-arrow-down"></i>
+                                            </a>
+
+                                            <button class="btn btn-danger btn-send-msg" style="margin-right: 16px;">
+                                                <i class="fa fa-paper-plane fs-13"></i>
+                                            </button>
+
+                                            <button class="btn-file btn btn-primary" style="left: 80px;" onclick="showDropZone();">
+                                                <i class="uil uil-paperclip"></i>
+                                            </button>
+                                        </div>
+                                    </span>
+                                </div>
+
+                            </form>
+                        </div>
+                    </div>
+                </div>
             </div>
 
         </div>
     </div>
 </div>
 
-<style>
-    .cs-chat-soon {
-        max-width: 560px;
-        margin: 8px auto 0;
-        padding: 48px 32px 44px;
-        text-align: center;
-        background: transparent;
-        border: none;
-        border-radius: 0;
-        box-shadow: none;
-    }
-    .cs-chat-soon__badge {
-        position: relative;
-        width: 84px;
-        height: 84px;
-        margin: 0 auto 22px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 50%;
-        color: #fff;
-        font-size: 38px;
-        background: linear-gradient(135deg, #ff9a3d 0%, #ff7a1a 100%);
-        box-shadow: 0 14px 30px -8px rgba(255, 122, 26, .55);
-    }
-    .cs-chat-soon__pulse {
-        position: absolute;
-        inset: 0;
-        border-radius: 50%;
-        border: 2px solid rgba(255, 122, 26, .45);
-        animation: csChatPulse 2s ease-out infinite;
-    }
-    @keyframes csChatPulse {
-        0%   { transform: scale(1);   opacity: .7; }
-        100% { transform: scale(1.5); opacity: 0; }
-    }
-    .cs-chat-soon__chip {
-        display: inline-block;
-        margin-bottom: 12px;
-        padding: 6px 16px;
-        font-size: 11px;
-        font-weight: 700;
-        letter-spacing: .12em;
-        text-transform: uppercase;
-        color: #ff7a1a;
-        background: #fff2e8;
-        border-radius: 999px;
-    }
-    .cs-chat-soon__title {
-        margin: 0 0 18px;
-        font-size: 28px;
-        font-weight: 700;
-        color: #1f2937;
-    }
-    .cs-chat-soon__text {
-        margin: 0 auto 14px;
-        max-width: 440px;
-        font-size: 15px;
-        line-height: 1.7;
-        color: #6b7280;
-    }
-    .cs-chat-soon__text strong {
-        color: #374151;
-        font-weight: 600;
-    }
-</style>
+<div class="modal" tabindex="-1" role="dialog" id="chat-search-modal">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Search</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form class="modal-part" id="modal-search-msg-part">
+                    <div id="modal-title" class="d-none"><?= !empty($this->lang->line('label_search')) ? $this->lang->line('label_search') : 'Search'; ?></div>
+                    <div class="row">
+                        <div class="col-md-12 form-group">
+                            <div class="input-group">
+                                <div class="input-group-prepend">
+                                    <div class="input-group-text">
+                                        <i class="fa fa-search"></i>
+                                    </div>
+                                </div>
+                                <input type="text" class="form-control" name="in-chat-search" id="in-chat-search">
+                            </div>
+                        </div>
+
+                        <div class="col-md-12 d-none" id="show-search-result">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h4><?= !empty($this->lang->line('label_search_result')) ? $this->lang->line('label_search_result') : 'Search Result'; ?></h4>
+                                </div>
+                                <div class="card-body">
+                                    <ul class="list-unstyled list-unstyled-border" id="search-result">
+
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                </form>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- chat -->
+<script type="module" src="<?= THEME_ASSETS_URL . 'js/components-chat-box.js' ?>"></script>

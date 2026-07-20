@@ -62,7 +62,7 @@
             </div>
 
             <div class="col-auto text-end d-flex align-items-center" style="translate: 0px 20px;">
-                <a class="text-decoration-none cretzo-link d-flex align-items-center chat-seller-soon-btn" data-no-loader href="<?= base_url('my-account/chat?seller-id=' . $seller_details[0]['id'] . '&seller-username=' . $seller_details[0]['username']) ?>">
+                <a class="text-decoration-none cretzo-link d-flex align-items-center" href="<?= base_url('my-account/chat?seller-id=' . $seller_details[0]['id'] . '&seller-username=' . $seller_details[0]['username']) ?>">
                     <i class="uil uil-chat fs-28 me-1"></i>
                     <p class="text-b text-decoration-underline mb-0" style="text-underline-offset: 4px;">Chat with seller</p>
                 </a>
@@ -77,7 +77,7 @@
             foreach ($seller_categories as $category) { ?>
                 <a class="text-decoration-none cretzo-link" href="<?= base_url('products?seller=' . $sellers[0]['slug'] . '&category=' . $category['id']) ?>">
                     <div class="catagory-container">
-                        <img class="catagory-img" src="<?= base_url($category['image']) ?>" alt="<?= html_escape($category['name']) ?>">
+                        <img class="catagory-img" src="<?= $category['image'] ?>">
                         <p class="text-n"><?= $category['name'] ?></p>
                     </div>
                 </a>
@@ -307,7 +307,7 @@
         $price = $product_row['variants'][0]['price'];
         
         // $currencyText = $settings['currency'];
-        $currencyText = "₹";
+        $currencyText = "Rs. ";
 
         if (($discounted_price < $price) && ($discounted_price != 0)) {
             return '<p class="ta-c ' . $textStyle . '">

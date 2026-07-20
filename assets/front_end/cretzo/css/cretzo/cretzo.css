@@ -47,10 +47,16 @@ ol, ul{
 }
 
 
-/* Style overrides for cart sidebar
-   NOTE: the mini-cart thumbnail (fixed 64px square) and title sizing now live
-   in cretzo-override.css. The old 40%/60% !important rules forced oversized,
-   inconsistent thumbnails, so they were removed to let the override take effect. */
+/* Style overrides for cart sidebar */
+#cart-item-sidebar .cart-img{
+  width: 40% !important;
+  min-width: 40% !important;
+}
+#cart-item-sidebar .cart-title{
+  width: 60% !important;
+  min-width: 60% !important;
+  max-width: 60% !important;
+}
 .shopping-cart-item-main{
   width: 100%;
 }

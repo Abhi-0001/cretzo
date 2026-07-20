@@ -180,12 +180,6 @@ $auth_settings = get_settings('authentication_settings', true);
             </nav>
             <!-- /.navbar -->
 
-            <style>
-                input[name="header_qty"]::-webkit-inner-spin-button,
-                input[name="header_qty"]::-webkit-outer-spin-button {
-                    opacity: 1;
-                }
-            </style>
             <div class="offcanvas offcanvas-end bg-light" id="offcanvas-cart" data-bs-scroll="true" aria-modal="true" role="dialog">
                 <input type="hidden" name="is_loggedin" id="is_loggedin" value="<?= (isset($user->id)) ? 1 : 0 ?>">
                 <div class="offcanvas-header">
@@ -224,9 +218,9 @@ $auth_settings = get_settings('authentication_settings', true);
 
                                                 <div class="product-pricing d-flex py-2 w-100">
                                                     <div class="product-quantity product-sm-quantity">
-                                                        <input type="number" name="header_qty" class="form-control d-flex align-content-center w-14" style="-moz-appearance: number-input; -webkit-appearance: number-input; appearance: auto;" value="<?= $items['qty'] ?>" data-id="<?= $items['product_variant_id'] ?>" data-price="<?= $price ?>" min="<?= $items['minimum_order_quantity'] ?>" max="<?= $items['total_allowed_quantity'] ?>" step="<?= $items['quantity_step_size'] ?>">
+                                                        <input type="number" name="header_qty" class="form-control d-flex align-content-center h-9 w-14" value="<?= $items['qty'] ?>" data-id="<?= $items['product_variant_id'] ?>" data-price="<?= $price ?>" min="<?= $items['minimum_order_quantity'] ?>" max="<?= $items['total_allowed_quantity'] ?>" step="<?= $items['quantity_step_size'] ?>">
                                                     </div>
-                                                    <div class="product-line-price align-self-center px-1" style="color: #F2822E;"><?= $settings['currency'] . ' ' . number_format($items['qty'] * $price, 2) ?></div>
+                                                    <div class="product-line-price align-self-center px-1"><?= $settings['currency'] . ' ' . number_format($items['qty'] * $price, 2) ?></div>
                                                 </div>
                                                 <!--/.form-select-wrapper -->
                                             </div>

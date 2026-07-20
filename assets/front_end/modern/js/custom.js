@@ -108,9 +108,7 @@ if (auth_settings == "firebase") {
 }
 function resetRecaptcha() {
     return window.recaptchaVerifier.render().then(function (e) {
-        if (typeof grecaptcha !== 'undefined' && typeof grecaptcha.reset === 'function') {
-            try { grecaptcha.reset(e); } catch (ex) { }
-        }
+        grecaptcha.reset(e)
     })
 }
 
@@ -199,9 +197,7 @@ if (auth_settings == "sms") {
 
     function resetRecaptcha() {
         return window.recaptchaVerifier.render().then(function (e) {
-            if (typeof grecaptcha !== 'undefined' && typeof grecaptcha.reset === 'function') {
-                try { grecaptcha.reset(e); } catch (ex) { }
-            }
+            grecaptcha.reset(e)
         })
     }
 }
@@ -1049,9 +1045,7 @@ search_products.on("select2:select", function (e) {
                     $(".send-otp-form").show(), $(".sign-up-form")[0].reset(), $(".sign-up-form").hide(),
 
                     $("#is-user-exist-error").html(""), $("#sign-up-error").html(""), $("#recaptcha-container").html(""), window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier("recaptcha-container"), window.recaptchaVerifier.render().then(function (e) {
-                        if (typeof grecaptcha !== 'undefined' && typeof grecaptcha.reset === 'function') {
-                            try { grecaptcha.reset(e); } catch (ex) { }
-                        }
+                        grecaptcha.reset(e)
                     });
                 var e = $("#phone-number"),
                     t = $("#error-msg"),
@@ -2349,9 +2343,7 @@ function customer_wallet_query_paramss(e) {
     }),
     $(document).on("click", "#forgot_password_link", function (e) {
         e.preventDefault(), $(".auth-modal").find("header a").removeClass("active"), $("#forgot_password_div").removeClass("hide").siblings("section").addClass("hide"), $("#recaptcha-container-2").html(""), window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier("recaptcha-container-2"), window.recaptchaVerifier.render().then(function (e) {
-            if (typeof grecaptcha !== 'undefined' && typeof grecaptcha.reset === 'function') {
-                try { grecaptcha.reset(e); } catch (ex) { }
-            }
+            grecaptcha.reset(e)
         }),
             $("#forgot_password_number").intlTelInput({
                 allowExtensions: !0,
@@ -3157,22 +3149,6 @@ $(document).ready(function () {
         }
         location.reload();
     }
-
-    // Handle Redirect Sign-in Result on page load
-    firebase.auth().getRedirectResult().then(function (result) {
-        if (result && result.user) {
-            var provider = 'google';
-            if (result.credential && result.credential.providerId.indexOf('facebook') !== -1) {
-                provider = 'facebook';
-            } else if (result.user.providerData && result.user.providerData[0] && result.user.providerData[0].providerId.indexOf('facebook') !== -1) {
-                provider = 'facebook';
-            }
-            handleSocialLogin(result.user, provider);
-        }
-    }).catch(function (error) {
-        console.error("Redirect sign-in error: ", error);
-    });
-
     $("#share").jsSocials({
         showLabel: false,
         showCount: false,
@@ -3199,95 +3175,89 @@ $(document).ready(function () {
             });
     });
 
-    function handleSocialLogin(user, providerName) {
-        var type = providerName;
-        var name = user.displayName;
-        var email = '';
-        if (user.email != null && user.email != '') {
-            email = user.email;
-        } else if (user.providerData && user.providerData[0] && user.providerData[0].email != null && user.providerData[0].email != '') {
-            email = user.providerData[0].email;
-        } else if (user.email == null && user.providerData && user.providerData[0]) {
-            email = user.email || '';
-        }
-        var password = user.uid;
-        
-        $.ajax({
-            type: 'POST',
-            url: base_url + 'home/verifyUser',
-            data: {
-                email: email,
-                type: type,
-                [csrfName]: csrfHash
-            },
-            dataType: 'json',
-            success: function (result) {
-                csrfName = result['csrfName'];
-                csrfHash = result['csrfHash'];
-
-                if (result.error == true) {
-                    $.ajax({
-                        type: 'POST',
-                        url: base_url + 'auth/register_user',
-                        data: {
-                            type: type,
-                            name: name,
-                            email: email,
-                            password: password,
-                            [csrfName]: csrfHash
-                        },
-                        dataType: 'json',
-                        success: function (result) {
-                            csrfName = result['csrfName'];
-                            csrfHash = result['csrfHash'];
-                            if (result.error == false) {
-                                $.ajax({
-                                    type: 'POST',
-                                    url: base_url + 'home/login',
-                                    data: {
-                                        identity: email,
-                                        type: type,
-                                        password: password,
-                                        [csrfName]: csrfHash
-                                    },
-                                    dataType: 'json',
-                                    success: function (result) {
-                                        closeLoginModalAndReload();
-                                    }
-                                });
-                            }
-                        }
-                    });
-                } else {
-                    $.ajax({
-                        type: 'POST',
-                        url: base_url + 'home/login',
-                        data: {
-                            identity: email,
-                            type: type,
-                            password: password,
-                            [csrfName]: csrfHash
-                        },
-                        dataType: 'json',
-                        success: function (result) {
-                            closeLoginModalAndReload();
-                        }
-                    });
-                }
-            }
-        });
-    }
-
     function googleSignIn() {
         var provider = new firebase.auth.GoogleAuthProvider();
         provider.addScope('email');
         firebase.auth().signInWithPopup(provider).then(function (result) {
-            handleSocialLogin(result.user, 'google');
-        }).catch(function (error) {
-            if (error && (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user')) {
-                firebase.auth().signInWithRedirect(provider);
-                return;
+
+
+            var type = 'google';
+            var name = result.user.displayName;
+            if (result.user.email != null && result.user.email != '') {
+                var email = result.user.email
+            } else if (result.user.providerData[0].email != null && result.user.providerData[0].email != '') {
+                var email = result.user.providerData[0].email
+            } else {
+                var email = result.additionalUserInfo.profile.email
             }
+            var password = result.user.uid;
+            $.ajax({
+                type: 'POST',
+                url: base_url + 'home/verifyUser',
+                data: {
+                    email: email,
+                    type: type,
+                    [csrfName]: csrfHash
+                },
+                dataType: 'json',
+                success: function (result) {
+                    csrfName = result['csrfName'];
+                    csrfHash = result['csrfHash'];
+
+                    if (result.error == true) {
+                        $.ajax({
+                            type: 'POST',
+                            url: base_url + 'auth/register_user',
+                            data: {
+                                type: type,
+                                name: name,
+                                email: email,
+                                password: password,
+                                [csrfName]: csrfHash
+                            },
+                            dataType: 'json',
+                            success: function (result) {
+                                csrfName = result['csrfName'];
+                                csrfHash = result['csrfHash'];
+                                if (result.error == false) {
+                                    $.ajax({
+                                        type: 'POST',
+                                        url: base_url + 'home/login',
+                                        data: {
+                                            identity: email,
+                                            type: type,
+                                            password: password,
+                                            [csrfName]: csrfHash
+                                        },
+                                        dataType: 'json',
+                                        success: function (result) {
+                                            closeLoginModalAndReload();
+                                        }
+                                    });
+                                }
+                            }
+                        });
+                    } else {
+                        $.ajax({
+                            type: 'POST',
+                            url: base_url + 'home/login',
+                            data: {
+                                identity: email,
+                                type: type,
+                                password: password,
+                                [csrfName]: csrfHash
+                            },
+                            dataType: 'json',
+                            success: function (result) {
+                                closeLoginModalAndReload();
+                            }
+                        });
+                    }
+                }
+            });
+
+        }).catch(function (error) {
+
             console.log(error.message);
         });
     }
@@ -3295,12 +3265,85 @@ $(document).ready(function () {
         var provider = new firebase.auth.FacebookAuthProvider();
         provider.addScope('email');
         firebase.auth().signInWithPopup(provider).then(function (result) {
-            handleSocialLogin(result.user, 'facebook');
-        }).catch(function (error) {
-            if (error && (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user')) {
-                firebase.auth().signInWithRedirect(provider);
-                return;
+
+            var type = 'facebook';
+            var name = result.user.displayName;
+            if (result.user.email != null && result.user.email != '') {
+                var email = result.user.email
+            } else if (result.user.providerData[0].email != null && result.user.providerData[0].email != '') {
+                var email = result.user.providerData[0].email
+            } else {
+                var email = result.additionalUserInfo.profile.email
             }
+            var password = result.user.uid;
+            $.ajax({
+                type: 'POST',
+                url: base_url + 'home/verifyUser',
+                data: {
+                    email: email,
+                    type: type,
+                    [csrfName]: csrfHash
+                },
+                dataType: 'json',
+                success: function (result) {
+                    csrfName = result['csrfName'];
+                    csrfHash = result['csrfHash'];
+
+                    if (result.error == true) {
+                        $.ajax({
+                            type: 'POST',
+                            url: base_url + 'auth/register_user',
+                            data: {
+                                type: type,
+                                name: name,
+                                email: email,
+                                password: password,
+                                [csrfName]: csrfHash
+                            },
+                            dataType: 'json',
+                            success: function (result) {
+                                csrfName = result['csrfName'];
+                                csrfHash = result['csrfHash'];
+                                if (result.error == false) {
+                                    $.ajax({
+                                        type: 'POST',
+                                        url: base_url + 'home/login',
+                                        data: {
+                                            identity: email,
+                                            type: type,
+                                            password: password,
+                                            [csrfName]: csrfHash
+                                        },
+                                        dataType: 'json',
+                                        success: function (result) {
+                                            closeLoginModalAndReload();
+                                        }
+                                    });
+                                }
+                            }
+                        });
+                    } else {
+                        $.ajax({
+                            type: 'POST',
+                            url: base_url + 'home/login',
+                            data: {
+                                identity: email,
+                                type: type,
+                                password: password,
+                                [csrfName]: csrfHash
+                            },
+                            dataType: 'json',
+                            success: function (result) {
+                                closeLoginModalAndReload();
+                            }
+                        });
+                    }
+                }
+            });
+
+            console.log(result);
+        }).catch(function (error) {
+
             console.log(error);
         });
     }

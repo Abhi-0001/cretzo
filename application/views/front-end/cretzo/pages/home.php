@@ -669,7 +669,7 @@
         $price = $product_row['variants'][0]['price'];
         
         // $currencyText = $settings['currency'];
-        $currencyText = "₹";
+        $currencyText = "Rs. ";
 
         if (($discounted_price < $price) && ($discounted_price != 0)) {
             return '<p class="ta-c ' . $textStyle . '">

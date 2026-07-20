@@ -39,7 +39,7 @@ class Address_model extends CI_Model
         if (isset($data['landmark'])) {
             $address_data['landmark'] = $data['landmark'];
         }
-        $city = fetch_details('cities', ['city_id' => $data['city_id']], 'city_name');
+        $city = fetch_details('cities', ['id' => $data['city_id']], 'name');
         $area = fetch_details('areas', ['id' => $data['area_id']], 'name');
 
         if (isset($data['general_area_name'])) {
@@ -56,16 +56,16 @@ class Address_model extends CI_Model
         // }
         if (isset($data['city_id'])) {
             $address_data['city_id'] = (isset($data['city_id']) & !empty($data['city_id'])) ? $data['city_id'] : 0;
-            $address_data['city'] = isset($city) && !empty($city) ? $city[0]['city_name'] : '';
+            $address_data['city'] = isset($city) && !empty($city) ? $city[0]['name'] : '';
         }
         if (isset($data['city_name'])) {
-            $address_data['city'] = (isset($data['city_name']) & !empty($data['city_name'])) ? $data['city_name'] : $city[0]['city_name'];
+            $address_data['city'] = (isset($data['city_name']) & !empty($data['city_name'])) ? $data['city_name'] : $city[0]['name'];
         }
         if (isset($data['area_name']) && !empty($data['area_name'])) {
             $address_data['area'] = (isset($data['area_name']) & !empty($data['area_name'])) ? $data['area_name'] : $area[0]['name'];
         }
         if (isset($data['other_city']) && !empty($data['other_city'])) {
-            $address_data['city'] = (isset($data['other_city']) && !empty($data['other_city'])) ? $data['other_city'] : $city[0]['city_name'];
+            $address_data['city'] = (isset($data['other_city']) && !empty($data['other_city'])) ? $data['other_city'] : $city[0]['name'];
         }
         if (isset($data['other_areas']) && !empty($data['other_areas'])) {
             $address_data['area'] = (isset($data['other_areas']) && !empty($data['other_areas'])) ? $data['other_areas'] : $area[0]['name'];

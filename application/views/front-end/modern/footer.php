@@ -235,15 +235,15 @@ $system_settings = get_settings('system_settings', true); ?>
                         </p>
                         <p class="mb-0">Don't have an account? <a class="text-decoration-none text-blue fs-15 hover" href="#" data-bs-target="#modal-signup" data-bs-toggle="modal" data-bs-dismiss="modal" class="hover">Sign up</a></p>
 
-                        <?php if (true || (!empty($system_settings['google_login']) && $system_settings['google_login'] == 1) || (!empty($system_settings['facebook_login']) && $system_settings['facebook_login'] == 1)) { ?>
+                        <?php if ((!empty($system_settings['google_login']) && $system_settings['google_login'] == 1) || (!empty($system_settings['facebook_login']) && $system_settings['facebook_login'] == 1)) { ?>
                             <div class="divider-icon my-4">or</div>
                             <div class="row">
                                 <div class="social-login col-md-12 text-center mt-3">
-                                    <?php if (true || !empty($system_settings['google_login']) && ($system_settings['google_login'] == 1 || $system_settings['google_login'] == '1')) { ?>
+                                    <?php if (!empty($system_settings['google_login']) && ($system_settings['google_login'] == 1 || $system_settings['google_login'] == '1')) { ?>
                                         <a href="#" id="googleLogin" class="btn btn-circle btn-sm btn-google btn-red">
                                             <i class="uil uil-google"></i></a>
                                     <?php } ?>
-                                    <?php if (true || !empty($system_settings['facebook_login']) && ($system_settings['facebook_login'] == 1 || $system_settings['facebook_login'] == '1')) { ?>
+                                    <?php if (!empty($system_settings['facebook_login']) && ($system_settings['facebook_login'] == 1 || $system_settings['facebook_login'] == '1')) { ?>
                                         <a href="#" id="facebookLogin" class="btn btn-circle btn-sm btn-facebook-f btn-blue ms-2">
                                             <i class="uil uil-facebook-f"></i>
                                         </a>
@@ -336,16 +336,16 @@ $system_settings = get_settings('system_settings', true); ?>
                         </footer>
                         <p class="mb-0 mt-6">Already have an account? <a class="text-decoration-none text-blue fs-15 hover" href="#" data-bs-target="#modal-signin" data-bs-toggle="modal" data-bs-dismiss="modal" class="hover">Sign in</a></p>
 
-                        <?php if (true || (!empty($system_settings['google_login']) && $system_settings['google_login'] == 1) || (!empty($system_settings['facebook_login']) && $system_settings['facebook_login'] == 1)) { ?>
+                        <?php if ((!empty($system_settings['google_login']) && $system_settings['google_login'] == 1) || (!empty($system_settings['facebook_login']) && $system_settings['facebook_login'] == 1)) { ?>
                             <br>
                             <div class="divider-icon mt-0 mb-3">or</div>
                             <div class="row">
                                 <div class="social-login col-md-12 text-center mt-3">
-                                    <?php if (true || !empty($system_settings['google_login']) && ($system_settings['google_login'] == 1 || $system_settings['google_login'] == '1')) { ?>
+                                    <?php if (!empty($system_settings['google_login']) && ($system_settings['google_login'] == 1 || $system_settings['google_login'] == '1')) { ?>
                                         <a href="#" id="googleLogin" class="btn btn-circle btn-sm btn-google btn-red">
                                             <i class="uil uil-google"></i></a>
                                     <?php } ?>
-                                    <?php if (true || !empty($system_settings['facebook_login']) && ($system_settings['facebook_login'] == 1 || $system_settings['facebook_login'] == '1')) { ?>
+                                    <?php if (!empty($system_settings['facebook_login']) && ($system_settings['facebook_login'] == 1 || $system_settings['facebook_login'] == '1')) { ?>
                                         <a href="#" id="facebookLogin" class="btn btn-circle btn-sm btn-facebook-f btn-blue ms-2">
                                             <i class="uil uil-facebook-f"></i>
                                         </a>

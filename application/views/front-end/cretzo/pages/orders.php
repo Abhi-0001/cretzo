@@ -115,7 +115,7 @@ die; */
                                         $cancellable_index = array_search($cancelable_till, $status);
                                         $active_index = array_search($active_status, $status);
                                         if (!$item['is_already_cancelled'] && $item['is_cancelable'] && $active_index <= $cancellable_index) { ?>
-                                            <a class="update-order" data-status="cancelled" data-order-id="<?= $row['id'] ?>">
+                                            <a class="update-order" data-status="cancelled" data-order-id="<?= $order['id'] ?>">
                                                 <button class="cretzo btn btn-dark btn-cancel-order mt-3">Cancel</button>
                                             </a>
                                     <?php } ?>

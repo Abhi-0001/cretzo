@@ -42,34 +42,3 @@
 .catagory-container:hover .catagory-img{
     border: 2px solid var(--color-orange);
 }
-
-/* ============================================================
-   P4.5 — Category band clipping fix
-   The category band (.aboutus-three) had a fixed height:60px that
-   clipped the 120px category circles, held together by escalating
-   margin-bottom hacks (150px / 280px / 460px) so the "Featured
-   Products" section below wouldn't collide with the overflow.
-   Let the band size to its content and use a normal gap instead.
-   ============================================================ */
-.aboutus-three{
-    /* height: auto; */
-    min-height: 0;
-    margin: 0 auto 48px;
-    padding: 22px 16px;
-    align-items: center;
-    row-gap: 20px;
-}
-.aboutus-three .catagory-container p{
-    color: #fff;
-    margin-top: 6px;
-    font-weight: 600;
-    text-align: center;
-}
-.catagory-img{
-    height: 96px;
-}
-@media screen and (max-width: 600px){
-    .aboutus-three{ gap: 18px; padding: 18px 12px; }
-    .catagory-img{ height: 70px; border-width: 2px; }
-    .aboutus-three .catagory-container p{ font-size: 12px; }
-}

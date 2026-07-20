@@ -45,7 +45,7 @@ $auth_settings = get_settings('authentication_settings', true);
                         <li><a href="<?= base_url('products') ?>"><i class="fas fa-box-open fa-lg"></i> <span><?= !empty($this->lang->line('products')) ? $this->lang->line('products') : 'Products' ?></span></a></li>
                         <li><a href="<?= base_url('sellers') ?>"><i class="fas fa-store fa-lg"></i><span class="ml-1"><?= label('sellers', 'Sellers') ?></span></a></li>
                         <?php if ($this->ion_auth->logged_in()) { ?>
-                            <li><a href="<?= base_url('my-account/wallet') ?>"><i class="fa fa-wallet fa-lg"></i> <?= !empty($this->lang->line('balance')) ? $this->lang->line('balance') : 'Balance' ?> <?= ' : ' . $settings['currency'] . $user->balance ?></a></li>
+                            <li><a href="<?= base_url('my-account/wallet') ?>"><i class="fa fa-wallet fa-lg"></i> <?= !empty($this->lang->line('balance')) ? $this->lang->line('balance') : 'Balance' ?> <?= ' : ' . $settings['currency'] . ' ' . $user->balance ?></a></li>
                             <li><a href="<?= base_url('my-account') ?>"><i class="far fa-user-circle fa-lg"></i> <?= !empty($this->lang->line('my_account')) ? $this->lang->line('my_account') : 'My Account' ?></a></li>
                             <li><a href="<?= base_url('my-account/orders') ?>"><i class="fa fa-history fa-lg"></i> <?= !empty($this->lang->line('my_orders')) ? $this->lang->line('my_orders') : 'My Orders' ?></a></li>
                             <li><a href="<?= base_url('my-account/favorites') ?>"><i class="far fa-heart fa-lg"></i> <?= !empty($this->lang->line('favorite')) ? $this->lang->line('favorite') : 'Favorite' ?></a></li>
@@ -112,12 +112,6 @@ $auth_settings = get_settings('authentication_settings', true);
     </div>
     <hr class="m-0">
     <div class="text-center mt-2"><a class="button button-danger button-rounded" href="<?= base_url('products') ?>"> <?= !empty($this->lang->line('return_to_shop')) ? $this->lang->line('return_to_shop') : 'Return To Shop' ?></a></div>
-    <style>
-        input[name="header_qty"]::-webkit-inner-spin-button,
-        input[name="header_qty"]::-webkit-outer-spin-button {
-            opacity: 1;
-        }
-    </style>
     <div class="shopping-cart-sm container bg-white rounded mt-4 mb-2" id="cart-item-sidebar">
         <?php
         if (isset($user->id)) {
@@ -142,16 +136,16 @@ $auth_settings = get_settings('authentication_settings', true);
                                 <p class="product-descriptions"><?= strip_tags(output_escaping(str_replace('\r\n', '&#13;&#10;', $items['short_description']))) ?></p>
                             </div>
                             <div class="product-pricing d-flex py-2 px-1 w-100">
-                                <div class="product-price align-self-center"><?= $settings['currency'] . $price ?></div>
+                                <div class="product-price align-self-center"><?= $settings['currency'] . ' ' . $price ?></div>
                                 <div class="product-quantity product-sm-quantity px-1">
-                                    <input type="number" name="header_qty" class="form-input" style="-moz-appearance: number-input; -webkit-appearance: number-input; appearance: auto;" value="<?= $items['qty'] ?>" data-id="<?= $items['product_variant_id'] ?>" data-price="<?= $price ?>" min="<?= $items['minimum_order_quantity'] ?>" max="<?= $items['total_allowed_quantity'] ?>" step="<?= $items['quantity_step_size'] ?>">
+                                    <input type="number" name="header_qty" class="form-input" value="<?= $items['qty'] ?>" data-id="<?= $items['product_variant_id'] ?>" data-price="<?= $price ?>" min="<?= $items['minimum_order_quantity'] ?>" max="<?= $items['total_allowed_quantity'] ?>" step="<?= $items['quantity_step_size'] ?>">
                                 </div>
                                 <div class="product-sm-removal align-self-center">
                                     <button class="remove-product button button-danger" data-id="<?= $items['product_variant_id'] ?>">
                                         <i class="fa fa-trash"></i>
                                     </button>
                                 </div>
-                                <div class="product-line-price align-self-center px-1" style="color: #F2822E;"><?= $settings['currency'] . number_format($items['qty'] * $price, 2) ?></div>
+                                <div class="product-line-price align-self-center px-1"><?= $settings['currency'] . ' ' . number_format($items['qty'] * $price, 2) ?></div>
                             </div>
                         </div>
                     </div>
@@ -268,7 +262,7 @@ $auth_settings = get_settings('authentication_settings', true);
                             </a>
 
                             <div class="dropdown-menu dropdown-menu-lg">
-                                <a href="<?= base_url('my-account/wallet') ?>" class="dropdown-item"><i class="fas fa-wallet mr-2 text-primary link-color"></i> <?= $settings['currency'] . isset($user->balance) && !empty($user->balance) ? number_format($user->balance, 2) : 0.0 ?></a>
+                                <a href="<?= base_url('my-account/wallet') ?>" class="dropdown-item"><i class="fas fa-wallet mr-2 text-primary link-color"></i> <?= $settings['currency'] . ' ' . isset($user->balance) && !empty($user->balance) ? number_format($user->balance, 2) : 0.0 ?></a>
                                 <a href="<?= base_url('my-account') ?>" class="dropdown-item"><i class="fas fa-user mr-2 text-primary link-color"></i> <?= !empty($this->lang->line('profile')) ? $this->lang->line('profile') : 'Profile' ?> </a>
                                 <a href="<?= base_url('my-account/orders') ?>" class="dropdown-item"><i class="fas fa-history mr-2 text-primary link-color"></i> <?= !empty($this->lang->line('orders')) ? $this->lang->line('orders') : 'Orders' ?> </a>
                                 <a href="<?= base_url('login/logout') ?>" class="dropdown-item"><i class="fa fa-sign-out-alt mr-2 text-primary link-color"></i><?= !empty($this->lang->line('logout')) ? $this->lang->line('logout') : 'Logout' ?></a>

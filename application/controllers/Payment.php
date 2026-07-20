@@ -640,7 +640,7 @@
 
             // Show Errors
             if ($config['Sandbox']) {
-                error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT);
+                error_reporting(E_ALL);
                 ini_set('display_errors', '1');
             }
 

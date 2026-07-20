@@ -290,7 +290,7 @@
                     <?php } ?>
 
 
-                    <nav class="text-center mt-7 mb-5" aria-label="pagination">
+                    <nav class="text-center mt-14" aria-label="pagination">
                         <?= (isset($links)) ? $links : '' ?>
                     </nav>
                     <!-- /nav -->

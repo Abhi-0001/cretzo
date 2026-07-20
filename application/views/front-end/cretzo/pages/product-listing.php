@@ -103,42 +103,51 @@ die; */
                     <div class="silder-container">
                         <h1 class="text-n filter-heading">Price</h1>
 
-                        <?php
-                            $minPrice = isset($products['min_price']) ? (float) $products['min_price'] : 0;
-                            $maxPrice = isset($products['max_price']) ? (float) $products['max_price'] : 0;
-                            $currentMinPrice = isset($_GET['min-price']) ? (float) $_GET['min-price'] : $minPrice;
-                            $currentMaxPrice = isset($_GET['max-price']) ? (float) $_GET['max-price'] : $maxPrice;
-                            $currentMinPrice = min(max($currentMinPrice, $minPrice), $maxPrice);
-                            $currentMaxPrice = min(max($currentMaxPrice, $minPrice), $maxPrice);
-                            if ($currentMaxPrice < $currentMinPrice) {
-                                $currentMaxPrice = $maxPrice;
-                            }
-                            $priceSpan = ($maxPrice - $minPrice) ?: 1;
-                            $leftPct   = (($currentMinPrice - $minPrice) / $priceSpan) * 100;
-                            $rightPct  = 100 - ((($currentMaxPrice - $minPrice) / $priceSpan) * 100);
-                            $priceStep = 10;
+                        <!-- <range-slider id="price-range-input" name="price" min="<?=$products['min_price'] ?>" max="<?= $products['max_price'] ?>" value="<?= isset($_GET['min-price']) ? $_GET['min-price'] : $products['min_price'] ?>-<?= isset($_GET['max-price']) ? $_GET['max-price'] : $products['max_price'] ?>" step="10">
+                            <-- <input class="range" type="range" min="0" max="100" value="10" step="10"/> ->
+                            <-- <input class="range" type="range" min="0" max="100" value="90" step="10"/> ->
+                            <-- <input class="filler" disabled type="range"/> ->
+                        </range-slider> -->
+
+                        <!-- <div class="slider">
+                            <p class="text-s">Rs.<?= isset($_GET['min-price']) ? $_GET['min-price'] : $products['min_price'] ?></p>
+                            <-- <input class="slider-input" type="range" min="<?= isset($_GET['min-price']) ? $_GET['min-price'] : $products['min_price'] ?>" max="<?= $products['max_price'] ?>" value="<?= isset($_GET['max-price']) ? $_GET['max-price'] : $products['max_price'] ?>" step="100"> ->
+                            <p class="text-s"> Rs.<?= isset($_GET['max-price']) ? $_GET['max-price'] : $products['max_price'] ?> </p>
+                        </div> -->
+
+                        <?php 
+                            $currentMinPrice = isset($_GET['min-price']) ? $_GET['min-price'] : $products['min_price'];
+                            $currentMaxPrice = isset($_GET['max-price']) ? $_GET['max-price'] : $products['max_price'];
+                            $minPrice = $products['min_price'];
+                            $maxPrice = $products['max_price'];
                         ?>
 
-                        <div class="mt-4 price-slider" data-min="<?= $minPrice ?>" data-max="<?= $maxPrice ?>" data-step="<?= $priceStep ?>">
+                        <div class="mt-4">
                             <div class="slider">
-                                <div class="progress" style="left: <?= $leftPct ?>%; right: <?= $rightPct ?>%; "></div>
+                                <div class="progress" style="left: <?= ($currentMinPrice / $maxPrice) * 100 ?>%; right: <?= 100 - ($currentMaxPrice / $maxPrice) * 100 ?>%; "></div>
                             </div>
                             <div class="range-input">
-                                <input type="range" class="range-min filter-price-btn" name="price" min="<?= $minPrice ?>" max="<?= $maxPrice ?>" value="<?= $currentMinPrice ?>" step="<?= $priceStep ?>">
-                                <input type="range" class="range-max filter-price-btn" name="price" min="<?= $minPrice ?>" max="<?= $maxPrice ?>" value="<?= $currentMaxPrice ?>" step="<?= $priceStep ?>">
+                                <input type="range" class="range-min filter-price-btn" name="price" min="<?=$minPrice ?>" max="<?= $maxPrice ?>" value="<?= $currentMinPrice ?>" step="10">
+                                <input type="range" class="range-max filter-price-btn" name="price" min="<?=$minPrice ?>" max="<?= $maxPrice ?>" value="<?= $currentMaxPrice ?>" step="10">
                             </div>
                             <div class="price-input">
                                 <div class="silder-field">
                                     <span class="text-n">Min</span>
-                                    <input class="input-min filter-price-btn text-s" type="number" value="<?= round($currentMinPrice) ?>">
+                                    <input class="text-s filter-price-btn" type="number" class="input-min" value="<?= $currentMinPrice ?>">
+                                    <!--<button id="filter-price-btn" class="small-btn c-p">Filter</button>-->
                                 </div>
                                 <div class="separator"></div>
                                 <div class="silder-field">
                                     <span class="text-n">Max</span>
-                                    <input class="input-max filter-price-btn text-s" type="number" value="<?= round($currentMaxPrice) ?>">
+                                    <input class="text-s filter-price-btn" type="number" class="input-max" value="<?= $currentMaxPrice ?>">
+                                    <!--<button id="clear-filter-price-btn" class="small-btn c-p px-4" disabled>Clear</button>-->
                                 </div>
                             </div>
                         </div>
+
+                        <!-- <button id="filter-price-btn" class="small-btn c-p">Filter</button> -->
+
+                        <!-- <button id="clear-filter-price-btn" class="small-btn c-p px-4" disabled>Clear</button> -->
 
                     </div>
 
@@ -216,7 +225,7 @@ die; */
                 </div>
 
             </div>
-
+            
         </div>
 
         <div class="product-card-container">
@@ -226,53 +235,7 @@ die; */
                 <div class="flex-1"></div>
                 
                 <p class="text-n op-6"> Sort By: </p>
-                <style>
-                    .custom-select-wrapper {
-                        position: relative;
-                        display: inline-block;
-                    }
-                    .custom-select-trigger {
-                        cursor: pointer;
-                        user-select: none;
-                        min-width: 170px;
-                    }
-                    .custom-select-options {
-                        list-style: none;
-                        margin: 4px 0 0;
-                        padding: 4px 0;
-                        position: absolute;
-                        top: 100%;
-                        right: 0;
-                        min-width: 97%;
-                        background: #fff;
-                        border: 1px solid rgba(16, 9, 1, 0.15);
-                        border-radius: 4px;
-                        box-shadow: 0 4px 12px rgba(30, 34, 40, 0.12);
-                        z-index: 50;
-                        display: none;
-                        max-height: 260px;
-                        overflow-y: auto;
-                    }
-                    .custom-select-wrapper.open .custom-select-options {
-                        display: block;
-                    }
-                    .custom-select-options li {
-                        padding: 3px 14px;
-                        color: #333;
-                        cursor: pointer;
-                        white-space: nowrap;
-                    }
-                    .custom-select-options li:hover,
-                    .custom-select-options li.selected {
-                        background: #F2822E;
-                        color: #fff;
-                    }
-                </style>
-                <div class="custom-select-wrapper" id="sort-select-wrapper">
-                    <div class="sort-select custom-select-trigger" id="sort-select-trigger" tabindex="0" role="button" aria-haspopup="listbox" aria-expanded="false"></div>
-                    <ul class="custom-select-options" id="sort-select-options" role="listbox"></ul>
-                </div>
-                <select id="product_sort_by" class="sort-select" style="display:none;">
+                <select id="product_sort_by" class="sort-select">
                     <!-- <option><?= !empty($this->lang->line('relevance')) ? $this->lang->line('relevance') : 'Relevance' ?></option> -->
                     <option><?= !empty($this->lang->line('recommended')) ? $this->lang->line('recommended') : 'Recommended' ?></option>
                     <option value="top-rated" <?= ($this->input->get('sort') == "top-rated") ? 'selected' : '' ?>><?= !empty($this->lang->line('top_rated')) ? $this->lang->line('top_rated') : 'Top Rated' ?></option>
@@ -311,7 +274,7 @@ die; */
                 </div>
             <?php } ?>
 
-            <nav id="products-pagination-nav" class="text-center mt-7 mb-5" aria-label="pagination">
+            <nav id="products-pagination-nav" class="text-center mt-14" aria-label="pagination">
                 <?= (isset($links)) ? $links : '' ?>
             </nav>
 
@@ -323,79 +286,6 @@ die; */
     <div id="bg-overlay"></div>
 
 </div>
-
-<script>
-(function() {
-    function initCustomSortDropdown() {
-        var $wrapper = $('#sort-select-wrapper');
-        var $trigger = $('#sort-select-trigger');
-        var $list = $('#sort-select-options');
-
-        if (!$wrapper.length) return;
-
-        function buildOptions() {
-            var $select = $('#product_sort_by');
-            $list.empty();
-            $select.find('option').each(function() {
-                var $opt = $(this);
-                var $li = $('<li></li>')
-                    .text($opt.text())
-                    .attr('data-value', $opt.attr('value') || '')
-                    .attr('role', 'option');
-                if ($opt.is(':selected')) {
-                    $li.addClass('selected');
-                    $trigger.text($opt.text());
-                }
-                $list.append($li);
-            });
-        }
-
-        buildOptions();
-
-        $trigger.on('click', function() {
-            var isOpen = $wrapper.toggleClass('open').hasClass('open');
-            $trigger.attr('aria-expanded', isOpen);
-        });
-
-        $list.on('click', 'li', function() {
-            var value = $(this).attr('data-value');
-            var text = $(this).text();
-
-            $list.find('li').removeClass('selected');
-            $(this).addClass('selected');
-            $trigger.text(text);
-
-            $('#product_sort_by').val(value).trigger('change');
-
-            $wrapper.removeClass('open');
-            $trigger.attr('aria-expanded', false);
-        });
-
-        $(document).on('click', function(e) {
-            if (!$(e.target).closest('#sort-select-wrapper').length) {
-                $wrapper.removeClass('open');
-                $trigger.attr('aria-expanded', false);
-            }
-        });
-
-        $trigger.on('keydown', function(e) {
-            if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                $trigger.trigger('click');
-            } else if (e.key === 'Escape') {
-                $wrapper.removeClass('open');
-                $trigger.attr('aria-expanded', false);
-            }
-        });
-    }
-
-    $(document).ready(function() {
-        // Deferred so this runs after any other script that clones/replaces
-        // #product_sort_by on document ready (see product-listing.js).
-        setTimeout(initCustomSortDropdown, 0);
-    });
-})();
-</script>
 
 <?php
     function generateDiscountPercentageElement($product) {
@@ -442,7 +332,7 @@ die; */
         }
         
         // $currencyText = $settings['currency'];
-        $currencyText = "₹";
+        $currencyText = "Rs. ";
 
         if (($discounted_price < $price) && ($discounted_price != 0)) {
             return '

@@ -8853,13 +8853,6 @@
         callback();
       }
     }, false);
-    // Also resolve on error so the lightbox loader doesn't spin forever when
-    // the image URL is missing/broken (GLightbox only handled 'load').
-    img.addEventListener('error', function () {
-      if (isFunction(callback)) {
-        callback();
-      }
-    }, false);
     img.src = data.href;
 
     if (data.sizes != '' && data.srcset != '') {

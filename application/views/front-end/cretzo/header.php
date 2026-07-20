@@ -89,16 +89,15 @@ $auth_settings = get_settings('authentication_settings', true);
             <!-- display profile icon depending on whether the user is logged in or not -->
             <?php if( $this->ion_auth->logged_in() && !$this->ion_auth->is_seller() && !$this->ion_auth->is_delivery_boy() && !$this->ion_auth->is_admin()) { ?>
                 <li class="nav-item dropdown active pb-1">
-                    <!-- P4.2/#12: header shows the user's avatar after login (was a "Hello {name}" text link). -->
+                    <!-- <a class="text-decoration-none" data-toggle="dropdown" href="#"><i class="uil uil-user"></i>
+                        <span class="fs-16">
+                            <?= (isset($user->username) && !empty($user->username)) ? "Hello " . $user->username  : 'Guest' ?>
+                            <i class="fa fa-angle-down link-color"></i>
+                        </span>
+                    </a> -->
+
                     <a class="text-decoration-none" data-toggle="dropdown" href="#" aria-label="profile">
-                        <?php
-                            // Default avatar placeholder; use the user's own photo when available.
-                            $default_avatar = base_url('assets/front_end/cretzo/img/new_cretzo/user.png');
-                            $user_avatar = (is_object($user) && !empty($user->image)) ? $user->image : $default_avatar;
-                            $is_default_avatar = ($user_avatar === $default_avatar);
-                        ?>
-                        <img class="icon-img<?= $is_default_avatar ? ' icon-img--brand' : '' ?>" src="<?= $user_avatar ?>" alt="profile"
-                             onerror="this.onerror=null;this.src='<?= $default_avatar ?>';this.classList.add('icon-img--brand');">
+                        <img class="icon-img" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/user.png') ?>">
                     </a>
 
                     <div class="dropdown-menu dropdown-menu-lg profile-menu-loggedin">
@@ -180,7 +179,8 @@ $auth_settings = get_settings('authentication_settings', true);
                     <a href="<?= base_url('cart') ?>">
                 <?php }
                 else { ?>
-                    <a href="javascript:void(0);" data-bs-toggle="offcanvas" data-bs-target="#offcanvas-cart">
+                    <a href="<?= base_url('cart') ?>">
+                    <!-- <a href="javascript:void(0);" data-bs-toggle="offcanvas" data-bs-target="#offcanvas-cart"> -->
                 <?php } ?>
                     <!-- <img class="icon-img" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/cart-icon.png') ?>"> -->
                     <img class="icon-img" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/shopping-bag.png') ?>">
@@ -255,16 +255,11 @@ $auth_settings = get_settings('authentication_settings', true);
                 <!-- display profile icon depending on whether the user is logged in or not -->
                 <?php if( $this->ion_auth->logged_in() && !$this->ion_auth->is_seller() && !$this->ion_auth->is_delivery_boy() && !$this->ion_auth->is_admin()) { ?>
                     <li class="nav-item dropdown active">
-                        <a class="text-decoration-none" data-toggle="dropdown" href="#" aria-label="profile">
-                            <?php
-                                // Match the desktop avatar (P1.4): user photo if set, else default, with fallback.
-                                $default_avatar_m = base_url('assets/front_end/cretzo/img/new_cretzo/user.png');
-                                $user_avatar_m = (is_object($user) && !empty($user->image)) ? $user->image : $default_avatar_m;
-                                // Brand-tint the default icon when logged in (see desktop note above).
-                                $is_default_avatar_m = ($user_avatar_m === $default_avatar_m);
-                            ?>
-                            <img class="icon-img-m<?= $is_default_avatar_m ? ' icon-img--brand' : '' ?>" src="<?= $user_avatar_m ?>" alt="profile"
-                                 onerror="this.onerror=null;this.src='<?= $default_avatar_m ?>';this.classList.add('icon-img--brand');">
+                        <a class="text-decoration-none" data-toggle="dropdown" href="#"><i class="uil uil-user"></i>
+                            <span class="fs-16">
+                                <?= (isset($user->username) && !empty($user->username)) ? "Hello " . $user->username  : 'Guest' ?>
+                                <i class="fa fa-angle-down link-color"></i>
+                            </span>
                         </a>
 
                         <div class="dropdown-menu dropdown-menu-lg">
@@ -309,7 +304,8 @@ $auth_settings = get_settings('authentication_settings', true);
                     </li>
                 <?php } else { ?>
                     <li class="icon">
-                        <a href="javascript:void(0);" data-bs-toggle="offcanvas" data-bs-target="#offcanvas-cart">
+                        <a href="<?= base_url('cart') ?>">
+                        <!-- <a href="javascript:void(0);" data-bs-toggle="offcanvas" data-bs-target="#offcanvas-cart"> -->
                             <img class="icon-img-m" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/shopping-bag.png') ?>">
                         </a>
                         <p class="icon-num-m"><?= (count($this->cart_model->get_user_cart($this->session->userdata('user_id'))) != 0 ? count($this->cart_model->get_user_cart($this->session->userdata('user_id'))) : '0'); ?></p>
@@ -398,23 +394,22 @@ $auth_settings = get_settings('authentication_settings', true);
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
             </div>
             
-            <!-- P4.1: mobile mega menu — expandable category/subcategory accordion -->
+            <!-- <div class="offcanvas-body ms-lg-auto d-flex flex-column h-100"> -->
             <div class="offcanvas-body d-lg-none ms-lg-auto d-flex flex-column h-100">
-                <ul class="navbar-nav mobile-mega-nav">
+                <ul class="navbar-nav">
 
-                    <li class="mm-item depth-0">
-                        <div class="mm-row">
-                            <a class="mm-link <?= ($current_url == base_url('')) ? 'active' : '' ?>" aria-current="page" aria-label="home" href="<?= base_url() ?>"><?= !empty($this->lang->line('home')) ? $this->lang->line('home') : 'Home' ?></a>
-                        </div>
+                    <li class="nav-item">
+                        <a class="nav-link <?= ($current_url == base_url('')) ? 'active' : '' ?>" aria-current="page" aria-label="home" href="<?= base_url() ?>"><?= !empty($this->lang->line('home')) ? $this->lang->line('home') : 'Home' ?></a>
                     </li>
 
-                    <li class="mm-item depth-0">
-                        <div class="mm-row">
-                            <a class="mm-link" href="<?= base_url('products') ?>">Shop All</a>
-                        </div>
-                    </li>
-
-                    <?= generateMobileAccordion($categories) ?>
+                    <?php foreach ($categories as $key => $row) { ?>
+                        <li class="nav-item">
+                            <a class="nav-link" href="<?= base_url('products/category/' . html_escape($row['slug'])) ?>" >
+                                <?= html_escape($row['name']) ?>
+                                <!-- <h6 class="fs-14 mb-0"><?= html_escape($row['name']) ?></h6> -->
+                            </a>
+                        </li>
+                    <?php } ?>
 
                 </ul>
                 <!-- /.offcanvas-footer -->
@@ -427,13 +422,7 @@ $auth_settings = get_settings('authentication_settings', true);
 
 
     
-    <style>
-        input[name="header_qty"]::-webkit-inner-spin-button,
-        input[name="header_qty"]::-webkit-outer-spin-button {
-            opacity: 1;
-        }
-    </style>
-    <div class="offcanvas offcanvas-end mini-cart-offcanvas" id="offcanvas-cart" data-bs-scroll="true" aria-modal="true" role="dialog">
+    <!-- <div class="offcanvas offcanvas-end bg-light" id="offcanvas-cart" data-bs-scroll="true" aria-modal="true" role="dialog">
         <input type="hidden" name="is_loggedin" id="is_loggedin" value="<?= (isset($user->id)) ? 1 : 0 ?>">
         <div class="offcanvas-header">
             <h3 class="mb-0"><?= !empty($this->lang->line('shopping_cart')) ? $this->lang->line('shopping_cart') : 'Shopping Cart' ?></h3>
@@ -448,11 +437,11 @@ $auth_settings = get_settings('authentication_settings', true);
                         $price = $items['special_price'] != '' && $items['special_price'] > 0 && $items['special_price'] != null ? $items['special_price'] : $items['price']; ?>
 
                         <div class="shopping-cart">
-                            <div class="shopping-cart-item d-flex justify-content-between mb-3">
+                            <div class="shopping-cart-item d-flex justify-content-between mb-4">
                                 <div class="d-flex flex-row gap-3 shopping-cart-item-main" title="<?= html_escape($items['name']) ?>">
                                     <figure class="rounded cart-img">
                                         <a href="<?= base_url('products/details/' . $items['product_slug']) ?>">
-                                            <img src="<?= $items['product_variants'][0]['variant_image'] ?? base_url($items['image']) ?>" alt="<?= html_escape($items['name']) ?>" title="<?= html_escape($items['name']) ?>" style="object-fit: cover;">
+                                            <img src="<?= $items['product_variants'][0]['variant_image'] ?? base_url($items['image']) ?>" alt="<?= html_escape($items['name']) ?>" title="<?= html_escape($items['name']) ?>" style="object-fit: contain;">
                                         </a>
                                     </figure>
                                     <div class="w-100 cart-title">
@@ -469,14 +458,14 @@ $auth_settings = get_settings('authentication_settings', true);
                                         </span>
                                         
                                         <p class="price"><ins>
-                                            <span class="amount"><?= $settings['currency'] . $price ?></span>
+                                            <span class="amount"><?= $settings['currency'] . ' ' . $price ?></span>
                                         </ins></p>
 
                                         <div class="product-pricing d-flex py-2 w-100">
                                             <div class="product-quantity product-sm-quantity">
-                                                <input type="number" name="header_qty" class="form-control d-flex align-content-center w-14" style="-moz-appearance: number-input; -webkit-appearance: number-input; appearance: auto;" value="<?= $items['qty'] ?>" data-id="<?= $items['product_variant_id'] ?>" data-price="<?= $price ?>" min="<?= $items['minimum_order_quantity'] ?>" max="<?= $items['total_allowed_quantity'] ?>" step="<?= $items['quantity_step_size'] ?>">
+                                                <input type="number" name="header_qty" class="form-control d-flex align-content-center h-9 w-14" value="<?= $items['qty'] ?>" data-id="<?= $items['product_variant_id'] ?>" data-price="<?= $price ?>" min="<?= $items['minimum_order_quantity'] ?>" max="<?= $items['total_allowed_quantity'] ?>" step="<?= $items['quantity_step_size'] ?>">
                                             </div>
-                                            <div class="product-line-price align-self-center px-1 no-wrap " style="color: #F2822E;"><?= $settings['currency'] . number_format($items['qty'] * $price, 2) ?></div>
+                                            <div class="product-line-price align-self-center px-1 no-wrap"><?= $settings['currency'] . ' ' . number_format($items['qty'] * $price, 2) ?></div>
                                         </div>
 
                                     </div>
@@ -503,29 +492,31 @@ $auth_settings = get_settings('authentication_settings', true);
                 </h1>
                 <img src="<?= base_url('assets/front_end/cretzo/img/new/empty-cart(4).png') ?>" alt="Empty Cart" class="mt-16" />
             <?php } ?>
+
+            <!-/.shopping-cart-item ->
+            <!- /.shopping-cart->
         </div>
-        
-        <div class="offcanvas-footer text-center">
-            <a class="btn btn-red btn-sm rounded-pill" href="<?= base_url('products') ?>">
+        <div class="offcanvas-footer flex-column text-center container">
+            <a class="btn btn-red rounded-pill ms-6 mr-4 mb-5" href="<?= base_url('products') ?>">
                 <?= !empty($this->lang->line('return_to_shop')) ? $this->lang->line('return_to_shop') : 'Return to Shop' ?>
             </a>
 
             <?php if ((isset($user->id)) == 1) { ?>
-                <a href="<?= base_url('cart') ?>" class="btn btn-primary btn-sm btn-icon btn-icon-start rounded-pill view_cart_button">
+                <a href="<?= base_url('cart') ?>" class="btn btn-primary btn-icon btn-icon-start rounded-pill mb-4 view_cart_button ms-6 mr-4">
                     <i class="fs-18 uil uil-shopping-bag"></i>
                     <?= !empty($this->lang->line('view_cart')) ? $this->lang->line('view_cart') : 'View Cart' ?>
                 </a>
             <?php } else { ?>
-                <a href="#" class="btn btn-primary btn-sm rounded-pill btn-icon btn-icon-start view_cart_button" data-bs-toggle="modal" data-bs-target="#modal-signin">
+                <a href="#" class="btn btn-primary rounded-pill btn-icon btn-icon-start mb-4 view_cart_button ms-6 mr-4" data-bs-toggle="modal" data-bs-target="#modal-signin">
                     <i class="fs-18 uil uil-shopping-bag"></i>
                     <?= !empty($this->lang->line('view_cart')) ? $this->lang->line('view_cart') : 'View Cart' ?>
                 </a>
             <?php } ?>
 
         </div>
-        <!-- /.offcanvas-footer -->
-        <!-- /.offcanvas-body -->
-    </div>
+        <!- /.offcanvas-footer->
+        <!- /.offcanvas-body ->
+    </div> -->
 
     <!-- <div class="offcanvas offcanvas-top bg-light" id="offcanvas-search" data-bs-scroll="true">
         <div class="container d-flex flex-row py-4">
@@ -586,29 +577,6 @@ $auth_settings = get_settings('authentication_settings', true);
             $html .= '</a>';
             if ($renderChildren) {
                 $html .= generateMegaMenuSubcategories($category['children'], false, $child_depth + 1); // Recursively call the function for sub-categories
-            }
-            $html .= '</li>';
-        }
-        return $html;
-    }
-
-    /* P4.1 — Mobile mega menu: renders the category tree as a nested,
-       expandable accordion (mirrors the desktop mega-menu data). */
-    function generateMobileAccordion($categories, $depth = 0) {
-        $html = '';
-        foreach ($categories as $category) {
-            $hasChildren = !empty($category['children']);
-            $url  = base_url('products/category/' . html_escape($category['slug']));
-            $name = output_escaping(str_replace('\r\n', '&#13;&#10;', $category['name']));
-            $html .= '<li class="mm-item depth-' . $depth . ($hasChildren ? ' has-children' : '') . '">';
-            $html .= '<div class="mm-row">';
-            $html .= '<a class="mm-link" href="' . $url . '">' . $name . '</a>';
-            if ($hasChildren) {
-                $html .= '<button type="button" class="mm-toggle" aria-expanded="false" aria-label="Toggle subcategories"><i class="uil uil-angle-down"></i></button>';
-            }
-            $html .= '</div>';
-            if ($hasChildren) {
-                $html .= '<ul class="mm-submenu">' . generateMobileAccordion($category['children'], $depth + 1) . '</ul>';
             }
             $html .= '</li>';
         }

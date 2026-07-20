@@ -85,12 +85,12 @@ $(document).ready(function() {
     positionNavbarBelowHeader();
 }); */
 
-/* Close chat panel on clicking outside */
+/* Close chat modal on clicking outside */
 document.addEventListener("click", function (event) {
-    let panel = document.getElementById("chat-iframe");
+    let modal = document.getElementById("quick-view");
     let chat_button = document.getElementById("chat-button");
-    if (panel && chat_button && $("#chat-iframe").hasClass("opened")) {
-        if (!panel.contains(event.target) && !chat_button.contains(event.target)) {
+    if (modal && $("#chat-iframe").hasClass("opened")) {
+        if (!modal.contains(event.target) && !chat_button.contains(event.target)) {
             $('#chat-button').trigger('click');
         }
     }

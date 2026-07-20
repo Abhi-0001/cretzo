@@ -433,7 +433,7 @@
                 <?php if (isset($product['product'][0]['is_cancelable']) && !empty($product['product'][0]['is_cancelable']) && $product['product'][0]['is_cancelable'] == 1) {  ?>
                     <div class="shipping-option">
                         <i class="fas fa-check-circle text-success" style="font-size:26px;display:block;text-align:center;"></i>
-                        <p class="text-n">Cancelable  till<?= ' ' . $product['product'][0]['cancelable_till'] ?></p>
+                        <p class="text-n">Cancelable <br> till<?= ' ' . $product['product'][0]['cancelable_till'] ?></p>
                     </div>
                 <?php } else { ?>
                     <div class="shipping-option">
@@ -457,14 +457,14 @@
                 <?php if (isset($product['product'][0]['guarantee_period']) && !empty($product['product'][0]['guarantee_period'])) {  ?>
                     <div class="shipping-option">
                         <i class="fas fa-shield-alt text-primary" style="font-size:26px;display:block;text-align:center;"></i>
-                        <p class="text-n"><?= $product['product'][0]['guarantee_period'] ?> Guarantee</p>
+                        <p class="text-n"><?= $product['product'][0]['guarantee_period'] ?> <br> Guarantee</p>
                     </div>
                 <?php } ?>
 
                 <?php if (isset($product['product'][0]['warranty_period']) && !empty($product['product'][0]['warranty_period'])) {  ?>
                     <div class="shipping-option">
                         <i class="fas fa-certificate text-warning" style="font-size:26px;display:block;text-align:center;"></i>
-                        <p class="text-n"><?= $product['product'][0]['warranty_period'] ?> Warranty</p>
+                        <p class="text-n"><?= $product['product'][0]['warranty_period'] ?> <br> Warranty</p>
                     </div>
                 <?php } ?>
 
@@ -1131,8 +1131,8 @@
         }
         
         // $currencyText = $settings['currency'];
-        // $currencyText = "₹";
-        $currencyText = "₹";
+        // $currencyText = "Rs. ";
+        $currencyText = "₹ ";
 
         if (($discounted_price < $price) && ($discounted_price != 0)) {
             return '
@@ -1209,7 +1209,7 @@
         $price = $product_row['variants'][0]['price'];
         
         // $currencyText = $settings['currency'];
-        $currencyText = "₹";
+        $currencyText = "Rs. ";
 
         if (($discounted_price < $price) && ($discounted_price != 0)) {
             return '<p class="ta-c ' . $textStyle . '">

@@ -2,14 +2,6 @@
   padding-right: 8px;
 }
 
-.addwishlist-btn .heart-icon.fa-heart,
-.addwishlist-btn.is-fav .heart-icon {
-  color: var(--color-orange);
-}
-.addwishlist-btn .heart-icon.fa-heart-o {
-  color: var(--color-orange);
-}
-
 input[type=checkbox] {
   -webkit-appearance: checkbox !important;
 }
@@ -99,7 +91,7 @@ input[type=checkbox] {
 }
 .sort-select{
   border: 1px solid rgba(16, 9, 1, 0.15);
-  padding: 2px 8px;
+  padding: 0px 8px;
   margin-left: 8px;
 }
 .sort-select:active, .sort-select:focus{
@@ -172,35 +164,15 @@ input[type=checkbox] {
 }
 
 
-.card-type-one .card-img{
-  position: relative;
-}
-.card-type-one .card-img .secondary-img{
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  opacity: 0;
-  transition: opacity 0.35s ease;
-  pointer-events: none;
-  z-index: 1;
-}
-.card-type-one .card-img:hover .secondary-img{
-  opacity: 1;
-}
-
 /* card type one style override for product listing page */
 .cretzo-card.card-type-one{
   box-shadow: none;
-  /* Always show a card border (was border:none, only appearing on hover). */
-  border: 1px solid var(--color-light-grey);
-  border-radius: 6px;
-  overflow: hidden;
+  border: none;
 }
 .cretzo-card.card-type-one:hover{
-  border: 1px solid var(--color-orange);
+  border: 1px solid var(--color-light-grey);
+  /* box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.06); */
+  /* box-shadow: none; */
 }
 
 /* Price Filter button styling */
@@ -260,20 +232,6 @@ range-slider input:focus::-moz-range-thumb {
   .filter-container{
     z-index: 100;
   }
-
-  /* Bugfix (not a redesign): when the drawer is closed, translateX(-240px)
-     still leaves a ~40px sliver of the 280px-wide .filter-container on-screen
-     by design, so the rotated .filter-tag stays visible/tappable. But
-     .filter-container has no right padding here, so real content (e.g. the
-     right-aligned "Clear All" button in .filter-label-section) can land in
-     that same sliver and bleed through — reported as a stray "LL" of "Clear
-     All" showing next to the closed tag. Hide everything in the container
-     except the tag until it's actually open (tapped .active, or CSS :hover
-     on non-touch devices) — layout stays intact (visibility, not display). */
-  .filter-container:not(.active):not(:hover) > *:not(.filter-tag) {
-    visibility: hidden;
-  }
-
   /* .filter-container-inner{
     position: absolute;
     left: 0;
@@ -322,12 +280,8 @@ range-slider input:focus::-moz-range-thumb {
 }
 .range-input input {
   top: -4px;
-  /* The two range inputs overlap; only the thumbs should be interactive. */
-  pointer-events: none;
 }
 input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;   /* required so a custom, draggable thumb renders */
-  pointer-events: auto;       /* re-enable dragging on the thumb itself */
   height: 16px;
   width: 16px;
   background: var(--color-orange);
@@ -335,8 +289,6 @@ input[type="range"]::-webkit-slider-thumb {
   border: white 1px solid;
 }
 input[type="range"]::-moz-range-thumb {
-  -moz-appearance: none;
-  pointer-events: auto;
   height: 16px;
   width: 16px;
   background: var(--color-orange);
@@ -350,12 +302,3 @@ input[type="range"]:active::-webkit-slider-thumb {
 input[type="range"]:active::-moz-range-thumb {
   box-shadow: 0 0 6px rgba(0, 0, 0, 0.5);
 }
-
-/* Behavioural fix (NOT a redesign): keep BOTH handles grabbable. Because the two
-   range inputs overlap, the min handle used to get trapped under the max and
-   could not be dragged back down. The JS adds `.is-active` to whichever handle is
-   being dragged; these z-indexes raise it above the other. The range inputs are
-   already position:absolute (product-listing.css), so z-index applies. */
-.range-min { z-index: 3; }
-.range-max { z-index: 4; }
-.range-input input.is-active { z-index: 6; }

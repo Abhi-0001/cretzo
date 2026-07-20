@@ -505,9 +505,6 @@ body{
     .card-type-four .card-img{
         max-height: 140px;
     }
-    .cretzo.btn{
-    padding: 10px 15px;
-    }
     /* global class ends */
 }
 @media screen and (max-width: 400px) {

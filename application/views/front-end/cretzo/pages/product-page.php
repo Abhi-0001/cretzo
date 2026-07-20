@@ -223,7 +223,7 @@
             </div>
 
             <div class="my-2">
-                <p class="text-n product-description my-0 readMore"><?= $product['product'][0]['short_description'] ?></p>
+                <p class="text-n product-description my-0 readMore"> <?= $product['product'][0]['short_description'] ?> <?= $product['product'][0]['short_description'] ?> <?= $product['product'][0]['short_description'] ?><?= $product['product'][0]['short_description'] ?><?= $product['product'][0]['short_description'] ?><?= $product['product'][0]['short_description'] ?><?= $product['product'][0]['short_description'] ?><?= $product['product'][0]['short_description'] ?><?= $product['product'][0]['short_description'] ?><?= $product['product'][0]['short_description'] ?><?= $product['product'][0]['short_description'] ?><?= $product['product'][0]['short_description'] ?><?= $product['product'][0]['short_description'] ?><?= $product['product'][0]['short_description'] ?><?= $product['product'][0]['short_description'] ?><?= $product['product'][0]['short_description'] ?><?= $product['product'][0]['short_description'] ?><?= $product['product'][0]['short_description'] ?><?= $product['product'][0]['short_description'] ?> <?= $product['product'][0]['short_description'] ?><?= $product['product'][0]['short_description'] ?><?= $product['product'][0]['short_description'] ?><?= $product['product'][0]['short_description'] ?><?= $product['product'][0]['short_description'] ?><?= $product['product'][0]['short_description'] ?><?= $product['product'][0]['short_description'] ?><?= $product['product'][0]['short_description'] ?><?= $product['product'][0]['short_description'] ?></p>
             </div>
 
             <div class="product-quantity-container">
@@ -274,32 +274,10 @@
                     data-max="<?= (isset($product['product'][0]['total_allowed_quantity']) && !empty($product['product'][0]['total_allowed_quantity'])) ? $product['product'][0]['total_allowed_quantity'] : '' ?>" 
                     data-product-variant-id="<?= $variant_id ?>"> <i class="uil uil-shopping-bag mr-2"></i> Add to Cart </button>
 
-                <?php
-                    // Icon-only wishlist button, right of Add to Cart. State is shown by
-                    // the heart itself (outline = not saved, filled orange = saved) — no text.
-                    $isNotFav = $product['product'][0]['is_favorite'] == 0;
-                ?>
-                <button type="button"
-                    class="wishlist-icon-btn <?= $isNotFav ? 'add-fav' : 'remove-fav' ?>"
-                    id="add_to_favorite_btn"
-                    data-is-fav="<?= $isNotFav ? 'false' : 'true' ?>"
-                    data-product-id="<?= $product['product'][0]['id'] ?>"
-                    aria-label="Add to wishlist" title="Add to wishlist">
-                    <i class="fa <?= $isNotFav ? 'fa-heart-o' : 'fa-heart' ?>"></i>
-                </button>
-
-                <?php // Compare — feature announced as "coming soon" via .compare-soon-btn ?>
-                <button type="button"
-                    class="wishlist-icon-btn compare-soon-btn"
-                    id="compare_soon_btn"
-                    data-product-id="<?= $product['product'][0]['id'] ?>"
-                    aria-label="Compare product" title="Compare">
-                    <i class="uil uil-exchange-alt"></i>
-                </button>
-
+                
             </div>
 
-
+            
             <?php
                 $color_code = $style = "";
                 $product['product'][0]['variant_attributes'] = array_values($product['product'][0]['variant_attributes']);
@@ -389,6 +367,19 @@
             ?>
 
             
+            <div>
+
+                <button style="display: inline-block;" class="cretzo btn btn-light wishlist-btn add-fav mr-1"> <span>Customization</span> </button>
+
+                <?php 
+                $isNotFav = $product['product'][0]['is_favorite'] == 0;
+                if ($isNotFav) { ?>
+                    <button style="display: inline-block;" class="cretzo btn btn-light wishlist-btn add-fav" id="add_to_favorite_btn" data-is-fav="false" data-product-id="<?= $product['product'][0]['id'] ?>"> <i class="fa fa-heart-o mr-1"></i> <span>Add to Wishlist</span> </button>
+                <?php } else { ?>
+                    <button style="display: inline-block; color: red;" class="cretzo btn btn-light wishlist-btn remove-fav" id="add_to_favorite_btn" data-is-fav="true" data-product-id="<?= $product['product'][0]['id'] ?>"> <i class="fa fa-heart mr-1"></i> <span>Wishlist</span> </button>
+                <?php } ?>
+
+            </div>
 
 
             <?php if ($product['product'][0]['type'] != 'digital_product') { ?>
@@ -396,7 +387,7 @@
 
                     <div class="d-flex flex-row">
                         <h4 class="text-n mb-2 fw-bold opacity-75">DELIVERY OPTIONS</h4>
-                        <i class="uil uil-truck ship-icon ml-2" style="color: var(--color-orange, #F2822E); font-size: 20px; line-height: 1;"></i>
+                        <img class="ship-icon ml-2" style="height: 15px; width: auto; margin-top: 4px;" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/shipping.png') ?>" alt="shipping">
                     </div>
 
 
@@ -414,71 +405,66 @@
                 </form>
             <?php } ?>
 
-            <p class="text-s delivery-hint mb-2"><i class="uil uil-info-circle"></i> Please enter PIN code to check delivery time & Cash on Delivery Availability</p>
-            <ul class="delivery-perks-list">
-                <li class="text-s"><i class="uil uil-check-circle"></i> 100% Original Products</li>
-                <li class="text-s"><i class="uil uil-check-circle"></i> Cash on Delivery might be available</li>
-                <li class="text-s"><i class="uil uil-check-circle"></i> Easy 14 days returns and exchanges</li>
-            </ul>
+            <p class="text-s mb-1"> Please enter PIN code to check delivery time & Cash on Delivery Availability </p>
+            <p class="text-s"> 100% Original Products </p>
+            <p class="text-s"> Cash on Delivery might be available </p>
+            <p class="text-s"> Easy 14 days returns and exchanges </p>
 
             <div class="d-flex flex-row mt-4">
                 <h4 class="text-n mb-2 fw-bold opacity-75">BEST OFFERS</h4>
-                <svg class="ship-icon ml-2" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-orange, #F2822E); height: 18px; width: 18px; margin-top: 2px;" role="img" aria-label="offers">
-                    <path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L3 13V3h10l7.59 7.59a2 2 0 0 1 0 2.82Z"/>
-                    <circle cx="7.5" cy="7.5" r="1.5"/>
-                </svg>
+                <img class="ship-icon ml-2" style="height: 18px; width: auto; margin-top: 2px;" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/offer.png') ?>" alt="shipping">
             </div>
 
 
             <div class="shipping-container">
-
+                
                 <div class="shipping-option">
-                    <span class="shipping-icon-badge"><i class="uil uil-truck"></i></span>
+                    <img class="ship-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/shipping.png') ?>" alt="shipping">
                     <p class="text-n">Free Ship</p>
                 </div>
 
                 <?php if (isset($product['product'][0]['cod_allowed']) && !empty($product['product'][0]['cod_allowed']) && $product['product'][0]['cod_allowed'] == 1) {  ?>
                     <div class="shipping-option">
-                        <span class="shipping-icon-badge"><i class="uil uil-money-bill-stack"></i></span>
+                        <img class="ship-icon h-6 lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" src="<?= base_url('assets/front_end/classic/images/cod_logo.png') ?>"
                         <p class="text-n">COD</p>
                     </div>
                 <?php } ?>
 
                 <?php if (isset($product['product'][0]['is_cancelable']) && !empty($product['product'][0]['is_cancelable']) && $product['product'][0]['is_cancelable'] == 1) {  ?>
                     <div class="shipping-option">
-                        <span class="shipping-icon-badge"><i class="uil uil-times-circle"></i></span>
-                        <p class="text-n">Cancelable  till<?= ' ' . $product['product'][0]['cancelable_till'] ?></p>
+                        <img class="ship-icon h-6 lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" src="<?= base_url('assets/front_end/classic/images/cancelable_logo.png') ?>">
+                        <p class="text-n">Cancelable <br> till<?= ' ' . $product['product'][0]['cancelable_till'] ?></p>
                     </div>
                 <?php } else { ?>
-                    <div class="shipping-option shipping-option-muted">
-                        <span class="shipping-icon-badge"><i class="uil uil-lock-alt"></i></span>
+                    <div class="shipping-option">
+                        <img class="ship-icon h-6 lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" src="<?= base_url('assets/front_end/classic/images/_logo.png') ?>">
                         <p class="text-n">Not Cancellable</p>
                     </div>
                 <?php  } ?>
 
                 <?php if (isset($product['product'][0]['is_returnable']) && !empty($product['product'][0]['is_returnable']) && $product['product'][0]['is_returnable'] == 1) {  ?>
                     <div class="shipping-option">
-                        <span class="shipping-icon-badge"><i class="uil uil-corner-up-left"></i></span>
+                        <img class="ship-icon h-6 lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" src="<?= base_url('assets/front_end/classic/images/returnable_logo.png') ?>">
                         <p class="text-n"><?= $settings['max_product_return_days'] ?> Days Returnable</p>
                     </div>
                 <?php } else { ?>
-                    <div class="shipping-option shipping-option-muted">
-                        <span class="shipping-icon-badge"><i class="uil uil-ban"></i></span>
+                    <div class="shipping-option">
+                        <img class="ship-icon h-6 lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" src="<?= base_url('assets/front_end/classic/images/notreturnable_logo.png') ?>">
                         <p class="text-n">Not Returnable</p>
                     </div>
                 <?php  } ?>
 
                 <?php if (isset($product['product'][0]['guarantee_period']) && !empty($product['product'][0]['guarantee_period'])) {  ?>
                     <div class="shipping-option">
-                        <span class="shipping-icon-badge"><i class="uil uil-shield-check"></i></span>
-                        <p class="text-n"><?= $product['product'][0]['guarantee_period'] ?> Guarantee</p>
+                        <img class="ship-icon h-6 lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" src="<?= base_url('assets/front_end/classic/images/guarantee_logo.png') ?>">
+                        <p class="text-n"><?= $product['product'][0]['guarantee_period'] ?> <br> Guarantee</p>
                     </div>
                 <?php } ?>
 
                 <?php if (isset($product['product'][0]['warranty_period']) && !empty($product['product'][0]['warranty_period'])) {  ?>
                     <div class="shipping-option">
-                        <span class="shipping-icon-badge"><i class="uil uil-shield"></i></span>
-                        <p class="text-n"><?= $product['product'][0]['warranty_period'] ?> Warranty</p>
+                        <img class="ship-icon h-6 lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" src="<?= base_url('assets/front_end/classic/images/warranty_logo.png') ?>">
+                        <p class="text-n"><?= $product['product'][0]['warranty_period'] ?> <br> Warranty</p>src="<?= base_url('assets/front_end/classic/images/warranty_logo.png') ?>"
                     </div>
                 <?php } ?>
 
@@ -641,27 +627,6 @@
     <!-- /product details -->
 </section>
 
-<?php
-    // P4.3: sticky mobile add-to-cart bar price (mirrors first variant; JS keeps
-    // it in sync with #discounted-price when a variant is chosen).
-    $mbb_price    = $product['product'][0]['variants'][0]['price'];
-    $mbb_special  = $product['product'][0]['variants'][0]['special_price'];
-    $mbb_discount = ($mbb_special > 0 && $mbb_special != '' && $mbb_special < $mbb_price);
-    $mbb_current  = $mbb_discount ? $mbb_special : $mbb_price;
-?>
-<!-- P4.3: sticky mobile add-to-cart bar -->
-<div class="mobile-buy-bar">
-    <div class="mbb-price">
-        <span class="mbb-current" id="mbb-current-price">&#8377; <?= number_format($mbb_current, 2) ?></span>
-        <?php if ($mbb_discount) { ?>
-            <span class="mbb-previous">&#8377; <?= number_format($mbb_price, 2) ?></span>
-        <?php } ?>
-    </div>
-    <button type="button" class="mbb-btn" id="mobile-add-cart">
-        <i class="uil uil-shopping-bag"></i> Add to Cart
-    </button>
-</div>
-
 <!-- product description -->
 <section class="product-description-container">
     <div class="des-btn-container">
@@ -670,32 +635,11 @@
         <button class="text-n des-btn">FAQ's</button>
     </div>
 
-    <?php
-        // Some imported products have the literal string "NULL" (instead of
-        // an empty value) stored in these text fields — guard against
-        // printing that to the page.
-        $product_description = trim(strip_tags((string) $product['product'][0]['description']));
-        $has_description = $product_description !== '' && strcasecmp($product_description, 'null') !== 0;
-
-        $extra_description = trim(strip_tags((string) $product['product'][0]['extra_description']));
-        $has_extra_description = $extra_description !== '' && strcasecmp($extra_description, 'null') !== 0;
-    ?>
-
-    <div id="description" class="text-n des">
-        <?php if ($has_description) { ?>
-            <?= $product['product'][0]['description'] ?>
-        <?php } else { ?>
-            <p class="op-6">No description available for this product.</p>
-        <?php } ?>
-    </div>
+    <div id="description" class="text-n des"><?= $product['product'][0]['description'] ?></div>
     <!-- <p id="description" class="text-n des">description Lorem ipsum dolor sit amet consectetur adipisicing elit. Nostrum debitis dignissimos nesciunt dolorem velit itaque, quaerat eaque voluptates culpa fugiat!</p> -->
-
+    
     <div id="information" class="text-n des d-none">
-        <?php if ($has_extra_description) { ?>
-            <?= $product['product'][0]['extra_description'] ?>
-        <?php } else { ?>
-            <p class="op-6">No additional information available for this product.</p>
-        <?php } ?>
+        <?= $product['product'][0]['extra_description'] ?>
     </div>
     <!-- <p id="information" class="text-n des d-none">information Lorem ipsum dolor sit amet consectetur adipisicing elit. Nostrum debitis dignissimos nesciunt dolorem velit itaque, quaerat eaque voluptates culpa fugiat!</p> -->
 
@@ -1101,177 +1045,33 @@
 </section>
 
 
-<div class="modal fade faq-modal" id="add-faqs-form" tabindex="-1" aria-labelledby="faqModalTitle" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content faq-modal__content">
+<div class="modal fade" id="add-faqs-form">
+    <div class="modal-dialog">
+        <div class="modal-content">
             <!-- Modal Header -->
-            <div class="faq-modal__header">
-                <div class="faq-modal__heading">
-                    <span class="faq-modal__icon" aria-hidden="true">
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                    </span>
-                    <div>
-                        <h4 class="faq-modal__title" id="faqModalTitle">Ask a Question</h4>
-                        <p class="faq-modal__subtitle">Have a doubt about this product? Ask the seller directly.</p>
-                    </div>
-                </div>
-                <button type="button" class="faq-modal__close" data-dismiss="modal" aria-label="Close">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M18 6 6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                    </svg>
-                </button>
+            <div class="modal-header pb-5 pt-8">
+                <h4 class="modal-title">Add Faq</h4>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
             </div>
-            <div class="faq-modal__body">
+            <div class="modal-body pb-8 pt-0">
                 <form method="post" action='<?= base_url('products/add_faqs') ?>' id="add-faqs">
-                    <input type="hidden" name=" <?php echo $this->security->get_csrf_token_name(); ?>" value="<?php echo $this->security->get_csrf_hash(); ?>" />
-                    <input type="hidden" name="user_id" value="<?= isset($_SESSION['user_id']) ? $_SESSION['user_id'] : '';  ?>">
-                    <input type="hidden" name="seller_id" value="<?= $product['product'][0]['seller_id'];  ?>">
-                    <input type="hidden" name="product_id" value="<?= $product['product'][0]['id']  ?>">
+                    <div class="form-group">
 
-                    <div class="faq-modal__field">
-                        <label for="question" class="faq-modal__label">Your Question</label>
-                        <textarea class="faq-modal__input" id="question" name="question" rows="3" placeholder="e.g. Is this available in other colors?"></textarea>
+                        <input type="hidden" name=" <?php echo $this->security->get_csrf_token_name(); ?>" value="<?php echo $this->security->get_csrf_hash(); ?>" />
+                        <input type="hidden" name="user_id" value="<?= isset($_SESSION['user_id']) ? $_SESSION['user_id'] : '';  ?>">
+                        <input type="hidden" name="seller_id" value="<?= $product['product'][0]['seller_id'];  ?>">
+                        <input type="hidden" name="product_id" value="<?= $product['product'][0]['id']  ?>">
+                        <input type="text" class="form-control" id="question" placeholder="Enter Your Question Here" name="question">
                     </div>
-
-                    <div class="faq-modal__actions">
-                        <button type="button" class="faq-modal__btn faq-modal__btn--ghost" data-dismiss="modal">Cancel</button>
-                        <button type="submit" class="faq-modal__btn faq-modal__btn--primary" id="add-faqs" name="add-faqs" value="Save">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                            Post Question
-                        </button>
+                    <button type="submit" class="btn btn-primary btn-sm rounded-pill" id="add-faqs" name="add-faqs" value="Save">Add Question</button>
+                    <div class="mt-3">
+                        <div id="add_faqs_result"></div>
                     </div>
-                    <div id="add_faqs_result" class="faq-modal__result"></div>
                 </form>
             </div>
         </div>
     </div>
 </div>
-
-<style>
-    .faq-modal .modal-dialog { max-width: 480px; }
-    .faq-modal__content {
-        border: none;
-        border-radius: 18px;
-        overflow: hidden;
-        box-shadow: 0 24px 60px -12px rgba(16, 24, 40, 0.28);
-    }
-    .faq-modal__header {
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: 16px;
-        padding: 22px 24px 18px;
-        border-bottom: 1px solid #f0f1f5;
-    }
-    .faq-modal__heading { display: flex; align-items: flex-start; gap: 14px; }
-    .faq-modal__icon {
-        flex: 0 0 auto;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 44px;
-        height: 44px;
-        border-radius: 12px;
-        background: linear-gradient(135deg, #eef2ff, #e0e7ff);
-        color: #4f46e5;
-    }
-    .faq-modal__title {
-        margin: 2px 0 3px;
-        font-size: 18px;
-        font-weight: 700;
-        color: #101828;
-        line-height: 1.2;
-    }
-    .faq-modal__subtitle {
-        margin: 0;
-        font-size: 13px;
-        color: #667085;
-        line-height: 1.4;
-    }
-    .faq-modal__close {
-        flex: 0 0 auto;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 34px;
-        height: 34px;
-        border: none;
-        border-radius: 9px;
-        background: #f4f5f7;
-        color: #667085;
-        cursor: pointer;
-        transition: background .15s ease, color .15s ease;
-    }
-    .faq-modal__close:hover { background: #ececf0; color: #101828; }
-    .faq-modal__body { padding: 20px 24px 24px; }
-    .faq-modal__field { margin-bottom: 20px; }
-    .faq-modal__label {
-        display: block;
-        margin-bottom: 8px;
-        font-size: 13px;
-        font-weight: 600;
-        color: #344054;
-    }
-    .faq-modal__input {
-        width: 100%;
-        padding: 12px 14px;
-        font-size: 14px;
-        color: #101828;
-        border: 1.5px solid #e4e7ec;
-        border-radius: 12px;
-        background: #fff;
-        resize: vertical;
-        transition: border-color .15s ease, box-shadow .15s ease;
-        outline: none;
-        font-family: inherit;
-    }
-    .faq-modal__input::placeholder { color: #98a2b3; }
-    .faq-modal__input:focus {
-        border-color: #6366f1;
-        box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
-    }
-    .faq-modal__actions {
-        display: flex;
-        justify-content: flex-end;
-        gap: 10px;
-    }
-    .faq-modal__btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 11px 20px;
-        font-size: 14px;
-        font-weight: 600;
-        border-radius: 10px;
-        border: 1.5px solid transparent;
-        cursor: pointer;
-        transition: all .15s ease;
-    }
-    .faq-modal__btn--ghost {
-        background: #fff;
-        color: #475467;
-        border-color: #e4e7ec;
-    }
-    .faq-modal__btn--ghost:hover { background: #f9fafb; color: #101828; }
-    .faq-modal__btn--primary {
-        background: linear-gradient(135deg, #6366f1, #4f46e5);
-        color: #fff;
-        box-shadow: 0 8px 18px -6px rgba(79, 70, 229, 0.5);
-    }
-    .faq-modal__btn--primary:hover {
-        background: linear-gradient(135deg, #5457ef, #4338ca);
-        transform: translateY(-1px);
-    }
-    .faq-modal__result:not(:empty) { margin-top: 14px; }
-    @media (max-width: 420px) {
-        .faq-modal__actions { flex-direction: column-reverse; }
-        .faq-modal__btn { width: 100%; justify-content: center; }
-    }
-</style>
 
 <div id="user-review-images" class='product-page-content'>
     <div class="container" id="review-image-div">
@@ -1331,8 +1131,8 @@
         }
         
         // $currencyText = $settings['currency'];
-        // $currencyText = "₹";
-        $currencyText = "₹";
+        // $currencyText = "Rs. ";
+        $currencyText = "₹ ";
 
         if (($discounted_price < $price) && ($discounted_price != 0)) {
             return '
@@ -1409,7 +1209,7 @@
         $price = $product_row['variants'][0]['price'];
         
         // $currencyText = $settings['currency'];
-        $currencyText = "₹";
+        $currencyText = "Rs. ";
 
         if (($discounted_price < $price) && ($discounted_price != 0)) {
             return '<p class="ta-c ' . $textStyle . '">

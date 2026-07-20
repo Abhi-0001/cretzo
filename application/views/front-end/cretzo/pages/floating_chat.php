@@ -165,18 +165,18 @@ Choose an option below or type your question
 <div class="chat-actions">
 
 <div class="chat-row">
-<div class="chat-btn" data-chat-action="track_order" data-chat-message="track order">📦 Track Order</div>
-<div class="chat-btn" data-chat-action="cancel_order" data-chat-message="cancel order">❌ Cancel Order</div>
+    <div class="chat-btn" onclick="sendMsg('track order')">📦 Track Order</div>
+    <div class="chat-btn" onclick="sendMsg('cancel order')">❌ Cancel Order</div>
 </div>
 
 <div class="chat-row">
-<div class="chat-btn" data-chat-action="return_item" data-chat-message="return item">🔄 Return Item</div>
-<div class="chat-btn" data-chat-action="payment_issue" data-chat-message="payment issue">💳 Payment Issue</div>
+    <div class="chat-btn" onclick="sendMsg('return item')">🔄 Return Item</div>
+    <div class="chat-btn" onclick="sendMsg('payment issue')">💳 Payment Issue</div>
 </div>
 
 <div class="chat-row">
-<div class="chat-btn" data-chat-action="product_inquiry" data-chat-message="product inquiry">🛍️ Product Inquiry</div>
-<div class="chat-btn" onclick="openWhatsApp()">🎧 WhatsApp Support </div>
+    <div class="chat-btn" onclick="sendMsg('product inquiry')">🛍️ Product Inquiry</div>
+    <div class="chat-btn" onclick="sendMsg('support')">🎧 Talk to Support</div>
 </div>
 
 </div>
@@ -187,10 +187,11 @@ Choose an option below or type your question
 <div class="popular-title">Popular Questions</div>
 
 <div class="chat-row">
-<div class="chat-btn" data-chat-action="track_order" data-chat-message="where is my order">📦 Where is my order?</div>
-    <div class="chat-btn" data-chat-action="return_item" data-chat-message="start return">🔄 How do I return?</div>
+    <div class="chat-btn" onclick="sendMsg('where is my order')">📦 Where is my order?</div>
+    <div class="chat-btn" onclick="sendMsg('start return')">🔄 How do I return?</div>
 </div>
-<div class="chat-btn" data-chat-action="payment_issue" data-chat-message="payment problem">
+
+<div class="chat-btn" onclick="sendMsg('payment problem')">
 💳 I need help with a payment problem
 </div>
 
@@ -210,129 +211,88 @@ Choose an option below or type your question
 // =====================
 // MAIN SEND FUNCTION
 // =====================
-let pendingAction = "";
-function appendMessage(className, text) {
+function sendMsg(text) {
+
     let chatBox = document.getElementById("chat-box");
 
     if (!chatBox) {
         console.log("❌ chat-box not found");
-        return null ;
+        return;
     }
 
     // USER MESSAGE
-    
-    let message = document.createElement("div");
-    message.className = className;
-    message.innerText = text;
-    chatBox.appendChild(message);
+    let user = document.createElement("div");
+    user.className = "user-msg";
+    user.innerText = text;
+    chatBox.appendChild(user);
+
     chatBox.scrollTop = chatBox.scrollHeight;
 
     // TYPING INDICATOR
-   return message;
-}
-function getPromptForAction(action) {
-    const prompts = {
-        track_order: "Sure — please enter your Order ID so I can estimate how many days are left for delivery.",
-        cancel_order: "I can guide you through cancellation. If your order is already shipped, please share the Order ID with support for a manual check.",
-        return_item: "Returns are handled from My Account → My Orders → Return. Tell me what went wrong with the item if you need extra help.",
-        payment_issue: "Payment issue noted. Please share whether money was debited, the payment method, and any payment reference/order ID.",
-        product_inquiry: "Please send the product name or product link, and I’ll help with availability, variants, or delivery questions.",
-        support: "Click WhatsApp Support to chat directly with our support team."
-    };
+    let typing = document.createElement("div");
+    typing.className = "bot-msg typing";
+    typing.innerText = "Typing...";
+    chatBox.appendChild(typing);
 
-    return prompts[action] || "Please type your question and I’ll help.";
-}
-
-function sendChatRequest(text, action, orderId) {
-    let typing = appendMessage("bot-msg typing", "Typing...");
-
-    const params = new URLSearchParams();
-    params.append("message", text || "");
-
-    if (action) {
-        params.append("action", action);
-    }
+    chatBox.scrollTop = chatBox.scrollHeight;
 
     // =====================
     // API CALL
     // =====================
-    if (action === "track_order" && orderId) {
-        params.append("order_id", orderId);
-    }
-    console.log("Sending:");
-    console.log(params.toString());
-    fetch("<?= base_url('chat/send') ?>", {
-    method: "POST",
-    headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Accept": "application/json"
-    },
-    body: params.toString()
+    fetch("/cretzo/chat/send", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: "message=" + encodeURIComponent(text)
     })
-    .then(res => res.text()) 
+    .then(res => res.text()) // safer than json directly
     .then(data => {
 
         console.log("RAW RESPONSE:", data);
 
-        if (typing) {
-            typing.remove();
-        }
+        typing.remove();
 
         try {
             let json = JSON.parse(data);
-            appendMessage("bot-msg", json.reply || "No response");
+
+            let bot = document.createElement("div");
+            bot.className = "bot-msg";
+            bot.innerText = json.reply || "No response";
+
+            chatBox.appendChild(bot);
+            chatBox.scrollTop = chatBox.scrollHeight;
 
         } catch (e) {
             console.log("❌ JSON ERROR:", e);
-            appendMessage("bot-msg", "Server error ⚠️");
 
+            let bot = document.createElement("div");
+            bot.className = "bot-msg";
+            bot.innerText = "Server error ⚠️";
+
+            chatBox.appendChild(bot);
         }
     })
     .catch(err => {
 
         console.log("❌ FETCH ERROR:", err);
-        appendMessage("bot-msg", "Connection error ⚠️");
 
+        typing.remove();
 
+        let bot = document.createElement("div");
+        bot.className = "bot-msg";
+        bot.innerText = "Connection error ⚠️";
+
+        chatBox.appendChild(bot);
     });
 }
-
-//Whatsapp direct connection
-function openWhatsApp()
-{
-    window.open(
-        "https://wa.me/917290024349?text=Hello%20Cretzo%20Support",
-        "_blank"
-    );
-}
-
-
 
 
 // =====================
 // BUTTON + ENTER SUPPORT
 // =====================
-window.sendMsg = function (text, action) {
-    text = (text || "").trim();
-    action = action || "";
-    if (!text && !action) {
-        return;
-    }
-
-    pendingAction = "";
-    appendMessage("user-msg", text || getPromptForAction(action));
-    sendChatRequest(text, action, "");
-
-    if (action === "track_order") {
-        pendingAction = "track_order";
-        appendMessage("bot-msg", getPromptForAction(action));
-        return;
-    }
-
-    sendChatRequest(text, action, "");
-};
-
 document.addEventListener("DOMContentLoaded", function () {
+
     let input = document.getElementById("userInput");
     let sendBtn = document.getElementById("sendBtn");
 
@@ -342,30 +302,14 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     // CLICK SEND
-    document.querySelectorAll("[data-chat-message]").forEach(function (button) {
-        button.addEventListener("click", function () {
-            pendingAction = "";
-            window.sendMsg(button.dataset.chatMessage, button.dataset.chatAction || "");
-        });
-    });
     sendBtn.addEventListener("click", function () {
 
         let text = input.value.trim();
-        if (text === "") {
-            return;
+
+        if (text !== "") {
+            sendMsg(text.toLowerCase());
+            input.value = "";
         }
-
-        if (pendingAction === "track_order") {
-            appendMessage("user-msg", text);
-            sendChatRequest(text, "track_order", text);
-            pendingAction = "";
-        } else {
-            window.sendMsg(text, "");
-        
-        
-
-      
-        }input.value = "";
     });
 
     // ENTER KEY

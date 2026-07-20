@@ -145,7 +145,6 @@ class My_account extends CI_Controller
             $this->data['links'] =  $this->pagination->create_links();
             $this->data['orders'] = fetch_orders(false, $this->data['user']->id, false, false, $limit, $offset, 'date_added', 'DESC', NULL, NULL, NULL, NULL, NULL, NULL, NULL, '', true, $search_2);
             $this->data['payment_methods'] = get_settings('payment_method', true);
-            $this->data['users'] = $this->ion_auth->user()->row();
             $this->load->view('front-end/' . THEME . '/template', $this->data);
         } else {
             redirect(base_url(), 'refresh');
@@ -372,7 +371,6 @@ class My_account extends CI_Controller
             $this->data['addresses'] = $this->address_model->get_address_list($this->data['user']->id, false, false);
             // $this->data['addresses'] = $this->address_model->get_address_list($this->data['user']->id, false, false);
 
-            $this->data['users'] = $this->ion_auth->user()->row();
             $this->load->view('front-end/' . THEME . '/template', $this->data);
         } else {
             redirect(base_url(), 'refresh');
@@ -403,7 +401,6 @@ class My_account extends CI_Controller
             $this->data['title'] = 'Wallet | ' . $this->data['web_settings']['site_title'];
             $this->data['keywords'] = 'Wallet, ' . $this->data['web_settings']['meta_keywords'];
             $this->data['description'] = 'Wallet | ' . $this->data['web_settings']['meta_description'];
-            $this->data['users'] = $this->ion_auth->user()->row();
             $this->load->view('front-end/' . THEME . '/template', $this->data);
         } else {
             redirect(base_url(), 'refresh');
@@ -428,7 +425,6 @@ class My_account extends CI_Controller
             $this->data['title'] = 'Transactions | ' . $this->data['web_settings']['site_title'];
             $this->data['keywords'] = 'Transactions, ' . $this->data['web_settings']['meta_keywords'];
             $this->data['description'] = 'Transactions | ' . $this->data['web_settings']['meta_description'];
-            $this->data['users'] = $this->ion_auth->user()->row();
             $this->load->view('front-end/' . THEME . '/template', $this->data);
         } else {
             redirect(base_url(), 'refresh');
@@ -743,60 +739,7 @@ class My_account extends CI_Controller
             $this->data['title'] = 'Dashboard | ' . $this->data['web_settings']['site_title'];
             $this->data['keywords'] = 'Dashboard, ' . $this->data['web_settings']['meta_keywords'];
             $this->data['description'] = 'Dashboard | ' . $this->data['web_settings']['meta_description'];
-
-            $limit = 12;
-            $total_rows = get_favorites($this->data['user']->id, NULL, NULL, TRUE);
-            $theme = fetch_details('themes', ['status' => 1], 'name');
-            $config['base_url'] = base_url('my-account/favorites');
-            $config['total_rows'] = $total_rows;
-            $config['per_page'] = $limit;
-            $config['num_links'] = 7;
-            $config['use_page_numbers'] = TRUE;
-            $config['reuse_query_string'] = TRUE;
-            $config['page_query_string'] = FALSE;
-            $config['uri_segment'] = 3;
-            $config['attributes'] = array('class' => 'page-link');
-            $config['full_tag_open'] = '<ul class="pagination justify-content-center">';
-            $config['full_tag_close'] = '</ul>';
-            /* Match the Shop All / product-listing pagination look: on the
-               modern/cretzo theme show arrow-only prev/next (no First/Last). */
-            if (isset($theme[0]['name']) && (strtolower($theme[0]['name']) == 'modern' || strtolower($theme[0]['name']) == 'cretzo')) {
-                $config['prev_tag_open'] = '<li class="page-item">';
-                $config['prev_link'] = '<i class="uil uil-arrow-left"></i>';
-                $config['prev_tag_close'] = '</li>';
-                $config['next_tag_open'] = '<li class="page-item">';
-                $config['next_link'] = '<i class="uil uil-arrow-right"></i>';
-                $config['next_tag_close'] = '</li>';
-            } else {
-                $config['first_tag_open'] = '<li class="page-item">';
-                $config['first_link'] = 'First';
-                $config['first_tag_close'] = '</li>';
-                $config['last_tag_open'] = '<li class="page-item">';
-                $config['last_link'] = 'Last';
-                $config['last_tag_close'] = '</li>';
-                $config['prev_tag_open'] = '<li class="page-item">';
-                $config['prev_link'] = '<i class="fa fa-arrow-left"></i>';
-                $config['prev_tag_close'] = '</li>';
-                $config['next_tag_open'] = '<li class="page-item">';
-                $config['next_link'] = '<i class="fa fa-arrow-right"></i>';
-                $config['next_tag_close'] = '</li>';
-            }
-            $config['cur_tag_open'] = '<li class="page-item active disabled"><a class="page-link">';
-            $config['cur_tag_close'] = '</a></li>';
-            $config['num_tag_open'] = '<li class="page-item">';
-            $config['num_tag_close'] = '</li>';
-            $page_no = (empty($this->uri->segment(3))) ? 1 : $this->uri->segment(3);
-            if (!is_numeric($page_no)) {
-                redirect(base_url('my-account/favorites'));
-            }
-            $offset = ($page_no - 1) * $limit;
-            $this->pagination->initialize($config);
-            $this->data['links'] = $this->pagination->create_links();
-            $this->data['total_rows'] = $total_rows;
-            $this->data['page_no'] = $page_no;
-            $this->data['per_page'] = $limit;
-            $this->data['num_pages'] = (int) ceil($total_rows / $limit);
-            $this->data['products'] = get_favorites($this->data['user']->id, $limit, $offset);
+            $this->data['products'] = get_favorites($this->data['user']->id);
             $this->data['settings'] = get_settings('system_settings', true);
             $this->load->view('front-end/' . THEME . '/template', $this->data);
         } else {
@@ -1782,15 +1725,6 @@ class My_account extends CI_Controller
             /* redirect him to the page where he can enter the purchase code */
             redirect(base_url("maintenance"));
         }
-        if (THEME == 'cretzo') {
-            $settings = get_settings('system_settings', true);
-            $this->data['main_page'] = 'floating_chat';
-            $this->data['title'] = 'Chat | ' . $settings['app_name'];
-            $this->data['meta_description'] = 'Chat | ' . $settings['app_name'];
-            $this->load->view('front-end/' . THEME . '/pages/floating_chat', $this->data);
-            return;
-        }
-        
         if ($this->ion_auth->logged_in()) {
             $this->data['title'] = 'Transactions | ' . $this->data['web_settings']['site_title'];
             $this->data['keywords'] = 'Transactions, ' . $this->data['web_settings']['meta_keywords'];

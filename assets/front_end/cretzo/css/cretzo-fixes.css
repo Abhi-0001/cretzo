@@ -245,22 +245,16 @@ input[type="range"].price-range-slider {
     border-color: var(--color-orange, #e07b39);
     color: #fff;
 }
-.pagination .page-item.disabled .page-link {
-    background: #f5f5f5;
-    color: #bbb;
-    cursor: not-allowed;
-}
-/* Active (current) page — keep it clearly highlighted even when the
-   markup also tags it `.disabled` (CI's cur_tag adds both classes). The
-   compound `.active.disabled` selector out-ranks the plain `.disabled`
-   rule above, so the current page stays solid orange, not greyed out. */
-.pagination .page-item.active .page-link,
-.pagination .page-item.active.disabled .page-link {
+.pagination .page-item.active .page-link {
     background: var(--color-orange, #e07b39);
     border-color: var(--color-orange, #e07b39);
     color: #fff;
     font-weight: 700;
-    cursor: default;
+}
+.pagination .page-item.disabled .page-link {
+    background: #f5f5f5;
+    color: #bbb;
+    cursor: not-allowed;
 }
 
 /* ============================================================
@@ -282,7 +276,7 @@ input[type="range"].price-range-slider {
 .sort-by-select:focus {
     border-color: var(--color-orange, #e07b39);
     outline: none;
-    box-shadow: none;
+    box-shadow: 0 0 0 3px rgba(224,123,57,0.15);
 }
 
 /* ============================================================
@@ -427,24 +421,23 @@ input[type="range"].price-range-slider {
 
 /* ============================================================
    FIX 21 & 22: MODAL CENTER FIX — Payment & Address popups
-
-   Center modals horizontally and keep them SCROLLABLE when the
-   content is taller than the viewport.
-
-   IMPORTANT: we must NOT force `display:flex; align-items:center`
-   on `.modal` — that vertically centers the dialog but cuts off the
-   top of tall popups (e.g. the Add/Edit Address form) and prevents
-   scrolling to the fields above the fold. Instead we let Bootstrap 4
-   drive `.modal` display (block + native scroll) and only tune the
-   dialog margin so it sits centered and reachable.
 ============================================================ */
-.modal-dialog {
-    margin: 1.75rem auto;   /* horizontally centered, top-aligned, scroll-safe */
+.modal {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
 }
-/* Bootstrap-4 vertically-centered modals (login / signup / promo) keep
-   BS4's own centering; just make sure a tall one can still scroll. */
+.modal.fade:not(.show) {
+    display: none !important;
+}
+.modal-dialog {
+    margin: 0 auto;
+    width: 100%;
+}
 .modal-dialog-centered {
-    min-height: calc(100% - 3.5rem);
+    min-height: calc(100% - 1rem);
+    display: flex;
+    align-items: center;
 }
 /* iziModal centering */
 .iziModal {
@@ -529,7 +522,7 @@ input[type="range"].price-range-slider {
 #promocode_input:focus {
     border-color: var(--color-orange, #e07b39);
     outline: none;
-    box-shadow: none;
+    box-shadow: 0 0 0 3px rgba(224,123,57,0.12);
 }
 #apply-promo-btn,
 .apply-promo-btn {
@@ -719,12 +712,12 @@ body {
     background: #f5f5f5;
 }
 
-/* Input focus states across the board - orange border only, no shadow */
+/* Input focus states across the board */
 input:focus,
 select:focus,
 textarea:focus {
     border-color: var(--color-orange, #e07b39) !important;
-    box-shadow: none !important;
+    box-shadow: 0 0 0 3px rgba(224,123,57,0.12) !important;
     outline: none !important;
 }
 
@@ -760,14 +753,47 @@ textarea:focus {
 }
 
 /* ═══════════════════════════════════════════════════
-   PAGINATION — 
+   CLEAN NUMBERED PAGINATION (no arrows, no boxes)
 ═══════════════════════════════════════════════════ */
-#products-pagination-nav {
-    display: block;
-}
-#products-pagination-nav .pagination {
+.cretzo-pagination {
     display: flex;
-    margin-bottom: 0;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 24px 0 32px;
+}
+.cretzo-page-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    border: 1.5px solid #eee;
+    background: #fff;
+    color: #333;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.2s;
+    padding: 0 12px;
+}
+.cretzo-page-btn:hover {
+    background: #f78b77;
+    border-color: #f78b77;
+    color: #fff;
+    text-decoration: none;
+}
+.cretzo-page-btn.active {
+    background: #f78b77;
+    border-color: #f78b77;
+    color: #fff;
+    pointer-events: none;
+}
+/* Hide old Bootstrap pagination completely */
+#products-pagination-nav,
+.pagination {
+    display: none !important;
 }
 
 /* ═══════════════════════════════════════════════════
@@ -829,839 +855,16 @@ textarea:focus {
 .product-container {
     align-items: flex-start !important;
 }
-
-
-
-/* ═══════════════════════════════════════════════════
-   FIX: PRODUCT PAGE REDESIGN — delivery/best-offers icons,
-   card styling, mobile description overflow
-═══════════════════════════════════════════════════ */
-
-/* Delivery hint + perks list (replaces plain unstyled paragraphs) */
-.delivery-hint {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    color: var(--color-grey);
-}
-.delivery-hint .uil {
-    color: var(--color-orange);
-    font-size: 15px;
-}
-.delivery-perks-list {
-    list-style: none;
-    margin: 0 0 4px 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-.delivery-perks-list li {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--color-grey);
-}
-.delivery-perks-list li .uil {
-    color: var(--color-success);
-    font-size: 15px;
-}
-
-/* Best-offers / shipping option cards — circular icon badges instead of
-   the broken <img> tags that pointed at a non-existent asset folder */
-.shipping-container {
-    border-top: none;
-    background: #fafafa;
-    border-radius: 14px;
-    margin-top: 14px;
-    padding: 10px;
-    gap: 10px;
-}
-.shipping-option {
-    gap: 8px;
-    flex: 1 1 0;
-    min-width: 80px;
-    text-align: center;
-}
-.shipping-icon-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 55px;
-    height: 55px;
-    border-radius: 50%;
-    background: var(--color-orange-light);
-    color: var(--color-orange);
-    font-size: 25px;
-}
-.shipping-option-muted .shipping-icon-badge {
-    background: var(--color-orange-light);
-    color: var(--color-orange);
-}
-
-/* ============================================================
-   QUICK-VIEW MODAL REDESIGN
-   Markup: application/views/front-end/cretzo/footer.php (#quick-view)
-   Content is injected by custom.js — selectors below target both
-   the static wrappers (qv-*) and the JS-injected elements.
-============================================================ */
-/* iziModal only gets max-width:1000px inline; its own CSS width leaves the
-   modal at ~50% of the viewport. Let it actually reach the max width. */
-#quick-view.iziModal {
-    width: 96% !important;
-}
-/* The site header is position:fixed with z-index:1008, above iziModal's
-   default z-index (modal 999 / overlay 997), so it paints on top of the open
-   quick view. Lift the modal + its overlay above the header so the popup and
-   its dimmed backdrop cover the header. (.iziModal-overlay is iziModal-only —
-   affects the quick view / seller-info popups, both of which should dim the
-   header; Bootstrap modals use a separate .modal-backdrop and are untouched.) */
-#quick-view.iziModal {
-    z-index: 100001 !important;
-}
-.iziModal-overlay {
-    z-index: 100000 !important;
-}
-/* iziModal paints a 30px dark gradient pinned to the modal's bottom edge
-   whenever the content scrolls (.hasShadow:after, iziModal.min.css:41) as a
-   "more below" hint. It reads as an ugly grey shadow smudged over the tags /
-   buttons. Suppress it for the quick view. */
-#quick-view.iziModal.hasShadow:after,
-#quick-view.iziModal:after {
-    display: none !important;
-}
-#quick-view .qv-grid {
-    padding: 28px;
-    row-gap: 20px;
-}
-
-/* Close button.
-   iziModal.min.css:1309 (#quick-view .iziModal-content .icon-close) pins this
-   to top:-8px/right:-8px, which pushes it outside the modal corner where it
-   gets clipped. Match that selector's specificity + the .qv-close class so we
-   win and can inset it back inside the modal. */
-#quick-view .iziModal-content .icon-close.qv-close {
-    position: absolute;
-    top: 14px;
-    right: 14px;
-    left: auto;
-    bottom: auto;
-    margin: 0;
-    z-index: 1001;
-    width: 38px;
-    height: 38px;
-    padding: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    border: none;
-    background: #fff;
-    color: #333;
-    font-size: 15px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
-    transition: background 0.15s, transform 0.15s, color 0.15s;
-}
-#quick-view .iziModal-content .icon-close.qv-close:hover {
-    background: var(--color-orange, #e07b39);
-    color: #fff;
-    transform: rotate(90deg);
-}
-#quick-view .qv-close .fa {
-    line-height: 1;
-}
-
-/* ---------- Gallery ---------- */
-#quick-view .qv-gallery {
-    padding-right: 28px;
-}
-#quick-view .gallery-top {
-    height: 400px !important; /* theme sets a %-based height with !important */
-    border-radius: 14px;
-    background: #f7f7f8;
-}
-#quick-view .gallery-top .swiper-slide,
-#quick-view .gallery-top .product-view-image-container {
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-#quick-view .gallery-top img {
-    max-width: 100%;
-    max-height: 100%;
-    width: auto !important;
-    height: auto !important;
-    object-fit: contain;
-    border-radius: 14px;
-}
-/* Thumbnails — kill the inline 100x108 sizing from custom.js and the
-   stretched full-height images it caused.
-   Swiper lays the strip out with a transform on the wrapper and hides overflow,
-   so with >4 thumbs the rest are unreachable. Neutralize the transform and let
-   the container scroll natively on the x-axis. Swiper's thumb->main-image click
-   sync is event-based and keeps working. */
-#quick-view .gallery-thumbs {
-    height: auto;
-    margin-top: 12px;
-    overflow-x: auto !important;
-    overflow-y: hidden;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: thin;
-}
-#quick-view .gallery-thumbs::-webkit-scrollbar {
-    height: 6px;
-}
-#quick-view .gallery-thumbs::-webkit-scrollbar-thumb {
-    background: #d0d0d0;
-    border-radius: 3px;
-}
-#quick-view .gallery-thumbs .swiper-wrapper-thumbs {
-    transform: none !important;
-    width: -webkit-max-content;
-    width: max-content;
-    padding-bottom: 4px;
-}
-#quick-view .gallery-thumbs .swiper-slide {
-    flex: 0 0 72px;
-    width: 72px !important;
-    height: 72px !important;
-    border-radius: 10px;
-    border: 2px solid transparent;
-    overflow: hidden;
-    cursor: pointer;
-    opacity: 0.65;
-    background: #f7f7f8;
-    transition: opacity 0.15s, border-color 0.15s;
-}
-#quick-view .gallery-thumbs .swiper-slide:hover {
-    opacity: 1;
-}
-#quick-view .gallery-thumbs .swiper-slide-thumb-active {
-    border-color: var(--color-orange, #e07b39);
-    opacity: 1;
-}
-#quick-view .gallery-thumbs .swiper-slide img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-/* Nav arrows (if the theme injects them) — keep them centered on the image */
-#quick-view .gallery-top .swiper-button-prev,
-#quick-view .gallery-top .swiper-button-next {
-    top: 50%;
-    transform: translateY(-50%);
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    background: #fff;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-}
-/* Mobile slider — theme forces a %-based height (!important) on
-   .swiper-container, leaving a huge blank gap below the image */
-#quick-view .mobile-image-swiper,
-#quick-view .mobile-image-swiper .swiper-slide {
-    height: auto !important;
-}
-#quick-view .qv-gallery-mobile .swiper-slide img {
-    max-height: 320px;
-    width: auto;
-    max-width: 100%;
-    object-fit: contain;
-    border-radius: 12px;
-}
-
-/* ---------- Details column ---------- */
-#quick-view .qv-details {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    padding-right: 30px; /* keep clear of the close button */
-}
-/* Seller line ("Sold by …") — grey/muted like the product page */
-#quick-view .qv-seller {
-    font-size: 13px;
-    color: #8a8a8a;
-    margin: 0;
-}
-#quick-view .qv-seller p {
-    margin: 0;
-}
-#quick-view .qv-seller a {
-    color: #6b6b6b;
-    font-weight: 600;
-}
-/* Title — mirrors the product page product-name heading */
-#quick-view .qv-title,
-#quick-view .qv-title p {
-    font-size: 25px;
-    font-weight: 700;
-    line-height: 1.25;
-    color: #1f1f1f;
-    margin: 4px 0 0;
-}
-#quick-view .qv-title a { color: inherit; }
-#quick-view .qv-brand { font-size: 13px; }
-#quick-view #modal-product-brand h5 {
-    font-size: 13px;
-    font-weight: 600;
-    margin: 0;
-    color: #666;
-}
-#quick-view #modal-product-brand p {
-    margin: 0;
-}
-#quick-view .qv-rating-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    color: #888;
-    margin: 0;
-}
-#quick-view .qv-rating-row .rating-container {
-    margin: 0;
-}
-/* Price + discount — orange price, struck original, orange "% OFF" */
-#quick-view .qv-price {
-    display: flex;
-    align-items: baseline;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin: 2px 0 0;
-}
-#quick-view .qv-price #modal-product-price {
-    font-size: 26px;
-    font-weight: 700;
-    color: black;
-}
-#quick-view .qv-old-price {
-    font-size: 15px;
-    color: #999;
-}
-#quick-view .qv-discount {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--color-orange, #e07b39);
-}
-/* Stock indicator — orange check + text, like the product page */
-#quick-view .qv-stock {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 13px;
-    color: #4b4b4b;
-    margin: 2px 0;
-}
-#quick-view .qv-stock .uil {
-    color: var(--color-orange, #e07b39);
-    font-size: 16px;
-}
-#quick-view .qv-desc {
-    font-size: 14px;
-    line-height: 1.55;
-    color: #6b6b6b;
-    margin: 0;
-    padding-bottom: 12px;
-    border-bottom: 1px solid #ececec;
-}
-
-/* Variant attributes (injected: <h4> + .btn-group of labels) */
-#quick-view .qv-options h4 {
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: #666;
-    margin: 12px 0 8px;
-}
-#quick-view .qv-options .btn-group {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-}
-#quick-view .qv-options .btn-group > .btn {
-    border-radius: 8px;
-    margin: 0;
-    flex: 0 0 auto; /* Bootstrap's flex:1 1 auto stretches them full-width */
-}
-/* Size / text swatches — white bordered chips that turn orange when active,
-   matching the product detail page (theme default was teal -> navy). */
-#quick-view .qv-options .btn-aqua {
-    min-width: 46px;
-    background: #fff !important;
-    color: #333 !important;
-    border: 1.5px solid #ddd !important;
-    border-radius: 8px !important;
-    font-weight: 600;
-    transition: all 0.15s;
-}
-#quick-view .qv-options .btn-aqua:hover {
-    border-color: var(--color-orange, #e07b39) !important;
-    color: var(--color-orange, #e07b39) !important;
-}
-#quick-view .qv-options .btn-group > .active.btn-aqua,
-#quick-view .qv-options .btn-aqua.active {
-    background: var(--color-orange, #e07b39) !important;
-    color: #fff !important;
-    border-color: var(--color-orange, #e07b39) !important;
-}
-#quick-view .qv-options .fullCircle {
-    /* .h-0 sets height:0 !important — must out-!important it */
-    width: 34px !important;
-    height: 34px !important;
-    padding: 0 !important;
-    border-radius: 50% !important;
-    border: 2px solid #fff;
-    box-shadow: 0 0 0 1px #ddd;
-}
-#quick-view .qv-options .fullCircle.active {
-    box-shadow: 0 0 0 2px var(--color-orange, #e07b39);
-    border: 2px solid #fff !important;
-}
-
-/* "DELIVERY OPTIONS" heading + truck icon, injected right before the zipcode
-   form — identical structure/wording to the product detail page. */
-#quick-view .qv-delivery-heading {
-    margin-top: 16px;
-}
-#quick-view .qv-delivery-heading h4 {
-    font-size: 14px;
-    margin: 0 0 8px;
-}
-#quick-view .qv-delivery-heading .ship-icon {
-    color: var(--color-orange, #F2822E);
-    font-size: 18px;
-    line-height: 1;
-}
-
-/* Zipcode / availability form (injected) — matches the product detail page's
-   #validate-zipcode-form styling exactly (product-page-override.css:390-427):
-   sharp-cornered light-grey-bordered input butted against a white outline
-   button that inverts to solid black on hover. Was previously a mismatched
-   black rounded pill; the client asked for parity with the product page. */
-#quick-view .validate_zipcode_quick_view {
-    margin-top: 4px !important;
-    min-height: 44px;
-}
-#quick-view .validate_zipcode_quick_view .input-group {
-    align-items: baseline;
-    max-width: 100%;
-}
-#quick-view .validate_zipcode_quick_view #zipcode {
-    flex: none;
-    min-width: 190px;
-    max-width: 100%;
-    border-radius: 2px 0 0 2px !important;
-    padding: 7px 0.6rem;
-    font-size: 14px;
-    color: #333;
-    background: #fff;
-    box-shadow: none;
-    border: 1px solid #ddd;
-    transition: none;
-}
-#quick-view .validate_zipcode_quick_view #zipcode:focus {
-    border: 1px solid var(--color-orange, #F2822E);
-    outline: none;
-    box-shadow: none;
-}
-#quick-view .validate_zipcode_quick_view .check-availability {
-    border-radius: 0 2px 2px 0;
-    padding: 7px 1rem;
-    font-size: 13px;
-    font-weight: 600;
-    background-color: #fff;
-    color: #333;
-    border: 1px solid #ddd;
-    border-left: none;
-    box-shadow: none;
-    white-space: nowrap;
-    transition: background-color 0.15s, color 0.15s;
-}
-#quick-view .validate_zipcode_quick_view .check-availability:hover {
-    background-color: #000;
-    color: #fff;
-}
-#quick-view #error_box1 {
-    font-size: 13px;
-}
-
-/* Quantity + actions row */
-#quick-view .qv-buy-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px;
-    /* margin-top: 16px; */
-}
-#quick-view .qv-qty {
-    flex: 0 0 auto;
-    padding: 0;
-    margin: 0;
-}
-#quick-view .qv-qty .num-in {
-    height: 45px;
-    width: 100px;
-    border-radius: 999px;
-    border: 1px solid #ddd;
-    margin: 0;
-}
-/* Add to Cart — white with orange text + border (outline pill), matching the
-   product detail page's .cretzo.btn.btn-light add-to-cart. */
-#quick-view .qv-add-btn {
-    flex: 1 1 auto;
-    height: 44px;
-    margin: 0;
-    border: 1.5px solid var(--color-orange, #e07b39);
-    border-radius: 30px;
-    background: #fff;
-    color: var(--color-orange, #e07b39);
-    font-size: 15px;
-    font-weight: 600;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    transition: background 0.15s, color 0.15s, transform 0.1s;
-}
-#quick-view .qv-add-btn:hover {
-    background: var(--color-orange, #e07b39);
-    color: #fff;
-}
-#quick-view .qv-add-btn:active {
-    transform: scale(0.98);
-}
-#quick-view .qv-add-btn:disabled {
-    border-color: #ccc;
-    background: #f5f5f5;
-    color: #bbb;
-    cursor: not-allowed;
-}
-/* Wishlist + Compare — circular outline icon buttons, identical to the
-   product detail page's .wishlist-icon-btn (grey outline, orange on hover). */
-#quick-view .qv-fav,
-#quick-view .qv-compare {
-    flex: 0 0 auto;
-    width: 44px;
-    height: 44px;
-    margin: 0;
-    padding: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    border: 1px solid #e0e0e0;
-    background: #fff;
-    cursor: pointer;
-    transition: border-color 0.2s, background 0.2s, transform 0.1s, color 0.2s;
-}
-#quick-view .qv-fav i,
-#quick-view .qv-compare i {
-    font-size: 18px;
-    line-height: 1;
-    color: #9a9a9a;
-}
-#quick-view .qv-fav:hover,
-#quick-view .qv-compare:hover {
-    border-color: var(--color-orange, #e07b39);
-}
-#quick-view .qv-fav:hover i,
-#quick-view .qv-compare:hover i {
-    color: var(--color-orange, #e07b39);
-}
-#quick-view .qv-fav:active,
-#quick-view .qv-compare:active {
-    transform: scale(0.94);
-}
-/* Saved state: filled orange heart on a soft orange chip */
-#quick-view .qv-fav.remove-fav {
-    border-color: var(--color-orange, #e07b39);
-    background: rgba(242, 130, 46, 0.10);
-}
-#quick-view .qv-fav.remove-fav i,
-#quick-view .qv-fav .fa-heart {
-    color: var(--color-orange, #e07b39);
-}
-
-/* Tags (injected badges) */
-#quick-view .qv-tags {
-    margin-top: 14px;
-    font-size: 13px;
-    color: #888;
-}
-#quick-view .qv-tags .badge {
-    background: #f1f1f3;
-    color: #555;
-    border-radius: 999px;
-    padding: 5px 12px;
-    font-weight: 500;
-    margin-right: 4px;
-    transition: background 0.15s, color 0.15s;
-}
-#quick-view .qv-tags a {
-    text-decoration: none;
-}
-#quick-view .qv-tags .badge:hover {
-    background: var(--color-orange, #e07b39);
-    color: #fff;
-}
-
-/* ============================================================
-   COMPARE "COMING SOON" DIALOG — self-contained modal appended to
-   <body> by cretzo-fixes.js (SweetAlert2 is globally hidden by
-   cretzo-override.css, so we don't use it). Triggered by
-   .compare-soon-btn on the product page and the quick-view popup.
-   z-index sits above the quick-view modal (100001) / overlay (100000).
-============================================================ */
-.cs-soon-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 100020;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-    background: rgba(0, 0, 0, 0.55);
-    opacity: 0;
-    transition: opacity 0.2s ease;
-}
-.cs-soon-overlay.is-open {
-    opacity: 1;
-}
-.cs-soon-card {
-    position: relative;
-    width: 100%;
-    max-width: 420px;
-    background: #fff;
-    border-radius: 5px;
-    padding: 30px 26px 26px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-    transform: translateY(14px) scale(0.97);
-    transition: transform 0.25s cubic-bezier(0.18, 0.89, 0.32, 1.28);
-}
-.cs-soon-overlay.is-open .cs-soon-card {
-    transform: translateY(0) scale(1);
-}
-.cs-soon-close {
-    position: absolute;
-    top: 12px;
-    right: 14px;
-    width: 32px;
-    height: 32px;
-    border: none;
-    background: transparent;
-    color: #aaa;
-    font-size: 24px;
-    line-height: 1;
-    cursor: pointer;
-    border-radius: 50%;
-    transition: background 0.15s, color 0.15s;
-}
-.cs-soon-close:hover {
-    background: #f2f2f2;
-    color: #333;
-}
-.cs-soon {
-    text-align: center;
-}
-.cs-soon-badge {
-    width: 76px;
-    height: 76px;
-    margin: 4px auto 14px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--color-orange, #e07b39), #f6a765);
-    color: #fff;
-    box-shadow: 0 10px 24px rgba(242, 130, 46, 0.35);
-    animation: cs-soon-pop 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28) both;
-}
-.cs-soon-badge .uil {
-    font-size: 38px;
-    line-height: 1;
-}
-@keyframes cs-soon-pop {
-    from { transform: scale(0.3); opacity: 0; }
-    to   { transform: scale(1);   opacity: 1; }
-}
-.cs-soon-title {
-    font-size: 20px;
-    font-weight: 700;
-    color: #222;
-    margin: 0 0 6px;
-}
-.cs-soon-chip {
-    display: inline-block;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.6px;
-    text-transform: uppercase;
-    color: var(--color-orange, #e07b39);
-    background: rgba(242, 130, 46, 0.12);
-    border-radius: 999px;
-    padding: 4px 12px;
-    margin-bottom: 12px;
-}
-.cs-soon-text {
-    font-size: 14px;
-    line-height: 1.6;
-    color: #6b6b6b;
-    margin: 0;
-}
-.cs-soon-confirm {
-    margin-top: 18px;
-    border: none;
-    border-radius: 30px;
-    background: var(--color-orange, #e07b39);
-    color: #fff;
-    font-size: 14px;
-    font-weight: 600;
-    padding: 11px 34px;
-    cursor: pointer;
-    transition: filter 0.15s, transform 0.1s;
-}
-.cs-soon-confirm:hover {
-    filter: brightness(0.94);
-}
-.cs-soon-confirm:active {
-    transform: scale(0.97);
-}
-
-/* ---------- Responsive ---------- */
-/* custom.css hides the desktop gallery below 992px but also hides the
-   mobile slider above 600px, leaving 600-991px with no image at all.
-   Keep the mobile slider visible in that range inside the quick view. */
-@media (min-width: 600px) and (max-width: 991px) {
-    #quick-view .product-preview-image-section-sm {
-        display: block;
+.img-container {
+    position: sticky !important;
+    top: 80px !important;
+    align-self: flex-start !important;
+    max-height: calc(100vh - 100px);
+    overflow: visible;
+}
+@media screen and (max-width: 800px) {
+    .img-container {
+        position: relative !important;
+        top: auto !important;
     }
-}
-@media (max-width: 991px) {
-    #quick-view .qv-grid {
-        padding: 18px;
-    }
-    #quick-view .qv-gallery {
-        padding-right: 0;
-    }
-    #quick-view .gallery-top {
-        height: 300px;
-    }
-    #quick-view .qv-details {
-        padding-right: 0;
-    }
-    #quick-view .qv-title,
-    #quick-view .qv-title p {
-        font-size: 18px;
-    }
-    #quick-view .qv-buy-row {
-        flex-wrap: wrap;
-    }
-    #quick-view .qv-add-btn {
-        flex: 1 1 100%;
-        order: 3;
-    }
-}
-.shipping-option-muted p {
-    opacity: 1;
-}
-.shipping-option p {
-    margin: 0;
-    line-height: 1.3;
-}
-
-/* Description/Information/FAQ tab strip — rounded pill group */
-.des-btn-container {
-    display: inline-flex;
-    gap: 5px;
-    /* background: var(--color-light-grey); */
-    padding: 4px;
-    /* border-radius: 30px; */
-    margin-bottom: 10px;
-}
-.des-btn {
-    border: 1px solid var(--color-light-grey) !important;
-    font-weight: 500;
-}
-
-/* P4.4: description/information tab content can contain wide tables and
-   long unbroken strings — wrap them instead of overflowing the page */
-.des {
-    overflow-x: auto;
-    word-break: break-word;
-    overflow-wrap: break-word;
-}
-.des table {
-    max-width: 100%;
-    display: block;
-    overflow-x: auto;
-}
-.des img {
-    max-width: 100%;
-    height: auto;
-}
-
-/* ============================================================
-   P4.6 — Checkout progress stepper on mobile (cart + checkout pages)
-   The stepper (.cart-indicator-container) pins a logo absolutely on
-   the left and a "100% Quality Assured" badge on the right, with the
-   3 steps centred between huge (120px) gaps. On phones those absolute
-   elements collided with the step labels / site logo. Drop the
-   redundant logo, lay the 3 steps out compactly, and move the trust
-   badge onto its own centred line below. Loads after cart/checkout
-   -override.css so these win.
-   ============================================================ */
-@media screen and (max-width: 768px) {
-  .cart-indicator-container {
-    gap: 0 !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    margin: 14px 0 24px !important;
-    padding: 10px 8px !important;
-    justify-content: center;
-    flex-wrap: wrap;
-    row-gap: 8px !important;
-    position: relative;
-  }
-  /* redundant with the site header logo just above it */
-  .cart-indicator-container .company-logo { display: none !important; }
-  .cart-indicator { padding: 6px 10px !important; }
-  .cart-indicator .text-n { font-size: 13px; margin: 0; white-space: nowrap; }
-  .completion-line {
-    width: auto !important;
-    flex: 1 1 12px;
-    min-width: 12px;
-    max-width: 36px;
-  }
-  /* trust badge: was absolute right:20px (overlapped) -> own centred row */
-  .cart-indicator-container .quality-assured-container {
-    position: static !important;
-    flex-basis: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    right: auto !important;
-    top: auto !important;
-  }
-  .quality-assured-text { top: 0 !important; }
-
-/* ==========================================================================
-   Login popup showing BEHIND the quick-view product popup
-   --------------------------------------------------------------------------
-   The quick-view popup is an iziModal (#quick-view) pushed to z-index 100001
-   (overlay 100000) above so its dimmed backdrop can cover the fixed header.
-   The login popup (#modal-signin) is a Bootstrap modal whose default stack is
-   modal 1055 / backdrop 1050 — far below the quick-view. So clicking the
-   wishlist heart inside an open quick-view rendered the login form *behind*
-   the product popup. Raise Bootstrap modals + backdrop above the quick-view
-   stack so the login popup always paints on top (and dims the quick-view).
-   ========================================================================== */
-.modal-backdrop {
-    z-index: 100010 !important;
-}
-.modal {
-    z-index: 100011 !important;
-}
 }

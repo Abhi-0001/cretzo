@@ -23,6 +23,6 @@ var config = {
 
 firebase.initializeApp(config);
 
-if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    firebase.auth().settings.appVerificationDisabledForTesting = true;
-}
+// Enable Facebook and Google providers
+// Make sure Facebook Login Plugin is properly configured in Firebase Console
+firebase.auth().settings.appVerificationDisabledForTesting = true;

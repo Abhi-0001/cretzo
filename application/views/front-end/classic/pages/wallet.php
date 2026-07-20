@@ -49,7 +49,7 @@
                                             Current Balance
                                         </div>
                                         <div class="h4 d-flex justify-content-center  price">
-                                            <p class="h4"> <?= $settings['currency'] . number_format($user->balance, 2)  ?> </p>
+                                            <p class="h4"> <?= $settings['currency'] . ' ' . number_format($user->balance, 2)  ?> </p>
                                         </div>
                                     </div>
 

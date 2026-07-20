@@ -1,7 +1,7 @@
 <?php
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
-error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT);
+error_reporting(E_ALL);
 defined('BASEPATH') or exit('No direct script access allowed');
 
 
@@ -446,80 +446,6 @@ class Home extends CI_Controller
         if ($this->form_validation->run() === TRUE) {
             $tables = $this->config->item('tables', 'ion_auth');
             $identity = $this->input->post('identity', true);
-
-            // Check if login type is social (google or facebook)
-            $type = $this->input->post('type', true);
-            if (isset($type) && ($type == 'google' || $type == 'facebook')) {
-                // Find existing user by email
-                $user_data = fetch_details('users', ['email' => $identity]);
-                if (!empty($user_data)) {
-                    $user_id = $user_data[0]['id'];
-                    
-                    // Check if inactive or deleted
-                    if (isset($user_data[0]['active']) && $user_data[0]['active'] == 7) {
-                        $this->response['error'] = true;
-                        $this->response['message'] = 'User Not Found';
-                        echo json_encode($this->response);
-                        return false;
-                    }
-                    if (isset($user_data[0]['active']) && $user_data[0]['active'] == 0) {
-                        $this->response['error'] = true;
-                        $this->response['message'] = 'You are not allowed to login your account is inactive.';
-                        echo json_encode($this->response);
-                        return false;
-                    }
-                    
-                    // Group 2 check (standard user group restriction on frontend login)
-                    if ($group = fetch_details('users_groups', ['user_id' => $user_id])) {
-                        if ($group[0]['group_id'] != 2) {
-                            $this->response['error'] = true;
-                            $this->response['message'] = 'Invalid user';
-                            echo json_encode($this->response);
-                            return false;
-                        }
-                    }
-
-                    // Direct login (skip password verification since it's already verified on client via OAuth)
-                    $user = $this->db->where('id', $user_id)->get($tables['login_users'])->row();
-                    if ($user) {
-                        $this->ion_auth_model->set_session($user);
-                        $this->ion_auth_model->update_last_login($user->id);
-                        $this->ion_auth_model->clear_login_attempts($identity);
-                        $this->ion_auth_model->clear_forgotten_password_code($identity);
-                        $this->session->sess_regenerate(FALSE);
-
-                        // Ensure group 2 mapping
-                        $this->db->where('user_id', $user->id);
-                        $this->db->where('group_id', 2);
-                        $query = $this->db->get('users_groups');
-                        if ($query->num_rows() == 0) {
-                            $this->db->insert('users_groups', array(
-                                'user_id' => $user->id, 
-                                'group_id' => 2
-                            ));
-                        }
-
-                        // Link social provider information
-                        $provider_col = $type . '_id';
-                        $update_fields = [];
-                        if ($this->db->field_exists($provider_col, $tables['login_users']) && empty($user->{$provider_col})) {
-                            $update_fields[$provider_col] = $this->input->post('password'); // password holds provider uid
-                        }
-                        if ($user->type != $type) {
-                            $update_fields['type'] = $type;
-                        }
-                        if (!empty($update_fields)) {
-                            $this->db->where('id', $user->id)->update($tables['login_users'], $update_fields);
-                        }
-
-                        $this->response['error'] = false;
-                        $this->response['message'] = 'Logged in successfully.';
-                        echo json_encode($this->response);
-                        return true;
-                    }
-                }
-            }
-
             if (isset($_POST['type']) && $_POST['type'] != 'phone') {
                 $res = $this->db->select('id')->where('email', $identity)
                     ->where('type', $_POST['type'])->get($tables['login_users'])->result_array();

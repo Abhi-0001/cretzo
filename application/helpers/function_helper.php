@@ -168,125 +168,6 @@ function fetch_details($table, $where = NULL, $fields = '*', $limit = '', $offse
     return $res;
 }
 
-/**
- * Returns the current logged-in customer's state (name string) from their default
- * address (falls back to their most recent address). Empty string if unknown/guest.
- * Used for the GST-enrollment state restriction (P3.2).
- */
-function get_customer_state()
-{
-    $t = &get_instance();
-    if (!isset($t->ion_auth) || !$t->ion_auth->logged_in()) {
-        return '';
-    }
-    $user_id = $t->session->userdata('user_id');
-    if (empty($user_id)) {
-        return '';
-    }
-    $row = $t->db->select('state')
-        ->from('addresses')
-        ->where('user_id', $user_id)
-        ->order_by('is_default', 'DESC')
-        ->order_by('id', 'DESC')
-        ->limit(1)
-        ->get()->row_array();
-    return (!empty($row) && !empty($row['state'])) ? $row['state'] : '';
-}
-function get_state_from_pincode($pincode)
-{
-    static $cache = [];
-    $pincode = preg_replace('/\D/', '', (string) $pincode);
-    if (strlen($pincode) !== 6) {
-        return '';
-    }
-    if (isset($cache[$pincode])) {
-        return $cache[$pincode];
-    }
-
-    $state = '';
-
-    // 1) zippopotam.us (cURL first, file_get_contents fallback)
-    $url  = 'https://api.zippopotam.us/in/' . $pincode;
-    $body = false;
-    if (function_exists('curl_init')) {
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 4,
-            CURLOPT_CONNECTTIMEOUT => 4,
-            CURLOPT_SSL_VERIFYPEER => false,
-        ]);
-        $resp = curl_exec($ch);
-        if ($resp !== false && (int) curl_getinfo($ch, CURLINFO_HTTP_CODE) === 200) {
-            $body = $resp;
-        }
-        curl_close($ch);
-    }
-    if ($body === false && ini_get('allow_url_fopen')) {
-        $ctx  = stream_context_create(['http' => ['timeout' => 4], 'https' => ['timeout' => 4]]);
-        $body = @file_get_contents($url, false, $ctx);
-    }
-    if (!empty($body)) {
-        $data = json_decode($body, true);
-        if (!empty($data['places'][0]['state'])) {
-            $state = $data['places'][0]['state'];
-        }
-    }
-
-    // 2) Local DB fallback
-    if ($state === '') {
-        $t   = &get_instance();
-        $row = $t->db->select('s.name AS state')
-            ->from('zipcodes z')
-            ->join('cities c', 'z.city_id = c.city_id', 'LEFT')
-            ->join('districts d', 'c.district_id = d.id', 'LEFT')
-            ->join('states s', 'd.state_id = s.id', 'LEFT')
-            ->where('z.zipcode', $pincode)
-            ->limit(1)
-            ->get()->row_array();
-        if (!empty($row['state'])) {
-            $state = $row['state'];
-        }
-    }
-
-    $cache[$pincode] = $state;
-    return $state;
-}
-
-function normalize_state_name($state)
-{
-    $s = strtolower(trim((string) $state));
-    $s = preg_replace('/[^a-z]/', '', $s);
-    $aliases = [
-        'newdelhi'     => 'delhi',
-        'nctofdelhi'   => 'delhi',
-        'delhincr'     => 'delhi',
-        'up'           => 'uttarpradesh',
-        'mp'           => 'madhyapradesh',
-        'hp'           => 'himachalpradesh',
-        'ap'           => 'andhrapradesh',
-        'tn'           => 'tamilnadu',
-        'wb'           => 'westbengal',
-        'jk'           => 'jammuandkashmir',
-        'jammukashmir' => 'jammuandkashmir',
-        'orissa'       => 'odisha',
-        'uttaranchal'  => 'uttarakhand',
-        'pondicherry'  => 'puducherry',
-    ];
-    return isset($aliases[$s]) ? $aliases[$s] : $s;
-}
-
-/**
- * True when two free-text state names refer to the same state (after normalisation).
- * A match requires both to be non-empty.
- */
-function states_match($a, $b)
-{
-    $na = normalize_state_name($a);
-    $nb = normalize_state_name($b);
-    return ($na !== '' && $nb !== '' && $na === $nb);
-}
-
 function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id = NULL, $limit = NULL, $offset = NULL, $sort = NULL, $order = NULL, $return_count = NULL, $is_deliverable = NULL, $seller_id = NULL)
 {
 
@@ -486,14 +367,6 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
     } else {
         $t->db->where($where);
     }
-    // GST enrollment restriction (P3.2): products from sellers who registered via a
-    // GST Enrollment Number (sd.is_gst_registered = 0) are visible ONLY to customers
-    // located in the seller's own state. Applied only when the customer's state is known
-    // (logged-in customer with an address); guests are gated at checkout instead.
-    if (isset($filter['customer_state']) && !empty($filter['customer_state'])) {
-        $cs = $t->db->escape($filter['customer_state']);
-        $t->db->where("(sd.is_gst_registered = 1 OR LOWER(TRIM(sd.state)) = LOWER(TRIM($cs)))", null, false);
-    }
     if (!isset($filter['flag']) && empty($filter['flag'])) {
         $t->db->group_Start();
         $t->db->or_where('c.status', '1');
@@ -634,14 +507,8 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
     // return;
     $attribute_values_ids = array();
     $temp = [];
-    // Context-aware slider bounds: min/max of the SAME filtered set being listed
-    // (excluding the price filter itself), padded to a clean step. Replaces the
-    // old global get_price() which ignored the category/brand/search context and
-    // could leave shown products outside the slider range. See
-    // get_filtered_price_range() for the full rationale.
-    $price_range = get_filtered_price_range($filter, $category_id, $seller_id);
-    $min_price = $price_range['min'];
-    $max_price = $price_range['max'];
+    $min_price = get_price('min');
+    $max_price = get_price('max');
 
 
 
@@ -2733,10 +2600,10 @@ function fetch_orders($order_id = NULL, $user_id = NULL, $status = NULL, $delive
                 }
                 $order_item_data[$k]['email'] = (isset($order_details[$i]['email']) && !empty($order_details[$i]['email']) ? $order_details[$i]['email'] : '');
                 
-                $returnable_count += (int) $order_item_data[$k]['is_returnable'];
-                $cancelable_count += (int) $order_item_data[$k]['is_cancelable'];
-                $already_returned_count += (int) $order_item_data[$k]['is_already_returned'];
-                $already_cancelled_count += (int) $order_item_data[$k]['is_already_cancelled'];
+                $returnable_count += $order_item_data[$k]['is_returnable'];
+                $cancelable_count += $order_item_data[$k]['is_cancelable'];
+                $already_returned_count += $order_item_data[$k]['is_already_returned'];
+                $already_cancelled_count += $order_item_data[$k]['is_already_cancelled'];
                 $delivery_date = $order_item_data[$k]['status'][3][1];
                 $settings = get_settings('system_settings', true);
                 $timestemp = strtotime($delivery_date);
@@ -2944,10 +2811,10 @@ function fetch_order_items($order_item_id = NULL, $user_id = NULL, $status = NUL
             $return_request_submitted_count = null;
         }
 
-        $returnable_count += (int) $order_item_data[$k]['is_returnable'];
-        $cancelable_count += (int) $order_item_data[$k]['is_cancelable'];
-        $already_returned_count += (int) $order_item_data[$k]['is_already_returned'];
-        $already_cancelled_count += (int) $order_item_data[$k]['is_already_cancelled'];
+        $returnable_count += $order_item_data[$k]['is_returnable'];
+        $cancelable_count += $order_item_data[$k]['is_cancelable'];
+        $already_returned_count += $order_item_data[$k]['is_already_returned'];
+        $already_cancelled_count += $order_item_data[$k]['is_already_cancelled'];
 
         $order_details[$k]['is_returnable'] = ($returnable_count >= 1) ? '1' : '0';
         $order_details[$k]['is_cancelable'] = ($cancelable_count >= 1) ? '1' : '0';
@@ -3473,20 +3340,15 @@ function get_cities($id = NULL, $limit = NULL, $offset = NULL)
     return $CI->db->get('cities')->result_array();
 }
 
-function get_favorites($user_id, $limit = NULL, $offset = NULL, $return_count = NULL)
+function get_favorites($user_id, $limit = NULL, $offset = NULL)
 {
     $CI = &get_instance();
-    $CI->db->join('products p', 'p.id=f.product_id')
-        ->where('f.user_id', $user_id);
-
-    if (!empty($return_count)) {
-        return $CI->db->count_all_results('favorites f');
-    }
-
     if (!empty($limit) || !empty($offset)) {
         $CI->db->limit($limit, $offset);
     }
-    $res = $CI->db->select('p.*')
+    $res = $CI->db->join('products p', 'p.id=f.product_id')
+        ->where('f.user_id', $user_id)
+        ->select('p.*')
         ->order_by('f.id', "DESC")
         ->get('favorites f')->result_array();
 
@@ -4062,7 +3924,7 @@ function process_refund($id, $status, $type = 'order_items')
 
             $fcmMsg = array(
                 'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Amount Credited To Wallet",
-                'body' => (!empty($custom_notification)) ? $message : $currency . $returnable_amount,
+                'body' => (!empty($custom_notification)) ? $message : $currency . ' ' . $returnable_amount,
                 'type' => "wallet",
             );
             send_notification($fcmMsg, $fcm_ids);
@@ -4219,7 +4081,7 @@ function process_refund($id, $status, $type = 'order_items')
                 $message = output_escaping(trim($data, '"'));
                 $fcmMsg = array(
                     'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Amount Credited To Wallet",
-                    'body' => (!empty($custom_notification)) ? $message : $currency . $returnable_amount,
+                    'body' => (!empty($custom_notification)) ? $message : $currency . ' ' . $returnable_amount,
                     'type' => "wallet",
                 );
                 send_notification($fcmMsg, $fcm_ids);
@@ -4245,7 +4107,7 @@ function process_refund($id, $status, $type = 'order_items')
                     $message = output_escaping(trim($data, '"'));
                     $fcmMsg = array(
                         'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Amount Credited To Wallet",
-                        'body' => (!empty($custom_notification)) ? $message : $currency . $returnable_amount,
+                        'body' => (!empty($custom_notification)) ? $message : $currency . ' ' . $returnable_amount,
                         'type' => "wallet",
                     );
                     send_notification($fcmMsg, $fcm_ids);
@@ -4412,7 +4274,7 @@ function process_refund_old($id, $status, $type = 'order_items')
                         $message = output_escaping(trim($data, '"'));
                         $fcmMsg = array(
                             'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Amount Credited To Wallet",
-                            'body' => (!empty($custom_notification)) ? $message : $currency . $returnable_amount,
+                            'body' => (!empty($custom_notification)) ? $message : $currency . ' ' . $returnable_amount,
                             'type' => "wallet",
                         );
                         send_notification($fcmMsg, $fcm_ids);
@@ -4446,7 +4308,7 @@ function process_refund_old($id, $status, $type = 'order_items')
                             $message = output_escaping(trim($data, '"'));
                             $fcmMsg = array(
                                 'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Amount Credited To Wallet",
-                                'body' => (!empty($custom_notification)) ? $message : $currency . $returnable_amount,
+                                'body' => (!empty($custom_notification)) ? $message : $currency . ' ' . $returnable_amount,
                                 'type' => "wallet",
                             );
                             send_notification($fcmMsg, $fcm_ids);
@@ -4478,7 +4340,7 @@ function process_refund_old($id, $status, $type = 'order_items')
                                     $message = output_escaping(trim($data, '"'));
                                     $fcmMsg = array(
                                         'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Amount Credited To Wallet",
-                                        'body' => (!empty($custom_notification)) ? $message : $currency . $returnable_amount,
+                                        'body' => (!empty($custom_notification)) ? $message : $currency . ' ' . $returnable_amount,
                                         'type' => "wallet",
                                     );
                                     send_notification($fcmMsg, $fcm_ids);
@@ -4505,7 +4367,7 @@ function process_refund_old($id, $status, $type = 'order_items')
                                     $message = output_escaping(trim($data, '"'));
                                     $fcmMsg = array(
                                         'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Amount Credited To Wallet",
-                                        'body' => (!empty($custom_notification)) ? $message : $currency . $returnable_amount,
+                                        'body' => (!empty($custom_notification)) ? $message : $currency . ' ' . $returnable_amount,
                                         'type' => "wallet",
                                     );
                                     send_notification($fcmMsg, $fcm_ids);
@@ -4546,7 +4408,7 @@ function process_refund_old($id, $status, $type = 'order_items')
                         $message = output_escaping(trim($data, '"'));
                         $fcmMsg = array(
                             'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Amount Credited To Wallet",
-                            'body' => (!empty($custom_notification)) ? $message : $currency . $returnable_amount,
+                            'body' => (!empty($custom_notification)) ? $message : $currency . ' ' . $returnable_amount,
                             'type' => "wallet",
                         );
                         send_notification($fcmMsg, $fcm_ids);
@@ -4579,7 +4441,7 @@ function process_refund_old($id, $status, $type = 'order_items')
                                     $message = output_escaping(trim($data, '"'));
                                     $fcmMsg = array(
                                         'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Amount Credited To Wallet",
-                                        'body' => (!empty($custom_notification)) ? $message : $currency . $returnable_amount,
+                                        'body' => (!empty($custom_notification)) ? $message : $currency . ' ' . $returnable_amount,
                                         'type' => "wallet",
                                     );
                                     send_notification($fcmMsg, $fcm_ids);
@@ -4607,7 +4469,7 @@ function process_refund_old($id, $status, $type = 'order_items')
                                     $message = output_escaping(trim($data, '"'));
                                     $fcmMsg = array(
                                         'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Amount Credited To Wallet",
-                                        'body' => (!empty($custom_notification)) ? $message : $currency . $returnable_amount,
+                                        'body' => (!empty($custom_notification)) ? $message : $currency . ' ' . $returnable_amount,
                                         'type' => "wallet",
                                     );
                                     send_notification($fcmMsg, $fcm_ids);
@@ -5066,123 +4928,6 @@ function get_seller_permission($seller_id, $permit = NULL)
     } else {
         return json_decode($permits[0]['permissions']);
     }
-}
-
-/**
- * Context-aware price range for the product-listing price slider.
- *
- * Returns the MIN and MAX "effective price" across the SAME set of products the
- * listing query (fetch_product) returns for the given filters — but EXCLUDING
- * the price filter itself, so the range never collapses to the current
- * selection.
- *
- * Why this exists: get_price() below computes a single GLOBAL min/max across the
- * whole catalog and ignores the category / brand / search / seller context. That
- * made the slider bounds feel "fixed" (same on every page) and, because its join
- * conditions are stricter than the listing, a product that the grid actually
- * shows could sit OUTSIDE the bound (e.g. a 8599 product unreachable on a 7999
- * slider). Here we mirror the listing's filters and use the IDENTICAL price
- * expression the price WHERE filter uses (see fetch_product) so every product
- * shown is guaranteed to fall within [min, max].
- *
- * The max is padded UP and the min padded DOWN to a clean step so a product can
- * never sit exactly on the cap.
- *
- * @param  array $filter       same $filter passed to fetch_product (price keys ignored)
- * @param  mixed $category_id  int|array|null category context
- * @param  mixed $seller_id    seller context
- * @return array ['min' => float, 'max' => float]
- */
-function get_filtered_price_range($filter = NULL, $category_id = NULL, $seller_id = NULL)
-{
-    $t = &get_instance();
-
-    // MUST match the expression used by the price WHERE filter in fetch_product()
-    // so the slider and the filter speak the same units.
-    $price_expr = 'IF( pv.special_price > 0 , pv.special_price , pv.price )';
-
-    $t->db->select("MIN($price_expr) as min_price, MAX($price_expr) as max_price", false)
-        ->join(" categories c", "p.category_id=c.id ", 'LEFT')
-        ->join(" brands b", "p.brand=b.name", 'LEFT')
-        ->join(" seller_data sd", "p.seller_id=sd.user_id ", 'LEFT')
-        ->join('`product_variants` pv', 'p.id = pv.product_id', 'LEFT')
-        ->join('`product_attributes` pa', ' pa.product_id = p.id ', 'LEFT');
-
-    // Base active-status conditions — mirror fetch_product().
-    $where = ['p.status' => '1', 'pv.status' => 1, 'sd.status' => 1];
-
-    /* --- mirror the listing filters, EXCLUDING min_price / max_price --- */
-    if (isset($filter) && !empty($filter['search'])) {
-        $tags = explode(" ", $filter['search']);
-        $t->db->group_Start();
-        foreach ($tags as $i => $tag) {
-            if ($i == 0) {
-                $t->db->like('p.tags', trim($tag));
-            } else {
-                $t->db->or_like('p.tags', trim($tag));
-            }
-        }
-        $t->db->or_like('p.name', trim($filter['search']));
-        $t->db->group_end();
-    }
-    if (isset($filter) && !empty($filter['brand'])) {
-        $t->db->where('p.brand', trim($filter['brand']));
-    }
-    if (isset($filter) && !empty($filter['brands'])) {
-        $t->db->where_in('p.brand', explode("|", $filter['brands']));
-    }
-    if (isset($filter) && !empty($filter['attribute_value_ids'])) {
-        $str = str_replace(',', '|', $filter['attribute_value_ids']);
-        $t->db->where('CONCAT(",", pa.attribute_value_ids , ",") REGEXP ",(' . $str . ')," !=', 0, false);
-    }
-    if (isset($filter) && !empty($filter['product_type']) && strtolower($filter['product_type']) == 'products_on_sale') {
-        $t->db->where('pv.special_price >', '0');
-    }
-    if (isset($seller_id) && !empty($seller_id) && $seller_id != "") {
-        $where['p.seller_id'] = $seller_id;
-    }
-    if (isset($category_id) && !empty($category_id)) {
-        if (is_array($category_id)) {
-            $t->db->group_Start();
-            $t->db->where_in('p.category_id', $category_id);
-            $t->db->or_where_in('c.parent_id', $category_id);
-            $t->db->group_End();
-        } else {
-            $where['p.category_id'] = $category_id;
-        }
-    }
-
-    // GST enrollment / customer-state restriction — mirror fetch_product() so the
-    // range matches exactly what a given customer can see.
-    if (isset($filter['customer_state']) && !empty($filter['customer_state'])) {
-        $cs = $t->db->escape($filter['customer_state']);
-        $t->db->where("(sd.is_gst_registered = 1 OR LOWER(TRIM(sd.state)) = LOWER(TRIM($cs)))", null, false);
-    }
-
-    $t->db->where($where);
-
-    // Only active/visible categories (mirror fetch_product's no-flag branch).
-    $t->db->group_Start();
-    $t->db->or_where('c.status', '1');
-    $t->db->or_where('c.status', '0');
-    $t->db->group_End();
-
-    $row = $t->db->from("products p")->get()->row_array();
-
-    $min = (isset($row['min_price']) && $row['min_price'] !== null) ? (float) $row['min_price'] : 0;
-    $max = (isset($row['max_price']) && $row['max_price'] !== null) ? (float) $row['max_price'] : 0;
-
-    // Show the REAL page min/max — just snap to whole rupees so the bounds stay
-    // integers. No cosmetic rounding to hundreds: if the cheapest product is 50
-    // the slider min is 50, and if the dearest is 4999 the max is 4999 (not 5000).
-    // The cheapest/dearest products are always reachable because the price filter
-    // itself is inclusive (>= min, <= max).
-    if ($max > 0) {
-        $min = max(0, floor($min));
-        $max = ceil($max);
-    }
-
-    return ['min' => $min, 'max' => $max];
 }
 
 function get_price($type = "max")

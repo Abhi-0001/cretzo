@@ -1,18 +1,4 @@
 .cretzo.btn.btn-wallet-action{
     width: 220px;
-    padding: 3px 12px;
-}
-
-/* Fix: the Balance card + Add Money button sit in a plain `.d-flex` row
-   (nowrap by default). `.col-md-4` is meant to go full-width below the
-   Bootstrap "md" breakpoint, but with no wrap they were instead squeezed
-   into one overflowing row, cropping "Balance"/the amount on narrow
-   screens. Letting the row wrap stacks the two cards on mobile instead. */
-.overview-right .d-flex.justify-content-center.gap-8 {
-    flex-wrap: wrap;
-    row-gap: 20px;
-}
-.overview-right .d-flex.justify-content-center.gap-8 > .col-md-4 {
-    flex: 1 1 260px;
-    max-width: 320px;
+    padding: 3px 12px;   
 }

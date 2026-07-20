@@ -54,25 +54,6 @@
             text-align: center;
         }
 
-        .subscription-launch-banner {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 12px;
-            max-width: 760px;
-            margin: 10px auto 6px;
-            padding: 14px 20px;
-            border-radius: 14px;
-            background: linear-gradient(135deg, var(--orange) 0%, #d96d1a 100%);
-            color: #ffffff;
-            box-shadow: 0 12px 26px -12px rgba(242, 140, 56, 0.8);
-            text-align: left;
-            line-height: 1.35;
-        }
-        .subscription-launch-banner .slb-icon { font-size: 26px; line-height: 1; flex-shrink: 0; }
-        .subscription-launch-banner .slb-title { font-weight: bold; font-size: 15px; display: block; }
-        .subscription-launch-banner .slb-sub { font-size: 13px; opacity: 0.95; }
-
         .subscription-header { padding: 10px 5px; }
         h1 { font-size: 32px; margin-bottom: 5px; }
         .subtitle { color: var(--orange); font-weight: 600; margin-bottom: 10px; }
@@ -202,7 +183,7 @@
                         .cretzo-progress { display:flex; align-items:center; justify-content:center; gap:12px; margin-bottom:18px; font-size:20px }
                         .cretzo-progress .step { color:#111; font-weight:600; padding:0 6px; }
                         .cretzo-progress .step.active { color:#F28C38; font-weight:600; }
-                        .cretzo-progress .connector { width:160px; border:dashed 1.5px #222; }
+                        .cretzo-progress .connector { width:160px; height:4px; border-radius:6px; }
                         .cretzo-progress .connector.orange { background: repeating-linear-gradient(90deg, #F28C38 0 12px, transparent 12px 24px); }
                         .cretzo-progress .connector.dark { background: repeating-linear-gradient(90deg, #222 0 12px, transparent 12px 24px); }
                         @media(max-width:800px){ .cretzo-progress .connector{ width:80px } }
@@ -216,15 +197,6 @@
                         <div class="step">Confirmation</div>
                     </div>
                     <section class="subscription-header">
-                        <?php if (!empty($launch_offer_active)) : ?>
-                        <div class="subscription-launch-banner" role="note">
-                            <span class="slb-icon" aria-hidden="true">&#127881;</span>
-                            <span>
-                                <span class="slb-title">Launch Offer</span>
-                                <span class="slb-sub">First 100 vendors get 50 free listings for 1 year</span>
-                            </span>
-                        </div>
-                        <?php endif; ?>
                         <h1>Subscription Plans</h1>
                         <p class="subtitle">Choose a plan that fits your creative journey</p>
 
@@ -236,42 +208,19 @@
                             <div class="subscription-plans-container">
                                 <?php foreach ($plans as $plan) :
                                     $is_active = $current_plan_id && isset($plan['id']) && (int) $plan['id'] === (int) $current_plan_id;
-                                    $is_launch_offer = isset($plan['name']) && strcasecmp(trim($plan['name']), 'Launch Offer') === 0;
 
-                                    $price_raw = isset($plan['price']) ? trim($plan['price']) : '';
-                                    $price_numeric = preg_replace('/[^\d.]/', '', $price_raw);
-                                    $is_free = ($price_raw === '' || (is_numeric($price_numeric) && (float) $price_numeric <= 0));
-
+                                    $price = isset($plan['price']) && $plan['price'] !== '' ? $plan['price'] : 'Free';
                                     $listings_text = isset($plan['listings_limit']) && $plan['listings_limit'] !== '' ? 'Up to ' . $plan['listings_limit'] . ' Listings' : 'Unlimited Listings';
-
-                                    $validity_raw = isset($plan['validity']) ? trim($plan['validity']) : '';
-                                    if ($validity_raw === '') {
-                                        $validity_text = 'Lifetime';
-                                    } elseif (ctype_digit($validity_raw)) {
-                                        $days = (int) $validity_raw;
-                                        if ($days > 0 && $days % 365 === 0) {
-                                            $years = $days / 365;
-                                            $validity_text = $years . ' Year' . ($years > 1 ? 's' : '');
-                                        } elseif ($days > 0 && $days % 30 === 0) {
-                                            $months = $days / 30;
-                                            $validity_text = $months . ' Month' . ($months > 1 ? 's' : '');
-                                        } else {
-                                            $validity_text = $days . ' Days';
-                                        }
-                                    } else {
-                                        $validity_text = $validity_raw;
-                                    }
+                                    $validity_text = isset($plan['validity']) && $plan['validity'] !== '' ? $plan['validity'] : 'Lifetime';
                                 ?>
                                     <div class="subscription-card <?= $is_active ? 'active' : '' ?>" id="plan-<?= (int) $plan['id']; ?>">
                                         <div class="active-badge">CURRENT PLAN</div>
                                         <h2><?= html_escape($plan['name']); ?></h2>
-                                        <div class="price"><?= $is_free ? 'Free' : '₹' . html_escape($price_raw); ?></div>
+                                        <div class="price">₹<?= html_escape($price); ?></div>
                                         <div class="listings"><?= html_escape($listings_text); ?></div>
                                         <div class="validity"><?= html_escape($validity_text); ?></div>
                                             <?php if ($is_active) : ?>
                                             <button class="upgrade-btn" disabled>Active</button>
-                                        <?php elseif ($is_launch_offer) : ?>
-                                            <button class="upgrade-btn" disabled title="Automatically granted to the first 100 vendors on sign up">First 100 Vendors Only</button>
                                         <?php else : ?>
                                             <button class="upgrade-btn" onclick="window.location.href= base_url + 'seller/subscription/details/<?= (int) $plan['id']; ?>'">Choose Plan</button>
                                         <?php endif; ?>

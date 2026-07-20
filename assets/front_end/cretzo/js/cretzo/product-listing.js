@@ -5,10 +5,6 @@ var perPage = 20;          // default page size for scroll
 var totalRows = 0;
 var isLoading = false;
 var useAjaxInfiniteScroll = false;
-// Controller for the dual-handle price slider (assigned in $(document).ready).
-// Exposed at module scope so ajaxProductList() can re-scale the slider bounds
-// after a filter change.
-var priceSlider = null;
 
 function getCurrentPageFromUrl() {
     var pathParts = window.location.pathname.split('/').filter(Boolean);
@@ -120,13 +116,23 @@ $(document).ready(function() {
         updateURL();
     });
 
-    // Price filter: the dual-handle slider + Min/Max boxes are driven by
-    // initPriceSlider() (defined below). It updates the fill bar and value boxes
-    // live while dragging, but only triggers a product reload ONCE, on
-    // release/commit — so there is no mid-drag flicker and no burst of AJAX calls.
-    // (The old debounced 'input' handler fired a full reload every time the drag
-    // paused for 450ms, which is what made the grid "continuously change".)
-    priceSlider = initPriceSlider();
+    // Add event listener for 'Filter Price' button click
+    $('.filter-price-btn').on('input', function() {
+        price_filter_enabled = true;
+        updateURL();
+    });
+    $('.filter-price-btn').on('change', function() {
+        price_filter_enabled = true;
+        updateURL();
+    });
+    // $('#filter-price-btn').click(function() {
+    //     price_filter_enabled = true;
+    //     updateURL();
+    // });
+    $('#clear-filter-price-btn').click(function() {
+        price_filter_enabled = false;
+        updateURL();
+    });
 
     // Add event listener for 'Filter Price' button click
     $('#clear-all-filters-btn').click(function() {
@@ -222,8 +228,8 @@ $(document).ready(function() {
 
         var $icon = $button.find('i.fa').first();
         var $label = $button.find('span');
-        var addLabel = 'Wishlist';        // label when the product is NOT wishlisted
-        var removeLabel = 'Wishlisted';   // label when the product IS wishlisted
+        var addLabel = 'Add to Wishlist';
+        var removeLabel = 'Wishlist';
         var isFavoriteBefore = $button.attr('data-is-fav') === 'true' || $icon.hasClass('fa-heart');
         var isNowFavorite = !isFavoriteBefore;
         var originalText = $label.text().trim() || (isFavoriteBefore ? removeLabel : addLabel);
@@ -260,18 +266,17 @@ $(document).ready(function() {
 
                 // Toggle heart icon classes and color based on current state
                 if (isNowFavorite) {
-                    // Clear any inline color so the theme color (CSS) drives the heart consistently
-                    $icon.removeClass('fa-heart-o').addClass('fa-heart').css('color', '');
+                    $icon.removeClass('fa-heart-o').addClass('fa-heart').css('color', 'red');
                     $button.addClass('is-fav').attr('data-is-fav', 'true');
                     if ($label.length) {
-                        $label.text(removeLabel);
+                        $label.text('Wishlist');
                     }
                     showToast('✓ Added to Wishlist', 'success');
                 } else {
                     $icon.removeClass('fa-heart').addClass('fa-heart-o').css('color', '');
                     $button.removeClass('is-fav').attr('data-is-fav', 'false');
                     if ($label.length) {
-                        $label.text(addLabel);
+                        $label.text(originalText);
                     }
                     showToast('✓ Removed from Wishlist', 'success');
                 }
@@ -417,165 +422,48 @@ $(document).ready(function() {
         }
     }
 
-    /* ────────────────────────────────────────────────────────────────
-       Dual-handle price slider controller.
+    /* Setup Price Filter */
+    const rangeInput = document.querySelectorAll(".range-input input"),
+    priceInput = document.querySelectorAll(".price-input input"),
+    range = document.querySelector(".slider .progress");
+    let priceGap = 1000;
 
-       Fixes over the old two-overlapping-<input type=range> approach:
-       • Both handles stay draggable — the grabbed handle gets `.is-active`
-         and is raised in z-order, and a minimum gap keeps the thumbs from
-         ever fully overlapping (which is what made the min handle un-grabbable
-         once it met the max, so you couldn't "revert" it).
-       • Hard cap so min can never cross max (and vice-versa).
-       • The product list reloads ONLY on release/commit, never mid-drag.
-       • syncBounds() re-scales the track to the context-aware bounds returned
-         by the AJAX fetch whenever a non-price filter changes the result set.
-       Returns null when the slider markup isn't on the page.
-       ──────────────────────────────────────────────────────────────── */
-    function initPriceSlider() {
-        var wrapper = document.querySelector('.price-slider');
-        if (!wrapper) return null;
+    priceInput.forEach((input) => {
+        input.addEventListener("input", (e) => {
+            let minPrice = parseInt(priceInput[0].value),
+            maxPrice = parseInt(priceInput[1].value);
 
-        var rangeMin = wrapper.querySelector('.range-min');
-        var rangeMax = wrapper.querySelector('.range-max');
-        var inputMin = wrapper.querySelector('.input-min');
-        var inputMax = wrapper.querySelector('.input-max');
-        var progress = wrapper.querySelector('.slider .progress');
-        if (!rangeMin || !rangeMax || !progress) return null;
-
-        var bounds = {
-            min: parseFloat(wrapper.dataset.min) || 0,
-            max: parseFloat(wrapper.dataset.max) || 0,
-            step: parseFloat(wrapper.dataset.step) || 1
-        };
-
-        // Minimum distance (in price units) the handles must keep between them so
-        // they never fully overlap and both remain grabbable. Scales with range.
-        function gap() {
-            return Math.max(bounds.step, Math.round((bounds.max - bounds.min) / 50));
-        }
-
-        function paint() {
-            var span = (bounds.max - bounds.min) || 1;
-            var lo = parseFloat(rangeMin.value);
-            var hi = parseFloat(rangeMax.value);
-            progress.style.left = ((lo - bounds.min) / span) * 100 + '%';
-            progress.style.right = (100 - ((hi - bounds.min) / span) * 100) + '%';
-            if (inputMin) inputMin.value = Math.round(lo);
-            if (inputMax) inputMax.value = Math.round(hi);
-        }
-
-        function setActive(el) {
-            rangeMin.classList.toggle('is-active', el === rangeMin);
-            rangeMax.classList.toggle('is-active', el === rangeMax);
-        }
-
-        // --- Dragging a handle: update visuals only, NO product reload ---
-        rangeMin.addEventListener('input', function () {
-            var lo = parseFloat(rangeMin.value);
-            var hi = parseFloat(rangeMax.value);
-            if (lo > hi - gap()) {                       // cap against the max handle
-                lo = Math.max(bounds.min, hi - gap());
-                rangeMin.value = lo;
+            if (maxPrice - minPrice >= priceGap && maxPrice <= rangeInput[1].max) {
+            if (e.target.className === "input-min") {
+                rangeInput[0].value = minPrice;
+                range.style.left = (minPrice / rangeInput[0].max) * 100 + "%";
+            } else {
+                rangeInput[1].value = maxPrice;
+                range.style.right = 100 - (maxPrice / rangeInput[1].max) * 100 + "%";
             }
-            setActive(rangeMin);
-            paint();
+            }
         });
-        rangeMax.addEventListener('input', function () {
-            var lo = parseFloat(rangeMin.value);
-            var hi = parseFloat(rangeMax.value);
-            if (hi < lo + gap()) {                       // cap against the min handle
-                hi = Math.min(bounds.max, lo + gap());
-                rangeMax.value = hi;
+    });
+
+    rangeInput.forEach((input) => {
+        input.addEventListener("input", (e) => {
+            let minVal = parseInt(rangeInput[0].value),
+            maxVal = parseInt(rangeInput[1].value);
+
+            if (maxVal - minVal < priceGap) {
+            if (e.target.className === "range-min") {
+                rangeInput[0].value = maxVal - priceGap;
+            } else {
+                rangeInput[1].value = minVal + priceGap;
             }
-            setActive(rangeMax);
-            paint();
+            } else {
+            priceInput[0].value = minVal;
+            priceInput[1].value = maxVal;
+            range.style.left = (minVal / rangeInput[0].max) * 100 + "%";
+            range.style.right = 100 - (maxVal / rangeInput[1].max) * 100 + "%";
+            }
         });
-
-        // Raise whichever handle the user grabs, so overlapping thumbs stay usable.
-        ['pointerdown', 'mousedown', 'touchstart', 'focus'].forEach(function (ev) {
-            rangeMin.addEventListener(ev, function () { setActive(rangeMin); });
-            rangeMax.addEventListener(ev, function () { setActive(rangeMax); });
-        });
-
-        // --- Commit (handle released) → reload the product list ONCE ---
-        function commit() {
-            price_filter_enabled = true;
-            updateURL();
-        }
-        rangeMin.addEventListener('change', commit);
-        rangeMax.addEventListener('change', commit);
-
-        // --- Editable Min / Max number boxes ---
-        function commitFromInputs() {
-            var lo = parseFloat(inputMin.value);
-            var hi = parseFloat(inputMax.value);
-            if (isNaN(lo)) lo = bounds.min;
-            if (isNaN(hi)) hi = bounds.max;
-            lo = Math.min(Math.max(lo, bounds.min), bounds.max);
-            hi = Math.min(Math.max(hi, bounds.min), bounds.max);
-            if (hi < lo) { var t = lo; lo = hi; hi = t; }   // fix swapped entry
-            if (hi - lo < gap()) {                          // keep the min gap...
-                if (lo + gap() <= bounds.max) {
-                    hi = lo + gap();                        // ...by pushing max up,
-                } else {
-                    hi = bounds.max;                        // ...or pulling min down
-                    lo = Math.max(bounds.min, hi - gap());  //    when max is capped
-                }
-            }
-            rangeMin.value = lo;
-            rangeMax.value = hi;
-            paint();
-            commit();
-        }
-        if (inputMin && inputMax) {
-            [inputMin, inputMax].forEach(function (inp) {
-                inp.addEventListener('change', commitFromInputs);
-                inp.addEventListener('keydown', function (e) {
-                    if (e.key === 'Enter') { e.preventDefault(); inp.blur(); }
-                });
-            });
-        }
-
-        paint(); // initial position
-
-        return {
-            // Re-scale to the new context-aware bounds returned by the AJAX fetch.
-            // Called when a NON-price filter changes the result set. Keeps the
-            // user's selection (clamped) when a price filter is active; otherwise
-            // spans the full new range.
-            syncBounds: function (newMin, newMax) {
-                newMin = parseFloat(newMin);
-                newMax = parseFloat(newMax);
-                // No usable range (single price point / empty set) — leave the
-                // slider as-is rather than rescaling to a zero-width range.
-                if (isNaN(newMin) || isNaN(newMax) || newMax <= newMin) return;
-
-                bounds.min = newMin;
-                bounds.max = newMax;
-                wrapper.dataset.min = newMin;
-                wrapper.dataset.max = newMax;
-                [rangeMin, rangeMax].forEach(function (r) {
-                    r.min = newMin;
-                    r.max = newMax;
-                });
-                [inputMin, inputMax].forEach(function (inp) {
-                    if (inp) { inp.min = newMin; inp.max = newMax; }
-                });
-
-                if (!price_filter_enabled) {
-                    rangeMin.value = newMin;
-                    rangeMax.value = newMax;
-                } else {
-                    var lo = Math.min(Math.max(parseFloat(rangeMin.value), newMin), newMax);
-                    var hi = Math.min(Math.max(parseFloat(rangeMax.value), newMin), newMax);
-                    if (hi - lo < gap()) hi = Math.min(newMax, lo + gap());
-                    rangeMin.value = lo;
-                    rangeMax.value = hi;
-                }
-                paint();
-            }
-        };
-    }
+    });
 
 });
 
@@ -659,8 +547,12 @@ function ajaxProductList(page = 1, append = false) {
     params.set('page', currentPage);
     params.set('per-page', perPage);
 
-    // The global page loader (bound to jQuery ajaxStart/ajaxStop in template.php)
-    // now provides the loading feedback, so no separate in-grid spinner is needed.
+    $('#productList').html(
+        '<div class="text-center py-5">' +
+            '<div class="spinner-border text-warning"></div>' +
+        '</div>'
+    );
+
     isLoading = true;
 
     $.ajax({
@@ -677,16 +569,6 @@ function ajaxProductList(page = 1, append = false) {
             isLoading = false;
             if (response.status === 'success') {
                 totalRows = response.total_rows || 0;
-
-                // Re-scale the price slider to the context-aware bounds of the
-                // freshly filtered set (min/max returned by fetch_product). Keeps
-                // the current selection when a price filter is active; otherwise
-                // spans the full new range.
-                if (priceSlider && response.products &&
-                    typeof response.products.min_price !== 'undefined') {
-                    priceSlider.syncBounds(response.products.min_price, response.products.max_price);
-                }
-
                 var html = renderProducts(response.products.product || []);
                 if (append) {
                     $('#productList').append(html);
@@ -724,10 +606,8 @@ function renderPagination(total, page, pageSize) {
     }
 
     var html = '<ul class="pagination justify-content-center">';
-    var maxLinks = 7;
-    var start = Math.max(1, page - Math.floor(maxLinks / 2));
-    var end = Math.min(totalPages, start + maxLinks - 1);
-    start = Math.max(1, end - maxLinks + 1);
+    var start = Math.max(1, page - 3);
+    var end = Math.min(totalPages, page + 3);
 
     if (page > 1) {
         html += '<li class="page-item"><a class="page-link ajax-page-link" href="#" data-page="' + (page - 1) + '"><i class="uil uil-arrow-left"></i></a></li>';
@@ -798,16 +678,9 @@ function renderProducts(products) {
         let heartClass = isFav ? 'fa-heart' : 'fa-heart-o';
         let favClass = isFav ? 'is-fav' : '';
         let favState = isFav ? 'true' : 'false';
-        let favLabel = isFav ? 'Wishlisted' : 'Wishlist';
 
         // Product image
         let imgSrc = product.image_sm || base_url + 'assets/front_end/modern/img/product-placeholder.jpg';
-
-        // Secondary image for the hover-swap (falls back to none when the product has only one image)
-        let hoverSrc = (product.other_images_sm && product.other_images_sm.length) ? product.other_images_sm[0] : '';
-        let hoverImgHTML = hoverSrc
-            ? `<img class="card-img-img secondary-img" src="${hoverSrc}" alt="${product.name}">`
-            : '';
 
         // Short description safely
         let shortDesc = product.short_description ? product.short_description.replace(/\r\n/g, '&#13;&#10;') : '';
@@ -859,14 +732,13 @@ function renderProducts(products) {
                 <button class="small-btn small-btn-light prod-tag prod-tag-top">Sale</button>
                 <button class="small-btn small-btn-dark prod-tag prod-tag-bottom">New</button>
 
-                <img class="card-img-img primary-img lazy" src="${imgSrc}" data-src="${imgSrc}" alt="${product.name}">
-                ${hoverImgHTML}
+                <img class="card-img-img lazy" src="${imgSrc}" data-src="${imgSrc}" alt="${product.name}">
 
                 ${generateStarRatingHTML(product)}
 
                 <button class="text-n addwishlist-btn ${favClass}" id="add_to_favorite_btn" data-is-fav="${favState}" data-product-id="${product.id}">
                     <i class="heart-icon fa ${heartClass}"></i>
-                    <span>${favLabel}</span>
+                    <span>Wishlist</span>
                 </button>
             </div>
 

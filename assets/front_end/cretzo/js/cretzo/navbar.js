@@ -187,13 +187,3 @@ function setNavbarShadow(enable){
         $(".navbar-container").removeClass("shadow");
     }
 }
-
-/* P4.1 — Mobile mega-menu accordion: expand/collapse a category's subcategories */
-$(document).on('click', '.mobile-mega-nav .mm-toggle', function(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    var $item = $(this).closest('.mm-item');
-    var willOpen = !$item.hasClass('open');
-    $item.toggleClass('open', willOpen);
-    $(this).attr('aria-expanded', willOpen ? 'true' : 'false');
-});

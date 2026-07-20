@@ -431,7 +431,7 @@ class Cart extends CI_Controller
             $total = $this->data['cart']['total_arr'];
             if ($total < $settings['minimum_cart_amt']) {
                 if (isset($settings['minimum_cart_amt']) && !empty($settings['minimum_cart_amt'])) {
-                    $this->session->set_flashdata('message', 'Minimum total should be ' . $currency . $settings['minimum_cart_amt']);
+                    $this->session->set_flashdata('message', 'Minimum total should be ' . $currency . ' ' . $settings['minimum_cart_amt']);
                     $this->session->set_flashdata('message_type', 'error');
                     redirect(base_url('cart'), 'refresh');
                 }
@@ -648,7 +648,7 @@ class Cart extends CI_Controller
                 }
                 //checking for product availability 
                 if (isset($_POST['product_type']) && $_POST['product_type'] != 'digital_product') {
-                    $area_id = fetch_details('addresses', ['id' => $_POST['address_id']], ['area_id', 'area', 'pincode', 'state']);
+                    $area_id = fetch_details('addresses', ['id' => $_POST['address_id']], ['area_id', 'area', 'pincode']);
                     $zipcode = $area_id[0]['pincode'];
                     $zipcode_id = fetch_details('zipcodes', ['zipcode' => $zipcode], 'id')[0];
                     $product_delivarable = check_cart_products_delivarable($_POST['user_id'], $area_id[0]['area_id'], $zipcode, $zipcode_id['id']);
@@ -669,33 +669,6 @@ class Cart extends CI_Controller
                         }
                     }
                 }
-
-                // GST enrollment restriction (P3.2): a seller registered via GST Enrollment
-                // Number (is_gst_registered = 0) may only sell within their own state. Block the
-                // order if any such item's seller state differs from the shipping address state.
-                if (isset($_POST['product_type']) && $_POST['product_type'] != 'digital_product') {
-                    $ship_state = isset($area_id[0]['state']) ? trim(strtolower($area_id[0]['state'])) : '';
-                    $restricted_variant_ids = explode(',', $_POST['product_variant_id']);
-                    foreach ($restricted_variant_ids as $r_vid) {
-                        $r_pv = fetch_details('product_variants', ['id' => $r_vid], 'product_id');
-                        if (empty($r_pv)) continue;
-                        $r_pr = fetch_details('products', ['id' => $r_pv[0]['product_id']], 'seller_id,name');
-                        if (empty($r_pr)) continue;
-                        $r_seller = fetch_details('seller_data', ['user_id' => $r_pr[0]['seller_id']], 'is_gst_registered,state');
-                        if (empty($r_seller)) continue;
-                        if (isset($r_seller[0]['is_gst_registered']) && $r_seller[0]['is_gst_registered'] == 0) {
-                            $seller_state = trim(strtolower($r_seller[0]['state']));
-                            if ($seller_state === '' || $ship_state === '' || $seller_state !== $ship_state) {
-                                $this->response['error'] = true;
-                                $this->response['message'] = 'The product "' . $r_pr[0]['name'] . '" can only be delivered within the seller\'s state (' . $r_seller[0]['state'] . '). Please remove it from your cart or choose an address in that state.';
-                                $this->response['data'] = array();
-                                print_r(json_encode($this->response));
-                                return;
-                            }
-                        }
-                    }
-                }
-
                 if ($_POST['payment_method'] == 'COD') {
                     $product_variant_id = explode(',', $_POST['product_variant_id']);
                     for ($i = 0; $i < count($product_variant_id); $i++) {

@@ -17,21 +17,6 @@
     max-width: 100% !important;
 }
 
-/* Constrain hero banner height so it doesn't take over the viewport */
-.slider .slide-img img{
-    width: 100% !important;
-    height: 420px !important;
-    max-height: 60vh !important;
-    object-fit: cover !important;
-}
-
-@media (max-width: 768px){
-    .slider .slide-img img{
-        height: 240px !important;
-        max-height: 45vh !important;
-    }
-}
-
 
 /* instagram items container to scale down overall size, since curator doesn't allow resize for free users */
 .instagram-items-container{
