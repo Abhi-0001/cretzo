@@ -604,7 +604,7 @@
                                             <?php if (!empty($cart['tax_percentage'])) { ?>
                                                 <tr class="cart-product-tax d-none">
                                                     <td class="text-muted"><?= !empty($this->lang->line('tax')) ? $this->lang->line('tax') : 'Tax' ?> (<?= $cart['tax_percentage'] ?>%)</td>
-                                                    <td class="text-muted"><?= $settings['currency'] . ' ' . number_format($cart['tax_amount'], 2) ?></td>
+                                                    <td class="text-muted"><?= $settings['currency'] . number_format($cart['tax_amount'], 2) ?></td>
                                                 </tr>
                                             <?php } ?>
                                             <?php
@@ -628,7 +628,7 @@
                                                                 </h6>
                                                             </div>
                                                             <div class="deliverycharge_currency ms-2 d-flex gap-1">
-                                                                <?= $settings['currency'] . ' ' ?><span class="shipping_method"></span>
+                                                                <?= $settings['currency'] ?><span class="shipping_method"></span>
                                                             </div>
                                                         </div>
                                                         <div class="d-flex">
@@ -638,7 +638,7 @@
                                                                 </h6>
                                                             </div>
                                                             <div class="deliverycharge_currency ms-2 d-flex gap-1">
-                                                                <?= $settings['currency'] . ' ' ?><span class="delivery_charge_with_cod"></span>
+                                                                <?= $settings['currency'] ?><span class="delivery_charge_with_cod"></span>
                                                                 <input type="hidden" name="delivery_charge_with_cod" class="delivery_charge_with_cod" value="" />
 
                                                             </div>
@@ -650,7 +650,7 @@
                                                                 </h6>
                                                             </div>
                                                             <div class="deliverycharge_currency ms-2 d-flex gap-1">
-                                                                <?= $settings['currency'] . ' ' ?><span class="delivery_charge_without_cod"></span>
+                                                                <?= $settings['currency'] ?><span class="delivery_charge_without_cod"></span>
                                                                 <input type="hidden" name="delivery_charge_without_cod" class="delivery_charge_without_cod" value="" />
                                                             </div>
                                                         </div>
@@ -685,7 +685,7 @@
                                                                     </h6>
                                                                 </div>
                                                                 <div class="deliverycharge_currency ms-2 d-flex gap-1">
-                                                                    <?= $settings['currency'] . ' ' ?><span class="delivery_charge_with_cod"></span>
+                                                                    <?= $settings['currency'] ?><span class="delivery_charge_with_cod"></span>
                                                                     <input type="hidden" name="delivery_charge_with_cod" class="delivery_charge_with_cod" value="" />
 
                                                                 </div>
@@ -697,7 +697,7 @@
                                                                     </h6>
                                                                 </div>
                                                                 <div class="deliverycharge_currency ms-2 d-flex gap-1">
-                                                                    <?= $settings['currency'] . ' ' ?><span class="delivery_charge_without_cod"></span>
+                                                                    <?= $settings['currency'] ?><span class="delivery_charge_without_cod"></span>
                                                                     <input type="hidden" name="delivery_charge_without_cod" class="delivery_charge_without_cod" value="" />
                                                                 </div>
                                                             </div>
@@ -709,7 +709,7 @@
 
                                             <tr>
                                                 <td class="text-muted"><?= !empty($this->lang->line('wallet')) ? $this->lang->line('wallet') : 'Wallet' ?></td>
-                                                <td class="text-muted text-end d-flex gap-1"><?= $settings['currency'] ?> <span class="wallet_used">0.00<span></td>
+                                                <td class="text-muted text-end d-flex gap-1"><?= $settings['currency'] ?><span class="wallet_used">0.00<span></td>
 
                                             </tr>
                                             <tr id="promocode_div" class="d-none">

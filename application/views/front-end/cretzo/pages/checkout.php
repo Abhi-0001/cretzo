@@ -253,7 +253,7 @@
                     </tr>
                     <tr class="bill-row bill-row-last">
                         <td class="text-n bill-column fw-b">Total Amount</td>
-                        <td class="text-n bill-column fw-b final-total">₹<?= moneyFormatIndia(round($total)) ?></td>
+                        <td class="text-n bill-column fw-b">₹<span class="final-total"><?= moneyFormatIndia(round($total)) ?></span></td>
                     </tr>
                 </table>
 
@@ -480,7 +480,7 @@
                     </tr>
                     <tr class="bill-row wallet-section d-none">
                         <td class="text-s bill-column"><?= !empty($this->lang->line('wallet')) ? $this->lang->line('wallet') : 'Wallet' ?></td>
-                        <td class="text-s bill-column" style="color: var(--color-success);">- <?= $settings['currency'] ?> <span class="wallet_used">0.00<span></td>
+                        <td class="text-s bill-column" style="color: var(--color-success);">- <?= $settings['currency'] ?><span class="wallet_used">0.00<span></td>
                     </tr>
                     <tr class="bill-row">
                         <td class="text-s bill-column">Platform Free</td>
@@ -529,13 +529,15 @@
 
 <!-- Modal for Coupon Codes -->
 <div class="modal fade" id="promo-code-modal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered modal-sm">
-        <div class="modal-content text-center">
-            <div class="modal-body">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title w-100 text-center m-0"><?= !empty($this->lang->line('promocodes')) ? $this->lang->line('promocodes') : 'Promocodes' ?></h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
                 <section id="promo_code_form">
-                    <div class="h4"><?= !empty($this->lang->line('promocodes')) ? $this->lang->line('promocodes') : 'Promocodes' ?></div>
-                    <ul id="promocode-list" class="p-0"></ul>
+                    <ul id="promocode-list" class="promo-list"></ul>
                 </section>
             </div>
             <!--/.modal-content -->
@@ -545,6 +547,104 @@
     <!--/.modal-dialog -->
 </div>
 <!--/.modal -->
+
+<style>
+    #promo-code-modal .promo-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+    #promo-code-modal .promo-card {
+        border: 1px solid #ececec;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 14px;
+        background: #fff;
+        transition: box-shadow .2s ease, border-color .2s ease;
+    }
+    #promo-code-modal .promo-card:last-child {
+        margin-bottom: 0;
+    }
+    #promo-code-modal .promo-card:hover {
+        border-color: var(--color-orange, #f26722);
+        box-shadow: 0 4px 14px rgba(0, 0, 0, .06);
+    }
+    #promo-code-modal .promo-card-top {
+        display: flex;
+        align-items: stretch;
+        gap: 12px;
+    }
+    #promo-code-modal .promo-card-img {
+        flex-shrink: 0;
+        width: 175px;
+        min-height: 80px;
+        border-radius: 8px;
+        overflow: hidden;
+        background: #fff2ea;
+    }
+    #promo-code-modal .promo-card-img img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+    #promo-code-modal .promo-card-img-fallback {
+        width: 100%;
+        height: 100%;
+        align-items: center;
+        justify-content: center;
+        color: var(--color-orange, #f26722);
+        font-size: 24px;
+    }
+    #promo-code-modal .promo-card-right {
+        flex: 1 1 auto;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 8px;
+    }
+    #promo-code-modal .promo-card-code {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        border: 1px dashed #c7c7c7;
+        border-radius: 8px;
+        background: #faf7f5;
+        padding: 10px 14px;
+        cursor: pointer;
+        transition: background .2s ease, border-color .2s ease;
+    }
+    #promo-code-modal .promo-card-code:hover {
+        background: #fff2ea;
+        border-color: var(--color-orange, #f26722);
+    }
+    #promo-code-modal .promo-card-code-text {
+        font-weight: 700;
+        letter-spacing: .5px;
+        color: #222;
+        font-size: 15px;
+    }
+    #promo-code-modal .promo-card-copy {
+        color: var(--color-orange, #f26722);
+        font-size: 16px;
+        flex-shrink: 0;
+    }
+    #promo-code-modal .promo-card-desc {
+        margin: 0;
+        color: #6b6b6b;
+        font-size: 13px;
+        line-height: 1.5;
+        text-align: left;
+    }
+    #promo-code-modal .promo-empty {
+        list-style: none;
+        text-align: center;
+        color: #6b6b6b;
+        padding: 24px 0;
+    }
+</style>
 
 <!-- Modal for Editing Address -->
 <!-- <div class="modal fade edit-modal-lg" id="address-modal" tabindex="-1" role="dialog" aria-labelledby="myLargeModalLabel" aria-hidden="true">

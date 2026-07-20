@@ -52,10 +52,50 @@ $font_color = (isset($settings['font_color']) && !empty($settings['font_color'])
             --secondary-color: <?= $secondary_colour ?>;
             --font-color: <?= $font_color ?>;
         }
+
+        /* ===== Global page loader ===== */
+        #global-page-loader {
+            position: fixed;
+            inset: 0;
+            z-index: 2147483647;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.55);
+            -webkit-backdrop-filter: blur(1px);
+            backdrop-filter: blur(1px);
+        }
+
+        #global-page-loader.active {
+            display: flex;
+        }
+
+        #global-page-loader .loader {
+            width: 50px;
+            aspect-ratio: 1;
+            border-radius: 50%;
+            background:
+                radial-gradient(farthest-side, #ffa516 94%, #0000) top/8px 8px no-repeat,
+                conic-gradient(#0000 30%, #ffa516);
+            -webkit-mask: radial-gradient(farthest-side, #0000 calc(100% - 8px), #000 0);
+            mask: radial-gradient(farthest-side, #0000 calc(100% - 8px), #000 0);
+            animation: l13 1s infinite linear;
+        }
+
+        @keyframes l13 {
+            100% {
+                transform: rotate(1turn);
+            }
+        }
     </style>
 </head>
 
 <body id="body" data-is-rtl='<?= $is_rtl ?>'>
+
+    <!-- Global page loader (shows on navigation / button clicks until the next page loads) -->
+    <div id="global-page-loader" aria-hidden="true" role="status">
+        <div class="loader"></div>
+    </div>
 
     <?php
         if (!empty($hide_header_footer) && $hide_header_footer) {
@@ -82,6 +122,71 @@ $font_color = (isset($settings['font_color']) && !empty($settings['font_color'])
         $this->load->view('front-end/' . THEME . '/footer');
         $this->load->view('front-end/' . THEME . '/include-script'); */
     ?>
+
+    <!-- Global page loader controller -->
+    <script>
+        (function () {
+            var overlay = document.getElementById('global-page-loader');
+            if (!overlay) return;
+
+            var safetyTimer = null;
+
+            function show() {
+                overlay.classList.add('active');
+                // Never let the loader get stuck (e.g. cancelled navigation / AJAX buttons)
+                clearTimeout(safetyTimer);
+                safetyTimer = setTimeout(hide, 20000);
+            }
+
+            function hide() {
+                overlay.classList.remove('active');
+                clearTimeout(safetyTimer);
+            }
+
+            // Hide as soon as the (next) page is ready or restored from bfcache
+            window.addEventListener('load', hide);
+            window.addEventListener('pageshow', hide);
+
+            // Fallback: fires for every real navigation away from the page
+            window.addEventListener('beforeunload', show);
+
+            // Immediate feedback on link clicks
+            document.addEventListener('click', function (e) {
+                var a = e.target.closest && e.target.closest('a');
+                if (!a) return;
+
+                var href = a.getAttribute('href');
+                if (!href) return;
+
+                // Skip in-page anchors, JS handlers, new tabs, downloads and opt-outs
+                if (a.hasAttribute('data-no-loader')) return;
+                if (a.target && a.target !== '_self') return;
+                if (a.hasAttribute('download')) return;
+                if (href.charAt(0) === '#') return;
+                if (/^(javascript:|mailto:|tel:|whatsapp:)/i.test(href)) return;
+                if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
+
+                show();
+            }, true);
+
+            // Immediate feedback on form submissions
+            document.addEventListener('submit', function (e) {
+                var form = e.target;
+                if (form && form.hasAttribute('data-no-loader')) return;
+                show();
+            }, true);
+
+            // Show the same loader for AJAX / API calls (popups, filters, etc.).
+            // Fires when the first request starts and hides when all finish.
+            // To skip the loader for a specific request, pass { global: false }
+            // in its jQuery $.ajax options.
+            if (window.jQuery) {
+                jQuery(document)
+                    .ajaxStart(function () { show(); })
+                    .ajaxStop(function () { hide(); });
+            }
+        })();
+    </script>
 
 </body>
 

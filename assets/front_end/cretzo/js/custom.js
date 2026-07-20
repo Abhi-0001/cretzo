@@ -9,7 +9,9 @@ const is_loggedin = $("#is_loggedin").val();
 
 const Toast = Swal.mixin({
     toast: !0,
-    position: "top-end",
+    /* cretzo: show notifications centered just BELOW the header (was "top-end",
+       which overlapped the header). Vertical offset is applied via CSS in footer.php. */
+    position: "top",
     showConfirmButton: !1,
     timer: 3e3,
     timerProgressBar: !0,
@@ -341,6 +343,45 @@ function closeLoginPopupFast() {
     toggleAuthLoading(false);
 }
 
+// Bootstrap 4 JS (bootstrap.min.js) and Bootstrap 5 JS (plugins.js) are BOTH loaded
+// while only BS4 CSS is present. In that mixed setup a modal hide can leave an orphaned
+// .modal-backdrop + body.modal-open (overflow:hidden) behind, greying out and locking the
+// whole page. This strips those artifacts whenever no modal/offcanvas is genuinely open.
+function cleanupModalArtifacts() {
+    if ($('.modal.show').length || $('.offcanvas.show').length) return;
+    $('.modal-backdrop').remove();
+    $('body').removeClass('modal-open')
+             .css({ 'overflow': '', 'overflow-y': '', 'padding-right': '' });
+}
+
+// Normal path: Bootstrap finished hiding a modal/offcanvas (BS4 and BS5 both fire these,
+// and BS5's native events bubble so this jQuery delegate catches both).
+$(document).on('hidden.bs.modal', '.modal', cleanupModalArtifacts);
+$(document).on('hidden.bs.offcanvas', '.offcanvas', cleanupModalArtifacts);
+
+// Any dismiss trigger — BS5 (data-bs-dismiss) or BS4 (data-dismiss).
+$(document).on('click',
+    '[data-bs-dismiss="modal"], [data-dismiss="modal"], [data-bs-dismiss="offcanvas"], [data-dismiss="offcanvas"]',
+    function () { setTimeout(cleanupModalArtifacts, 400); });
+
+// Escape hatch: an ORPHANED backdrop (no modal actually visible) must never trap the page —
+// clicking the grey area force-clears it. If a modal is genuinely open, let Bootstrap handle it.
+$(document).on('click', '.modal-backdrop', function () {
+    if ($('.modal.show').length || $('.offcanvas.show').length) {
+        setTimeout(cleanupModalArtifacts, 400);
+        return;
+    }
+    $(this).remove();
+    cleanupModalArtifacts();
+});
+
+// Safety net: ESC key close.
+$(document).on('keydown', function (e) {
+    if (e.key === 'Escape' || e.keyCode === 27) {
+        setTimeout(cleanupModalArtifacts, 400);
+    }
+});
+
 $(document).on("submit", ".form-submit-event", function (e) {
     e.preventDefault();
     var t = new FormData(this),
@@ -574,7 +615,7 @@ search_products.on("select2:select", function (e) {
                         if (t_i && t_i.length) {
                             if (t_i.hasClass('fa-heart-o')) {
                                 t_i.removeClass('fa-heart-o').addClass('fa-heart');
-                                t_i.css('color', 'red');
+                                t_i.css('color', ''); // let CSS theme the filled heart (orange, not red)
                             } else if (t_i.hasClass('fa-heart')) {
                                 t_i.removeClass('fa-heart').addClass('fa-heart-o');
                                 t_i.css('color', '');
@@ -791,18 +832,26 @@ search_products.on("select2:select", function (e) {
                                 "data-max": data.total_allowed_quantity // values (or variables) here
                             })
                         } else {
+                            // No configured cap -> leave max empty (unlimited on the
+                            // client, same as the product detail page). A hard "1" here
+                            // locked the +/- stepper so it could never increment.
                             $(".in-num").attr({
-                                "data-max": 1 // values (or variables) here
+                                "data-max": '' // values (or variables) here
                             });
                             $(".plus").attr({
-                                "data-max": 1 // values (or variables) here
+                                "data-max": '' // values (or variables) here
                             });
                             $("#modal-add-to-cart-button").attr({
-                                "data-max": 1 // values (or variables) here
+                                "data-max": '' // values (or variables) here
                             })
                         }
 
-                        $("#modal-product-quantity").val(data.minimum_order_quantity);
+                        // jQuery caches .data() on first read and does NOT refresh it
+                        // when .attr() changes the underlying data-* attribute. Clear the
+                        // cache so the stepper handler re-reads this product's min/max/step.
+                        $(".in-num, .minus, .plus").removeData("min").removeData("max").removeData("step");
+
+                        $("#modal-product-quantity").val(data.minimum_order_quantity ? data.minimum_order_quantity : 1);
                         var title_slug = "";
 
                         if (data.name) {
@@ -817,11 +866,26 @@ search_products.on("select2:select", function (e) {
                         // var price = data.get_price.range
                         if ((data.variants[0].special_price < data.variants[0].price) && (data.variants[0].special_price != 0)) {
                             var price = data.variants[0].special_price
+                            $('#modal-product-special-price').text(currency + data.variants[0].price);
+                            $('#modal-product-special-price-div').show();
+                            // Discount %, mirroring the product detail page's "(NN% OFF)"
+                            var qvDiscount = Math.round((data.variants[0].price - data.variants[0].special_price) / data.variants[0].price * 100);
+                            $('#modal-product-discount').text(qvDiscount > 0 ? '(' + qvDiscount + '% OFF)' : '');
                         } else {
                             var price = data.variants[0].price
+                            $('#modal-product-special-price-div').hide();
+                            $('#modal-product-discount').text('');
                         }
                         // var price = data.variants[0].price
-                        $('#modal-product-price').html(price);
+                        $('#modal-product-price').html(currency + price);
+
+                        // Stock indicator, mirroring the product detail page ("N in stock")
+                        var qvStock = (data.variants[0] && data.variants[0].stock != null) ? data.variants[0].stock : data.stock;
+                        if (qvStock !== undefined && qvStock !== null && qvStock !== '') {
+                            $('#modal-product-stock').html('<i class="uil uil-check-circle"></i> ' + qvStock + ' in stock').show();
+                        } else {
+                            $('#modal-product-stock').empty().hide();
+                        }
 
 
                         //Quick View Product Modal Gallery Swiper
@@ -962,7 +1026,7 @@ search_products.on("select2:select", function (e) {
 
                                     is_color = 1;
 
-                                    color_code = 'style="background-color:' + swatche_values[j] + '";';
+                                    color_code = ' style="background-color:' + swatche_values[j] + ' !important;"';
 
                                     variant_attributes += '<style> .product-page-details .btn-group>.active { border: 1px solid black;}</style>' +
 
@@ -1003,14 +1067,18 @@ search_products.on("select2:select", function (e) {
 
                         if (data.type != "digital_product") {
                             variant_attributes +=
+                                '<div class="d-flex flex-row qv-delivery-heading">' +
+                                '<h4 class="text-n mb-2 fw-bold opacity-75">DELIVERY OPTIONS</h4>' +
+                                '<i class="uil uil-truck ship-icon ml-2"></i>' +
+                                '</div>' +
                                 '<form class="mt-2 validate_zipcode_quick_view "   method="post" >' +
                                 '<div class="d-flex flex-nowrap input-group">' +
                                 '<div class="pl-0">' +
                                 '<input type="hidden" name="product_id" value="' + data.id + '">' +
                                 '<input type="hidden" name="' + csrfName + '" value="' + csrfHash + '">' +
-                                '<input type="text" class="form-control" id="zipcode" placeholder="Zipcode" name="zipcode" required value="' + data.zipcode + '">' +
+                                '<input type="text" class="form-control rounded" id="zipcode" placeholder="Enter Pincode" name="zipcode" autocomplete="off" required value="' + data.zipcode + '">' +
                                 '</div>' +
-                                '<button type="submit" class="btn btn-sm ml-0 btn-primary check-availability" data-product_id="' + data.id + '"  data-zipcode="' + data.zipcode + '"  id="validate_zipcode">Check Availability</button>' +
+                                '<button type="submit" class="cretzo btn btn-sm ml-0 btn-primary check-availability" data-product_id="' + data.id + '"  data-zipcode="' + data.zipcode + '"  id="validate_zipcode">Check Availability</button>' +
                                 '</div>' +
                                 '<div class="mt-2" id="error_box1">' +
                                 err_msg +
@@ -1057,21 +1125,23 @@ search_products.on("select2:select", function (e) {
 
                         $('#modal-product-variants-div').html(variants);
 
-                        $('#add_to_favorite_btn').attr('data-product-id', data.id);
-
+                        // Reset the wishlist button fully each open (the modal is reused,
+                        // so stale add-fav/remove-fav + heart icon from a previous product
+                        // must be cleared). Outline heart = not saved, filled = saved —
+                        // same visual language as the product detail page.
+                        var $favBtn = $('#add_to_favorite_btn');
+                        $favBtn.attr('data-product-id', data.id);
+                        var $favIcon = $favBtn.find('i');
                         if (data.is_favorite == 1) {
-
-                            $('#add_to_favorite_btn').addClass('remove-fav');
-
-                            $('#add_to_favorite_btn').find('span').text('Remove From Favorite');
-
+                            $favBtn.removeClass('add-fav').addClass('remove-fav');
+                            $favIcon.removeClass('fa-heart-o').addClass('fa-heart');
+                            $favBtn.attr('data-is-fav', 'true');
                         } else {
-
-                            $('#add_to_favorite_btn').addClass('add-fav');
-
-                            $('#add_to_favorite_btn').find('span').text('Add to Favorite');
-
+                            $favBtn.removeClass('remove-fav').addClass('add-fav');
+                            $favIcon.removeClass('fa-heart').addClass('fa-heart-o');
+                            $favBtn.attr('data-is-fav', 'false');
                         }
+                        $favIcon.css('color', '');
 
                         $('#compare').attr('data-product-id', data.id);
 
@@ -1158,7 +1228,7 @@ search_products.on("select2:select", function (e) {
                                 a = u[t])
                         }), i ? (quickViewgalleryTop.slideTo(a, 500, !1),
                             mobile_image_swiper.slideTo(a, 500, !1),
-                            n[0].special_price < n[0].price && 0 != n[0].special_price ? (s = n[0].special_price, $("#modal-product-price").text(currency + " " + s), $("#modal-product-special-price").text(currency + " " + n[0].price), $("#modal-add-to-cart-button").attr("data-product-variant-id", e), $("#modal-product-special-price-div").show()) : (s = n[0].price, $("#modal-product-price").html(currency + " " + s), $("#modal-product-special-price-div").hide(), $("#modal-add-to-cart-button").attr("data-product-variant-id", e))) : $("#modal-product-special-price-div").hide()
+                            n[0].special_price < n[0].price && 0 != n[0].special_price ? (s = n[0].special_price, $("#modal-product-price").text(currency + s), $("#modal-product-special-price").text(currency + n[0].price), $("#modal-add-to-cart-button").attr("data-product-variant-id", e), $("#modal-product-special-price-div").show()) : (s = n[0].price, $("#modal-product-price").html(currency + s), $("#modal-product-special-price-div").hide(), $("#modal-add-to-cart-button").attr("data-product-variant-id", e))) : $("#modal-product-special-price-div").hide()
                     }
                 })
             }),
@@ -1207,7 +1277,7 @@ search_products.on("select2:select", function (e) {
                                 console.log(t);
                                 void 0 !== t.product_variants.variant_values && null != t.product_variants.variant_values && t.product_variants.variant_values;
                                 var a = t.special_price < t.price && 0 != t.special_price ? t.special_price : t.price;
-                                n += '<div class="shopping-cart"><div class="shopping-cart-item d-flex justify-content-between mb-4" title = "' + t.name + '"><div class="d-flex flex-row gap-3"><figure class="rounded cart-img"><a href="' + base_url + 'products/details/' + t.slug + '"><img src="' + base_url + t.image + '" alt="Not Found" style="object-fit: contain;"></a></figure><div class="w-100 cart-title"><a href="' + base_url + 'products/details/' + t.slug + '"><h3 class="post-title fs-16 lh-xs mb-1" title = " ' + t.name + '">' + t.name + "</h3></a><span>" + t.product_variants.variant_values + '</span><p class="price"><ins><span class="amount">' + currency + " " + a + '</span></ins></p><div class="product-pricing d-flex py-2 px-1 w-100"><div class="align-items-center d-flex p-2 w-15"><input type="number" name="header_qty" class="form-control d-flex align-items-center" value="' + c + '" data-id="' + t.product_variant_id + '" data-price="' + t.price + '" min="' + c + '" max="' + l + '" step="' + d + '" ></div><div class="product-line-price align-self-center px-1">' + currency + (t.qty * a) + '</div></div></div></div><div class="product-sm-removal"><button class="remove-product btn btn-sm btn-danger rounded-1 p-1 py-0" data-id="' + t.product_variant_id + '"><i class="uil uil-trash-alt"></i></button></div></div></div>'
+                                n += '<div class="shopping-cart"><div class="shopping-cart-item d-flex justify-content-between mb-4" title = "' + t.name + '"><div class="d-flex flex-row gap-3"><figure class="rounded cart-img"><a href="' + base_url + 'products/details/' + t.slug + '"><img src="' + base_url + t.image + '" alt="Not Found" style="object-fit: contain;"></a></figure><div class="w-100 cart-title"><a href="' + base_url + 'products/details/' + t.slug + '"><h3 class="post-title fs-16 lh-xs mb-1" title = " ' + t.name + '">' + t.name + "</h3></a><span>" + t.product_variants.variant_values + '</span><p class="price"><ins><span class="amount">' + currency + a + '</span></ins></p><div class="product-pricing d-flex py-2 px-1 w-100"><div class="align-items-center d-flex p-2 w-15"><input type="number" name="header_qty" class="form-control d-flex align-items-center" value="' + c + '" data-id="' + t.product_variant_id + '" data-price="' + t.price + '" min="' + c + '" max="' + l + '" step="' + d + '" ></div><div class="product-line-price align-self-center px-1">' + currency + (t.qty * a) + '</div></div></div></div><div class="product-sm-removal"><button class="remove-product btn btn-sm btn-danger rounded-1 p-1 py-0" data-id="' + t.product_variant_id + '"><i class="uil uil-trash-alt"></i></button></div></div></div>'
                             }), $("#cart-item-sidebar").html(n)
                         } else {
                             if (0 == is_loggedin) {
@@ -1441,7 +1511,7 @@ search_products.on("select2:select", function (e) {
             
             /* s.children(".product-line-price").each(function () {
                 $(this).fadeOut(a, function () {
-                    $(this).text(currency + " " + i.toFixed(2)), r(), usercartTotal(), $(this).fadeIn(a)
+                    $(this).text(currency + i.toFixed(2)), r(), usercartTotal(), $(this).fadeIn(a)
                 })
             }) */
 
@@ -1452,14 +1522,25 @@ search_products.on("select2:select", function (e) {
                 var parent = $(e).closest('.cart-item-detail-span');
                 parent.find(".discounted-price").each(function () {
                     $(this).fadeOut(a, function () {
-                        $(this).text(currency + " " + i.toFixed(2)), r(), usercartTotal(), $(this).fadeIn(a)
+                        $(this).text(currency + i.toFixed(2)), r(), usercartTotal(), $(this).fadeIn(a)
                     })
                 })
                 parent.find(".actual-price").each(function () {
                     $(this).fadeOut(a, function () {
-                        $(this).text(currency + " " + totalMRP.toFixed(2)), usercartTotal(), $(this).fadeIn(a)
+                        $(this).text(currency + totalMRP.toFixed(2)), usercartTotal(), $(this).fadeIn(a)
                     })
                 })
+            }
+            else {
+                // cretzo: mini-cart (header offcanvas) — the original line-price
+                // updater above is commented out and the cart-page branch never runs
+                // here, so the displayed line total never changed when the quantity
+                // changed. Update the ".product-line-price" that sits beside this
+                // quantity input so the sum reflects the new quantity.
+                s.find(".product-line-price").fadeOut(a, function () {
+                    $(this).text(currency + i.toFixed(2));
+                    $(this).fadeIn(a);
+                });
             }
         }
 
@@ -2023,7 +2104,7 @@ function display_cart(e) {
     null !== e && e.length > 0 && e.forEach(e => {
         console.log(e);
 
-        //a += '<div class="shopping-cart"><div class="shopping-cart-item d-flex justify-content-between mb-4"><div class="d-flex flex-row gap-3"  title = " ' + e.title + '"><figure class="rounded cart-img"><a href="' + base_url + 'products/details/' + e.slug + '"><img src="' + e.image + '" alt="Not Found" style="object-fit: contain;"></a></figure><div class="w-100"><a href="' + base_url + 'products/details/' + e.slug + '"><h3 class="post-title fs-16 lh-xs mb-1" title = " ' + e.title + '">' + e.title + '</h3></a><p class="price"><ins><span class="amount">' + currency + " " + e.price + '</span></ins></p><div class="product-pricing d-flex py-2 px-1 w-100"><div class="align-items-center d-flex p-2 w-15"><input type="number" name="header_qty" class="form-control d-flex align-items-center" value="' + e.qty + '" data-id="' + e.product_variant_id + '" data-price="' + e.price + '" min="' + e.min + '" max="' + e.max + '" step="' + e.step + '" ></div><div class="product-line-price align-self-center px-1">' + currency + (e.qty * e.price) + '</div></div></div></div><div class="product-sm-removal"><button class="remove-product btn btn-sm btn-danger rounded-1 p-1 py-0" data-id="' + e.product_variant_id + '"><i class="uil uil-trash-alt"></i></button>   </div></div></div>'
+        //a += '<div class="shopping-cart"><div class="shopping-cart-item d-flex justify-content-between mb-4"><div class="d-flex flex-row gap-3"  title = " ' + e.title + '"><figure class="rounded cart-img"><a href="' + base_url + 'products/details/' + e.slug + '"><img src="' + e.image + '" alt="Not Found" style="object-fit: contain;"></a></figure><div class="w-100"><a href="' + base_url + 'products/details/' + e.slug + '"><h3 class="post-title fs-16 lh-xs mb-1" title = " ' + e.title + '">' + e.title + '</h3></a><p class="price"><ins><span class="amount">' + currency + e.price + '</span></ins></p><div class="product-pricing d-flex py-2 px-1 w-100"><div class="align-items-center d-flex p-2 w-15"><input type="number" name="header_qty" class="form-control d-flex align-items-center" value="' + e.qty + '" data-id="' + e.product_variant_id + '" data-price="' + e.price + '" min="' + e.min + '" max="' + e.max + '" step="' + e.step + '" ></div><div class="product-line-price align-self-center px-1">' + currency + (e.qty * e.price) + '</div></div></div></div><div class="product-sm-removal"><button class="remove-product btn btn-sm btn-danger rounded-1 p-1 py-0" data-id="' + e.product_variant_id + '"><i class="uil uil-trash-alt"></i></button>   </div></div></div>'
 
         var variant_tag = "";
         if(e.product_variants != null && e.product_variants != "" && void 0 !== e.product_variants[0].variant_values && null != e.product_variants[0].variant_values){
@@ -2035,7 +2116,7 @@ function display_cart(e) {
         var slug = base_url + 'products/details/' + (e.slug).replace(base_url + 'products/details/', "");
         var s = e.special_price < e.price && 0 != e.special_price ? e.special_price : e.price;
 
-        a += '<div class="shopping-cart"><div class="shopping-cart-item d-flex justify-content-between mb-4"><div class="d-flex flex-row gap-3" title=" ' + e.name + '"><figure class="rounded cart-img"><a href="' + slug + '"><img src="' + img + '" alt="' + e.name + '" title="' + e.name + '" style="object-fit: contain;"></a></figure><div class="w-100 cart-title"><a href="' + slug + '"><h3 class="post-title fs-16 lh-xs mb-1 no-wrap" title=" ' + e.name + '">' + e.name + '</h3></a>' + variant_tag + '<p class="price"><ins><span class="amount">' + currency + " " + s + '</span></ins></p><div class="product-pricing d-flex py-2 w-100"><div class="product-quantity product-sm-quantity"><input type="number" name="header_qty" class="form-control d-flex align-content-center h-9 w-14" value="' + e.qty + '" data-id="' + e.product_variant_id + '" data-price="' + e.price + '" min="' + e.min + '" max="' + e.max + '" step="' + e.step + '"></div><div class="product-line-price align-self-center px-1 no-wrap">' + currency + (e.qty * s) + '</div></div></div>            </div><div class="product-sm-removal"><button class="remove-product btn btn-sm btn-danger rounded-1 p-1 py-0" data-id="' + e.product_variant_id + '"><i class="uil uil-trash-alt"></i></button></div></div></div>'        
+        a += '<div class="shopping-cart"><div class="shopping-cart-item d-flex justify-content-between mb-4"><div class="d-flex flex-row gap-3" title=" ' + e.name + '"><figure class="rounded cart-img"><a href="' + slug + '"><img src="' + img + '" alt="' + e.name + '" title="' + e.name + '" style="object-fit: contain;"></a></figure><div class="w-100 cart-title"><a href="' + slug + '"><h3 class="post-title fs-16 lh-xs mb-1 no-wrap" title=" ' + e.name + '">' + e.name + '</h3></a>' + variant_tag + '<p class="price"><ins><span class="amount">' + currency + s + '</span></ins></p><div class="product-pricing d-flex py-2 w-100"><div class="product-quantity product-sm-quantity"><input type="number" name="header_qty" class="form-control d-flex align-content-center w-14" value="' + e.qty + '" data-id="' + e.product_variant_id + '" data-price="' + e.price + '" min="' + e.min + '" max="' + e.max + '" step="' + e.step + '"></div><div class="product-line-price align-self-center px-1 no-wrap" style="color: #F2822E;">' + currency + (e.qty * s) + '</div></div></div>            </div><div class="product-sm-removal"><button class="remove-product btn btn-sm btn-danger rounded-1 p-1 py-0" data-id="' + e.product_variant_id + '"><i class="uil uil-trash-alt"></i></button></div></div></div>'        
 
     }),
         //  console.log(a), 
@@ -2048,7 +2129,7 @@ function display_cart(e) {
 //     var a = "";
 //     null !== e && e.length > 0 && e.forEach(e => {
 //         console.log(e);
-//         a += '<div class="shopping-cart"><div class="shopping-cart-item d-flex justify-content-between mb-4"><div class="d-flex flex-row gap-3"  title = " ' + e.title + '"><figure class="rounded cart-img"><a href="' + base_url + 'products/details/' + e.product_slug + '"><img src="' + base_url + e.image + '" alt="Not Found" style="object-fit: contain;"></a></figure><div class="w-100"><a href="' + base_url + 'products/details/' + e.product_slug + '"><h3 class="post-title fs-16 lh-xs mb-1" title = " ' + e.name + '">' + e.name + '</h3></a><p class="price"><ins><span class="amount">' + currency + " " + e.price + '</span></ins></p><div class="product-pricing d-flex py-2 px-1 w-100"><div class="align-items-center d-flex p-2 w-15"><input type="number" name="header_qty" class="form-control d-flex align-items-center" value="' + e.minimum_order_quantity + '" data-id="' + e.product_variant_id + '" data-price="' + e.price + '" min="' + e.minimum_order_quantity + '" max="' + e.total_allowed_quantity + '" step="' + e.quantity_step_size + '" ></div><div class="product-line-price align-self-center px-1">' + currency + (e.qty * e.price) + '</div></div></div></div><div class="product-sm-removal"><button class="remove-product btn btn-sm btn-danger rounded-1 p-1 py-0" data-id="' + e.product_variant_id + '"><i class="uil uil-trash-alt"></i></button>   </div></div></div>'
+//         a += '<div class="shopping-cart"><div class="shopping-cart-item d-flex justify-content-between mb-4"><div class="d-flex flex-row gap-3"  title = " ' + e.title + '"><figure class="rounded cart-img"><a href="' + base_url + 'products/details/' + e.product_slug + '"><img src="' + base_url + e.image + '" alt="Not Found" style="object-fit: contain;"></a></figure><div class="w-100"><a href="' + base_url + 'products/details/' + e.product_slug + '"><h3 class="post-title fs-16 lh-xs mb-1" title = " ' + e.name + '">' + e.name + '</h3></a><p class="price"><ins><span class="amount">' + currency + e.price + '</span></ins></p><div class="product-pricing d-flex py-2 px-1 w-100"><div class="align-items-center d-flex p-2 w-15"><input type="number" name="header_qty" class="form-control d-flex align-items-center" value="' + e.minimum_order_quantity + '" data-id="' + e.product_variant_id + '" data-price="' + e.price + '" min="' + e.minimum_order_quantity + '" max="' + e.total_allowed_quantity + '" step="' + e.quantity_step_size + '" ></div><div class="product-line-price align-self-center px-1">' + currency + (e.qty * e.price) + '</div></div></div></div><div class="product-sm-removal"><button class="remove-product btn btn-sm btn-danger rounded-1 p-1 py-0" data-id="' + e.product_variant_id + '"><i class="uil uil-trash-alt"></i></button>   </div></div></div>'
 //     }),
 //         // console.log(a),
 //         $("#cart-item-sidebar").html(a)
@@ -2214,13 +2295,13 @@ function customer_wallet_query_paramss(e) {
                         if (prices[0].special_price < prices[0].price && prices[0].special_price != 0) {
                             let normalPrice = prices[0].price;
                             price = prices[0].special_price;
-                            $('#price').html(currency + ' ' + price);
-                            $('#striped-price').html(currency + ' ' + normalPrice);
+                            $('#price').html(currency + price);
+                            $('#striped-price').html(currency + normalPrice);
                             $('#striped-price-div').show();
                             $('#add_cart').removeAttr('disabled');
 
-                            $('#discounted-price').html(currency + ' ' + price);
-                            $('#normal-price').html(currency + ' ' + normalPrice);
+                            $('#discounted-price').html(currency + price);
+                            $('#normal-price').html(currency + normalPrice);
 
                             if (price < normalPrice) {
                                 let discountPercentage = Math.round(((normalPrice - price) / normalPrice) * 100);
@@ -2230,11 +2311,11 @@ function customer_wallet_query_paramss(e) {
                             $('#add_cart').attr('data-product-price', price);
                         } else {
                             price = prices[0].price;
-                            $('#price').html(currency + ' ' + price);
+                            $('#price').html(currency + price);
                             $('#striped-price-div').hide();
                             $('#add_cart').removeAttr('disabled');
 
-                            $('#normal-price').html(currency + ' ' + price);
+                            $('#normal-price').html(currency + price);
 
                             $('#add_cart').attr('data-product-price', price);
                         }
@@ -2286,8 +2367,6 @@ function customer_wallet_query_paramss(e) {
             },
             dataType: "json",
             beforeSend: function () {
-                 addtocartMessage();
-                // d.html("Please Wait").text("Please Wait").attr("disabled", !0)
             },
             success: function (e) {
                 if (csrfName = e.csrfName, csrfHash = e.csrfHash, d.html(u).attr("disabled", !1), 0 == e.error) {
@@ -2310,7 +2389,7 @@ function customer_wallet_query_paramss(e) {
                         console.log(a);
                         var r = void 0 !== a.product_variants.variant_values && null != a.product_variants.variant_values ? a.product_variants.variant_values : "",
                             s = a.special_price < a.price && 0 != a.special_price ? a.special_price : a.price;
-                        t += '<div class="shopping-cart"><div class="shopping-cart-item d-flex justify-content-between mb-4" title = " ' + a.name + '"><div class="d-flex flex-row gap-3"><figure class="rounded cart-img"><a href="' + base_url + 'products/details/' + a.slug + '"><img src="' + base_url + a.image + '" alt="Not Found" style="object-fit: contain;"></a></figure><div class="w-100"><a href="' + base_url + 'products/details/' + a.slug + '"><h3 class="post-title fs-16 lh-xs mb-1"  title = " ' + a.name + '">' + a.name + "</h3></a><span>" + r + '</span><p class="price"><ins><span class="amount">' + currency + " " + s + '</span></ins></p><div class="product-pricing d-flex py-2 px-1 w-100"><div class="align-items-center d-flex p-2 w-15"><input type="number" name="header_qty" class="form-control d-flex align-items-center" value="' + n + '" data-id="' + a.product_variant_id + '" data-price="' + a.price + '" min="' + n + '" max="' + c + '" step="' + l + '" ></div><div class="product-line-price align-self-center px-1">' + currency + (a.qty * s) + '</div></div></div></div><div class="product-sm-removal"><button class="remove-product btn btn-sm btn-danger rounded-1 p-1 py-0" data-id="' + a.product_variant_id + '"><i class="uil uil-trash-alt"></i></button></div></div></div>'
+                        t += '<div class="shopping-cart"><div class="shopping-cart-item d-flex justify-content-between mb-4" title = " ' + a.name + '"><div class="d-flex flex-row gap-3"><figure class="rounded cart-img"><a href="' + base_url + 'products/details/' + a.slug + '"><img src="' + base_url + a.image + '" alt="Not Found" style="object-fit: contain;"></a></figure><div class="w-100"><a href="' + base_url + 'products/details/' + a.slug + '"><h3 class="post-title fs-16 lh-xs mb-1"  title = " ' + a.name + '">' + a.name + "</h3></a><span>" + r + '</span><p class="price"><ins><span class="amount">' + currency + s + '</span></ins></p><div class="product-pricing d-flex py-2 px-1 w-100"><div class="align-items-center d-flex p-2 w-15"><input type="number" name="header_qty" class="form-control d-flex align-items-center" value="' + n + '" data-id="' + a.product_variant_id + '" data-price="' + a.price + '" min="' + n + '" max="' + c + '" step="' + l + '" ></div><div class="product-line-price align-self-center px-1">' + currency + (a.qty * s) + '</div></div></div></div><div class="product-sm-removal"><button class="remove-product btn btn-sm btn-danger rounded-1 p-1 py-0" data-id="' + a.product_variant_id + '"><i class="uil uil-trash-alt"></i></button></div></div></div>'
                     }),
                         $("#cart-item-sidebar").html(t) */
                 } else {
@@ -2508,105 +2587,18 @@ function customer_wallet_query_paramss(e) {
             }
         })
     }),
-    $('#pincode').on('change', function (e) {
-        e.preventDefault();
-        var value = $(this).val()
-        if (value == 0 || value == -1) {
-            $('.pincode_name').removeClass('d-none')
-        } else {
-            $('.pincode_name').addClass('d-none')
-            $('input[name="pincode_name"]').val("");
-        }
-    }),
-    $('#edit_pincode').on('change', function (e) {
-        e.preventDefault();
-        var value = $(this).val()
-        console.log('value' + value);
-        if (value == 0 || value == -1) {
-            $('.other_pincode').removeClass('d-none')
-        } else {
-            $('.other_pincode').addClass('d-none')
-            $('input[name="pincode_name"]').val("");
-            // $('#other_pincode_value').val();
-        }
-    }),
-    $("#city").select2({
-        ajax: {
-            url: base_url + 'my-account/get_cities',
-            type: "GET",
-            dataType: 'json',
-            delay: 250,
-            data: function (params) {
-                return {
-                    search: params.term, // search term
-                };
-            },
-            processResults: function (response) {
-                return {
-                    results: response
-                };
-            },
-            cache: true
-        },
-
-        minimumInputLength: 1,
-        theme: 'bootstrap4',
-        placeholder: 'Search for cities',
-        dropdownParent: $("#add-address-form"), // added for cretzo
-        // Set the predefined options as selected
-
-    }),
     $('#city').on('change', function (e) {
         e.preventDefault();
         var value = $(this).val()
         if (value == 0 || value == -1) {
             $('.city_name').removeClass('d-none')
             $('.area_name').removeClass('d-none')
-            $('.pincode_name').removeClass('d-none')
             $('.area').addClass('d-none')
-            $('.pincode').addClass('d-none')
         } else {
-            $('#edit_pincode').empty()
-            $('.city').trigger('change')
             $('.city').removeClass('d-none')
             $('.area').removeClass('d-none')
-            $('.pincode').removeClass('d-none')
             $('.city_name').addClass('d-none')
             $('.area_name').addClass('d-none')
-            $('.pincode_name').addClass('d-none')
-            $.ajax({
-                type: 'POST',
-                data: {
-                    'city_id': $(this).val(),
-                    [csrfName]: csrfHash,
-                },
-                url: base_url + 'my-account/get-zipcode',
-                dataType: 'json',
-                success: function (result) {
-                    console.log(result);
-                    csrfName = result.csrfName;
-                    csrfHash = result.csrfHash;
-                    if (result.error == false) {
-                        var html = '';
-                        html += '<option value="">--Select Zipcode--</option>';
-                        html += '<option value="0">Other</option>';
-                        $.each(result.data, function (i, e) {
-                            html += '<option value=' + e.zipcode + '>' + e.zipcode + '</option>';
-                        });
-
-                        $('#pincode').html(html);
-
-                    } else {
-                        var html = '';
-                        html += '<option value="">--Select Zipcode--</option>';
-                        html += '<option value="0">Other</option>';
-
-                        $('#pincode').html(html);
-                    }
-
-                }
-
-            })
         }
 
     }), $("#edit-address-form").on("submit", function (e) {
@@ -2851,84 +2843,21 @@ function customer_wallet_query_paramss(e) {
             }
         })
     }),
-    $("#edit_city").select2({
-        ajax: {
-            url: base_url + 'my-account/get_cities',
-            type: "GET",
-            dataType: 'json',
-            delay: 250,
-            data: function (params) {
-                return {
-                    search: params.term, // search term
-                };
-            },
-            processResults: function (response) {
-                return {
-                    results: response
-                };
-            },
-            cache: true
-        },
-
-        minimumInputLength: 1,
-        theme: 'bootstrap4',
-        dropdownParent: $("#edit-address-form"),
-        placeholder: 'Search for cities',
-    }),
-    $('#edit_city').on('change', function (e, pincode) {
+    $('#edit_city').on('change', function (e) {
 
         e.preventDefault();
 
-        var city_id = $(this).val();
         var value = $(this).val()
         if (value == 0 || value == '') {
             $('.edit_area').addClass('d-none')
             $('#edit_area').val('')
-            // $('.edit_city').addClass('d-none')
-            $('.edit_pincode').addClass('d-none')
             $('.other_city').removeClass('d-none')
             $('.other_areas').removeClass('d-none')
-            $('.other_pincode').removeClass('d-none')
         } else {
             $('.edit_area').removeClass('d-none')
-            $('.edit_pincode').removeClass('d-none')
             $('.edit_city').removeClass('d-none')
             $('.other_city').addClass('d-none')
             $('.other_areas').addClass('d-none')
-            $('.other_pincode').addClass('d-none')
-
-            $.ajax({
-                type: 'POST',
-                data: {
-                    'city_id': $(this).val(),
-                    [csrfName]: csrfHash,
-                },
-                url: base_url + 'my-account/get-zipcode',
-                dataType: 'json',
-                success: function (result) {
-                    console.log(result);
-                    csrfName = result.csrfName;
-                    csrfHash = result.csrfHash;
-                    var html = '';
-                    if (result.error == false) {
-                        console.log(result.data);
-                        html += '<option value="0">Other</option>';
-                        $.each(result.data, function (i, e) {
-                            var is_selected = (e.zipcode == pincode) ? "selected" : "";
-
-                            html += '<option value=' + e.zipcode + ' ' + is_selected + '>' + e.zipcode + '</option>';
-                        });
-                        $('#edit_pincode').html(html);
-
-                    } else {
-                        Toast.fire({
-                            icon: 'error',
-                            title: result.message
-                        });
-                        $('#edit_pincode').html('');
-                    }
-                }
-            })
         }
     }))
 

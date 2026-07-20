@@ -100,7 +100,7 @@
                                                 <br>
                                             </td>
                                             <td>
-                                                <?= $settings['currency'] . ' ' . number_format($price_without_tax, 2) ?>
+                                                <?= $settings['currency'] . number_format($price_without_tax, 2) ?>
                                                 <br>
                                             </td>
 
@@ -117,7 +117,7 @@
                                                 <br>
                                             </td>
                                             <td>
-                                                <?= $settings['currency'] . ' ' . $sub_total ?>
+                                                <?= $settings['currency'] . $sub_total ?>
                                                 <br>
                                             </td>
                                         </tr>
@@ -137,7 +137,7 @@
                                             <?= $quantity ?><br>
                                         </th>
                                         <th>
-                                            <?= $settings['currency'] . ' ' . number_format($cal_final_total, 2)  ?>
+                                            <?= $settings['currency'] . number_format($cal_final_total, 2)  ?>
                                             <br>
                                         </th>
                                     </tr>
@@ -159,7 +159,7 @@
                                         <tr>
                                             <th>Total Order Price</th>
                                             <td>+
-                                                <?= $settings['currency'] . ' ' . number_format($cal_final_total, 2) ?>
+                                                <?= $settings['currency'] . number_format($cal_final_total, 2) ?>
                                             </td>
                                         </tr>
                                         <?php if ($order_detls[0]['type'] != 'digital_product') { ?>
@@ -167,7 +167,7 @@
                                                 <th>Delivery Charge</th>
                                                 <td>+
                                                     <?php $cal_final_total += $order_detls[0]['delivery_charge'];
-                                                    echo $settings['currency'] . ' ' . number_format($order_detls[0]['delivery_charge'], 2); ?>
+                                                    echo $settings['currency'] . number_format($order_detls[0]['delivery_charge'], 2); ?>
                                                 </td>
                                             </tr>
                                         <?php } ?>
@@ -175,14 +175,14 @@
                                             <th>Tax - (<?= $items[0]['tax_percent'] ?>%)</th>
                                             <td>+
                                                 <?php
-                                                echo $settings['currency'] . ' ' . number_format($total_tax, 2); ?>
+                                                echo $settings['currency'] . number_format($total_tax, 2); ?>
                                             </td>
                                         </tr>
                                         <tr>
                                             <th>Wallet Used</th>
                                             <td>-
                                                 <?php $cal_final_total -= $order_detls[0]['wallet_balance'];
-                                                echo  $settings['currency'] . ' ' . number_format($order_detls[0]['wallet_balance'], 2); ?>
+                                                echo  $settings['currency'] . number_format($order_detls[0]['wallet_balance'], 2); ?>
                                             </td>
                                         </tr>
                                         <?php

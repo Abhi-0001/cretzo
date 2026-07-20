@@ -150,65 +150,143 @@ function showError(input, message) {
   input.parentElement.appendChild(error);
 }
 
+// Friendly "required" (empty-field) message per field name; falls back to generic.
+const REQUIRED_MSG = {
+  first_name: 'Please enter your first name',
+  last_name: 'Please enter your last name',
+  phone: 'Please enter your phone number',
+  email: 'Please enter your email',
+  address1: 'Please enter your address',
+  pin: 'Please enter PIN code',
+  state: 'Please enter your state',
+  district: 'Please enter your district',
+  city: 'Please enter your city/village/town',
+  shop_name: 'Please enter your shop name',
+  social: 'Please enter your social media handle',
+  shop_phone: 'Please enter your shop phone number',
+  pickup_address1: 'Please enter pickup address',
+  pickup_pin: 'Please enter pickup PIN code',
+  entity_type: 'Please select an entity type',
+  pan: 'Please enter your PAN number',
+  gst: 'Please enter your GST number',
+  gst_enrollment_number: 'Please enter your GST Enrollment Number',
+  account_number: 'Please enter your account number',
+  confirm_account_number: 'Please confirm your account number',
+  account_holder_name: "Please enter the account holder's name",
+  ifsc: 'Please enter IFSC code',
+  branch: 'Please enter branch name',
+  bank_name: 'Please select your bank'
+};
+
+// Reusable patterns.
+const RE_NAME   = /^[A-Za-z][A-Za-z\s.'-]*$/;                                  // letters, spaces, . ' -
+const RE_EMAIL  = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const RE_MOBILE = /^[6-9][0-9]{9}$/;                                           // Indian 10-digit mobile
+const RE_PIN    = /^[1-9][0-9]{5}$/;                                           // 6-digit PIN, not starting 0
+const RE_PAN    = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
+const RE_GST    = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+const RE_IFSC   = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+const RE_ENROL  = /^[A-Za-z0-9]{6,20}$/;                                       // GST enrollment no.
+const RE_ACCOUNT = /^[0-9]{9,18}$/;
+
 function validateForm(form) {
   clearErrors(form);
   let valid = true;
 
-  const inputs = form.querySelectorAll('input, select');
+  form.querySelectorAll('input, select, textarea').forEach(input => {
+    const name = input.name;
+    if (input.type === 'file') return; // store_logo handled separately below
 
-  inputs.forEach(input => {
-    if (!input.hasAttribute('required')) return;
+    // Normalise PAN / GST / IFSC to uppercase so the saved value is correct too.
+    if ((name === 'pan' || name === 'gst' || name === 'ifsc') && input.value.trim()) {
+      input.value = input.value.trim().toUpperCase();
+    }
 
-    if (!input.value.trim()) {
-      showError(input, 'This field is required');
+    const val = input.value.trim();
+
+    // 1) Required (empty) check
+    if (input.hasAttribute('required') && !val) {
+      showError(input, REQUIRED_MSG[name] || 'This field is required');
       valid = false;
       return;
     }
 
-    if (input.type === 'email' &&
-        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.value)) {
-      showError(input, 'Invalid email');
+    // Optional field left blank → nothing more to check.
+    if (!val) return;
+
+    // 2) Field-specific format checks
+    switch (name) {
+      case 'first_name':
+        if (!RE_NAME.test(val)) { showError(input, 'First name may contain only letters'); valid = false; }
+        else if (val.length < 3 || val.length > 50) { showError(input, 'First name must be 3–50 characters'); valid = false; }
+        break;
+      case 'last_name':
+        if (!RE_NAME.test(val)) { showError(input, 'Last name may contain only letters'); valid = false; }
+        else if (val.length > 50) { showError(input, 'Last name must be under 50 characters'); valid = false; }
+        break;
+      case 'account_holder_name':
+        if (!RE_NAME.test(val)) { showError(input, 'Name may contain only letters'); valid = false; }
+        break;
+      case 'email':
+        if (!RE_EMAIL.test(val)) { showError(input, 'Enter a valid email address'); valid = false; }
+        break;
+      case 'phone':
+        if (!RE_MOBILE.test(val)) { showError(input, 'Enter a valid 10-digit mobile number'); valid = false; }
+        break;
+      case 'shop_phone':
+        if (!RE_MOBILE.test(val)) { showError(input, 'Enter a valid 10-digit shop phone number'); valid = false; }
+        break;
+      case 'pin':
+      case 'pickup_pin':
+        if (!RE_PIN.test(val)) { showError(input, 'Enter a valid 6-digit PIN code'); valid = false; }
+        break;
+      case 'address1':
+      case 'pickup_address1':
+        if (val.length < 5) { showError(input, 'Address must be at least 5 characters'); valid = false; }
+        break;
+      case 'shop_name':
+        if (val.length < 2 || val.length > 100) { showError(input, 'Shop name must be 2–100 characters'); valid = false; }
+        break;
+      case 'pan':
+        if (!RE_PAN.test(val)) { showError(input, 'Invalid PAN. Example: ABCDE1234F'); valid = false; }
+        break;
+      case 'gst':
+        if (!RE_GST.test(val)) { showError(input, 'Invalid GST. Example: 22ABCDE0000A1Z5'); valid = false; }
+        break;
+      case 'gst_enrollment_number':
+        if (!RE_ENROL.test(val)) { showError(input, 'Enter a valid GST Enrollment Number (6–20 letters/numbers)'); valid = false; }
+        break;
+      case 'account_number':
+        if (!RE_ACCOUNT.test(val)) { showError(input, 'Enter a valid account number (9–18 digits)'); valid = false; }
+        break;
+      case 'ifsc':
+        if (!RE_IFSC.test(val)) { showError(input, 'Invalid IFSC code. Example: SBIN0001234'); valid = false; }
+        break;
+    }
+  });
+
+  // Shop logo: optional, but if a file is chosen it must be a valid image ≤ 8 MB.
+  const logoInput = form.querySelector('input[type="file"][name="store_logo"]');
+  if (logoInput && logoInput.files && logoInput.files.length) {
+    const f = logoInput.files[0];
+    if (!/^image\/(jpeg|jpg|png|gif)$/i.test(f.type)) {
+      showError(logoInput, 'Please upload a valid image (JPG, PNG or GIF)');
+      valid = false;
+    } else if (f.size > 8 * 1024 * 1024) {
+      showError(logoInput, 'Logo must be under 8 MB');
       valid = false;
     }
-
-    if ((input.name === 'phone' || input.name === 'shop_phone') &&
-        !/^[0-9]{10}$/.test(input.value)) {
-      showError(input, 'Enter 10 digit number');
-      valid = false;
-    }
-
-    if ((input.name === 'pin' || input.name === 'pickup_pin') &&
-        !/^[0-9]{6}$/.test(input.value)) {
-      showError(input, 'Enter valid PIN');
-      valid = false;
-    }
-    
-    if ( input.name === 'pan' &&
-      !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(input.value.toUpperCase())) {
-    showError(input, 'Invalid PAN. Example: ABCDE1234F');
-    valid = false;
-   }
-
-  if (input.name === 'gst' &&
-      !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(input.value.toUpperCase())) {
-    showError(input, 'Invalid GST. Example: 22ABCDE0000A1Z5');
-    valid = false;
   }
 
-    if (input.name === 'ifsc' && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(input.value.toUpperCase())) {
-      showError(input, 'Invalid IFSC code');
-      valid = false;
-    }
-
-  });
-  
+  // Account number confirmation must match.
   const accountInput = form.querySelector('[name="account_number"]');
   const confirmAccountInput = form.querySelector('[name="confirm_account_number"]');
-  if (accountInput && confirmAccountInput && accountInput.value !== confirmAccountInput.value) {
+  if (accountInput && confirmAccountInput &&
+      accountInput.value.trim() && confirmAccountInput.value.trim() &&
+      accountInput.value.trim() !== confirmAccountInput.value.trim()) {
     showError(confirmAccountInput, 'Account numbers do not match');
     valid = false;
   }
-
 
   return valid;
 }

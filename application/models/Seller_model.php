@@ -64,7 +64,8 @@ class Seller_model extends CI_Model
                 'entity_type' => $data['entity_type'] ?? null,
                 'pan' => $data['pan'] ?? null,
                 'gst' => $data['gst'] ?? null,
-            
+                'is_gst_registered' => $data['is_gst_registered'] ?? 1,
+                'gst_enrollment_number' => $data['gst_enrollment_number'] ?? null,
                 'account_number' => $data['account_number'] ?? null,
                 'account_holder_name' => $data['account_holder_name'] ?? null,
                 'ifsc' => $data['ifsc'] ?? null,

@@ -8387,7 +8387,7 @@ fieldset:disabled .btn {
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
-  padding: var(--bs-modal-header-padding);
+  /* padding: var(--bs-modal-header-padding); */
   border-bottom: var(--bs-modal-header-border-width) solid var(--bs-modal-header-border-color);
   border-top-right-radius: var(--bs-modal-inner-border-radius);
   border-top-left-radius: var(--bs-modal-inner-border-radius);
@@ -39255,9 +39255,9 @@ button.hamburger span {
   color: rgba(255, 255, 255, 0.5);
 }
 
-.pagination {
+/* .pagination {
   box-shadow: 0rem 0rem 1.25rem rgba(30, 34, 40, 0.04);
-}
+} */
 
 .pagination .page-link {
   width: 2.5rem;
@@ -40277,13 +40277,13 @@ button.hamburger span {
 }
 
 .btn-close:before {
-  background: rgba(0, 0, 0, 0.08);
+  /* background: rgba(0, 0, 0, 0.08); */
   font-family: "Unicons";
   font-size: 1.05rem;
   content: "\ed3b";
-  width: 1.8rem;
+  /* width: 1.8rem;
   height: 1.8rem;
-  line-height: 1.8rem;
+  line-height: 1.8rem; */
   border-radius: 100%;
   margin: 0;
   padding: 0;
@@ -40335,8 +40335,8 @@ button.hamburger span {
 
 .modal .btn-close {
   position: absolute;
-  top: 0.7rem;
-  left: 0.7rem;
+  /* top: 0.7rem; */
+  right: 0.7rem;
 }
 
 .modal.fade.modal-bottom-center .modal-dialog {

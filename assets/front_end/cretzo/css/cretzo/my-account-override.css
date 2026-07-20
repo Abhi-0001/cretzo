@@ -1,10 +1,26 @@
 .overview-side-container{
     margin-top: 40px;
-    /* margin-inline: auto; */
-    margin-inline: 10%;
+    /* Center the profile column: auto splits leftover space evenly so it stays
+       centered even when the page has horizontal overflow (fixed value 10% did not). */
+    margin-inline: auto;
     padding: 20px;
-    /* max-width: 1200px; */
-    max-width: 90vw;
+    max-width: 1200px;
+    /* Fix: short pages (Profile, Address with few entries, empty Orders) had no
+       floor on height and ended abruptly right above the footer, looking broken/
+       "shrunk" next to taller pages like Wallet/Orders. Give every my-account
+       subpage the same minimum canvas so the card never looks cramped. */
+    min-height: 60vh;
+    /* `<body>` itself is a flex row (header/main/footer), which makes this
+       page wrapper a flex item. Flex items default to min-width:auto, i.e.
+       "never shrink below your content's natural width" — and the Wallet /
+       Transactions data table's content (long unbreakable cell text) was
+       that natural width, well over 390px. That's what dragged the WHOLE
+       page into horizontal scroll on mobile instead of just the table.
+       min-width:0 lets this wrapper actually shrink to the viewport; the
+       table's own overflow-x:auto (further down) is what stays scrollable. */
+    min-width: 0;
+    width: 100%;
+    overflow-x: hidden;
 }
 .overview-side-container .overview-container{
     margin-top: 10px;
@@ -19,4 +35,159 @@
     margin-inline: 0;
     border: 1px solid rgba(0, 0, 0, 0.1);
     border-left: none;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Fix: the profile content column must FILL the bordered container.
+   The sidebar partial now renders as `.my-account-tab` (not the old
+   `.overview-left` which was 30%), so `.overview-right { width: 70% }`
+   left an empty gap on the right, making the Address (and other
+   my-account) pages look left-shifted / "not centered". Give the
+   sidebar a stable width and let the content column grow to fill.
+   ───────────────────────────────────────────────────────────── */
+.overview-side-container .overview-container {
+    align-items: stretch;
+}
+.overview-side-container .overview-container > .my-account-tab {
+    flex: 0 0 auto;
+    width: 240px;
+    max-width: 30%;
+}
+.overview-side-container .overview-container > .overview-right {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+}
+@media screen and (max-width: 500px) {
+    .overview-side-container .overview-container > .my-account-tab {
+        width: 100%;
+        max-width: 100%;
+    }
+    .overview-side-container .overview-container > .overview-right {
+        width: 100%;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Fix: data-table widgets (Wallet, Transactions) render via the
+   bootstrap-table plugin, which lays its toolbar out with plain
+   Bootstrap `float-right` boxes. With `data-toolbar=""` the search
+   box is injected as a bare sibling instead of inside the toolbar,
+   so on any page narrower than the sum of its buttons the floated
+   boxes spill out past the card's right edge (and on mobile they
+   drag the ENTIRE page into horizontal overflow instead of just
+   the table). Turning the plugin's own wrapper into a wrapping flex
+   row neutralizes the stray floats and keeps everything inside the
+   card; the table itself scrolls horizontally on its own instead of
+   blowing out the page width. Also restyles the generic grey plugin
+   look to match the rest of the account section.
+   ───────────────────────────────────────────────────────────── */
+.overview-right .bootstrap-table {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 10px;
+    max-width: 100%;
+    /* Flex items default to min-width:auto, which refuses to shrink below the
+       table's own min-width below — that's what let the whole page (not just
+       the table) stretch wider than the viewport on mobile. min-width:0 lets
+       this box actually shrink to the card's width so the table's own
+       overflow-x:auto (further down) is what scrolls, not the page. */
+    min-width: 0;
+}
+.overview-right .bootstrap-table .fixed-table-toolbar {
+    flex: 1 1 auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+.overview-right .bootstrap-table .fixed-table-toolbar .float-left,
+.overview-right .bootstrap-table .fixed-table-toolbar .float-right {
+    float: none;
+}
+/* Root cause of the detached/floating search box: the site-wide custom.css
+   has a bare `.search { position:absolute; left:643px; top:81px; ... }` rule
+   written for an unrelated header widget, which also matches bootstrap-table's
+   own `.search` toolbar wrapper and drags it ~640px off to the right of the
+   card. Reset it back to a normal, contained flex item without touching the
+   shared custom.css (used site-wide for other things). */
+.overview-right .bootstrap-table .fixed-table-toolbar .search {
+    position: relative;
+    left: auto;
+    top: auto;
+    width: auto;
+    height: auto;
+}
+.overview-right .bootstrap-table .search-input {
+    max-width: 220px;
+    border-radius: 4px;
+}
+.overview-right .bootstrap-table .search-input:focus {
+    border-color: var(--color-orange, #F2822E);
+    box-shadow: 0 0 0 2px rgba(242, 130, 46, 0.15);
+    outline: none;
+}
+.overview-right .bootstrap-table .fixed-table-toolbar .btn-secondary {
+    background: #fff;
+    color: #333;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+}
+.overview-right .bootstrap-table .fixed-table-toolbar .btn-secondary:hover {
+    border-color: var(--color-orange, #F2822E);
+    color: var(--color-orange, #F2822E);
+}
+.overview-right .bootstrap-table .fixed-table-container {
+    flex: 1 1 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 8px;
+}
+.overview-right .bootstrap-table .fixed-table-container table {
+    /* No forced min-width here: the table already ships with
+       data-mobile-responsive="true", which lets bootstrap-table hide
+       lower-priority columns itself on narrow screens. Forcing a
+       min-width fought that feature and was what dragged the whole
+       page into horizontal overflow on mobile. */
+    margin-bottom: 0;
+}
+.overview-right .bootstrap-table thead.thead-light th {
+    background: var(--color-orange-light, #F3812D36);
+    color: #1a1a1a;
+    border-bottom: none;
+    white-space: nowrap;
+}
+.overview-right .bootstrap-table tbody tr:hover {
+    background: rgba(242, 130, 46, 0.05);
+}
+.overview-right .bootstrap-table .fixed-table-pagination {
+    flex: 1 1 100%;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding-top: 4px;
+}
+@media screen and (max-width: 600px) {
+    .overview-right .bootstrap-table .search.btn-group {
+        margin-left: 0;
+        width: 100%;
+    }
+    .overview-right .bootstrap-table .search-input {
+        max-width: 100%;
+    }
+}
+
+/* Fix: Wallet's balance/add-money cards use Bootstrap's `.row` grid class
+   without a `.container` wrapper to absorb its -15px negative margins, so the
+   row bled ~15px past the card's left/right edge. That bleed was invisible
+   before (just spare page whitespace absorbed it), but now that the page
+   wrapper clips overflow (see .overview-side-container above), it was
+   visibly cropping the first character(s) of "Balance"/the amount on mobile. */
+.overview-right .row {
+    margin-left: 0;
+    margin-right: 0;
 }

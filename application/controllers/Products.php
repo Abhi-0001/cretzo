@@ -505,14 +505,18 @@ class Products extends CI_Controller
 
         $slug = urldecode($slug);
         $valid_zipcode = (!empty($this->session->userdata('valid_zipcode'))) ? $this->session->userdata('valid_zipcode') : "";
-        $product = fetch_product($user_id, ['slug' => $slug], NULL, NULL, NULL, NULL, NULL, NULL, NULL, $valid_zipcode);
+        // GST enrollment restriction : out-of-state customers must not view a
+        // state-restricted product; the state filter makes the fetch return empty for them.
+        $product = fetch_product($user_id, ['slug' => $slug, 'customer_state' => get_customer_state()], NULL, NULL, NULL, NULL, NULL, NULL, NULL, $valid_zipcode);
 
-        $product_variant_id = $product['product'][0]['variants'][0]['id'];
-        $res = get_statistics($product_variant_id);
-
+        // Empty check moved above the variant access so a restricted/not-found product
+        // redirects cleanly instead of erroring on a missing variant.
         if (empty($product['product'])) {
             redirect(base_url('products'));
         }
+
+        $product_variant_id = $product['product'][0]['variants'][0]['id'];
+        $res = get_statistics($product_variant_id);
         $product['product'][0]['zipcode'] = $valid_zipcode;
         $this->data['product'] = $product;
         $user_rating_limit = 5;
@@ -558,7 +562,8 @@ class Products extends CI_Controller
             $user_id = $this->data['user']->id;
         }
         $valid_zipcode = (!empty($this->session->userdata('valid_zipcode'))) ? $this->session->userdata('valid_zipcode') : "";
-        $product = fetch_product($user_id, null, $product_id, NULL, NULL, NULL, NULL, NULL, NULL, $valid_zipcode);
+        // GST enrollment restriction (P3.2): don't expose a state-restricted product to out-of-state customers.
+        $product = fetch_product($user_id, ['customer_state' => get_customer_state()], $product_id, NULL, NULL, NULL, NULL, NULL, NULL, $valid_zipcode);
         if (isset($product['product']) && empty($product['product'])) {
             return false;
         }
@@ -1096,6 +1101,12 @@ class Products extends CI_Controller
             !empty($this->lang->line("tags")) ? $this->lang->line("tags") : "Tags",
         );
         $this->data['products'] = fetch_product(null, $filter, null, null, $limit, $offset, $sort, $order);
+        // Provide the pagination vars the listing view expects (mirrors index()/category())
+        // so the tags page doesn't emit PHP notices on its initial render.
+        $this->data['total_rows'] = $config['total_rows'];
+        $this->data['page_no'] = $page_no;
+        $this->data['per_page'] = $limit;
+        $this->data['num_pages'] = (int) ceil($config['total_rows'] / $limit);
         $this->data['filters'] = (isset($this->data['products']['filters'])) ? json_encode($this->data['products']['filters']) : "";
         $this->data['filters_key'] = 'products_tags';
         $this->data['is_category_page'] = false;
@@ -1314,6 +1325,22 @@ class Products extends CI_Controller
             $zipcode = $this->input->post('zipcode', true);
             $is_pincode = is_exist(['zipcode' => $zipcode], 'zipcodes');
             $product_id = $this->input->post('product_id', true);
+            $seller_row = fetch_details('products', ['id' => $product_id], 'seller_id');
+            $seller_id  = !empty($seller_row) ? $seller_row[0]['seller_id'] : null;
+            if (!empty($seller_id)) {
+                $seller_kyc = fetch_details('seller_data', ['user_id' => $seller_id], 'is_gst_registered,state');
+                if (!empty($seller_kyc) && isset($seller_kyc[0]['is_gst_registered']) && $seller_kyc[0]['is_gst_registered'] == 0) {
+                    $seller_state   = trim((string) $seller_kyc[0]['state']);
+                    $customer_state = get_state_from_pincode($zipcode);
+                    if ($seller_state !== '' && $customer_state !== '' && !states_match($seller_state, $customer_state)) {
+                        $this->response['error']   = true;
+                        $this->response['message'] = '<b class="text-danger">Sorry, this product is not available in your area. This seller can only deliver within ' . html_escape($seller_state) . '.</b>';
+                        echo json_encode($this->response);
+                        return false;
+                    }
+                }
+            }
+
             if ($is_pincode) {
                 $zipcode_id = fetch_details('zipcodes', ['zipcode' => $zipcode], 'id');
                 $is_available = is_product_delivarable($type = 'zipcode', $zipcode_id[0]['id'], $product_id);
@@ -1574,6 +1601,10 @@ class Products extends CI_Controller
         if ($this->data['is_logged_in']) {
             $user_id = $this->data['user']->id;
         }
+
+        /* GST enrollment restriction (P3.2): hide state-restricted sellers' products
+           from customers outside the seller's state (when the customer's state is known). */
+        $filter['customer_state'] = get_customer_state();
 
         /* -------- FETCH -------- */
         $products = fetch_product(

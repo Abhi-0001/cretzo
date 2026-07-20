@@ -84,7 +84,7 @@ class Product extends CI_Controller
         $this->load->database();
         $this->load->library(['ion_auth', 'form_validation', 'upload']);
         $this->load->helper(['url', 'language', 'file']);
-        $this->load->model(['product_model', 'category_model', 'rating_model']);
+        $this->load->model(['product_model', 'category_model', 'rating_model', 'Seller_subscription_model']);
         $this->response = [];
     }
     public function index()
@@ -128,6 +128,7 @@ class Product extends CI_Controller
             $this->data['meta_description'] = 'Add Product | ' . $settings['app_name'];
             $this->data['taxes'] = fetch_details('taxes', null,  '*');
             $this->data['seller_id'] = $seller_id;
+            $this->data['listing_quota'] = $this->Seller_subscription_model->check_listing_quota($seller_id, 1);
             // $this->response['files'] = $uploaded_files;
             $this->data['countries'] = fetch_details('countries', null, 'name,id');
             $this->data['brands'] = fetch_details('brands', null, 'name,id');
@@ -307,7 +308,23 @@ class Product extends CI_Controller
         if (print_msg(!is_modification_allowed('create'), DEMO_VERSION_MSG, 'product', false)) {
             return false;
         }
-    
+
+        // Enforce the plan's listing limit for NEW products only (editing an existing
+        // product doesn't consume a listing slot).
+        if (empty($_POST['edit_product_id'])) {
+            $quota_seller_id = $this->session->userdata('user_id');
+            $quota = $this->Seller_subscription_model->check_listing_quota($quota_seller_id, 1);
+            if (!$quota['allowed']) {
+                $plan_label = $quota['plan_name'] !== '' ? ' on the ' . $quota['plan_name'] . ' plan' : '';
+                $this->response['error'] = true;
+                $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                $this->response['message'] = 'You have reached your listing limit of ' . $quota['limit'] . ' products' . $plan_label . ' (currently used ' . $quota['used'] . '). Please upgrade your subscription plan to add more products.';
+                print_r(json_encode($this->response));
+                return;
+            }
+        }
+
         // Sync product_type from type field if not set
         if (empty($_POST['product_type']) && !empty($_POST['type'])) {
             $_POST['product_type'] = trim($_POST['type']);
@@ -937,6 +954,21 @@ class Product extends CI_Controller
                     }
 
                     fclose($handle);
+
+                    // Enforce the plan's listing limit before inserting bulk products
+                    // ($temp counted header + data rows in the validation pass above).
+                    $rows_to_add = ($temp > 0) ? ($temp - 1) : 0;
+                    $quota = $this->Seller_subscription_model->check_listing_quota($this->ion_auth->get_user_id(), $rows_to_add);
+                    if (!$quota['allowed']) {
+                        $plan_label = $quota['plan_name'] !== '' ? ' on the ' . $quota['plan_name'] . ' plan' : '';
+                        $this->response['error'] = true;
+                        $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                        $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                        $this->response['message'] = 'This file has ' . $rows_to_add . ' products, but your listing limit is ' . $quota['limit'] . $plan_label . ' and you have already used ' . $quota['used'] . ' (' . $quota['remaining'] . ' left). Please upgrade your subscription or upload fewer products.';
+                        print_r(json_encode($this->response));
+                        return false;
+                    }
+
                     $handle = fopen($csv, "r");
                     while (($row = fgetcsv($handle, 10000, ",")) != FALSE) //get row vales
                     {

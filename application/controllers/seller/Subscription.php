@@ -29,6 +29,7 @@ class Subscription extends CI_Controller
             $this->data['plans'] = $this->Subscription_model->get_plans();
             $this->data['active_subscription'] = $this->Seller_subscription_model->get_active_subscription($user_id);
             $this->data['latest_subscription'] = $this->Seller_subscription_model->get_latest_subscription($user_id);
+            $this->data['launch_offer_active'] = $this->Seller_subscription_model->is_launch_offer_active();
 
             $this->load->view('seller/template', $this->data);
         } else {
@@ -80,6 +81,19 @@ class Subscription extends CI_Controller
                 'csrfName' => $this->security->get_csrf_token_name(),
                 'csrfHash' => $this->security->get_csrf_hash(),
                 'message' => 'Selected subscription plan not found',
+            ];
+            echo json_encode($response);
+            return;
+        }
+
+        // The launch promotion is auto-granted to the first 100 vendors at sign up only;
+        // it can't be self-selected here (that would bypass the 100-vendor cap).
+        if (isset($plan['name']) && strcasecmp(trim($plan['name']), 'Launch Offer') === 0) {
+            $response = [
+                'error' => true,
+                'csrfName' => $this->security->get_csrf_token_name(),
+                'csrfHash' => $this->security->get_csrf_hash(),
+                'message' => 'The Launch Offer is an automatic promotion for the first 100 vendors and cannot be selected manually.',
             ];
             echo json_encode($response);
             return;

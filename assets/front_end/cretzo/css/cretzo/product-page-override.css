@@ -17,8 +17,13 @@
 .big-img{
   width: 100% !important;
   height: auto !important;
-  /* max-height: 60vh !important; */
-  max-height: initial !important;;
+  /* Uncapping this (max-height: initial) let the image grow to its full
+     aspect-ratio height at column width, often taller than the viewport.
+     The ScrollMagic pin in product-page.js measures .img-container's real
+     height to compute how long to pin it while scrolling; an oversized
+     image breaks that math and pins the image in place indefinitely,
+     covering the description/FAQ tabs below. Keep it capped. */
+  max-height: 60vh !important;
   aspect-ratio: 4/3;
 }
 
@@ -44,12 +49,79 @@
   padding: 0 !important;
 }
 
+/* The thumbnail rail's swiper-slide/wrapper otherwise stretch to match the
+   main gallery's slide height (height: 100% is Swiper's default), leaving a
+   large empty area below each ~150px thumbnail. That inflates .img-container
+   well past its visible content, which throws off the ScrollMagic pin's
+   duration calculation in product-page.js. Size the thumb rail to its own
+   content instead. */
+.product-gallery-thumbs.swiper-container-thumbs,
+.product-gallery-thumbs .swiper-wrapper,
+.product-gallery-thumbs .swiper-slide {
+  height: auto !important;
+}
+
 .swiper-wrapper#gal1{
   padding-bottom: 0px !important;
 }
 
+/* custom.css has a blanket `.swiper-slide { height: 70vh !important; }` meant
+   for the homepage banner slider, but it leaks into every Swiper on the site
+   — including this product gallery, where it forced the main slide (and so
+   .big-img-container) to a flat 70vh regardless of the image's real
+   aspect-ratio-driven height. That's what left the big dead gap between the
+   image and the thumbnail rail. Neutralize it here so the gallery sizes to
+   its actual content. */
+.gallery-top-1,
+.gallery-top-1 .swiper-wrapper,
+.gallery-top-1 .swiper-slide,
+.big-img-container {
+  height: auto !important;
+  min-height: 0 !important;
+}
+.gallery-top-1 .swiper-slide figure {
+  margin: 0 !important;
+}
+.big-img-container {
+  position: relative;
+}
+.product-gallery-thumbs {
+  margin-top: 14px;
+}
+
 .swiper-img:has(.product-small-img){
   border: none;
+  cursor: pointer;
+}
+
+/* Amazon-style hover-to-magnify: .zoom-lens highlights the hovered region on
+   the main image, .zoom-pane shows that region magnified to the right. Both
+   are created and positioned by product-page.js; only enabled on pointer
+   devices wide enough to fit the pane (see the JS 'canZoom' check). */
+.zoom-lens {
+  position: absolute;
+  display: none;
+  background: rgba(255, 255, 255, 0.35);
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  cursor: crosshair;
+  pointer-events: none;
+  z-index: 20;
+}
+.zoom-pane {
+  position: fixed;
+  display: none;
+  background-repeat: no-repeat;
+  background-color: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+  z-index: 1200;
+}
+@media (max-width: 992px) {
+  .zoom-lens,
+  .zoom-pane {
+    display: none !important;
+  }
 }
 
 .detail-container{
@@ -77,13 +149,27 @@
   object-fit: contain;
 }
 
+/* cretzo-fixes.css's generic `.product-price { gap: 1px; font-weight: 700;
+   color: #111; }` (its "rupee symbol design" fix) loads after this file and
+   otherwise wins: it squeezes the current/previous/discount prices together
+   and, since .previous-price has no color/weight/size of its own, leaves it
+   inheriting bold near-black text — same visual weight as the current price.
+   Override both here. */
+.product-price {
+  gap: 10px !important;
+}
 .current-price {
   color: #343f52;
   font-weight: 900;
 }
+.previous-price {
+  font-size: 16px !important;
+  font-weight: 400 !important;
+  color: #9a9fa8 !important;
+}
 .discount {
   color: var(--color-orange);
-  font-size: var(--font-size-sub-heading);
+  font-size:14px;
 }
 
 .rating-star-container{
@@ -148,6 +234,46 @@
   box-shadow: 0 0 0 1px var(--color-orange);
   background-color: var(--color-orange);
   color: white;
+}
+
+/* Icon-only wishlist button, sits to the right of Add to Cart. The heart
+   alone conveys state — no text: outline = not saved, filled orange = saved. */
+.wishlist-icon-btn {
+  flex: 0 0 auto;
+  height: 40px;
+  width: 40px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-light-grey);
+  border-radius: 50%;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.1s ease;
+}
+.wishlist-icon-btn i {
+  font-size: 18px;
+  line-height: 1;
+  color: #9a9a9a;
+}
+.wishlist-icon-btn:hover {
+  border-color: var(--color-orange);
+}
+.wishlist-icon-btn:hover i {
+  color: var(--color-orange);
+}
+.wishlist-icon-btn:active {
+  transform: scale(0.94);
+}
+/* saved state: filled orange heart on a soft orange chip */
+.wishlist-icon-btn.remove-fav {
+  border-color: var(--color-orange);
+  background: rgba(242, 130, 46, 0.10);
+}
+.wishlist-icon-btn.remove-fav i,
+.wishlist-icon-btn .fa-heart {
+  color: var(--color-orange);
 }
 
 /* .product-c:active, .product-c:checked{
@@ -270,6 +396,32 @@ label.product-attr-label-general:has(> .product-attr-input:checked){
 /* description style override */
 .des{
   padding: 10px 2em;
+  max-width: 100%;
+  /* P4.4: AI-pasted descriptions carry long unbreakable runs (&nbsp; strings,
+     emoji, URLs) that overflowed the tab and clipped text on mobile. Force
+     wrapping and keep any embedded media/tables inside the column. */
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.des img,
+.des video,
+.des iframe { max-width: 100%; height: auto; }
+.des table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.des pre { white-space: pre-wrap; word-break: break-word; }
+/* Normalise lists: the pasted HTML relies on Tailwind classes (not loaded here)
+   that laid list items out horizontally and pushed them past the column edge. */
+.des ul, .des ol { display: block; padding-left: 1.25em; margin-left: 0; }
+.des li { display: list-item; width: auto; float: none; white-space: normal; }
+@media (max-width: 768px) {
+  .des { padding: 10px 1em; }
+  .product-description-container{
+    padding: 10px 20px;
+  }
 }
 
 
@@ -352,9 +504,83 @@ label.product-attr-label-general:has(> .product-attr-input:checked){
   }
   .img-container {
     align-self: center;
+    /* P4.3: trim the oversized desktop padding so the gallery uses the width */
+    padding: 14px 14px 10px !important;
   }
+
+  /* P4.3: mobile-only tweaks. The 70vh dead-gap bug itself is neutralized
+     globally above; here we just trim the desktop padding, let the image use
+     a bit more of the shorter viewport, and keep the thumbnail gap tighter
+     than desktop's. */
+  .big-img,
+  .product-big-img {
+    max-height: 62vh !important;
+  }
+  .product-gallery-thumbs { margin-top: 4px; }
+
+  /* keep page content clear of the sticky buy bar */
+  body { padding-bottom: 76px; }
 }
 /* responsive ends */
+
+/* ============================================================
+   P4.3 — Sticky mobile "Add to Cart" bar
+   A fixed bottom bar (price + Add to Cart) for quick checkout on
+   phones. Its button just proxies a click to the in-page #add_cart
+   so all existing variant/qty/cart logic is reused. Desktop hides it.
+   ============================================================ */
+.mobile-buy-bar { display: none; }
+@media screen and (max-width: 800px) {
+  .mobile-buy-bar {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1030;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: #fff;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 -3px 12px rgba(0, 0, 0, 0.08);
+  }
+  .mobile-buy-bar .mbb-price {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.15;
+    min-width: 0;
+  }
+  .mobile-buy-bar .mbb-current {
+    font-size: 18px;
+    font-weight: 800;
+    color: #343f52;
+    white-space: nowrap;
+  }
+  .mobile-buy-bar .mbb-previous {
+    font-size: 12px;
+    color: #9a9a9a;
+    text-decoration: line-through;
+    white-space: nowrap;
+  }
+  .mobile-buy-bar .mbb-btn {
+    flex: 1;
+    margin-left: auto;
+    border: none;
+    background: var(--color-orange);
+    color: #fff;
+    font-weight: 700;
+    font-size: 15px;
+    padding: 12px 16px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+  }
+  .mobile-buy-bar .mbb-btn:active { background: var(--color-orange-dark, #d9701f); }
+}
 
 
 /* --- Rating Section Style STARTS --- */

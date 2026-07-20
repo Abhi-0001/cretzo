@@ -145,7 +145,7 @@
                                                 </td>
                                                 <td><?= $hsn_code ?><br></td>
                                                 <td>
-                                                    <?= $settings['currency'] . ' ' . number_format($price_without_tax, 2) ?>
+                                                    <?= $settings['currency'] . number_format($price_without_tax, 2) ?>
                                                     <br>
                                                 </td>
 
@@ -162,7 +162,7 @@
                                                     <br>
                                                 </td>
                                                 <td>
-                                                    <?= $settings['currency'] . ' ' . number_format($sub_total, 2) ?>
+                                                    <?= $settings['currency'] . number_format($sub_total, 2) ?>
                                                     <br>
                                                 </td>
                                                 <td class="d-none">
@@ -194,7 +194,7 @@
                                                 <br>
                                             </th>
                                             <th>
-                                                <?= $settings['currency'] . ' ' . number_format($cal_final_total, 2);  ?>
+                                                <?= $settings['currency'] . number_format($cal_final_total, 2);  ?>
                                                 <br>
                                             </th>
                                         </tr>

@@ -1,3 +1,16 @@
+<?php
+    // List of Indian states and union territories (currently only India is supported)
+    $indian_states = [
+        'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
+        'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka',
+        'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram',
+        'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu',
+        'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
+        'Andaman and Nicobar Islands', 'Chandigarh',
+        'Dadra and Nagar Haveli and Daman and Diu', 'Delhi', 'Jammu and Kashmir',
+        'Ladakh', 'Lakshadweep', 'Puducherry',
+    ];
+?>
 <div class="overview-side-container">
     <h1 class="heading-b">Account</h1>
     <p class="text-n"><?= $users->username ?></p>
@@ -27,7 +40,7 @@
             ?>
                         <ul class="list cart-left-two-left <?= $is_default ? 'cart-left-two-left-upper' : '';?>">
                             <li class="address-container <?=$key == 0 ? 'selected-address' : ''?>" data-row="<?= htmlspecialchars(json_encode($row)) ?>">
-                                <h1 class="text-n address-name"><?=$row['name']?> <span class="address-type <?=$row['type']?>-address"><?=$row['type']?></span></h1>
+                                <h1 class="text-n address-name"><?=$row['name']?> <span class="address-type <?=$row['type']?>-address"><?=ucfirst($row['type'])?></span></h1>
                                 <p class="text-n address-text"><?=$row['address']?></p>
                                 <!-- <p class="text-n address-text">Mobile: <strong><?=$row['mobile']?></strong></p> -->
                                 <p class="text-n address-text">Mobile: <?=$row['mobile']?> </p>
@@ -122,65 +135,37 @@
                                 <label for="address" class="control-label required"><?= !empty($this->lang->line('address')) ? $this->lang->line('address') : 'Address' ?></label>
                                 <textarea name="address" class="form-control" id="address" cols="30" rows="4" placeholder="#Door no, Street Address, Locality, Area, Pincode"></textarea>
                             </div>
-                            <div class="col-md-6 col-sm-12 col-xs-12 form-group mb-3 city">
-                                <label for="city" class="control-label"><?= !empty($this->lang->line('city')) ? $this->lang->line('city') : 'City' ?></label>
-                                <!-- <select name="city_id" id="city" class="form-control">
-                                    <option value=""><?= !empty($this->lang->line('select_city')) ? $this->lang->line('select_city') : '--Select City--' ?></option>
-                                    <option value="0"><?= !empty($this->lang->line('other')) ? $this->lang->line('other') : 'other' ?></option>
-                                    <?php foreach ($cities as $row) { ?>
-                                        <option value="<?= $row['id'] ?>"><?= $row['name'] ?></option>
-                                    <?php } ?>
-                                </select> -->
-                                <select class="form-control form-select2" name="city_id" id="city">
-                                    <option value=""><?= !empty($this->lang->line('select_city')) ? $this->lang->line('select_city') : '--Select City--' ?></option>
-                                    <?php foreach ($cities as $row) { ?>
-                                        <option value="<?= $row['id'] ?>"><?= $row['name'] ?></option>
-                                    <?php } ?>
-                                </select>
+                            <!-- Pincode first: entering it auto-fills city, district and state -->
+                            <div class="col-md-6 col-sm-12 col-xs-12 form-group mb-3">
+                                <label for="pincode" class="control-label required"><?= !empty($this->lang->line('pincode')) ? $this->lang->line('pincode') : 'Zipcode' ?></label>
+                                <input type="text" class="form-control" id="pincode" name="pincode" placeholder="Zipcode" maxlength="6" inputmode="numeric" pattern="[0-9]*" />
+                                <small id="pincode_status" class="form-text text-muted"></small>
                             </div>
-                            <!-- <div class="col-md-6 col-sm-12 col-xs-12 form-group mb-3 area">
-                                <label for="area" class="control-label">Area</label>
-                                <select name="area_id" id="area" class="form-control">
-                                    <option value=""><?= !empty($this->lang->line('select_area')) ? $this->lang->line('select_area') : '--Select Area--' ?></option>
-                                </select>
-                            </div> -->
-                            <div class="col-md-6 col-sm-12 col-xs-12 form-group mb-3 area">
-                                <label for="area" class="control-label">Area</label>
-                                <input type="text" class="form-control" id="area" name="general_area_name" placeholder="Area Name" />
+                            <div class="col-md-6 col-sm-12 col-xs-12 form-group mb-3">
+                                <label for="city_name" class="control-label required"><?= !empty($this->lang->line('city')) ? $this->lang->line('city') : 'City' ?></label>
+                                <input type="text" class="form-control" id="city_name" name="city_name" placeholder="City" />
+                                <input type="hidden" name="city_id" id="city" value="" />
                             </div>
-                            <!-- <div class="col-md-4 col-sm-12 col-xs-12 form-group mb-3 pincode d-none">
-                                <label for="Zipcode" class="control-label"><?= !empty($this->lang->line('pincode')) ? $this->lang->line('pincode') : 'Zipcode' ?></label>
-                                <input type="text" class="form-control" id="pincode" name="pincode" placeholder="Zipcode" readonly />
-                            </div> -->
-                            <div class="col-md-6 col-sm-12 col-xs-12 form-group mb-3 area">
-                                <label for="pincode" class="control-label"><?= !empty($this->lang->line('pincode')) ? $this->lang->line('pincode') : 'Zipcode' ?></label>
-                                <select name="pincode" id="pincode" class="form-control form-select2">
-                                    <option value=""><?= !empty($this->lang->line('select_zipcode')) ? $this->lang->line('select_zipcode') : '--Select Zipcode--' ?></option>
-                                </select>
+                            <div class="col-md-6 col-sm-12 col-xs-12 form-group mb-3">
+                                <label for="district" class="control-label required">District</label>
+                                <input type="text" class="form-control" id="district" name="general_area_name" placeholder="District" />
                             </div>
-
-                            <div class="col-md-6 col-sm-12 col-xs-12 form-group mb-3 city_name d-none">
-                                <label for="city" class="control-label"><?= !empty($this->lang->line('city')) ? $this->lang->line('city') : 'City Name' ?></label>
-                                <input type="text" class="form-control " id="city_name" name="city_name" placeholder="City" />
-                            </div>
-                            <div class="col-md-6 col-sm-12 col-xs-12 form-group mb-3 area_name d-none">
-                                <label for="area" class="control-label">Area</label>
-                                <input type="text" class="form-control " id="area_name" name="area_name" placeholder="Area Name" />
-                            </div>
-
-                            <div class="col-md-6 col-sm-12 col-xs-12 form-group mb-3 pincode_name d-none">
-                                <label for="area" class="control-label required">Pincode</label>
-                                <input type="text" class="form-control " id="pincode_name" name="pincode_name" placeholder="Zipcode" />
-                            </div>
-
                             <div class="col-md-6 col-sm-12 col-xs-12 form-group mb-3">
                                 <label for="state" class="control-label required"><?= !empty($this->lang->line('state')) ? $this->lang->line('state') : 'State' ?></label>
-                                <input type="text" class="form-control" id="state" name="state" placeholder="State" />
+                                <select class="form-control" id="state" name="state">
+                                    <option value="">-- Select State --</option>
+                                    <?php foreach ($indian_states as $state_name) { ?>
+                                        <option value="<?= $state_name ?>"><?= $state_name ?></option>
+                                    <?php } ?>
+                                </select>
                             </div>
+                            <!-- Country section commented out - currently only India is supported
                             <div class="col-md-6 col-sm-12 col-xs-12 form-group mb-3">
                                 <label for="country" class="control-label required"><?= !empty($this->lang->line('country')) ? $this->lang->line('country') : 'Country' ?></label>
                                 <input type="text" class="form-control" name="country" id="country" placeholder="Country" />
                             </div>
+                            -->
+                            <input type="hidden" name="country" id="country" value="India" />
                             <div class="col-md-12 col-sm-12 col-xs-12 form-group mb-4 mt-2">
                                 <label for="country" class="control-label"><?= !empty($this->lang->line('type')) ? $this->lang->line('type') : 'Type : ' ?></label>
                                 <div class="form-check form-check-inline">
@@ -216,7 +201,7 @@
         <div class="modal-content">
             <div class="modal-header py-6">
                 <h5 class="modal-title" id="exampleModalLongTitle"><?= !empty($this->lang->line('edit_address')) ? $this->lang->line('edit_address') : 'Edit Address' ?></h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close" onclick="$('#edit-address-modal').modal('hide');">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
@@ -241,14 +226,12 @@
                         
                         <div class="col-md-6 col-sm-12 col-xs-12 form-group edit_city">
 
-                            <label for="edit_city" class="form-check-label"><?= !empty($this->lang->line('city')) ? $this->lang->line('city') : 'City' ?></label>
-                            <select name="city_id" id="edit_city" class="form-control form-select2">
-                                <option value><?= !empty($this->lang->line('select_city')) ? $this->lang->line('select_city') : '--Select City--' ?></option>
-                                <option value="0"><?= !empty($this->lang->line('other')) ? $this->lang->line('other') : 'other' ?></option>
-                                <?php foreach ($cities as $row) { ?>
-                                    <option value="<?= $row['id'] ?>"><?= $row['name'] ?></option>
-                                <?php } ?>
-                            </select>
+                            <label for="edit_city_search" class="form-check-label"><?= !empty($this->lang->line('city')) ? $this->lang->line('city') : 'City' ?></label>
+                            <div class="city-autocomplete-wrap">
+                                <input type="text" class="form-control city-autocomplete-input" id="edit_city_search" placeholder="Search for cities" autocomplete="off" />
+                                <input type="hidden" name="city_id" id="edit_city" value="" />
+                                <div class="city-autocomplete-results" id="edit_city_results"></div>
+                            </div>
                         </div>
                         <!-- <input type="text" name="other_city" id="other_city" class="d-none"> -->
                         <!-- <div class="col-md-6 col-sm-12 col-xs-12 form-group edit_area">
@@ -271,29 +254,26 @@
                             <label for="area" class="form-check-label">Area</label>
                             <input type="text" class="form-control" id="other_areas_value" name="other_areas" placeholder="Area Name" />
                         </div>
-                        <div class="col-md-6 col-sm-12 col-xs-12 form-group other_pincode d-none">
-                            <label for="area" class="form-check-label required">Pincode</label>
-                            <input type="text" class="form-control " id="other_pincode_value" name="pincode_name" placeholder="Zipcode" />
-                        </div>
-                        <!-- <input type="text" name="other_areas" id="other_areas" class="d-none"> -->
-                        <!-- <div class="col-md-4 col-sm-12 col-xs-12 form-group edit_pincode">
-                            <label for="pincode" class="form-check-label"><? //= !empty($this->lang->line('pincode')) ? $this->lang->line('pincode') : 'Zipcode' 
-                                                                            ?></label>
-                            <input type="text" class="form-control" id="edit_pincode" name="pincode" placeholder="Name" readonly />
-                        </div> -->
                         <div class="col-md-6 col-sm-12 col-xs-12 form-group area">
                             <label for="pincode" class="control-label required"><?= !empty($this->lang->line('pincode')) ? $this->lang->line('pincode') : 'Zipcode' ?></label>
-                            <select name="pincode" id="edit_pincode" class="form-control form-select2">
-                            </select>
+                            <input type="text" class="form-control" id="edit_pincode" name="pincode" placeholder="Zipcode" maxlength="6" inputmode="numeric" pattern="[0-9]*" />
                         </div>
                         <div class="col-md-6 col-sm-12 col-xs-12 form-group">
                             <label for="state" class="form-check-label required"><?= !empty($this->lang->line('state')) ? $this->lang->line('state') : 'State' ?></label>
-                            <input type="text" class="form-control" id="edit_state" name="state" placeholder="State" />
+                            <select class="form-control" id="edit_state" name="state">
+                                <option value="">-- Select State --</option>
+                                <?php foreach ($indian_states as $state_name) { ?>
+                                    <option value="<?= $state_name ?>"><?= $state_name ?></option>
+                                <?php } ?>
+                            </select>
                         </div>
+                        <!-- Country section commented out - currently only India is supported
                         <div class="col-md-6 col-sm-12 col-xs-12 form-group">
                             <label for="country" class="form-check-label required"><?= !empty($this->lang->line('country')) ? $this->lang->line('country') : 'Country' ?></label>
                             <input type="text" class="form-control" name="country" id="edit_country" placeholder="Country" />
                         </div>
+                        -->
+                        <input type="hidden" name="country" id="edit_country" value="India" />
                         <div class="col-md-12 col-sm-12 col-xs-12 form-group">
                             <label for="country" class="form-check-label"><?= !empty($this->lang->line('type')) ? $this->lang->line('type') : 'Type : ' ?></label>
                             <div class="form-check form-check-inline">

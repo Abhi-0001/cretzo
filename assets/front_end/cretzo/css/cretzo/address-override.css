@@ -62,10 +62,6 @@
 }
 
 /* Overriding Styles for Edit Address Modal & Add Address Modal */
-.city .select2-container, .edit_city .select2-container{
-    /* margin-top: 4px; */
-    width: 100% !important;
-}
 .control-label{
     margin-bottom: 0;
 }
@@ -88,19 +84,55 @@ select.form-control:not([size]):not([multiple]){
     line-height: 1.7 !important;
     min-height: initial !important;
 }
-.select2-container .select2-selection--multiple, .select2-container .select2-selection--single{
-    height: initial !important;
-    /* line-height: 1.7 !important; */
-    min-height: initial !important;
+
+/* Unified focus style for every field in the Add/Edit Address modals
+   (plain inputs, textarea and the city autocomplete input all share one
+   focus color, instead of the mismatched blue/orange/pink coming from
+   different theme files) */
+#add-address-modal .form-control:focus,
+#add-address-modal textarea.form-control:focus,
+#edit-address-modal .form-control:focus,
+#edit-address-modal textarea.form-control:focus {
+    border-color: var(--color-orange) !important;
+    box-shadow: none !important;
+    outline: none !important;
 }
-.select2-container--bootstrap4 .select2-selection--single .select2-selection__rendered{
-    height: initial !important;
-    line-height: 1.7 !important;
-    min-height: initial !important;
-    padding: .2rem 0.6rem;
+
+/* City field: type directly into the box, matching cities render in a
+   small panel anchored right below it (in normal document flow, so it never
+   detaches from the field and never blocks the modal's own scrolling). */
+.city-autocomplete-wrap {
+    position: relative;
 }
-.select2-container--bootstrap4 .select2-selection--single .select2-selection__placeholder{
-    height: initial !important;
-    line-height: 1.7 !important;
-    min-height: initial !important;
+.city-autocomplete-results {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 20;
+    margin-top: 2px;
+    background: #fff;
+    border: 1.5px solid var(--color-orange);
+    border-radius: 8px;
+    max-height: 220px;
+    overflow-y: auto;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
+}
+.city-autocomplete-results.show {
+    display: block;
+}
+.city-autocomplete-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 14px;
+}
+.city-autocomplete-item:hover {
+    background: var(--color-orange);
+    color: #fff;
+}
+.city-autocomplete-empty {
+    padding: 8px 12px;
+    color: var(--color-grey, #999);
+    font-size: 13px;
 }

@@ -262,6 +262,23 @@
         </div>
     </section>
 
+    <?php if (empty($product_details[0]['id']) && !empty($listing_quota) && $listing_quota['limit'] !== null) :
+        $lq_remaining = (int) $listing_quota['remaining'];
+        $lq_color = $lq_remaining <= 0 ? '#dc3545' : ($lq_remaining <= 5 ? '#F2822E' : '#2e7d32');
+    ?>
+        <section class="content pb-0">
+            <div class="container-fluid">
+                <div style="border-left:4px solid <?= $lq_color ?>; background:#fff8ef; border-radius:8px; padding:12px 16px; margin-bottom:6px; font-size:14px;">
+                    <strong style="color:<?= $lq_color ?>;">Listings: <?= (int) $listing_quota['used'] ?> / <?= (int) $listing_quota['limit'] ?> used</strong>
+                    &mdash; <?= $lq_remaining ?> remaining<?= $listing_quota['plan_name'] !== '' ? ' on the ' . html_escape($listing_quota['plan_name']) . ' plan' : '' ?>.
+                    <?php if ($lq_remaining <= 0) : ?>
+                        You've reached your plan limit. <a href="<?= base_url('seller/subscription') ?>">Upgrade your plan</a> to add more products.
+                    <?php endif; ?>
+                </div>
+            </div>
+        </section>
+    <?php endif; ?>
+
     <section class="content">
         <div class="container-fluid">
         <div class="card card-info shadow-sm">
