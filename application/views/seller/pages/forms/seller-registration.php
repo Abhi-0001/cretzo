@@ -25,10 +25,6 @@
             </div>
 
             <h2 class="mission-text">Empowering Handmade Artist Worldwide</h2>
-        </div>
-
-        <div class="form-section">
-            <h2 class="form-title">Create Seller Account </h2>
 
             <?php if (!empty($launch_offer_active)) : ?>
             <div class="launch-offer-banner" role="note">
@@ -36,6 +32,10 @@
                 <span class="lo-text"><strong>Launch Offer</strong>First 100 vendors get 50 free listings for 1 year</span>
             </div>
             <?php endif; ?>
+        </div>
+
+        <div class="form-section">
+            <h2 class="form-title">Create Seller Account </h2>
 
             <form class="form-submit-event" action="<?= base_url('seller/auth/ajax_signup') ?>" method="post">
             <input type='hidden' name='<?= $this->security->get_csrf_token_name() ?>' value='<?= $this->security->get_csrf_hash() ?>'>
