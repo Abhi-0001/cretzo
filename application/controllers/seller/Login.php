@@ -10,14 +10,12 @@ class Login extends CI_Controller
         $this->load->database();
         $this->load->library(['ion_auth', 'form_validation']);
         $this->load->helper(['url', 'language']);
-        $this->load->model('Seller_model');
+        $this->load->model(['Seller_model', 'Seller_subscription_model']);
         $this->lang->load('auth');
     }
 
     public function index()
     {
-      
-        print_r($this->ion_auth->seller_status() );
         if (!$this->ion_auth->logged_in() && !$this->ion_auth->is_seller()) {
             $this->data['main_page'] = FORMS . 'login';
             $settings = get_settings('system_settings', true);
@@ -32,6 +30,7 @@ class Login extends CI_Controller
                 $identity_column = $identity;
             }
             $this->data['identity_column'] = $identity_column;
+            $this->data['launch_offer_active'] = $this->Seller_subscription_model->is_launch_offer_active();
             $this->load->view('seller/login', $this->data);
         } else if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 2 || $this->ion_auth->seller_status() == 7)) {
             $this->ion_auth->logout();
@@ -48,6 +47,7 @@ class Login extends CI_Controller
                 $identity_column = $identity;
             }
             $this->data['identity_column'] = $identity_column;
+            $this->data['launch_offer_active'] = $this->Seller_subscription_model->is_launch_offer_active();
             $this->load->view('seller/login', $this->data);
         } else if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
             redirect('seller/home', 'refresh');
@@ -466,6 +466,9 @@ class Login extends CI_Controller
                         'entity_type' => $this->input->post('entity_type') ?? null,
                         'pan' => $this->input->post('pan') ?? null,
                         'gst' => $this->input->post('gst') ?? null,
+                        // GST enrollment restriction: "We are not GST registered" (gst_check) => state-restricted seller.
+                        'is_gst_registered' => isset($_POST['gst_check']) ? 0 : 1,
+                        'gst_enrollment_number' => isset($_POST['gst_check']) ? ($this->input->post('gst_enrollment_number') ?? null) : null,
                         'account_number' => $this->input->post('account_number') ?? null,
                         'account_holder_name' => $this->input->post('account_holder_name') ?? null,
                         'ifsc' => $this->input->post('ifsc') ?? null,

@@ -222,14 +222,14 @@
                         <tr>
                             <td class="ps-0"><strong class="text-dark"><?= !empty($this->lang->line('subtotal')) ? $this->lang->line('subtotal') : 'Subtotal' ?></strong></td>
                             <td class="pe-0 text-end">
-                                <p class="price"><?= $settings['currency'] . ' ' . number_format($cart['sub_total'], 2) ?></p>
+                                <p class="price"><?= $settings['currency'] . number_format($cart['sub_total'], 2) ?></p>
                             </td>
                         </tr>
                         <?php if (!empty($cart['tax_percentage'])) { ?>
                             <tr class="cart-product-tax d-none">
                                 <td class="ps-0"><strong class="text-dark"><?= !empty($this->lang->line('tax')) ? $this->lang->line('tax') : 'Tax' ?> (<?= $cart['tax_percentage'] ?>%)</strong></td>
                                 <td class="pe-0 text-end">
-                                    <p class="price text-red"><?= $settings['currency'] . ' ' . number_format($cart['tax_amount'], 2) ?></p>
+                                    <p class="price text-red"><?= $settings['currency'] . number_format($cart['tax_amount'], 2) ?></p>
                                 </td>
                             </tr>
                         <?php } ?>

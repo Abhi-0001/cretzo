@@ -23,7 +23,7 @@
                         .cretzo-progress { display:flex; align-items:center; justify-content:center; gap:12px; margin-bottom:18px; font-size:20px }
                         .cretzo-progress .step { color:#111; font-weight:600; padding:0 6px; }
                         .cretzo-progress .step.active { color:#F28C38; font-weight:800; }
-                        .cretzo-progress .connector { width:160px; height:6px; border-radius:6px; }
+                        .cretzo-progress .connector { width:160px; border:dashed 1.5px #222; }
                         .cretzo-progress .connector.orange { background: repeating-linear-gradient(90deg, #F28C38 0 12px, transparent 12px 24px); }
                         .cretzo-progress .connector.dark { background: repeating-linear-gradient(90deg, #222 0 12px, transparent 12px 24px); }
                     </style>

@@ -40,7 +40,7 @@
   
   /* text-transform: capitalize; */
   
-  font-size: var(--font-size-text);
+  font-size: 14px;
 }
 .text-s{
   margin: 0;
@@ -113,7 +113,8 @@
 }
 
 /* cretzo card direct <a> tag child (for the link that opens when card is clicked) */
-/* .cretzo-card > a, */ .card-url {
+/* .cretzo-card > a, */ 
+.card-url {
   position: absolute;
   top: 0;
   bottom: 0;      
@@ -633,4 +634,54 @@ body#chat-body{
 /* Hide All Swal2 Alerts */
 .swal2-container{
   display: none !important;
+}
+
+/* ===== Mini-cart slide-out (P2.5 theme + P4.7 mobile responsiveness) ===== */
+.mini-cart-offcanvas {
+  width: 400px;
+  max-width: 90vw;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+}
+.mini-cart-offcanvas .offcanvas-header {
+  border-bottom: 1px solid #eee;
+  padding: 18px 20px;
+}
+.mini-cart-offcanvas .offcanvas-header h3 { font-size: 18px; font-weight: 600; margin: 0; }
+.mini-cart-offcanvas .offcanvas-body { padding: 14px 18px; overflow-y: auto; overflow-x: hidden; }
+.mini-cart-offcanvas .shopping-cart-item { padding-bottom: 12px; border-bottom: 1px solid #f2f2f2; }
+/* Fixed 56px square thumbnail so every product image looks identical in size/shape.
+   object-fit:cover fills the square uniformly (no letterboxing between products).
+   !important is required to beat the global `.cart-img { width:60% !important;
+   height:110px !important }` rule in custom.css, which otherwise forces big images. */
+.mini-cart-offcanvas .cart-img { width: 56px !important; height: 56px !important; min-width: 56px !important; overflow: hidden; border: 1px solid #eee; border-radius: 6px; margin: 0; }
+.mini-cart-offcanvas .cart-img img { width: 100% !important; height: 100% !important; object-fit: cover !important; }
+/* P4.7: let the flex children shrink so the title never runs under the remove
+   button. min-width:0 is what allows the clamp/ellipsis to kick in inside flex. */
+.mini-cart-offcanvas .shopping-cart-item-main { flex: 1 1 auto; min-width: 0; }
+.mini-cart-offcanvas .cart-title { min-width: 0; }
+.mini-cart-offcanvas .cart-title .post-title {
+  font-size: 14px;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.mini-cart-offcanvas .price { margin: 2px 0; }
+.mini-cart-offcanvas .price .amount,
+.mini-cart-offcanvas .product-line-price { color: black; font-weight: 600; }
+.mini-cart-offcanvas .product-sm-quantity input { max-width: 52px; height: 32px; padding: 2px 6px; }
+.mini-cart-offcanvas .product-sm-removal { flex: 0 0 auto; margin-left: 8px; }
+.mini-cart-offcanvas .product-sm-removal .remove-product { background: #fff; border: 1px solid #e5e5e5; color: #d9534f; }
+/* Footer: keep the two actions side-by-side and compact */
+.mini-cart-offcanvas .offcanvas-footer { border-top: 1px solid #eee; padding: 14px 18px; display: flex; flex-direction: row; gap: 10px; }
+.mini-cart-offcanvas .offcanvas-footer .btn { margin: 0 !important; flex: 1 1 0; padding: 3px 10px; font-size: 13px; white-space: nowrap; }
+.mini-cart-offcanvas .btn-red { background: var(--color-orange); border-color: var(--color-orange); color: #fff; }
+.mini-cart-offcanvas .view_cart_button { background: #fff; border-color: var(--color-orange); color: var(--color-orange); }
+.mini-cart-offcanvas .view_cart_button:hover,
+.mini-cart-offcanvas .view_cart_button:focus { background: var(--color-orange); border-color: var(--color-orange); color: #fff; }
+@media (max-width: 400px) {
+  .mini-cart-offcanvas { width: 100vw; max-width: 100vw; }
 }

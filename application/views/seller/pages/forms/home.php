@@ -150,9 +150,21 @@
                                     </span>
                                 <?php endif; ?>
                             </div>
-                            <button type="button" class="btn btn-sm btn-light" data-toggle="modal" data-target="#subscription_modal">
+                            <a href="<?= base_url('seller/subscription/manage_subscriptions'); ?>" class="btn btn-sm btn-light">
                                 Renew / Upgrade
-                            </button>
+                            </a>
+                        </div>
+                    </div>
+                <?php elseif (isset($subscription_status) && $subscription_status === 'none') : ?>
+                    <div class="col-12">
+                        <div class="alert alert-info d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>No active subscription:</strong>
+                                You don't have a plan yet. Choose a subscription to start selling.
+                            </div>
+                            <a href="<?= base_url('seller/subscription/manage_subscriptions'); ?>" class="btn btn-sm btn-dark">
+                                Choose a Plan
+                            </a>
                         </div>
                     </div>
                 <?php endif; ?>

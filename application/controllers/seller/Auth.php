@@ -14,7 +14,7 @@ class Auth extends CI_Controller
         $this->load->database();
         $this->load->library(['ion_auth', 'form_validation']);
         $this->load->helper(['url', 'language']);
-        $this->load->model('Seller_model');
+        $this->load->model(['Seller_model', 'Seller_subscription_model']);
         $this->lang->load('auth');
     }
 
@@ -34,6 +34,7 @@ class Auth extends CI_Controller
                 $identity_column = $identity;
             }
             $this->data['identity_column'] = $identity_column;
+            $this->data['launch_offer_active'] = $this->Seller_subscription_model->is_launch_offer_active();
             $this->load->view('seller/login', $this->data);
         } else if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller()) {
             redirect('seller/home', 'refresh');
@@ -55,6 +56,7 @@ class Auth extends CI_Controller
             $this->data['user_data'] = $_SESSION;
         }
 
+        $this->data['launch_offer_active'] = $this->Seller_subscription_model->is_launch_offer_active();
         $this->load->view('seller/pages/forms/seller-registration', $this->data);
     }
 
@@ -196,6 +198,10 @@ class Auth extends CI_Controller
                 $this->output->set_content_type('application/json')->set_output(json_encode($response));
                 return;
             }
+
+            // Launch promotion: first 100 vendors get "Launch Offer" (50 free listings /
+            // 1 year), everyone after gets the free plan. Never blocks registration.
+            $this->Seller_subscription_model->assign_registration_offer($user_id);
 
             // Try to login
             $login_result = $this->ion_auth->login($mobile, $password);
@@ -480,7 +486,13 @@ class Auth extends CI_Controller
             ];
 
             $this->Seller_model->seller_cereate_user($seller_data);
-            
+
+            // Launch promotion: first 100 vendors get "Launch Offer" (50 free listings /
+            // 1 year), everyone after gets the free plan.
+            if (!empty($user_id)) {
+                $this->Seller_subscription_model->assign_registration_offer($user_id);
+            }
+
             $this->ion_auth->login($this->input->post('phone'), '123456', true);
 
 

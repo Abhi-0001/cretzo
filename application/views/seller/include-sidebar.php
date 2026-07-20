@@ -1,9 +1,9 @@
 <?php $settings = get_settings('system_settings', true); ?>
-<aside class="main-sidebar elevation-2">
+<aside class="main-sidebar elevation-2 sidebar-no-expand">
     <!-- Brand Logo -->
     <a href="<?= base_url('seller/home') ?>" class="brand-link d-flex align-items-center">
     <img src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/logo.png') ?>" alt="<?= $settings['app_name']; ?>" title="<?= $settings['app_name']; ?>" class="img-fluid" style="max-height:40px; width:auto; margin-left:0;">
-    <span class="brand-text font-weight-light small"><?= $settings['app_name']; ?></span>
+    <!-- <span class="brand-text font-weight-light small"><?= $settings['app_name']; ?></span> -->
     </a>
  
     <!-- Sidebar -->
@@ -18,6 +18,15 @@
                         <i class="nav-icon fas fa-home text-primary"></i>
                         <p>
                             Home
+                        </p>
+                    </a>
+                </li>
+
+                <li class="nav-item">
+                    <a href="<?= base_url('seller/subscription/manage_subscriptions') ?>" class="nav-link">
+                        <i class="nav-icon fas fa-crown text-warning"></i>
+                        <p>
+                            Subscription
                         </p>
                     </a>
                 </li>

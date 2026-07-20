@@ -126,6 +126,14 @@ body{
     height: 26px;
     width: auto;
 }
+/* Logged-in state: tint the default person icon to the brand orange so a
+   signed-in user is visually distinct from the signed-out (dark) icon.
+   Only applied to the fallback avatar (`--brand`); a real uploaded photo
+   keeps its natural colours. Filter chain turns black -> #F2822E. */
+.icon-img.icon-img--brand,
+.icon-img-m.icon-img--brand{
+    filter: invert(61%) sepia(22%) saturate(3344%) hue-rotate(341deg) brightness(99%) contrast(92%);
+}
 /* .icon-num{
     position: absolute;
     top: -6px;
@@ -596,5 +604,86 @@ body{
         font-size: 18px;
     }
     /* footer ends */
+}
+
+/* ============================================================
+   P4.1 — Mobile mega menu (offcanvas accordion)
+   Category -> subcategory tree, tap a chevron to expand.
+   Lives inside .offcanvas-body.d-lg-none so it is mobile-only.
+   ============================================================ */
+.mobile-mega-nav {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+}
+.mobile-mega-nav .mm-item {
+    list-style: none;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+}
+.mobile-mega-nav .mm-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.mobile-mega-nav .mm-link {
+    flex: 1;
+    display: block;
+    padding: 13px 4px;
+    color: #222;
+    text-decoration: none;
+    font-size: 15px;
+    font-weight: 500;
+}
+.mobile-mega-nav .mm-item.depth-0 > .mm-row > .mm-link {
+    font-weight: 700;
+}
+.mobile-mega-nav .mm-link.active {
+    color: var(--color-orange);
+}
+.mobile-mega-nav .mm-toggle {
+    border: none;
+    background: transparent;
+    padding: 10px 8px;
+    margin: 0;
+    cursor: pointer;
+    color: #666;
+    font-size: 22px;
+    line-height: 1;
+    transition: transform 0.25s ease;
+}
+.mobile-mega-nav .mm-item.open > .mm-row > .mm-toggle {
+    transform: rotate(180deg);
+    color: var(--color-orange);
+}
+/* collapsible panel */
+.mobile-mega-nav .mm-submenu {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+.mobile-mega-nav .mm-item.open > .mm-submenu {
+    max-height: 2000px;
+}
+/* nested indentation + de-emphasis */
+.mobile-mega-nav .mm-submenu .mm-item {
+    border-bottom: none;
+}
+.mobile-mega-nav .mm-submenu .mm-row {
+    border-top: 1px dashed rgba(0, 0, 0, 0.08);
+}
+.mobile-mega-nav .mm-submenu .mm-link {
+    padding-left: 20px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #444;
+}
+.mobile-mega-nav .mm-submenu .mm-submenu .mm-link {
+    padding-left: 38px;
+    font-size: 13px;
+    color: #6a6a6a;
 }
 /* responsive ends */

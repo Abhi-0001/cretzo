@@ -132,7 +132,7 @@
                                                         <br><button class="btn remove-product button button-warning move-to-cart button-sm" data-id="<?= $row['id']; ?>"><?= !empty($this->lang->line('move_to_cart')) ? $this->lang->line('move_to_cart') : 'Move to cart' ?></button>
                                                     </h2>
                                                 </td>
-                                                <td class="text-muted p-0"><?= $settings['currency'] . ' ' . number_format($price, 2) ?></td>
+                                                <td class="text-muted p-0"><?= $settings['currency'] . number_format($price, 2) ?></td>
                                                 <td class="text-muted p-0 text-center"><?= isset($row['tax_percentage']) && !empty($row['tax_percentage']) ? $row['tax_percentage'] : '-' ?></td>
                                                 <td class="itemQty">
                                                     <?php $check_current_stock_status = validate_stock([$row['id']], [$row['qty']]); ?>
@@ -142,7 +142,7 @@
                                                         <?= $row['qty'] ?>
                                                     <?php } ?>
                                                 </td>
-                                                <td class="text-muted p-0"><?= $settings['currency'] . ' ' . number_format($price, 2) ?></td>
+                                                <td class="text-muted p-0"><?= $settings['currency'] . number_format($price, 2) ?></td>
                                                 <td>
 
                                                     <div class="product-removal">
@@ -165,18 +165,18 @@
                             <tbody>
                                 <tr class="d-none">
                                     <td class="text-muted"><?= !empty($this->lang->line('subtotal')) ? $this->lang->line('subtotal') : 'Subtotal' ?></td>
-                                    <td class="text-muted"><?= $settings['currency'] . ' ' . number_format($cart['sub_total'], 2) ?></td>
+                                    <td class="text-muted"><?= $settings['currency'] . number_format($cart['sub_total'], 2) ?></td>
                                 </tr>
                                 <?php if (!empty($cart['tax_percentage'])) { ?>
                                     <tr class="cart-product-tax d-none">
                                         <td class="text-muted"><?= !empty($this->lang->line('tax')) ? $this->lang->line('tax') : 'Tax' ?> (<?= $cart['tax_percentage'] ?>%)</td>
-                                        <td class="text-muted"><?= $settings['currency'] . ' ' . number_format($cart['tax_amount'], 2) ?></td>
+                                        <td class="text-muted"><?= $settings['currency'] . number_format($cart['tax_amount'], 2) ?></td>
                                     </tr>
                                 <?php } ?>
                                 <?php $delivery_charge = !empty($cart['sub_total']) ? number_format($cart['delivery_charge'], 2) : 0 ?>
                                 <tr class="d-none">
                                     <td class="text-muted"><?= !empty($this->lang->line('delivery_charge')) ? $this->lang->line('delivery_charge') : 'Delivery Charge' ?></td>
-                                    <td class="text-muted"><?= $settings['currency'] . ' ' . $delivery_charge ?></td>
+                                    <td class="text-muted"><?= $settings['currency'] . $delivery_charge ?></td>
                                 </tr>
                             </tbody>
                             <tfoot>

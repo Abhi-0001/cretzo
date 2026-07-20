@@ -5,10 +5,6 @@
     <!-- <p class="ta-c"><img class="container-img" src="<?= base_url('assets/front_end/cretzo/img/arrow.png') ?>"></p> -->
 
     <div class="wishlist">
-        <p class="text-n no-of-item-text">My Wishlist <span><?= count($products) ?></span> item</p>
-
-        
-
             <?php
                 if (isset($products) && !empty($products)) { ?>
                     <div class="wishlist-card-container">
@@ -74,6 +70,10 @@
                         </div>
             <?php   } ?>
                     </div>
+
+                    <nav id="products-pagination-nav" class="text-center mt-7 mb-5" aria-label="pagination">
+                        <?= (isset($links)) ? $links : '' ?>
+                    </nav>
             <?php
                 } else { ?>
                     <div class="col-12 m-5">
@@ -117,7 +117,7 @@
         }
         
         // $currencyText = $settings['currency'];
-        $currencyText = "Rs. ";
+        $currencyText = "₹";
 
         if (($discounted_price < $price) && ($discounted_price != 0)) {
             return '

@@ -1,0 +1,85 @@
+/* Categories page — reuses the home page 'Shop by Catagories' card design.
+   The card styles live in home.css / home-override.css which only load on the
+   home page, so the relevant rules are replicated here for the categories page. */
+
+.home-part-container {
+    margin: 20px 0;
+    padding: 0 20px;
+}
+
+.container-heading {
+    margin-top: 60px;
+    text-align: center;
+    text-shadow: 2px 2px rgba(0, 0, 0, 0.15);
+    text-transform: uppercase;
+}
+.container-des {
+    text-align: center;
+    margin-bottom: 1em;
+}
+
+/* card grid — same as home page's card-container-two */
+.card-container-two {
+    display: grid;
+    gap: 20px;
+    justify-content: center;
+    grid-template-columns: repeat(6, 1fr);
+    overflow: hidden;
+    padding: 1em 6vw;
+}
+
+/* cretzo card shadow (matches home-override.css) */
+.cretzo-card {
+    box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+/* Card Type Seven — same as home-override.css */
+.card-type-seven {
+    border-radius: 4px;
+}
+.card-type-seven .card-img {
+    overflow: hidden;
+    position: relative;
+}
+.card-type-seven .card-img .card-img-img {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 3.2/4;
+    object-fit: cover;
+}
+.card-type-seven .card-des {
+    padding: 2px 5px;
+    line-height: normal;
+    margin-top: 2px;
+}
+.card-type-seven .card-des :nth-child(2) {
+    transform: translateY(-3px);
+}
+
+/* responsive — mirrors home.css breakpoints */
+@media screen and (max-width: 1200px) {
+    .card-container-two { padding: 1em 4vw; }
+}
+@media screen and (max-width: 1000px) {
+    .card-container-two { padding: 1em 2vw; }
+}
+@media screen and (max-width: 800px) {
+    .card-container-two {
+        grid-template-columns: repeat(4, 1fr);
+        padding: 1em 2vw;
+    }
+}
+@media screen and (max-width: 600px) {
+    .card-container-two {
+        grid-template-columns: repeat(4, 1fr);
+        padding: 1em 0;
+        gap: 10px;
+    }
+}
+@media screen and (max-width: 500px) {
+    .card-container-two {
+        grid-template-columns: repeat(3, 1fr);
+        padding: 1em 0;
+        gap: 5px;
+    }
+}

@@ -851,20 +851,20 @@ class Order_model extends CI_Model
                 } else {
                     $tempRow['mobile'] = "";
                 }
-                $tempRow['delivery_charge'] = $currency_symbol . ' ' . $row['delivery_charge'];
+                $tempRow['delivery_charge'] = $currency_symbol . $row['delivery_charge'];
                 $tempRow['items'] = $items1;
                 $tempRow['sellers'] = $seller;
-                $tempRow['total'] = $currency_symbol . ' ' . $row['total'];
+                $tempRow['total'] = $currency_symbol . $row['total'];
                 $tota_amount += intval($row['total']);
-                $tempRow['wallet_balance'] = $currency_symbol . ' ' . $row['wallet_balance'];
-                $tempRow['discount'] = $currency_symbol . ' ' . $discount_in_rupees . '(' . $row['items'][0]['discount'] . '%)';
-                $tempRow['promo_discount'] = $currency_symbol . ' ' . $row['promo_discount'];
+                $tempRow['wallet_balance'] = $currency_symbol . $row['wallet_balance'];
+                $tempRow['discount'] = $currency_symbol . $discount_in_rupees . '(' . $row['items'][0]['discount'] . '%)';
+                $tempRow['promo_discount'] = $currency_symbol . $row['promo_discount'];
                 $tempRow['promo_code'] = $row['promo_code'];
                 $tempRow['notes'] = $row['notes'];
                 $tempRow['qty'] =  $total_qty;
-                $tempRow['final_total'] = $currency_symbol . ' ' . $row['total_payable'];
+                $tempRow['final_total'] = $currency_symbol . $row['total_payable'];
                 $final_total = $row['final_total'] - $row['wallet_balance']  - $row['discount'];
-                $tempRow['final_total'] = $currency_symbol . ' ' . $final_total;
+                $tempRow['final_total'] = $currency_symbol . $final_total;
                 $final_tota_amount += intval($row['final_total']);
                 $tempRow['deliver_by'] = $row['delivery_boy'];
                 $tempRow['payment_method'] = $row['payment_method'];
@@ -901,11 +901,11 @@ class Order_model extends CI_Model
             $tempRow['delivery_charge'] = '-';
             $tempRow['items'] = '-';
             $tempRow['sellers'] = '-';
-            $tempRow['total'] = '<span class="badge badge-danger">' . $currency_symbol . ' ' . $tota_amount . '</span>';
+            $tempRow['total'] = '<span class="badge badge-danger">' . $currency_symbol . $tota_amount . '</span>';
             $tempRow['wallet_balance'] = '-';
             $tempRow['discount'] = '-';
             $tempRow['qty'] = '-';
-            $tempRow['final_total'] = '<span class="badge badge-danger">' . $currency_symbol . ' ' . $final_tota_amount . '</span>';
+            $tempRow['final_total'] = '<span class="badge badge-danger">' . $currency_symbol . $final_tota_amount . '</span>';
             $tempRow['deliver_by'] = '-';
             $tempRow['payment_method'] = '-';
             $tempRow['address'] = '-';
@@ -1141,7 +1141,7 @@ class Order_model extends CI_Model
             } else {
                 $tempRow['mobile'] = "";
             }
-            $tempRow['sub_total'] = $currency_symbol . ' ' . $row['sub_total'];
+            $tempRow['sub_total'] = $currency_symbol . $row['sub_total'];
             $tempRow['quantity'] = $row['quantity'];
             $final_tota_amount += intval($row['sub_total']);
             $tempRow['delivery_boy'] = $row['delivery_boy'];
@@ -1208,7 +1208,7 @@ class Order_model extends CI_Model
             $tempRow['mobile'] = '-';
             $tempRow['delivery_charge'] = '-';
             $tempRow['product_name'] = '-';
-            $tempRow['sub_total'] = '<span class="badge badge-danger">' . $currency_symbol . ' ' . $final_tota_amount . '</span>';
+            $tempRow['sub_total'] = '<span class="badge badge-danger">' . $currency_symbol . $final_tota_amount . '</span>';
             $tempRow['discount'] = '-';
             $tempRow['quantity'] = '-';
             $tempRow['delivery_boy'] = '-';
@@ -1387,20 +1387,20 @@ class Order_model extends CI_Model
                 } else {
                     $tempRow['mobile'] = "";
                 }
-                $tempRow['delivery_charge'] = $currency_symbol . ' ' . $row['delivery_charge'];
+                $tempRow['delivery_charge'] = $currency_symbol . $row['delivery_charge'];
                 $tempRow['items'] = $items1;
                 $tempRow['sellers'] = $seller;
-                $tempRow['total'] = $currency_symbol . ' ' . $row['total'];
+                $tempRow['total'] = $currency_symbol . $row['total'];
                 $tota_amount += intval($row['total']);
-                $tempRow['wallet_balance'] = $currency_symbol . ' ' . $row['wallet_balance'];
-                $tempRow['discount'] = $currency_symbol . ' ' . $discount_in_rupees . '(' . $row['items'][0]['discount'] . '%)';
-                $tempRow['promo_discount'] = $currency_symbol . ' ' . $row['promo_discount'];
+                $tempRow['wallet_balance'] = $currency_symbol . $row['wallet_balance'];
+                $tempRow['discount'] = $currency_symbol . $discount_in_rupees . '(' . $row['items'][0]['discount'] . '%)';
+                $tempRow['promo_discount'] = $currency_symbol . $row['promo_discount'];
                 $tempRow['promo_code'] = $row['promo_code'];
                 $tempRow['notes'] = $row['notes'];
                 $tempRow['qty'] =  $total_qty;
-                $tempRow['final_total'] = $currency_symbol . ' ' . $row['total_payable'];
+                $tempRow['final_total'] = $currency_symbol . $row['total_payable'];
                 $final_total = $row['final_total'] - $row['wallet_balance']  - $row['discount'];
-                $tempRow['final_total'] = $currency_symbol . ' ' . $final_total;
+                $tempRow['final_total'] = $currency_symbol . $final_total;
                 $final_tota_amount += intval($row['final_total']);
                 $tempRow['deliver_by'] = $row['delivery_boy'];
                 $tempRow['payment_method'] = $row['payment_method'];
@@ -1430,11 +1430,11 @@ class Order_model extends CI_Model
             $tempRow['delivery_charge'] = '-';
             $tempRow['items'] = '-';
             $tempRow['sellers'] = '-';
-            $tempRow['total'] = '<span class="badge badge-danger">' . $currency_symbol . ' ' . $tota_amount . '</span>';
+            $tempRow['total'] = '<span class="badge badge-danger">' . $currency_symbol . $tota_amount . '</span>';
             $tempRow['wallet_balance'] = '-';
             $tempRow['discount'] = '-';
             $tempRow['qty'] = '-';
-            $tempRow['final_total'] = '<span class="badge badge-danger">' . $currency_symbol . ' ' . $final_tota_amount . '</span>';
+            $tempRow['final_total'] = '<span class="badge badge-danger">' . $currency_symbol . $final_tota_amount . '</span>';
             $tempRow['deliver_by'] = '-';
             $tempRow['payment_method'] = '-';
             $tempRow['address'] = '-';
@@ -1631,7 +1631,7 @@ class Order_model extends CI_Model
             } else {
                 $tempRow['mobile'] = "";
             }
-            $tempRow['sub_total'] = $currency_symbol . ' ' . $row['sub_total'];
+            $tempRow['sub_total'] = $currency_symbol . $row['sub_total'];
             $tempRow['quantity'] = $row['quantity'];
             $final_tota_amount += intval($row['sub_total']);
             $tempRow['delivery_boy'] = $row['delivery_boy'];
@@ -1687,7 +1687,7 @@ class Order_model extends CI_Model
             $tempRow['mobile'] = '-';
             $tempRow['delivery_charge'] = '-';
             $tempRow['product_name'] = '-';
-            $tempRow['sub_total'] = '<span class="badge badge-danger">' . $currency_symbol . ' ' . $final_tota_amount . '</span>';
+            $tempRow['sub_total'] = '<span class="badge badge-danger">' . $currency_symbol . $final_tota_amount . '</span>';
             $tempRow['discount'] = '-';
             $tempRow['quantity'] = '-';
             $tempRow['delivery_boy'] = '-';

@@ -1,11 +1,5 @@
+/* Overrides for the redesigned my-account dashboard.
+   Intentionally left minimal — styling lives in dashboard.css. */
 .overview-box .text-n{
-    line-height: initial;
-}
-
-.overview-upper .btn{
-    top: initial;
-    bottom: 20px;
-    padding: 2px 12px;
-
-    box-shadow: none;
+    line-height: 1.45;
 }

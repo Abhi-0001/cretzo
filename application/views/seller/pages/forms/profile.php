@@ -30,16 +30,8 @@
 .pincode-lookup-status.success {
   color: #198754;
 }
-.pincode-lookup-status {
-  display: block;
-  font-size: 12px;
-  margin-top: 4px;
-}
-.pincode-lookup-status.error {
-  color: #dc3545;
-}
-.pincode-lookup-status.success {
-  color: #198754;
+.pincode-lookup-status.info {
+  color: #6c757d;
 }
 #toast-msg {
   display: none;
@@ -104,12 +96,25 @@
   gap: 10px;
   padding: 6px 0;
 }
+
+.content-wrapper {
+  background: transparent !important; 
+}
+.seller-form {
+  position: static !important;
+}
+.form-container-main {
+  left: auto !important;
+  transform: none !important;
+  margin: 1rem auto !important;
+  height: calc(100vh - 65px) !important;
+}
 </style>
 </head>
 <body>
 <div id="toast-msg"></div>
 
-
+<div class="content-wrapper">
   <section class="content w-100 seller-form">
       <div class="container-fluid">
         <div class="form-parent">
@@ -145,11 +150,11 @@
                       <div class="row gap-xl-5">
                         <div class="col-md-6 mb-3">
                           <label class="form-label">First Name <span class="text-danger">*</span></label>
-                          <input name="first_name" type="text" class="input" placeholder="First name" value="<?=$fetched_data[0]['first_name']?>" required>
+                          <input name="first_name" type="text" class="input" placeholder="First name" value="<?=$fetched_data[0]['first_name']?>" minlength="3" maxlength="50" required>
                         </div>
                         <div class="col-md-6 mb-3">
                           <label class="form-label">Last Name <span class="text-danger">*</span></label>
-                          <input name="last_name" type="text" class="input" placeholder="Last Name" value="<?=$fetched_data[0]['last_name']?>" required>
+                          <input name="last_name" type="text" class="input" placeholder="Last Name" value="<?=$fetched_data[0]['last_name']?>" maxlength="50" required>
                         </div>
                         <div class="col-md-6 mb-3">
                           <label class="form-label">Phone Number <span class="text-danger">*</span></label>
@@ -204,9 +209,9 @@
                               <svg class="profile-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-person" viewBox="0 0 16 16">
                                 <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6m2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0m4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4m-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10s-3.516.68-4.168 1.332c-.678.678-.83 1.418-.832 1.664z"/>
                               </svg>
-                              <img id="photoPreview" src="" class="shop-logo hidden" style="margin-top: 1rem;">
+                              <img id="photoPreview" src="" class="shop-logo hidden">
                             </div>
-                            <label for="photoInput" class="btn btn-sm btn-outline-secondary" style="cursor:pointer;">
+                            <label for="photoInput" class="btn-upload-logo mt-3">
                              📷 Upload Shop Logo
                          </label>
                          </div>
@@ -218,8 +223,8 @@
                           <input name="shop_name" type="text" class="input" placeholder="Shop Name" value="<?=$fetched_data[0]['shop_name']?>" required>
                         </div>
                         <div class="col-md-6 mb-3">
-                          <label class="form-label">Social Media Handle <span class="text-danger">*</span></label>
-                          <input name="social" type="text" class="input" placeholder="Enter Social Media" value="<?=$fetched_data[0]['social']?>" required>
+                          <label class="form-label">Social Media Handle</label>
+                          <input name="social" type="text" class="input" placeholder="Enter Social Media" value="<?=$fetched_data[0]['social']?>">
                         </div>
                         <div class="col-md-6 mb-3">
                           <label class="form-label">Shop Phone Number <span class="text-danger">*</span></label>
@@ -234,8 +239,8 @@
                           <input name="pickup_address2" type="text" class="input" placeholder="Address Lane 2" value="<?=$fetched_data[0]['pickup_address2']?>">
                         </div>
                         <div class="col-md-6 mb-3">
-                          <label class="form-label">PIN Code</label>
-                          <input name="pickup_pin" id="pickup_pin" type="text" class="input" placeholder="Enter PIN Code" value="<?=$fetched_data[0]['pickup_pin']?>" maxlength="6" onkeypress="if ( isNaN(this.value + String.fromCharCode(event.keyCode) )) return false;">
+                          <label class="form-label">PIN Code <span class="text-danger">*</span></label>
+                          <input name="pickup_pin" id="pickup_pin" type="text" class="input" placeholder="Enter PIN Code" value="<?=$fetched_data[0]['pickup_pin']?>" required maxlength="6" onkeypress="if ( isNaN(this.value + String.fromCharCode(event.keyCode) )) return false;">
                           <span id="pickup_pin_lookup_status" class="pincode-lookup-status"></span>
                         </div>
                         <div class="col-md-6 mb-3">
@@ -265,26 +270,30 @@
                       <div class="row">
                         <div class="col-md-6 mb-3">
                           <label class="form-label">Entity Type <span class="text-danger">*</span></label>
-                          <!-- BUG FIX #6 START — fixed name= to value= so selected option POSTs correctly to backend -->
                           <select name="entity_type" class="input" id="entity_type">
                             <option value="individual">Individual</option>
                             <option value="sole_proprietorship">Sole Proprietorship</option>
                             <option value="partnership_firm">Partnership Firm</option>
                             <option value="pvt_ltd">Pvt Ltd.</option>
                           </select>
-                          <!-- BUG FIX #6 END -->
                         </div>
                         <div class="col-md-6 mb-3">
                           <label class="form-label">PAN Number<span class="text-danger">*</span></label>
-                          <!-- BUG FIX #6 START — maxlength added to enforce 10 character PAN format at browser level -->
                           <input name="pan" type="text" maxlength="10" class="input" placeholder="Enter PAN Number" value="<?=$fetched_data[0]['pan']?>" required>
-                          <!-- BUG FIX #6 END -->
                         </div>
-                        <div class="col-md-6 mb-3">
+                        <?php
+                          $is_gst_registered = isset($fetched_data[0]['is_gst_registered']) ? $fetched_data[0]['is_gst_registered'] : 1;
+                          $gst_enrollment_number = isset($fetched_data[0]['gst_enrollment_number']) ? $fetched_data[0]['gst_enrollment_number'] : '';
+                          $is_non_gst = ($is_gst_registered == 0);
+                        ?>
+                        <div class="col-md-6 mb-3" id="gst_number_div" style="<?= $is_non_gst ? 'display:none;' : '' ?>">
                           <label class="form-label">GST Number <span class="text-danger">*</span></label>
-                          <!-- BUG FIX #6 START — maxlength added to enforce 15 character GST format at browser level -->
-                          <input name="gst" type="text" maxlength="15" class="input" placeholder="22ABCDE0000A1Z5" value="<?=$fetched_data[0]['gst']?>" required>
-                          <!-- BUG FIX #6 END -->
+                          <input name="gst" type="text" maxlength="15" class="input" placeholder="22ABCDE0000A1Z5" value="<?=$fetched_data[0]['gst']?>" <?= $is_non_gst ? '' : 'required' ?>>
+                        </div>
+                        <div class="col-md-6 mb-3" id="gst_enrollment_div" style="<?= $is_non_gst ? '' : 'display:none;' ?>">
+                          <label class="form-label">GST Enrollment Number <span class="text-danger">*</span></label>
+                          <input name="gst_enrollment_number" type="text" maxlength="64" class="input" placeholder="Enter GST Enrollment Number" value="<?= html_escape($gst_enrollment_number) ?>" <?= $is_non_gst ? 'required' : '' ?>>
+                          <small class="text-muted d-block mt-1">You can sell only within your own state (as per government regulation).</small>
                         </div>
                       </div>
 
@@ -295,7 +304,7 @@
                               <label for="entity_check">We are not a registered Entity.</label>
                           </div>
                           <div>
-                              <input type="checkbox" id="gst_check" class="check-input">
+                              <input type="checkbox" id="gst_check" name="gst_check" value="1" class="check-input" <?= $is_non_gst ? 'checked' : '' ?>>
                               <label for="gst_check">We are not GST registered.</label>
                           </div>
                       </div>
@@ -304,15 +313,11 @@
                       <div class="row">
                         <div class="col-md-6 mb-3">
                           <label class="form-label">Account Number<span class="text-danger">*</span></label>
-                          <!-- BUG FIX #6 START — maxlength added to enforce max 18 digit account number at browser level -->
                           <input name="account_number" type="text" class="input" maxlength="18" placeholder="Enter your Account Number" value="<?=$fetched_data[0]['account_number']?>" required onkeypress="if ( isNaN(this.value + String.fromCharCode(event.keyCode) )) return false;">
-                          <!-- BUG FIX #6 END -->
                         </div>
                         <div class="col-md-6 mb-3">
                           <label class="form-label">Confirm Account Number<span class="text-danger">*</span></label>
-                          <!-- BUG FIX #6 START — maxlength added to match account number limit -->
                           <input name="confirm_account_number" type="text" class="input" maxlength="18" placeholder="Confirm your Account Number" value="<?=$fetched_data[0]['account_number']?>" required onkeypress="if ( isNaN(this.value + String.fromCharCode(event.keyCode) )) return false;">
-                          <!-- BUG FIX #6 END -->
                         </div>
                         <div class="col-md-6 mb-3">
                           <label class="form-label">Account Holder name<span class="text-danger">*</span></label>
@@ -320,9 +325,7 @@
                         </div>
                         <div class="col-md-6 mb-3">
                           <label class="form-label">IFSC Code<span class="text-danger">*</span></label>
-                          <!-- BUG FIX #6 START — maxlength added to enforce exact 11 character IFSC format at browser level -->
                           <input name="ifsc" type="text" class="input" placeholder="Enter IFSC Code" maxlength="11" value="<?=$fetched_data[0]['ifsc']?>" required>
-                          <!-- BUG FIX #6 END -->
                         </div>
                         <div class="col-md-6 mb-3">
                           <label class="form-label">Branch Name <span class="text-danger">*</span></label>
@@ -338,8 +341,6 @@
 
                       <div class="mt-3 w-100 d-flex justify-content-between align-items-center">
                         <button type="button" class="btn btn-back-2">Back</button>
-                        <!-- FIX 2 — Changed type="submit" to type="button" to prevent default form submit
-                             which was bypassing our fetch() handler -->
                         <button type="button" class="btn btn-next-3">Next</button>
                       </div>
 
@@ -382,6 +383,7 @@
       </div>
 
   </section>
+</div>
 
 <script>
 if (typeof Dropzone !== 'undefined') Dropzone.autoDiscover = false;
@@ -459,27 +461,32 @@ function showError(input, message) {
   error.innerText = message;
   input.parentElement.appendChild(error);
 }
+// Delegate the final (Submit) validation to the shared, comprehensive validator in
+// form.js so the Submit gate enforces exactly the same rules as the Next buttons.
 function validateForm3() {
-  const form3 = document.querySelector('.form3');
-  clearErrors(form3);
-  let valid = true;
-  form3.querySelectorAll('input[required], select[required]').forEach(function(input) {
-    if (!input.value.trim()) { showError(input, 'This field is required'); valid = false; return; }
-    if (input.name === 'ifsc' && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(input.value.toUpperCase())) {
-      showError(input, 'Invalid IFSC Code. Example: SBIN0001234'); valid = false;
-    }
-    if (input.name === 'pan' && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(input.value.toUpperCase())) {
-      showError(input, 'Invalid PAN. Example: ABCDE1234F'); valid = false;
-    }
-    if (input.name === 'gst' && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(input.value.toUpperCase())) {
-      showError(input, 'Invalid GST. Example: 22ABCDE0000A1Z5'); valid = false;
-    }
-  });
-  const acc  = form3.querySelector('[name="account_number"]');
-  const conf = form3.querySelector('[name="confirm_account_number"]');
-  if (acc && conf && acc.value !== conf.value) { showError(conf, 'Account numbers do not match'); valid = false; }
-  return valid;
+  var form3 = document.querySelector('.form3');
+  return (typeof validateForm === 'function') ? validateForm(form3) : true;
 }
+
+// GST enrollment toggle: ticking "We are not GST registered" swaps the GST Number
+// field for a mandatory GST Enrollment Number field (these sellers are state-restricted).
+(function () {
+  var gstCheck = document.getElementById('gst_check');
+  if (!gstCheck) return;
+  function syncGstFields() {
+    var nonGst  = gstCheck.checked;
+    var numDiv  = document.getElementById('gst_number_div');
+    var enrDiv  = document.getElementById('gst_enrollment_div');
+    var gstIn   = numDiv ? numDiv.querySelector('input[name="gst"]') : null;
+    var enrIn   = enrDiv ? enrDiv.querySelector('input[name="gst_enrollment_number"]') : null;
+    if (numDiv) numDiv.style.display = nonGst ? 'none' : '';
+    if (enrDiv) enrDiv.style.display = nonGst ? '' : 'none';
+    if (gstIn) { nonGst ? gstIn.removeAttribute('required') : gstIn.setAttribute('required', 'required'); }
+    if (enrIn) { nonGst ? enrIn.setAttribute('required', 'required') : enrIn.removeAttribute('required'); }
+  }
+  gstCheck.addEventListener('change', syncGstFields);
+  syncGstFields();
+})();
 
 function openProfileSection(section) {
   const sectionMap = { personal: 1, store: 2, account: 3, admin: 4};
@@ -516,7 +523,7 @@ openProfileSection(initialSection);
 function setPincodeStatus(statusElement, message, type) {
   if (!statusElement) return;
   statusElement.textContent = message || '';
-  statusElement.classList.remove('error', 'success');
+  statusElement.classList.remove('error', 'success', 'info');
   if (type) {
     statusElement.classList.add(type);
   }
@@ -536,13 +543,63 @@ function setLocationInputValue(inputId, value) {
   if (input && value) input.value = value;
 }
 
-function bindZippopotamPincodeLookup(options) {
+// Auto-fill State / District / City from a 6-digit Indian pincode.
+//   Primary : India Post (api.postalpincode.in) — covers EVERY Indian pincode.
+//   Fallback: zippopotam.us.
+// If neither resolves, the fields stay fully editable so the seller can type the
+// State/District/City by hand — a valid pincode is never treated as an error.
+function bindPincodeAutofill(options) {
   const pinInput = document.getElementById(options.pinId);
   const statusElement = document.getElementById(options.statusId);
   let lookupTimer = null;
   let latestPincode = '';
 
   if (!pinInput) return;
+
+  function firstMeaningful() {
+    for (let i = 0; i < arguments.length; i++) {
+      const v = (arguments[i] || '').toString().trim();
+      if (v && !/^(na|nil|none)$/i.test(v)) return v;
+    }
+    return '';
+  }
+
+  function applyLocation(loc) {
+    setLocationInputValue(options.stateInputId, loc.state);
+    setLocationInputValue(options.districtInputId, loc.district);
+    setLocationInputValue(options.cityInputId, loc.city);
+  }
+
+  // 1) India Post — full coverage of Indian pincodes.
+  function lookupIndiaPost(pincode) {
+    return fetch('https://api.postalpincode.in/pincode/' + encodeURIComponent(pincode))
+      .then(function(r) { if (!r.ok) throw new Error('http'); return r.json(); })
+      .then(function(data) {
+        const rec = Array.isArray(data) ? data[0] : null;
+        const offices = (rec && Array.isArray(rec.PostOffice)) ? rec.PostOffice : [];
+        if (!rec || rec.Status !== 'Success' || !offices.length) throw new Error('not found');
+        const po = offices[0];
+        return {
+          state: po.State || '',
+          district: po.District || '',
+          city: firstMeaningful(po.Block, po.Name, po.District)
+        };
+      });
+  }
+
+  // 2) zippopotam — fallback if India Post is unreachable.
+  function lookupZippopotam(pincode) {
+    return fetch('https://api.zippopotam.us/in/' + encodeURIComponent(pincode))
+      .then(function(r) { if (!r.ok) throw new Error('http'); return r.json(); })
+      .then(function(data) {
+        const place = (Array.isArray(data.places) ? data.places : [])[0] || {};
+        const placeName = getFirstAvailableValue(place, ['place name', 'place_name', 'city', 'town', 'locality']);
+        const state = getFirstAvailableValue(place, ['state', 'state name', 'state_name']);
+        const district = getFirstAvailableValue(place, ['district', 'district name', 'district_name', 'county', 'region']) || placeName;
+        if (!placeName && !state && !district) throw new Error('empty');
+        return { state: state, district: district, city: placeName };
+      });
+  }
 
   function fillAddressFromPincode() {
     const pincode = pinInput.value.replace(/\D/g, '').slice(0, 6);
@@ -555,37 +612,19 @@ function bindZippopotamPincodeLookup(options) {
     }
 
     latestPincode = pincode;
-    setPincodeStatus(statusElement, 'Fetching city, state and district...', '');
+    setPincodeStatus(statusElement, 'Fetching state, district and city…', 'info');
 
-    fetch('https://api.zippopotam.us/in/' + encodeURIComponent(pincode))
-      .then(function(response) {
-        if (!response.ok) {
-          throw new Error('Pincode not found');
-        }
-        return response.json();
-      })
-      .then(function(data) {
+    lookupIndiaPost(pincode)
+      .catch(function() { return lookupZippopotam(pincode); })
+      .then(function(loc) {
         if (latestPincode !== pincode) return;
-
-        const places = Array.isArray(data.places) ? data.places : [];
-        const place = places[0] || {};
-        const placeName = getFirstAvailableValue(place, ['place name', 'place_name', 'city', 'town', 'locality']);
-        const state = getFirstAvailableValue(place, ['state', 'state name', 'state_name']);
-        const district = getFirstAvailableValue(place, ['district', 'district name', 'district_name', 'county', 'region']) || placeName;
-
-        if (!placeName && !state && !district) {
-          throw new Error('No location data found');
-        }
-
-        setLocationInputValue(options.cityInputId, placeName);
-        setLocationInputValue(options.stateInputId, state);
-        setLocationInputValue(options.districtInputId, district);
-
-        setPincodeStatus(statusElement, 'Location details filled from pincode.', 'success');
+        applyLocation(loc);
+        setPincodeStatus(statusElement, 'State, district and city filled from pincode. You can edit them if needed.', 'success');
       })
       .catch(function() {
         if (latestPincode !== pincode) return;
-        setPincodeStatus(statusElement, 'Unable to find this pincode. Please enter city, state and district manually.', 'error');
+        // Not found in either source — NOT an error; let the seller type it in.
+        setPincodeStatus(statusElement, 'Could not auto-detect this pincode. Please enter State, District and City manually.', 'info');
       });
   }
 
@@ -596,7 +635,7 @@ function bindZippopotamPincodeLookup(options) {
   pinInput.addEventListener('blur', fillAddressFromPincode);
 }
 
-bindZippopotamPincodeLookup({
+bindPincodeAutofill({
   pinId: 'pin',
   stateInputId: 'state',
   districtInputId: 'district',
@@ -604,7 +643,7 @@ bindZippopotamPincodeLookup({
   statusId: 'pin_lookup_status'
 });
 
-bindZippopotamPincodeLookup({
+bindPincodeAutofill({
   pinId: 'pickup_pin',
   stateInputId: 'pickup_state',
   districtInputId: 'pickup_district',

@@ -25,7 +25,7 @@
                                     <?= !empty($this->lang->line('balance')) ? $this->lang->line('balance') : 'Balance' ?>
                                 </div>
                                 <div class="h4 d-flex justify-content-center  price">
-                                    <p class="h4"><?= $settings['currency'] . ' ' . $user->balance ?></p>
+                                    <p class="h4"><?= $settings['currency'] . $user->balance ?></p>
                                 </div>
                             </div>
                         </div>
@@ -52,8 +52,8 @@
                     </div> -->
 
 
-                    <div class="modal" id="myModal">
-                        <div class="modal-dialog">
+                    <div class="modal fade" id="myModal">
+                        <div class="modal-dialog modal-dialog-centered">
                             <div class="modal-content card">
 
                                 <!-- Modal Header -->
