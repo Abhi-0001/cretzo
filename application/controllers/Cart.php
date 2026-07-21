@@ -273,6 +273,10 @@ class Cart extends CI_Controller
             if ($this->cart_model->remove_from_cart($data)) {
                 $this->response['error'] = false;
                 $this->response['message'] = 'Removed From Cart !';
+                $this->response['data'] = [
+                    'cart_count' => count($this->cart_model->get_user_cart($this->data['user']->id)),
+                    'items' => $this->cart_model->get_user_cart($this->data['user']->id),
+                ];
                 print_r(json_encode($this->response));
                 return false;
             } else {
@@ -841,12 +845,6 @@ class Cart extends CI_Controller
     public function validate_promo_code()
     {
         if ($this->data['is_logged_in']) {
-            /*
-            promo_code:'NEWOFF10'
-            user_id:28
-            final_total:'300'
-
-        */
             $this->form_validation->set_rules('promo_code', 'Promo Code', 'trim|required|xss_clean');
             if (!$this->form_validation->run()) {
                 $this->response['error'] = true;

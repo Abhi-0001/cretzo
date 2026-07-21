@@ -109,6 +109,7 @@ figure img {
     height: 40px;
     float: left;
     position: relative;
+    cursor: pointer;
 }
 
 .num-in span:before,

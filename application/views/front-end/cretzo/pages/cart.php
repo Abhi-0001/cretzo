@@ -22,17 +22,19 @@ $logo = get_settings('web_logo');
             <a href="<?= base_url() ?>"><img src="<?= base_url($logo) ?>" data-src="<?= base_url($logo) ?>" class="main-logo" alt="site-logo image"></a>
         </div>
         <div class="cart-indicator cart-indicator-active rounded-end">
-            <p class="text-n">Cart</p>
+            <p style="font-size: 18px;">Cart</p>
         </div>
         <div class="completion-line active"></div>
         <div class="cart-indicator">
             <a class="text-decoration-none" href="<?= base_url('cart/checkout') ?>">
-                <p class="text-n">Address</p>
+                <p style="font-size: 18px;">Address</p>
             </a>
         </div>
         <div class="completion-line"></div>
         <div class="cart-indicator">
-            <a class="text-decoration-none" href="<?= base_url('cart/checkout') ?>"><a class="text-decoration-none" href="<?= base_url('cart/checkout') ?>"><p class="text-n">Payment</p></a>
+            <a class="text-decoration-none" href="<?= base_url('cart/checkout') ?>">
+                <p style="font-size: 18px;">Payment</p>
+            </a>
         </div>
         <div class="quality-assured-container">
             <img class="quality-assured-img" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/orange-tick.png') ?>">
@@ -288,11 +290,15 @@ $logo = get_settings('web_logo');
              <?php  if ($is_logged_in) { ?>
             <div class="cart-right-one">
                 <h1 class="text-b">COUPONS</h1>
-                <div>
-                    <p class="text-b flex-1"><img class="coupon-tag-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/tag-icon.png') ?>">Apply Coupons</p>
+                <div id="coupon-widget-default">
+                    <p class="flex-1" style="font-size: 18px;"><img class="coupon-tag-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/tag-icon.png') ?>">Apply Coupons</p>
                     <button class="cretzo btn btn-light text-n apply-btn" data-bs-toggle="modal" data-bs-target="#promo-code-modal">APPLY</button>
                 </div>
-                <p class="text-s">Show Your Support For Our Artisans By Purchasing Their Handcrafted Artworks.</p>
+                <div id="coupon-widget-applied" class="d-none">
+                    <p class="flex-1"  style="font-size: 18px;"><img class="coupon-tag-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/tag-icon.png') ?>">1 Coupon Applied</p>
+                    <button class="cretzo btn btn-light text-n edit-btn" data-bs-toggle="modal" data-bs-target="#promo-code-modal">EDIT</button>
+                </div>
+                <p class="text-s" id="coupon-widget-subtext">Show Your Support For Our Artisans By Purchasing Their Handcrafted Artworks.</p>
             </div>
             <?php } ?>
             <div class="cart-right-two">
@@ -372,13 +378,27 @@ $logo = get_settings('web_logo');
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header border-0 pb-0">
-                <h5 class="modal-title w-100 text-center m-0"><?= !empty($this->lang->line('promocodes')) ? $this->lang->line('promocodes') : 'Promocodes' ?></h5>
+                <h5 class="modal-title w-100 text-start m-0"><?= !empty($this->lang->line('promocodes')) ? $this->lang->line('promocodes') : 'Apply Coupon' ?></h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
+                <div class="promo-check-row">
+                    <input type="text" class="promo-check-input" id="promo_modal_input" placeholder="Enter coupon code" autocomplete="off">
+                    <button type="button" class="promo-check-btn" id="promo_modal_check_btn">CHECK</button>
+                </div>
+
+                <div id="promo-modal-toast" class="promo-modal-toast d-none"></div>
+
                 <section id="promo_code_form">
                     <ul id="promocode-list" class="promo-list"></ul>
                 </section>
+            </div>
+            <div class="promo-modal-footer">
+                <div class="promo-modal-savings">
+                    <span class="text-s d-block">Maximum savings:</span>
+                    <span class="fw-b" id="promo_modal_max_savings">₹0</span>
+                </div>
+                <button type="button" class="promo-modal-apply-btn" id="promo_modal_apply_btn" disabled>APPLY</button>
             </div>
             <!--/.modal-content -->
         </div>
@@ -389,92 +409,161 @@ $logo = get_settings('web_logo');
 <!--/.modal -->
 
 <style>
+    #promo-code-modal .modal-content {
+        border-radius: 5px;
+        overflow: hidden;
+        padding-bottom: 0;
+    }
+    #promo-code-modal .modal-title {
+        font-size: 16px;
+        font-weight: 700;
+        letter-spacing: .3px;
+    }
+    #promo-code-modal .modal-body {
+        max-height: 60vh;
+        overflow-y: auto;
+        padding: 25px;
+    }
+
+    /* Coupon "check" input row */
+    #promo-code-modal .promo-check-row {
+        display: flex;
+        align-items: center;
+        border: 1px solid #e2e2e2;
+        border-radius: 8px;
+        margin-bottom: 16px;
+        overflow: hidden;
+        position: sticky;
+        top: 5px;
+        background: white;
+    }
+    #promo-code-modal .promo-check-input {
+        flex: 1 1 auto;
+        min-width: 0;
+        border: 0;
+        outline: none;
+        padding: 12px 14px;
+        font-size: 14px;
+        background: transparent;
+    }
+    #promo-code-modal .promo-check-btn {
+        flex-shrink: 0;
+        border: 0;
+        background: transparent;
+        color: var(--color-orange, #f26722);
+        font-weight: 700;
+        letter-spacing: .3px;
+        font-size: 13px;
+        padding: 0 16px;
+        cursor: pointer;
+    }
+    #promo-code-modal .promo-check-btn:disabled {
+        opacity: .5;
+        cursor: default;
+    }
+
+    /* Inline toast, rendered INSIDE the modal so it can never end up
+       hidden behind the modal backdrop / fade transition */
+    #promo-code-modal .promo-modal-toast {
+        border-radius: 8px;
+        padding: 10px 14px;
+        font-size: 13px;
+        margin-bottom: 14px;
+    }
+    #promo-code-modal .promo-modal-toast.is-success {
+        background: #eaf7ee;
+        color: #1e7b34;
+        border: 1px solid #cdeed7;
+    }
+    #promo-code-modal .promo-modal-toast.is-error {
+        background: #fdecec;
+        color: #c62828;
+        border: 1px solid #f6cccc;
+    }
+
     #promo-code-modal .promo-list {
         list-style: none;
         margin: 0;
         padding: 0;
     }
     #promo-code-modal .promo-card {
-        border: 1px solid #ececec;
-        border-radius: 12px;
-        padding: 16px;
-        margin-bottom: 14px;
-        background: #fff;
-        transition: box-shadow .2s ease, border-color .2s ease;
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 14px 0;
+        border-bottom: 1px solid #f0f0f0;
+        cursor: pointer;
     }
     #promo-code-modal .promo-card:last-child {
-        margin-bottom: 0;
+        border-bottom: 0;
     }
-    #promo-code-modal .promo-card:hover {
-        border-color: var(--color-orange, #f26722);
-        box-shadow: 0 4px 14px rgba(0, 0, 0, .06);
-    }
-    #promo-code-modal .promo-card-top {
-        display: flex;
-        align-items: stretch;
-        gap: 12px;
-    }
-    #promo-code-modal .promo-card-img {
+    #promo-code-modal .promo-card-select {
         flex-shrink: 0;
-        width: 175px;
-        min-height: 80px;
-        border-radius: 8px;
-        overflow: hidden;
-        background: #fff2ea;
+        padding-top: 2px;
     }
-    #promo-code-modal .promo-card-img img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        display: block;
+    #promo-code-modal .promo-card-select input {
+        display: none;
     }
-    #promo-code-modal .promo-card-img-fallback {
-        width: 100%;
-        height: 100%;
+    #promo-code-modal .promo-card-checkmark {
+        display: flex;
         align-items: center;
         justify-content: center;
-        color: var(--color-orange, #f26722);
-        font-size: 24px;
+        width: 20px;
+        height: 20px;
+        border-radius: 4px;
+        border: 2px solid #d3d3d3;
+        background: #fff;
+        color: #fff;
+        font-size: 12px;
+        transition: background .15s ease, border-color .15s ease;
     }
-    #promo-code-modal .promo-card-right {
+    #promo-code-modal .promo-card-select input:checked + .promo-card-checkmark {
+        background: var(--color-orange, #f26722);
+        border-color: var(--color-orange, #f26722);
+    }
+    #promo-code-modal .promo-card-select input:checked + .promo-card-checkmark::after {
+        content: "\2713";
+    }
+    #promo-code-modal .promo-card-body {
         flex: 1 1 auto;
         min-width: 0;
         display: flex;
         flex-direction: column;
-        justify-content: center;
-        gap: 8px;
+        gap: 2px;
     }
-    #promo-code-modal .promo-card-code {
-        display: flex;
+    #promo-code-modal .promo-card-code-chip {
+        display: inline-flex;
         align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-        border: 1px dashed #c7c7c7;
-        border-radius: 8px;
-        background: #faf7f5;
-        padding: 10px 14px;
-        cursor: pointer;
-        transition: background .2s ease, border-color .2s ease;
-    }
-    #promo-code-modal .promo-card-code:hover {
-        background: #fff2ea;
-        border-color: var(--color-orange, #f26722);
-    }
-    #promo-code-modal .promo-card-code-text {
+        gap: 8px;
+        align-self: flex-start;
+        border: 1px dashed var(--color-orange, #f26722);
+        border-radius: 6px;
+        padding: 6px 12px;
+        color: var(--color-orange, #f26722);
         font-weight: 700;
         letter-spacing: .5px;
-        color: #222;
-        font-size: 15px;
+        font-size: 14px;
     }
-    #promo-code-modal .promo-card-copy {
-        color: var(--color-orange, #f26722);
-        font-size: 16px;
-        flex-shrink: 0;
+    #promo-code-modal .promo-card-save {
+        margin: 0;
+        font-weight: 700;
+        color: #1a1a1a;
+        font-size: 14px;
+    }
+    #promo-code-modal .promo-card-off {
+        margin: 0;
+        color: #1a1a1a;
+        font-size: 13px;
+    }
+    #promo-code-modal .promo-card-expiry {
+        margin: 0;
+        color: #8a8a8a;
+        font-size: 12px;
     }
     #promo-code-modal .promo-card-desc {
-        margin: 0;
+        margin: 2px 0 0;
         color: #6b6b6b;
-        font-size: 13px;
+        font-size: 12px;
         line-height: 1.5;
         text-align: left;
     }
@@ -483,6 +572,37 @@ $logo = get_settings('web_logo');
         text-align: center;
         color: #6b6b6b;
         padding: 24px 0;
+    }
+
+    /* Sticky apply bar */
+    #promo-code-modal .promo-modal-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 14px 24px;
+        background: #f5f5f5;
+        border-top: 1px solid #ececec;
+    }
+    #promo-code-modal .promo-modal-savings {
+        font-size: 13px;
+        color: #333;
+        line-height: 1.4;
+    }
+    #promo-code-modal .promo-modal-apply-btn {
+        border: 0;
+        border-radius: 8px;
+        background: var(--color-orange, #f26722);
+        color: #fff;
+        font-weight: 700;
+        letter-spacing: .5px;
+        padding: 12px 40px;
+        cursor: pointer;
+        transition: opacity .15s ease;
+    }
+    #promo-code-modal .promo-modal-apply-btn:disabled {
+        opacity: .5;
+        cursor: default;
     }
 </style>
 

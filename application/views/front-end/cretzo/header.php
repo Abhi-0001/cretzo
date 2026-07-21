@@ -472,7 +472,7 @@ $auth_settings = get_settings('authentication_settings', true);
                                             <span class="amount"><?= $settings['currency'] . $price ?></span>
                                         </ins></p>
 
-                                        <div class="product-pricing d-flex py-2 w-100">
+                                        <div class="product-pricing d-flex w-100">
                                             <div class="product-quantity product-sm-quantity">
                                                 <input type="number" name="header_qty" class="form-control d-flex align-content-center w-14" style="-moz-appearance: number-input; -webkit-appearance: number-input; appearance: auto;" value="<?= $items['qty'] ?>" data-id="<?= $items['product_variant_id'] ?>" data-price="<?= $price ?>" min="<?= $items['minimum_order_quantity'] ?>" max="<?= $items['total_allowed_quantity'] ?>" step="<?= $items['quantity_step_size'] ?>">
                                             </div>

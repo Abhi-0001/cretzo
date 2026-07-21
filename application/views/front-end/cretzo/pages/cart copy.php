@@ -14,16 +14,16 @@ $logo = get_settings('web_logo');
             <a href="<?= base_url() ?>"><img src="<?= base_url($logo) ?>" class="main-logo" alt="site-logo image"></a>
         </div>
 
-        <div class="cart-indicator cart-indicator-active rounded-end"><p class="text-n">Cart</p></div>
+        <div class="cart-indicator cart-indicator-active rounded-end"><p style="font-size: 18px;">Cart</p></div>
         <div class="completion-line active"></div>
 
         <div class="cart-indicator">
-            <a class="text-decoration-none" href="<?= base_url('cart/checkout') ?>"><p class="text-n">Address</p></a>
+            <a class="text-decoration-none" href="<?= base_url('cart/checkout') ?>"><p style="font-size: 18px;">Address</p></a>
         </div>
         <div class="completion-line"></div>
 
         <div class="cart-indicator">
-            <a class="text-decoration-none" href="<?= base_url('cart/checkout') ?>"><p class="text-n">Payment</p></a>
+            <a class="text-decoration-none" href="<?= base_url('cart/checkout') ?>"><p style="font-size: 18px;">Payment</p></a>
         </div>
 
         <div class="quality-assured-container">
@@ -121,7 +121,7 @@ $logo = get_settings('web_logo');
             <div class="cart-right-one">
                 <h1 class="text-b">COUPONS</h1>
                 <div>
-                    <p class="text-b flex-1"><img class="coupon-tag-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/tag-icon.png') ?>">Apply Coupons</p>
+                    <p class="flex-1" style="font-size: 18px;"><img class="coupon-tag-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/tag-icon.png') ?>">Apply Coupons</p>
                     <button class="cretzo btn btn-light text-n apply-btn" data-bs-toggle="modal" data-bs-target="#promo-code-modal">APPLY</button>
                 </div>
                 <p class="text-s">Show Your Support For Our Artisans By Purchasing Their Handcrafted Artworks.</p>

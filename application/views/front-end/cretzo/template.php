@@ -130,15 +130,29 @@ $font_color = (isset($settings['font_color']) && !empty($settings['font_color'])
             if (!overlay) return;
 
             var safetyTimer = null;
+            var ajaxShowTimer = null;
+            var ajaxPending = 0;
+            var navPending = false; // a real navigation (link/form/reload) is in progress
 
             function show() {
                 overlay.classList.add('active');
                 // Never let the loader get stuck (e.g. cancelled navigation / AJAX buttons)
                 clearTimeout(safetyTimer);
-                safetyTimer = setTimeout(hide, 20000);
+                safetyTimer = setTimeout(hide, 15000);
+            }
+
+            // Loader shown for a page navigation. Stays up until the page
+            // actually unloads / the next page is ready, so a background AJAX
+            // finishing mid-navigation can't tear it down early.
+            function showForNav() {
+                navPending = true;
+                show();
             }
 
             function hide() {
+                clearTimeout(ajaxShowTimer);
+                ajaxShowTimer = null;
+                navPending = false;
                 overlay.classList.remove('active');
                 clearTimeout(safetyTimer);
             }
@@ -148,7 +162,7 @@ $font_color = (isset($settings['font_color']) && !empty($settings['font_color'])
             window.addEventListener('pageshow', hide);
 
             // Fallback: fires for every real navigation away from the page
-            window.addEventListener('beforeunload', show);
+            window.addEventListener('beforeunload', showForNav);
 
             // Immediate feedback on link clicks
             document.addEventListener('click', function (e) {
@@ -166,24 +180,55 @@ $font_color = (isset($settings['font_color']) && !empty($settings['font_color'])
                 if (/^(javascript:|mailto:|tel:|whatsapp:)/i.test(href)) return;
                 if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
 
-                show();
+                showForNav();
             }, true);
 
             // Immediate feedback on form submissions
             document.addEventListener('submit', function (e) {
                 var form = e.target;
                 if (form && form.hasAttribute('data-no-loader')) return;
-                show();
+                showForNav();
             }, true);
 
-            // Show the same loader for AJAX / API calls (popups, filters, etc.).
-            // Fires when the first request starts and hides when all finish.
-            // To skip the loader for a specific request, pass { global: false }
-            // in its jQuery $.ajax options.
+            // AJAX loader is OPT-IN, not automatic.
+            //
+            // Previously the blocking full-screen loader was shown for EVERY
+            // jQuery AJAX request (ajaxStart) and only hidden when ALL of them
+            // finished (ajaxStop). Every page fires background requests on load
+            // (cart sync, typeahead search, ratings, etc.), so the loader kept
+            // appearing AFTER the page was already visible and lingered until
+            // the slowest background call returned - the "page loaded fast but
+            // the loader keeps spinning" bug.
+            //
+            // Interactive AJAX actions already give their own feedback (buttons
+            // switch to "Please Wait", the promo modal shows its own toast, and
+            // cart quantity changes reload the page, which is covered by the
+            // navigation loader below). So AJAX no longer triggers the overlay
+            // by default.
+            //
+            // If a specific slow request genuinely needs the blocking loader,
+            // opt in per-call:  $.ajax({ url: ..., globalLoader: true, ... })
             if (window.jQuery) {
+                var AJAX_SHOW_DELAY = 250; // ms an opted-in request must run before we bother showing the loader
+
                 jQuery(document)
-                    .ajaxStart(function () { show(); })
-                    .ajaxStop(function () { hide(); });
+                    .ajaxSend(function (event, jqXHR, settings) {
+                        if (!settings || settings.globalLoader !== true) return;
+                        ajaxPending++;
+                        if (!ajaxShowTimer && !overlay.classList.contains('active')) {
+                            ajaxShowTimer = setTimeout(function () {
+                                ajaxShowTimer = null;
+                                if (ajaxPending > 0) show();
+                            }, AJAX_SHOW_DELAY);
+                        }
+                    })
+                    .ajaxComplete(function (event, jqXHR, settings) {
+                        if (!settings || settings.globalLoader !== true) return;
+                        ajaxPending = Math.max(0, ajaxPending - 1);
+                        // Don't tear down a navigation loader; that one waits
+                        // for the page to actually change.
+                        if (ajaxPending === 0 && !navPending) hide();
+                    });
             }
         })();
     </script>

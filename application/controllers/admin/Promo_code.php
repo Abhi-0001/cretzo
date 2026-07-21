@@ -102,7 +102,6 @@ class Promo_code extends CI_Controller
             $this->form_validation->set_rules('discount_type', 'Discount Type ', 'trim|required|xss_clean');
             $this->form_validation->set_rules('max_discount_amount', 'Maximum Discount Amount ', 'trim|numeric|required|xss_clean');
             $this->form_validation->set_rules('repeat_usage', 'Repeat Usage ', 'trim|required|xss_clean');
-            $this->form_validation->set_rules('image', 'Image ', 'required|xss_clean');
             $this->form_validation->set_rules('is_cashback', 'Is Cashback ', 'trim|xss_clean');
             $this->form_validation->set_rules('list_promocode', 'List Promocode ', 'trim|xss_clean');
 

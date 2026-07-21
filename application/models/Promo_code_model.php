@@ -182,7 +182,7 @@ class Promo_code_model extends CI_Model
             'max_discount_amount' => $data['max_discount_amount'],
             'repeat_usage' => $data['repeat_usage'],
             'status' => $data['status'],
-            'image' => $data['image'],
+            'image' => isset($data['image']) ? $data['image'] : '',
             'is_cashback' => (isset($data['is_cashback']) && $data['is_cashback'] == 'on') ? '1' : '0',
             'list_promocode' => (isset($data['list_promocode']) && $data['list_promocode'] == 'on') ? '1' : '0'
         ];

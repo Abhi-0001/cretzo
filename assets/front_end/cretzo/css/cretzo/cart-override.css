@@ -21,6 +21,16 @@
     margin-bottom: 0px;
 }
 
+/* Smaller product price on the left cart list */
+.cart-item-detail-container .total-price{
+    font-size: var(--font-size-text-s);
+}
+.cart-item-detail-container .total-price .actual-price,
+.cart-item-detail-container .total-price .discounted-price,
+.cart-item-detail-container .total-price .discount{
+    font-size: var(--font-size-text-s);
+}
+
 .cart-item-detail-container .product-variant-detail{
     display: inline-block;
     background-color: var(--color-orange-light);
@@ -72,6 +82,9 @@
   background-repeat: no-repeat;
   background-size: 12px;
   background-position-x: center;
+}
+.num-in span.minus, .num-in span.plus{
+  cursor: pointer;
 }
 .num-in span:hover{
   scale: 1.08;
@@ -186,4 +199,18 @@ input[type=checkbox]#select-all-checkbox {
   border-color: #f0bd9f;
   /* box-shadow: 0 0 0 .2rem rgba(255, 102, 0, 0.25); */
   box-shadow: none;
+}
+
+/* Coupon widget - "applied" state */
+.cart-right-one > div .edit-btn{
+  padding: 4px 20px;
+  border-width: 2px;
+  border-radius: 4px;
+  box-shadow: none;
+  color: #ff4067 !important;
+  border-color: #ff4067 !important;
+  background: #fff !important;
+}
+#coupon-widget-subtext.is-applied{
+  color: #1e8e3e;
 }

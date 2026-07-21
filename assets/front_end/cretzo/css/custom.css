@@ -1680,6 +1680,10 @@ section #progressbar div.active:after {
     z-index: 99999;
 }
 
+.fixed-icon.chat-fab-hidden {
+    display: none !important;
+}
+
 .progress-wrap {
     position: initial !important;
 }

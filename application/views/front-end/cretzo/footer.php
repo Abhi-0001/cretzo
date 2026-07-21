@@ -742,13 +742,13 @@ $(document).click(function (e) {
 body.swal2-toast-shown .swal2-container.swal2-top,
 body.swal2-toast-shown .swal2-container.swal2-top-start,
 body.swal2-toast-shown .swal2-container.swal2-top-end {
-    top: 110px !important;   /* clears the desktop header + category navbar */
+    top: 55px !important;   /* just below the desktop header / cart & profile icons */
 }
 @media (max-width: 768px) {
     body.swal2-toast-shown .swal2-container.swal2-top,
     body.swal2-toast-shown .swal2-container.swal2-top-start,
     body.swal2-toast-shown .swal2-container.swal2-top-end {
-        top: 80px !important; /* shorter mobile header */
+        top: 140px !important; /* mobile header + search bar is ~131px tall */
     }
 }
 

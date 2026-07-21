@@ -9,13 +9,17 @@ const is_loggedin = $("#is_loggedin").val();
 
 const Toast = Swal.mixin({
     toast: !0,
-    /* cretzo: show notifications centered just BELOW the header (was "top-end",
-       which overlapped the header). Vertical offset is applied via CSS in footer.php. */
-    position: "top",
+    /* cretzo: show notifications top-RIGHT, just BELOW the header (near the
+       profile/cart icons). Vertical offset + z-index are applied via CSS in
+       cretzo-override.css / footer.php. */
+    position: "top-end",
     showConfirmButton: !1,
     timer: 3e3,
     timerProgressBar: !0,
-    
+    animation: !1,
+    showClass: { popup: "" },
+    hideClass: { popup: "" },
+
     // timer: 0,
     // iconColor: getComputedStyle(document.body).getPropertyValue('--color-orange')
 });
@@ -358,6 +362,21 @@ function cleanupModalArtifacts() {
 // and BS5's native events bubble so this jQuery delegate catches both).
 $(document).on('hidden.bs.modal', '.modal', cleanupModalArtifacts);
 $(document).on('hidden.bs.offcanvas', '.offcanvas', cleanupModalArtifacts);
+
+// The floating chat button (.fixed-icon) sits at a very high z-index so it stays above
+// page content, which also puts it above the mini-cart / nav offcanvas panels. Hide it
+// while any modal or offcanvas (e.g. the mini cart) is open so it can't float over them.
+$(document).on('show.bs.offcanvas', '.offcanvas', function () {
+    $('.fixed-icon').addClass('chat-fab-hidden');
+});
+$(document).on('shown.bs.modal', '.modal', function () {
+    $('.fixed-icon').addClass('chat-fab-hidden');
+});
+$(document).on('hidden.bs.offcanvas hidden.bs.modal', '.offcanvas, .modal', function () {
+    if (!$('.offcanvas.show').length && !$('.modal.show').length) {
+        $('.fixed-icon').removeClass('chat-fab-hidden');
+    }
+});
 
 // Any dismiss trigger — BS5 (data-bs-dismiss) or BS4 (data-dismiss).
 $(document).on('click',
@@ -1611,8 +1630,15 @@ search_products.on("select2:select", function (e) {
                     dataType: "json",
                     success: function (e) {
                         if (csrfName = e.csrfName, csrfHash = e.csrfHash, 0 == e.error) {
-                            var t = $("#cart-count").text();
-                            t--, $("#cart-count").text(t), i(r);
+                            $("#cart-count").text(e.data.cart_count), i(r);
+                            if (e.data.items) {
+                                var sidebarHtml = "";
+                                $.each(e.data.items, function (idx, product) {
+                                    var priceVal = product.special_price < product.price && 0 != product.special_price ? product.special_price : product.price;
+                                    sidebarHtml += '<div class="shopping-cart"><div class="shopping-cart-item d-flex justify-content-between mb-4" title="' + product.name + '"><div class="d-flex flex-row gap-3"><figure class="rounded cart-img"><a href="' + base_url + 'products/details/' + product.product_slug + '"><img src="' + base_url + product.image + '" alt="Not Found" style="object-fit: contain;"></a></figure><div class="w-100 cart-title"><a href="' + base_url + 'products/details/' + product.product_slug + '"><h3 class="post-title fs-16 lh-xs mb-1" title="' + product.name + '">' + product.name + '</h3></a><p class="price"><ins><span class="amount">' + currency + priceVal + '</span></ins></p><div class="product-pricing d-flex py-2 px-1 w-100"><div class="align-items-center d-flex p-2 w-15"><input type="number" name="header_qty" class="form-control d-flex align-items-center" value="' + product.qty + '" data-id="' + product.product_variant_id + '" data-price="' + product.price + '"></div><div class="product-line-price align-self-center px-1">' + currency + (product.qty * priceVal) + '</div></div></div></div><div class="product-sm-removal"><button class="remove-product btn btn-sm btn-danger rounded-1 p-1 py-0" data-id="' + product.product_variant_id + '"><i class="uil uil-trash-alt"></i></button></div></div></div>';
+                                });
+                                $("#cart-item-sidebar").html(sidebarHtml);
+                            }
                         } else Toast.fire({
                             icon: "error",
                             title: e.message
@@ -2116,7 +2142,7 @@ function display_cart(e) {
         var slug = base_url + 'products/details/' + (e.slug).replace(base_url + 'products/details/', "");
         var s = e.special_price < e.price && 0 != e.special_price ? e.special_price : e.price;
 
-        a += '<div class="shopping-cart"><div class="shopping-cart-item d-flex justify-content-between mb-4"><div class="d-flex flex-row gap-3" title=" ' + e.name + '"><figure class="rounded cart-img"><a href="' + slug + '"><img src="' + img + '" alt="' + e.name + '" title="' + e.name + '" style="object-fit: contain;"></a></figure><div class="w-100 cart-title"><a href="' + slug + '"><h3 class="post-title fs-16 lh-xs mb-1 no-wrap" title=" ' + e.name + '">' + e.name + '</h3></a>' + variant_tag + '<p class="price"><ins><span class="amount">' + currency + s + '</span></ins></p><div class="product-pricing d-flex py-2 w-100"><div class="product-quantity product-sm-quantity"><input type="number" name="header_qty" class="form-control d-flex align-content-center w-14" value="' + e.qty + '" data-id="' + e.product_variant_id + '" data-price="' + e.price + '" min="' + e.min + '" max="' + e.max + '" step="' + e.step + '"></div><div class="product-line-price align-self-center px-1 no-wrap" style="color: #F2822E;">' + currency + (e.qty * s) + '</div></div></div>            </div><div class="product-sm-removal"><button class="remove-product btn btn-sm btn-danger rounded-1 p-1 py-0" data-id="' + e.product_variant_id + '"><i class="uil uil-trash-alt"></i></button></div></div></div>'        
+        a += '<div class="shopping-cart"><div class="shopping-cart-item d-flex justify-content-between mb-4"><div class="d-flex flex-row gap-3" title=" ' + e.name + '"><figure class="rounded cart-img"><a href="' + slug + '"><img src="' + img + '" alt="' + e.name + '" title="' + e.name + '" style="object-fit: contain;"></a></figure><div class="w-100 cart-title"><a href="' + slug + '"><h3 class="post-title fs-16 lh-xs mb-1 no-wrap" title=" ' + e.name + '">' + e.name + '</h3></a>' + variant_tag + '<p class="price"><ins><span class="amount">' + currency + s + '</span></ins></p><div class="product-pricing d-flex w-100"><div class="product-quantity product-sm-quantity"><input type="number" name="header_qty" class="form-control d-flex align-content-center w-14" value="' + e.qty + '" data-id="' + e.product_variant_id + '" data-price="' + e.price + '" min="' + e.min + '" max="' + e.max + '" step="' + e.step + '"></div><div class="product-line-price align-self-center px-1 no-wrap" style="color: #F2822E;">' + currency + (e.qty * s) + '</div></div></div>            </div><div class="product-sm-removal"><button class="remove-product btn btn-sm btn-danger rounded-1 p-1 py-0" data-id="' + e.product_variant_id + '"><i class="uil uil-trash-alt"></i></button></div></div></div>'        
 
     }),
         //  console.log(a), 
