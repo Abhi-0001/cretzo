@@ -400,22 +400,68 @@ div:where(.swal2-icon).swal2-success{
   color: var(--color-orange) !important;
 }
 
-/* SweetAlert2 - Padding and Font Style */
+/* SweetAlert2 - minimalistic toast (top-right, below header): no icon, no animation,
+   no border, light tinted background coloured by message type. z-index sits above the
+   quick-view iziModal (100001) / sign-in modal (100030) so it never hides behind them. */
 body.swal2-toast-shown .swal2-container{
-  min-width: 300px;
-  width: initial;
+  min-width: 0 !important;
+  width: initial !important;
+  margin-right: 16px !important;
+  z-index: 100060 !important;
 }
-/* .swal2-popup.swal2-toast.swal2-show{
-  border: var(--color-orange) solid 1px;
-} */
 .swal2-popup.swal2-toast{
-  padding: 0.35em 0.35em 0.55em 0.35em;
+  padding: 0.6em 1em 0.8em 1em !important;
+  min-height: 0 !important;
+  max-width: 300px !important;
+  background: #f2f2f2 !important;
+  border: none !important;
+  border-radius: 6px !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.10) !important;
+}
+.swal2-popup.swal2-toast .swal2-timer-progress-bar-container{
+  border-radius: 0 0 6px 6px !important;
+}
+.swal2-popup.swal2-toast .swal2-timer-progress-bar{
+  height: 2px !important;
+  background: rgba(0, 0, 0, 0.18) !important;
+}
+.swal2-popup.swal2-toast .swal2-icon{
+  display: none !important;
 }
 .swal2-popup.swal2-toast .swal2-title{
-  margin: 0.6em 1em 0.5em 1em;
-  font-weight: 500;
-  color: black;
+  margin: 0 !important;
+  padding: 0 !important;
+  font-size: 0.85em !important;
+  font-weight: 500 !important;
+  color: #444 !important;
+  text-align: left !important;
 }
+
+/* Colour the toast by message type (icon element is hidden but still in the DOM,
+   so :has() can key off it). Light tinted background + matching text + progress bar. */
+.swal2-popup.swal2-toast:has(.swal2-success){
+  background: #e9f7ef !important;   /* light green */
+}
+.swal2-popup.swal2-toast:has(.swal2-success) .swal2-title{ color: #1e7e34 !important; }
+.swal2-popup.swal2-toast:has(.swal2-success) .swal2-timer-progress-bar{ background: rgba(30, 126, 52, 0.35) !important; }
+
+.swal2-popup.swal2-toast:has(.swal2-error){
+  background: #fdecea !important;   /* light red */
+}
+.swal2-popup.swal2-toast:has(.swal2-error) .swal2-title{ color: #c0392b !important; }
+.swal2-popup.swal2-toast:has(.swal2-error) .swal2-timer-progress-bar{ background: rgba(192, 57, 43, 0.35) !important; }
+
+.swal2-popup.swal2-toast:has(.swal2-warning){
+  background: #fef6e0 !important;   /* light yellow */
+}
+.swal2-popup.swal2-toast:has(.swal2-warning) .swal2-title{ color: #b7791f !important; }
+.swal2-popup.swal2-toast:has(.swal2-warning) .swal2-timer-progress-bar{ background: rgba(183, 121, 31, 0.35) !important; }
+
+.swal2-popup.swal2-toast:has(.swal2-info){
+  background: #eaf4fb !important;   /* light blue */
+}
+.swal2-popup.swal2-toast:has(.swal2-info) .swal2-title{ color: #2471a3 !important; }
+.swal2-popup.swal2-toast:has(.swal2-info) .swal2-timer-progress-bar{ background: rgba(36, 113, 163, 0.35) !important; }
 
 /* Style for 'SweetAlert2' Ends */
 /* --------------------------------------------------- */
@@ -631,8 +677,8 @@ body#chat-body{
 }
 
 
-/* Hide All Swal2 Alerts */
-.swal2-container{
+/* Hide All Swal2 Alerts, except toast-mode ones (add-to-cart / move-to-bag notifications) */
+body:not(.swal2-toast-shown) .swal2-container{
   display: none !important;
 }
 
@@ -679,7 +725,7 @@ body#chat-body{
 .mini-cart-offcanvas .offcanvas-footer { border-top: 1px solid #eee; padding: 14px 18px; display: flex; flex-direction: row; gap: 10px; }
 .mini-cart-offcanvas .offcanvas-footer .btn { margin: 0 !important; flex: 1 1 0; padding: 3px 10px; font-size: 13px; white-space: nowrap; }
 .mini-cart-offcanvas .btn-red { background: var(--color-orange); border-color: var(--color-orange); color: #fff; }
-.mini-cart-offcanvas .view_cart_button { background: #fff; border-color: var(--color-orange); color: var(--color-orange); }
+.mini-cart-offcanvas .view_cart_button { background: #fff; border-width: 1px; border-color: var(--color-orange); color: var(--color-orange); }
 .mini-cart-offcanvas .view_cart_button:hover,
 .mini-cart-offcanvas .view_cart_button:focus { background: var(--color-orange); border-color: var(--color-orange); color: #fff; }
 @media (max-width: 400px) {

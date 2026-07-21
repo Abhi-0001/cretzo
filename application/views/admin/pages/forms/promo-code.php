@@ -87,28 +87,6 @@
                                         </select>
                                     </div>
                                     <div class="form-group col-md-6">
-                                        <label for="image">Main Image <span class='text-danger text-sm'>*</span><small>(Recommended Size : 80 x 80 pixels)</small></label>
-                                        <div class="col-sm-10">
-                                            <div class='col-md-5'><a class="uploadFile img btn btn-primary text-white btn-sm" data-input='image' data-isremovable='0' data-is-multiple-uploads-allowed='0' data-toggle="modal" data-target="#media-upload-modal" value="Upload Photo"><i class='fa fa-upload'></i> Upload</a></div>
-                                            <?php
-                                            if (file_exists(FCPATH . @$fetched_details[0]['image']) && !empty(@$fetched_details[0]['image'])) {
-                                            ?>
-                                                <label class="text-danger mt-3">*Only Choose When Update is necessary</label>
-                                                <div class="container-fluid row image-upload-section">
-                                                    <div class="col-md-12 col-sm-12 shadow p-3 mb-5 bg-white rounded m-4 text-center grow image">
-                                                        <div class='image-upload-div'><img class="img-fluid mb-2" src="<?= BASE_URL() . $fetched_details[0]['image'] ?>" alt="Image Not Found"></div>
-                                                        <input type="hidden" name="image" value='<?= $fetched_details[0]['image'] ?>'>
-                                                    </div>
-                                                </div>
-                                            <?php
-                                            } else { ?>
-                                                <div class="container-fluid row image-upload-section">
-                                                    <div class="col-md-3 col-sm-12 shadow p-3 mb-5 bg-white rounded m-4 text-center grow image d-none"></div>
-                                                </div>
-                                            <?php } ?>
-                                        </div>
-                                    </div>
-                                    <div class="form-group col-md-6">
                                         <label for="">Status <span class='text-danger text-sm'>*</span></label>
                                         <select name="status" id="status" class="form-control">
                                             <option value="">Select</option>

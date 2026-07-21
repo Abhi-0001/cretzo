@@ -4,7 +4,7 @@
        centered even when the page has horizontal overflow (fixed value 10% did not). */
     margin-inline: auto;
     padding: 20px;
-    max-width: 1200px;
+    max-width: 900px;
     /* Fix: short pages (Profile, Address with few entries, empty Orders) had no
        floor on height and ended abruptly right above the footer, looking broken/
        "shrunk" next to taller pages like Wallet/Orders. Give every my-account
@@ -54,8 +54,8 @@
     max-width: 30%;
 }
 .overview-side-container .overview-container > .overview-right {
-    flex: 1 1 auto;
-    width: auto;
+    /* flex: 1 1 auto; */
+    width: 100%;
     min-width: 0;
 }
 @media screen and (max-width: 500px) {
