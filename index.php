@@ -53,7 +53,8 @@
  *
  * NOTE: If you change these, also change the error_reporting() code below
  */
-	define('ENVIRONMENT', isset($_SERVER['CI_ENV']) ? $_SERVER['CI_ENV'] : 'development');
+	$is_production_host = in_array($_SERVER['HTTP_HOST'] ?? '', array('cretzo.com', 'www.cretzo.com'), true);
+	define('ENVIRONMENT', isset($_SERVER['CI_ENV']) ? $_SERVER['CI_ENV'] : ($is_production_host ? 'production' : 'development'));
 
 /*
  *---------------------------------------------------------------
