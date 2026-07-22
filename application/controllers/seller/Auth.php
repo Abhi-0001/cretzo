@@ -44,6 +44,8 @@ class Auth extends CI_Controller
 
     public function sign_up()
     {
+        
+        $this->data['main_page'] = FORMS . 'seller-registration';
         $settings = get_settings('system_settings', true);
         $this->data['title'] = 'Sign Up Seller | ' . $settings['app_name'];
         $this->data['meta_description'] = 'Sign Up Seller | ' . $settings['app_name'];
@@ -54,8 +56,8 @@ class Auth extends CI_Controller
             $this->data['meta_description'] = 'Update Seller | ' . $settings['app_name'];
             $this->data['user_data'] = $_SESSION;
         }
-
-        $this->load->view('seller/pages/forms/seller-registration', $this->data);
+        
+        $this->load->view('seller/signup', $this->data);
     }
 
      // 1. Send OTP via Twilio
@@ -129,137 +131,93 @@ class Auth extends CI_Controller
     }
 
     public function ajax_signup(){
-        try {
-            // Get form data
-            $password = $this->input->post('password', true);
-            $confirm_password = $this->input->post('confirm_password', true);
-            $mobile = $this->input->post('mobile', true);
-            $name = $this->input->post('name', true);
-            $email = $this->input->post('email', true);
-            $phone_verified = $this->input->post('phone_verified', true);
 
+        // Setup validation rules
+        // $this->form_validation->set_rules('password', 'Password', 'required|min_length[6]');
+        // $this->form_validation->set_rules('confirm_password', 'Confirm Password', 'required|matches[password]');
+        $password = $this->input->post('password', true);
+        $confirm_password = $this->input->post('confirm_password', true);
+        // print_r($password);
+        // print_r($confirm_password);
+        $mobile = $this->input->post('mobile', true);
+
+        if(/*!$this->form_validation->run()*/ $password !== $confirm_password){
             $response = [
                 'status' => 'failed',
-                'message' => 'Registration failed'
+                'message' => 'Passwords do not match'
             ];
+        } else {
+            $identity =  $mobile;
+            try{
+                $user_id = $this->ion_auth->register($identity, $password, '', [], [4]); //4 is seller group id
+                 
+                if($user_id){
+                    
+                    //set session for further details
+                    // $_SESSION['to_be_seller_name'] = $additional_data['first_name'].' '.$additional_data['last_name'];
+                    // $_SESSION['to_be_seller_mobile'] = $additional_data['phone'];
+                    // $_SESSION['to_be_seller_id'] = $user_id;
 
-            // Validate inputs
-            if (empty($name) || strlen($name) < 2) {
-                $response['message'] = 'Full name is required';
-                $this->output->set_content_type('application/json')->set_output(json_encode($response));
-                return;
+                    $response = [
+                        'status' => 'success',
+                        'message' => 'Seller registered successfully!'
+                    ];
+                } else {
+                    $response = [
+                        'status' => 'failed',
+                        'message' => 'Failed to register seller!'
+                    ];
+                }
+            }catch(Exception $e){
+                $response = [
+                    'status' => 'failed',
+                    'message' => $e->getMessage(),
+                ];
             }
-
-            if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                $response['message'] = 'Valid email address is required';
-                $this->output->set_content_type('application/json')->set_output(json_encode($response));
-                return;
-            }
-
-            if (empty($mobile) || !preg_match('/^[6-9]\d{9}$/', $mobile)) {
-                $response['message'] = 'Valid 10-digit mobile number is required';
-                $this->output->set_content_type('application/json')->set_output(json_encode($response));
-                return;
-            }
-
-            if ($phone_verified != '1') {
-                $response['message'] = 'Please verify your phone number with OTP';
-                $this->output->set_content_type('application/json')->set_output(json_encode($response));
-                return;
-            }
-
-            if (empty($password) || strlen($password) < 6) {
-                $response['message'] = 'Password must be at least 6 characters';
-                $this->output->set_content_type('application/json')->set_output(json_encode($response));
-                return;
-            }
-
-            if ($password !== $confirm_password) {
-                $response['message'] = 'Passwords do not match';
-                $this->output->set_content_type('application/json')->set_output(json_encode($response));
-                return;
-            }
-
-            // Check if mobile already exists
-            $existing_user = fetch_details('users', ['mobile' => $mobile]);
-            if (!empty($existing_user)) {
-                $response['message'] = 'Mobile number already registered';
-                $this->output->set_content_type('application/json')->set_output(json_encode($response));
-                return;
-            }
-
-            // Register user
-            $user_id = $this->ion_auth->register($mobile, $password, $email, ['name' => $name], [4]); // 4 is seller group
-            
-            if (!$user_id) {
-                $response['message'] = 'Registration failed. ' . $this->ion_auth->messages();
-                $this->output->set_content_type('application/json')->set_output(json_encode($response));
-                return;
-            }
-
-            // Try to login
-            $login_result = $this->ion_auth->login($mobile, $password);
-            if ($login_result) {
-                $response['status'] = 'success';
-                $response['message'] = 'Account created successfully!';
-            } else {
-                $response['status'] = 'success';
-                $response['message'] = 'Account created. Please log in.';
-            }
-
-        } catch (Exception $e) {
-            $response = [
-                'status' => 'failed',
-                'message' => 'Server error: ' . $e->getMessage()
-            ];
         }
-
+        if($response['status'] == 'success'){
+            $login_response = $this->ion_auth->login($mobile, $password);
+        }
         $this->output->set_content_type('application/json')->set_output(json_encode($response));
     }
 
     public function login(){
-        try {
-            $identity = $this->input->post('identity', true);
-            $password = $this->input->post('password', true);
-            $remember = $this->input->post('remember', true);
+        $identity = $this->input->post('identity', true);
+        $password = $this->input->post('password', true);
 
-            // Validate inputs
-            if (empty($identity) || empty($password)) {
-                redirect('seller/login?error=true');
-                return;
-            }
+        $remember = $this->input->post('remember', true);
 
-            // Check if user exists and is a seller
+        try{
+            
             $user_data = fetch_details('users', ['mobile' => $identity]);
             
-            if (empty($user_data)) {
-                redirect('seller/login?error=true');
-                return;
-            }
-
-            // Check user group
-            if ($group = fetch_details('users_groups', ['user_id' => $user_data[0]['id']])) {
-                if ($group[0]['group_id'] != 4) { // 4 is seller group
+            if($group = fetch_details('users_groups', ['user_id' => $user_data[0]['id']] )){
+                if($group[0]['group_id'] !=4){
+                    $response['error'] = true;
                     redirect('seller/login?error=true');
-                    return;
+                        // $response['message'] = 'Invalid user';
+                        // echo json_encode($response);
+                        // return false;
                 }
-            } else {
-                redirect('seller/login?error=true');
-                return;
             }
-
-            // Attempt login
-            $login_result = $this->ion_auth->login($identity, $password, $remember);
+           
+            $response = $this->ion_auth->login($identity, $password, $remember);
             
-            if ($login_result) {
+          
+            if($response){
                 redirect('seller/home', 'refresh');
-            } else {
+            }else {
                 redirect('seller/login?error=true');
+                // echo json_encode([
+                //     'status'=> 'failed',
+                //     'message' => $response.json_encode(),
+                // ]);
             }
-
-        } catch (Exception $e) {
-            log_message('error', 'Seller login error: ' . $e->getMessage());
-            redirect('seller/login?error=true');
+        }catch(Exception $e){
+            echo json_encode([
+                'status'=> 'failed',
+                'message' => $e.Message::get_error_message(),
+            ]);
         }
     }
 

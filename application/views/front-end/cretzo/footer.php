@@ -223,7 +223,10 @@ $system_settings = get_settings('system_settings', true); ?>
 
                         <!-- login -->
                         <div class="login rounded-1">
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+
+                            <div style="position: absolute; width: 100%; height: 100%; pointer-events: none;">
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
 
                             <div class="login-left">
                                 <h1 class="heading-n ta-c">Login</h1>
@@ -270,7 +273,7 @@ $system_settings = get_settings('system_settings', true); ?>
                                 <?php if ((true || !empty($system_settings['google_login']) && $system_settings['google_login'] == 1) || (!empty($system_settings['facebook_login']) && $system_settings['facebook_login'] == 1)) { ?>
                                     <div class="login-with-container">
                                         <?php if (true || !empty($system_settings['google_login']) && ($system_settings['google_login'] == 1 || $system_settings['google_login'] == '1')) { ?>
-                                            <a href="#" class="text-decoration-none social-auth-link" data-auth-provider="google">
+                                            <a href="#" id="googleLogin" class="text-decoration-none">
                                                 <div class="media-container">
                                                     <img class="media-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/google-icon.jpg') ?>">
                                                     <p class="text-s">Sign in with Google</p>
@@ -278,7 +281,7 @@ $system_settings = get_settings('system_settings', true); ?>
                                             </a>
                                         <?php } ?>
                                         <?php if (true || !empty($system_settings['facebook_login']) && ($system_settings['facebook_login'] == 1 || $system_settings['facebook_login'] == '1')) { ?>
-                                            <a href="#" class="text-decoration-none social-auth-link" data-auth-provider="facebook">
+                                            <a href="#" id="facebookLogin" class="text-decoration-none">
                                                 <div class="media-container">
                                                     <img class="media-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/facebook-icon.jpg') ?>">
                                                     <p class="text-s">Login with Facebook</p>
@@ -408,7 +411,7 @@ $system_settings = get_settings('system_settings', true); ?>
                                 <?php if ((true || !empty($system_settings['google_login']) && $system_settings['google_login'] == 1) || (!empty($system_settings['facebook_login']) && $system_settings['facebook_login'] == 1)) { ?>
                                     <div class="login-with-container mt-3">
                                         <?php if (true || !empty($system_settings['google_login']) && ($system_settings['google_login'] == 1 || $system_settings['google_login'] == '1')) { ?>
-                                            <a href="#" class="text-decoration-none social-auth-link" data-auth-provider="google">
+                                            <a href="#" id="googleLogin" class="text-decoration-none">
                                                 <div class="media-container">
                                                     <img class="media-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/google-icon.jpg') ?>">
                                                     <p class="text-s">Signup in with Google</p>
@@ -416,7 +419,7 @@ $system_settings = get_settings('system_settings', true); ?>
                                             </a>
                                         <?php } ?>
                                         <?php if (true || !empty($system_settings['facebook_login']) && ($system_settings['facebook_login'] == 1 || $system_settings['facebook_login'] == '1')) { ?>
-                                            <a href="#" class="text-decoration-none social-auth-link" data-auth-provider="facebook">
+                                            <a href="#" id="facebookLogin" class="text-decoration-none">
                                                 <div class="media-container">
                                                     <img class="media-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/facebook-icon.jpg') ?>">
                                                     <p class="text-s">Signup with Facebook</p>
@@ -623,91 +626,69 @@ $system_settings = get_settings('system_settings', true); ?>
 <script>
 $(document).ready(function () {
 
-    let searchDebounce = null;
-
-    function clearSearchDropdown() {
-        $("#append_desktop_search").html("");
-        $("#append_mobile_search").html("");
-    }
-
-    function renderSuggestions(data) {
-        let html = '';
-        if (data && data.length > 0) {
-            html += '<div class="list-group" style="max-height:320px;overflow-y:auto;">';
-
-            $.each(data, function (index, item) {
-                const rawName = String(item.name || '');
-                const safeName = rawName.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
-                const safeUrl = String(item.url || '').replace(/"/g, '&quot;');
-
-                html += `
-                    <div class="search-item text-n mega-list-item" onclick="selectSuggestion(&quot;${safeName}&quot;,&quot;${safeUrl}&quot;)">
-                        <div>${safeName}</div>
-                    </div>
-                `;
-            });
-
-            html += '</div>';
-        } else {
-            html = '<div class="search-item text-n mega-list-item">No results found</div>';
-        }
-
-        $("#append_desktop_search").html(html);
-        $("#append_mobile_search").html(html);
-    }
-
-    $(".search_field").on("keyup", function (e) {
+    $(".search_field").on("keyup", function () {
         let search = $(this).val().trim();
 
-        if (e.key === 'Enter') {
-            searchProduct();
-            return;
-        }
-
         if (search.length < 1) {
-            clearSearchDropdown();
+            $("#append_desktop_search").html("");
+            $("#append_mobile_search").html("");
             return;
         }
 
-        if (searchDebounce) {
-            clearTimeout(searchDebounce);
-        }
+        $.ajax({
+            url: base_url+"/search/search_data",
+            type: "GET",
+            data: { search: search },
+            dataType: "json",
+            success: function (response) {
 
-        searchDebounce = setTimeout(function () {
-            $.ajax({
-                url: base_url + "/search/search_data",
-                type: "GET",
-                data: { search: search, limit: 12 },
-                dataType: "json",
-                success: function (response) {
-                    if (typeof response === "string") {
-                        response = JSON.parse(response);
-                    }
-                    renderSuggestions(response.data || []);
-                },
-                error: function () {
-                    $("#append_desktop_search").html(
-                        '<div class="search-item">Error fetching data</div>'
-                    );
-                    $("#append_mobile_search").html(
-                        '<div class="search-item">Error fetching data</div>'
-                    );
+                let html = "";
+
+                // Ensure response is parsed JSON
+                if (typeof response === "string") {
+                    response = JSON.parse(response);
                 }
-            });
-        }, 180);
+
+                if (response.data && response.data.length > 0) {
+                    html += '<div class="list-group">';
+
+                    $.each(response.data, function (index, item) {
+
+                        // Proper escaping
+                        let safeName = item.name.replace(/"/g, '&quot;');
+
+                        html += `
+                            <div class="search-item text-n mega-list-item" 
+                                 onclick="selectSuggestion(&quot;${safeName}&quot;)">
+                                ${item.name}
+                            </div>
+                        `;
+                    });
+
+                    html += '</div>';
+
+                } else {
+                    html = '<div class="search-item text-n mega-list-item">No results found</div>';
+                }
+
+                $("#append_desktop_search").html(html);
+                $("#append_mobile_search").html(html);
+            },
+            error: function () {
+                $("#append_desktop_search").html(
+                    '<div class="search-item">Error fetching data</div>'
+                );
+            }
+        });
 
     });
 
 });
 
 // Fill value into search box
-function selectSuggestion(name, url) {
+function selectSuggestion(name) {
     $(".search_field").val('');
-    if (url && url.length > 0) {
-        window.location.href = url;
-    } else {
-        window.location.href = base_url + '/products/search?q=' + encodeURIComponent(name);
-    }
+    window.location.href = base_url + '/products/search?q=' + encodeURIComponent(name);
         
     // $(".search_field").val(name);
     // $("#append_desktop_search").html("");
@@ -716,7 +697,7 @@ function selectSuggestion(name, url) {
 
 // Hide suggestions when clicking outside
 $(document).click(function (e) {
-    if (!$(e.target).closest('.search-container-m, .search-container').length) {
+    if (!$(e.target).closest('.search-container-m').length) {
         $("#append_desktop_search").html("");
         $("#append_mobile_search").html("");
     }

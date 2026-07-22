@@ -22,18 +22,6 @@
 }
 
     </style>
-    
-    <!-- Facebook SDK -->
-    <script>
-        window.fbAsyncInit = function() {
-            FB.init({
-                appId: '1541338137599309',
-                xfbml: true,
-                version: 'v18.0'
-            });
-        };
-    </script>
-    <script async defer crossorigin="anonymous" src="https://connect.facebook.net/en_US/sdk.js#xfbml=1&version=v18.0"></script>
 </head>
 <header>
     <div class="container-fluid D-none">
@@ -91,7 +79,7 @@
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
-            <span class=""><a href="index.php"><img src="./assets//img/logo.png" class="d-lg-none" width="100" height="auto" style="margin-bottom:8px;" alt=""></a></span>
+            <span class=""><a href="ndex.php"><img src="./assets//img/logo.png" class="d-lg-none" width="100" height="auto" style="margin-bottom:8px;" alt=""></a></span>
         </div>
         <span class="navbar-brand d-lg-none">
             <span class="position-relative mx-2 bg-none">

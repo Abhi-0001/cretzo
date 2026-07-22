@@ -252,91 +252,6 @@ function formatRepoSelection(e) {
     return e.name || e.text
 }
 
-function ensureAuthLoadingLayer() {
-    var $loginModal = $("#modal-signin");
-    if (!$loginModal.length) return;
-
-    if (!$loginModal.find(".auth-login-loading").length) {
-        $loginModal.append(
-            '<div class="auth-login-loading d-none">' +
-            '<div class="auth-login-loading-box">' +
-            '<div class="auth-login-spinner"></div>' +
-            '<div class="auth-login-loading-copy">' +
-            '<div class="auth-login-loading-title">Signing in</div>' +
-            '<div class="auth-login-loading-text">Please wait while we complete sign-in...</div>' +
-            '<div class="auth-login-dots"><span></span><span></span><span></span></div>' +
-            '</div>' +
-            '</div>' +
-            '</div>'
-        );
-    }
-}
-
-function setSocialButtonLoading(provider, isLoading) {
-    var selector = '.social-auth-link[data-auth-provider="' + provider + '"]';
-    var label = provider === 'google' ? 'Google' : 'Facebook';
-    $(selector).each(function () {
-        var $btn = $(this).find('.media-container');
-        if (!$btn.length) return;
-        if (!$btn.attr('data-original-html')) {
-            $btn.attr('data-original-html', $btn.html());
-        }
-        if (isLoading) {
-            $btn.addClass('auth-social-loading');
-            $btn.html('<span class="auth-inline-spinner"></span><p class="text-s">Signing in with ' + label + '...</p>');
-            $(this).css('pointer-events', 'none');
-        } else {
-            $btn.removeClass('auth-social-loading');
-            $btn.html($btn.attr('data-original-html'));
-            $(this).css('pointer-events', '');
-        }
-    });
-}
-
-function toggleAuthLoading(show, text) {
-    ensureAuthLoadingLayer();
-    var $loader = $("#modal-signin .auth-login-loading");
-    if (!$loader.length) return;
-
-    if (text) {
-        $loader.find(".auth-login-loading-title").text(text);
-    }
-
-    if (show) {
-        $loader.removeClass("d-none");
-    } else {
-        $loader.addClass("d-none");
-    }
-}
-
-function closeLoginPopupFast() {
-    var $loginModal = $("#modal-signin");
-    if (!$loginModal.length) return;
-
-    try {
-        if (window.bootstrap && bootstrap.Modal) {
-            var instance = bootstrap.Modal.getInstance($loginModal[0]);
-            if (instance) {
-                instance.hide();
-            } else {
-                $loginModal.modal('hide');
-            }
-        } else if (typeof $loginModal.modal === 'function') {
-            $loginModal.modal('hide');
-        }
-    } catch (err) {
-        // no-op
-    }
-
-    // Fallback cleanup in case modal plugin leaves overlay behind.
-    $loginModal.removeClass("show").css("display", "none");
-    $(".modal-backdrop").remove();
-    $("body").removeClass("modal-open").css("padding-right", "");
-    setSocialButtonLoading('google', false);
-    setSocialButtonLoading('facebook', false);
-    toggleAuthLoading(false);
-}
-
 $(document).on("submit", ".form-submit-event", function (e) {
     e.preventDefault();
     var t = new FormData(this),
@@ -352,13 +267,7 @@ $(document).on("submit", ".form-submit-event", function (e) {
             url: $(this).attr("action"),
             data: t,
             beforeSend: function () {
-                if ("login_form" == a) {
-                    toggleAuthLoading(true, "Signing in...");
-                    s.html("Signing in...");
-                } else {
-                    s.html("Please Wait..");
-                }
-                s.attr("disabled", !0)
+                s.html("Please Wait.."), s.attr("disabled", !0)
             },
             cache: !1,
             contentType: !1,
@@ -368,19 +277,15 @@ $(document).on("submit", ".form-submit-event", function (e) {
                 csrfName = e.csrfName, csrfHash = e.csrfHash, 1 == e.error ? (r.addClass("rounded p-3 alert alert-danger").removeClass("d-none alert-success"),
                     r.show().delay(5e3).fadeOut(),
                     r.html(e.message),
-                    s.html(n), s.attr("disabled", !1),
-                    "login_form" == a && toggleAuthLoading(false)) : (r.addClass("rounded p-3 alert alert-success").removeClass("d-none alert-danger"),
+                    s.html(n), s.attr("disabled", !1)) : (r.addClass("rounded p-3 alert alert-success").removeClass("d-none alert-danger"),
                         r.show().delay(3e3).fadeOut(),
                         r.html(e.message),
                         s.html(n),
                         s.attr("disabled", !1),
                         $(".form-submit-event")[0].reset(), "login_form" == a && cart_sync(),
-                        "login_form" == a ? (closeLoginPopupFast(),
-                            setTimeout(function () {
-                                location.reload()
-                            }, 120)) : setTimeout(function () {
-                                location.reload()
-                            }, 600))
+                        setTimeout(function () {
+                            location.reload()
+                        }, 600))
             }
         })
 }),
@@ -557,66 +462,8 @@ search_products.on("select2:select", function (e) {
                     
                     r.removeAttr("disabled"); */
 
-                    /* Update UI in-place (no reload) */
-                    csrfName = e.csrfName;
-                    csrfHash = e.csrfHash;
-
-                    // Toggle button state if present
-                    try {
-                        // buttons that carry an <i> icon and a <span>
-                        var t_i = r.find('i');
-                        var t_span = r.find('span');
-
-                        if (t_i && t_i.length) {
-                            if (t_i.hasClass('fa-heart-o')) {
-                                t_i.removeClass('fa-heart-o').addClass('fa-heart');
-                                t_i.css('color', 'red');
-                            } else if (t_i.hasClass('fa-heart')) {
-                                t_i.removeClass('fa-heart').addClass('fa-heart-o');
-                                t_i.css('color', '');
-                            }
-                        }
-
-                        // toggle classes for text buttons
-                        if (r.hasClass('add-fav')) {
-                            r.removeClass('add-fav').addClass('remove-fav');
-                            if (t_span && t_span.length) t_span.text('Remove from Wishlist');
-                        } else if (r.hasClass('remove-fav')) {
-                            r.removeClass('remove-fav').addClass('add-fav');
-                            if (t_span && t_span.length) t_span.text('Wishlist');
-                        }
-
-                        // For simple heart anchors (fa icons without span)
-                        if (r.hasClass('fa-heart-o')) {
-                            r.removeClass('fa-heart-o').addClass('fa-heart').css('color', 'red');
-                        } else if (r.hasClass('fa-heart')) {
-                            r.removeClass('fa-heart').addClass('fa-heart-o').css('color', '');
-                        }
-
-                        // Update wishlist count badges in header (if present)
-                        try {
-                            var $count = $('.icon-num, .icon-num-m').not('#cart-count').not('.cart-count').not('.cart-count-checked');
-                            if ($count && $count.length && typeof e.total !== 'undefined') {
-                                $count.text(e.total);
-                            } else if ($count && $count.length) {
-                                // best-effort: increment/decrement based on message
-                                var cur = parseInt($count.first().text()) || 0;
-                                var delta = /added|added to favorite|added to favorites/i.test(e.message) ? 1 : (/removed/i.test(e.message) ? -1 : 0);
-                                cur = Math.max(0, cur + delta);
-                                $count.text(cur);
-                            }
-                        } catch (ex) { /* ignore */ }
-
-                    } catch (ex) { /* non-fatal UI update error */ }
-
-                    // show success toast
-                    Toast.fire({
-                        icon: 'success',
-                        title: e.message || 'Wishlist updated'
-                    });
-
-                    // restore button state
-                    r.removeAttr('disabled');
+                    /* we have decided to simply reload the page */
+                    csrfName = e.csrfName, csrfHash = e.csrfHash, location.reload();
 
                     /* if (r.hasClass("fa-heart-o")) {
                         r.removeClass("fa-heart-o");
@@ -3506,14 +3353,13 @@ $(document).ready(function () {
         showCount: false,
         shares: ["twitter", "facebook", "whatsapp", "pinterest", "linkedin", "googleplus"]
     });
-    $(document).on('click', '.social-auth-link', function (e) {
+    $(document).on('click', '#googleLogin', function (e) {
         e.preventDefault();
-        var provider = $(this).data('auth-provider');
-        if (provider === 'facebook') {
-            facebookSignIn();
-        } else if (provider === 'google') {
-            googleSignIn();
-        }
+        googleSignIn();
+    });
+    $(document).on('click', '#facebookLogin', function (e) {
+        e.preventDefault();
+        facebookSignIn();
     });
     $(document).on('click', '#googleLogout', function (e) {
         e.preventDefault();
@@ -3529,13 +3375,9 @@ $(document).ready(function () {
     });
 
     function googleSignIn() {
-        toggleAuthLoading(true, 'Opening Google sign-in...');
-        setSocialButtonLoading('google', true);
         var provider = new firebase.auth.GoogleAuthProvider();
         provider.addScope('email');
         firebase.auth().signInWithPopup(provider).then(function (result) {
-
-            toggleAuthLoading(true, 'Signing in with Google...');
 
 
             var type = 'google';
@@ -3588,18 +3430,9 @@ $(document).ready(function () {
                                         },
                                         dataType: 'json',
                                         success: function (result) {
-                                            closeLoginPopupFast();
-                                            setTimeout(function () {
-                                                location.reload();
-                                            }, 120);
+
+                                            location.reload();
                                         }
-                                    });
-                                } else {
-                                    setSocialButtonLoading('google', false);
-                                    toggleAuthLoading(false);
-                                    Toast.fire({
-                                        icon: 'error',
-                                        title: result.message || 'Email already exists. Please login with your existing account.'
                                     });
                                 }
                             }
@@ -3616,10 +3449,7 @@ $(document).ready(function () {
                             },
                             dataType: 'json',
                             success: function (result) {
-                                closeLoginPopupFast();
-                                setTimeout(function () {
-                                    location.reload();
-                                }, 120);
+                                location.reload();
                             }
                         });
                     }
@@ -3627,24 +3457,14 @@ $(document).ready(function () {
             });
 
         }).catch(function (error) {
-            setSocialButtonLoading('google', false);
-            toggleAuthLoading(false);
-            if (error && (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user')) {
-                toggleAuthLoading(true, 'Redirecting to Google sign-in...');
-                firebase.auth().signInWithRedirect(provider);
-                return;
-            }
+
             console.log(error.message);
         });
     }
     function facebookSignIn() {
-        toggleAuthLoading(true, 'Opening Facebook sign-in...');
-        setSocialButtonLoading('facebook', true);
         var provider = new firebase.auth.FacebookAuthProvider();
         provider.addScope('email');
         firebase.auth().signInWithPopup(provider).then(function (result) {
-
-            toggleAuthLoading(true, 'Signing in with Facebook...');
 
             var type = 'facebook';
             var name = result.user.displayName;
@@ -3696,18 +3516,9 @@ $(document).ready(function () {
                                         },
                                         dataType: 'json',
                                         success: function (result) {
-                                            closeLoginPopupFast();
-                                            setTimeout(function () {
-                                                location.reload();
-                                            }, 120);
+
+                                            location.reload();
                                         }
-                                    });
-                                } else {
-                                    setSocialButtonLoading('facebook', false);
-                                    toggleAuthLoading(false);
-                                    Toast.fire({
-                                        icon: 'error',
-                                        title: result.message || 'Email already exists. Please login with your existing account.'
                                     });
                                 }
                             }
@@ -3724,10 +3535,7 @@ $(document).ready(function () {
                             },
                             dataType: 'json',
                             success: function (result) {
-                                closeLoginPopupFast();
-                                setTimeout(function () {
-                                    location.reload();
-                                }, 120);
+                                location.reload();
                             }
                         });
                     }
@@ -3736,13 +3544,7 @@ $(document).ready(function () {
 
             console.log(result);
         }).catch(function (error) {
-            setSocialButtonLoading('facebook', false);
-            toggleAuthLoading(false);
-            if (error && (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user')) {
-                toggleAuthLoading(true, 'Redirecting to Facebook sign-in...');
-                firebase.auth().signInWithRedirect(provider);
-                return;
-            }
+
             console.log(error);
         });
     }

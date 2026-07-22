@@ -3,14 +3,12 @@ assets/front_end/modern/demo/*
 assets/front_end/modern/images/*
 assets/front_end/classic/demo/*
 assets/front_end/classic/images/*
-application/config/database.php
 .DS_Store
 /.vscode/
 /dist/
 /node_modules/
 /update/
 /upload/*
-/uploads
 /logs
 *.psd
 /vendor/

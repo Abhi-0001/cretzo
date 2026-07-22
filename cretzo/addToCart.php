@@ -75,7 +75,7 @@
                                 </div>
                             </div>
                             <div class="col-lg-2 col-2 text-end">
-                                <div class="" data-bs-toggle="modal" data-bs-target="#staticBackdrop">
+                                <div class="" data-bs-toggle="modal" data-bs-target="#exampleModal">
                                     <i class="bi bi-archive fs-3"></i>
                                 </div>
 
@@ -84,10 +84,8 @@
 
 
                     </div>
-                    <div class="col-lg-12 d-flex flex-wrap gap-1 my-1">
+                    <div class="col-lg-12 d-lg-flex my-1">
                         <span style="font-size:small;" class="mx-2"><i class="bi bi-arrow-repeat"></i> 30 Days Easy Returns</span>
-                        <span style="font-size:small;" class="mx-2 text-danger"><i class="bi bi-x-circle"></i> Non-Cancellable</span>
-                        <span style="font-size:small;" class="mx-2 text-danger"><i class="bi bi-slash-circle"></i> Non-Returnable</span>
                     </div>
                     <div class="col-lg-12 d-lg-flex my-1">
                         <span style="font-size:small;" class="mx-2"><i class="bi bi-check-circle text-success"></i> delivery by <span class="fw-bold"> 30 jun</span></span>
@@ -137,7 +135,7 @@
                                 </div>
                             </div>
                             <div class="col-lg-2 col-2 text-end">
-                                <div class="" data-bs-toggle="modal" data-bs-target="#staticBackdrop">
+                                <div class="" data-bs-toggle="modal" data-bs-target="#exampleModal">
                                     <i class="bi bi-archive fs-3"></i>
                                 </div>
 
@@ -146,10 +144,8 @@
 
 
                     </div>
-                    <div class="col-lg-12 d-flex flex-wrap gap-1 my-1">
+                    <div class="col-lg-12 d-lg-flex my-1">
                         <span style="font-size:small;" class="mx-2"><i class="bi bi-arrow-repeat"></i> 30 Days Easy Returns</span>
-                        <span style="font-size:small;" class="mx-2 text-danger"><i class="bi bi-x-circle"></i> Non-Cancellable</span>
-                        <span style="font-size:small;" class="mx-2 text-danger"><i class="bi bi-slash-circle"></i> Non-Returnable</span>
                     </div>
                     <div class="col-lg-12 d-lg-flex my-1">
                         <span style="font-size:small;" class="mx-2"><i class="bi bi-check-circle text-success"></i> delivery by <span class="fw-bold"> 30 jun</span></span>

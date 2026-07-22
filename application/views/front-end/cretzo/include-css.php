@@ -102,32 +102,7 @@ $path = ($is_rtl == 1) ? 'rtl/' : "";
 
 <!-- We need a common stylesheet for some my-account pages, so we include it before the main page -->
 <?php
-   // if((str_contains(strtolower(current_url()), 'my-account') || str_contains(strtolower(current_url()), 'my_account')) && $main_page != 'dashboard'){
-?>
-        <!-- <link rel="stylesheet" href="<?= THEME_ASSETS_URL  .  'css/'. $path . THEME . '/' . $path . 'my-account.css' ?>">
-        <link rel="stylesheet" href="<?= THEME_ASSETS_URL  .  'css/'. $path . THEME . '/' . $path . 'my-account-override.css' ?>"> -->
-<?php
-   // }
-?>
-<!-- --------------------------------------------------------------------------------------------------------------------- -->
-<!-- We need a common stylesheet for seller_details page, so we include it before the main page -->
-<?php
-   // if((str_contains(strtolower(current_url()), 'seller_details') || str_contains(strtolower(current_url()), 'seller-details'))){
-?>
-        <!-- <link rel="stylesheet" href="<?= THEME_ASSETS_URL  .  'css/'. $path . THEME . '/' . $path . 'product-page.css' ?>">
-        <link rel="stylesheet" href="<?= THEME_ASSETS_URL  .  'css/'. $path . THEME . '/' . $path . 'product-page-override.css' ?>"> -->
-<?php
-   // }
-?>
-<!-- --------------------------------------------------------------------------------------------------------------------- -->
-
-<?php
-    $currentUrl = strtolower(current_url());
-
-    if (
-        (strpos($currentUrl, 'my-account') !== false || strpos($currentUrl, 'my_account') !== false)
-        && $main_page != 'dashboard'
-    ){
+    if((str_contains(strtolower(current_url()), 'my-account') || str_contains(strtolower(current_url()), 'my_account')) && $main_page != 'dashboard'){
 ?>
         <link rel="stylesheet" href="<?= THEME_ASSETS_URL  .  'css/'. $path . THEME . '/' . $path . 'my-account.css' ?>">
         <link rel="stylesheet" href="<?= THEME_ASSETS_URL  .  'css/'. $path . THEME . '/' . $path . 'my-account-override.css' ?>">
@@ -137,15 +112,15 @@ $path = ($is_rtl == 1) ? 'rtl/' : "";
 <!-- --------------------------------------------------------------------------------------------------------------------- -->
 <!-- We need a common stylesheet for seller_details page, so we include it before the main page -->
 <?php
-    if (
-        (strpos($currentUrl, 'seller_details') !== false || strpos($currentUrl, 'seller-details') !== false)
-    ){
+    if((str_contains(strtolower(current_url()), 'seller_details') || str_contains(strtolower(current_url()), 'seller-details'))){
 ?>
         <link rel="stylesheet" href="<?= THEME_ASSETS_URL  .  'css/'. $path . THEME . '/' . $path . 'product-page.css' ?>">
         <link rel="stylesheet" href="<?= THEME_ASSETS_URL  .  'css/'. $path . THEME . '/' . $path . 'product-page-override.css' ?>">
 <?php
     }
 ?>
+<!-- --------------------------------------------------------------------------------------------------------------------- -->
+
 
 
 <!-- --------------------------------------------------------------------------------------------------------------------- -->
@@ -153,7 +128,7 @@ $path = ($is_rtl == 1) ? 'rtl/' : "";
 <link rel="stylesheet" href="<?= THEME_ASSETS_URL  .  'css/'. $path . THEME . '/' . $path . $main_page . '.css' ?>">
 <link rel="stylesheet" href="<?= THEME_ASSETS_URL  .  'css/'. $path . THEME . '/' . $path . $main_page . '-override.css' ?>">
 <!-- --------------------------------------------------------------------------------------------------------------------- -->
-<link rel="stylesheet" href="<?= base_url('assets/front_end/cretzo/css/cretzo-fixes.css') ?>">
+
 
 
 <!-- --------------------------------------------------------------------------------------------------------------------- -->

@@ -1,51 +1,3 @@
-<style>
-    /* /Issue Seller Dashboard horizontal animateProgressBar 
-    Pulse animation for the progress bar container */
-    @keyframes barPulse {
-        0%, 100% { box-shadow: 0 0 0 0 rgba(242, 140, 40, 0.30); }
-        50% { box-shadow: 0 0 0 8px rgba(242, 140, 40, 0); }
-    }
-
-    .progress {
-        height: 7px;
-        border-radius: 10px;
-        background-color: #e9ecef;
-        overflow: visible; /* Allows the pulse shadow to be seen */
-        animation: barPulse 1.8s ease-in-out infinite;
-    }
-
-    .progress-bar {
-        border-radius: 10px;
-        transition: width 0.5s ease-in-out;
-        /* Start with the orange color from your circle scheme */
-        background-color: #f28c28 !important; 
-        position: relative;
-    }
-
-    /* Optional: adds a shine effect to the bar */
-    .progress-bar::after {
-        content: '';
-        position: absolute;
-        top: 0; left: 0; bottom: 0; right: 0;
-        background-image: linear-gradient(
-            45deg, 
-            rgba(255,255,255,.15) 25%, 
-            transparent 25%, 
-            transparent 50%, 
-            rgba(255,255,255,.15) 50%, 
-            rgba(255,255,255,.15) 75%, 
-            transparent 75%, 
-            transparent
-        );
-        background-size: 1rem 1rem;
-    }
-
-    .profile-completion-content {
-        flex: 1;
-        min-width: 260px;
-    }
-</style>
-
 <div class="content-wrapper">
     <section class="content">
         <div class="container-fluid p-3">
@@ -118,8 +70,7 @@
                         </div>
                     </div>
                 </div>
-                
-                  <?php if (isset($subscription_status) && $subscription_status === 'active' && !empty($current_subscription_plan)) : ?>
+                <?php if (isset($subscription_status) && $subscription_status === 'active' && !empty($current_subscription_plan)) : ?>
                     <div class="col-12">
                         <div class="alert alert-warning d-flex justify-content-between align-items-center">
                             <div>
@@ -157,49 +108,7 @@
                         </div>
                     </div>
                 <?php endif; ?>
-                
-                <div class="col-12">
-                    <div class="card pull-up">
-                        <div class="card-body">
-                            <div class="d-flex align-items-center gap-3 mb-3">
-                                <div class="flex-grow-1">
-                                    <div class="d-flex justify-content-between align-items-center mb-2">
-                                        <h5 class="text-muted text-bold-500 mb-0">
-                                            Profile Completion: <span id="percent-text">0</span>%
-                                        </h5>
-                                        <a href="<?= base_url('seller/home/profile') ?>" class="btn btn-sm btn-outline-primary">Update Profile</a>
-                                    </div>
-                                    <div class="progress">
-                                        <div id="profile-bar" 
-                                             class="progress-bar" 
-                                             role="progressbar" 
-                                             style="width: 0%;"
-                                             data-target-width="<?= (int)($profile_completion['percentage'] ?? 0) ?>"
-                                             aria-valuemin="0" 
-                                             aria-valuemax="100">
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                          
-                        <?php if (!empty($profile_completion['missing_sections'])): ?>
-                            <hr class="mt-2 mb-3">
-                            <p class="mb-2 text-muted small">Complete your profile to start selling.</p>
-                            <ul class="list-unstyled mb-0">
-                                <?php foreach ($profile_completion['missing_sections'] as $section): ?>
-                                    <li class="d-flex justify-content-between align-items-center mb-2">
-                                        <span><?= $section['label'] ?></span>
-                                        <a href="<?= $section['link'] ?>" class="btn btn-sm btn-primary">Complete</a>
-                                    </li>
-                                <?php endforeach; ?>
-                            </ul>
-                        <?php else: ?>
-                            <p class="mb-0 text-success"><i class="fa fa-check-circle"></i> Your seller profile is complete.</p>
-                        <?php endif; ?>
-                        </div>
-                    </div>
-                </div>
+
                 <div class="col-xl-6 col-12" id="ecommerceChartView">
                     <div class="card card-shadow chart-height">
                         <div class="m-3">Product Sales</div>
@@ -226,7 +135,7 @@
                         </div>
                         <!-- /.card-body -->
                     </div>
-                    <!-- /.card --> 
+                    <!-- /.card -->
                 </div>
                 <div class="col-md-6 col-xs-12">
                     <div class="alert alert-danger alert-dismissible">
@@ -399,6 +308,216 @@
             </div>
         </div>
     </section>
+
+    <?php if (isset($show_subscription_popup) && $show_subscription_popup && !empty($subscription_plans)) : ?>
+        <div class="modal fade" id="subscription_modal" tabindex="-1" role="dialog" aria-labelledby="subscriptionModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+            <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+                <div class="modal-content">
+                    <div class="modal-header border-0">
+                        <h5 class="modal-title" id="subscriptionModalLabel">
+                            <?php if (isset($subscription_status) && $subscription_status === 'expired') : ?>
+                                Your subscription has expired
+                            <?php else : ?>
+                                Choose a Subscription Plan
+                            <?php endif; ?>
+                        </h5>
+                    </div>
+                    <div class="modal-body">
+                        <p class="mb-4">
+                            <?php if (isset($subscription_status) && $subscription_status === 'expired') : ?>
+                                Your previous subscription is no longer active. Please renew your current plan or upgrade to continue using your seller dashboard.
+                            <?php else : ?>
+                                You currently do not have an active subscription. Please select a plan to continue using your seller dashboard.
+                            <?php endif; ?>
+                        </p>
+                        <div class="row">
+                            <?php
+                            $current_price_value = 0;
+                            if (!empty($current_subscription_plan['price'])) {
+                                $clean = preg_replace('/[^\d\.]/', '', $current_subscription_plan['price']);
+                                $current_price_value = is_numeric($clean) ? (float) $clean : 0;
+                            }
+                            foreach ($subscription_plans as $plan) :
+                                $is_current = isset($current_subscription_plan['id']) && (int) $current_subscription_plan['id'] === (int) $plan['id'];
+                                $plan_price_value = 0;
+                                if (!empty($plan['price'])) {
+                                    $p_clean = preg_replace('/[^\d\.]/', '', $plan['price']);
+                                    $plan_price_value = is_numeric($p_clean) ? (float) $p_clean : 0;
+                                }
+
+                                $btn_label = 'Choose Plan';
+                                $btn_class = 'btn-warning';
+                                $btn_disabled = false;
+
+                                if (isset($subscription_status) && $subscription_status === 'active') {
+                                    if ($is_current) {
+                                        $btn_label = 'Current Plan';
+                                        $btn_class = 'btn-secondary';
+                                        $btn_disabled = true;
+                                    } elseif ($current_price_value > 0 && $plan_price_value > 0 && $plan_price_value < $current_price_value) {
+                                        $btn_label = 'Downgrade Not Allowed';
+                                        $btn_class = 'btn-outline-secondary';
+                                        $btn_disabled = true;
+                                    } else {
+                                        $btn_label = 'Upgrade';
+                                        $btn_class = 'btn-warning';
+                                        $btn_disabled = false;
+                                    }
+                                } elseif (isset($subscription_status) && $subscription_status === 'expired' && $is_current) {
+                                    $btn_label = 'Renew Plan';
+                                    $btn_class = 'btn-warning';
+                                    $btn_disabled = false;
+                                }
+                            ?>
+                                <div class="col-md-4 mb-3">
+                                    <div class="card h-100 border-warning">
+                                        <div class="card-body text-center">
+                                            <h5 class="text-warning" ><?= html_escape($plan['name']); ?></h5>
+                                            <?php if (isset($plan['price'])) : ?>
+                                                <h4 class="font-weight-bold mb-2">₹<?= html_escape($plan['price']); ?></h4>
+                                            <?php endif; ?>
+                                            <?php if (!empty($plan['listings_limit'])) : ?>
+                                                <p class="mb-1"><strong>Listings:</strong> <?= html_escape($plan['listings_limit']); ?></p>
+                                            <?php endif; ?>
+                                            <?php if (!empty($plan['validity'])) : ?>
+                                                <p class="mb-3" style="font-size: 13px;" ><strong>Validity:</strong> <?= html_escape($plan['validity']); ?></p>
+                                            <?php endif; ?>
+                                            <button type="button"
+                                                    class="btn <?= $btn_class; ?> btn-sm purchase-plan-btn w-100 mt-2"
+                                                    data-id="<?= (int) $plan['id']; ?>"
+                                                    <?= $btn_disabled ? 'disabled' : ''; ?>>
+                                                <?= $btn_label; ?>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <div id="subscription_error_box" class="text-danger text-center mt-2"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+        <script>
+            function startSubscriptionPayment(planId, serverData) {
+                if (!serverData || !serverData.razorpay_order_id || !serverData.razorpay_key_id) {
+                    $('#subscription_error_box').text('Payment configuration is missing. Please contact support.');
+                    return;
+                }
+
+                var options = {
+                    key: serverData.razorpay_key_id,
+                    amount: Math.round(parseFloat(serverData.amount) * 100),
+                    currency: serverData.currency || 'INR',
+                    name: serverData.plan_name || 'Subscription',
+                    description: 'Seller Subscription',
+                    order_id: serverData.razorpay_order_id,
+                    handler: function (response) {
+                        var postData = {
+                            subscription_id: planId,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_signature: response.razorpay_signature
+                        };
+
+                        if (serverData.csrfName && serverData.csrfHash) {
+                            postData[serverData.csrfName] = serverData.csrfHash;
+                        }
+
+                        $.ajax({
+                            url: '<?= base_url('seller/subscription/razorpay_callback'); ?>',
+                            type: 'POST',
+                            data: postData,
+                            dataType: 'json',
+                            success: function (res) {
+                                if (res.csrfName && res.csrfHash) {
+                                    serverData.csrfName = res.csrfName;
+                                    serverData.csrfHash = res.csrfHash;
+                                }
+
+                                if (res.error === false) {
+                                    $('#subscription_modal').modal('hide');
+                                    location.reload();
+                                } else {
+                                    $('#subscription_error_box').text(res.message || 'Unable to activate subscription after payment.');
+                                }
+                            },
+                            error: function () {
+                                $('#subscription_error_box').text('Failed to verify payment. Please contact support with your payment details.');
+                            }
+                        });
+                    }
+                };
+
+                if (serverData.seller_name) {
+                    options.prefill = options.prefill || {};
+                    options.prefill.name = serverData.seller_name;
+                }
+                if (serverData.seller_email) {
+                    options.prefill = options.prefill || {};
+                    options.prefill.email = serverData.seller_email;
+                }
+                if (serverData.seller_contact) {
+                    options.prefill = options.prefill || {};
+                    options.prefill.contact = serverData.seller_contact;
+                }
+
+                var rzp = new Razorpay(options);
+                rzp.on('payment.failed', function () {
+                    $('#subscription_error_box').text('Payment failed or was cancelled. Please try again.');
+                });
+                rzp.open();
+            }
+
+            $(document).ready(function() {
+                $('#subscription_modal').modal('show');
+
+                $('.purchase-plan-btn').on('click', function() {
+                    var planId = $(this).data('id');
+                    var $btn = $(this);
+                    $('#subscription_error_box').text('');
+                    $btn.prop('disabled', true);
+
+                    $.ajax({
+                        url: '<?= base_url('seller/subscription/purchase'); ?>',
+                        type: 'POST',
+                        data: {
+                            subscription_id: planId,
+                            '<?= $this->security->get_csrf_token_name(); ?>': '<?= $this->security->get_csrf_hash(); ?>'
+                        },
+                        success: function(response) {
+                            try {
+                                var res = (typeof response === 'string') ? JSON.parse(response) : response;
+
+                                if (res.error === false) {
+                                    if (res.requires_payment) {
+                                        startSubscriptionPayment(planId, res);
+                                        $btn.prop('disabled', false);
+                                    } else {
+                                        $('#subscription_modal').modal('hide');
+                                        location.reload();
+                                    }
+                                } else {
+                                    $btn.prop('disabled', false);
+                                    $('#subscription_error_box').text(res.message || 'Unable to purchase subscription.');
+                                }
+                            } catch (e) {
+                                $btn.prop('disabled', false);
+                                $('#subscription_error_box').text('Unexpected server response.');
+                            }
+                        },
+                        error: function() {
+                            $btn.prop('disabled', false);
+                            $('#subscription_error_box').text('Failed to contact server. Please try again.');
+                        }
+                    });
+                });
+            });
+        </script>
+    <?php endif; ?>
+
     <div class="modal fade" tabindex="-1" role="dialog" aria-hidden="true" id="transaction_modal" data-backdrop="static" data-keyboard="false">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
@@ -453,37 +572,3 @@
         </div>
     </div>
 </div>
-<script>
-(function () {
-    var progressBar = document.getElementById('profile-bar');
-    var percentText = document.getElementById('percent-text');
-    if (!progressBar) return;
-
-    var target = parseInt(progressBar.getAttribute('data-target-width') || '0', 10);
-    target = Math.max(0, Math.min(100, target));
-    var current = 0;
-
-    function animateProgressBar() {
-        if (current <= target) {
-            // Update bar width
-            progressBar.style.width = current + '%';
-            // Update text counter
-            percentText.textContent = current;
-
-            // Optional: Dynamic color shifting
-            // If completion is high, shift from orange to green
-            if (current > 70) {
-                progressBar.style.backgroundColor = '#28a745'; // Success Green
-            } else if (current > 40) {
-                progressBar.style.backgroundColor = '#ffc107'; // Warning Yellow
-            }
-
-            current += 1;
-            requestAnimationFrame(animateProgressBar);
-        }
-    }
-
-    // Start animation
-    setTimeout(animateProgressBar, 300); 
-})();
-</script>

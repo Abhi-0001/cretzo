@@ -36,23 +36,6 @@ class Subscription extends CI_Controller
         }
     }
 
-    public function details($id = null)
-    {
-        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller()) {
-            redirect('seller/login', 'refresh');
-        }
-
-        $settings = get_settings('system_settings', true);
-        $plan = $this->Subscription_model->get_plan($id);
-
-        $this->data['main_page'] = VIEW . 'subscription_details';
-        $this->data['title'] = 'Subscription Detail | ' . $settings['app_name'];
-        $this->data['meta_description'] = 'Subscription Detail | ' . $settings['app_name'];
-        $this->data['plan'] = $plan;
-
-        $this->load->view('seller/template', $this->data);
-    }
-
     public function purchase()
     {
         if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller() || !($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
@@ -314,19 +297,6 @@ class Subscription extends CI_Controller
         ];
 
         echo json_encode($response);
-    }
-
-    public function payment_success()
-    {
-        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller()) {
-            redirect('seller/login', 'refresh');
-        }
-
-        $payment_id = $this->input->get('payment_id', true);
-        $this->data['main_page'] = VIEW . 'payment_success';
-        $this->data['title'] = 'Payment Success';
-        $this->data['payment_id'] = $payment_id;
-        $this->load->view('seller/template', $this->data);
     }
 }
 
