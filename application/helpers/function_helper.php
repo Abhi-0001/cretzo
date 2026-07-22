@@ -749,14 +749,7 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
             }
 
 
-            // Tags may be stored comma- OR semicolon-separated (seed/import data is
-            // inconsistent). Split on both, trim each tag, and drop empties so the
-            // parsed value is always a clean array of individual tags — otherwise a
-            // semicolon-joined string lands whole in tags[0] and prints as one blob
-            // (e.g. "bag;sling bag;canvas bag") on the product cards.
-            $product[$i]['tags'] = (!empty($product[$i]['tags']))
-                ? array_values(array_filter(array_map('trim', preg_split('/[;,]/', $product[$i]['tags']))))
-                : [];
+            $product[$i]['tags'] = (!empty($product[$i]['tags'])) ? explode(",", $product[$i]['tags']) : [];
 
             $product[$i]['video'] = (isset($product[$i]['video_type']) && (!empty($product[$i]['video_type']) || $product[$i]['video_type'] != NULL)) ? (($product[$i]['video_type'] == 'youtube' || $product[$i]['video_type'] == 'vimeo') ? $product[$i]['video'] : base_url($product[$i]['video'])) : "";
             $product[$i]['minimum_order_quantity'] = isset($product[$i]['minimum_order_quantity']) && (!empty($product[$i]['minimum_order_quantity'])) ? $product[$i]['minimum_order_quantity'] : 1;
@@ -5104,20 +5097,11 @@ function get_filtered_price_range($filter = NULL, $category_id = NULL, $seller_i
 {
     $t = &get_instance();
 
-    // Effective (selling) price — MUST match the expression used by the price
-    // WHERE filter in fetch_product() so the slider and the filter speak the
-    // same units. Used for the slider MIN (cheapest price a customer pays).
+    // MUST match the expression used by the price WHERE filter in fetch_product()
+    // so the slider and the filter speak the same units.
     $price_expr = 'IF( pv.special_price > 0 , pv.special_price , pv.price )';
 
-    // Slider MAX must cover the HIGHEST number a product card can display. Cards
-    // show the base price (MRP) alongside the discounted price, so for a product
-    // with price=8999 / special_price=7999 the card shows 8999 even though the
-    // effective price is 7999. Bounding the max on the effective price alone left
-    // the slider ceiling (~7999) below the visible 8999. GREATEST() keeps the
-    // ceiling at the largest displayable price so no product falls outside it.
-    $max_expr = 'GREATEST( pv.price , IF( pv.special_price > 0 , pv.special_price , pv.price ) )';
-
-    $t->db->select("MIN($price_expr) as min_price, MAX($max_expr) as max_price", false)
+    $t->db->select("MIN($price_expr) as min_price, MAX($price_expr) as max_price", false)
         ->join(" categories c", "p.category_id=c.id ", 'LEFT')
         ->join(" brands b", "p.brand=b.name", 'LEFT')
         ->join(" seller_data sd", "p.seller_id=sd.user_id ", 'LEFT')
