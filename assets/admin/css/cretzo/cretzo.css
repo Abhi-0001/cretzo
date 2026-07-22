@@ -27,38 +27,6 @@ a.nav-link{
     background-color: var(--color-orange);
 }
 
-/* ============================================================
-   ADMIN SIDEBAR STRUCTURE
-   Guarantee the sidebar renders at its full width with readable
-   labels in the expanded (non-collapsed) desktop state. This
-   guards against a half-collapsed render where the labels were
-   clipped to icon width ("Dash", "Prod"…) and the content area
-   left a large gap. Values match AdminLTE's own defaults, and the
-   rules are scoped to the expanded state + desktop, so the
-   collapse (hamburger) toggle and mobile off-canvas behaviour are
-   left untouched.
-============================================================ */
-@media (min-width: 992px) {
-    body.sidebar-mini:not(.sidebar-collapse) .main-sidebar,
-    body.sidebar-mini:not(.sidebar-collapse) .main-sidebar::before {
-        width: 250px;
-    }
-    body.sidebar-mini:not(.sidebar-collapse) .nav-sidebar .nav-link p {
-        width: auto;
-        margin-left: 0;
-        opacity: 1;
-        visibility: visible;
-        display: inline-block;
-        white-space: normal;
-    }
-}
-/* Active item uses the Cretzo orange with white text/icons */
-.nav-sidebar .nav-link.active,
-.nav-sidebar .nav-link.active .nav-icon {
-    background-color: var(--color-orange);
-    color: #fff !important;
-}
-
 
 /* --- --- Style for Bootstrap Tables, fixed row heights with scrollable cells --- --- */
 

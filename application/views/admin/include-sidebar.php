@@ -20,7 +20,7 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
 }
 ?>
 <input type="hidden" id="sms_gateway_data" value='<?= isset($sms_gateway_data) ? ($sms_gateway_data) : [] ?>' />
-<aside class="main-sidebar sidebar-light-primary elevation-2">
+<aside class="main-sidebar elevation-2">
     <!-- Brand Logo -->
     <a href="<?= base_url('admin/home') ?>" class="brand-link">
         <img src="<?= base_url()  . get_settings('favicon') ?>" alt="<?= $settings['app_name']; ?>" title="<?= $settings['app_name']; ?>" class="brand-image">

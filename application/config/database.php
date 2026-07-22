@@ -76,14 +76,15 @@ $query_builder = TRUE;
 
 
 if(ENVIRONMENT === 'development'){
-	// Local XAMPP MySQL (running on port 3307 to avoid Docker's 3306)
-	$t_database_name = 'cretzo_db';
-	$t_username = 'root';
-	$t_password = '';
-
-	// $t_database_name = 'u554344800_cretzo_new';
-	// $t_username = 'u554344800_cretzo_new';
-	// $t_password = 'Geet@cretzo123';
+	// $t_database_name = 'crezo_db';
+	// $t_username = 'root';
+	// $t_password = '';
+    $t_database_name = 'u554344800_cretzo_new';
+	$t_username = 'u554344800_cretzo_new';
+	$t_password = 'Geet@cretzo123';
+// 	$t_database_name = 'id21984800_cretzo';
+// 	$t_username = 'id21984800_cretzo';
+// 	$t_password = 'cretZo@#12;';
 } elseif (ENVIRONMENT === 'production') {
 	$t_database_name = 'u554344800_cretzo_new';
 	$t_username = 'u554344800_cretzo_new';
@@ -92,8 +93,7 @@ if(ENVIRONMENT === 'development'){
 
 $db['default'] = array(
 	'dsn'	=> '',
-	'hostname' => '127.0.0.1',
-	'port' => 3307,
+	'hostname' => 'localhost',
 	//'username' => 'u554344800_cretzo',
 	'username' => $t_username,
 	'password' => $t_password,
