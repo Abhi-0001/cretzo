@@ -274,7 +274,9 @@ die; */
                 </div>
             <?php } ?>
 
-            <!-- pager removed – infinite scroll handles loading -->
+            <nav id="products-pagination-nav" class="text-center mt-14" aria-label="pagination">
+                <?= (isset($links)) ? $links : '' ?>
+            </nav>
 
         
         </div>

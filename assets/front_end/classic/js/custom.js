@@ -539,13 +539,25 @@ $('.add-to-fav-btn').on('click', function (e) {
                     title: result.message
                 });
             } else {
-                if (fav_btn.hasClass('far')) {
+                var wasEmptyHeart = fav_btn.hasClass('far');
+                if (wasEmptyHeart) {
                     fav_btn.removeClass('far').addClass('fa text-danger');
                 } else {
                     fav_btn.removeClass('fa text-danger').addClass('far');
                     fav_btn.css('color', '#adadad');
                 }
-                location.reload();
+                // update header badges if server supplied total, otherwise increment/decrement
+                if (typeof result.total !== 'undefined') {
+                    $('.icon-num, .icon-num-m').not('#cart-count').not('.cart-count').not('.cart-count-checked').text(result.total);
+                } else {
+                    var delta = wasEmptyHeart ? 1 : -1;
+                    $('.icon-num, .icon-num-m').not('#cart-count').not('.cart-count').not('.cart-count-checked').each(function () {
+                        var v = parseInt($(this).text()) || 0;
+                        v = Math.max(0, v + delta);
+                        $(this).text(v);
+                    });
+                }
+                Toast.fire({ icon: 'success', title: result.message || 'Wishlist updated' });
             }
         }
     });
@@ -584,14 +596,25 @@ $(document).on('click', '#add_to_favorite_btn', function (e) {
                     title: result.message
                 });
             } else {
-                if (fav_btn.hasClass('add-fav')) {
+                var wasAddFav = fav_btn.hasClass('add-fav');
+                if (wasAddFav) {
                     fav_btn.removeClass('add-fav').addClass('remove-fav');
                     fav_btn.find('span').text('Remove from Favorite');
                 } else {
                     fav_btn.removeClass('remove-fav').addClass('add-fav');
                     fav_btn.find('span').text('Add to Favorite');
                 }
-                location.reload();
+                if (typeof result.total !== 'undefined') {
+                    $('.icon-num, .icon-num-m').not('#cart-count').not('.cart-count').not('.cart-count-checked').text(result.total);
+                } else {
+                    var deltaBtn = wasAddFav ? 1 : -1;
+                    $('.icon-num, .icon-num-m').not('#cart-count').not('.cart-count').not('.cart-count-checked').each(function () {
+                        var v = parseInt($(this).text()) || 0;
+                        v = Math.max(0, v + deltaBtn);
+                        $(this).text(v);
+                    });
+                }
+                Toast.fire({ icon: 'success', title: result.message || 'Wishlist updated' });
             }
         }
     });

@@ -8,151 +8,14 @@
     <title>Cretzo - Seller Login</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=Poppins:wght@300;400&display=swap" rel="stylesheet">
-<style>
-    * {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-    font-family: 'Poppins', sans-serif;
-}
-
-body {
-    background-color: #fef8e8; /* Matching the soft cream background */
-    height: 100vh;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-.login-container {
-    background: white;
-    width: 900px;
-    display: flex;
-    padding: 60px;
-    border-radius: 8px;
-    /* Optional shadow for depth */
-    /* box-shadow: 0 10px 30px rgba(0,0,0,0.05); */
-}
-
-/* LEFT SECTION */
-.brand-section {
-    flex: 1;
-    text-align: center;
-    padding-right: 40px;
-}
-
-.logo {
-    font-family: 'Playfair Display', serif;
-    font-size: 48px;
-    letter-spacing: -2px;
-}
-
-.logo span {
-    color: #E07A48;
-}
-
-.tagline {
-    font-family: 'Playfair Display', serif;
-    font-size: 18px;
-    margin-bottom: 30px;
-}
-
-.illustration img {
-    width: 100%;
-    max-width: 300px;
-    margin-bottom: 20px;
-}
-
-.mission-text {
-    font-family: 'Playfair Display', serif;
-    color: #5D6D5E; /* Muted olive/grey tone */
-    font-size: 24px;
-    line-height: 1.2;
-}
-
-/* RIGHT SECTION */
-.form-section {
-    flex: 1;
-    padding-left: 40px;
-}
-
-.form-title {
-    font-family: 'Playfair Display', serif;
-    font-size: 32px;
-    margin-bottom: 30px;
-}
-
-.input-group {
-    margin-bottom: 20px;
-}
-
-.input-group label {
-	font-family: 'Playfair Display', serif;
-    display: block;
-    margin-bottom: 8px;
-    font-weight: 500;
-}
-
-.input-group input {
-    width: 100%;
-    padding: 12px;
-    border: 1.5px solid #333;
-    border-radius: 6px;
-    background: transparent;
-}
-
-.forgot-password {
-    text-align: right;
-    margin-top: 5px;
-}
-
-.forgot-password a {
-    font-size: 13px;
-    color: #333;
-    text-decoration: none;
-}
-
-.btn-login {
-    width: 100%;
-    padding: 14px;
-    background-color: #E07A48;
-    color: white;
-    border: none;
-    border-radius: 25px;
-    font-size: 16px;
-    font-weight: 600;
-    cursor: pointer;
-    margin-top: 10px;
-}
-
-.signup-prompt {
-    text-align: center;
-    margin-top: 20px;
-}
-
-.signup-prompt p {
-    font-size: 14px;
-    margin-bottom: 15px;
-}
-
-.btn-create {
-    width: 100%;
-    padding: 10px;
-    background: white;
-    border: 1.5px solid #333;
-    color: #E07A48;
-    font-weight: 600;
-    border-radius: 5px;
-    cursor: pointer;
-}
-</style>
+    <link rel="stylesheet" href="<?= base_url('assets/admin/css/seller-auth.css') ?>">
 </head>
-<body style="background:#fef8e8">
+<body>
 
     <div class="login-container">
         <div class="brand-section">
             <div class="logo-area">
-                <a href="<?= base_url() . 'seller/login' ?>"><img src="<?= base_url() . $logo ?>" style="width: 340px;"></a>
+                <a href="/"><img src="<?= base_url() . $logo ?>" alt="Cretzo logo"></a>
                 <p class="tagline">Welcome to the zone of creativity</p>
             </div>
             
@@ -171,19 +34,15 @@ body {
 			<div class="input-group">
                     <label>Email and Mobile</label>
                     <input type="<?= $identity_column ?>" name="identity" id="mobile" placeholder="Enter Your <?= ucfirst($identity_column)  ?>" value="<?= (ALLOW_MODIFICATION == 0) ? '9988776655' : '' ?>" required>
+                    <span class="error-message error_identity"></span>
                 </div>
 
                 <div class="input-group">
                     <label>Password</label>
-                    <input type="password" name="password" id="password" placeholder="Enter Your Password" value="<?= (ALLOW_MODIFICATION == 0) ? '12345678' : '' ?>"	required>
-                    <span style="color:red">
-                        <?php if (isset($_GET['error']) && $_GET['error'] === 'true') { ?>
-                            Invalid Credentials
-                        <?php } ?>
-
-                        </span>
+                    <input type="password" name="password" id="password" placeholder="Enter Your Password" value="<?= (ALLOW_MODIFICATION == 0) ? '12345678' : '' ?>" required>
+                    <span class="error-message error_password"></span>
                     <div class="forgot-password">
-                        <a href="<?= base_url('/seller/login/forgot_password') ?>">Forgot Password ?</a>
+                        <a href="<?= base_url('/seller/login/forgot_password') ?>">Forgot Password?</a>
                     </div>
                 </div>
 
@@ -200,10 +59,50 @@ body {
     </div>
 
 </body>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
-	function signupPage() {
-		window.location.href = "<?= base_url('seller/auth/sign_up') ?>";
-	}
+    function signupPage() {
+        window.location.href = "<?= base_url('seller/auth/sign_up') ?>";
+    }
+
+    $(document).ready(function() {
+        // Show error from URL parameter
+        <?php if (isset($_GET['error']) && $_GET['error'] === 'true') { ?>
+            $(".error_identity").addClass('show').text("Invalid credentials. Please try again.");
+            $("#mobile").focus();
+        <?php } ?>
+
+        // Clear errors on input
+        $("#mobile, #password").on('input', function() {
+            $(".error-message").removeClass('show').text('');
+        });
+
+        // Form validation
+        $(".form-submit-event").submit(function(e) {
+            let identity = $("#mobile").val().trim();
+            let password = $("#password").val().trim();
+            let hasError = false;
+
+            $(".error-message").removeClass('show').text('');
+
+            if (identity.length === 0) {
+                $(".error_identity").addClass('show').text("Mobile number or email is required");
+                $("#mobile").focus();
+                hasError = true;
+            }
+
+            if (password.length === 0) {
+                $(".error_password").addClass('show').text("Password is required");
+                if (!hasError) $("#password").focus();
+                hasError = true;
+            }
+
+            if (hasError) {
+                e.preventDefault();
+                return false;
+            }
+        });
+    });
 </script>
 </html>
 

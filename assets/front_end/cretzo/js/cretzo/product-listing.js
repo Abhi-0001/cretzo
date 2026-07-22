@@ -4,6 +4,20 @@ var currentPage = 1;
 var perPage = 20;          // default page size for scroll
 var totalRows = 0;
 var isLoading = false;
+var useAjaxInfiniteScroll = false;
+
+function getCurrentPageFromUrl() {
+    var pathParts = window.location.pathname.split('/').filter(Boolean);
+    var lastPart = pathParts.length ? pathParts[pathParts.length - 1] : '';
+    if (!isNaN(lastPart) && parseInt(lastPart, 10) > 0) {
+        return parseInt(lastPart, 10);
+    }
+    var queryPage = new URLSearchParams(window.location.search).get('page');
+    if (!isNaN(queryPage) && parseInt(queryPage, 10) > 0) {
+        return parseInt(queryPage, 10);
+    }
+    return 1;
+}
 
 // Function to get base URL without page index
 function getBaseURL() {
@@ -76,19 +90,23 @@ function updateURL() {
         params.push('seller=' + seller);
     }
 
-    // always include paging params for consistency
-    params.push('page=' + currentPage);
-    params.push('per-page=' + perPage);
+    var currentPerPage = urlParams.get('per-page');
+    if (currentPerPage) {
+        params.push('per-page=' + currentPerPage);
+    }
+
+    // Include sort parameter if a value is set (skip if the option has no 'value' attribute)
+    var sortAttr = $('#product_sort_by').find('option:selected').attr('value');
+    if (typeof sortAttr !== 'undefined' && sortAttr !== null && sortAttr !== '') {
+        params.push('sort=' + sortAttr);
+    }
 
     if (params.length > 0) {
         url += '?' + params.join('&');
     }
 
-    // Update the page URL
     window.history.replaceState({}, '', url);
-
-    // Reload the page to apply the changes
-    ajaxProductList(currentPage);
+    ajaxProductList(1, false);
 }
 
 $(document).ready(function() {
@@ -121,7 +139,7 @@ $(document).ready(function() {
         price_filter_enabled = false;
         var url = getBaseURL();
         window.history.replaceState({}, '', url);
-        location.reload();
+        ajaxProductList(1, false);
     });
 
     /* Set state of price filter and related button */
@@ -150,6 +168,29 @@ $(document).ready(function() {
         }
     });
 
+    // Sort by change - ensure no other handlers cause a full page reload.
+    (function() {
+        var $sort = $('#product_sort_by');
+        if (!$sort.length) return;
+
+        // Preserve current selection
+        var currentVal = $sort.val();
+
+        // Replace the element with a clone without event listeners (removes other handlers)
+        var $clone = $sort.clone(false);
+        $sort.replaceWith($clone);
+
+        var $newSort = $('#product_sort_by');
+        $newSort.val(currentVal);
+
+        // Bind our AJAX handler only
+        $newSort.on('change.cretzo', function(e) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            updateURL();
+        });
+    })();
+
     // Add event listener for tapping on #bg-overlay
     $('#bg-overlay').on('click', function() {
         // Hide background overlay
@@ -159,6 +200,227 @@ $(document).ready(function() {
         // Remove active class from filter-container
         $('.filter-container').removeClass('active');
     });
+
+    // Override wishlist handler with login check, toast messages, and proper UI management
+    $(document).off('click', '#add_to_favorite_btn');
+    $(document).on('click', '#add_to_favorite_btn', function(e) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+
+        var $button = $(this);
+        var productId = $button.data('product-id');
+
+        // Check if user is logged in using the hidden input
+        var isLoggedIn = parseInt($('#is_loggedin').val()) === 1;
+        
+        if (!isLoggedIn) {
+            // Show login modal/popup
+            var loginModal = $('#modal-signin') || $('#login_modal') || document.querySelector('[data-bs-toggle="modal"][href="#login"]');
+            if (loginModal && loginModal.length > 0) {
+                $(loginModal).modal('show');
+            } else if (loginModal = document.getElementById('modal-signin')) {
+                var modal = new (typeof bootstrap !== 'undefined' ? bootstrap.Modal : Object)(loginModal);
+                modal.show();
+            }
+            showToast('Please login to add items to wishlist', 'info');
+            return;
+        }
+
+        var $icon = $button.find('i.fa').first();
+        var $label = $button.find('span');
+        var addLabel = 'Add to Wishlist';
+        var removeLabel = 'Wishlist';
+        var isFavoriteBefore = $button.attr('data-is-fav') === 'true' || $icon.hasClass('fa-heart');
+        var isNowFavorite = !isFavoriteBefore;
+        var originalText = $label.text().trim() || (isFavoriteBefore ? removeLabel : addLabel);
+
+        var formData = new FormData();
+        formData.append(csrfName, csrfHash);
+        formData.append('product_id', productId);
+
+        $button.attr('disabled', true);
+        if ($label.length) {
+            $label.text('Please wait...');
+        }
+
+        $.ajax({
+            type: 'POST',
+            url: base_url + 'my-account/manage-favorites',
+            data: formData,
+            cache: false,
+            contentType: false,
+            processData: false,
+            dataType: 'json',
+            success: function(response) {
+                csrfName = response.csrfName;
+                csrfHash = response.csrfHash;
+
+                if (response.error == 1 || response.error === true) {
+                    $button.attr('disabled', false);
+                    if ($label.length) {
+                        $label.text(originalText);
+                    }
+                    showToast(response.message, 'error');
+                    return;
+                }
+
+                // Toggle heart icon classes and color based on current state
+                if (isNowFavorite) {
+                    $icon.removeClass('fa-heart-o').addClass('fa-heart').css('color', 'red');
+                    $button.addClass('is-fav').attr('data-is-fav', 'true');
+                    if ($label.length) {
+                        $label.text('Wishlist');
+                    }
+                    showToast('✓ Added to Wishlist', 'success');
+                } else {
+                    $icon.removeClass('fa-heart').addClass('fa-heart-o').css('color', '');
+                    $button.removeClass('is-fav').attr('data-is-fav', 'false');
+                    if ($label.length) {
+                        $label.text(originalText);
+                    }
+                    showToast('✓ Removed from Wishlist', 'success');
+                }
+
+                $button.attr('disabled', false);
+
+                // Determine new wishlist count from server if available, else apply delta
+                var serverCount = null;
+                if (typeof response.favorites_count !== 'undefined') {
+                    serverCount = response.favorites_count;
+                } else if (typeof response.favorite_count !== 'undefined') {
+                    serverCount = response.favorite_count;
+                } else if (response.data && typeof response.data.favorites_count !== 'undefined') {
+                    serverCount = response.data.favorites_count;
+                } else if (response.data && typeof response.data.favorite_count !== 'undefined') {
+                    serverCount = response.data.favorite_count;
+                }
+
+                if (serverCount !== null) {
+                    setWishlistCount(parseInt(serverCount, 10));
+                } else {
+                    updateWishlistCount(isNowFavorite ? 1 : -1);
+                }
+            },
+            error: function(jqXHR, textStatus, errorThrown) {
+                $button.attr('disabled', false);
+                if ($label.length) {
+                    $label.text(originalText);
+                }
+                showToast('Unable to update wishlist. Please try again.', 'error');
+            }
+        });
+    });
+
+    // Helper function to show toast messages
+    function showToast(message, type) {
+        var icon = type === 'success' ? 'success' : (type === 'error' ? 'error' : 'info');
+
+        if (typeof Toast !== 'undefined' && typeof Toast.fire === 'function') {
+            Toast.fire({
+                icon: icon,
+                title: message
+            });
+            return;
+        }
+
+        if (typeof Swal !== 'undefined' && typeof Swal.fire === 'function') {
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 3000,
+                timerProgressBar: true,
+                icon: icon,
+                title: message
+            });
+            return;
+        }
+
+        if (typeof toastr !== 'undefined') {
+            toastr[type](message);
+            return;
+        }
+
+        // Fallback: inject a simple top-right toast container and show a minimal message
+        var container = document.getElementById('custom-toast-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'custom-toast-container';
+            container.style.position = 'fixed';
+            container.style.top = '20px';
+            container.style.right = '20px';
+            container.style.zIndex = '99999';
+            container.style.display = 'flex';
+            container.style.flexDirection = 'column';
+            container.style.gap = '10px';
+            document.body.appendChild(container);
+        }
+
+        var toast = document.createElement('div');
+        toast.style.minWidth = '220px';
+        toast.style.padding = '10px 14px';
+        toast.style.borderRadius = '8px';
+        toast.style.boxShadow = '0 5px 14px rgba(0,0,0,0.15)';
+        toast.style.color = '#fff';
+        toast.style.fontSize = '14px';
+        toast.style.lineHeight = '1.4';
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+        toast.style.transform = 'translateX(20px)';
+
+        if (type === 'success') {
+            toast.style.background = '#28a745';
+        } else if (type === 'error') {
+            toast.style.background = '#dc3545';
+        } else {
+            toast.style.background = '#333';
+        }
+
+        toast.textContent = message;
+        container.appendChild(toast);
+
+        requestAnimationFrame(function() {
+            toast.style.opacity = '1';
+            toast.style.transform = 'translateX(0)';
+        });
+
+        setTimeout(function() {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(20px)';
+            setTimeout(function() {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+                if (container.childNodes.length === 0 && container.parentNode) {
+                    container.parentNode.removeChild(container);
+                }
+            }, 250);
+        }, 3200);
+    }
+
+    // Helper function to update wishlist count
+    function updateWishlistCount(delta) {
+        var countElement = $('[data-wishlist-count], #wishlist-count');
+        if (countElement.length > 0) {
+            countElement.each(function() {
+                var currentCount = parseInt($(this).text()) || 0;
+                var updated = currentCount + (parseInt(delta, 10) || 0);
+                if (updated < 0) {
+                    updated = 0;
+                }
+                $(this).text(updated);
+            });
+        }
+    }
+
+    function setWishlistCount(value) {
+        var countElement = $('[data-wishlist-count], #wishlist-count');
+        if (countElement.length > 0) {
+            countElement.each(function() {
+                $(this).text(parseInt(value, 10) || 0);
+            });
+        }
+    }
 
     /* Setup Price Filter */
     const rangeInput = document.querySelectorAll(".range-input input"),
@@ -245,8 +507,9 @@ function removeSellerFilter() {
 }
 
 
-// initial load with first page
-ajaxProductList();
+// Load products for the currently opened page URL.
+currentPage = getCurrentPageFromUrl();
+ajaxProductList(currentPage);
 
 function getQueryQ() {
     const params = new URLSearchParams(window.location.search);
@@ -312,8 +575,7 @@ function ajaxProductList(page = 1, append = false) {
                 } else {
                     $('#productList').html(html);
                 }
-                // hide pagination links since using scroll
-                $('#products-pagination-nav').hide();
+                $('#products-pagination-nav').html(renderPagination(totalRows, currentPage, perPage));
                 $('.result-count').text(response.result_count || '');
 
                 // update 'Showing X of Y' text
@@ -331,21 +593,61 @@ function ajaxProductList(page = 1, append = false) {
 
         error: function (xhr, status, error) {
             isLoading = false;
-            $('#productList').html('<div>AJAX Error</div>');
-            console.error(error);
+            $('#productList').html('<div class="text-center py-5">Unable to load products. Please try again.</div>');
+            console.error('AJAX Error:', status, error, xhr && xhr.responseText ? xhr.responseText : '');
         }
     });
 }
-// scroll handler to load more pages
-$(window).on('scroll', function() {
-    if (isLoading) return;
-    if (currentPage * perPage >= totalRows) return; // no more data
 
-    if ($(window).scrollTop() + $(window).height() >= $(document).height() - 200) {
-        // load next page
-        ajaxProductList(currentPage + 1, true);
+function renderPagination(total, page, pageSize) {
+    var totalPages = Math.ceil(total / pageSize);
+    if (totalPages <= 1) {
+        return '';
+    }
+
+    var html = '<ul class="pagination justify-content-center">';
+    var start = Math.max(1, page - 3);
+    var end = Math.min(totalPages, page + 3);
+
+    if (page > 1) {
+        html += '<li class="page-item"><a class="page-link ajax-page-link" href="#" data-page="' + (page - 1) + '"><i class="uil uil-arrow-left"></i></a></li>';
+    }
+
+    for (var i = start; i <= end; i++) {
+        if (i === page) {
+            html += '<li class="page-item active disabled"><a class="page-link" href="#">' + i + '</a></li>';
+        } else {
+            html += '<li class="page-item"><a class="page-link ajax-page-link" href="#" data-page="' + i + '">' + i + '</a></li>';
+        }
+    }
+
+    if (page < totalPages) {
+        html += '<li class="page-item"><a class="page-link ajax-page-link" href="#" data-page="' + (page + 1) + '"><i class="uil uil-arrow-right"></i></a></li>';
+    }
+
+    html += '</ul>';
+    return html;
+}
+
+$(document).on('click', '#products-pagination-nav .ajax-page-link', function(e) {
+    e.preventDefault();
+    var page = parseInt($(this).data('page'), 10);
+    if (!isNaN(page) && page > 0) {
+        ajaxProductList(page, false);
+        $('html, body').animate({ scrollTop: 0 }, 'fast');
     }
 });
+// Infinite scroll is disabled for product listing pagination.
+if (useAjaxInfiniteScroll) {
+    $(window).on('scroll', function() {
+        if (isLoading) return;
+        if (currentPage * perPage >= totalRows) return;
+
+        if ($(window).scrollTop() + $(window).height() >= $(document).height() - 200) {
+            ajaxProductList(currentPage + 1, true);
+        }
+    });
+}
 
 function generateStarRatingHTML(product) {
     let rating = parseFloat(product.rating || 0);
