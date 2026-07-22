@@ -1665,3 +1665,11 @@ textarea:focus {
     z-index: 100011 !important;
 }
 }
+.num-in span.plus,
+.num-in span.minus,
+.num-block span.plus,
+.num-block span.minus,
+span.plus,
+span.minus {
+    cursor: pointer;
+}

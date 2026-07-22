@@ -23,10 +23,14 @@
 }
 
 .catagory-img{
-    object-fit: contain;
+    /* Fill the circular frame edge-to-edge instead of letterboxing (no white bars). */
+    object-fit: cover;
+    aspect-ratio: 1 / 1;
+    width: 96px;
     background-color: white;
     /* border: 2px solid var(--color-orange); */
     border: 2px solid var(--color-light-grey);
+    border-radius: 50%;
 }
 
 .catagory-container{
@@ -67,9 +71,10 @@
 }
 .catagory-img{
     height: 96px;
+    width: 96px;
 }
 @media screen and (max-width: 600px){
     .aboutus-three{ gap: 18px; padding: 18px 12px; }
-    .catagory-img{ height: 70px; border-width: 2px; }
+    .catagory-img{ height: 70px; width: 70px; border-width: 2px; }
     .aboutus-three .catagory-container p{ font-size: 12px; }
 }

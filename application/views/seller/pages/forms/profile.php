@@ -333,9 +333,13 @@
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Bank Name <span class="text-danger">*</span></label>
+                            <?php if (!empty($indian_banks)): ?>
                             <input type="text" id="bank_search" class="input" placeholder="Search Bank Name..." autocomplete="off">
                             <input type="hidden" name="bank_name" id="bank_name_hidden" required value="<?= $fetched_data[0]['bank_name'] ?>">
                             <div id="bank_dropdown" style="display:none; border:1px solid #ccc; max-height:200px; overflow-y:auto; background:#fff; position:absolute; z-index:999; width:100%;"></div>
+                            <?php else: ?>
+                            <input type="text" name="bank_name" id="bank_name_hidden" class="input" placeholder="Enter Bank Name" required value="<?= $fetched_data[0]['bank_name'] ?>">
+                            <?php endif; ?>
                         </div>
                       </div>
 
@@ -441,12 +445,20 @@ function makeSearchable(searchId, hiddenId, dropdownId, data, onSelect) {
 }
 
 // ── Bank searchable ───────────────────────────────────────────────────────────
+<?php if (!empty($indian_banks)): ?>
 const bankData = [
   <?php foreach ($indian_banks as $bank): ?>
   { label: "<?= addslashes($bank['bank_name']) ?>", id: "<?= addslashes($bank['bank_name']) ?>" },
   <?php endforeach; ?>
 ];
 makeSearchable('bank_search', 'bank_name_hidden', 'bank_dropdown', bankData, null);
+(function () {
+  var bankSearch = document.getElementById('bank_search');
+  var bankHidden = document.getElementById('bank_name_hidden');
+  if (!bankSearch || !bankHidden) return;
+  bankSearch.addEventListener('input', function () { bankHidden.value = this.value.trim(); });
+})();
+<?php endif; ?>
 
 // ── Form validation ───────────────────────────────────────────────────────────
 function clearErrors(form) {
