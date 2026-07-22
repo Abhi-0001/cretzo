@@ -15,7 +15,6 @@
                 <span class="cs-chat-soon__chip">Coming Soon</span>
                 <h2 class="cs-chat-soon__title">Live Chat</h2>
                 <p class="cs-chat-soon__text">We’re working on launching our <strong>Live Chat Support</strong> feature to provide you with a faster and smoother support experience.</p>
-                <p class="cs-chat-soon__text">For now, you can get instant assistance through our <strong>AI Assistant</strong> or connect with us via <strong>WhatsApp Support</strong> using the chatbot in the bottom-right corner.</p>
             </div>
 
         </div>

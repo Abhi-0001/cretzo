@@ -630,9 +630,9 @@ function getQueryQ() {
 
 function getCategorySlugs() {
     const path = window.location.pathname.split('/').filter(Boolean);
-
-    const category_slug       = path[2] || '';
-    const sub_category_slug   = path[3] || '';
+    const idx = path.indexOf('products');
+    const category_slug       = idx !== -1 ? (path[idx + 1] || '') : '';
+    const sub_category_slug   = idx !== -1 ? (path[idx + 2] || '') : '';
 
     return {
         category_slug,
@@ -821,32 +821,30 @@ function renderProducts(products) {
     let price = parseFloat(variant.price);
     let specialPrice = (variant.special_price && variant.special_price != 0)
         ? parseFloat(variant.special_price)
-        : price;
+        : 0;
 
-    let oldPrice = '';
-    let offPercentHTML = '';
+    // Show discount only when a valid special price is below the base price.
+    // The current selling price (special) is the prominent `.discounted-price`,
+    // the MRP (base price) is the struck-through `.original-price` — matching the
+    // PHP generatePriceElement() output and the CSS in cretzo-fixes.css.
+    if (specialPrice > 0 && specialPrice < price) {
 
-    // Show discount only when special price < price
-        if (specialPrice < price) {
-
-            let discountPercent = Math.round(((price - specialPrice) / price) * 100);
-
-            oldPrice = `<span class="discounted-price no-wrap">₹${price}</span>`;
-
-            offPercentHTML = `
-                <span class="off-percent fw-b no-wrap">
-                    ${discountPercent}% OFF
-                </span>
-            `;
-        }
+        let discountPercent = Math.round(((price - specialPrice) / price) * 100);
 
         priceHTML = `
             <p class="price-container ta-c no-wrap text-es">
-                ${oldPrice}
-                <span class="original-price op-6 no-wrap">₹${specialPrice}</span>
-                ${offPercentHTML}
+                <span class="discounted-price no-wrap">₹${specialPrice}</span>
+                <span class="original-price op-6 no-wrap">₹${price}</span>
+                <span class="off-percent fw-b no-wrap">${discountPercent}% OFF</span>
             </p>
         `;
+    } else {
+        priceHTML = `
+            <p class="price-container ta-c no-wrap text-es">
+                <span class="discounted-price no-wrap">₹${price}</span>
+            </p>
+        `;
+    }
     }
 
 
