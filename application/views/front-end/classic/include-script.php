@@ -1,11 +1,3 @@
-<!-- plugins -->
-<script src="<?= THEME_ASSETS_URL . 'js/plugins.js' ?>"></script>
-<!-- Jquery min -->
-<script src="<?= THEME_ASSETS_URL . 'js/jquery.min.js' ?>"></script>
-<!-- theme -->
-<script src="<?= THEME_ASSETS_URL . 'js/theme.js' ?>"></script>
-<script src="<?= THEME_ASSETS_URL . 'js/theme.min.js' ?>"></script>
-
 <!-- IziModal -->
 <script src="<?= THEME_ASSETS_URL . 'js/iziModal.min.js' ?>"></script>
 <!-- Popper -->
@@ -18,41 +10,31 @@
 <script src="<?= THEME_ASSETS_URL . 'js/select2.full.min.js' ?>"></script>
 <!-- Bootstrap Tabs -->
 <script src="<?= THEME_ASSETS_URL . 'js/bootstrap-tabs-x.min.js' ?>"></script>
-
 <!-- ElevateZoom -->
-<!-- <script src="<?= THEME_ASSETS_URL . 'js/jquery.ez-plus.js' ?>"></script> -->
-<!-- <script src="<? //= THEME_ASSETS_URL . 'js/jquery.ez-plus.js' 
-                ?>"></script> -->
-
+<script src="<?= THEME_ASSETS_URL . 'js/jquery.ez-plus.js' ?>"></script>
 <!-- Bootstrap Table -->
 <script src="<?= THEME_ASSETS_URL . 'js/bootstrap-table.min.js' ?>"></script>
 <!-- blockUI -->
 <script src="<?= THEME_ASSETS_URL . 'js/jquery.blockUI.js' ?>"></script>
 <!-- Sweeta Alert 2 -->
 <script src="<?= THEME_ASSETS_URL . 'js/sweetalert2.min.js' ?>"></script>
-<script src="<?= THEME_ASSETS_URL . 'js/darkmode-min.js' ?>"></script>
-<!-- Star rating -->
-<script src="<?= THEME_ASSETS_URL . 'js/star-rating.min.js' ?>"></script>
-<script src="<?= THEME_ASSETS_URL . 'js/theme.min.js' ?>"></script>
+<!-- slick-carusel -->
+<script src="<?= THEME_ASSETS_URL . 'js/slick.min.js' ?>"></script>
 <!-- Modernizr-custom.js -->
 <script src="<?= THEME_ASSETS_URL . 'js/modernizr-custom.js' ?>"></script>
 <!-- Lazy-Load.js -->
 <script src="<?= THEME_ASSETS_URL . 'js/lazyload.min.js' ?>"></script>
 
-<!-- jsSocial -->
-<script src="<?= THEME_ASSETS_URL . 'js/jquery.jssocials.min.js' ?>"></script>
-<!-- MDB perfect scrollbar -->
-<script src="<?= THEME_ASSETS_URL . 'js/perfect-scrollbar.min.js' ?>"></script>
-
-
-
+<!-- daterangepicker -->
+<script src="<?= THEME_ASSETS_URL . 'js/daterangepicker.js' ?>"></script>
 <!-- intlTelInput -->
 <script src="<?= THEME_ASSETS_URL . 'js/intlTelInput.js' ?>"></script>
 <script src="<?= THEME_ASSETS_URL . 'js/lightbox.js' ?>"></script>
+<!-- jssocials -->
+<script src="<?= THEME_ASSETS_URL . 'js/jquery.jssocials.min.js' ?>"></script>
 <!-- Dropzone -->
 <script src="<?= THEME_ASSETS_URL . 'js/dropzone.js' ?>"></script>
 <script src="<?= THEME_ASSETS_URL . 'js/stisla.js' ?>"></script>
-
 <!-- Markdown -->
 <script src="<?= THEME_ASSETS_URL . 'js/Markdown.Converter.js' ?>"></script>
 <script src="<?= THEME_ASSETS_URL . 'js/Markdown.Sanitizer.js' ?>"></script>
@@ -68,25 +50,6 @@
 
 <!-- Custom -->
 <script src="<?= THEME_ASSETS_URL . 'js/custom.js' ?>"></script>
-
-<!-- ScrollMagic and TweenMax (optional for smooth animations) -->
-<script src="<?= THEME_ASSETS_URL . 'js/scroll_magic/ScrollMagic.min.js' ?>"></script>
-<!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/ScrollMagic/2.0.7/ScrollMagic.min.js"></script> -->
-<!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.2/gsap.min.js"></script> -->
-
-<!-- Range Slider -->
-<script src="<?= THEME_ASSETS_URL . 'js/range-slider/range-slider.min.js' ?>"></script>
-
-<!-- for Cretzo theme -->
-<?php $path = ($is_rtl == 1) ? 'rtl/' : ""; ?>
-
-<script src="<?= THEME_ASSETS_URL . 'js/' . $path . THEME . '/' . $path . 'cretzo.js' ?>"></script>
-
-<script src="<?= THEME_ASSETS_URL . 'js/' . $path . THEME . '/' . $path . 'header-footer.js' ?>"></script>
-<script src="<?= THEME_ASSETS_URL . 'js/' . $path . THEME . '/' . $path . 'navbar.js' ?>"></script>
-<script src="<?= THEME_ASSETS_URL . 'js/' . $path . THEME . '/' . $path . $main_page . '.js' ?>"></script>
-<script src="<?= base_url('assets/front_end/cretzo/js/cretzo-fixes.js') ?>"></script>
-<!-- <script src="<?//= base_url('assets/front_end/classic/js/custom.js') ?>"></script> -->
 <?php if ($this->session->flashdata('message')) { ?>
     <script>
         Toast.fire({
@@ -96,28 +59,7 @@
     </script>
 <?php } ?>
 
-<!-- ===== FIXES ===== -->
-<script>
-$(document).ready(function () {
-    // FIX: Initialize all select2 dropdowns with dropdownParent body
-    // so they float over modals and don't push content down
-    $('.form-select2').select2({
-        dropdownParent: $('body')
-    });
-
-    // Re-init when modal opens (add address)
-    $('#add-address-modal').on('shown.bs.modal', function () {
-        $(this).find('.form-select2').select2({
-            dropdownParent: $(this)
-        });
-    });
-
-    // Re-init when edit modal opens
-    $('#edit-address-modal').on('shown.bs.modal', function () {
-        $(this).find('.form-select2').select2({
-            dropdownParent: $(this)
-        });
-    });
-});
-</script>
-<!-- ===== END FIXES ===== -->
+<!-- Dark mode -->
+<?php if (current_url() != base_url("my-account/floating_chat")) { ?>
+    <script src="<?= THEME_ASSETS_URL . 'js/darkmode-min.js' ?>"></script>
+<?php } ?>

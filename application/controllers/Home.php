@@ -59,30 +59,16 @@ class Home extends CI_Controller
 
         $sections = $this->db->limit($limit, $offset)->order_by('row_order')->get('sections')->result_array();
 
-        $user_id = null;
-$id = null;
+        $user_id = NULL;
+        if ($this->data['is_logged_in']) {
+            $user_id = $this->data['user']->id;
+        }
+        $filters['show_only_active_products'] = true;
+        if (!empty($sections)) {
+            for ($i = 0; $i < count($sections); $i++) {
+                $product_ids = isset($sections[$i]['product_ids']) ? explode(',', (string)$sections[$i]['product_ids']) : '';
+                $product_ids = array_filter((array)$product_ids);
 
-if (!empty($this->data['is_logged_in'])) {
-
-    // remove debug (print_r + die) ❌
-
-    // safe result check
-    if (!empty($result) && is_object($result)) {
-        $id = $result->id;
-    }
-
-    // safe user check
-    if (!empty($this->data['user']) && is_object($this->data['user'])) {
-        $user_id = $this->data['user']->id;
-    }
-}
-
-$filters['show_only_active_products'] = true;
-
-if (!empty($sections)) {
-    for ($i = 0; $i < count($sections); $i++) {
-        $product_ids = isset($sections[$i]['product_ids']) ? explode(',', (string)$sections[$i]['product_ids']) : '';
-        $product_ids = array_filter((array)$product_ids);
                 $product_categories = (isset($sections[$i]['categories']) && !empty($sections[$i]['categories']) && $sections[$i]['categories'] != NULL) ? explode(',', $sections[$i]['categories']) : null;
                 if (isset($sections[$i]['product_type']) && !empty($sections[$i]['product_type'])) {
                     $filters['product_type'] = (isset($sections[$i]['product_type'])) ? $sections[$i]['product_type'] : null;
@@ -679,7 +665,7 @@ if (!empty($sections)) {
 
     public function verifyUser()
     {
-        $this->form_validation->set_data($this->input->post());
+        $this->form_validation->set_data($this->input->get());
         $this->form_validation->set_rules('email', 'Mail', 'trim|required|xss_clean|valid_email');
         if (!$this->form_validation->run()) {
             $this->response['error'] = true;
@@ -687,7 +673,7 @@ if (!empty($sections)) {
             $this->response['data'] = array();
             print_r(json_encode($this->response));
         } else {
-            $user_data = fetch_details('users', ['email' => $_POST['email']]);
+            $user_data = fetch_details('users', ['email' => $_POST['email'], 'type' => $_POST['type']]);
             if (!empty($user_data)) {
                 $this->response['error'] = false;
                 $this->response['message'] = 'data retrived';

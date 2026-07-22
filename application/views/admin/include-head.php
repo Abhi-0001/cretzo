@@ -62,7 +62,7 @@
     <script src="<?= base_url('assets/admin/js/jquery.min.js') ?>"></script>
     <!-- Star rating js -->
     <script type="text/javascript" src="<?= base_url('assets/admin/js/star-rating.js') ?>"></script>
-    <!--<script type="text/javascript" src="<?= base_url('assets/admin/js/theme.min.js') ?>"></script>
+    <script type="text/javascript" src="<?= base_url('assets/admin/js/theme.min.js') ?>"></script>
     <script src="https://www.gstatic.com/firebasejs/7.20.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/7.20.0/firebase-messaging.js"></script>
     <link rel="stylesheet" href="<?= base_url('assets/admin/css/tagify.min.css') ?>">

@@ -39,7 +39,7 @@
                                         <label for="price" class="control-label">Price</label>
                                     </div>
                                     <div class="form-group col-md-8">
-                                        <input type="text" class="form-control" onkeypress="return event.charCode >= 48 && event.charCode <= 57" name="price" id="price" value="<?= (isset($fetched_data[0]['price']) ? $fetched_data[0]['price'] : '') ?>">
+                                        <input type="text" class="form-control" name="price" id="price" value="<?= (isset($fetched_data[0]['price']) ? $fetched_data[0]['price'] : '') ?>">
                                     </div>
                                 </div>
                                 <div class="row">
@@ -52,10 +52,10 @@
                                 </div>
                                 <div class="row">
                                     <div class="form-group col-md-4">
-                                        <label for="validity" class="control-label">Validity no of days</label>
+                                        <label for="validity" class="control-label">Validity</label>
                                     </div>
                                     <div class="form-group col-md-8">
-                                        <input type="text" class="form-control" onkeypress="return event.charCode >= 48 && event.charCode <= 57" name="validity" id="validity" value="<?= (isset($fetched_data[0]['validity']) ? $fetched_data[0]['validity'] : '') ?>">
+                                        <input type="text" class="form-control" name="validity" id="validity" value="<?= (isset($fetched_data[0]['validity']) ? $fetched_data[0]['validity'] : '') ?>">
                                     </div>
                                 </div>
                                 <div class="row">

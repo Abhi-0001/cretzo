@@ -148,54 +148,10 @@
             margin-top: 30px;
             cursor: pointer;
         }
-
-        .features-list {
-            margin-top: 15px;
-            text-align: left;
-            padding-left: 20px;
-        }
-
-        .features-list li {
-            margin-bottom: 8px;
-        }
-
-        .hidden-features {
-            display: none;
-        }
-
-        .view-all-link {
-            color: var(--orange);
-            cursor: pointer;
-            font-weight: bold;
-            margin-top: 10px;
-            display: inline-block;
-            text-decoration: underline;
-        }
-
-        .view-all-link:hover {
-            text-decoration: none;
-        }
             </style>
 
             <div class="card">
                 <div class="card-body subscription-page-body">
-                    <style>
-                        .cretzo-progress { display:flex; align-items:center; justify-content:center; gap:12px; margin-bottom:18px; font-size:20px }
-                        .cretzo-progress .step { color:#111; font-weight:600; padding:0 6px; }
-                        .cretzo-progress .step.active { color:#F28C38; font-weight:600; }
-                        .cretzo-progress .connector { width:160px; height:4px; border-radius:6px; }
-                        .cretzo-progress .connector.orange { background: repeating-linear-gradient(90deg, #F28C38 0 12px, transparent 12px 24px); }
-                        .cretzo-progress .connector.dark { background: repeating-linear-gradient(90deg, #222 0 12px, transparent 12px 24px); }
-                        @media(max-width:800px){ .cretzo-progress .connector{ width:80px } }
-                    </style>
-
-                    <div class="cretzo-progress" aria-hidden="true">
-                        <div class="step active">Choose Plan</div>
-                        <div class="connector orange" aria-hidden="true"></div>
-                        <div class="step">Payment</div>
-                        <div class="connector dark" aria-hidden="true"></div>
-                        <div class="step">Confirmation</div>
-                    </div>
                     <section class="subscription-header">
                         <h1>Subscription Plans</h1>
                         <p class="subtitle">Choose a plan that fits your creative journey</p>
@@ -219,10 +175,10 @@
                                         <div class="price">₹<?= html_escape($price); ?></div>
                                         <div class="listings"><?= html_escape($listings_text); ?></div>
                                         <div class="validity"><?= html_escape($validity_text); ?></div>
-                                            <?php if ($is_active) : ?>
+                                        <?php if ($is_active) : ?>
                                             <button class="upgrade-btn" disabled>Active</button>
                                         <?php else : ?>
-                                            <button class="upgrade-btn" onclick="window.location.href= base_url + 'seller/subscription/details/<?= (int) $plan['id']; ?>'">Choose Plan</button>
+                                            <button class="upgrade-btn" onclick="purchasePlan(<?= (int) $plan['id']; ?>, this)">Change Plan</button>
                                         <?php endif; ?>
 
                                         <div>
@@ -230,23 +186,12 @@
                                                 $json = stripslashes($plan['features']);
                                                 $features = json_decode($json, true);
                                                 if (!empty($features)) :
-                                                    $total_features = count($features);
-                                                    $show_view_all = $total_features > 10;
                                             ?>
-                                                    <ul class="features-list" id="features-plan-<?= (int) $plan['id']; ?>">
-                                                        <?php foreach ($features as $index => $feature) : 
-                                                            $is_hidden = $index >= 5 ? 'hidden-features' : '';
-                                                        ?>
-                                                            <li class="<?= $is_hidden; ?>">
-                                                                <?= html_escape($feature['description']); ?>
-                                                            </li>
+                                                    <ul style="margin-top: 15px; text-align: left; padding-left: 20px;">
+                                                        <?php foreach ($features as $feature) : ?>
+                                                            <li><?= html_escape($feature['description']); ?></li>
                                                         <?php endforeach; ?>
                                                     </ul>
-                                                    <?php if ($show_view_all) : ?>
-                                                        <span class="view-all-link" onclick="toggleFeatures(<?= (int) $plan['id']; ?>, this)">
-                                                            View All Features
-                                                        </span>
-                                                    <?php endif; ?>
                                             <?php
                                                 endif;
                                             endif; ?>
@@ -473,28 +418,6 @@
                             $btn.prop('disabled', false).text('Change Plan');
                         }
                     });
-                }
-
-                function toggleFeatures(planId, element) {
-                    var featuresList = document.getElementById('features-plan-' + planId);
-                    if (!featuresList) return;
-
-                    var hiddenItems = featuresList.querySelectorAll('.hidden-features');
-                    var isExpanded = element.textContent.includes('Hide');
-
-                    if (isExpanded) {
-                        // Collapse
-                        hiddenItems.forEach(function (item) {
-                            item.style.display = 'none';
-                        });
-                        element.textContent = 'View All Features';
-                    } else {
-                        // Expand
-                        hiddenItems.forEach(function (item) {
-                            item.style.display = 'list-item';
-                        });
-                        element.textContent = 'Hide Features';
-                    }
                 }
             </script>
         </div>

@@ -30,23 +30,13 @@ $auth_settings = get_settings('authentication_settings', true);
     background: #fff;
     border-top: none;
     z-index: 9999;     /* highest z-index */
-    display: block;
-    max-height: 320px;
-    overflow-y: auto;
-}
-
-#append_mobile_search {
-    width: 100%;
-    background: #fff;
-    z-index: 9999;
-    max-height: 320px;
-    overflow-y: auto;
+    display: block;     
 }
 
 /* Each suggestion */
 .search-item {
     color:black;
-    /* padding: 5px; */
+    padding: 5px;
     padding-left:30px;
     cursor: pointer;
     border-bottom: 1px solid #eee;
@@ -169,7 +159,7 @@ $auth_settings = get_settings('authentication_settings', true);
                         <img class="icon-img" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/love.png') ?>">
                     </a>
                 <?php } ?>
-                <p id="wishlist-count" data-wishlist-count class="icon-num"><?= (count(get_favorites($this->session->userdata('user_id'))) != 0 ? count(get_favorites($this->session->userdata('user_id'))) : '0'); ?></p>
+                <p class="icon-num"><?= (count(get_favorites($this->session->userdata('user_id'))) != 0 ? count(get_favorites($this->session->userdata('user_id'))) : '0'); ?></p>
             </li>
             
             <!-- checkout/cart icon functionality based on whether user is on checkout page already or not -->

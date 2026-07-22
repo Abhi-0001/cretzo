@@ -1,17 +1,6 @@
 <?php
 defined('BASEPATH') or exit('No direct script access allowed');
 defined('JWT_SECRET_KEY') or define('JWT_SECRET_KEY', '68f05dec6014f68e760c5c5fa3e31bcf391a2e10');
-
-/*
-|--------------------------------------------------------------------------
-| Social Authentication Configuration
-|--------------------------------------------------------------------------
-|
-| Facebook and other social authentication API credentials
-|
-*/
-defined('FACEBOOK_APP_ID') or define('FACEBOOK_APP_ID', '1541338137599309');
-defined('FACEBOOK_APP_SECRET') or define('FACEBOOK_APP_SECRET', '42d7c2bed5fc50f9f6c6906e5053084f');
 /*
 |--------------------------------------------------------------------------
 | Display Debug backtrace

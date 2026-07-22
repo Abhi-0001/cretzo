@@ -22,7 +22,3 @@ var config = {
 };
 
 firebase.initializeApp(config);
-
-// Enable Facebook and Google providers
-// Make sure Facebook Login Plugin is properly configured in Firebase Console
-firebase.auth().settings.appVerificationDisabledForTesting = true;

@@ -78,7 +78,7 @@ defined('BASEPATH') or exit('No direct script access allowed');
 function create_unique_slug($string, $table, $field = 'slug', $key = NULL, $value = NULL)
 {
     $t = &get_instance();
-    $slug = url_title($string ?? '', '-', TRUE);
+    $slug = url_title($string);
     $slug = strtolower($slug);
     $i = 0;
     $params = array();
@@ -388,7 +388,7 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
         $t->db->order_by('cal_discount_percentage', 'DESC');
     } else {
         $t->db->order_by('has_subscription', 'DESC');
-        if ($sort != null && $sort != 'pv.price') {
+        if ($sort != null || $order != null && $sort != 'pv.price') {
             $t->db->order_by($sort, $order);
         }
         $t->db->order_by('p.row_order', 'ASC');
@@ -2513,10 +2513,8 @@ function fetch_orders($order_id = NULL, $user_id = NULL, $status = NULL, $delive
             
             
             if (isset($order_item_data[$k]['quantity']) && $order_item_data[$k]['quantity'] != 0) {
-                $price = $order_item_data[$k]['special_price'] != '' && $order_item_data[$k]['special_price'] != null && is_numeric($order_item_data[$k]['special_price']) && $order_item_data[$k]['special_price'] > 0 && $order_item_data[$k]['special_price'] < $order_item_data[$k]['main_price'] ? $order_item_data[$k]['special_price'] : $order_item_data[$k]['main_price'];
-                $quantity = is_numeric($order_item_data[$k]['quantity']) ? (float)$order_item_data[$k]['quantity'] : 0;
-                $price = is_numeric($price) ? (float)$price : 0;
-                $amount = $quantity * $price;
+                $price = $order_item_data[$k]['special_price'] != '' && $order_item_data[$k]['special_price'] != null && $order_item_data[$k]['special_price'] > 0 && $order_item_data[$k]['special_price'] < $order_item_data[$k]['main_price'] ? $order_item_data[$k]['special_price'] : $order_item_data[$k]['main_price'];
+                $amount = $order_item_data[$k]['quantity'] * $price;
             }
             if (!empty($order_item_data)) {
                 
@@ -3264,31 +3262,9 @@ function get_category_id_by_slug($slug)
 {
     $t = &get_instance();
     $slug = urldecode($slug);
-    // Try exact match first
-    $res = $t->db->select('id')
+    return $t->db->select("id")
         ->where('slug', $slug)
-        ->get('categories')->row_array();
-
-    // Fallback: try rawurldecode (in case of different encoding)
-    if (empty($res)) {
-        $alt = rawurldecode($slug);
-        if ($alt !== $slug) {
-            $res = $t->db->select('id')->where('slug', $alt)->get('categories')->row_array();
-        }
-    }
-
-    // Fallback: case-insensitive match
-    if (empty($res)) {
-        $res = $t->db->select('id')->where("LOWER(slug)", strtolower($slug), FALSE)->get('categories')->row_array();
-    }
-
-    if (!empty($res) && isset($res['id'])) {
-        return $res['id'];
-    }
-
-    // Log missing slug for production debugging
-    log_message('error', "get_category_id_by_slug: slug not found [$slug] on " . current_url());
-    return null;
+        ->get('categories')->row_array()['id'];
 }
 
 function get_variant_attributes($product_id)
