@@ -225,8 +225,6 @@
                         '<h2 class="cs-soon-title">💬 Live Chat</h2>' +
                         '<span class="cs-soon-chip">Coming Soon</span>' +
                         '<p class="cs-soon-text">We’re working on launching our Live Chat Support feature to provide you with a faster and smoother support experience.</p>' +
-                        '<p class="cs-soon-text">For now, you can get instant assistance through our AI Assistant or connect with us via WhatsApp Support using the chatbot in the bottom-right corner.</p>' +
-                        '<button type="button" class="cs-soon-confirm cs-chat-whatsapp">Continue to WhatsApp</button>' +
                     '</div>' +
                 '</div>' +
             '</div>';
