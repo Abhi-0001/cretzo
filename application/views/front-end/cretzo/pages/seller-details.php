@@ -77,7 +77,7 @@
             foreach ($seller_categories as $category) { ?>
                 <a class="text-decoration-none cretzo-link" href="<?= base_url('products?seller=' . $sellers[0]['slug'] . '&category=' . $category['id']) ?>">
                     <div class="catagory-container">
-                        <img class="catagory-img" src="<?= $category['image'] ?>" alt="<?= html_escape($category['name']) ?>">
+                        <img class="catagory-img" src="<?= base_url($category['image']) ?>" alt="<?= html_escape($category['name']) ?>">
                         <p class="text-n"><?= $category['name'] ?></p>
                     </div>
                 </a>
