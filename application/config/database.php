@@ -76,7 +76,9 @@ $query_builder = TRUE;
 
 
 if(ENVIRONMENT === 'development'){
-	// Local XAMPP MySQL (running on port 3307 to avoid Docker's 3306)
+	// Standard local defaults. If your local MySQL runs on a non-default
+	// host/port (e.g. XAMPP on a custom port), override 'hostname'/'port'
+	// below on your own machine only — don't commit machine-specific values.
 	$t_database_name = 'cretzo_db';
 	$t_username = 'root';
 	$t_password = '';
@@ -92,8 +94,7 @@ if(ENVIRONMENT === 'development'){
 
 $db['default'] = array(
 	'dsn'	=> '',
-	'hostname' => '127.0.0.1',
-	'port' => 3307,
+	'hostname' => 'localhost',
 	//'username' => 'u554344800_cretzo',
 	'username' => $t_username,
 	'password' => $t_password,
