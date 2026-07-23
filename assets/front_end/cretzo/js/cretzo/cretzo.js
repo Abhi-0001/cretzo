@@ -3,31 +3,34 @@ $(document).ready(function() {
 });
 
 function moneyFormatIndia(num) {
-    let explrestunits = '';
-    num = num.toString(); // Convert the number to a string
+    // Coerce to a finite number; fall back to 0 for empty/invalid input.
+    var n = parseFloat(num);
+    if (isNaN(n)) n = 0;
 
-    // Check if the number has more than 3 digits
-    if (num.length > 3) {
-        let lastthree = num.slice(num.length - 3); // Extract the last three digits
-        let restunits = num.slice(0, num.length - 3); // Extract the rest of the digits
+    var isNegative = n < 0;
+    n = Math.abs(n);
 
-        // Pad the rest of the digits with a zero if necessary to maintain grouping
-        restunits = restunits.length % 2 === 1 ? '0' + restunits : restunits;
+    // Round to paise (2 dp) so floating-point noise like 44.9000001 can't leak.
+    n = Math.round(n * 100) / 100;
 
-        // Split the restunits into chunks of two
-        let expunit = restunits.match(/.{1,2}/g); // Match every 2 characters
-        
-        // Concatenate the parts with commas
-        for (let i = 0; i < expunit.length; i++) {
-            explrestunits += (i === 0) ? parseInt(expunit[i], 10) + ',' : expunit[i] + ',';
-        }
+    // Show decimals only when there's a fractional part; whole amounts stay clean
+    // (e.g. 1200 -> "1,200", 44.9 -> "44.90"). This keeps integer prices tidy
+    // while never mangling a decimal value into "4,4.9".
+    var fixed = (n % 1 !== 0) ? n.toFixed(2) : n.toFixed(0);
 
-        // Concatenate the formatted parts
-        return explrestunits + lastthree;
-    } else {
-        // If number is less than or equal to 3 digits, return it as is
-        return num;
+    var parts = fixed.split('.');
+    var intPart = parts[0];
+    var decPart = parts.length > 1 ? '.' + parts[1] : '';
+
+    // Indian digit grouping applies to the INTEGER part only:
+    // rightmost 3 digits, then groups of 2 (e.g. 1234567 -> "12,34,567").
+    var lastThree = intPart.length > 3 ? intPart.slice(-3) : intPart;
+    var rest = intPart.length > 3 ? intPart.slice(0, -3) : '';
+    if (rest !== '') {
+        lastThree = rest.replace(/\B(?=(\d{2})+(?!\d))/g, ',') + ',' + lastThree;
     }
+
+    return (isNegative ? '-' : '') + lastThree + decPart;
 }
 
 function setupReadMoreLinks(){

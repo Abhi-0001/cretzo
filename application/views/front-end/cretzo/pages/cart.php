@@ -102,14 +102,20 @@ $logo = get_settings('web_logo');
                     <img class="cross-icon" src="../images/cross-icon1.png">
                 </li> -->
 
-                <?php 
+                <?php
                     // $total_mrp = 0;
                     // $total_discount_on_mrp = 0;
-                
+                    // Tracks whether any cart line is out of stock, so we can block checkout below.
+                    $has_out_of_stock = false;
+
                     foreach ($cart as $key => $row) {
 
                     if (isset($row['qty']) && $row['qty'] != 0) {
                         $price = $row['special_price'] != '' && $row['special_price'] != null && $row['special_price'] > 0 ? $row['special_price'] : $row['price'];
+                        $row_stock_status = validate_stock([$row['id']], [$row['qty']]);
+                        if (isset($row_stock_status['error']) && $row_stock_status['error'] == TRUE) {
+                            $has_out_of_stock = true;
+                        }
                 ?>
 
                         <li class="cart-item cart-product" data-product-id="<?= $row['product_id']; ?>">
@@ -363,7 +369,10 @@ $logo = get_settings('web_logo');
             <?php } ?>
 
             <?php if($is_logged_in){ ?>
-                <button class="cretzo btn btn-dark w-100" id="place-order-btn" data-url="<?= base_url('cart/checkout') ?>">Go To Checkout</button>
+                <button class="cretzo btn btn-dark w-100" id="place-order-btn" data-url="<?= base_url('cart/checkout') ?>" data-out-of-stock="<?= $has_out_of_stock ? '1' : '0' ?>" <?= $has_out_of_stock ? 'disabled' : '' ?>>Go To Checkout</button>
+                <?php if($has_out_of_stock){ ?>
+                    <p class="text text-danger text-center mt-2 mb-0" style="font-size: 13px;">Some item(s) in your cart are out of stock. Please remove them or save them for later to continue.</p>
+                <?php } ?>
             <?php }else{ ?>
                 <button class="cretzo btn btn-dark w-100" data-bs-toggle="modal" data-bs-target="#modal-signin" >Go To Checkout</button>
             <?php } ?>

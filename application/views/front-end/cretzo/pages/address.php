@@ -196,108 +196,87 @@
     </div>
 </div>
 
+<!-- Edit Address Modal - mirrors the Add Address modal (same layout + pincode auto-fill) -->
 <div class="modal fade edit-modal-lg" id="edit-address-modal" tabindex="-1" role="dialog" aria-labelledby="myLargeModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <div class="modal-header py-6">
-                <h5 class="modal-title" id="exampleModalLongTitle"><?= !empty($this->lang->line('edit_address')) ? $this->lang->line('edit_address') : 'Edit Address' ?></h5>
+            <div class="modal-header pt-6 pb-1">
+                <h4 class="modal-title w-100 ta-c" id="exampleModalLongTitle"><?= !empty($this->lang->line('edit_address')) ? $this->lang->line('edit_address') : 'Edit Address' ?></h4>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
-            <div class="modal-body ps-10 pt-0">
-                <form action="<?= base_url('my-account/edit-address') ?>" method="POST" id="edit-address-form" class="mt-4">
-                    <input type="hidden" name="id" id="address_id" value="" />
-                    <div class="row">
-                        <div class="col-md-4 col-sm-12 col-xs-12 form-group">
-                            <label for="name" class="form-check-label required"><?= !empty($this->lang->line('name')) ? $this->lang->line('name') : 'Name' ?></label>
-                            <input type="text" class="form-control" id="edit_name" name="name" placeholder="Name" />
-                        </div>
-                        <div class="col-md-4 col-sm-12 col-xs-12 form-group">
-                            <label for="mobile_number" class="form-check-label required"><?= !empty($this->lang->line('mobile_number')) ? $this->lang->line('mobile_number') : 'Mobile Number' ?></label>
-                            <input type="text" class="form-control" id="edit_mobile" name="mobile" placeholder="Mobile Number" />
-                        </div>
+            <div class="modal-body ps-10 pt-0 pb-6">
 
-                        <!-- <div class="col-md-4 col-sm-12 col-xs-12 form-group"> -->
-                        <div class="col-sm-12 col-xs-12 form-group">
-                            <label for="address" class="form-check-label required"><?= !empty($this->lang->line('address')) ? $this->lang->line('address') : 'Address' ?></label>
-                            <input type="text" class="form-control" name="address" id="edit_address" placeholder="Address" />
-                        </div>
-                        
-                        <div class="col-md-6 col-sm-12 col-xs-12 form-group edit_city">
-
-                            <label for="edit_city_search" class="form-check-label"><?= !empty($this->lang->line('city')) ? $this->lang->line('city') : 'City' ?></label>
-                            <div class="city-autocomplete-wrap">
-                                <input type="text" class="form-control city-autocomplete-input" id="edit_city_search" placeholder="Search for cities" autocomplete="off" />
+                    <form action="<?= base_url('my-account/edit-address') ?>" method="POST" id="edit-address-form" class="mt-3 px-4">
+                        <input type="hidden" name="id" id="address_id" value="" />
+                        <div class="row">
+                            <div class="col-md-12 col-sm-12 col-xs-12 form-group mb-3">
+                                <label for="edit_name" class="control-label required"><?= !empty($this->lang->line('name')) ? $this->lang->line('name') : 'Name' ?></label>
+                                <input type="text" class="form-control" id="edit_name" name="name" placeholder="Name" />
+                            </div>
+                            <div class="col-md-6 col-sm-12 col-xs-12 form-group mb-3">
+                                <label for="edit_mobile" class="control-label required"><?= !empty($this->lang->line('mobile_number')) ? $this->lang->line('mobile_number') : 'Mobile Number' ?></label>
+                                <input type="text" class="form-control" id="edit_mobile" name="mobile" placeholder="Mobile Number" />
+                            </div>
+                            <div class="col-md-6 col-sm-12 col-xs-12 form-group mb-3">
+                                <label for="edit_alternate_mobile" class="control-label"><?= !empty($this->lang->line('alternate_mobile')) ? $this->lang->line('alternate_mobile') : 'Alternate Mobile Number' ?></label>
+                                <input type="text" class="form-control" id="edit_alternate_mobile" name="alternate_mobile" placeholder="Alternate Mobile Number" />
+                            </div>
+                            <div class="col-md-12 col-sm-12 col-xs-12 form-group mb-3">
+                                <label for="edit_address" class="control-label required"><?= !empty($this->lang->line('address')) ? $this->lang->line('address') : 'Address' ?></label>
+                                <textarea name="address" class="form-control" id="edit_address" cols="30" rows="4" placeholder="#Door no, Street Address, Locality, Area, Pincode"></textarea>
+                            </div>
+                            <!-- Pincode first: entering it auto-fills city, district and state -->
+                            <div class="col-md-6 col-sm-12 col-xs-12 form-group mb-3">
+                                <label for="edit_pincode" class="control-label required"><?= !empty($this->lang->line('pincode')) ? $this->lang->line('pincode') : 'Zipcode' ?></label>
+                                <input type="text" class="form-control" id="edit_pincode" name="pincode" placeholder="Zipcode" maxlength="6" inputmode="numeric" pattern="[0-9]*" />
+                                <small id="edit_pincode_status" class="form-text text-muted"></small>
+                            </div>
+                            <div class="col-md-6 col-sm-12 col-xs-12 form-group mb-3">
+                                <label for="edit_city_name" class="control-label required"><?= !empty($this->lang->line('city')) ? $this->lang->line('city') : 'City' ?></label>
+                                <input type="text" class="form-control" id="edit_city_name" name="city_name" placeholder="City" />
                                 <input type="hidden" name="city_id" id="edit_city" value="" />
-                                <div class="city-autocomplete-results" id="edit_city_results"></div>
                             </div>
-                        </div>
-                        <!-- <input type="text" name="other_city" id="other_city" class="d-none"> -->
-                        <!-- <div class="col-md-6 col-sm-12 col-xs-12 form-group edit_area">
-                            <label for="area" class="form-check-label"><? //= !empty($this->lang->line('area')) ? $this->lang->line('area') : 'Area' 
-                                                                        ?></label>
-                            <select name="area_id" id="edit_area" class="form-control">
-                                <option value=""><? //= !empty($this->lang->line('select_area')) ? $this->lang->line('select_area') : '--Select Area--' 
-                                                    ?></option>
-                            </select>
-                        </div> -->
-                        <div class="col-md-6 col-sm-12 col-xs-12 form-group area">
-                            <label for="area" class="control-label">Area</label>
-                            <input type="text" class="form-control" id="edit_area" name="edit_general_area_name" placeholder="Area Name" />
-                        </div>
-                        <div class="col-md-6 col-sm-12 col-xs-12 form-group other_city d-none">
-                            <label for="city" class="form-check-label"><?= !empty($this->lang->line('city')) ? $this->lang->line('city') : 'City Name' ?></label>
-                            <input type="text" class="form-control" id="other_city_value" name="other_city" placeholder="City" />
-                        </div>
-                        <div class="col-md-6 col-sm-12 col-xs-12 form-group other_areas d-none">
-                            <label for="area" class="form-check-label">Area</label>
-                            <input type="text" class="form-control" id="other_areas_value" name="other_areas" placeholder="Area Name" />
-                        </div>
-                        <div class="col-md-6 col-sm-12 col-xs-12 form-group area">
-                            <label for="pincode" class="control-label required"><?= !empty($this->lang->line('pincode')) ? $this->lang->line('pincode') : 'Zipcode' ?></label>
-                            <input type="text" class="form-control" id="edit_pincode" name="pincode" placeholder="Zipcode" maxlength="6" inputmode="numeric" pattern="[0-9]*" />
-                        </div>
-                        <div class="col-md-6 col-sm-12 col-xs-12 form-group">
-                            <label for="state" class="form-check-label required"><?= !empty($this->lang->line('state')) ? $this->lang->line('state') : 'State' ?></label>
-                            <select class="form-control" id="edit_state" name="state">
-                                <option value="">-- Select State --</option>
-                                <?php foreach ($indian_states as $state_name) { ?>
-                                    <option value="<?= $state_name ?>"><?= $state_name ?></option>
-                                <?php } ?>
-                            </select>
-                        </div>
-                        <!-- Country section commented out - currently only India is supported
-                        <div class="col-md-6 col-sm-12 col-xs-12 form-group">
-                            <label for="country" class="form-check-label required"><?= !empty($this->lang->line('country')) ? $this->lang->line('country') : 'Country' ?></label>
-                            <input type="text" class="form-control" name="country" id="edit_country" placeholder="Country" />
-                        </div>
-                        -->
-                        <input type="hidden" name="country" id="edit_country" value="India" />
-                        <div class="col-md-12 col-sm-12 col-xs-12 form-group">
-                            <label for="country" class="form-check-label"><?= !empty($this->lang->line('type')) ? $this->lang->line('type') : 'Type : ' ?></label>
-                            <div class="form-check form-check-inline">
-                                <input type="radio" class="form-check-input" name="type" id="edit_home" value="home" />
-                                <label for="home" class="form-check-label text-dark"><?= !empty($this->lang->line('home')) ? $this->lang->line('home') : 'Home' ?></label>
+                            <div class="col-md-6 col-sm-12 col-xs-12 form-group mb-3">
+                                <label for="edit_district" class="control-label required">District</label>
+                                <input type="text" class="form-control" id="edit_district" name="general_area_name" placeholder="District" />
                             </div>
-                            <div class="form-check form-check-inline">
-                                <input type="radio" class="form-check-input" name="type" id="edit_office" value="office" placeholder="Office" />
-                                <label for="office" class="form-check-label text-dark"><?= !empty($this->lang->line('office')) ? $this->lang->line('office') : 'Office' ?></label>
+                            <div class="col-md-6 col-sm-12 col-xs-12 form-group mb-3">
+                                <label for="edit_state" class="control-label required"><?= !empty($this->lang->line('state')) ? $this->lang->line('state') : 'State' ?></label>
+                                <select class="form-control" id="edit_state" name="state">
+                                    <option value="">-- Select State --</option>
+                                    <?php foreach ($indian_states as $state_name) { ?>
+                                        <option value="<?= $state_name ?>"><?= $state_name ?></option>
+                                    <?php } ?>
+                                </select>
                             </div>
-                            <div class="form-check form-check-inline">
-                                <input type="radio" class="form-check-input" name="type" id="edit_other" value="other" placeholder="Other" />
-                                <label for="other" class="form-check-label text-dark"><?= !empty($this->lang->line('other')) ? $this->lang->line('other') : 'Other' ?></label>
+                            <input type="hidden" name="country" id="edit_country" value="India" />
+                            <div class="col-md-12 col-sm-12 col-xs-12 form-group mb-4 mt-2">
+                                <label class="control-label"><?= !empty($this->lang->line('type')) ? $this->lang->line('type') : 'Type : ' ?></label>
+                                <div class="form-check form-check-inline">
+                                    <input type="radio" class="form-check-input" name="type" id="edit_home" value="home" />
+                                    <label for="edit_home" class="form-check-label text-dark"><?= !empty($this->lang->line('home')) ? $this->lang->line('home') : 'Home' ?></label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input type="radio" class="form-check-input" name="type" id="edit_office" value="office" />
+                                    <label for="edit_office" class="form-check-label text-dark"><?= !empty($this->lang->line('office')) ? $this->lang->line('office') : 'Office' ?></label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input type="radio" class="form-check-input" name="type" id="edit_other" value="other" />
+                                    <label for="edit_other" class="form-check-label text-dark"><?= !empty($this->lang->line('other')) ? $this->lang->line('other') : 'Other' ?></label>
+                                </div>
                             </div>
-                        </div>
 
-                        <div class="col-md-12 col-sm-12 col-xs-12 text-center">
-                            <input type="submit" class="cretzo btn btn-dark btn-primary btn-sm" id="edit-address-submit-btn" value="Save" />
+                            <div class="col-md-12 col-sm-12 col-xs-12">
+                                <input type="submit" class="cretzo btn btn-dark btn-primary btn-sm d-flex m-auto px-16" id="edit-address-submit-btn" value="Save" />
+                            </div>
+                            <div class="col-md-12 col-sm-12 col-xs-12 text-center">
+                                <div id="edit-address-result"></div>
+                            </div>
                         </div>
-                        <div class="col-md-12 col-sm-12 col-xs-12 text-center mt-2">
-                            <div id="edit-address-result"></div>
-                        </div>
-                    </div>
-                </form>
+                    </form>
+
             </div>
         </div>
     </div>
