@@ -14,5 +14,4 @@ application/config/database.php
 /logs
 *.psd
 /vendor/
-composer.lock
 composer.phar

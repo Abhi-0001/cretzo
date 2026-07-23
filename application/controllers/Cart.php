@@ -817,6 +817,14 @@ class Cart extends CI_Controller
                 }
 
                 $res = $this->order_model->place_order($_POST);
+
+                if (!is_array($res) || (isset($res['error']) && $res['error'] == true)) {
+                    $this->response['error'] = true;
+                    $this->response['message'] = (isset($res['message']) && !empty($res['message'])) ? $res['message'] : 'Unable to place your order. Please try again.';
+                    $this->response['data'] = array();
+                    print_r(json_encode($this->response));
+                    return false;
+                }
                 $order = fetch_details('orders', ['id' => $res['order_id']], 'final_total');
 
                 $data['status'] = $data['status'];
