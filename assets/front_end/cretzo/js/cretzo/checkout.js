@@ -459,6 +459,14 @@ function place_order() {
                     title: data.message
                 });
             }
+        },
+        error: function (jqXHR) {
+            $('#place-order-btn').attr('disabled', false).html('Place Order');
+            Toast.fire({
+                icon: 'error',
+                title: 'Something went wrong while placing your order. Please try again.'
+            });
+            console.log('place-order error:', jqXHR.status, jqXHR.responseText);
         }
     })
 }
@@ -552,6 +560,7 @@ function setupClickEvents(){
             return false;
         }
         if (documents === "") {
+            $('#place-order-btn').attr('disabled', false).html(btn_html);
             return Toast.fire({
                 icon: 'error',
                 title: 'Please select an Document.'
@@ -593,7 +602,15 @@ function setupClickEvents(){
                     $('#place-order-btn').attr('disabled', false).html('Place Order');
 
                 }
-            }, "json");
+            }, "json").fail(function (jqXHR) {
+                // Razorpay order setup failed on the server — don't leave the button hung.
+                $('#place-order-btn').attr('disabled', false).html('Place Order');
+                Toast.fire({
+                    icon: 'error',
+                    title: 'Could not start the payment. Please try again.'
+                });
+                console.log('pre-payment-setup error:', jqXHR.status, jqXHR.responseText);
+            });
         }
         else if (payment_methods == "COD" /* || payment_methods == "Direct Bank Transfer" */) {
             place_order().done(function (result) {
@@ -624,6 +641,15 @@ function setupClickEvents(){
 
             });
 
+        }
+        else {
+            // No payment method matched (e.g. none selected, or partial-wallet without a
+            // gateway). Reset the button so it can never stay stuck on "Please Wait...".
+            $('#place-order-btn').attr('disabled', false).html(btn_html);
+            Toast.fire({
+                icon: 'error',
+                title: 'Please select a payment method.'
+            });
         }
 
     });

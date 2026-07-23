@@ -14,16 +14,22 @@ $logo = get_settings('web_logo');
             <a href="<?= base_url() ?>"><img src="<?= base_url($logo) ?>" class="main-logo" alt="site-logo image"></a>
         </div>
 
-        <div class="cart-indicator cart-indicator-active rounded-end"><p style="font-size: 18px;">Cart</p></div>
+        <div class="cart-indicator cart-indicator-active rounded-end">
+            <p style="font-size: 18px;">Cart</p>
+        </div>
         <div class="completion-line active"></div>
 
         <div class="cart-indicator">
-            <a class="text-decoration-none" href="<?= base_url('cart/checkout') ?>"><p style="font-size: 18px;">Address</p></a>
+            <a class="text-decoration-none" href="<?= base_url('cart/checkout') ?>">
+                <p style="font-size: 18px;">Address</p>
+            </a>
         </div>
         <div class="completion-line"></div>
 
         <div class="cart-indicator">
-            <a class="text-decoration-none" href="<?= base_url('cart/checkout') ?>"><p style="font-size: 18px;">Payment</p></a>
+            <a class="text-decoration-none" href="<?= base_url('cart/checkout') ?>">
+                <p style="font-size: 18px;">Payment</p>
+            </a>
         </div>
 
         <div class="quality-assured-container">

@@ -105,19 +105,22 @@
             <a href="<?= base_url() ?>"><img src="<?= base_url($logo) ?>" data-src="<?= base_url($logo) ?>" class="main-logo" alt="site-logo image"></a>
         </div>
         <div class="cart-indicator">
-            <a class="text-decoration-none" href="<?= base_url('cart') ?>"><p class="text-n pl-3">Cart</p></a>
+            <a class="text-decoration-none" href="<?= base_url('cart') ?>">
+                <p class="pl-3" style="font-size: 18px;">Cart</p>
+            </a>
         </div>
         <div class="cart-indicator cart-indicator-active">
             <div class="completion-line active"></div>
         </div>
         <div class="cart-indicator cart-indicator-active rounded-end">
-            <p class="text-n pr-1">Address</p>
+            <p class="pr-1" style="font-size: 18px;">Address</p>
         </div>
         <div class="cart-indicator">
             <div class="completion-line"></div>
         </div>
         <div class="cart-indicator">
-            <a class="text-decoration-none" href="<?= base_url('cart/checkout') ?>"><p class="text-n pr-3">Payment</p></a>
+            <a class="text-decoration-none" href="<?= base_url('cart/checkout') ?>">
+                <p class=" pr-3" style="font-size: 18px;">Payment</p></a>
         </div>
         <div class="quality-assured-container">
             <img class="quality-assured-img" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/orange-tick.png') ?>">

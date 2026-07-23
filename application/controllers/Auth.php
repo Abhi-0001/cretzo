@@ -1296,7 +1296,7 @@ class Auth extends CI_Controller
             $res = $this->ion_auth->register($identity, $password, $email, $additional_data, ['2']);
 
             update_details(['active' => 1], [$identity_column => $identity], 'users');
-            $data = $this->db->select('u.id,u.username,u.email,u.mobile,c.name as city_name,a.name as area_name')->where([$identity_column => $identity])->join('cities c', 'c.id=u.city', 'left')->join('areas a', 'a.city_id=c.id', 'left')->group_by('email')->get('users u')->result_array();
+            $data = $this->db->select('u.id,u.username,u.email,u.mobile,c.city_name as city_name,a.name as area_name')->where([$identity_column => $identity])->join('cities c', 'c.city_id=u.city', 'left')->join('areas a', 'a.city_id=c.city_id', 'left')->group_by('email')->get('users u')->result_array();
 
             $this->response['error'] = false;
             $this->response['message'] = 'Registered Successfully';
