@@ -440,9 +440,21 @@ class Cart extends CI_Controller
                     redirect(base_url('cart'), 'refresh');
                 }
             }
+            // Block reaching checkout if any cart item is unavailable or out of stock.
+            // We check BOTH the product availability flag and validate_stock() (which covers
+            // stock quantity, variant availability and per-order quantity limits) so this
+            // matches exactly what the cart page shows as "Out of Stock".
             foreach ($cart_total_data as $row) {
-                if (isset($row['product_availability'])  && empty($row['product_availability']) && $row['product_availability'] != "") {
-                    $this->session->set_flashdata('message', 'Some of the product(s) are OUt of Stock. Please remove it from cart or save to later.');
+                // get_cart_total() appends summary keys (sub_total, quantity, ...) to the array;
+                // skip anything that is not an actual cart line.
+                if (!isset($row['id']) || !isset($row['qty'])) {
+                    continue;
+                }
+                $is_unavailable = isset($row['product_availability']) && ($row['product_availability'] === 0 || $row['product_availability'] === '0');
+                $stock_status = validate_stock([$row['id']], [$row['qty']]);
+                $is_out_of_stock = isset($stock_status['error']) && $stock_status['error'] == true;
+                if ($is_unavailable || $is_out_of_stock) {
+                    $this->session->set_flashdata('message', 'Some of the product(s) in your cart are out of stock. Please remove them from the cart or save them for later before checkout.');
                     $this->session->set_flashdata('message_type', 'error');
                     redirect(base_url('cart'), 'refresh');
                 }
@@ -700,8 +712,12 @@ class Cart extends CI_Controller
                     }
                 }
 
+                // product_variant_id is needed both for the COD check below and the stock
+                // validation that follows. It must be defined for EVERY payment method, not
+                // only COD, otherwise validate_stock() receives null and silently passes,
+                // letting out-of-stock items be ordered via Razorpay/wallet/bank transfer.
+                $product_variant_id = explode(',', $_POST['product_variant_id']);
                 if ($_POST['payment_method'] == 'COD') {
-                    $product_variant_id = explode(',', $_POST['product_variant_id']);
                     for ($i = 0; $i < count($product_variant_id); $i++) {
                         $product_id = fetch_details("product_variants", ['id' => $product_variant_id[$i]], 'product_id');
                         $is_allowed = fetch_details("products", ['id' => $product_id[0]['product_id']], 'cod_allowed,name');

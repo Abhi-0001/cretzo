@@ -217,9 +217,24 @@
 
             <?= generatePriceElement2($product['product']) ?>
 
+            <?php
+                // Determine out-of-stock state for the initially shown variant. availability == 0
+                // is the canonical "out of stock" signal (set by the seller or auto-set by
+                // update_stock() when tracked stock hits 0). For multi-variant products the
+                // per-variant state is refreshed by the variant-switch JS (data-availability).
+                $init_variant = isset($product['product'][0]['variants'][0]) ? $product['product'][0]['variants'][0] : array();
+                $is_single_variant = count($product['product'][0]['variants']) <= 1;
+                $init_availability = isset($init_variant['availability']) ? $init_variant['availability'] : 1;
+                $is_out_of_stock = $is_single_variant && ($init_availability === '0' || $init_availability === 0);
+                $init_stock = (isset($init_variant['stock']) && $init_variant['stock'] !== '') ? $init_variant['stock'] : null;
+            ?>
             <div class="product-stock mb-4">
-                <img class="green-tick-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/orange-tick.png') ?>" alt="checkmark">
-                <p id="stock-quantity" class="text-n"> <?= $product['product'][0]['variants'][0]['stock'] ?> in stock </p>
+                <?php if ($is_out_of_stock) { ?>
+                    <p id="stock-quantity" class="text-n text-danger fw-b">Out of Stock</p>
+                <?php } else { ?>
+                    <img class="green-tick-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/orange-tick.png') ?>" alt="checkmark">
+                    <p id="stock-quantity" class="text-n"> <?= ($init_stock !== null) ? $init_stock . ' in stock' : 'In Stock' ?> </p>
+                <?php } ?>
             </div>
 
             <div class="my-2">
@@ -245,7 +260,7 @@
                         $total_images = 1;
                         foreach ($product['product'][0]['variants'] as $variant) {
                         ?>
-                            <input type="hidden" class="variants" name="variants_ids" data-image-index="<?= $total_images ?>" data-name="" value="<?= $variant['variant_ids'] ?>" data-id="<?= $variant['id'] ?>" data-price="<?= $variant['price'] ?>" data-special_price="<?= $variant['special_price'] ?>" />
+                            <input type="hidden" class="variants" name="variants_ids" data-image-index="<?= $total_images ?>" data-name="" value="<?= $variant['variant_ids'] ?>" data-id="<?= $variant['id'] ?>" data-price="<?= $variant['price'] ?>" data-special_price="<?= $variant['special_price'] ?>" data-availability="<?= isset($variant['availability']) ? $variant['availability'] : 1 ?>" />
                     <?php
                             $total_images += count($variant['images']);
                         }
@@ -271,8 +286,14 @@
                     data-product-description="<?= short_description_word_limit(output_escaping(str_replace('\r\n', '&#13;&#10;', strip_tags($product['product'][0]['short_description'])))); ?>" 
                     data-step="<?= (isset($product['product'][0]['minimum_order_quantity']) && !empty($product['product'][0]['quantity_step_size'])) ? $product['product'][0]['quantity_step_size'] : 1 ?>" 
                     data-min="<?= (isset($product['product'][0]['minimum_order_quantity']) && !empty($product['product'][0]['minimum_order_quantity'])) ? $product['product'][0]['minimum_order_quantity'] : 1 ?>" 
-                    data-max="<?= (isset($product['product'][0]['total_allowed_quantity']) && !empty($product['product'][0]['total_allowed_quantity'])) ? $product['product'][0]['total_allowed_quantity'] : '' ?>" 
-                    data-product-variant-id="<?= $variant_id ?>"> <i class="uil uil-shopping-bag mr-2"></i> Add to Cart </button>
+                    data-max="<?= (isset($product['product'][0]['total_allowed_quantity']) && !empty($product['product'][0]['total_allowed_quantity'])) ? $product['product'][0]['total_allowed_quantity'] : '' ?>"
+                    data-product-variant-id="<?= $variant_id ?>" <?= $is_out_of_stock ? 'disabled' : '' ?>>
+                    <?php if ($is_out_of_stock) { ?>
+                        Out of Stock
+                    <?php } else { ?>
+                        <i class="uil uil-shopping-bag mr-2"></i> Add to Cart
+                    <?php } ?>
+                </button>
 
                 <?php
                     // Icon-only wishlist button, right of Add to Cart. State is shown by
@@ -381,7 +402,7 @@
                     $total_images = 1;
                     foreach ($product['product'][0]['variants'] as $variant) {
                     ?>
-                        <input type="hidden" class="variants" name="variants_ids" data-image-index="<?= $total_images ?>" data-name="" value="<?= $variant['variant_ids'] ?>" data-id="<?= $variant['id'] ?>" data-price="<?= $variant['price'] ?>" data-special_price="<?= $variant['special_price'] ?>" data-stock="<?= $variant['stock'] ?>" />
+                        <input type="hidden" class="variants" name="variants_ids" data-image-index="<?= $total_images ?>" data-name="" value="<?= $variant['variant_ids'] ?>" data-id="<?= $variant['id'] ?>" data-price="<?= $variant['price'] ?>" data-special_price="<?= $variant['special_price'] ?>" data-stock="<?= $variant['stock'] ?>" data-availability="<?= isset($variant['availability']) ? $variant['availability'] : 1 ?>" />
                 <?php
                         $total_images += count($variant['images']);
                     }

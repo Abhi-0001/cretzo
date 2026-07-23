@@ -178,16 +178,19 @@ $font_color = (isset($settings['font_color']) && !empty($settings['font_color'])
                 if (a.hasAttribute('download')) return;
                 if (href.charAt(0) === '#') return;
                 if (/^(javascript:|mailto:|tel:|whatsapp:)/i.test(href)) return;
-                if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
-
-                showForNav();
-            }, true);
-
-            // Immediate feedback on form submissions
+                if (e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
+                setTimeout(function () {
+                        if (e.defaultPrevented) return;
+                        showForNav();
+                    }, 0);
+                }, true);
             document.addEventListener('submit', function (e) {
                 var form = e.target;
                 if (form && form.hasAttribute('data-no-loader')) return;
-                showForNav();
+                setTimeout(function () {
+                    if (e.defaultPrevented) return;
+                    showForNav();
+                }, 0);
             }, true);
 
             // AJAX loader is OPT-IN, not automatic.

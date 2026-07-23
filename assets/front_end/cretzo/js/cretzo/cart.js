@@ -104,7 +104,10 @@ function refreshBill(){
 $(document).ready(function() {
 
     var cart_count = $('#input_cart_count').val();
-    $('#place-order-btn').attr("disabled", cart_count <= 0);
+    // Keep checkout disabled when the cart is empty OR when any item is out of stock
+    // (the server marks the button with data-out-of-stock when a line is unavailable).
+    var hasOutOfStock = $('#place-order-btn').data('out-of-stock') == 1;
+    $('#place-order-btn').attr("disabled", (cart_count <= 0) || hasOutOfStock);
 
     $(document).on("click", "#place-order-btn", function (e) {
         var url = $(this).data('url');

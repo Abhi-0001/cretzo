@@ -1492,6 +1492,30 @@ function validate_stock($product_variant_ids, $qtns)
     $count = isset($product_variant_ids) ? count($product_variant_ids) : '';
     for ($i = 0; $i < $count; $i++) {
         $res = $t->db->select('p.*,pv.*,pv.id as pv_id,p.stock as p_stock,p.availability as p_availability,pv.stock as pv_stock,pv.availability as pv_availability,p.name as product_name')->where('pv.id = ', $product_variant_ids[$i])->join('products p', 'pv.product_id = p.id')->get('product_variants pv')->result_array();
+
+        // An invalid / removed variant is treated as not purchasable.
+        if (empty($res)) {
+            $error = true;
+            break;
+        }
+
+        // Out-of-stock / unavailable FLAG check. This must run regardless of stock_type:
+        // a seller can mark a product/variant unavailable (availability = 0) WITHOUT using
+        // quantity-based stock management, and update_stock() also flips availability to 0
+        // when tracked stock reaches 0. Previously this flag was only honoured inside the
+        // stock_type block, so an unavailable item with no stock management (or with an
+        // empty stock value) slipped through into the cart and the order.
+        // For variant-level / product-level variable stock the variant flag governs;
+        // otherwise (simple product or no stock management) the product flag governs.
+        // A null / empty flag means "available".
+        $effective_availability = ($res[0]['stock_type'] == 1 || $res[0]['stock_type'] == 2)
+            ? $res[0]['pv_availability']
+            : $res[0]['p_availability'];
+        if ($effective_availability === 0 || $effective_availability === '0') {
+            $error = true;
+            break;
+        }
+
         if ($res[0]['total_allowed_quantity'] != null && $res[0]['total_allowed_quantity'] >= 0) {
             $total_allowed_quantity = intval($res[0]['total_allowed_quantity']) - intval($qtns[$i]);
             if ($total_allowed_quantity < 0) {
@@ -5907,25 +5931,36 @@ function get_statistics($product_varient_id)
 }
 
 function moneyFormatIndia($num) {
-    $explrestunits = "" ;
-    if(strlen($num)>3) {
-        $lastthree = substr($num, strlen($num)-3, strlen($num));
-        $restunits = substr($num, 0, strlen($num)-3); // extracts the last three digits
-        $restunits = (strlen($restunits)%2 == 1)?"0".$restunits:$restunits; // explodes the remaining digits in 2's formats, adds a zero in the beginning to maintain the 2's grouping.
-        $expunit = str_split($restunits, 2);
-        for($i=0; $i<sizeof($expunit); $i++) {
-            // creates each of the 2's group and adds a comma to the end
-            if($i==0) {
-                $explrestunits .= (int)$expunit[$i].","; // if is first value , convert into integer
-            } else {
-                $explrestunits .= $expunit[$i].",";
-            }
-        }
-        $thecash = $explrestunits.$lastthree;
+    // Coerce to a finite number; fall back to 0 for empty/invalid input.
+    $n = is_numeric($num) ? (float)$num : 0;
+
+    $isNegative = $n < 0;
+    $n = abs($n);
+
+    // Round to paise (2 dp) so floating-point noise can't leak into the output.
+    $n = round($n, 2);
+
+    // Show decimals only when there's a fractional part; whole amounts stay clean
+    // (e.g. 1200 -> "1,200", 44.9 -> "44.90"). This mirrors the JS moneyFormatIndia()
+    // and never mangles a decimal value into "4,4.9".
+    $fixed = (fmod($n, 1) != 0.0) ? number_format($n, 2, '.', '') : number_format($n, 0, '.', '');
+
+    $parts   = explode('.', $fixed);
+    $intPart = $parts[0];
+    $decPart = isset($parts[1]) ? '.' . $parts[1] : '';
+
+    // Indian digit grouping applies to the INTEGER part only:
+    // rightmost 3 digits, then groups of 2 (e.g. 1234567 -> "12,34,567").
+    if (strlen($intPart) > 3) {
+        $lastThree = substr($intPart, -3);
+        $rest      = substr($intPart, 0, strlen($intPart) - 3);
+        $rest      = preg_replace('/\B(?=(\d{2})+(?!\d))/', ',', $rest);
+        $grouped   = $rest . ',' . $lastThree;
     } else {
-        $thecash = $num;
+        $grouped = $intPart;
     }
-    return $thecash; // writes the final format where $currency is the currency symbol.
+
+    return ($isNegative ? '-' : '') . $grouped . $decPart;
 }
 
 function orderStatusTimeToHumanReadableString($dateTimeStr, $get_array = false){

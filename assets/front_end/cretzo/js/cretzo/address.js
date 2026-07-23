@@ -1,19 +1,22 @@
 $(document).ready(function() {
     setupActionButtons();
     checkForAddOrEditAddressInQuery();
-    setupPincodeAutofill();
-    setupCityAutocomplete('#edit_city_search', '#edit_city', '#edit_city_results');
+    /* Both add and edit modals share the same pincode-first layout, so wire the
+       auto-fill up for each of them. */
+    setupPincodeAutofill('#pincode', '#city_name', '#district', '#state', '#pincode_status');
+    setupPincodeAutofill('#edit_pincode', '#edit_city_name', '#edit_district', '#edit_state', '#edit_pincode_status');
 });
 
-/* Add-address flow: the user enters the pincode first and city / district / state
+/* Pincode flow: the user enters the pincode first and city / district / state
    are auto-filled from the India Post public API. All three stay editable so the
-   user can correct anything the lookup gets wrong. */
-function setupPincodeAutofill() {
-    var $pincode = $('#pincode');
-    var $city = $('#city_name');
-    var $district = $('#district');
-    var $state = $('#state');
-    var $status = $('#pincode_status');
+   user can correct anything the lookup gets wrong. Used by both the add and edit
+   address modals - pass the selectors for the modal being wired up. */
+function setupPincodeAutofill(pincodeSelector, citySelector, districtSelector, stateSelector, statusSelector) {
+    var $pincode = $(pincodeSelector);
+    var $city = $(citySelector);
+    var $district = $(districtSelector);
+    var $state = $(stateSelector);
+    var $status = $(statusSelector);
     if (!$pincode.length) {
         return;
     }
@@ -64,73 +67,6 @@ function setupPincodeAutofill() {
                 $status.text('Could not fetch pincode details. Please fill the details manually.').addClass('text-danger');
             }
         });
-    });
-}
-
-/* City field: type directly into the box, matching cities appear right below it.
-   Replaces the old select2 combobox, which rendered its search box as a separate
-   floating panel that could detach from the field and swallow modal scroll. */
-function setupCityAutocomplete(inputSelector, hiddenSelector, resultsSelector) {
-    var $input = $(inputSelector);
-    var $hidden = $(hiddenSelector);
-    var $results = $(resultsSelector);
-    var debounceTimer = null;
-
-    function renderResults(list) {
-        $results.empty();
-        if (!list || !list.length) {
-            $results.append('<div class="city-autocomplete-empty">No cities found</div>');
-        } else {
-            $.each(list, function (i, city) {
-                $('<div class="city-autocomplete-item"></div>')
-                    .text(city.text)
-                    .attr('data-id', city.id)
-                    .appendTo($results);
-            });
-        }
-        $results.addClass('show');
-    }
-
-    function fetchCities(term) {
-        $.ajax({
-            type: 'GET',
-            url: base_url + 'my-account/get_cities',
-            data: { search: term || '' },
-            dataType: 'json',
-            success: function (result) {
-                renderResults(result);
-            }
-        });
-    }
-
-    $input.on('focus', function () {
-        fetchCities($input.val());
-    });
-
-    $input.on('input', function () {
-        clearTimeout(debounceTimer);
-        var term = $input.val();
-        debounceTimer = setTimeout(function () {
-            fetchCities(term);
-        }, 250);
-    });
-
-    /* mousedown (not click) + preventDefault so the input never blurs when a
-       suggestion is picked - avoids racing the blur handler that hides the panel. */
-    $results.on('mousedown', '.city-autocomplete-item', function (e) {
-        e.preventDefault();
-        $input.val($(this).text());
-        $hidden.val($(this).attr('data-id')).trigger('change');
-        $results.removeClass('show').empty();
-    });
-
-    $input.on('blur', function () {
-        setTimeout(function () {
-            $results.removeClass('show');
-            if (!$input.val()) {
-                $hidden.val('').trigger('change');
-            }
-        }, 150);
     });
 }
 
@@ -221,27 +157,23 @@ function updateEditAddressForm(row){
 
     $("#address_id").val(row.id);
     $("#edit_name").val(row.name);
-    $("#edit_area").val(row.area);
-    // $("#edit_area").empty();
     $("#edit_mobile").val(row.mobile);
+    $("#edit_alternate_mobile").val(row.alternate_mobile || '');
     $("#edit_address").val(row.address);
+    /* city column holds the city/block, area column holds the district - matching
+       how the add-address form maps its City and District fields. */
+    $("#edit_city_name").val(row.city || '');
+    $("#edit_city").val(row.city_id || '');
+    $("#edit_district").val(row.area || '');
     $("#edit_state").val(row.state);
-    $("#edit_country").val(row.country);
+    $("#edit_country").val(row.country || 'India');
     $("#edit_pincode").val(row.pincode);
 
-    $("#edit_city_search").val(row.city || '');
-    $("#edit_city").val(row.city_id || '');
+    /* clear any pincode helper text left over from a previous edit */
+    $("#edit_pincode_status").text('').removeClass('text-danger text-success');
 
-    if (row.city_id == 0 || row.city_id == "") {
-        $('.edit_area').addClass('d-none');
-        $("#other_areas_value").val(row.area);
-        $("#other_city_value").val(row.area);
-    } else {
-        $("#edit_city").trigger('change');
-    }
-    if(row.type !="")
-    {
-        $('input[type=radio][value=' + row.type.toLowerCase() + ']').attr('checked', true);
+    if (row.type) {
+        $('#edit-address-form input[type=radio][value=' + row.type.toLowerCase() + ']').prop('checked', true);
     }
 }
 

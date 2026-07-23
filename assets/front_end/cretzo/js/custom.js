@@ -2252,6 +2252,8 @@ function customer_wallet_query_paramss(e) {
 
         var variant_stocks = [];
 
+        var variant_availabilities = [];
+
         var variants = [];
 
         var variant_ids = [];
@@ -2271,6 +2273,8 @@ function customer_wallet_query_paramss(e) {
             };
 
             variant_stocks.push($(this).data('stock'));
+
+            variant_availabilities.push($(this).data('availability'));
 
             variant_ids.push($(this).data('id'));
 
@@ -2294,6 +2298,7 @@ function customer_wallet_query_paramss(e) {
                     prices = [];
                     var selected_variant_id = '';
                     var stock = '';
+                    var availability = 1;
                     $.each(variants, function (i, e) {
                         if (arrays_equal(selected_attributes, e)) {
                             is_variant_available = true;
@@ -2301,6 +2306,7 @@ function customer_wallet_query_paramss(e) {
                             selected_variant_id = variant_ids[i];
                             selected_image_index = image_indexes[i];
                             stock = variant_stocks[i];
+                            availability = variant_availabilities[i];
                         }
                     });
                     
@@ -2346,8 +2352,17 @@ function customer_wallet_query_paramss(e) {
                             $('#add_cart').attr('data-product-price', price);
                         }
 
-                        $('#stock-quantity').html(stock + ' in stock');
-                        
+                        // Reflect out-of-stock state for the selected variant. availability == 0
+                        // means the variant is unavailable / out of stock (matches server-side
+                        // validate_stock), so block adding it to the cart.
+                        if (availability === 0 || availability === '0') {
+                            $('#stock-quantity').html('<span class="text-danger fw-b">Out of Stock</span>');
+                            $('#add_cart').attr('disabled', 'true');
+                        } else {
+                            $('#stock-quantity').html((stock !== '' && stock != null) ? stock + ' in stock' : 'In Stock');
+                            $('#add_cart').removeAttr('disabled');
+                        }
+
                     } else {
                         price = '<small class="text-danger h5">No Variant available!</small>';
                         $('#price').html(price);
