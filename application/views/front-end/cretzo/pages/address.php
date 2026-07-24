@@ -111,7 +111,7 @@
         <div class="modal-content">
             <div class="modal-header pt-6 pb-1">
                 <h4 class="modal-title w-100 ta-c" id="exampleModalLongTitle"> Add Address </h4>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                <button type="button" class="close" data-bs-dismiss="modal" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
@@ -202,7 +202,7 @@
         <div class="modal-content">
             <div class="modal-header pt-6 pb-1">
                 <h4 class="modal-title w-100 ta-c" id="exampleModalLongTitle"><?= !empty($this->lang->line('edit_address')) ? $this->lang->line('edit_address') : 'Edit Address' ?></h4>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                <button type="button" class="close" data-bs-dismiss="modal" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>

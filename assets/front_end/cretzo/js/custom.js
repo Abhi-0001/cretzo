@@ -1290,14 +1290,12 @@ search_products.on("select2:select", function (e) {
                                 icon: "success",
                                 title: e.message
                             }), $("#cart-count").text(e.data.cart_count);
-                            // display_cart(e.data.items);
-                            // var n = "";
-                            $.each(e.data.items, function (e, t) {
-                                console.log(t);
-                                void 0 !== t.product_variants.variant_values && null != t.product_variants.variant_values && t.product_variants.variant_values;
-                                var a = t.special_price < t.price && 0 != t.special_price ? t.special_price : t.price;
-                                n += '<div class="shopping-cart"><div class="shopping-cart-item d-flex justify-content-between mb-4" title = "' + t.name + '"><div class="d-flex flex-row gap-3"><figure class="rounded cart-img"><a href="' + base_url + 'products/details/' + t.slug + '"><img src="' + base_url + t.image + '" alt="Not Found" style="object-fit: contain;"></a></figure><div class="w-100 cart-title"><a href="' + base_url + 'products/details/' + t.slug + '"><h3 class="post-title fs-16 lh-xs mb-1" title = " ' + t.name + '">' + t.name + "</h3></a><span>" + t.product_variants.variant_values + '</span><p class="price"><ins><span class="amount">' + currency + a + '</span></ins></p><div class="product-pricing d-flex py-2 px-1 w-100"><div class="align-items-center d-flex p-2 w-15"><input type="number" name="header_qty" class="form-control d-flex align-items-center" value="' + c + '" data-id="' + t.product_variant_id + '" data-price="' + t.price + '" min="' + c + '" max="' + l + '" step="' + d + '" ></div><div class="product-line-price align-self-center px-1">' + currency + (t.qty * a) + '</div></div></div></div><div class="product-sm-removal"><button class="remove-product btn btn-sm btn-danger rounded-1 p-1 py-0" data-id="' + t.product_variant_id + '"><i class="uil uil-trash-alt"></i></button></div></div></div>'
-                            }), $("#cart-item-sidebar").html(n)
+                            $.each(e.data.items, function (idx, item) {
+                                item.min = c;
+                                item.max = l;
+                                item.step = d;
+                            });
+                            display_cart(e.data.items);
                         } else {
                             if (0 == is_loggedin) {
                                 /* CommentedOutToast */

@@ -23,12 +23,10 @@
 }
 
 .catagory-img{
-    /* Fill the circular frame edge-to-edge instead of letterboxing (no white bars). */
     object-fit: cover;
     aspect-ratio: 1 / 1;
     width: 96px;
     background-color: white;
-    /* border: 2px solid var(--color-orange); */
     border: 2px solid var(--color-light-grey);
     border-radius: 50%;
 }
