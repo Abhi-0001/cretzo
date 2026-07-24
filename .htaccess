@@ -20,6 +20,12 @@
     <FilesMatch "\.(css|js|png|jpg|jpeg|gif|svg|woff|woff2)$">
         Header set Cache-Control "public, max-age=31536000, immutable"
     </FilesMatch>
+    # Every page request is internally rewritten to index.php below, so this matches all dynamic responses
+    <FilesMatch "\.php$">
+        Header set Cache-Control "no-cache, no-store, must-revalidate"
+        Header set Pragma "no-cache"
+        Header set Expires 0
+    </FilesMatch>
 </IfModule>
 
 
@@ -36,11 +42,6 @@ SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
 
 Options -Indexes
 
-<IfModule mod_headers.c>
-    Header set Cache-Control "no-cache, no-store, must-revalidate"
-    Header set Pragma "no-cache"
-    Header set Expires 0
-</IfModule>
 <IfModule mod_headers.c>
   <FilesMatch "\.(ttf|ttc|otf|eot|woff|woff2|font.css|css)$">
     Header set Access-Control-Allow-Origin "*"
