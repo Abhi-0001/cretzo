@@ -1,4 +1,5 @@
-#login_div.login-container{
+#login_div.login-container,
+#forgot_password_div.login-container{
     /* height: 100vh;
     width: 100%; */
     /* padding: 20px; */
@@ -10,10 +11,12 @@
     background-color: transparent;
     /* background: linear-gradient(rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.6)), url(../images/bg.png); */
 }
-#login_div > form{
+#login_div > form,
+#forgot_password_div > form{
     width: 100%;
 }
-#login_div .login{
+#login_div .login,
+#forgot_password_div .login{
     width: 100%;
     max-width: 800px;
     min-height: 300px;
@@ -25,24 +28,29 @@
     overflow: hidden;
     position: relative;
 }
-#login_div .login-left{
+#login_div .login-left,
+#forgot_password_div .login-left{
     width: 58%;
     padding: 50px 50px 20px 50px;
 }
-#login_div .input{
+#login_div .input,
+#forgot_password_div .input{
     margin-bottom: 10px;
 }
-#login_div .login-right{
+#login_div .login-right,
+#forgot_password_div .login-right{
     width: 42%;
     /* background-image: url(../images/login-img.png); */
     background-repeat: no-repeat;
     background-size: cover;
     background-position: center;
 }
-#login_div .login .heading-n{
+#login_div .login .heading-n,
+#forgot_password_div .login .heading-n{
     margin-bottom: 10px;
 }
-#login_div .field-container{
+#login_div .field-container,
+#forgot_password_div .field-container{
     margin: 40px 0 20px 0;
 }
 #login_div .login-with-container{
@@ -68,7 +76,8 @@
     height: 20px;
     width: auto;
 }
-#login_div .btn-container{
+#login_div .btn-container,
+#forgot_password_div .btn-container{
     margin-top: 20px;
 }
 
@@ -78,6 +87,16 @@
     width: 100%;
     /* display: flex; */
     gap: 10px;
+}
+
+#forgot_password_div .field-container .intl-tel-input {
+    width: 100%;
+}
+#forgot_password_div .field-container .selected-flag {
+    width: 96px;
+}
+#forgot_password_div .field-container .selected-dial-code {
+    padding-left: 8px;
 }
 
 
@@ -96,7 +115,8 @@
 body.modal-open{
     padding-right: 0 !important;
 }
-#login_div .btn-close {
+#login_div .btn-close,
+#forgot_password_div .btn-close {
     position: absolute;
     top: 12px;
     right: 12px;
@@ -113,7 +133,8 @@ body.modal-open{
     background-position: center;
     background-origin: border-box;
 }
-#login_div input.form-control{
+#login_div input.form-control,
+#forgot_password_div input.form-control{
     line-height: normal;
 }
 #login_div input[type='checkbox']{
@@ -126,10 +147,6 @@ body.modal-open{
 #login_div #forgot_password_link:hover{
     color: var(--color-orange);
 }
-#forgot_password_div{
-    padding: 4rem;
-    padding-bottom: 2rem;
-}
 #login_div .password-container #loginPassword {
     width: 100%;
 }
@@ -140,7 +157,8 @@ body.modal-open{
     transform: translateY(-50%);
     margin-top: 3px;
 }
-#login_div .cretzo.btn{
+#login_div .cretzo.btn,
+#forgot_password_div .cretzo.btn{
     padding: 4px 60px;
 }
 
@@ -248,53 +266,65 @@ body.modal-open{
 
 
 @media screen and (max-width: 1200px){
-    #login_div .login{
+    #login_div .login,
+    #forgot_password_div .login{
         width: 70vw;
     }
 }
 @media screen and (max-width: 1000px){
-    #login_div .login{
+    #login_div .login,
+    #forgot_password_div .login{
         width: 80vw;
     }
 }
 @media screen and (max-width: 800px){
-    #login_div .login{
+    #login_div .login,
+    #forgot_password_div .login{
         width: 90vw;
     }
-    #login_div .login-left{
+    #login_div .login-left,
+    #forgot_password_div .login-left{
         padding: 35px 35px 10px 35px;
     }
 }
 @media screen and (max-width: 600px){
-    #login_div .login-container{
+    #login_div .login-container,
+    #forgot_password_div .login-container{
         padding: 20px 10px;
     }
-    #login_div .login{
+    #login_div .login,
+    #forgot_password_div .login{
         width: 100%;
     }
-    #login_div .login-left{
+    #login_div .login-left,
+    #forgot_password_div .login-left{
         padding: 20px 20px 10px 20px;
     }
 }
 @media screen and (max-width: 500px){
-    #login_div .login{
+    #login_div .login,
+    #forgot_password_div .login{
         border-radius: 14px;
         flex-direction: column-reverse;
     }
-    #login_div .login-left{
+    #login_div .login-left,
+    #forgot_password_div .login-left{
         width: 100%;
         padding: 12px 24px;
     }
-    #login_div .login-right{
+    #login_div .login-right,
+    #forgot_password_div .login-right{
         width: 100%;
         min-height: 250px;
     }
 }
 @media screen and (max-width: 400px){
-    #login_div .login-container{
+    #login_div .login-container,
+    #forgot_password_div .login-container{
         padding: 10px 5px;
     }
-    #login_div .login-left{
+    #login_div .login-left,
+    #forgot_password_div .login-left{
         padding: 12px 24px;
     }
 }
