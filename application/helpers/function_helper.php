@@ -125,6 +125,16 @@ function get_logo()
     return $logo;
 }
 
+function add_ver($url)
+{
+    $relative = ltrim(str_replace(rtrim(base_url(), '/'), '', $url), '/');
+    $full_path = FCPATH . $relative;
+    if (is_file($full_path)) {
+        $url .= (strpos($url, '?') === false ? '?' : '&') . 'v=' . filemtime($full_path);
+    }
+    return $url;
+}
+
 function fetch_details($table, $where = NULL, $fields = '*', $limit = '', $offset = '', $sort = '', $order = '', $where_in_key = '', $where_in_value = '')
 {
     $t = &get_instance();

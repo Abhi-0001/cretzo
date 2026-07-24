@@ -29,21 +29,17 @@ class Login extends CI_Controller
             }
             $this->data['identity_column'] = $identity_column;
             $this->load->view('admin/login', $this->data);
-        } else {
+        } else if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
             if ($this->session->has_userdata('url')) {
-                $url = $this->session->userdata('url');
                 $this->session->unset_userdata('url');
-                redirect('admin/home', 'refresh');
-                // redirect($url, 'refresh');
-            } else {
-                if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller()) {
-                    redirect('seller/home', 'refresh');
-                } else if ($this->ion_auth->logged_in() && $this->ion_auth->is_delivery_boy()) {
-                    redirect('delivery_boy/home', 'refresh');
-                } else {
-                    redirect('admin/home', 'refresh');
-                }
             }
+            redirect('admin/home', 'refresh');
+        } else if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller()) {
+            redirect('seller/home', 'refresh');
+        } else if ($this->ion_auth->logged_in() && $this->ion_auth->is_delivery_boy()) {
+            redirect('delivery_boy/home', 'refresh');
+        } else {
+            redirect('error_404', 'refresh');
         }
     }
 
