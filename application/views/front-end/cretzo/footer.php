@@ -306,42 +306,49 @@ $system_settings = get_settings('system_settings', true); ?>
                 <!-- login section complete -->
 
 
-                <section class="d-none" id="forgot_password_div">
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    <div class="text-center h5"><?= !empty($this->lang->line('forgot_password')) ? $this->lang->line('forgot_password') : 'Forgot Password' ?></div>
-                    <hr class="mt-0 mb-5">
+                <section class="d-none login-container" id="forgot_password_div">
+
                     <form id="send_forgot_password_otp_form" method="POST" action="#">
-                        <div class="input-group">
-                            <input type="text" class="form-control" name="mobile_number" id="forgot_password_number" placeholder="Mobile number" value="">
-                        </div>
-                        <div class="col-12 d-flex justify-content-center pb-4 mt-3">
-                            <div id="recaptcha-container-2"></div>
-                        </div>
-                        <footer>
-                            <button type="button" data-bs-dismiss="modal" aria-label="Close" class="btn btn-soft-dark btn-sm rounded-pill"><?= !empty($this->lang->line('cancel')) ? $this->lang->line('cancel') : 'Cancel' ?></button>
-                            <button type="submit" id="forgot_password_send_otp_btn" class="submit_btn btn btn-primary btn-sm rounded-pill"><?= !empty($this->lang->line('send_otp')) ? $this->lang->line('send_otp') : 'Send OTP' ?></button>
-                        </footer>
-                        <br>
-                        <div class="d-flex justify-content-center">
-                            <div class="form-group" id="forgot_pass_error_box"></div>
+                        <div class="login rounded-1">
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            <div class="login-left">
+                                <h1 class="heading-n ta-c"><?= !empty($this->lang->line('forgot_password')) ? $this->lang->line('forgot_password') : 'Forgot Password' ?></h1>
+                                <p class="text-n ta-c op-6">Enter your registered mobile number to receive an OTP.</p>
+                                <div class="field-container">
+                                    <input type="text" class="form-control input ta-c" name="mobile_number" id="forgot_password_number" placeholder="Mobile Number" value="">
+                                    <div class="d-flex justify-content-center mt-3">
+                                        <div id="recaptcha-container-2"></div>
+                                    </div>
+                                </div>
+                                <div class="form-group ta-c" id="forgot_pass_error_box"></div>
+                                <div class="ta-c btn-container">
+                                    <button type="submit" id="forgot_password_send_otp_btn" class="submit_btn cretzo btn btn-dark"><?= !empty($this->lang->line('send_otp')) ? $this->lang->line('send_otp') : 'Send OTP' ?></button>
+                                </div>
+                            </div>
+                            <div class="login-right" style="background-image: url(<?= base_url('assets/front_end/cretzo/img/new_cretzo/login-img.png') ?>);"></div>
                         </div>
                     </form>
+
                     <form id="verify_forgot_password_otp_form" class="d-none" method="post" action="#">
-                        <div class="input-group mb-3">
-                            <input type="text" id="forgot_password_otp" class="form-control" name="otp" placeholder="OTP" value="" autocomplete="off" required>
-                        </div>
-                        <div class="input-group mb-3">
-                            <input type="password" class="form-control" name="new_password" placeholder="New Password" value="" required>
-                        </div>
-                        <footer>
-                            <button type="button" class="btn btn-secondary btn-sm rounded-pill" data-bs-dismiss="modal" aria-label="Close"><?= !empty($this->lang->line('cancel')) ? $this->lang->line('cancel') : 'Cancel' ?></button>
-                            <button type="submit" class="btn btn-primary btn-sm rounded-pill submit_btn" id="reset_password_submit_btn"><?= !empty($this->lang->line('submit')) ? $this->lang->line('submit') : 'Submit' ?></button>
-                        </footer>
-                        <br>
-                        <div class="d-flex justify-content-center">
-                            <div class="form-group" id="set_password_error_box"></div>
+                        <div class="login rounded-1">
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+
+                            <div class="login-left">
+                                <h1 class="heading-n ta-c"><?= !empty($this->lang->line('forgot_password')) ? $this->lang->line('forgot_password') : 'Forgot Password' ?></h1>
+                                <p class="text-n ta-c op-6">Enter the OTP and set a new password.</p>
+                                <div class="field-container">
+                                    <input type="text" id="forgot_password_otp" class="form-control input ta-c" name="otp" placeholder="OTP" value="" autocomplete="off" required>
+                                    <input type="password" class="form-control input ta-c" name="new_password" placeholder="New Password" value="" required>
+                                </div>
+                                <div class="form-group ta-c" id="set_password_error_box"></div>
+                                <div class="ta-c btn-container">
+                                    <button type="submit" class="submit_btn cretzo btn btn-dark" id="reset_password_submit_btn"><?= !empty($this->lang->line('submit')) ? $this->lang->line('submit') : 'Submit' ?></button>
+                                </div>
+                            </div>
+                            <div class="login-right" style="background-image: url(<?= base_url('assets/front_end/cretzo/img/new_cretzo/login-img.png') ?>);"></div>
                         </div>
                     </form>
+
                 </section>
 
             </section>

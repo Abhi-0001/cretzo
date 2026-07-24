@@ -23,6 +23,55 @@ const Toast = Swal.mixin({
     // timer: 0,
     // iconColor: getComputedStyle(document.body).getPropertyValue('--color-orange')
 });
+function removeFromWishlistAfterMoveToBag($btn) {
+    var $card = $btn.closest('.wishlist-card');
+    var productId = $card.length ? $btn.attr('data-product-id') : null;
+
+    if (!$card.length && $btn.closest('#quick-view').length) {
+        // Multi-variant wishlist items open the quick-view popup instead of
+        // adding straight to cart (data-izimodal-open="#quick-view"); its
+        // "Add to Cart" button (#modal-add-to-cart-button) lives in
+        // footer.php, not inside the wishlist card, so it can never be found
+        // via .closest('.wishlist-card'). Trace back via the product id the
+        // "Move to bag" click already stashed on #quick-view when it opened.
+        var quickViewProductId = $("#quick-view").data("data-product-id");
+        if (quickViewProductId) {
+            $card = $('.wishlist-card .add_to_cart[data-product-id="' + quickViewProductId + '"]').closest('.wishlist-card');
+            productId = quickViewProductId;
+        }
+    }
+
+    if (!$card.length || !productId) return;
+
+    var formdata = new FormData();
+    formdata.append(csrfName, csrfHash);
+    formdata.append('product_id', productId);
+    $.ajax({
+        type: 'POST',
+        url: base_url + 'my-account/manage-favorites',
+        data: formdata,
+        cache: false,
+        contentType: false,
+        processData: false,
+        dataType: 'json',
+        success: function (res) {
+            csrfName = res.csrfName;
+            csrfHash = res.csrfHash;
+            $card.fadeOut(300, function () {
+                $(this).remove();
+                var newCount = $(".wishlist-card-container > .wishlist-card").length;
+                $(".wishlist .no-of-item-text > span").text(newCount);
+                if (newCount === 0) {
+                    location.reload();
+                }
+            });
+            $('[data-wishlist-count], #wishlist-count').each(function () {
+                var current = parseInt($(this).text(), 10) || 0;
+                $(this).text(Math.max(0, current - 1));
+            });
+        }
+    });
+}
 
 function queryParams(e) {
     return {
@@ -1296,6 +1345,7 @@ search_products.on("select2:select", function (e) {
                                 item.step = d;
                             });
                             display_cart(e.data.items);
+                            removeFromWishlistAfterMoveToBag(u);
                         } else {
                             if (0 == is_loggedin) {
                                 /* CommentedOutToast */
@@ -2136,8 +2186,8 @@ function display_cart(e) {
             variant_tag = "<span>" + v + "</span>"
         }
 
-        var img = base_url + (e.image).replace(base_url, "");
-        var slug = base_url + 'products/details/' + (e.slug).replace(base_url + 'products/details/', "");
+        var img = base_url + (e.image || "").replace(base_url, "");
+        var slug = base_url + 'products/details/' + (e.product_slug || e.slug || "").replace(base_url + 'products/details/', "");
         var s = e.special_price < e.price && 0 != e.special_price ? e.special_price : e.price;
 
         a += '<div class="shopping-cart"><div class="shopping-cart-item d-flex justify-content-between mb-4"><div class="d-flex flex-row gap-3" title=" ' + e.name + '"><figure class="rounded cart-img"><a href="' + slug + '"><img src="' + img + '" alt="' + e.name + '" title="' + e.name + '" style="object-fit: contain;"></a></figure><div class="w-100 cart-title"><a href="' + slug + '"><h3 class="post-title fs-16 lh-xs mb-1 no-wrap" title=" ' + e.name + '">' + e.name + '</h3></a>' + variant_tag + '<p class="price"><ins><span class="amount">' + currency + s + '</span></ins></p><div class="product-pricing d-flex w-100"><div class="product-quantity product-sm-quantity"><input type="number" name="header_qty" class="form-control d-flex align-content-center w-14" value="' + e.qty + '" data-id="' + e.product_variant_id + '" data-price="' + e.price + '" min="' + e.min + '" max="' + e.max + '" step="' + e.step + '"></div><div class="product-line-price align-self-center px-1 no-wrap" style="color: #F2822E;">' + currency + (e.qty * s) + '</div></div></div>            </div><div class="product-sm-removal"><button class="remove-product btn btn-sm btn-danger rounded-1 p-1 py-0" data-id="' + e.product_variant_id + '"><i class="uil uil-trash-alt"></i></button></div></div></div>'        
@@ -2372,11 +2422,9 @@ function customer_wallet_query_paramss(e) {
             }
         });
         variants = "";
-    }),
-
-    $(document).on("click", ".add_to_cart", function (e) {
+    }), $(document).on("click", ".add_to_cart", function (e) {
         e.preventDefault();
-       
+
         var t = $('[name="qty"]').val();
         $("#quick-view").data("data-product-id", $(this).data("productId"));
         var a = $(this).attr("data-product-variant-id"),
@@ -2422,6 +2470,7 @@ function customer_wallet_query_paramss(e) {
                     });
 
                     display_cart(e.data.items);
+                    removeFromWishlistAfterMoveToBag(d);
 
                     var t = "";
                     /* $.each(e.data.items, function (e, a) {
@@ -3613,6 +3662,47 @@ $(document).ready(function () {
             }
         });
     }
+    var pendingLinkCredential = null;
+    var pendingLinkAttemptedProvider = null;
+
+    function handleAccountConflict(error, attemptedProvider) {
+        var pendingCredential = error.credential;
+
+        setSocialButtonLoading(attemptedProvider, false);
+        toggleAuthLoading(false);
+
+        if (!pendingCredential) {
+            Toast.fire({
+                icon: 'error',
+                title: 'This email is already registered using a different sign-in method.'
+            });
+            return;
+        }
+
+        pendingLinkCredential = pendingCredential;
+        pendingLinkAttemptedProvider = attemptedProvider;
+        var attemptedLabel = attemptedProvider === 'facebook' ? 'Facebook' : 'Google';
+        var otherLabel = attemptedProvider === 'facebook' ? 'Google' : 'Facebook';
+
+        Toast.fire({
+            icon: 'warning',
+            title: 'This email already has an account. Click "Sign in with ' + otherLabel + '" below to link your ' + attemptedLabel + ' login.'
+        });
+    }
+    function completeLinkedLogin(user, signedInProvider) {
+        var credential = pendingLinkCredential;
+        var originalProvider = pendingLinkAttemptedProvider;
+        pendingLinkCredential = null;
+        pendingLinkAttemptedProvider = null;
+
+        user.linkWithCredential(credential).then(function (linkResult) {
+            toggleAuthLoading(true, 'Account linked. Signing in...');
+            handleSocialLogin(linkResult.user, originalProvider);
+        }).catch(function (linkError) {
+            console.error(linkError);
+             handleSocialLogin(user, signedInProvider);
+        });
+    }
 
     function googleSignIn() {
         toggleAuthLoading(true, 'Opening Google sign-in...');
@@ -3621,8 +3711,16 @@ $(document).ready(function () {
         provider.addScope('email');
         firebase.auth().signInWithPopup(provider).then(function (result) {
             toggleAuthLoading(true, 'Signing in with Google...');
-            handleSocialLogin(result.user, 'google');
+            if (pendingLinkCredential && pendingLinkAttemptedProvider === 'facebook') {
+                completeLinkedLogin(result.user, 'google');
+            } else {
+                handleSocialLogin(result.user, 'google');
+            }
         }).catch(function (error) {
+            if (error && error.code === 'auth/account-exists-with-different-credential') {
+                handleAccountConflict(error, 'google');
+                return;
+            }
             setSocialButtonLoading('google', false);
             toggleAuthLoading(false);
             if (error && (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user')) {
@@ -3640,8 +3738,16 @@ $(document).ready(function () {
         provider.addScope('email');
         firebase.auth().signInWithPopup(provider).then(function (result) {
             toggleAuthLoading(true, 'Signing in with Facebook...');
-            handleSocialLogin(result.user, 'facebook');
+            if (pendingLinkCredential && pendingLinkAttemptedProvider === 'google') {
+                completeLinkedLogin(result.user, 'facebook');
+            } else {
+                handleSocialLogin(result.user, 'facebook');
+            }
         }).catch(function (error) {
+            if (error && error.code === 'auth/account-exists-with-different-credential') {
+                handleAccountConflict(error, 'facebook');
+                return;
+            }
             setSocialButtonLoading('facebook', false);
             toggleAuthLoading(false);
             if (error && (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user')) {

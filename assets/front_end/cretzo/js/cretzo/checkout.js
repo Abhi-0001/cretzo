@@ -762,7 +762,7 @@ function checkForPromoInQuery(){
 
     if (promoParam) {
         $('.promocode_input').val(promoParam);
-        $(".redeem_btn").click();
+        $(".redeem_btn").first().trigger('click');
     }
 }
 
