@@ -154,6 +154,7 @@ $path = ($is_rtl == 1) ? 'rtl/' : "";
 <link rel="stylesheet" href="<?= THEME_ASSETS_URL  .  'css/'. $path . THEME . '/' . $path . $main_page . '-override.css' ?>">
 <!-- --------------------------------------------------------------------------------------------------------------------- -->
 <link rel="stylesheet" href="<?= base_url('assets/front_end/cretzo/css/cretzo-fixes.css') ?>">
+<link rel="stylesheet" href="<?= base_url('assets/front_end/cretzo/css/mini-cart-compact.css') ?>">
 
 
 <!-- --------------------------------------------------------------------------------------------------------------------- -->

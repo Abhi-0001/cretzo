@@ -52,6 +52,25 @@ a.nav-link{
         white-space: normal;
     }
 }
+
+/* ============================================================
+   ADMIN SIDEBAR: CLEAR THE BRAND LOGO FLOAT
+   Root cause of the clipped-label bug above (verified live):
+   AdminLTE floats .brand-image left with max-height:33px/width:auto.
+   That's sized for a small square icon, but Cretzo's uploaded logo
+   is a wide wordmark (2085x532), so at 33px tall it renders ~130px
+   wide. .brand-link never clears its own float, so the float
+   escapes past .brand-link's short box into the .sidebar nav list
+   below. .sidebar establishes its own block-formatting-context
+   (overflow:hidden, via OverlayScrollbars' os-host-overflow class),
+   so per spec it shrinks to avoid overlapping that stray float —
+   squeezing the whole nav column down to ~92px and truncating every
+   label ("Dashboard" -> "Dash"). Giving .brand-link a BFC of its own
+   contains the float inside it instead of letting it leak out.
+============================================================ */
+.brand-link {
+    overflow: hidden;
+}
 /* Active item uses the Cretzo orange with white text/icons */
 .nav-sidebar .nav-link.active,
 .nav-sidebar .nav-link.active .nav-icon {
