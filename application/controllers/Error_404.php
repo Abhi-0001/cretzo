@@ -21,9 +21,10 @@ class Error_404 extends CI_Controller
     public function index()
     {
         $this->data['main_page'] = '404_page';
-        $this->data['title'] = 'Home | ' . $this->data['web_settings']['site_title'];
+        $this->data['title'] = 'Page Not Found | ' . $this->data['web_settings']['site_title'];
         $this->data['keywords'] = 'Home, ' . $this->data['web_settings']['meta_keywords'];
-        $this->data['description'] = 'Home | ' . $this->data['web_settings']['meta_description'];
+        $this->data['description'] = 'Page Not Found | ' . $this->data['web_settings']['meta_description'];
+        $this->data['hide_header_footer'] = true;
         $this->load->view('front-end/' . THEME . '/template', $this->data);
     }
 }
