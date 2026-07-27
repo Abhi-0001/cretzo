@@ -31,14 +31,9 @@ class Home extends CI_Controller
             $this->data['curreny'] = get_settings('currency');
             $this->data['profile_completion'] = $this->get_seller_profile_completion($user_id);
             $this->data['title'] = 'Seller Panel | ' . $settings['app_name'];
-            $this->data['order_counter'] = orders_count("", $user_id);
             $this->data['user_counter'] = (get_seller_permission($this->ion_auth->get_user_id(), 'customer_privacy')) ? $this->Home_model->count_new_users() : 0;
-            $this->data['balance'] = ($user_res[0]['balance'] == NULL) ? 0 : $user_res[0]['balance'];
             $this->data['products'] = $this->Home_model->count_products($user_id);
-            $this->data['seller_earnings'] = $this->Home_model->total_earnings($type = 'seller');
-            $this->data['username'] =  $user_res[0]['username'];
-            $this->data['ratings'] =  fetch_details("seller_data", ['user_id' => $user_id], "rating,no_of_ratings");
-            $this->data['profile_completion'] = $this->get_seller_profile_completion($user_id);
+            $this->data['seller_earnings'] = $this->Home_model->total_earnings('seller', $user_id);
             $this->data['meta_description'] = 'Seller Panel | ' . $settings['app_name'];
             $this->data['count_products_low_status'] = $this->Home_model->count_products_stock_low_status($user_id);
             $this->data['count_products_availability_status'] = $this->Home_model->count_products_availability_status($user_id);
@@ -68,9 +63,6 @@ class Home extends CI_Controller
             }
             $this->data['order_counter'] = $total_orders;
             $this->data['status_counts'] = $orders_count;
-
-            $this->data['status_counts'] = $orders_count;
-
 
              // subscription status for seller
             $active_subscription = $this->Seller_subscription_model->get_active_subscription($user_id);
@@ -134,9 +126,6 @@ class Home extends CI_Controller
             ->get()
             ->row_array();
 
-            // TEMP DEBUG
-            // file_put_contents('C:/xampp/htdocs/cretzo/debug_profile.txt', print_r($profile_data, true));      
-            
             if (empty($profile_data)) {
             return [
                 'percentage' => 0,
@@ -210,11 +199,6 @@ class Home extends CI_Controller
             'percentage' => $completed_weight,
             'missing_sections' => $missing_sections,
         ];
-        file_put_contents('C:/xampp/htdocs/cretzo/debug_completion.txt', print_r([
-            'profile_data' => $profile_data,
-            'completed_weight' => $completed_weight,
-            'missing_sections' => $missing_sections
-        ], true));
     }
 
     public function request_admin_verification()
@@ -479,19 +463,34 @@ class Home extends CI_Controller
                 return false;
                 exit();
             }
+            // Only tables a seller actually owns rows in may be toggled here, and only
+            // rows belonging to the logged-in seller — this endpoint was copy-pasted from
+            // the admin controller (which is allowed to touch any table/row) without ever
+            // adding that restriction, so as written any logged-in seller could flip the
+            // active/status flag on an arbitrary row of an arbitrary table (e.g. disable
+            // another user's account) just by calling this URL directly.
+            $allowed_tables = ['products'];
+            if (!in_array($_GET['table'], $allowed_tables, true)) {
+                $this->response['error'] = false;
+                $this->response['message'] = 'Not allowed.';
+                print_r(json_encode($this->response));
+                return;
+            }
+            $owns_row = $this->db->where('id', $_GET['id'])->where('seller_id', $user_id)->get($_GET['table'])->num_rows() > 0;
+            if (!$owns_row) {
+                $this->response['error'] = false;
+                $this->response['message'] = 'Not allowed.';
+                print_r(json_encode($this->response));
+                return;
+            }
             if ($_GET['status'] == '1') {
                 $_GET['status'] = 0;
             } else if ($_GET['status'] == '0') {
                 $_GET['status'] = 1;
             }
             $this->db->trans_start();
-            if ($_GET['table'] == 'users') {
-                $this->db->set('active', $this->db->escape($_GET['status']));
-            } else {
-                $this->db->set('status', $this->db->escape($_GET['status']));
-            }
-
-            $this->db->where('id', $_GET['id'])->update($_GET['table']);
+            $this->db->set('status', $this->db->escape($_GET['status']));
+            $this->db->where('id', $_GET['id'])->where('seller_id', $user_id)->update($_GET['table']);
             $this->db->trans_complete();
             $error = false;
             $message = str_replace('_', ' ', $_GET['table']);
@@ -559,13 +558,10 @@ class Home extends CI_Controller
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
             $user_id = $this->session->userdata('user_id');
-            $this->db->select('category_ids');
-            $where = 'user_id = ' . $user_id;
-            $this->db->where($where);
-            $result = $this->db->get('seller_data')->result_array();
-            $result = explode(",", $result[0]['category_ids']);
+            $seller_row = $this->db->select('category_ids')->where('user_id', $user_id)->get('seller_data')->row_array();
+            $category_ids = explode(",", $seller_row['category_ids'] ?? '');
 
-            $res = $this->db->select('c.name as name,count(c.id) as counter')->group_Start()->where_in('c.id', $result)->group_End()->where(['p.status' => '1', 'c.status' => '1'])->join('products p', 'p.category_id=c.id')->group_by('c.id')->get('categories c')->result_array();
+            $res = $this->db->select('c.name as name,count(c.id) as counter')->group_Start()->where_in('c.id', $category_ids)->group_End()->where(['p.status' => '1', 'c.status' => '1'])->join('products p', 'p.category_id=c.id')->group_by('c.id')->get('categories c')->result_array();
             $result = array();
             $result[0][] = 'Task';
             $result[0][] = 'Hours per Day';

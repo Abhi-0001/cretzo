@@ -1,15 +1,16 @@
-<div class="content-wrapper">
+<div class="content-wrapper subscription-payment-page">
     <section class="content-header">
         <div class="container-fluid">
-            <div class="row mb-2">
+            <div class="row mb-2 align-items-center">
                 <div class="col-sm-6">
-                    <h4>Subscription Details</h4>
+                    <h4 class="mb-0"><i class="fas fa-credit-card mr-2 text-primary-theme"></i>Complete Your Subscription</h4>
+                    <p class="text-muted mb-0 small">Review your plan and choose how you'd like to pay.</p>
                 </div>
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">
                         <li class="breadcrumb-item"><a href="<?= base_url('seller/home') ?>">Home</a></li>
                         <li class="breadcrumb-item"><a href="<?= base_url('seller/subscription/manage_subscriptions') ?>">Subscriptions</a></li>
-                        <li class="breadcrumb-item active">Details</li>
+                        <li class="breadcrumb-item active">Payment</li>
                     </ol>
                 </div>
             </div>
@@ -21,94 +22,144 @@
             <?php if (empty($plan)) : ?>
                 <div class="alert alert-warning">Subscription plan not found.</div>
             <?php else : ?>
-                <div class="card">
-                    <div class="card-body" style="background:var(--bg-cream, #FFF9E6);padding:30px;border-radius:8px">
-                        <style>
-                            .cretzo-sub-grid { display:flex; gap:30px; align-items:flex-start; flex-wrap:wrap; }
-                            .cretzo-left { flex:1; min-width:320px; }
-                            .cretzo-right { width:420px; background:#fff; padding:24px; border-radius:12px; }
-                            .cretzo-box { background:#fffdf6; padding:20px; border-radius:10px; text-align:left }
-                            .payment-methods { background:#fffdf6; padding:20px; border-radius:10px; margin-top:10px }
-                            .payment-methods .option { display:flex; align-items:flex-start; gap:10px; margin-bottom:14px }
-                            .proceed-btn { background:#b8322e; color:#fff; border:none; padding:14px 22px; font-size:18px; border-radius:8px; font-weight:700 }
-                            .change-plan { color:#F28C38; font-weight:700; float:right; text-decoration:none }
-                            .accept-payments { text-align:center; margin-top:18px; color:#666; font-size:14px }
-                            .accept-logos { display:flex; gap:10px; justify-content:center; align-items:center; margin-top:8px }
-                            .accept-logos img { height:50px }
-                        </style>
 
-                        <style>
-                            .cretzo-progress { display:flex; align-items:center; justify-content:center; gap:12px; margin-bottom:50px; font-size:20px }
-                            .cretzo-progress .step { color:#111; font-weight:600; padding:0 6px; }
-                            .cretzo-progress .step.active { color:#F28C38; font-weight:800; }
-                            .cretzo-progress .connector { width:160px; border:dashed 1.5px #222; }
-                            .cretzo-progress .connector.orange { background: repeating-linear-gradient(90deg, #F28C38 0 12px, transparent 12px 24px); }
-                            .cretzo-progress .connector.dark { background: repeating-linear-gradient(90deg, #222 0 12px, transparent 12px 24px); }
-                            @media(max-width:800px){ .cretzo-progress .connector{ width:80px } }
-                        </style>
+                <div class="sub-progress mb-4">
+                    <span class="sub-progress-step done">Choose Plan</span>
+                    <span class="sub-progress-connector done"></span>
+                    <span class="sub-progress-step active">Payment</span>
+                    <span class="sub-progress-connector"></span>
+                    <span class="sub-progress-step">Confirmation</span>
+                </div>
 
-                        <div class="cretzo-progress" aria-hidden="true">
-                            <div class="step">Choose Plan</div>
-                            <div class="connector orange" aria-hidden="true"></div>
-                            <div class="step active">Payment</div>
-                            <div class="connector dark" aria-hidden="true"></div>
-                            <div class="step">Confirmation</div>
-                        </div>
-
-                        <div class="cretzo-sub-grid">
-                            <div class="cretzo-left">
-                                <h1 style="font-size:30px;margin:0;color:#b02b2b">Complete Your<br/>Subscription</h1>
-                                <p style="margin-top:12px;font-size:18px;color:#333">Choose Your Payment Method</p>
-
-                                <div class="payment-methods cretzo-box">
-                                    <div class="option"> <div>Credit Card / Debit Card</div></div>
-                                    <div class="option"> <div>Net Banking</div></div>
-                                    <div class="option"> <div>Pay by any UPI App<br/><small style="color:#666">Google Pay, PhonePe, Paytm and more</small></div></div>
-                                </div>
-
-                                <div style="margin-top:20px">
-                                    <button id="proceed-pay-btn" class="proceed-btn">Proceed to Pay ₹<?= html_escape($plan['price']); ?>/-</button>
-                                </div>
-
-                                
-                                
+                <div class="row">
+                    <div class="col-lg-7 mb-3">
+                        <div class="card attribute-card h-100">
+                            <div class="card-header attribute-card-header">
+                                <span class="header-icon bg-set"><i class="fas fa-wallet"></i></span>
+                                <h5 class="mb-0">Choose Your Payment Method</h5>
                             </div>
+                            <div class="card-body d-flex flex-column">
+                                <ul class="payment-option-list mb-4">
+                                    <li><i class="fas fa-credit-card"></i>Credit Card / Debit Card</li>
+                                    <li><i class="fas fa-university"></i>Net Banking</li>
+                                    <li>
+                                        <i class="fas fa-mobile-alt"></i>
+                                        <div>
+                                            Pay by any UPI App
+                                            <small class="d-block text-muted">Google Pay, PhonePe, Paytm and more</small>
+                                        </div>
+                                    </li>
+                                </ul>
+                                <div class="mt-auto">
+                                    <button id="proceed-pay-btn" class="btn btn-primary-theme btn-lg">Proceed to Pay ₹<?= html_escape($plan['price']); ?>/-</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
-                            <div class="cretzo-right">
-                                <div style="display:flex;align-items:center;justify-content:space-between">
-                                    <div><strong>You selected:</strong></div>
-                                </div>
-                                <h2 style="color:var(--orange, #F28C38);margin-top:8px"><?= html_escape($plan['name']); ?></h2>
-                                <div style="font-size:20px;font-weight:700;margin-top:8px">₹<?= html_escape($plan['price']); ?> / <?= html_escape($plan['validity']); ?></div>
-                                <div style="margin-top:14px;text-align:left">
-                                    <p><strong>Validity :</strong> <?= html_escape($plan['validity']); ?></p>
-                                    <p><strong>Access :</strong> <?= !empty($plan['listings_limit']) ? intval($plan['listings_limit']) . ' extra listings' : 'Unlimited'; ?></p>
-                                    <p><strong>Support :</strong> 24*7</p>
-                                </div>
-                                <div style="margin-top:6px"><strong>Commission</strong>
-                                    <ul style="text-align:left;margin-top:6px">
-                                        <li> <?= html_escape($plan['commission_first50']); ?>% (First 50 Orders)</li>
-                                        <li> <?= html_escape($plan['commission_51_100']); ?>% (51-100 Orders)</li>
-                                        <li> <?= html_escape($plan['commission_after100']); ?>% (Above 100 Orders)</li>
-                                    </ul>
-                                </div>
-                                <div style="margin-top:18px;font-size:22px;color:#b8322e;font-weight:800">₹<?= html_escape($plan['price']); ?> / Year <a class="change-plan" href="<?= base_url('seller/subscription/manage_subscriptions'); ?>">Change plan</a></div>
-                                
+                    <div class="col-lg-5 mb-3">
+                        <div class="card attribute-card plan-summary-card h-100">
+                            <div class="card-body">
+                                <p class="text-muted small mb-1">You selected</p>
+                                <h3 class="plan-name mb-2"><?= html_escape($plan['name']); ?></h3>
+                                <div class="plan-price mb-3">₹<?= html_escape($plan['price']); ?> <span class="text-muted font-weight-normal">/ <?= html_escape($plan['validity']); ?></span></div>
 
+                                <ul class="plan-detail-list mb-3">
+                                    <li><span>Validity</span><strong><?= html_escape($plan['validity']); ?></strong></li>
+                                    <li><span>Access</span><strong><?= !empty($plan['listings_limit']) ? intval($plan['listings_limit']) . ' extra listings' : 'Unlimited'; ?></strong></li>
+                                    <li><span>Support</span><strong>24*7</strong></li>
+                                </ul>
+
+                                <p class="mb-2"><strong>Commission</strong></p>
+                                <ul class="commission-list mb-4">
+                                    <li><?= html_escape($plan['commission_first50']); ?>% <span>(First 50 Orders)</span></li>
+                                    <li><?= html_escape($plan['commission_51_100']); ?>% <span>(51-100 Orders)</span></li>
+                                    <li><?= html_escape($plan['commission_after100']); ?>% <span>(Above 100 Orders)</span></li>
+                                </ul>
+
+                                <div class="plan-total d-flex justify-content-between align-items-center">
+                                    <span>₹<?= html_escape($plan['price']); ?> / Year</span>
+                                    <a class="change-plan-link" href="<?= base_url('seller/subscription/manage_subscriptions'); ?>">Change plan</a>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
+
             <?php endif; ?>
+
+            <div class="accept-payments">
+                <div class="text-muted small mb-2">We Accept Payments Via</div>
+                <div class="accept-logos">
+                    <img src="<?= base_url('assets/payment-all-image.png'); ?>" alt="payment methods">
+                </div>
+            </div>
         </div>
-        <div class="accept-payments">
-                                    <div>We Accept Payments Via</div>
-                                    <div class="accept-logos">
-                                        <img src="<?= base_url('assets/payment-all-image.png'); ?>" alt="payment methods">
-                                    </div>
-                                </div>
     </section>
 </div>
+
+<style>
+    .subscription-payment-page .text-primary-theme { color: var(--color-orange); }
+    .subscription-payment-page .btn-primary-theme {
+        background: var(--color-orange);
+        border-color: var(--color-orange);
+        color: #fff;
+        font-weight: 700;
+        padding: 12px 26px;
+        border-radius: 8px;
+    }
+    .subscription-payment-page .btn-primary-theme:hover,
+    .subscription-payment-page .btn-primary-theme:disabled {
+        background: var(--color-orange-dark);
+        border-color: var(--color-orange-dark);
+        color: #fff;
+    }
+
+    .subscription-payment-page .attribute-card { border: none; border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,0.06); }
+    .subscription-payment-page .attribute-card-header {
+        background: #fff;
+        border-bottom: 1px solid rgba(0,0,0,0.06);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        border-radius: 10px 10px 0 0;
+    }
+    .subscription-payment-page .header-icon {
+        width: 34px; height: 34px; border-radius: 8px;
+        display: flex; align-items: center; justify-content: center;
+        color: #fff; font-size: 14px;
+    }
+    .subscription-payment-page .header-icon.bg-set { background: var(--color-orange); }
+
+    .subscription-payment-page .sub-progress { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 6px 0; }
+    .subscription-payment-page .sub-progress-step { font-weight: 600; color: var(--color-grey); font-size: 15px; }
+    .subscription-payment-page .sub-progress-step.active { color: var(--color-orange); font-weight: 800; }
+    .subscription-payment-page .sub-progress-step.done { color: #333; }
+    .subscription-payment-page .sub-progress-connector { width: 90px; height: 0; border-top: 2px dashed rgba(0,0,0,0.15); }
+    .subscription-payment-page .sub-progress-connector.done { border-top-color: var(--color-orange); }
+    @media (max-width: 600px) { .subscription-payment-page .sub-progress-connector { width: 40px; } }
+
+    .subscription-payment-page .payment-option-list { list-style: none; margin: 0; padding: 0; background: var(--color-secondary); border-radius: 10px; padding: 16px 18px; }
+    .subscription-payment-page .payment-option-list li { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; font-size: 15px; color: #333; }
+    .subscription-payment-page .payment-option-list li + li { border-top: 1px solid rgba(0,0,0,0.06); }
+    .subscription-payment-page .payment-option-list i { color: var(--color-orange); font-size: 16px; margin-top: 2px; width: 18px; text-align: center; }
+
+    .subscription-payment-page .plan-summary-card { border: 1px solid rgba(242,130,46,0.25); }
+    .subscription-payment-page .plan-name { color: var(--color-orange); font-weight: 700; }
+    .subscription-payment-page .plan-price { font-size: 22px; font-weight: 800; color: #222; }
+    .subscription-payment-page .plan-detail-list { list-style: none; margin: 0; padding: 0; }
+    .subscription-payment-page .plan-detail-list li { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; color: var(--color-grey); border-bottom: 1px dashed rgba(0,0,0,0.08); }
+    .subscription-payment-page .plan-detail-list li strong { color: #222; }
+    .subscription-payment-page .commission-list { list-style: none; margin: 0; padding: 0; font-size: 14px; }
+    .subscription-payment-page .commission-list li { padding: 3px 0; font-weight: 700; color: #222; }
+    .subscription-payment-page .commission-list li span { font-weight: 400; color: var(--color-grey); }
+    .subscription-payment-page .plan-total { border-top: 1px solid rgba(0,0,0,0.08); padding-top: 14px; font-size: 20px; font-weight: 800; color: var(--color-orange-dark); }
+    .subscription-payment-page .change-plan-link { color: var(--color-orange); font-weight: 700; font-size: 14px; text-decoration: none; }
+    .subscription-payment-page .change-plan-link:hover { color: var(--color-orange-dark); text-decoration: underline; }
+
+    .subscription-payment-page .accept-payments { text-align: center; margin-top: 10px; }
+    .subscription-payment-page .accept-logos img { height: 44px; }
+</style>
 
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <script>
@@ -116,6 +167,20 @@
         var planId = <?= isset($plan['id']) ? (int)$plan['id'] : 0; ?>;
         var $btn = document.getElementById('proceed-pay-btn');
         if (!$btn) return;
+        var originalBtnText = $btn.textContent;
+
+        function resetButton() {
+            $btn.disabled = false;
+            $btn.textContent = originalBtnText;
+        }
+
+        // If the seller navigates back to this page after cancelling (browser back
+        // button), the browser can restore the exact DOM state from its cache —
+        // including the disabled "Please wait..." button — instead of a fresh load.
+        window.addEventListener('pageshow', function (e) {
+            if (e.persisted) resetButton();
+        });
+
         $btn.addEventListener('click', function () {
             $btn.disabled = true;
             $btn.textContent = 'Please wait...';
@@ -141,6 +206,14 @@
                         name: result.plan_name || 'Subscription',
                         description: 'Seller Subscription',
                         order_id: result.razorpay_order_id,
+                        modal: {
+                            // Fires when the seller just closes/cancels the checkout
+                            // popup without attempting a payment — "payment.failed"
+                            // only fires for an actual declined/errored attempt, so
+                            // without this the button was stuck on "Please wait..."
+                            // until the whole page was reloaded.
+                            ondismiss: resetButton
+                        },
                         handler: function (response) {
                             var postData = {};
                             postData['subscription_id'] = planId;
@@ -159,22 +232,22 @@
                                     window.location.href = base_url + 'seller/subscription/payment_success?subscription_id=' + planId + '&payment_id=' + response.razorpay_payment_id;
                                 } else {
                                     alert(verify.message || 'Payment verification failed');
-                                    $btn.disabled = false; $btn.textContent = 'Proceed to Pay';
+                                    resetButton();
                                 }
-                            }).catch(function () { alert('Verification request failed'); $btn.disabled = false; $btn.textContent = 'Proceed to Pay'; });
+                            }).catch(function () { alert('Verification request failed'); resetButton(); });
                         }
                     };
                     if (result.seller_name) options.prefill = { name: result.seller_name, email: result.seller_email, contact: result.seller_contact };
                     var rzp = new Razorpay(options);
-                    rzp.on('payment.failed', function () { alert('Payment failed or cancelled'); $btn.disabled = false; $btn.textContent = 'Proceed to Pay'; });
+                    rzp.on('payment.failed', function () { alert('Payment failed or cancelled'); resetButton(); });
                     rzp.open();
                 } else if (result.error === false && !result.requires_payment) {
                     // free plan activated
                     window.location.href = base_url + 'seller/subscription/payment_success?subscription_id=' + planId + '&payment_id=free';
                 } else {
-                    alert(result.message || 'Unable to create order'); $btn.disabled = false; $btn.textContent = 'Proceed to Pay';
+                    alert(result.message || 'Unable to create order'); resetButton();
                 }
-            }).catch(function () { alert('Request failed'); $btn.disabled = false; $btn.textContent = 'Proceed to Pay'; });
+            }).catch(function () { alert('Request failed'); resetButton(); });
         });
     })();
 </script>

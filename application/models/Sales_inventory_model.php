@@ -90,6 +90,7 @@ class Sales_inventory_model extends CI_Model
     }
 
     public function get_seller_sales_inventory_list(
+        $seller_id = null,
         $offset = 0,
         $limit = 10,
         $sort = " oi.id ",
@@ -114,7 +115,7 @@ class Sales_inventory_model extends CI_Model
         $count_res = $this->db->select('oi.id')
             ->join('product_variants pv', 'pv.id=oi.product_variant_id', 'left')
             ->join('products p', 'p.id=pv.product_id', 'left')
-            ->where("oi.seller_id=" . $_SESSION['user_id']);
+            ->where('oi.seller_id', $seller_id);
         if (!empty($_GET['start_date']) && !empty($_GET['end_date'])) {
             $count_res->where(" DATE(oi.date_added) >= DATE('" . $_GET['start_date'] . "') ");
             $count_res->where(" DATE(oi.date_added) <= DATE('" . $_GET['end_date'] . "') ");
@@ -131,7 +132,7 @@ class Sales_inventory_model extends CI_Model
         $search_res = $this->db->select('oi.id,oi.product_variant_id, p.name, SUM(oi.quantity) AS qty,(p.availability OR pv.availability ) AS availability,(CASE WHEN (p.stock OR pv.stock) <= 0 THEN p.stock ELSE pv.stock END) AS stock')
             ->join('product_variants pv', 'pv.id=oi.product_variant_id', 'left')
             ->join('products p', 'p.id=pv.product_id', 'left')
-            ->where("oi.seller_id=" . $_SESSION['user_id']);
+            ->where('oi.seller_id', $seller_id);
         if (!empty($_GET['start_date']) && !empty($_GET['end_date'])) {
             $search_res->where(" DATE(oi.date_added) >= DATE('" . $_GET['start_date'] . "') ");
             $search_res->where(" DATE(oi.date_added) <= DATE('" . $_GET['end_date'] . "') ");

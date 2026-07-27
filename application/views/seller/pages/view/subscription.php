@@ -121,14 +121,14 @@
         .active-badge {
             display: none;
             position: absolute;
-            top: -12px;
+            top: -10px;
             left: 50%;
             transform: translateX(-50%);
             background: var(--orange);
             color: white;
             padding: 2px 15px;
             border-radius: 20px;
-            font-size: 12px;
+            font-size: 9px;
             font-weight: bold;
         }
 

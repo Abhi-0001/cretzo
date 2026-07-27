@@ -49,7 +49,7 @@ class Home_model extends CI_Model
     {
         $res = $this->db->select('count(id) as counter ');
         if (!empty($seller_id) && $seller_id != '') {
-            $res->where('seller_id=' . $seller_id);
+            $res->where('seller_id', $seller_id);
         }
         $count = $res->get('`products`')->result_array();
         return $count[0]['counter'];
@@ -158,7 +158,7 @@ class Home_model extends CI_Model
         return $count_deactive_seller;
     }
 
-    public function total_earnings($type = "admin")
+    public function total_earnings($type = "admin", $seller_id = "")
     {
         $select = "";
         if ($type == "admin") {
@@ -171,8 +171,10 @@ class Home_model extends CI_Model
             $select = "SUM(sub_total) as total ";
         }
         $count_res = $this->db->select($select);
-        $where = "is_credited=1";
-        $count_res->where($where);
+        $count_res->where('is_credited', 1);
+        if (!empty($seller_id)) {
+            $count_res->where('seller_id', $seller_id);
+        }
 
         $product_count = $count_res->get('order_items')->result_array();
         return $product_count[0]['total'];

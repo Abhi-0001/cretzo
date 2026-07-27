@@ -21,6 +21,8 @@ class Chat extends CI_Controller
             $settings = get_settings('system_settings', true);
             $this->data['title'] = 'Chat | ' . $settings['app_name'];
             $this->data['meta_description'] = ' Chat  | ' . $settings['app_name'];
+            $this->data['whatsapp_status'] = !empty($settings['whatsapp_status']) ? $settings['whatsapp_status'] : 0;
+            $this->data['whatsapp_number'] = !empty($settings['whatsapp_number']) ? $settings['whatsapp_number'] : '';
             $this->data['fcm_server_key'] = get_settings('fcm_server_key');
             $this->data['firebase_settings'] = get_settings('firebase_settings');
             $users = $this->chat_model->get_chat_history($_SESSION['user_id'], 10, 0);;

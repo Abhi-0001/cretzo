@@ -2387,8 +2387,6 @@ $(document).on('click', '#delete-product', function () {
                     csrfHash = response['csrfHash'];
                 }).fail(function (jqXHR, textStatus, errorThrown) {
                     Swal.fire('Oops...', 'Something went wrong with ajax !', 'error');
-                    csrfName = response['csrfName'];
-                    csrfHash = response['csrfHash'];
                 });
             });
         },

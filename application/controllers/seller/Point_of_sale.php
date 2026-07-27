@@ -36,6 +36,11 @@ class Point_of_sale extends CI_Controller
     }
     public function get_products()
     {
+        if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0))) {
+            redirect('seller/login', 'refresh');
+            return;
+        }
+
         $max_limit = 25;
         $seller_id = $_SESSION['user_id'];
 
@@ -54,12 +59,22 @@ class Point_of_sale extends CI_Controller
 
     public function get_users()
     {
+        if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0))) {
+            redirect('seller/login', 'refresh');
+            return;
+        }
+
         $search = $this->input->get('search');
         $response = $this->point_of_sale_model->get_users($search);
         echo json_encode($response);
     }
     public function register_user()
     {
+        if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0))) {
+            redirect('seller/login', 'refresh');
+            return;
+        }
+
         $this->form_validation->set_rules('name', 'Name', 'trim|required|xss_clean');
         $this->form_validation->set_rules('mobile', 'Mobile', 'trim|required|xss_clean|min_length[5]|numeric|is_unique[users.mobile]', array('is_unique' => ' The mobile number is already registered . Please login'));
         $this->form_validation->set_rules('password', 'Password', 'required|min_length[' . $this->config->item('min_password_length', 'ion_auth') . ']');

@@ -54,6 +54,24 @@ a.nav-link{
 }
 
 /* ============================================================
+   SIDEBAR: OPAQUE BACKGROUND
+   .main-sidebar has no background-color anywhere in adminlte.min.css
+   — the shipped "sidebar-dark-*"/"sidebar-light-*" theme classes only
+   style nested elements (.brand-link, nav-links), never the sidebar
+   container itself, and neither admin/template.php nor
+   seller/template.php apply one of those classes to <body> anyway.
+   Net effect: the sidebar is fully transparent. It looks fine on a
+   short page, but the moment a page is tall enough to scroll, the
+   main content scrolls up underneath the fixed sidebar and shows
+   straight through it — main-content headings appear to "overlap"
+   the sidebar's nav items. Confirmed live (not a per-page bug) via a
+   scrolled screenshot on both /seller/manage_stock and /seller/orders.
+============================================================ */
+.main-sidebar {
+    background-color: #fff;
+}
+
+/* ============================================================
    ADMIN SIDEBAR: CLEAR THE BRAND LOGO FLOAT
    Root cause of the clipped-label bug above (verified live):
    AdminLTE floats .brand-image left with max-height:33px/width:auto.
