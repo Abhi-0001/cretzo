@@ -3674,7 +3674,8 @@ $(document).ready(function () {
         if (!pendingCredential) {
             Toast.fire({
                 icon: 'error',
-                title: 'This email is already registered using a different sign-in method.'
+                title: 'This email is already registered using a different sign-in method. Please log in with that method instead.',
+                timer: 8000
             });
             return;
         }
@@ -3686,7 +3687,8 @@ $(document).ready(function () {
 
         Toast.fire({
             icon: 'warning',
-            title: 'This email already has an account. Click "Sign in with ' + otherLabel + '" below to link your ' + attemptedLabel + ' login.'
+            title: 'An account already exists for this email. Click "Sign in with ' + otherLabel + '" below first — once you\'re signed in, your ' + attemptedLabel + ' login will be linked automatically.',
+            timer: 8000
         });
     }
     function completeLinkedLogin(user, signedInProvider) {

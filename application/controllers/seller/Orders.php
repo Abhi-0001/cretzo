@@ -552,7 +552,7 @@ class Orders extends CI_Controller
     public function get_order_tracking()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
-            return $this->Order_model->get_order_tracking_list();
+            return $this->Order_model->get_order_tracking_list($this->ion_auth->get_user_id());
         } else {
             redirect('seller/login', 'refresh');
         }
@@ -636,9 +636,9 @@ class Orders extends CI_Controller
     public function get_digital_order_mails()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
-            return $this->Order_model->get_digital_order_mail_list();
+            return $this->Order_model->get_digital_order_mail_list(false, $this->ion_auth->get_user_id());
         } else {
-            redirect('admin/login', 'refresh');
+            redirect('seller/login', 'refresh');
         }
     }
 
@@ -657,6 +657,25 @@ class Orders extends CI_Controller
                 print_r(json_encode($this->response));
                 return false;
             }
+
+            // Verify this order item actually belongs to the current seller, and always
+            // send to the customer's own email on file — never the client-supplied
+            // "email" field — otherwise a seller could mark another seller's order
+            // delivered and use this endpoint to email arbitrary content to any address.
+            $owned_item = fetch_details('order_items', ['id' => $_POST['order_item_id'], 'seller_id' => $this->ion_auth->get_user_id()], 'order_id');
+            if (empty($owned_item)) {
+                $this->response['error'] = true;
+                $this->response['message'] = 'Order item not found';
+                $this->response['data'] = array();
+                $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                print_r(json_encode($this->response));
+                return false;
+            }
+            $order_email = fetch_details('orders', ['id' => $owned_item[0]['order_id']], 'email');
+            $_POST['order_id'] = $owned_item[0]['order_id'];
+            $_POST['email'] = !empty($order_email[0]['email']) ? $order_email[0]['email'] : $_POST['email'];
+
             $mail =  $this->Order_model->send_digital_product($_POST);
             if ($mail['error'] == true) {
                 $this->response['error'] = true;
@@ -682,7 +701,7 @@ class Orders extends CI_Controller
                 return false;
             }
         } else {
-            redirect('admin/login', 'refresh');
+            redirect('seller/login', 'refresh');
         }
     }
     public function create_shiprocket_order()
@@ -816,7 +835,7 @@ class Orders extends CI_Controller
                 print_r(json_encode($this->response));
             }
         } else {
-            redirect('admin/login', 'refresh');
+            redirect('seller/login', 'refresh');
         }
     }
 
@@ -841,7 +860,7 @@ class Orders extends CI_Controller
             }
             print_r(json_encode($this->response));
         } else {
-            redirect('admin/login', 'refresh');
+            redirect('seller/login', 'refresh');
         }
     }
 
@@ -866,7 +885,7 @@ class Orders extends CI_Controller
             }
             print_r(json_encode($this->response));
         } else {
-            redirect('admin/login', 'refresh');
+            redirect('seller/login', 'refresh');
         }
     }
 
@@ -889,7 +908,7 @@ class Orders extends CI_Controller
             }
             print_r(json_encode($this->response));
         } else {
-            redirect('admin/login', 'refresh');
+            redirect('seller/login', 'refresh');
         }
     }
 
@@ -913,7 +932,7 @@ class Orders extends CI_Controller
             }
             print_r(json_encode($this->response));
         } else {
-            redirect('admin/login', 'refresh');
+            redirect('seller/login', 'refresh');
         }
     }
     public function cancel_shiprocket_order()
@@ -936,7 +955,7 @@ class Orders extends CI_Controller
             }
             print_r(json_encode($this->response));
         } else {
-            redirect('admin/login', 'refresh');
+            redirect('seller/login', 'refresh');
         }
     }
 }

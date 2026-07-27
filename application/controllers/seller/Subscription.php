@@ -173,7 +173,12 @@ class Subscription extends CI_Controller
             return;
         }
 
-        $currency = isset($payment_settings['currency_code']) && !empty($payment_settings['currency_code']) ? $payment_settings['currency_code'] : 'INR';
+        // Razorpay is India-only for this account, and every price on the site is quoted
+        // and displayed in Rupees — this must never read $payment_settings['currency_code'],
+        // which is the PayPal gateway's own currency setting (a different, disabled
+        // payment method) and was set to "USD" here, which is why the Razorpay checkout
+        // widget showed a $ amount instead of ₹.
+        $currency = 'INR';
 
         $this->load->library('razorpay');
 

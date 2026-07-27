@@ -55,7 +55,7 @@
     <link rel="stylesheet" href="<?= base_url('assets/admin/custom/custom.css') ?>">
 
     <!-- for Cretzo theme -->
-    <link rel="stylesheet" href="<?= base_url('assets/admin/css/cretzo/cretzo.css') ?>">
+    <link rel="stylesheet" href="<?= add_ver(base_url('assets/admin/css/cretzo/cretzo.css')) ?>">
 
     <!-- form styles for seller style -->
     

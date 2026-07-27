@@ -244,6 +244,90 @@
         #save-product .category-select-wrap .form-control {
             min-height: 38px;
         }
+
+        /* ── Theme pass: simple, attractive, on-brand ──────────────── */
+        .create-product-page .section-header {
+            display: flex;
+            align-items: center;
+            gap: .5rem;
+            font-size: 1rem;
+            color: #2b2f33;
+            border-bottom: 2px solid var(--color-secondary);
+        }
+        .create-product-page .section-header i {
+            color: var(--color-orange);
+        }
+        .create-product-page .top-column {
+            border-radius: 10px;
+            box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+        }
+        .create-product-page .block-title {
+            font-size: .95rem;
+            color: #495057;
+        }
+        .create-product-page .card-light {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+        }
+        .create-product-page .card-light h6 {
+            display: flex;
+            align-items: center;
+            gap: .4rem;
+            font-weight: 600;
+            margin-bottom: .9rem;
+        }
+        .create-product-page .card-light h6 i {
+            color: var(--color-orange);
+        }
+        .create-product-page .card-info {
+            border: none;
+            border-radius: 12px;
+        }
+        .create-product-page .form-control:focus {
+            border-color: var(--color-orange);
+            box-shadow: 0 0 0 .15rem var(--color-orange-light);
+        }
+        .create-product-page #main_image_input,
+        .create-product-page #other_images_input,
+        .create-product-page #video_file_input {
+            border: 1px dashed #d1d5db;
+            border-radius: 6px;
+            padding: .35rem .5rem;
+            font-size: .8rem;
+        }
+        .create-product-page #main_image_preview:hover,
+        .create-product-page #other_images_preview {
+            border-color: var(--color-orange-light);
+        }
+        .create-product-page .btn-outline-primary {
+            color: var(--color-orange-dark);
+            border-color: var(--color-orange);
+        }
+        .create-product-page .btn-outline-primary:hover {
+            background: var(--color-orange);
+            border-color: var(--color-orange);
+            color: #fff;
+        }
+        .create-product-page .card-footer {
+            background: #fff;
+            border-top: 1px solid #f1f3f5;
+            border-radius: 0 0 12px 12px;
+        }
+        .create-product-page #submit_product_btn {
+            background: var(--color-orange);
+            border-color: var(--color-orange);
+            padding: .5rem 1.5rem;
+            border-radius: 6px;
+            font-weight: 600;
+        }
+        .create-product-page #submit_product_btn:hover:not(:disabled) {
+            background: var(--color-orange-dark);
+            border-color: var(--color-orange-dark);
+        }
+        .create-product-page #category_dropdown div:hover {
+            background: var(--color-orange-light) !important;
+        }
     </style>
     <div class="content-wrapper create-product-page">
     <section class="content-header">
@@ -299,7 +383,7 @@
                     <div class="card-body">
                         <div id="product-form-alert" class="alert d-none" role="alert"></div>
 
-                        <div class="section-header">Top Section</div>
+                        <div class="section-header"><i class="fas fa-box-open"></i> Basic Information &amp; Media</div>
                         <div class="top-layout">
                             <div class="top-column">
                                 <h5 class="block-title">Product Information</h5>
@@ -382,7 +466,7 @@
                             </div>
                         </div>
 
-                        <div class="section-header mt-4">Middle Block</div>
+                        <div class="section-header mt-4"><i class="fas fa-tags"></i> Product Details</div>
                         <div class="card card-light mb-4">
                             <div class="card-body">
                                 <div class="row">
@@ -462,12 +546,12 @@
                             </div>
                         </div>
 
-                        <div class="section-header">Bottom Block</div>
+                        <div class="section-header"><i class="fas fa-sliders-h"></i> Additional Settings</div>
                             <div class="row">
                                 <div class="col-md-4">
                                     <div class="card card-light h-100">
                                         <div class="card-body">
-                                            <h6>Additional Info</h6>
+                                            <h6><i class="fas fa-toggle-on"></i> Additional Info</h6>
                                             <div class="form-group mb-2">
                                                 <div class="form-check">
                                                     <input class="form-check-input" type="checkbox" name="is_prices_inclusive_tax" id="is_prices_inclusive_tax" value="1"
@@ -503,7 +587,7 @@
                                 <div class="card card-light h-100">
                                     <div class="card-body d-flex flex-column justify-content-between">
                                         <div>
-                                            <h6>Attributes</h6>
+                                            <h6><i class="fas fa-tags"></i> Attributes</h6>
                                             <p class="text-muted">Manage reusable attributes from the attributes panel.</p>
                                         </div>
                                         <a href="<?= base_url('seller/attributes') ?>" class="btn btn-outline-primary">Manage Attributes</a>
@@ -513,7 +597,7 @@
                             <div class="col-md-4">
                                 <div class="card card-light h-100">
                                     <div class="card-body">
-                                        <h6>Pricing</h6>
+                                        <h6><i class="fas fa-rupee-sign"></i> Pricing</h6>
                                         <div id="simple_pricing_block">
                                             <div class="form-group">
                                                 <label>Price <span class="text-danger">*</span></label>

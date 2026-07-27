@@ -216,6 +216,9 @@ class Category_model extends CI_Model
         if (isset($multipleWhere) && !empty($multipleWhere)) {
             $count_res->or_like($multipleWhere);
         }
+        if (isset($where) && !empty($where)) {
+            $count_res->where($where);
+        }
 
         if (isset($seller_id) && $seller_id != "") {
             $count_res->where_in('id', $cat_ids);
@@ -235,7 +238,7 @@ class Category_model extends CI_Model
         }
 
         if (isset($seller_id) && $seller_id != "") {
-            $count_res->where_in('id', $cat_ids);
+            $search_res->where_in('id', $cat_ids);
         }
 
         $cat_search_res = $search_res->order_by($sort, "asc")->limit($limit, $offset)->get('categories')->result_array();

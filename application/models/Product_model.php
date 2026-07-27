@@ -204,7 +204,7 @@ class Product_model extends CI_Model
             }
 
             $pro_data['other_images'] = json_encode($other_images, 1);
-            $this->db->set($pro_data)->where('id', $data['edit_product_id'])->update('products');
+            $this->db->set($pro_data)->where(['id' => $data['edit_product_id'], 'seller_id' => $seller_id])->update('products');
         } else {
             $pro_data['other_images'] = json_encode($other_images, 1);
             $this->db->insert('products', $pro_data);
@@ -487,11 +487,11 @@ class Product_model extends CI_Model
         }
 
         if (isset($seller_id) && $seller_id != "") {
-            $count_res->where("p.seller_id", $seller_id);
+            $search_res->where("p.seller_id", $seller_id);
         }
 
         if (isset($p_status) && $p_status != "") {
-            $count_res->where("p.status", $p_status);
+            $search_res->where("p.status", $p_status);
         }
 
         $pro_search_res = $search_res->group_by('pid')->order_by($sort, "DESC")->limit($limit, $offset)->get('products p')->result_array();
@@ -918,7 +918,7 @@ class Product_model extends CI_Model
         $this->db->delete('product_faqs', ['id' => $faq_id]);
     }
 
-    public function get_faqs()
+    public function get_faqs($seller_id = null)
     {
         $offset = 0;
         $limit = 10;
@@ -946,10 +946,6 @@ class Product_model extends CI_Model
             $where['product_id'] = $_GET['product_id'];
         }
 
-        if (isset($_GET['user_id']) && $_GET['user_id'] != null) {
-            $where['user_id'] = $_GET['user_id'];
-        }
-
         $count_res = $this->db->select(' COUNT(pf.id) as total  ')->join('users u', 'u.id=pf.user_id');
         if (isset($_GET['search']) && trim($_GET['search'])) {
             $search = trim($_GET['search']);
@@ -964,6 +960,12 @@ class Product_model extends CI_Model
 
         if (isset($where) && !empty($where)) {
             $count_res->where($where);
+        }
+        // Scope to the requesting seller's own products only. Joined against the products
+        // table (rather than trusting product_faqs.seller_id, which isn't reliably set) so
+        // a seller can never see another seller's FAQs.
+        if (!empty($seller_id)) {
+            $count_res->join('products p', 'p.id = pf.product_id')->where('p.seller_id', $seller_id);
         }
 
         $rating_count = $count_res->get('product_faqs pf')->result_array();
@@ -986,6 +988,9 @@ class Product_model extends CI_Model
         if (isset($where) && !empty($where)) {
 
             $search_res->where($where);
+        }
+        if (!empty($seller_id)) {
+            $search_res->join('products p', 'p.id = pf.product_id')->where('p.seller_id', $seller_id);
         }
 
 

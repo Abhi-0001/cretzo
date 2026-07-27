@@ -36,9 +36,16 @@ class Category extends CI_Controller
 
     public function get_categories()
     {
+        if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0))) {
+            redirect('seller/login', 'refresh');
+            return;
+        }
 
         $ignore_status = isset($_GET['ignore_status']) && $_GET['ignore_status'] == 1 ? 1 : '';
-        $seller_id = (isset($_GET['seller_id']) && !empty($_GET['seller_id'])) ? $_GET['seller_id'] : $this->session->userdata('user_id');
+        // seller_id must always come from the authenticated session, not a client-supplied
+        // GET param — this endpoint is only meant to let a seller browse their own
+        // category tree while assigning categories to a product.
+        $seller_id = $this->session->userdata('user_id');
         $response['data'] = $this->data['category_result'] = $this->category_model->get_categories(NULL, '', '', 'row_order', 'ASC', 'true', '', $ignore_status, $seller_id);
         echo json_encode($response);
         return;
@@ -46,8 +53,12 @@ class Category extends CI_Controller
 
     public function get_seller_categories()
     {
-        $seller_id = (isset($_GET['seller_id']) && !empty($_GET['seller_id'])) ? $this->input->get('seller_id', true) :  $this->session->userdata('user_id');
-        $ignore_status = isset($_GET['ignore_status']) && $_GET['ignore_status'] == 1 ? 1 : '';
+        if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0))) {
+            redirect('seller/login', 'refresh');
+            return;
+        }
+
+        $seller_id = $this->session->userdata('user_id');
         $response['data'] = $this->category_model->get_seller_categories($seller_id);
         echo json_encode($response);
         return;

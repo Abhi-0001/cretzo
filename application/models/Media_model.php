@@ -41,7 +41,7 @@ class Media_model extends CI_Model
     }
 
 
-    public function fetch_media($fromSeller = false)
+    public function fetch_media($fromSeller = false, $seller_id = null)
     {
         if (($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) || ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0))) {
 
@@ -71,8 +71,12 @@ class Media_model extends CI_Model
                 $where_in = $type;
             }
            
-            if (isset($_GET['seller_id']) && $_GET['seller_id'] != '' && $fromSeller == true) {
-                $where['seller_id'] = $_GET['seller_id'];
+            // seller_id must come from the authenticated session (passed in as $seller_id
+            // by the seller controller), never from the client-supplied $_GET value —
+            // otherwise any seller could browse every other seller's media library just
+            // by changing the seller_id query param.
+            if ($fromSeller == true && !empty($seller_id)) {
+                $where['seller_id'] = $seller_id;
             }
             $count_res = $this->db->select(' COUNT(id) as `total` ');
 

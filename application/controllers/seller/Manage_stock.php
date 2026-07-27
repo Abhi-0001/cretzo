@@ -22,13 +22,20 @@ class Manage_stock extends CI_Controller
             if (isset($_GET['edit_id'])) {
 
                 $stock = fetch_details("product_variants", ['id' => $_GET['edit_id']], ['stock', 'product_id', 'attribute_value_ids']);
-                // $attribute_value_id = $stock['attribute_value_ids'];
-                $attribute_value = fetch_details("attribute_values", ['id' => $stock[0]['attribute_value_ids']], ['value']);
-              
-                $id = $stock[0]['product_id'];
-                $this->data['fetched_data'] = fetch_product("", "", $id);
-                $this->data['fetched'] = $stock[0]['stock'];
-                $this->data['attribute'] = $attribute_value;
+                // Only prefill this variant's details if its product actually belongs to
+                // the current seller — otherwise opening this page with another seller's
+                // variant id would leak that seller's product name and stock count.
+                $owned_product = !empty($stock)
+                    ? fetch_details('products', ['id' => $stock[0]['product_id'], 'seller_id' => $_SESSION['user_id']], 'id')
+                    : [];
+                if (!empty($owned_product)) {
+                    $attribute_value = fetch_details("attribute_values", ['id' => $stock[0]['attribute_value_ids']], ['value']);
+
+                    $id = $stock[0]['product_id'];
+                    $this->data['fetched_data'] = fetch_product("", "", $id);
+                    $this->data['fetched'] = $stock[0]['stock'];
+                    $this->data['attribute'] = $attribute_value;
+                }
             }
             $seller_id = $_SESSION['user_id'];
             $this->data['categories'] = $this->category_model->get_categories('', '', '', '', '', '', '', '', $seller_id);
@@ -51,6 +58,10 @@ class Manage_stock extends CI_Controller
 
     public function update_stock()
     {
+        if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller())) {
+            redirect('seller/login', 'refresh');
+            return;
+        }
 
         $this->form_validation->set_rules('product_name', 'Product Name', 'trim|required|xss_clean');
         $this->form_validation->set_rules('current_stock', 'Current Stock', 'trim|required|xss_clean');
@@ -64,6 +75,23 @@ class Manage_stock extends CI_Controller
             $this->response['message'] = validation_errors();
             print_r(json_encode($this->response));
         } else {
+            // The variant must belong to a product owned by the current seller —
+            // otherwise any logged-in seller could edit any other seller's stock levels
+            // just by knowing (or guessing) a variant id.
+            $owned_variant = $this->db
+                ->select('pv.id')
+                ->join('products p', 'p.id = pv.product_id')
+                ->where(['pv.id' => $_POST['variant_id'], 'p.seller_id' => $this->ion_auth->get_user_id()])
+                ->get('product_variants pv')
+                ->result_array();
+            if (empty($owned_variant)) {
+                $this->response['error'] = true;
+                $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                $this->response['message'] = 'Product variant not found';
+                print_r(json_encode($this->response));
+                return;
+            }
             if ($_POST['type'] == 'add') {
                 update_stock([$_POST['variant_id']], [$_POST['quantity']], 'plus');
             } else {

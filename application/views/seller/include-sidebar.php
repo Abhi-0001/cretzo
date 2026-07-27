@@ -167,7 +167,7 @@
                 </li>
 
                 <li class="nav-item has-treeview">
-                    <a href="<?= base_url('seller/area/manage/deliverable_locations') ?>" class="nav-link">
+                    <a href="<?= base_url('seller/area/manage_deliverable_locations') ?>" class="nav-link">
                         <i class="nav-icon fas fa-shipping-fast text-success"></i>
                         <p>
                             Deliverable Locations

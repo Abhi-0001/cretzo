@@ -275,9 +275,17 @@ class Product extends CI_Controller
             if (print_msg(!is_modification_allowed('create'), DEMO_VERSION_MSG, 'product', false)) {
                 return false;
             }
+            $seller_id = $this->ion_auth->get_user_id();
+            $owned_product = fetch_details('products', ['id' => $_GET['id'], 'seller_id' => $seller_id], 'id');
+            if (empty($owned_product)) {
+                $response['error'] = true;
+                $response['message'] = 'Product not found';
+                print_r(json_encode($response));
+                return false;
+            }
             if (delete_details(['product_id' => $_GET['id']], 'product_variants')) {
 
-                delete_details(['id' => $_GET['id']], 'products');
+                delete_details(['id' => $_GET['id'], 'seller_id' => $seller_id], 'products');
                 delete_details(['product_id' => $_GET['id']], 'product_attributes');
                 $response['error'] = false;
                 $response['message'] = 'Deleted Succesfully';
@@ -293,9 +301,6 @@ class Product extends CI_Controller
 
     public function add_product()
     {
-        ob_start();
-        error_reporting(E_ALL);
-        ini_set('display_errors',1);
         if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0))) {
             redirect('seller/login', 'refresh');
             return;
@@ -307,6 +312,27 @@ class Product extends CI_Controller
     
         if (print_msg(!is_modification_allowed('create'), DEMO_VERSION_MSG, 'product', false)) {
             return false;
+        }
+
+        // The seller_id must always come from the authenticated session, never from the
+        // submitted form — trusting the POSTed value would let a seller overwrite (and
+        // effectively steal ownership of) any product by tampering with a hidden field.
+        $_POST['seller_id'] = $this->ion_auth->get_user_id();
+
+        // When editing, verify the product actually belongs to this seller before touching
+        // it. product_variants/product_attributes updates below are only scoped by
+        // product_id, so without this check a seller could edit another seller's variants
+        // and attributes just by tampering with the hidden edit_product_id field.
+        if (!empty($_POST['edit_product_id'])) {
+            $owned_product = fetch_details('products', ['id' => $_POST['edit_product_id'], 'seller_id' => $_POST['seller_id']], 'id');
+            if (empty($owned_product)) {
+                $this->response['error'] = true;
+                $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                $this->response['message'] = 'Product not found';
+                print_r(json_encode($this->response));
+                return;
+            }
         }
 
         // Enforce the plan's listing limit for NEW products only (editing an existing
@@ -482,25 +508,19 @@ class Product extends CI_Controller
      
          // Save product
          $this->product_model->add_product($_POST);
-         file_put_contents(FCPATH . 'debug_log.txt', "CONTROLLER - after model, about to send response\n", FILE_APPEND);
 
          $message = isset($_POST['edit_product_id']) ? 'Product Updated Successfully' : 'Product Added Successfully';
-        
+
         // Add this line to store the message in the session
         $this->session->set_flashdata('message', $message);
         $this->session->set_flashdata('message_type', 'success');
-        
+
         $this->response['error'] = false;
         $this->response['csrfName'] = $this->security->get_csrf_token_name();
         $this->response['csrfHash'] = $this->security->get_csrf_hash();
         $this->response['message'] = $message;
         $this->response['redirect'] = base_url('seller/product');
-        file_put_contents(FCPATH . 'debug_log.txt', "CONTROLLER - response: " . json_encode($this->response) . "\n", FILE_APPEND);
         print_r(json_encode($this->response));
-        $debug_output = ob_get_clean();
-        if (!empty($debug_output)) {
-            file_put_contents(FCPATH . 'debug_log.txt', date('Y-m-d H:i:s') . "\n" . $debug_output . "\n\n", FILE_APPEND);
-        }
     }
         
         
@@ -553,7 +573,10 @@ class Product extends CI_Controller
             if (!$this->ensure_product_access(true)) {
                 return;
             }
-            $seller_id =  (isset($_GET['seller_id']) && !empty($_GET['seller_id'])) ? $this->input->get('seller_id', true) : $this->session->userdata('user_id');
+            // seller_id must always come from the authenticated session — trusting a
+            // client-supplied ?seller_id= would let a seller view another seller's
+            // entire product catalog just by changing a URL parameter.
+            $seller_id = $this->session->userdata('user_id');
             $status =  (isset($_GET['status']) && $_GET['status'] != "") ? $this->input->get('status', true) : NULL;
             if (isset($_GET['flag']) && !empty($_GET['flag'])) {
                 return $this->product_model->get_product_details($_GET['flag'], $seller_id, $status);
@@ -973,6 +996,7 @@ class Product extends CI_Controller
                     while (($row = fgetcsv($handle, 10000, ",")) != FALSE) //get row vales
                     {
                         if ($temp1 != 0) {
+                            $data = [];
                             $data['category_id'] = $row[0];
                             if (!empty($row[1])) {
                                 $data['tax'] = $row[1];
@@ -1075,6 +1099,7 @@ class Product extends CI_Controller
 
                             ];
                             $this->db->insert('product_attributes', $pro_attr_data);
+                            $variant_data = [];
                             $index = 29;
                             for ($i = 0; $i < $total_variants; $i++) {
                                 $variant_data[$i]['images'] = '[]';
@@ -1253,9 +1278,12 @@ class Product extends CI_Controller
                     while (($row = fgetcsv($handle, 10000, ",")) != FALSE) //get row values
                     {
                         if ($temp1 != 0) {
+                            $data = [];
                             $product_id = $row[0];
-                            $product = fetch_details('products', ['id' => $product_id], '*');
-                            if (isset($product[0]) && !empty($product[0])) {
+                            $current_seller_id = $this->ion_auth->get_user_id();
+                            $product = fetch_details('products', ['id' => $product_id, 'seller_id' => $current_seller_id], '*');
+                            $product_owned_by_seller = isset($product[0]) && !empty($product[0]);
+                            if ($product_owned_by_seller) {
                                 if (!empty($row[1])) {
                                     $data['category_id'] = $row[1];
                                 } else {
@@ -1398,11 +1426,9 @@ class Product extends CI_Controller
                                 } else {
                                     $data['deliverable_zipcodes'] = $product[0]['deliverable_zipcodes'];
                                 }
-                                if ($row[29] != '') {
-                                    $data['seller_id'] = $row[29];
-                                } else {
-                                    $data['seller_id'] = $product[0]['seller_id'];
-                                }
+                                // seller_id is intentionally NOT settable from the CSV — a seller
+                                // must not be able to reassign product ownership via bulk update.
+                                $data['seller_id'] = $product[0]['seller_id'];
                                 if (!empty($row[35])) {
                                     $data['brand'] = $row[35];
                                 } else {
@@ -1428,7 +1454,7 @@ class Product extends CI_Controller
                                 } else {
                                     $data['made_in'] = $product[0]['made_in'];
                                 }
-                                $this->db->where('id', $row[0])->update('products', $data);
+                                $this->db->where(['id' => $row[0], 'seller_id' => $current_seller_id])->update('products', $data);
                             }
                             $index1 = 31;
                             $total_variants = 0;
@@ -1438,13 +1464,20 @@ class Product extends CI_Controller
                                 }
                                 $index1 = $index1 + 6;
                             }
+                            $variant_data = [];
                             $index = 30;
                             for ($i = 0; $i < $total_variants; $i++) {
                                 $variant_id = $row[$index];
-                                $variant = fetch_details('product_variants', ['id' => $row[$index]], '*');
+                                // Only allow updating a variant that belongs to THIS row's
+                                // product, and only when that product was verified above to
+                                // belong to the current seller — otherwise a seller could
+                                // update any variant in the system just by knowing its id.
+                                $variant = $product_owned_by_seller
+                                    ? fetch_details('product_variants', ['id' => $variant_id, 'product_id' => $product_id], '*')
+                                    : [];
+                                $index++;
                                 if (isset($variant[0]) && !empty($variant[0])) {
                                     $variant_data[$i]['product_id'] = $variant[0]['product_id'];
-                                    $index++;
                                     if (isset($row[$index]) && !empty($row[$index])) {
                                         $variant_data[$i]['price'] = $row[$index];
                                     } else {
@@ -1476,7 +1509,11 @@ class Product extends CI_Controller
                                         $variant_data[$i]['availability'] = $variant[0]['availability'];
                                     }
                                     $index++;
-                                    $this->db->where('id', $variant_id)->update('product_variants', $variant_data[$i]);
+                                    $this->db->where(['id' => $variant_id, 'product_id' => $product_id])->update('product_variants', $variant_data[$i]);
+                                } else {
+                                    // Keep column alignment for the remaining variants in this
+                                    // row even when this one is skipped/not found.
+                                    $index += 5;
                                 }
                             }
                         }
@@ -1492,7 +1529,7 @@ class Product extends CI_Controller
                 }
             }
         } else {
-            redirect('admin/login', 'refresh');
+            redirect('seller/login', 'refresh');
         }
     }
 
@@ -1510,6 +1547,21 @@ class Product extends CI_Controller
         echo json_encode($response);
     }
 
+    // Fetches a FAQ only if its product belongs to the given seller — used before any
+    // update/delete so a seller can never touch another seller's FAQ by guessing an id.
+    private function fetch_owned_faq($faq_id, $seller_id)
+    {
+        $faq = fetch_details('product_faqs', ['id' => $faq_id], '*');
+        if (empty($faq)) {
+            return null;
+        }
+        $owned_product = fetch_details('products', ['id' => $faq[0]['product_id'], 'seller_id' => $seller_id], 'id');
+        if (empty($owned_product)) {
+            return null;
+        }
+        return $faq;
+    }
+
     public function edit_product_faqs()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller()) {
@@ -1520,15 +1572,25 @@ class Product extends CI_Controller
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
                 $this->response['message'] = validation_errors();
                 print_r(json_encode($this->response));
-            } else {
-                $this->product_model->add_product_faqs($_POST);
-                $this->response['error'] = false;
+                return;
+            }
+
+            if (!empty($_POST['edit_product_faq']) && empty($this->fetch_owned_faq($_POST['edit_product_faq'], $this->ion_auth->get_user_id()))) {
+                $this->response['error'] = true;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $message = (isset($_POST['edit_product_faq'])) ? 'FAQ Updated Successfully' : 'FAQ Added Successfully';
-                $this->response['message'] = $message;
+                $this->response['message'] = 'FAQ not found';
                 print_r(json_encode($this->response));
+                return;
             }
+
+            $this->product_model->add_product_faqs($_POST);
+            $this->response['error'] = false;
+            $this->response['csrfName'] = $this->security->get_csrf_token_name();
+            $this->response['csrfHash'] = $this->security->get_csrf_hash();
+            $message = (isset($_POST['edit_product_faq'])) ? 'FAQ Updated Successfully' : 'FAQ Added Successfully';
+            $this->response['message'] = $message;
+            print_r(json_encode($this->response));
         } else {
             redirect('seller/login', 'refresh');
         }
@@ -1538,7 +1600,7 @@ class Product extends CI_Controller
 
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller()) {
 
-            return $this->product_model->get_faqs();
+            return $this->product_model->get_faqs($this->ion_auth->get_user_id());
         } else {
             redirect('seller/login', 'refresh');
         }
@@ -1546,6 +1608,13 @@ class Product extends CI_Controller
     public function delete_product_faq()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller()) {
+            if (empty($this->fetch_owned_faq($_GET['id'], $this->ion_auth->get_user_id()))) {
+                $this->response['error'] = true;
+                $this->response['message'] = 'FAQ not found';
+                print_r(json_encode($this->response));
+                return;
+            }
+
             $this->product_model->delete_faq($_GET['id']);
 
             $this->response['error'] = false;

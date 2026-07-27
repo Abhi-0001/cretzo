@@ -716,8 +716,8 @@ class Order_model extends CI_Model
             ->join('users db ', ' db.id = oi.delivery_boy_id', 'left');
         if (!empty($_GET['start_date']) && !empty($_GET['end_date'])) {
 
-            $count_res->where(" DATE(o.date_added) >= DATE('" . $_GET['start_date'] . "') ");
-            $count_res->where(" DATE(o.date_added) <= DATE('" . $_GET['end_date'] . "') ");
+            $count_res->where('DATE(o.date_added) >=', $_GET['start_date']);
+            $count_res->where('DATE(o.date_added) <=', $_GET['end_date']);
         }
 
         if (isset($filters) && !empty($filters)) {
@@ -761,8 +761,8 @@ class Order_model extends CI_Model
             ->join('users db ', ' db.id = oi.delivery_boy_id', 'left');
 
         if (!empty($_GET['start_date']) && !empty($_GET['end_date'])) {
-            $search_res->where(" DATE(o.date_added) >= DATE('" . $_GET['start_date'] . "') ");
-            $search_res->where(" DATE(o.date_added) <= DATE('" . $_GET['end_date'] . "') ");
+            $search_res->where('DATE(o.date_added) >=', $_GET['start_date']);
+            $search_res->where('DATE(o.date_added) <=', $_GET['end_date']);
         }
 
         if (isset($filters) && !empty($filters)) {
@@ -963,8 +963,8 @@ class Order_model extends CI_Model
             ->join('users un ', ' un.id = o.user_id', 'left');
         if (!empty($_GET['start_date']) && !empty($_GET['end_date'])) {
 
-            $count_res->where(" DATE(oi.date_added) >= DATE('" . $_GET['start_date'] . "') ");
-            $count_res->where(" DATE(oi.date_added) <= DATE('" . $_GET['end_date'] . "') ");
+            $count_res->where('DATE(oi.date_added) >=', $_GET['start_date']);
+            $count_res->where('DATE(oi.date_added) <=', $_GET['end_date']);
         }
 
         if (isset($filters) && !empty($filters)) {
@@ -1021,8 +1021,8 @@ class Order_model extends CI_Model
             ->join('users un ', ' un.id = o.user_id', 'left');
 
         if (!empty($_GET['start_date']) && !empty($_GET['end_date'])) {
-            $search_res->where(" DATE(oi.date_added) >= DATE('" . $_GET['start_date'] . "') ");
-            $search_res->where(" DATE(oi.date_added) <= DATE('" . $_GET['end_date'] . "') ");
+            $search_res->where('DATE(oi.date_added) >=', $_GET['start_date']);
+            $search_res->where('DATE(oi.date_added) <=', $_GET['end_date']);
         }
 
         if (isset($filters) && !empty($filters)) {
@@ -1041,7 +1041,7 @@ class Order_model extends CI_Model
         }
 
         if (isset($_GET['seller_id']) && !empty($_GET['seller_id'])) {
-            $count_res->where("oi.seller_id", $_GET['seller_id']);
+            $search_res->where("oi.seller_id", $_GET['seller_id']);
         }
 
         if (isset($_GET['user_id']) && !empty($_GET['user_id'])) {
@@ -1053,7 +1053,7 @@ class Order_model extends CI_Model
         }
         // Filter By payment
         if (isset($_GET['payment_method']) && !empty($_GET['payment_method'])) {
-            $count_res->where('payment_method', $_GET['payment_method']);
+            $search_res->where('payment_method', $_GET['payment_method']);
         }
 
         // Filter By order type
@@ -1270,8 +1270,8 @@ class Order_model extends CI_Model
             ->join('users db ', ' db.id = oi.delivery_boy_id', 'left');
         if (!empty($_GET['start_date']) && !empty($_GET['end_date'])) {
 
-            $count_res->where(" DATE(o.date_added) >= DATE('" . $_GET['start_date'] . "') ");
-            $count_res->where(" DATE(o.date_added) <= DATE('" . $_GET['end_date'] . "') ");
+            $count_res->where('DATE(o.date_added) >=', $_GET['start_date']);
+            $count_res->where('DATE(o.date_added) <=', $_GET['end_date']);
         }
 
         if (isset($filters) && !empty($filters)) {
@@ -1306,8 +1306,8 @@ class Order_model extends CI_Model
             ->join('users db ', ' db.id = oi.delivery_boy_id', 'left');
 
         if (!empty($_GET['start_date']) && !empty($_GET['end_date'])) {
-            $search_res->where(" DATE(o.date_added) >= DATE('" . $_GET['start_date'] . "') ");
-            $search_res->where(" DATE(o.date_added) <= DATE('" . $_GET['end_date'] . "') ");
+            $search_res->where('DATE(o.date_added) >=', $_GET['start_date']);
+            $search_res->where('DATE(o.date_added) <=', $_GET['end_date']);
         }
 
         if (isset($filters) && !empty($filters)) {
@@ -1491,8 +1491,8 @@ class Order_model extends CI_Model
             ->join('users un ', ' un.id = o.user_id', 'left');
         if (!empty($_GET['start_date']) && !empty($_GET['end_date'])) {
 
-            $count_res->where(" DATE(oi.date_added) >= DATE('" . $_GET['start_date'] . "') ");
-            $count_res->where(" DATE(oi.date_added) <= DATE('" . $_GET['end_date'] . "') ");
+            $count_res->where('DATE(oi.date_added) >=', $_GET['start_date']);
+            $count_res->where('DATE(oi.date_added) <=', $_GET['end_date']);
         }
 
         if (isset($filters) && !empty($filters)) {
@@ -1542,8 +1542,8 @@ class Order_model extends CI_Model
             ->join('users un ', ' un.id = o.user_id', 'left');
 
         if (!empty($_GET['start_date']) && !empty($_GET['end_date'])) {
-            $search_res->where(" DATE(oi.date_added) >= DATE('" . $_GET['start_date'] . "') ");
-            $search_res->where(" DATE(oi.date_added) <= DATE('" . $_GET['end_date'] . "') ");
+            $search_res->where('DATE(oi.date_added) >=', $_GET['start_date']);
+            $search_res->where('DATE(oi.date_added) <=', $_GET['end_date']);
         }
 
         if (isset($filters) && !empty($filters)) {
@@ -1716,7 +1716,7 @@ class Order_model extends CI_Model
         return true;
     }
 
-    public function get_order_tracking_list()
+    public function get_order_tracking_list($seller_id = null)
     {
         $offset = 0;
         $limit = 10;
@@ -1757,6 +1757,14 @@ class Order_model extends CI_Model
         if (isset($where) && !empty($where)) {
             $count_res->where($where);
         }
+        // Scope to orders that include at least one of the requesting seller's own order
+        // items — otherwise a seller could see every seller's courier/tracking data.
+        // order_tracking.order_item_id isn't reliably a single id (the Shiprocket flow
+        // stores a comma-separated list there), so this scopes by order_id via a subquery
+        // instead of joining directly on order_item_id.
+        if (!empty($seller_id)) {
+            $count_res->where("order_id IN (SELECT DISTINCT order_id FROM order_items WHERE seller_id = " . (int) $seller_id . ")");
+        }
 
 
         $txn_count = $count_res->get('order_tracking')->result_array();
@@ -1773,6 +1781,9 @@ class Order_model extends CI_Model
         }
         if (isset($where) && !empty($where)) {
             $search_res->where($where);
+        }
+        if (!empty($seller_id)) {
+            $search_res->where("order_id IN (SELECT DISTINCT order_id FROM order_items WHERE seller_id = " . (int) $seller_id . ")");
         }
 
         $txn_search_res = $search_res->order_by($sort, $order)->limit($limit, $offset)->get('order_tracking')->result_array();
@@ -1803,7 +1814,7 @@ class Order_model extends CI_Model
         $bulkData['rows'] = $rows;
         print_r(json_encode($bulkData));
     }
-    public function get_digital_order_mail_list($from_app = false)
+    public function get_digital_order_mail_list($from_app = false, $seller_id = null)
     {
         $offset = 0;
         $limit = 10;
@@ -1873,6 +1884,12 @@ class Order_model extends CI_Model
         if (isset($where) && !empty($where)) {
             $count_res->where($where);
         }
+        // Scope to the requesting seller's own order items only — otherwise a seller could
+        // read every seller's digital-order mail history (subjects, messages, file URLs)
+        // just by calling this endpoint without an order_item_id/order_id.
+        if (!empty($seller_id)) {
+            $count_res->where("order_item_id IN (SELECT id FROM order_items WHERE seller_id = " . (int) $seller_id . ")");
+        }
 
 
         $txn_count = $count_res->get('digital_orders_mails')->result_array();
@@ -1889,6 +1906,9 @@ class Order_model extends CI_Model
         }
         if (isset($where) && !empty($where)) {
             $search_res->where($where);
+        }
+        if (!empty($seller_id)) {
+            $search_res->where("order_item_id IN (SELECT id FROM order_items WHERE seller_id = " . (int) $seller_id . ")");
         }
 
         $txn_search_res = $search_res->order_by($sort, $order)->limit($limit, $offset)->get('digital_orders_mails')->result_array();

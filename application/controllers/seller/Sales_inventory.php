@@ -28,7 +28,7 @@ class Sales_inventory extends CI_Controller
           public function get_seller_sales_inventory_list()
           {
                     if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller()) {
-                              return $this->Sales_inventory_model->get_seller_sales_inventory_list();
+                              return $this->Sales_inventory_model->get_seller_sales_inventory_list($this->ion_auth->get_user_id());
                     } else {
                               redirect('seller/login', 'refresh');
                     }

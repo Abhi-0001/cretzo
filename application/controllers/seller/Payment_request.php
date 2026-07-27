@@ -100,7 +100,15 @@ class Payment_request extends CI_Controller
 
     public function add_withdrawal_request()
     {
-        $this->form_validation->set_rules('user_id', 'User Id', 'trim|numeric|required|xss_clean');
+        // This endpoint had NO auth check at all, and trusted a client-supplied user_id
+        // for whose wallet balance to withdraw from and deduct — meaning any unauthenticated
+        // request could drain any user's balance to an attacker-supplied payment address.
+        // user_id must always be the authenticated seller's own id, never a POST value.
+        if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0))) {
+            redirect('seller/login', 'refresh');
+            return;
+        }
+
         $this->form_validation->set_rules('payment_address', 'Payment Address', 'trim|required|xss_clean');
         $this->form_validation->set_rules('amount', 'Amount', 'trim|required|xss_clean|numeric|greater_than[0]');
 
@@ -112,13 +120,13 @@ class Payment_request extends CI_Controller
             $this->response['csrfHash'] = $this->security->get_csrf_hash();
             print_r(json_encode($this->response));
         } else {
-            $user_id = $this->input->post('user_id', true);
+            $user_id = $this->ion_auth->get_user_id();
             $payment_address = $this->input->post('payment_address', true);
             $amount = $this->input->post('amount', true);
-            $userData = fetch_details('users', ['id' => $_POST['user_id']], 'balance');
+            $userData = fetch_details('users', ['id' => $user_id], 'balance');
 
             if (!empty($userData)) {
-                if ($_POST['amount'] <= $userData[0]['balance']) {
+                if ($amount <= $userData[0]['balance']) {
                     $data = [
                         'user_id' => $user_id,
                         'payment_address' => $payment_address,
@@ -128,7 +136,7 @@ class Payment_request extends CI_Controller
 
                     if (insert_details($data, 'payment_requests')) {
                         $this->delivery_boy_model->update_balance($amount, $user_id, 'deduct');
-                        $userData = fetch_details('users', ['id' => $_POST['user_id']], 'balance');
+                        $userData = fetch_details('users', ['id' => $user_id], 'balance');
                         $this->response['error'] = false;
                         $this->response['message'] = 'Withdrawal Request Sent Successfully';
                         $this->response['data'] = $userData[0]['balance'];

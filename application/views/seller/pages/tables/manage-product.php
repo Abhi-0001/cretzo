@@ -1,11 +1,12 @@
-<div class="content-wrapper">
+<div class="content-wrapper manage-product-page">
     <!-- Content Header (Page header) -->
     <!-- Main content -->
     <section class="content-header">
         <div class="container-fluid">
-            <div class="row mb-2">
+            <div class="row mb-2 align-items-center">
                 <div class="col-sm-6">
-                    <h4>Manage Products</h4>
+                    <h4 class="mb-0"><i class="fas fa-boxes mr-2 text-primary-theme"></i>Manage Products</h4>
+                    <p class="text-muted mb-0 small">View, filter, and manage everything you're selling.</p>
                 </div>
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">
@@ -136,16 +137,21 @@
                 </div>
 
                 <div class="col-md-12 main-content">
-                    <div class="card content-area p-4">
-                        <div class="card-header border-0">
-                            <div class="card-tools">
-                                <a href="<?= base_url() . 'seller/product/create_product' ?>" class="btn btn-block btn-outline-primary btn-sm">Add Product</a>
+                    <div class="card attribute-card">
+                        <div class="card-header attribute-card-header product-page-header d-flex justify-content-between align-items-center flex-wrap">
+                            <div class="d-flex align-items-center">
+                                <span class="header-icon bg-set"><i class="fas fa-boxes"></i></span>
+                                <div>
+                                    <h5 class="mb-0">Your Products</h5>
+                                    <small class="text-muted">Everything you're currently selling, in one place</small>
+                                </div>
                             </div>
+                            <a href="<?= base_url() . 'seller/product/create_product' ?>" class="btn btn-primary-theme btn-sm"><i class="fas fa-plus mr-1"></i>Add Product</a>
                         </div>
-                        <div class="card-innr">
-                            <div class="row">
-                                <div class="col-md-3">
-                                    <label for="zipcode" class="col-form-label">Filter By Product Category</label>
+                        <div class="card-body">
+                            <div class="product-filters-bar row align-items-end">
+                                <div class="col-md-4 mb-2">
+                                    <label for="category_parent" class="filter-label"><i class="fas fa-tag mr-1"></i>Product Category</label>
                                     <select id="category_parent" name="category_parent">
                                         <option value=""><?= (isset($categories) && empty($categories)) ? 'No Categories Exist' : 'Select Categories' ?>
                                         </option>
@@ -154,8 +160,8 @@
                                         ?>
                                     </select>
                                 </div>
-                                <div class="col-md-3">
-                                    <label for="zipcode" class="col-form-label">Filter By Product Status</label>
+                                <div class="col-md-4 mb-2">
+                                    <label for="status_filter" class="filter-label"><i class="fas fa-toggle-on mr-1"></i>Product Status</label>
                                     <select class='form-control' name='status' id="status_filter">
                                         <option value=''>Select Status</option>
                                         <option value='1'>Approved</option>
@@ -164,7 +170,6 @@
                                     </select>
                                 </div>
                             </div>
-                            <div class="gaps-1-5x"></div>
                             <table class='table-striped' id='products_table' data-toggle="table" data-url="<?= isset($_GET['flag']) ? base_url('seller/product/get_product_data?flag=') . $_GET['flag'] : base_url('seller/product/get_product_data') ?>" data-click-to-select="true" data-side-pagination="server" data-pagination="true" data-page-list="[5, 10, 20, 50, 100, 200]" data-search="true" data-show-columns="true" data-show-refresh="true" data-trim-on-search="false" data-sort-name="id" data-sort-order="desc" data-mobile-responsive="true" data-toolbar="" data-show-export="true" data-maintain-selected="true" data-export-types='["txt","excel","csv"]' data-export-options='{"fileName": "products-list","ignoreColumn": ["state"] }' data-query-params="product_query_params">
                                 <thead>
                                     <tr>
@@ -177,7 +182,7 @@
                                     </tr>
                                 </thead>
                             </table>
-                        </div><!-- .card-innr -->
+                        </div><!-- .card-body -->
                     </div><!-- .card -->
                 </div>
             </div>
@@ -186,3 +191,199 @@
     </section>
     <!-- /.content -->
 </div>
+
+<style>
+    .manage-product-page .text-primary-theme { color: var(--color-orange); }
+
+    .manage-product-page .attribute-card {
+        border: none;
+        border-radius: 10px;
+        box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+    }
+    .manage-product-page .attribute-card-header {
+        background: #fff;
+        border-bottom: 1px solid rgba(0,0,0,0.06);
+        gap: 10px;
+        border-radius: 10px 10px 0 0;
+    }
+    .manage-product-page .product-page-header {
+        background: linear-gradient(to right, var(--color-secondary), #fff 65%);
+        padding: 1rem 1.25rem;
+    }
+    .manage-product-page .product-page-header h5 {
+        font-weight: 700;
+        color: #2b2f33;
+    }
+    .manage-product-page .header-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 17px;
+        margin-right: 12px;
+        box-shadow: 0 3px 8px rgba(242, 130, 46, 0.35);
+    }
+    .manage-product-page .header-icon.bg-set { background: var(--color-orange); }
+
+    .manage-product-page .product-filters-bar {
+        background: #fafafa;
+        border: 1px solid rgba(0,0,0,0.06);
+        border-radius: 10px;
+        padding: 1rem 1rem 0.25rem;
+        margin: 0 0 1.25rem;
+    }
+    .manage-product-page .filter-label {
+        display: block;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: .3px;
+        color: var(--color-grey);
+        margin-bottom: 6px;
+    }
+    .manage-product-page .filter-label i {
+        color: var(--color-orange);
+    }
+
+    .manage-product-page #status_filter.form-control,
+    .manage-product-page .select2-container--bootstrap4 .select2-selection {
+        border: 1px solid rgba(0,0,0,0.12);
+        border-radius: 8px;
+        min-height: 40px;
+        box-shadow: none;
+    }
+    .manage-product-page .select2-container--bootstrap4 .select2-selection--single .select2-selection__rendered {
+        line-height: 38px;
+    }
+    .manage-product-page .select2-container--bootstrap4 .select2-selection--single .select2-selection__arrow {
+        height: 38px;
+    }
+    .manage-product-page #status_filter.form-control:focus,
+    .manage-product-page .select2-container--bootstrap4.select2-container--focus .select2-selection,
+    .manage-product-page .select2-container--bootstrap4.select2-container--open .select2-selection {
+        border-color: var(--color-orange);
+        box-shadow: 0 0 0 .15rem var(--color-orange-light);
+    }
+    .manage-product-page .select2-container--bootstrap4 .select2-results__option--highlighted[aria-selected] {
+        background-color: var(--color-orange) !important;
+    }
+
+    .manage-product-page .btn-primary-theme {
+        background: var(--color-orange);
+        border-color: var(--color-orange);
+        color: #fff;
+        font-weight: 600;
+        border-radius: 6px;
+    }
+    .manage-product-page .btn-primary-theme:hover {
+        background: var(--color-orange-dark);
+        border-color: var(--color-orange-dark);
+        color: #fff;
+    }
+
+    .manage-product-page .form-control:focus,
+    .manage-product-page .select2-container--bootstrap4 .select2-selection:focus {
+        border-color: var(--color-orange);
+        box-shadow: 0 0 0 .15rem var(--color-orange-light);
+    }
+
+    /* --- simplified bootstrap-table look (matches other redesigned pages) --- */
+    .manage-product-page .fixed-table-toolbar {
+        margin-bottom: 10px;
+    }
+    .manage-product-page .fixed-table-toolbar > div {
+        margin-left: 10px !important;
+    }
+    .manage-product-page .fixed-table-toolbar .btn-group > .btn,
+    .manage-product-page .fixed-table-toolbar .btn-group > .keep-open {
+        margin-left: 8px !important;
+    }
+    .manage-product-page .fixed-table-toolbar .btn-group > .btn:first-child,
+    .manage-product-page .fixed-table-toolbar .btn-group > .keep-open:first-child {
+        margin-left: 0 !important;
+    }
+    .manage-product-page .fixed-table-toolbar .search input {
+        border-radius: 20px;
+        border: 1px solid rgba(0,0,0,0.12);
+        padding: 6px 14px;
+        box-shadow: none;
+    }
+    .manage-product-page .fixed-table-toolbar .search input:focus {
+        border-color: var(--color-orange);
+    }
+    .manage-product-page table.table thead th {
+        background: #fafafa;
+        border-top: none;
+        border-bottom: 2px solid rgba(0,0,0,0.06);
+        color: var(--color-grey);
+        font-weight: 600;
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: .3px;
+        white-space: nowrap;
+    }
+    .manage-product-page table.table tbody td {
+        vertical-align: middle;
+        font-size: 14px;
+        border-top: 1px solid rgba(0,0,0,0.05);
+    }
+    .manage-product-page table.table tbody tr:hover {
+        background-color: var(--color-orange-light);
+    }
+    .manage-product-page .fixed-table-pagination .pagination .page-item.active .page-link {
+        color: #fff;
+        background-color: var(--color-orange);
+        border-color: var(--color-orange);
+    }
+    .manage-product-page .fixed-table-pagination .pagination .page-link {
+        color: var(--color-orange-dark);
+        border-radius: 6px;
+        margin: 0 2px;
+        border: 1px solid rgba(0,0,0,0.08);
+    }
+
+    .manage-product-page .action-btn {
+        border-radius: 6px;
+    }
+
+    .manage-product-page .modal-header {
+        border-bottom: 2px solid var(--color-secondary);
+    }
+    .manage-product-page .modal-title {
+        color: #2b2f33;
+    }
+</style>
+
+<script>
+    // The category/status filters above only work if (a) #category_parent is styled the
+    // same way as #status_filter, and (b) changing either one actually re-queries the
+    // products table with the selected values. Neither was wired up on the seller side
+    // (that JS only ever shipped for the admin panel), so both are set up here.
+    $(function () {
+        $('#category_parent').select2({
+            theme: 'bootstrap4',
+            width: '100%',
+            placeholder: '<?= (isset($categories) && empty($categories)) ? "No Categories Exist" : "Select Categories" ?>',
+            allowClear: true
+        });
+
+        $(document).on('change', '#category_parent, #status_filter', function () {
+            $('#products_table').bootstrapTable('refresh');
+        });
+    });
+
+    function product_query_params(p) {
+        return {
+            category_id: $('#category_parent').val(),
+            status: $('#status_filter').val(),
+            limit: p.limit,
+            sort: p.sort,
+            order: p.order,
+            offset: p.offset,
+            search: p.search
+        };
+    }
+</script>

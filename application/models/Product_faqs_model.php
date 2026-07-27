@@ -42,7 +42,7 @@ class Product_faqs_model extends CI_Model
         $faq_id = escape_array($faq_id);
         $this->db->delete('product_faqs', ['id' => $faq_id]);
     }
-    public function get_faqs()
+    public function get_faqs($seller_id = null)
     {
         $offset = 0;
         $limit = 10;
@@ -69,9 +69,6 @@ class Product_faqs_model extends CI_Model
         if (isset($_GET['product_id']) && $_GET['product_id'] != null) {
             $where['product_id'] = $_GET['product_id'];
         }
-        if (isset($_GET['user_id']) && $_GET['user_id'] != null) {
-            $where['seller_id'] = $_GET['user_id'];
-        }
         $count_res = $this->db->select(' COUNT(pf.id) as total  ')->join('users u', 'u.id=pf.user_id');
         if (isset($_GET['search']) && trim($_GET['search'])) {
             $search = trim($_GET['search']);
@@ -84,6 +81,12 @@ class Product_faqs_model extends CI_Model
         }
         if (isset($where) && !empty($where)) {
             $count_res->where($where);
+        }
+        // Scope to the requesting seller's own products only. This is joined against the
+        // products table (rather than trusting product_faqs.seller_id, which historically
+        // wasn't always set correctly) so a seller can never see another seller's FAQs.
+        if (!empty($seller_id)) {
+            $count_res->join('products p', 'p.id = pf.product_id')->where('p.seller_id', $seller_id);
         }
 
         $rating_count = $count_res->get('product_faqs pf')->result_array();
@@ -101,6 +104,9 @@ class Product_faqs_model extends CI_Model
 
         if (isset($where) && !empty($where)) {
             $search_res->where($where);
+        }
+        if (!empty($seller_id)) {
+            $search_res->join('products p', 'p.id = pf.product_id')->where('p.seller_id', $seller_id);
         }
 
         $rating_search_res = $search_res->order_by($sort, $order)->limit($limit, $offset)->get('product_faqs pf')->result_array();

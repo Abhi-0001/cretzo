@@ -25,7 +25,11 @@ class Media extends CI_Controller
     }
     public function upload()
     {
-        if (!$this->ion_auth->logged_in() && !$this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 2 || $this->ion_auth->seller_status() == 7)) {
+        // This previously used inverted logic (required ALL of "not logged in AND not a
+        // seller AND status 2/7" to block) which never actually holds for a real visitor —
+        // meaning literally anyone, logged in or not, could upload files here. Replaced
+        // with the standard "must be an active/pending seller" guard used everywhere else.
+        if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0))) {
             redirect('seller/login', 'refresh');
             exit();
         }
@@ -41,7 +45,7 @@ class Media extends CI_Controller
             mkdir($target_path, 0777, true);
         }
 
-        $temp_array = $media_ids = $other_images_new_name = array();
+        $temp_array = $media_ids = $other_images_new_name = $uploaded_files = array();
         $files = $_FILES;
         $other_image_info_error = "";
         $allowed_media_types = implode('|', allowed_media_types());
@@ -66,6 +70,11 @@ class Media extends CI_Controller
                     $media_ids[] = $media_id = $this->media_model->set_media($temp_array); /* set media in database */
                     resize_image($temp_array,  $target_path, $media_id);
                     $other_images_new_name[$i] = $temp_array['file_name'];
+                    $uploaded_files[] = [
+                        'name' => $temp_array['file_name'],
+                        'sub_directory' => $sub_directory,
+                        'url' => base_url() . $sub_directory . $temp_array['file_name'],
+                    ];
                 }
             } else {
 
@@ -101,6 +110,7 @@ class Media extends CI_Controller
             $this->response['csrfHash'] = $this->security->get_csrf_hash();
             $this->response['message'] = "Files Uploaded Successfully..!";
             $this->response['error'] = (isset($other_image_info_error) && !empty($other_image_info_error)) ? $other_image_info_error : false;
+            $this->response['files'] = $uploaded_files;
             print_r(json_encode($this->response));
         }
     }
@@ -135,6 +145,17 @@ class Media extends CI_Controller
             print_r(json_encode($this->response));
             return false;
         }
+        // The UI only ever shows the delete button for a seller's own uploads, but that's
+        // not enforced anywhere server-side — without this check any seller could delete
+        // any other seller's media file just by knowing its id.
+        if ((int) $media[0]['seller_id'] !== (int) $this->ion_auth->get_user_id()) {
+            $this->response['error'] = true;
+            $this->response['csrfName'] = $this->security->get_csrf_token_name();
+            $this->response['csrfHash'] = $this->security->get_csrf_hash();
+            $this->response['message'] = "Media does not exist!";
+            print_r(json_encode($this->response));
+            return false;
+        }
         $path = FCPATH . $media[0]['sub_directory'] . $media[0]['name'];
         $where = array('id' => $id);
 
@@ -160,7 +181,7 @@ class Media extends CI_Controller
     function fetch()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
-            return $this->media_model->fetch_media(true);
+            return $this->media_model->fetch_media(true, $this->ion_auth->get_user_id());
         } else {
             redirect('seller/login', 'refresh');
         }
