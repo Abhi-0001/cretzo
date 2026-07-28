@@ -409,7 +409,7 @@ class Area_model extends CI_Model
         if (trim((string) $state_name) === '') {
             return null;
         }
-        $row = $this->db->where('LOWER(TRIM(name))', strtolower(trim($state_name)), false)->get('states')->row_array();
+        $row = $this->db->where('LOWER(TRIM(name)) =', strtolower(trim($state_name)))->get('states')->row_array();
         return $row ? (int) $row['id'] : null;
     }
 

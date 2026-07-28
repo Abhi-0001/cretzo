@@ -51,7 +51,17 @@ class Product extends CI_Controller
     {
         $seller_id = $this->session->userdata('user_id');
         $seller = $this->db->select('status')->where('user_id', $seller_id)->get('seller_data')->row_array();
-        return !empty($seller) && (string) $seller['status'] === '1';
+
+        // A missing seller_data row means this account predates the KYC/verification
+        // flow (or the row was otherwise never created) — it must NOT be treated the
+        // same as a brand-new signup awaiting review, or an already-operating seller
+        // gets retroactively locked out of product management the moment this row is
+        // absent. Only an EXISTING row with an explicit non-approved status blocks.
+        if (empty($seller)) {
+            return true;
+        }
+
+        return (string) $seller['status'] === '1';
     }
 
     private function ensure_product_access($expects_json = false)
