@@ -130,7 +130,7 @@ class Point_of_sale extends CI_Controller
             print_r(json_encode($this->response));
             return false;
         }
-        if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller()) {
+        if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
             if (isset($post_data) && !empty($post_data)) {
                 for ($i = 0; $i < count($post_data); $i++) {
                     if (!isset($post_data[$i]['variant_id']) || empty($post_data[$i]['variant_id'])) {
@@ -164,12 +164,37 @@ class Point_of_sale extends CI_Controller
             $product_variant_id = array_column($post_data, "variant_id");
             $quantity = array_column($post_data, "quantity");
             $user_id = $_POST['user_id'];
+            $seller_id = $this->ion_auth->get_user_id();
+
+            // Every variant must belong to a product owned by this seller — without this,
+            // a seller could ring up (and decrement stock for) another seller's products
+            // through the POS and book a fabricated order against an arbitrary customer.
+            $owned_variants = $this->db->select('pv.id')
+                ->join('products p', 'p.id = pv.product_id')
+                ->where('p.seller_id', $seller_id)
+                ->where_in('pv.id', array_unique($product_variant_id))
+                ->get('product_variants pv')->result_array();
+            if (count($owned_variants) != count(array_unique($product_variant_id))) {
+                $this->response['error'] = true;
+                $this->response['message'] = "One or more products were not found.";
+                $this->response['data'] = array();
+                print_r(json_encode($this->response));
+                return false;
+            }
+
+            $user_mobile = fetch_details("users", ['id' => $user_id], "mobile");
+            if (empty($user_mobile)) {
+                $this->response['error'] = true;
+                $this->response['message'] = "Customer not found.";
+                $this->response['data'] = array();
+                print_r(json_encode($this->response));
+                return false;
+            }
 
             $place_order_data = array();
             $place_order_data['product_variant_id'] = implode(",", $product_variant_id);
             $place_order_data['quantity'] = implode(",", $quantity);
             $place_order_data['user_id'] = $user_id;
-            $user_mobile = fetch_details("users", ['id' => $user_id], "mobile");
             $place_order_data['mobile'] = $user_mobile[0]['mobile'];
             $place_order_data['is_wallet_used'] = 0;
             $place_order_data['delivery_charge'] = $_POST['delivery_charges'];

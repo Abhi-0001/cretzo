@@ -56,8 +56,8 @@
    MAIN IMAGE — fixed 200×200 upload zone
    ───────────────────────────────────────────────────────────── */
 .create-product-page #main_image_preview {
-    width: 200px;
-    height: 200px;
+    width: 150px;
+    height: 150px;
     border: 2px dashed #d1d5db;
     border-radius: 8px;
     background: #f9fafb;
@@ -325,8 +325,74 @@
             background: var(--color-orange-dark);
             border-color: var(--color-orange-dark);
         }
-        .create-product-page #category_dropdown div:hover {
-            background: var(--color-orange-light) !important;
+        .create-product-page .category-search-box {
+            position: relative;
+        }
+        .create-product-page .category-search-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #9ca3af;
+            font-size: .85rem;
+            pointer-events: none;
+        }
+        .create-product-page .category-search-input {
+            padding-left: 34px;
+            padding-right: 30px;
+        }
+        .create-product-page .category-search-clear {
+            display: none;
+            position: absolute;
+            right: 6px;
+            top: 50%;
+            transform: translateY(-50%);
+            border: none;
+            background: transparent;
+            color: #9ca3af;
+            font-size: 1.15rem;
+            line-height: 1;
+            cursor: pointer;
+            padding: 2px 6px;
+        }
+        .create-product-page .category-search-clear:hover {
+            color: #4b5563;
+        }
+        .create-product-page #category_dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #fff;
+            border: 1px solid #ced4da;
+            border-top: none;
+            border-radius: 0 0 .375rem .375rem;
+            max-height: 320px;
+            overflow-y: auto;
+            z-index: 9999;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, .08);
+        }
+        .create-product-page .category-result-item {
+            padding: 8px 14px;
+            cursor: pointer;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        .create-product-page .category-result-item:last-child {
+            border-bottom: none;
+        }
+        .create-product-page .category-result-item:hover {
+            background: var(--color-orange-light);
+        }
+        .create-product-page .category-result-name {
+            font-weight: 600;
+            color: #1f2937;
+            font-size: .9rem;
+        }
+        .create-product-page .category-result-path {
+            font-size: .75rem;
+            color: #9ca3af;
+            margin-top: 2px;
         }
     </style>
     <div class="content-wrapper create-product-page">
@@ -404,7 +470,7 @@
                                     </div>
                                
                                     <div class="form-group">
-                                        <label for="short_description">Short Description</label>
+                                        <label for="short_description">Short Description <span class="text-danger">*</span></label>
                                         <textarea class="form-control" id="short_description" name="short_description" rows="3"><?= isset($product_details[0]['short_description']) ? output_escaping($product_details[0]['short_description']) : '' ?></textarea>
                                     </div>
 
@@ -432,34 +498,60 @@
                                         <h6>Main Image <span class="text-danger">*</span></h6>
                                         <input type="file" class="form-control-file" id="main_image_input" accept="image/*">
                                         <input type="hidden" name="pro_input_image" id="pro_input_image" value="<?= isset($product_details[0]['image']) ? output_escaping($product_details[0]['image']) : '' ?>">
-                                        <div id="main_image_preview" class="preview-single"></div>
+                                        <div id="main_image_preview" class="preview-single">
+                                            <?php if (!empty($product_details[0]['image'])) : ?>
+                                                <div class="thumb-wrapper d-inline-block">
+                                                    <button type="button" class="remove-thumb" data-role="remove-main">&times;</button>
+                                                    <img src="<?= get_image_url($product_details[0]['image'], 'thumb', 'md') ?>" alt="Main">
+                                                </div>
+                                            <?php endif; ?>
+                                        </div>
                                     </div>
 
                                     <div class="media-group">
                                         <h6>Other Images</h6>
                                         <input type="file" class="form-control-file" id="other_images_input" accept="image/*" multiple>
-                                        <div id="other_images_preview" class="preview-grid"></div>
+                                        <div id="other_images_preview" class="preview-grid">
+                                            <?php
+                                            $existing_other_images = [];
+                                            if (!empty($product_details[0]['other_images'])) {
+                                                $decoded = json_decode($product_details[0]['other_images'], true);
+                                                if (is_array($decoded)) {
+                                                    $existing_other_images = $decoded;
+                                                }
+                                            }
+                                            ?>
+                                            <?php foreach ($existing_other_images as $other_image_path) : ?>
+                                                <?php if (empty($other_image_path)) continue; ?>
+                                                <div class="thumb-wrapper" data-path="<?= output_escaping($other_image_path) ?>">
+                                                    <button type="button" class="remove-thumb" data-role="remove-other">&times;</button>
+                                                    <img src="<?= get_image_url($other_image_path, 'thumb', 'md') ?>" alt="Other">
+                                                    <input type="hidden" name="other_images[]" value="<?= output_escaping($other_image_path) ?>">
+                                                </div>
+                                            <?php endforeach; ?>
+                                        </div>
                                     </div>
                                     <div class="media-group">
                                         <h6>Video Upload</h6>
+                                        <?php $existing_video_type = $product_details[0]['video_type'] ?? ''; ?>
                                         <div class="form-row">
                                             <div class="form-group col-md-4">
                                                 <select name="video_type" id="video_type" class="form-control">
-                                                    <option value="">None</option>
-                                                    <option value="youtube">YouTube URL</option>
-                                                    <option value="vimeo">Vimeo URL</option>
-                                                    <option value="self_hosted">Upload Video File</option>
+                                                    <option value="" <?= $existing_video_type === '' ? 'selected' : '' ?>>None</option>
+                                                    <option value="youtube" <?= $existing_video_type === 'youtube' ? 'selected' : '' ?>>YouTube URL</option>
+                                                    <option value="vimeo" <?= $existing_video_type === 'vimeo' ? 'selected' : '' ?>>Vimeo URL</option>
+                                                    <option value="self_hosted" <?= $existing_video_type === 'self_hosted' ? 'selected' : '' ?>>Upload Video File</option>
                                                 </select>
                                             </div>
-                                        
+
                                             <div class="form-group col-md-8" id="video_url_container">
-                                                <input type="url" class="form-control" name="video" id="video" placeholder="https://...">
+                                                <input type="url" class="form-control" name="video" id="video" placeholder="https://..." value="<?= ($existing_video_type === 'youtube' || $existing_video_type === 'vimeo') && !empty($product_details[0]['video']) ? output_escaping($product_details[0]['video']) : '' ?>">
                                             </div>
                                         </div>
                                         <div id="video_file_container" class="d-none">
                                             <input type="file" class="form-control-file" id="video_file_input" accept="video/*">
-                                            <input type="hidden" name="pro_input_video" id="pro_input_video">
-                                            <small id="video_file_name" class="text-muted"></small>
+                                            <input type="hidden" name="pro_input_video" id="pro_input_video" value="<?= $existing_video_type === 'self_hosted' && !empty($product_details[0]['video']) ? output_escaping($product_details[0]['video']) : '' ?>">
+                                            <small id="video_file_name" class="text-muted"><?= $existing_video_type === 'self_hosted' && !empty($product_details[0]['video']) ? 'Current: ' . output_escaping(basename($product_details[0]['video'])) : '' ?></small>
                                         </div>
                                     </div>
                                     </div>
@@ -475,7 +567,7 @@
                                         <select class="form-control" name="pro_input_tax" id="pro_input_tax">
                                             <option value="0">No Tax</option>
                                             <?php foreach (($taxes ?? []) as $tax): ?>
-                                                <option value="<?= (int)$tax['id'] ?>"><?= output_escaping($tax['title']) ?></option>
+                                                <option value="<?= (int)$tax['id'] ?>" <?= isset($product_details[0]['tax']) && (int)$product_details[0]['tax'] === (int)$tax['id'] ? 'selected' : '' ?>><?= output_escaping($tax['title']) ?></option>
                                             <?php endforeach; ?>
                                         </select>
                                     </div>
@@ -484,7 +576,7 @@
                                         <select class="form-control" name="made_in" id="made_in">
                                             <option value="">Select Country</option>
                                             <?php foreach (($countries ?? []) as $country): ?>
-                                                <option value="<?= output_escaping($country['name']) ?>"><?= output_escaping($country['name']) ?></option>
+                                                <option value="<?= output_escaping($country['name']) ?>" <?= isset($product_details[0]['made_in']) && $product_details[0]['made_in'] === $country['name'] ? 'selected' : '' ?>><?= output_escaping($country['name']) ?></option>
                                             <?php endforeach; ?>
                                         </select>
                                     </div>
@@ -493,54 +585,43 @@
                                         <select class="form-control" name="brand" id="brand">
                                             <option value="">Select Brand</option>
                                             <?php foreach (($brands ?? []) as $brand): ?>
-                                                <option value="<?= (int)$brand['id'] ?>"><?= output_escaping($brand['name']) ?></option>
+                                                <option value="<?= (int)$brand['id'] ?>" <?= !empty($product_details[0]['brand']) && (int)$product_details[0]['brand'] === (int)$brand['id'] ? 'selected' : '' ?>><?= output_escaping($brand['name']) ?></option>
                                             <?php endforeach; ?>
                                         </select>
                                     </div>
                                     <div class="col-md-3 form-group">
                                         <label>HSN Code</label>
-                                        <input type="text" class="form-control" name="hsn_code" id="hsn_code">
+                                        <input type="text" class="form-control" name="hsn_code" id="hsn_code" value="<?= isset($product_details[0]['hsn_code']) ? output_escaping($product_details[0]['hsn_code']) : '' ?>">
                                     </div>
 
-                                    <!-- Replace your category_level_1 select with this -->
-<div class="col-md-4 form-group">
+                                    <div class="col-md-4 form-group">
     <label>Category  <span class="text-danger">*</span></label>
     <div class="category-combo" style="position:relative;">
-        <input type="text" 
-               class="form-control" 
-               id="category_level_1_input"
-               placeholder="Search or type a new category..."
-               autocomplete="off">
-        <div id="category_dropdown" style="
-            display:none;
-            position:absolute;
-            top:100%;
-            left:0;
-            right:0;
-            background:#fff;
-            border:1px solid #ced4da;
-            border-top:none;
-            border-radius:0 0 .25rem .25rem;
-            max-height:200px;
-            overflow-y:auto;
-            z-index:9999;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        "></div>
+        <div class="category-search-box">
+            <i class="fas fa-search category-search-icon"></i>
+            <input type="text"
+                   class="form-control category-search-input"
+                   id="category_level_1_input"
+                   placeholder="Search category..."
+                   autocomplete="off">
+            <button type="button" class="category-search-clear" id="category_search_clear" aria-label="Clear">&times;</button>
+        </div>
+        <div id="category_dropdown"></div>
     </div>
-    <small class="text-muted">Select existing or type to add new</small>
+    <small class="text-muted">Search and select an existing category</small>
 </div>
 
                                     <div class="col-md-4 form-group">
                                         <label>Total Allowed Quantity</label>
-                                        <input type="number" min="1" class="form-control" name="total_allowed_quantity" value="1">
+                                        <input type="number" min="1" class="form-control" name="total_allowed_quantity" value="<?= !empty($product_details[0]['total_allowed_quantity']) ? (int)$product_details[0]['total_allowed_quantity'] : 1 ?>">
                                     </div>
                                     <div class="col-md-4 form-group">
                                         <label>Minimum Order Quantity</label>
-                                        <input type="number" min="1" class="form-control" name="minimum_order_quantity" value="1">
+                                        <input type="number" min="1" class="form-control" name="minimum_order_quantity" value="<?= !empty($product_details[0]['minimum_order_quantity']) ? (int)$product_details[0]['minimum_order_quantity'] : 1 ?>">
                                     </div>
                                     <div class="col-md-4 form-group">
                                         <label>Quantity Step Size</label>
-                                        <input type="number" min="1" class="form-control" name="quantity_step_size" value="1">
+                                        <input type="number" min="1" class="form-control" name="quantity_step_size" value="<?= !empty($product_details[0]['quantity_step_size']) ? (int)$product_details[0]['quantity_step_size'] : 1 ?>">
                                     </div>
                                 </div>
                             </div>
@@ -598,14 +679,20 @@
                                 <div class="card card-light h-100">
                                     <div class="card-body">
                                         <h6><i class="fas fa-rupee-sign"></i> Pricing</h6>
+                                        <?php
+                                        // For simple/digital products the price lives on their single
+                                        // product_variants row, not on the products row itself.
+                                        $simple_variant = (($product_details[0]['type'] ?? 'simple_product') !== 'variable_product') && !empty($product_variants[0])
+                                            ? $product_variants[0] : null;
+                                        ?>
                                         <div id="simple_pricing_block">
                                             <div class="form-group">
                                                 <label>Price <span class="text-danger">*</span></label>
-                                                <input type="number" min="0" step="0.01" class="form-control" name="simple_price" id="simple_price">
+                                                <input type="number" min="0" step="0.01" class="form-control" name="simple_price" id="simple_price" value="<?= $simple_variant['price'] ?? '' ?>">
                                             </div>
                                             <div class="form-group mb-0">
                                                 <label>Special Price</label>
-                                                <input type="number" min="0" step="0.01" class="form-control" name="simple_special_price" id="simple_special_price">
+                                                <input type="number" min="0" step="0.01" class="form-control" name="simple_special_price" id="simple_special_price" value="<?= !empty($simple_variant['special_price']) ? $simple_variant['special_price'] : '' ?>">
                                             </div>
                                         </div>
                                         <div id="variable_pricing_block" class="d-none">
@@ -655,64 +742,84 @@
 <script> 
     $(document).ready(function () {
 
-// Parse categories from the hidden input your form already has
-var allCategories = [];
-try {
-    var raw = JSON.parse($('#category_tree_data').val() || '[]');
-    raw.forEach(function (cat) {
-        // Level 1 = no parent or parent_id is 0/null
-        if (!cat.parent_id || cat.parent_id == 0) {
-            allCategories.push({ id: cat.id, name: cat.name });
+// Parse categories from the hidden input your form already has and flatten the
+// whole tree (every level, however deep) into one list. Each entry keeps its
+// own leaf name, its top-level ancestor name (for the "in <Top Level>" line),
+// and its full breadcrumb path (for the muted line underneath).
+//
+// A seller's category tree can list the same category twice — once nested
+// under its real parent, and once again as its own "root" (the seller's
+// assigned category_ids aren't always just top-level ids) — so we key by id
+// and keep whichever occurrence has the deepest/most informative path.
+var categoryById = {};
+(function flattenCategoryTree(nodes, pathParts) {
+    (nodes || []).forEach(function (cat) {
+        var parts = pathParts.concat([cat.name]);
+        var existing = categoryById[cat.id];
+        if (!existing || parts.length > existing.depth) {
+            categoryById[cat.id] = {
+                id: cat.id,
+                name: cat.name,
+                fullPath: parts.join(' > '),
+                depth: parts.length
+            };
+        }
+        if (cat.children && cat.children.length) {
+            flattenCategoryTree(cat.children, parts);
         }
     });
-} catch(e) {}
+})((function () {
+    try {
+        return JSON.parse($('#category_tree_data').val() || '[]');
+    } catch (e) {
+        return [];
+    }
+})(), []);
+var allCategories = Object.keys(categoryById).map(function (id) { return categoryById[id]; });
 
-var $input    = $('#category_level_1_input');
-var $dropdown = $('#category_dropdown');
-var selectedId = null;
+var $input     = $('#category_level_1_input');
+var $dropdown  = $('#category_dropdown');
+var $clearBtn  = $('#category_search_clear');
+
+// Pre-fill the visible input with the current category's full path on edit.
+(function () {
+    var currentId = $('#selected_category_id').val();
+    if (!currentId) return;
+    var current = allCategories.filter(function (c) { return String(c.id) === String(currentId); })[0];
+    if (current) {
+        $input.val(current.fullPath);
+        $clearBtn.show();
+    }
+})();
 
 function renderDropdown(term) {
     $dropdown.empty();
     var term_lower = term.toLowerCase();
 
     var filtered = allCategories.filter(function (c) {
-        return c.name.toLowerCase().indexOf(term_lower) > -1;
+        return c.fullPath.toLowerCase().indexOf(term_lower) > -1;
     });
 
-    if (filtered.length === 0 && term.length > 0) {
-        // Show "Add new" option
-        $dropdown.append(
-            $('<div>').text('+ Add new: "' + term + '"')
-                .css({ padding:'8px 12px', cursor:'pointer', color:'#28a745', fontWeight:'600' })
-                .on('mousedown', function (e) {
-                    e.preventDefault();
-                    selectedId = '__new__:' + term;
-                    $input.val(term);
-                    $('#selected_category_id').val('new:' + term);
-                    $dropdown.hide();
-                })
-        );
-    } else {
-        filtered.forEach(function (cat) {
-            $dropdown.append(
-                $('<div>').text(cat.name)
-                    .css({ padding:'8px 12px', cursor:'pointer' })
-                    .on('mousedown', function (e) {
-                        e.preventDefault();
-                        selectedId = cat.id;
-                        $input.val(cat.name);
-                        $('#selected_category_id').val(cat.id);
-                        $dropdown.hide();
-                    })
-                    .on('mouseenter', function () {
-                        $(this).css('background','#f0f0f0');
-                    })
-                    .on('mouseleave', function () {
-                        $(this).css('background','#fff');
-                    })
-            );
+    filtered.forEach(function (cat) {
+        var $item = $('<div>').addClass('category-result-item')
+            .append($('<div>').addClass('category-result-name').text(cat.name));
+
+        // Only show the path line when it adds information beyond the name
+        // above it — a top-level category's path is just its own name again.
+        if (cat.fullPath !== cat.name) {
+            $item.append($('<div>').addClass('category-result-path').text(cat.fullPath));
+        }
+
+        $item.on('mousedown', function (e) {
+            e.preventDefault();
+            $input.val(cat.fullPath);
+            $('#selected_category_id').val(cat.id);
+            $clearBtn.show();
+            $dropdown.hide();
         });
-    }
+
+        $dropdown.append($item);
+    });
 
     if ($dropdown.children().length > 0) {
         $dropdown.show();
@@ -728,9 +835,17 @@ $input.on('focus', function () {
 
 // Filter as user types
 $input.on('input', function () {
-    selectedId = null;
     $('#selected_category_id').val('');
+    $clearBtn.toggle($(this).val().length > 0);
     renderDropdown($(this).val());
+});
+
+$clearBtn.on('mousedown', function (e) {
+    e.preventDefault();
+    $input.val('').trigger('focus');
+    $('#selected_category_id').val('');
+    $clearBtn.hide();
+    $dropdown.empty().hide();
 });
 
 // Hide on blur
@@ -742,18 +857,6 @@ $input.on('blur', function () {
 $(document).on('click', function (e) {
     if (!$(e.target).closest('.category-combo').length) {
         $dropdown.hide();
-    }
-});
-
-// Validate on submit
-$('#save-product').on('submit', function () {
-    var val = $('#selected_category_id').val();
-    if (!val) {
-        // User typed something but didn't pick — treat as new
-        var typed = $input.val().trim();
-        if (typed) {
-            $('#selected_category_id').val('new:' + typed);
-        }
     }
 });
 

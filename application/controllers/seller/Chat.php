@@ -74,7 +74,7 @@ class Chat extends CI_Controller
 
     public function make_me_online()
     {
-        if (!$this->ion_auth->logged_in()) {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller()) {
             redirect('auth', 'refresh');
         } else {
 
@@ -99,7 +99,7 @@ class Chat extends CI_Controller
     }
     public function get_system_settings()
     {
-        if (!$this->ion_auth->logged_in()) {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller()) {
             redirect('auth', 'refresh');
         } else {
             $response = get_settings('firebase_settings');
@@ -109,7 +109,7 @@ class Chat extends CI_Controller
 
     public function get_online_members()
     {
-        if (!$this->ion_auth->logged_in()) {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller()) {
             redirect('auth', 'refresh');
         } else {
             $user_id = $this->session->userdata('user_id');
@@ -311,7 +311,7 @@ class Chat extends CI_Controller
 
     public function update_web_fcm()
     {
-        if (!$this->ion_auth->logged_in()) {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller()) {
             redirect('auth', 'refresh');
         } else {
             $fcm = $this->input->post('web_fcm');
@@ -352,7 +352,7 @@ class Chat extends CI_Controller
     public function send_msg()
     {
 
-        if (!$this->ion_auth->logged_in()) {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller()) {
             redirect('auth', 'refresh');
         } else {
             $user_id = $this->session->userdata('user_id');
@@ -654,7 +654,7 @@ class Chat extends CI_Controller
 
     public function mark_msg_read()
     {
-        if (!$this->ion_auth->logged_in()) {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller()) {
             redirect('auth', 'refresh');
         } else {
 
@@ -697,7 +697,7 @@ class Chat extends CI_Controller
 
     public function delete_msg()
     {
-        if (!$this->ion_auth->logged_in()) {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller()) {
             redirect('auth', 'refresh');
         } else {
 
@@ -725,7 +725,7 @@ class Chat extends CI_Controller
 
     public function load_chat()
     {
-        if (!$this->ion_auth->logged_in()) {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller()) {
             redirect('auth', 'refresh');
         } else {
             $user_id = $this->session->userdata('user_id');
@@ -773,7 +773,7 @@ class Chat extends CI_Controller
 
     public function switch_chat()
     {
-        if (!$this->ion_auth->logged_in()) {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller()) {
             redirect('auth', 'refresh');
         } else {
             $type = $this->input->post('type');
@@ -808,7 +808,7 @@ class Chat extends CI_Controller
 
     public function send_fcm()
     {
-        if (!$this->ion_auth->logged_in()) {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller()) {
             redirect('auth', 'refresh');
         } else {
 
@@ -862,8 +862,10 @@ class Chat extends CI_Controller
             curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($fcmFields));
             $result = curl_exec($ch);
             curl_close($ch);
-          
-            print_r(json_encode($fcmFields));
+
+            // Don't echo $fcmFields back — it contains the recipient's raw FCM device
+            // token (registration_ids), which has no reason to ever reach the client.
+            print_r(json_encode(['error' => false]));
             // $notification['title'] = $user[0]['username'];
             // $notification['type'] = $type;
             // $notification['message_type'] = $message_type;
@@ -915,9 +917,14 @@ class Chat extends CI_Controller
 
     public function search_user()
     {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller()) {
+            redirect('seller/login', 'refresh');
+            return;
+        }
+
         // Fetch users
-        $this->db->select('*');
-        $this->db->where("username like '%" . $_GET['search'] . "%'");
+        $this->db->select('id, username');
+        $this->db->like('username', $this->input->get('search', true));
         $fetched_records = $this->db->get('users');
         $users = $fetched_records->result_array();
         // Initialize Array with fetched data

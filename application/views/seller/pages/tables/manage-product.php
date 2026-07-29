@@ -386,4 +386,89 @@
             search: p.search
         };
     }
+
+    // FAQs and Ratings modal tables below need their own query-params functions for the
+    // same reason product_query_params above does — the shared queryParams/ratingParams
+    // helpers only ever shipped in the admin-only custom.js, never loaded on seller pages.
+    function queryParams(p) {
+        return {
+            limit: p.limit,
+            sort: p.sort,
+            order: p.order,
+            offset: p.offset,
+            search: p.search
+        };
+    }
+
+    function ratingParams(p) {
+        return {
+            limit: p.limit,
+            sort: p.sort,
+            order: p.order,
+            offset: p.offset,
+            search: p.search
+        };
+    }
+
+    // Deactivate/Activate/Not-Approved toggle and Delete buttons on each row had no click
+    // handler at all on the seller side (same custom.js-not-loaded root cause) — wired up
+    // here following the pattern already used in manage-product-faqs.php.
+    $(document).on('click', '.update_active_status', function () {
+        var id = $(this).data('id');
+        var table = $(this).data('table');
+        var status = $(this).data('status');
+        $.ajax({
+            type: 'GET',
+            url: base_url + 'seller/home/update_status',
+            data: { id: id, table: table, status: status },
+            dataType: 'json'
+        }).done(function (response) {
+            if (response.csrfName && response.csrfHash) {
+                csrfName = response.csrfName;
+                csrfHash = response.csrfHash;
+            }
+            if (response.error === true) {
+                iziToast.success({ message: '<span style="text-transform:capitalize">' + response.message + '</span> Status Updated' });
+            } else {
+                iziToast.error({ message: '<span style="text-transform:capitalize">' + response.message + '</span> Status Not Updated' });
+            }
+            $('#products_table').bootstrapTable('refresh');
+        }).fail(function () {
+            iziToast.error({ message: 'Something went wrong. Please try again.' });
+        });
+    });
+
+    $(document).on('click', '.delete-product', function () {
+        var id = $(this).data('id');
+        Swal.fire({
+            title: 'Are You Sure!',
+            text: "You won't be able to revert this!",
+            type: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Yes, delete it!'
+        }).then(function (result) {
+            if (!result.value) return;
+            $.ajax({
+                type: 'GET',
+                url: base_url + 'seller/product/delete_product',
+                data: { id: id },
+                dataType: 'json'
+            }).done(function (response) {
+                if (response.csrfName && response.csrfHash) {
+                    csrfName = response.csrfName;
+                    csrfHash = response.csrfHash;
+                }
+                if (response.error === false) {
+                    Swal.fire('Deleted!', response.message, 'success');
+                } else {
+                    Swal.fire('Oops...', response.message, 'error');
+                }
+                $('#products_table').bootstrapTable('refresh');
+            }).fail(function () {
+                Swal.fire('Oops...', 'Something went wrong!', 'error');
+            });
+        });
+    });
 </script>

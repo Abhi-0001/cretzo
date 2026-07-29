@@ -164,7 +164,7 @@ class Rating_model extends CI_Model
     }
 
 
-    public function get_rating()
+    public function get_rating($seller_id = null)
     {
         $offset = 0;
         $limit = 10;
@@ -173,16 +173,16 @@ class Rating_model extends CI_Model
 
         $multipleWhere = '';
 
-        if (isset($offset))
+        if (isset($_GET['offset']))
             $offset = $_GET['offset'];
-        if (isset($limit))
+        if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
         if (isset($_GET['sort']))
-            if ($sort == 'id') {
+            if ($_GET['sort'] == 'id') {
                 $sort = "id";
             } else {
-                $sort = $sort;
+                $sort = $_GET['sort'];
             }
 
         if (isset($order) and $order != '') {
@@ -195,7 +195,12 @@ class Rating_model extends CI_Model
             $where['user_id'] = $_GET['user_id'];
         }
 
+        // Scoped to this seller — without this, any seller could see every review on the
+        // platform for every seller's products.
         $count_res = $this->db->select(' COUNT(pr.id) as total  ')->join('users u', 'u.id=pr.user_id');
+        if (!empty($seller_id)) {
+            $count_res->join('products p', 'p.id=pr.product_id')->where('p.seller_id', $seller_id);
+        }
         if (isset($_GET['search']) && trim($_GET['search'])) {
             $search = trim($_GET['search']);
             $multipleWhere = ['u.username' => $search, 'pr.comment' => $search, 'pr.rating' => $search];
@@ -215,6 +220,9 @@ class Rating_model extends CI_Model
         }
 
         $search_res = $this->db->select('pr.*,u.username as user_name')->join('users u', 'u.id=pr.user_id');
+        if (!empty($seller_id)) {
+            $search_res->join('products p', 'p.id=pr.product_id')->where('p.seller_id', $seller_id);
+        }
 
         if (isset($multipleWhere) && !empty($multipleWhere)) {
             $this->db->group_start();

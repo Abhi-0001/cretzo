@@ -40,8 +40,8 @@ class Sales_report_model extends CI_Model
 
         if (!empty($_GET['start_date']) && !empty($_GET['end_date'])) {
 
-            $count_res->where(" DATE(o.date_added) >= DATE('" . $_GET['start_date'] . "') ");
-            $count_res->where(" DATE(o.date_added) <= DATE('" . $_GET['end_date'] . "') ");
+            $count_res->where("DATE(o.date_added) >=", date('Y-m-d', strtotime($_GET['start_date'])));
+            $count_res->where("DATE(o.date_added) <=", date('Y-m-d', strtotime($_GET['end_date'])));
         }
 
         if (!empty($_GET['seller_id']) && !empty($_GET['seller_id'])) {
@@ -59,14 +59,14 @@ class Sales_report_model extends CI_Model
             $total = $row['total'];
         }
 
-        $search_res = $this->db->select(' o.*,oi.* , u.username ,u.email,u.mobile,sd.store_name,u.username as seller_name ')
+        $search_res = $this->db->select(' o.*,oi.* , u.username ,u.email,u.mobile,COALESCE(NULLIF(sd.shop_name, ""), sd.store_name) as store_name,u.username as seller_name ')
             ->join('users u', 'u.id= o.user_id', 'left')
             ->join('order_items oi', 'oi.order_id=o.id', 'left')
             ->join('seller_data sd', 'sd.user_id=oi.seller_id', 'left');
 
         if (!empty($_GET['start_date']) && !empty($_GET['end_date'])) {
-            $search_res->where(" DATE(o.date_added) >= DATE('" . $_GET['start_date'] . "') ");
-            $search_res->where(" DATE(o.date_added) <= DATE('" . $_GET['end_date'] . "') ");
+            $search_res->where("DATE(o.date_added) >=", date('Y-m-d', strtotime($_GET['start_date'])));
+            $search_res->where("DATE(o.date_added) <=", date('Y-m-d', strtotime($_GET['end_date'])));
         }
         if (!empty($_GET['seller_id']) && !empty($_GET['seller_id'])) {
             $count_res->where("oi.seller_id= " . $_GET['seller_id']);
@@ -156,8 +156,8 @@ class Sales_report_model extends CI_Model
             $count_res->where('oi.seller_id', $seller_id);
         }
         if (!empty($_GET['start_date']) && !empty($_GET['end_date'])) {
-            $count_res->where(" DATE(o.date_added) >= DATE('" . $_GET['start_date'] . "') ");
-            $count_res->where(" DATE(o.date_added) <= DATE('" . $_GET['end_date'] . "') ");
+            $count_res->where("DATE(o.date_added) >=", date('Y-m-d', strtotime($_GET['start_date'])));
+            $count_res->where("DATE(o.date_added) <=", date('Y-m-d', strtotime($_GET['end_date'])));
         }
 
         if (isset($filters) && !empty($filters)) {
@@ -171,15 +171,15 @@ class Sales_report_model extends CI_Model
             $total = $row['total'];
         }
 
-        $search_res = $this->db->select(' o.*,oi.* , u.username ,u.email,u.mobile,sd.store_name,u.username as seller_name ')
+        $search_res = $this->db->select(' o.*,oi.* , u.username ,u.email,u.mobile,COALESCE(NULLIF(sd.shop_name, ""), sd.store_name) as store_name,u.username as seller_name ')
             ->join('users u', 'u.id= o.user_id', 'left')
             ->join('order_items oi', 'oi.order_id=o.id', 'left')
             ->join('seller_data sd', 'sd.user_id=oi.seller_id', 'left')
             ->where('oi.seller_id', $seller_id);
 
         if (!empty($_GET['start_date']) && !empty($_GET['end_date'])) {
-            $search_res->where(" DATE(o.date_added) >= DATE('" . $_GET['start_date'] . "') ");
-            $search_res->where(" DATE(o.date_added) <= DATE('" . $_GET['end_date'] . "') ");
+            $search_res->where("DATE(o.date_added) >=", date('Y-m-d', strtotime($_GET['start_date'])));
+            $search_res->where("DATE(o.date_added) <=", date('Y-m-d', strtotime($_GET['end_date'])));
         }
         if (isset($filters) && !empty($filters)) {
             $search_res->group_Start();

@@ -72,7 +72,12 @@ class Transaction_model extends CI_Model
 
         if (isset($_GET['user_type']) && !empty($_GET['user_type'])) {
             $group_id_res = fetch_details("groups", ['name' => $_GET['user_type']], "id");
-            $group_id = $group_id_res[0]['id'];
+            // An unrecognized user_type left $group_id as an undefined array key, which
+            // stringified to '' in the "ug.group_id = $group_id" clause below and threw a
+            // SQL syntax error — keep the caller-supplied default instead.
+            if (!empty($group_id_res)) {
+                $group_id = $group_id_res[0]['id'];
+            }
         }
         // $count_res = $this->db->select(' COUNT(transactions.id) as `total` ')->join('users', ' transactions.user_id = users.id', 'left')->join('users_groups ug', 'ug.user_id = users.id')->where('ug.group_id = ' . $group_id);
 
@@ -266,11 +271,7 @@ class Transaction_model extends CI_Model
             'message' => $data['message'],
         ];
 
-        if ($this->db->set($t_data)->where('id', $data['id'])->update('transactions')) {
-            return false;
-        } else {
-            return true;
-        }
+        return $this->db->set($t_data)->where('id', $data['id'])->update('transactions');
     }
     function get_withdrawal_transactions_list($user_id = '')
     {

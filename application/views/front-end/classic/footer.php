@@ -419,12 +419,6 @@ $system_settings = get_settings('system_settings', true); ?>
     </div>
 </div>
 
-<?php if (isset($system_settings['whatsapp_number']) && !empty($system_settings['whatsapp_number'])) { ?>
-    <div class="whatsapp-icon">
-        <a href="https://api.whatsapp.com/send?phone=<?= $system_settings['whatsapp_number'] ?>&text&type=phone_number&app_absent=0" target="_blank" class="btn"><img src="<?= base_url('assets/logo/whatsapp_icon.png') ?>" alt="whatsapp"></a>
-    </div>
-<?php } ?>
-
 <?php if (ALLOW_MODIFICATION == 0) { ?>
     <div class="buy-now-btn">
         <a href="https://codecanyon.net/item/eshop-web-multi-vendor-ecommerce-marketplace-cms/34380052" target="_blank" class="btn btn-danger"> <i class="fa fa-shopping-cart"></i> <?= !empty($this->lang->line('buy_now')) ? $this->lang->line('buy_now') : 'Buy Now' ?></a>

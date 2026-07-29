@@ -17,6 +17,33 @@ class Category_model extends CI_Model
             $where = (isset($id) && !empty($id)) ? ['c1.id' => $id, 'c1.status' => 1] : ['c1.parent_id' => 0, 'c1.status' => 1];
         }
 
+        // Built as its own, fully separate query (not count_all_results() after get()) —
+        // count_all_results() called post-get() runs against a query builder that get()
+        // has already reset, so it silently counted the whole table instead of the
+        // filtered set. COUNT(DISTINCT c1.id) mirrors the group_by('c1.id') cases below
+        // so the total isn't inflated by the join fan-out.
+        $this->db->select('COUNT(DISTINCT c1.id) as total');
+        $this->db->where($where);
+        if (!empty($slug)) {
+            $this->db->where('c1.slug', $slug);
+        }
+        if (!empty($seller_id)) {
+            $this->db->join('products p3', 'p3.category_id = c1.id AND p3.seller_id = ' . $this->db->escape($seller_id), 'inner');
+        }
+        if ($has_child_or_item == 'false') {
+            $this->db->join('categories c2', 'c2.parent_id = c1.id', 'left');
+            $this->db->join('products p2', ' p2.category_id = c1.id', 'left');
+            $this->db->group_start();
+            $this->db->or_where(['c1.id ' => ' p2.category_id ', ' c2.parent_id ' => ' c1.id '], NULL, FALSE);
+            $this->db->group_End();
+        }
+        if ($ignore_categories_with_no_products == 'true') {
+            $this->db->join('products p', 'p.category_id = c1.id AND p.status = 1', 'left');
+            $this->db->having('COUNT(p.id) > 0');
+        }
+        $count_row = $this->db->get('categories c1')->row_array();
+        $count_res = $count_row['total'] ?? 0;
+
         $this->db->select('c1.*');
         $this->db->where($where);
         if (!empty($slug)) {
@@ -52,7 +79,6 @@ class Category_model extends CI_Model
 
         $parent = $this->db->get('categories c1');
         $categories = $parent->result();
-        $count_res = $this->db->count_all_results('categories c1');
         $i = 0;
         foreach ($categories as $p_cat) {
             $categories[$i]->children = $this->sub_categories($p_cat->id, $level);
@@ -77,19 +103,17 @@ class Category_model extends CI_Model
         // Remove any empty elements and trim whitespace from each category ID
         $category_ids_array = array_filter(array_map('trim', $category_ids_array));
     
+        // Built as its own query before get() — count_all_results() called after get() ran
+        // against a query builder get() had already reset, so it counted every category in
+        // the table instead of just the ones in $category_ids_array.
+        $count_res = $this->db->where_in('id', $category_ids_array)->count_all_results('categories');
+
         // Build the WHERE condition to fetch categories for the provided IDs
         $this->db->where_in('id', $category_ids_array);
-        
-        // Retrieve the categories from the database
-        //$query = $this->db->get('categories');
-        //$categories = $query->result_array();
-
-        //return $categories;
 
         $level = 0;
         $query = $this->db->get('categories');
         $categories = $query->result();
-        $count_res = $this->db->count_all_results('categories');
         $i = 0;
         foreach ($categories as $p_cat) {
             $categories[$i]->children = $this->sub_categories($p_cat->id, $level);
@@ -111,11 +135,14 @@ class Category_model extends CI_Model
     public function get_seller_categories($seller_id)
     {
         $level = 0;
-        $this->db->select('category_ids');
         $where = 'user_id = ' . $seller_id;
+        // Built as its own query before get() — count_all_results() called after get() ran
+        // against a query builder get() had already reset, so it counted every seller_data
+        // row in the table instead of just this seller's.
+        $count_res = $this->db->where($where)->count_all_results('seller_data');
+        $this->db->select('category_ids');
         $this->db->where($where);
         $result = $this->db->get('seller_data')->result_array();
-        $count_res = $this->db->count_all_results('seller_data');
         $result = empty($result[0]['category_ids']) ? [] : explode(",", $result[0]['category_ids']);
         $categories =  fetch_details('categories', "status = 1", '*', "", "", "", "", "id", $result);
         $i = 0;
@@ -213,8 +240,14 @@ class Category_model extends CI_Model
 
         $count_res = $this->db->select(' COUNT(id) as `total` ');
 
+        // Grouped so the OR'd search terms can't escape the status/seller-ownership AND
+        // conditions below — ungrouped, SQL's AND-binds-tighter-than-OR precedence meant a
+        // search match alone was enough to return a category regardless of status or
+        // whether it was actually in this seller's category_ids.
         if (isset($multipleWhere) && !empty($multipleWhere)) {
+            $count_res->group_start();
             $count_res->or_like($multipleWhere);
+            $count_res->group_end();
         }
         if (isset($where) && !empty($where)) {
             $count_res->where($where);
@@ -231,7 +264,9 @@ class Category_model extends CI_Model
 
         $search_res = $this->db->select(' * ');
         if (isset($multipleWhere) && !empty($multipleWhere)) {
+            $search_res->group_start();
             $search_res->or_like($multipleWhere);
+            $search_res->group_end();
         }
         if (isset($where) && !empty($where)) {
             $search_res->where($where);

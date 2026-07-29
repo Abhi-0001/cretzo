@@ -43,8 +43,14 @@ class Payment_request_model extends CI_Model
 
         $count_res = $this->db->select(' COUNT(pr.id) as `total` ')->join('users u', 'u.id=pr.user_id');
 
+        // Grouped so the OR'd search terms can't escape the seller-ownership AND below —
+        // ungrouped, SQL's AND-binds-tighter-than-OR precedence meant the ownership
+        // constraint only applied to the last OR term, leaking every user's withdrawal
+        // requests to a seller the moment they typed anything into the search box.
         if (isset($multipleWhere) && !empty($multipleWhere)) {
+            $count_res->group_start();
             $count_res->or_where($multipleWhere);
+            $count_res->group_end();
         }
 
         if (isset($user_id) && !empty($user_id)) {
@@ -62,7 +68,9 @@ class Payment_request_model extends CI_Model
 
         $search_res = $this->db->join('users u', 'u.id=pr.user_id');
         if (isset($multipleWhere) && !empty($multipleWhere)) {
+            $search_res->group_start();
             $search_res->or_like($multipleWhere);
+            $search_res->group_end();
         }
         if (isset($where) && !empty($where)) {
             $search_res->where($where);
@@ -113,8 +121,10 @@ class Payment_request_model extends CI_Model
             'status' => $data['status'],
             'remarks' => (isset($data['update_remarks']) && !empty($data['update_remarks'])) ? $data['update_remarks'] : null,
         );
-        $amount = fetch_details("payment_requests", ['id' => $data['payment_request_id']], "amount_requested,user_id");
-        if ($data['status'] == 2) {
+        $amount = fetch_details("payment_requests", ['id' => $data['payment_request_id']], "amount_requested,user_id,status");
+        // Only credit on the transition into "rejected" — without this check, re-submitting
+        // a reject action (already rejected) re-credits the wallet every time.
+        if ($data['status'] == 2 && $amount[0]['status'] != 2) {
             update_balance($amount[0]['amount_requested'], $amount[0]['user_id'], "add");
         }
         return $this->db->where('id', $data['payment_request_id'])->update('payment_requests', $request);

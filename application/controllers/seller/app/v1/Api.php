@@ -1601,7 +1601,7 @@ Defined Methods:-
             $search = (isset($_POST['search']) && !empty(trim($_POST['search']))) ? $this->input->post('search', true) : "";
             $limit = ($this->input->post('limit', true)) ? $this->input->post('limit', true) : NULL;
             $offset = ($this->input->post('offset', true)) ? $this->input->post('offset', true) : NULL;
-            $result = $this->Attribute_model->get_attribute_set($sort, $order, $search, $limit, $offset);
+            $result = $this->Attribute_model->get_attribute_set($sort, $order, $search, $offset, $limit);
             print_r(json_encode($result));
         }
     }
@@ -1639,7 +1639,7 @@ Defined Methods:-
             $limit = ($this->input->post('limit', true)) ? $this->input->post('limit', true) : NULL;
             $offset = ($this->input->post('offset', true)) ? $this->input->post('offset', true) : NULL;
             $attribute_set_id = (isset($_POST['attribute_set_id']) && !empty(trim($_POST['attribute_set_id']))) ? $this->input->post('attribute_set_id', true) : "";
-            $result = $this->Attribute_model->get_attributes($sort, $order, $search, $attribute_set_id, $limit, $offset);
+            $result = $this->Attribute_model->get_attributes($sort, $order, $search, $attribute_set_id, $offset, $limit);
             print_r(json_encode($result));
         }
     }
@@ -1677,7 +1677,7 @@ Defined Methods:-
             $limit = ($this->input->post('limit', true)) ? $this->input->post('limit', true) : NULL;
             $offset = ($this->input->post('offset', true)) ? $this->input->post('offset', true) : NULL;
             $attribute_id = (isset($_POST['attribute_id']) && !empty(trim($_POST['attribute_id']))) ? $this->input->post('attribute_id', true) : "";
-            $result = $this->Attribute_model->get_attribute_value($sort, $order, $search, $attribute_id, $limit, $offset);
+            $result = $this->Attribute_model->get_attribute_value($sort, $order, $search, $attribute_id, $offset, $limit);
             print_r(json_encode($result));
         }
     }
@@ -3526,7 +3526,7 @@ Defined Methods:-
             $start_date = (isset($_POST['start_date']) && !empty($_POST['start_date'])) ? $_POST['start_date'] : false;
             $end_date = (isset($_POST['end_date']) && !empty($_POST['end_date'])) ? $_POST['end_date'] : false;
 
-            return $this->Invoice_model->get_seller_sales_list($offset, $limit, $sort, $order, $start_date, $end_date);
+            return $this->Invoice_model->get_seller_sales_list($seller_id, $offset, $limit, $sort, $order, $start_date, $end_date);
         }
     }
 

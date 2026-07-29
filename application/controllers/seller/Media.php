@@ -48,7 +48,24 @@ class Media extends CI_Controller
         $temp_array = $media_ids = $other_images_new_name = $uploaded_files = array();
         $files = $_FILES;
         $other_image_info_error = "";
-        $allowed_media_types = implode('|', allowed_media_types());
+
+        // The media picker tells us what it's expecting via the media_type field (e.g.
+        // "archive,document" for the digital-product attachment, "image" elsewhere) — if
+        // present, restrict uploads to those extensions instead of every type this app
+        // knows about, so a seller can't slip an .exe/.php in where an image was expected.
+        $requested_media_type = trim((string) $this->input->post('media_type'));
+        $restricted_extensions = [];
+        if ($requested_media_type !== '') {
+            $this->config->load('eshop');
+            $type_config = $this->config->item('type');
+            foreach (explode(',', $requested_media_type) as $type_key) {
+                $type_key = trim($type_key);
+                if (isset($type_config[$type_key]['types'])) {
+                    $restricted_extensions = array_merge($restricted_extensions, $type_config[$type_key]['types']);
+                }
+            }
+        }
+        $allowed_media_types = !empty($restricted_extensions) ? implode('|', $restricted_extensions) : implode('|', allowed_media_types());
         $config['upload_path'] = $target_path;
         $config['allowed_types'] = $allowed_media_types;
         $other_image_cnt = count($_FILES['documents']['name']);

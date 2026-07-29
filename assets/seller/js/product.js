@@ -48,10 +48,18 @@
                 $('#pro_input_image').val(path);
                 $('#main_image_preview').html(
                     '<div class="thumb-wrapper d-inline-block">' +
+                    '<button type="button" class="remove-thumb" data-role="remove-main">&times;</button>' +
                     '<img src="' + escapeHtml(uploaded.url) + '" alt="Main"></div>'
                 );
                 validateForm();
             });
+        });
+
+        $('#main_image_preview').on('click', '[data-role="remove-main"]', function () {
+            $('#pro_input_image').val('');
+            $('#main_image_input').val('');
+            $('#main_image_preview').empty();
+            validateForm();
         });
     }
 

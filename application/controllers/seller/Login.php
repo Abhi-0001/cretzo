@@ -117,6 +117,37 @@ class Login extends CI_Controller
                     mkdir(FCPATH . SELLER_DOCUMENTS_PATH, 0777);
                 }
 
+                //process personal photo (stored on users.image, same column/path used by every other user type)
+                $new_seller_photo = '';
+                $seller_photo_error = "";
+                if (!empty($_FILES['seller_photo']['name'])) {
+                    if (!file_exists(FCPATH . USER_IMG_PATH)) {
+                        mkdir(FCPATH . USER_IMG_PATH, 0777, true);
+                    }
+                    $photo_config = [
+                        'upload_path' => FCPATH . USER_IMG_PATH,
+                        'allowed_types' => 'jpg|png|jpeg|gif',
+                        'max_size' => 8000,
+                    ];
+                    $this->upload->initialize($photo_config);
+                    if ($this->upload->do_upload('seller_photo')) {
+                        $photo_data = $this->upload->data();
+                        $new_seller_photo = $photo_data['file_name'];
+                        resize_image($photo_data, FCPATH . USER_IMG_PATH);
+                    } else {
+                        $seller_photo_error = $this->upload->display_errors();
+                    }
+                }
+
+                if ($seller_photo_error != NULL && $seller_photo_error != '') {
+                    $this->response['error'] = true;
+                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                    $this->response['message'] = $seller_photo_error;
+                    print_r(json_encode($this->response));
+                    return;
+                }
+
                 //process store logo
                 $temp_array_logo = $store_logo_doc = array();
                 $logo_files = $_FILES;
@@ -422,11 +453,78 @@ class Login extends CI_Controller
                     print_r(json_encode($this->response));
                     return;
                 }
-                    
+
+                // Business Details documents: PAN card, GSTIN, GST enrollment acknowledgement,
+                // business proof, business address proof, partnership deed, bank account proof.
+                // Same upload_path/old_-fallback pattern as national_identity_card/authorized_signature/
+                // address_proof above, looped since it's 7 near-identical fields.
+                $business_document_fields = [
+                    'pan_card_document',
+                    'gstin_document',
+                    'gst_enrollment_ack_document',
+                    'business_proof_document',
+                    'business_address_proof_document',
+                    'partnership_deed_document',
+                    'bank_account_proof_document',
+                ];
+                $business_document_values = [];
+                $business_document_error = '';
+                foreach ($business_document_fields as $doc_field) {
+                    $business_document_values[$doc_field] = $this->input->post('old_' . $doc_field, true);
+                    if (!empty($_FILES[$doc_field]['name'])) {
+                        $doc_config = [
+                            'upload_path' => FCPATH . SELLER_DOCUMENTS_PATH,
+                            'allowed_types' => 'jpg|png|jpeg|gif|pdf',
+                            'max_size' => 8000,
+                        ];
+                        $this->upload->initialize($doc_config);
+                        if ($this->upload->do_upload($doc_field)) {
+                            $doc_data = $this->upload->data();
+                            resize_review_images($doc_data, FCPATH . SELLER_DOCUMENTS_PATH); // no-op for PDFs
+                            $business_document_values[$doc_field] = SELLER_DOCUMENTS_PATH . $doc_data['file_name'];
+                        } else {
+                            $doc_label = ucwords(str_replace('_', ' ', str_replace('_document', '', $doc_field)));
+                            $business_document_error = $doc_label . ': ' . $this->upload->display_errors();
+                            break;
+                        }
+                    }
+                }
+
+                if ($business_document_error !== '') {
+                    $this->response['error'] = true;
+                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                    $this->response['message'] = $business_document_error;
+                    print_r(json_encode($this->response));
+                    return;
+                }
+
                     $user_id = $this->session->userdata('user_id');
 
+                    // Store URL/slug: use whatever the seller typed, falling back to the
+                    // shop name so every seller still gets a working storefront link.
+                    // create_unique_slug() already excludes this seller's OWN row (so
+                    // resaving the same value doesn't get bumped to "-1" every time) and
+                    // silently de-dupes with a numeric suffix on collision, same as every
+                    // other slug in this app.
+                    $posted_slug = trim($this->input->post('slug', true) ?? '');
+                    $slug_source = ($posted_slug !== '') ? $posted_slug : ($this->input->post('shop_name', true) ?? '');
+                    $final_slug = ($slug_source !== '') ? create_unique_slug($slug_source, 'seller_data', 'slug', 'user_id', $user_id) : null;
+
+                    // The category picker JS already joins checked ids into one hidden text
+                    // input as a comma-separated string; re-parse + re-join here only to
+                    // sanitize it down to plain integers before it goes in the DB.
+                    $secondary_categories_post = trim($this->input->post('secondary_category_ids', true) ?? '');
+                    $secondary_category_ids = null;
+                    if ($secondary_categories_post !== '') {
+                        $ids = array_filter(array_map('intval', explode(',', $secondary_categories_post)));
+                        $secondary_category_ids = !empty($ids) ? implode(',', $ids) : null;
+                    }
+                    $primary_category_id = $this->input->post('primary_category_id', true);
+                    $primary_category_id = ($primary_category_id !== null && $primary_category_id !== '') ? (int) $primary_category_id : null;
+
                 if ($user_id) {
-                    
+
                     $seller_data = array(
                         'user_id' => $user_id,
                         'edit_seller_data_id' => $user_id,
@@ -443,10 +541,11 @@ class Login extends CI_Controller
                         'account_name' => $this->input->post('account_name', true) ?? null,
                         'account_number' => $this->input->post('account_number', true) ?? null,
                         'store_description' => $this->input->post('store_description', true) ?? null,
-                        'store_url' => $this->input->post('store_url', true) ?? null,
-                        'store_name' => $this->input->post('store_name', true) ?? null,
-                        'slug' => create_unique_slug($this->input->post('store_name', true), 'seller_data') ?? null,
+                        'slug' => $final_slug,
+                        'category_ids' => $secondary_category_ids,
+                        'primary_category_id' => $primary_category_id,
                         'first_name' => $this->input->post('first_name') ?? null,
+                        'middle_name' => $this->input->post('middle_name') ?? null,
                         'last_name' => $this->input->post('last_name') ?? null,
                         'phone' => $this->input->post('phone') ?? null,
                         'email' => $this->input->post('email') ?? null,
@@ -466,17 +565,25 @@ class Login extends CI_Controller
                         'pickup_state' => $this->input->post('pickup_state') ?? null,
                         'pickup_pin' => $this->input->post('pickup_pin') ?? null,
                         'entity_type' => $this->input->post('entity_type') ?? null,
+                        'legal_business_name' => $this->input->post('legal_business_name') ?? null,
                         'pan' => $this->input->post('pan') ?? null,
                         'gst' => $this->input->post('gst') ?? null,
                         // GST enrollment restriction: "We are not GST registered" (gst_check) => state-restricted seller.
                         'is_gst_registered' => isset($_POST['gst_check']) ? 0 : 1,
                         'gst_enrollment_number' => isset($_POST['gst_check']) ? ($this->input->post('gst_enrollment_number') ?? null) : null,
+                        'business_address1' => $this->input->post('business_address1') ?? null,
+                        'business_address2' => $this->input->post('business_address2') ?? null,
+                        'business_district' => $this->input->post('business_district') ?? null,
+                        'business_city' => $this->input->post('business_city') ?? null,
+                        'business_state' => $this->input->post('business_state') ?? null,
+                        'business_pin' => $this->input->post('business_pin') ?? null,
                         'account_number' => $this->input->post('account_number') ?? null,
                         'account_holder_name' => $this->input->post('account_holder_name') ?? null,
                         'ifsc' => $this->input->post('ifsc') ?? null,
                         'branch' => $this->input->post('branch') ?? null,
                         'bank_name' => $this->input->post('bank_name') ?? null
                     );
+                    $seller_data = array_merge($seller_data, $business_document_values);
                     if (!empty($_POST['old']) || !empty($_POST['new']) || !empty($_POST['new_confirm'])) {
                         if (!$this->ion_auth->change_password($identity, $this->input->post('old'), $this->input->post('new'))) {
                             $response['error'] = true;
@@ -496,6 +603,13 @@ class Login extends CI_Controller
                         'latitude' => $this->input->post('latitude', true),
                         'longitude' => $this->input->post('longitude', true)
                     );
+
+                    if (!empty($new_seller_photo)) {
+                        if (!empty($user->image) && file_exists(FCPATH . USER_IMG_PATH . $user->image)) {
+                            @unlink(FCPATH . USER_IMG_PATH . $user->image);
+                        }
+                        $seller_profile['image'] = $new_seller_photo;
+                    }
 
                     if ($this->Seller_model->add_seller($seller_data, $seller_profile)) {
 

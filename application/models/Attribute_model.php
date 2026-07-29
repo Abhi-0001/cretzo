@@ -128,7 +128,8 @@ class Attribute_model extends CI_Model
 
         $attribute_id = $this->db->get_where('attributes', array('name' => $data['name']))->result_array();
       
-        for($i=0;$i < count($data['attribute_value']);$i++) {
+        $attribute_value_count = !empty($data['attribute_value']) ? count($data['attribute_value']) : 0;
+        for($i=0;$i < $attribute_value_count;$i++) {
          
             $attr_val = [
                 'attribute_id' => $attribute_id[0]['id'],
@@ -357,7 +358,7 @@ class Attribute_model extends CI_Model
         if (isset($where) && !empty($where)) {
             $search_res->where($where);
         }
-        $attribute_set = $search_res->where("ats.status=1 and a.status=1")->group_by('ats.id')->order_by($sort, $order)->limit($offset, $limit)->get('`attribute_set` ats')->result_array();
+        $attribute_set = $search_res->where("ats.status=1 and a.status=1")->group_by('ats.id')->order_by($sort, $order)->limit($limit, $offset)->get('`attribute_set` ats')->result_array();
         $bulkData = array();
         $bulkData['error'] = (empty($attribute_set)) ? true : false;
         if (!empty($attribute_set)) {
@@ -393,7 +394,7 @@ class Attribute_model extends CI_Model
         if (isset($attribute_set_id) && !empty($attribute_set_id)) {
             $search_res->where('a.attribute_set_id = ' . $attribute_set_id);
         }
-        $attribute_set = $search_res->where("a.status=1 and as.status=1")->group_by('a.id')->order_by($sort, $order)->limit($offset, $limit)->get('attributes a')->result_array();
+        $attribute_set = $search_res->where("a.status=1 and as.status=1")->group_by('a.id')->order_by($sort, $order)->limit($limit, $offset)->get('attributes a')->result_array();
         $bulkData = array();
         $bulkData['error'] = (empty($attribute_set)) ? true : false;
         $bulkData['message'] = (empty($attribute_set)) ? "Attributes Not Found" : "Attributes Retrivede Successfully";
@@ -429,7 +430,7 @@ class Attribute_model extends CI_Model
         if (isset($attribute_id) && !empty($attribute_id)) {
             $search_res->where('av.attribute_id = ' . $attribute_id);
         }
-        $attribute_set = $search_res->where("av.status=1 and a.status=1")->group_by('av.id')->order_by($sort, $order)->limit($offset, $limit)->get('attribute_values av')->result_array();
+        $attribute_set = $search_res->where("av.status=1 and a.status=1")->group_by('av.id')->order_by($sort, $order)->limit($limit, $offset)->get('attribute_values av')->result_array();
         $bulkData = array();
         $bulkData['error'] = (empty($attribute_set)) ? true : false;
         $bulkData['message'] = (empty($attribute_set)) ? "Atributes Not Found" : "Attributes Retrived Successfully";

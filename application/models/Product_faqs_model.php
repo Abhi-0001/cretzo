@@ -51,16 +51,16 @@ class Product_faqs_model extends CI_Model
 
         $multipleWhere = '';
 
-        if (isset($offset))
+        if (isset($_GET['offset']))
             $offset = $_GET['offset'];
-        if (isset($limit))
+        if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
         if (isset($_GET['sort']))
-            if ($sort == 'id') {
+            if ($_GET['sort'] == 'id') {
                 $sort = "id";
             } else {
-                $sort = $sort;
+                $sort = $_GET['sort'];
             }
 
         if (isset($order) and $order != '') {

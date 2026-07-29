@@ -20,7 +20,7 @@
 /* Constrain hero banner height so it doesn't take over the viewport */
 .slider .slide-img img{
     width: 100% !important;
-    height: 480px !important;
+    height: 500px !important;
     max-height: 68vh !important;
     object-fit: cover !important;
 }
