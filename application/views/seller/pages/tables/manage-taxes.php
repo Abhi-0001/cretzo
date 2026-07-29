@@ -177,4 +177,14 @@
         if (value === null || value === undefined || value === '') return '';
         return '<span class="tax-badge">' + value + '%</span>';
     }
+
+    function queryParams(p) {
+        return {
+            limit: p.limit,
+            sort: p.sort,
+            order: p.order,
+            offset: p.offset,
+            search: p.search
+        };
+    }
 </script>

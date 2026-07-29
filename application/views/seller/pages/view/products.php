@@ -163,7 +163,7 @@
                         ?>
                             <input type="hidden" name="product_id" id="product_id" value="<?= (isset($product_details[0]['id']) && !empty($product_details[0]['id'])) ? $product_details[0]['id'] : 'null' ?>" />
                             <div class="tab-pane <?= $rating_active ?>" id="product-rating" role="tabpanel" aria-labelledby="product-rating-tab">
-                                <table class='table-striped' id='product-rating-table' data-toggle="table" data-url="<?= base_url('admin/product/get_rating_list') ?>" data-click-to-select="true" data-side-pagination="server" data-pagination="true" data-page-list="[5, 10, 20, 50, 100, 200]" data-search="true" data-show-columns="true" data-show-refresh="true" data-trim-on-search="false" data-sort-name="id" data-sort-order="desc" data-mobile-responsive="true" data-toolbar="" data-show-export="true" data-maintain-selected="true" data-query-params="product_rating_query_params">
+                                <table class='table-striped' id='product-rating-table' data-toggle="table" data-url="<?= base_url('seller/product/get_rating_list') ?>" data-click-to-select="true" data-side-pagination="server" data-pagination="true" data-page-list="[5, 10, 20, 50, 100, 200]" data-search="true" data-show-columns="true" data-show-refresh="true" data-trim-on-search="false" data-sort-name="id" data-sort-order="desc" data-mobile-responsive="true" data-toolbar="" data-show-export="true" data-maintain-selected="true" data-query-params="product_rating_query_params">
                                     <thead>
                                         <tr>
                                             <th data-field="id" data-sortable="true">ID</th>
@@ -189,3 +189,15 @@
     </section>
 </div>
 <!-- /.content -->
+
+<script>
+    function product_rating_query_params(p) {
+        return {
+            limit: p.limit,
+            sort: p.sort,
+            order: p.order,
+            offset: p.offset,
+            search: p.search
+        };
+    }
+</script>

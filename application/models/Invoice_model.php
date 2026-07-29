@@ -10,7 +10,8 @@ class Invoice_model extends CI_Model
         $offset = 0,
         $limit = 10,
         $sort = " o.id ",
-        $order = 'ASC'
+        $order = 'ASC',
+        $forced_seller_id = null
     ) {
         if (isset($_GET['offset'])) {
             $offset = $_GET['offset'];
@@ -31,16 +32,23 @@ class Invoice_model extends CI_Model
             ];
         }
 
+        // A caller-supplied $forced_seller_id (e.g. the logged-in seller's own session id)
+        // always wins over any client-submitted seller_id — the latter used to be trusted
+        // outright, letting any seller view every seller's invoices/orders by adding or
+        // changing that one request parameter.
+        $seller_id = !empty($forced_seller_id)
+            ? $forced_seller_id
+            : ((!empty($_GET['seller_id']) && isset($_GET['seller_id'])) ? $_GET['seller_id'] : (!empty($_POST['seller_id']) ? $_POST['seller_id'] : null));
+
         $count_res = $this->db->select(' COUNT(o.id) as `total` ')->join(' `users` u', 'u.id= o.user_id');
-        if (!empty($_GET['seller_id']) || !empty($_POST['seller_id'])) {
-            $seller_id = (!empty($_GET['seller_id']) && isset($_GET['seller_id'])) ? $_GET['seller_id'] : $_POST['seller_id'];
+        if (!empty($seller_id)) {
             $count_res->join(' `order_items` oi', 'oi.order_id=o.id');
-            $count_res->where("oi.seller_id=" . $seller_id);
+            $count_res->where('oi.seller_id', $seller_id);
         }
         if (!empty($_GET['start_date']) && !empty($_GET['end_date'])) {
 
-            $count_res->where(" DATE(o.date_added) >= DATE('" . $_GET['start_date'] . "') ");
-            $count_res->where(" DATE(o.date_added) <= DATE('" . $_GET['end_date'] . "') ");
+            $count_res->where("DATE(o.date_added) >=", date('Y-m-d', strtotime($_GET['start_date'])));
+            $count_res->where("DATE(o.date_added) <=", date('Y-m-d', strtotime($_GET['end_date'])));
         }
 
         if (isset($filters) && !empty($filters)) {
@@ -53,20 +61,19 @@ class Invoice_model extends CI_Model
         foreach ($sales_count as $row) {
             $total = $row['total'];
         }
-        $search_res = $this->db->select(' o.*,oitems.* , u.username ,u.email,u.mobile,sd.store_name,us.username as seller_name ')
+        $search_res = $this->db->select(' o.*,oitems.* , u.username ,u.email,u.mobile,COALESCE(NULLIF(sd.shop_name, ""), sd.store_name) as store_name,us.username as seller_name ')
             ->join('users u', 'u.id= o.user_id', 'left')
             ->join('order_items oitems', 'o.id=oitems.order_id', 'left');
-        if (!empty($_GET['seller_id']) || !empty($_POST['seller_id'])) {
-            $seller_id = (!empty($_GET['seller_id']) && isset($_GET['seller_id'])) ? $_GET['seller_id'] : $_POST['seller_id'];
-            $search_res->where("oi.seller_id=" . $seller_id);
+        if (!empty($seller_id)) {
+            $search_res->where('oi.seller_id', $seller_id);
         }
         $search_res->join('order_items oi', 'oi.order_id=o.id', 'left');
         $search_res->join('seller_data sd', 'sd.user_id=oi.seller_id');
         $search_res->join('users us ', ' us.id = oi.seller_id', 'left');
 
         if (!empty($_GET['start_date']) && !empty($_GET['end_date'])) {
-            $search_res->where(" DATE(o.date_added) >= DATE('" . $_GET['start_date'] . "') ");
-            $search_res->where(" DATE(o.date_added) <= DATE('" . $_GET['end_date'] . "') ");
+            $search_res->where("DATE(o.date_added) >=", date('Y-m-d', strtotime($_GET['start_date'])));
+            $search_res->where("DATE(o.date_added) <=", date('Y-m-d', strtotime($_GET['end_date'])));
         }
         if (isset($filters) && !empty($filters)) {
             $search_res->group_Start();
@@ -137,6 +144,7 @@ class Invoice_model extends CI_Model
     }
 
     public function get_seller_sales_list(
+        $seller_id = null,
         $offset = 0,
         $limit = 10,
         $sort = " o.id ",
@@ -163,19 +171,23 @@ class Invoice_model extends CI_Model
             ];
         }
         $date = date('Y-m-d');
+        // seller_id must always come from the authenticated session (passed in by the
+        // controller) — the previous version read it from $_GET/$_POST and concatenated
+        // it directly into raw where()/join() strings, which was both a SQL injection
+        // point and let any seller see every seller's sales invoices by omitting (or
+        // forging) that parameter.
         $count_res = $this->db->select(' COUNT(o.id) as `total` ')->join(' `users` u', 'u.id= o.user_id');
-        if (!empty($_GET['seller_id']) || !empty($_POST['seller_id'])) {
-            $seller_id = (!empty($_GET['seller_id']) && isset($_GET['seller_id'])) ? $_GET['seller_id'] : $_POST['seller_id'];
+        if (!empty($seller_id)) {
             $count_res->join(' `order_items` oi', 'oi.order_id=o.id');
-            $count_res->where("oi.seller_id=" . $seller_id);
+            $count_res->where('oi.seller_id', $seller_id);
         }
         if (!empty($_GET['start_date']) && !empty($_GET['end_date']) || !empty($_POST['start_date']) && !empty($_POST['end_date'])) {
             $start_date = (!empty($_GET['start_date']) && isset($_GET['start_date'])) ? $_GET['start_date'] : $_POST['start_date'];
             $end_date = (!empty($_GET['end_date']) && isset($_GET['end_date'])) ? $_GET['end_date'] : $_POST['end_date'];
-            $count_res->where(" DATE(oi.date_added) >= DATE('" . $start_date . "') ");
-            $count_res->where(" DATE(oi.date_added) <= DATE('" . $end_date . "') ");
+            $count_res->where("DATE(oi.date_added) >=", date('Y-m-d', strtotime($start_date)));
+            $count_res->where("DATE(oi.date_added) <=", date('Y-m-d', strtotime($end_date)));
         } else {
-            $count_res->where(" DATE(oi.date_added) >= DATE('" . $date . "') ");
+            $count_res->where("DATE(oi.date_added) >=", $date);
         }
         if (isset($filters) && !empty($filters)) {
             $this->db->group_Start();
@@ -187,23 +199,22 @@ class Invoice_model extends CI_Model
         foreach ($sales_count as $row) {
             $total = $row['total'];
         }
-        $search_res = $this->db->select(' o.*,oitems.* , u.username ,u.email,u.mobile,sd.store_name,us.username as seller_name ')
+        $search_res = $this->db->select(' o.*,oitems.* , u.username ,u.email,u.mobile,COALESCE(NULLIF(sd.shop_name, ""), sd.store_name) as store_name,us.username as seller_name ')
             ->join('users u', 'u.id= o.user_id', 'left')
             ->join('order_items oitems', 'o.id=oitems.order_id', 'left');
-        if (!empty($_GET['seller_id']) || !empty($_POST['seller_id'])) {
-            $seller_id = (!empty($_GET['seller_id']) && isset($_GET['seller_id'])) ? $_GET['seller_id'] : $_POST['seller_id'];
+        if (!empty($seller_id)) {
             $search_res->join('order_items oi', 'oi.order_id=o.id', 'left');
-            $search_res->join('seller_data sd', 'oi.seller_id=' . $seller_id, 'left');
+            $search_res->join('seller_data sd', 'sd.user_id=oi.seller_id', 'left');
             $search_res->join('users us ', ' us.id = oi.seller_id', 'left');
-            $search_res->where("oi.seller_id=" . $seller_id);
+            $search_res->where('oi.seller_id', $seller_id);
         }
         if (!empty($_GET['start_date']) && !empty($_GET['end_date']) || !empty($_POST['start_date']) && !empty($_POST['end_date'])) {
             $start_date = (!empty($_GET['start_date']) && isset($_GET['start_date'])) ? $_GET['start_date'] : $_POST['start_date'];
             $end_date = (!empty($_GET['end_date']) && isset($_GET['end_date'])) ? $_GET['end_date'] : $_POST['end_date'];
-            $search_res->where(" DATE(oi.date_added) >= DATE('" . $start_date . "') ");
-            $search_res->where(" DATE(oi.date_added) <= DATE('" . $end_date . "') ");
+            $search_res->where("DATE(oi.date_added) >=", date('Y-m-d', strtotime($start_date)));
+            $search_res->where("DATE(oi.date_added) <=", date('Y-m-d', strtotime($end_date)));
         } else {
-            $search_res->where(" DATE(oi.date_added) >= DATE('" . $date . "') ");
+            $search_res->where("DATE(oi.date_added) >=", $date);
         }
         if (isset($filters) && !empty($filters)) {
             $search_res->group_Start();

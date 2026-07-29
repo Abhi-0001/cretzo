@@ -875,7 +875,7 @@ Defined Methods:-
             }
             $where = ['u.active' => 1];
 
-            $search_res = $this->db->select('u.id,u.username,u.email,sd.store_name,u.image')->join('users_groups ug', ' ug.user_id = u.id ')->join('seller_data sd', ' sd.user_id = u.id ');
+            $search_res = $this->db->select('u.id,u.username,u.email,COALESCE(NULLIF(sd.shop_name, ""), sd.store_name) as store_name,u.image')->join('users_groups ug', ' ug.user_id = u.id ')->join('seller_data sd', ' sd.user_id = u.id ');
 
             // $res = [
 

@@ -46,6 +46,10 @@ class Media_model extends CI_Model
         if (($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) || ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0))) {
 
             $multipleWhere = $where_in = '';
+            $offset = 0;
+            $limit = 10;
+            $sort = 'id';
+            $order = 'DESC';
 
             if (isset($_GET['offset']))
                 $offset = $_GET['offset'];
@@ -91,8 +95,8 @@ class Media_model extends CI_Model
             }
             if (!empty($_GET['start_date']) && !empty($_GET['end_date'])) {
 
-                $count_res->where(" DATE(date_created) >= DATE('" . $_GET['start_date'] . "') ");
-                $count_res->where(" DATE(date_created) <= DATE('" . $_GET['end_date'] . "') ");
+                $count_res->where("DATE(date_created) >=", date('Y-m-d', strtotime($_GET['start_date'])));
+                $count_res->where("DATE(date_created) <=", date('Y-m-d', strtotime($_GET['end_date'])));
             }
             $attr_count = $count_res->get('media')->result_array();
 
@@ -110,15 +114,15 @@ class Media_model extends CI_Model
 
             if (!empty($_GET['start_date']) && !empty($_GET['end_date'])) {
 
-                $search_res->where(" DATE(date_created) >= DATE('" . $_GET['start_date'] . "') ");
-                $search_res->where(" DATE(date_created) <= DATE('" . $_GET['end_date'] . "') ");
+                $search_res->where("DATE(date_created) >=", date('Y-m-d', strtotime($_GET['start_date'])));
+                $search_res->where("DATE(date_created) <=", date('Y-m-d', strtotime($_GET['end_date'])));
             }
             
             if(isset($where_in) && !empty($where_in)){
                 $search_res->where_in("type", $where_in);
             }
 
-            $city_search_res = $search_res->order_by($sort, 'desc')->limit($limit, $offset)->get('media')->result_array();
+            $city_search_res = $search_res->order_by($sort, $order)->limit($limit, $offset)->get('media')->result_array();
             $bulkData = array();
             $bulkData['total'] = $total;
             $rows = array();

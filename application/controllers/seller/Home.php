@@ -114,7 +114,7 @@ class Home extends CI_Controller
     {
         $verification_requested_at_column = $this->db->field_exists('verification_requested_at', 'seller_data');
 
-        $select_fields = 'sd.first_name, sd.last_name, sd.phone, sd.email, sd.district, sd.city, sd.state, sd.pin, sd.shop_name, sd.social, sd.shop_phone, sd.pickup_address1, sd.pickup_address2, sd.pickup_district, sd.pickup_state, sd.pickup_pin, sd.entity_type, sd.pan, sd.gst, sd.account_number, sd.account_holder_name, sd.ifsc, sd.branch, sd.bank_name, sd.status';
+        $select_fields = 'sd.first_name, sd.last_name, sd.phone, sd.email, sd.district, sd.city, sd.state, sd.pin, sd.shop_name, sd.social, sd.shop_phone, sd.pickup_address1, sd.pickup_address2, sd.pickup_district, sd.pickup_state, sd.pickup_pin, sd.entity_type, sd.pan, sd.gst, sd.account_number, sd.account_holder_name, sd.ifsc, sd.branch, sd.bank_name, sd.status, sd.primary_category_id';
         if ($verification_requested_at_column) {
             $select_fields .= ', sd.verification_requested_at';
         }
@@ -147,7 +147,7 @@ class Home extends CI_Controller
             'store' => [
                 'weight' => 25,
                 'label' => 'Complete Store Details',
-                'fields' => ['shop_name', 'shop_phone', 'pickup_address1', 'entity_type', 'pan', 'gst'],
+                'fields' => ['shop_name', 'shop_phone', 'pickup_address1', 'entity_type', 'pan', 'gst', 'primary_category_id'],
                 'link' => base_url('seller/home/profile?section=store'),
             ],
             'account' => [
@@ -300,7 +300,11 @@ class Home extends CI_Controller
             //     ->result_array();
             
             $this->data['fetched_data'] = $this->db
-                ->select('u.*, sd.*')
+                // sd.* is selected after u.*, so its columns win when both tables share a
+                // name (e.g. email/phone). seller_data.email is NULL for sellers who haven't
+                // resaved their profile since that column was added, so fall back to the
+                // users table's email/mobile — listed last so it wins the same way.
+                ->select('u.*, sd.*, COALESCE(NULLIF(sd.email, ""), u.email) as email, COALESCE(NULLIF(sd.phone, ""), u.mobile) as phone')
                 ->from('users u')
                 ->join('users_groups ug', 'ug.user_id = u.id')
                 ->join('seller_data sd', 'sd.user_id = u.id')
@@ -330,8 +334,11 @@ class Home extends CI_Controller
             $this->data['all_categories'] = [];
 
             if ($this->db->table_exists('categories')) {
+                // parent_id = 0 marks a top-level category; children point at their
+                // parent's id. Needed so the profile form can scope the Secondary
+                // Categories picker to whichever top-level category is chosen as Primary.
                 $this->data['all_categories'] = $this->db
-                    ->select('id,name')
+                    ->select('id,name,parent_id')
                     ->from('categories')
                     ->where('status', 1)
                     ->order_by('name', 'ASC')
@@ -386,12 +393,16 @@ class Home extends CI_Controller
             }
 
             if ($this->db->table_exists('cities') && !empty($selected_state_id) && !empty($selected_district_id)) {
+                // cities' real schema is city_id/city_name/district_id (no state_id column at
+                // all, and no plain id/name) — same schema this app hit before in
+                // Area_model::get_cities_list()/Address_model::set_address(). Selecting the
+                // old id/name + filtering on a nonexistent state_id 500'd this page for any
+                // seller whose state/district happen to resolve to real rows.
                 $this->data['cities'] = $this->db
-                    ->select('id,name')
+                    ->select('city_id as id, city_name as name')
                     ->from('cities')
-                    ->where('state_id', $selected_state_id)
                     ->where('district_id', $selected_district_id)
-                    ->order_by('name', 'ASC')
+                    ->order_by('city_name', 'ASC')
                     ->get()
                     ->result_array();
             }
@@ -432,20 +443,20 @@ class Home extends CI_Controller
             return;
         }
 
-        $state_id = $this->input->get('state_id', true);
         $district_id = $this->input->get('district_id', true);
 
-        if (empty($state_id) || empty($district_id) || !$this->db->table_exists('cities')) {
+        if (empty($district_id) || !$this->db->table_exists('cities')) {
             echo json_encode([]);
             return;
         }
 
+        // cities' real schema is city_id/city_name/district_id (no state_id column at all) — see
+        // the identical fix a few lines up in this file (city dropdown for the profile form).
         $cities = $this->db
-            ->select('id,name')
+            ->select('city_id as id, city_name as name')
             ->from('cities')
-            ->where('state_id', $state_id)
             ->where('district_id', $district_id)
-            ->order_by('name', 'ASC')
+            ->order_by('city_name', 'ASC')
             ->get()
             ->result_array();
 

@@ -35,6 +35,13 @@ class Customer extends CI_Controller
     public function view_customer()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
+            // The page itself (index() above) already gates on this permission — but this
+            // is the actual data endpoint, and it had no such check, so any seller could
+            // pull every customer's email/mobile/wallet balance directly, permission or not.
+            if (!get_seller_permission($this->ion_auth->get_user_id(), 'customer_privacy')) {
+                redirect('seller/login', 'refresh');
+                return;
+            }
             return $this->Customer_model->get_customer_list();
         } else {
             redirect('seller/login', 'refresh');

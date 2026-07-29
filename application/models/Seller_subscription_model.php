@@ -24,7 +24,10 @@ class Seller_subscription_model extends CI_Model
         $this->db->where('seller_id', $seller_id);
         $this->db->where('is_active', 1);
         $this->db->group_start();
-        $this->db->where('end_date >=', date('Y-m-d H:i:s'));
+        // end_date is a DATE column, not a datetime — comparing it against a full
+        // timestamp made subscriptions expire up to a day early any time after midnight
+        // on their actual expiry day.
+        $this->db->where('end_date >=', date('Y-m-d'));
         $this->db->or_where('end_date IS NULL', null, false);
         $this->db->group_end();
         $this->db->order_by('start_date', 'DESC');

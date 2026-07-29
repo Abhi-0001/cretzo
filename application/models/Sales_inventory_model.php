@@ -30,8 +30,8 @@ class Sales_inventory_model extends CI_Model
             ->join('products p', 'p.id=pv.product_id', 'left');
 
         if (!empty($_GET['start_date']) && !empty($_GET['end_date'])) {
-            $count_res->where(" DATE(oi.date_added) >= DATE('" . $_GET['start_date'] . "') ");
-            $count_res->where(" DATE(oi.date_added) <= DATE('" . $_GET['end_date'] . "') ");
+            $count_res->where("DATE(oi.date_added) >=", date('Y-m-d', strtotime($_GET['start_date'])));
+            $count_res->where("DATE(oi.date_added) <=", date('Y-m-d', strtotime($_GET['end_date'])));
         }
 
         if (isset($filters) && !empty($filters)) {
@@ -52,8 +52,8 @@ class Sales_inventory_model extends CI_Model
             ->join('products p', 'p.id=pv.product_id', 'left');
 
         if (!empty($_GET['start_date']) && !empty($_GET['end_date'])) {
-            $search_res->where(" DATE(oi.date_added) >= DATE('" . $_GET['start_date'] . "') ");
-            $search_res->where(" DATE(oi.date_added) <= DATE('" . $_GET['end_date'] . "') ");
+            $search_res->where("DATE(oi.date_added) >=", date('Y-m-d', strtotime($_GET['start_date'])));
+            $search_res->where("DATE(oi.date_added) <=", date('Y-m-d', strtotime($_GET['end_date'])));
         }
 
         if (isset($filters) && !empty($filters)) {
@@ -117,8 +117,8 @@ class Sales_inventory_model extends CI_Model
             ->join('products p', 'p.id=pv.product_id', 'left')
             ->where('oi.seller_id', $seller_id);
         if (!empty($_GET['start_date']) && !empty($_GET['end_date'])) {
-            $count_res->where(" DATE(oi.date_added) >= DATE('" . $_GET['start_date'] . "') ");
-            $count_res->where(" DATE(oi.date_added) <= DATE('" . $_GET['end_date'] . "') ");
+            $count_res->where("DATE(oi.date_added) >=", date('Y-m-d', strtotime($_GET['start_date'])));
+            $count_res->where("DATE(oi.date_added) <=", date('Y-m-d', strtotime($_GET['end_date'])));
         }
 
         if (isset($filters) && !empty($filters)) {
@@ -134,8 +134,8 @@ class Sales_inventory_model extends CI_Model
             ->join('products p', 'p.id=pv.product_id', 'left')
             ->where('oi.seller_id', $seller_id);
         if (!empty($_GET['start_date']) && !empty($_GET['end_date'])) {
-            $search_res->where(" DATE(oi.date_added) >= DATE('" . $_GET['start_date'] . "') ");
-            $search_res->where(" DATE(oi.date_added) <= DATE('" . $_GET['end_date'] . "') ");
+            $search_res->where("DATE(oi.date_added) >=", date('Y-m-d', strtotime($_GET['start_date'])));
+            $search_res->where("DATE(oi.date_added) <=", date('Y-m-d', strtotime($_GET['end_date'])));
         }
 
         if (isset($filters) && !empty($filters)) {

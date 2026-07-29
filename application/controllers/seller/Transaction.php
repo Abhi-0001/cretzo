@@ -27,19 +27,6 @@ class Transaction extends CI_Controller
         }
     }
 
-    public function view_transaction()
-    {
-        if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
-            $this->data['main_page'] = TABLES . 'transaction';
-            $settings = get_settings('system_settings', true);
-            $this->data['title'] = 'View Transaction | ' . $settings['app_name'];
-            $this->data['meta_description'] = ' View Transaction  | ' . $settings['app_name'];
-            $this->load->view('seller/template', $this->data);
-        } else {
-            redirect('seller/login', 'refresh');
-        }
-    }
-
     public function view_transactions()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
@@ -85,11 +72,11 @@ class Transaction extends CI_Controller
                     return;
                 }
                 $_POST['message'] = (isset($_POST['message']) && trim($_POST['message']) != "") ? $this->input->post('message', true) : "";
-                $this->Transaction_model->edit_transactions($_POST);
-                $this->response['error'] = false;
+                $updated = $this->Transaction_model->edit_transactions($_POST);
+                $this->response['error'] = !$updated;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = "Transaction Updated Successfuly.";
+                $this->response['message'] = $updated ? "Transaction Updated Successfuly." : "Transaction update failed. Please try again.";
                 print_r(json_encode($this->response));
             }
         } else {

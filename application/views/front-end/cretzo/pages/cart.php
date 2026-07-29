@@ -1313,11 +1313,6 @@ $logo = get_settings('web_logo');
     </div>
 </div>
 
-<?php if (isset($system_settings['whatsapp_number']) && !empty($system_settings['whatsapp_number'])) { ?>
-    <div class="whatsapp-icon">
-        <a href="https://api.whatsapp.com/send?phone=<?= $system_settings['whatsapp_number'] ?>&text&type=phone_number&app_absent=0" target="_blank" class="btn"><img src="<?= base_url('assets/logo/whatsapp_icon.png') ?>" alt="whatsapp"></a>
-    </div>
-<?php } ?>
 
 <?php if (ALLOW_MODIFICATION == 0) { ?>
     <div class="buy-now-btn">

@@ -20,7 +20,10 @@ class Pickup_location extends CI_Controller
             $this->data['title'] = 'Pickup location Management | ' . $settings['app_name'];
             $this->data['meta_description'] = ' Pickup location Management  | ' . $settings['app_name'];
             if (isset($_GET['edit_id'])) {
-                $this->data['fetched_data'] = fetch_details('pickup_locations', ['id' => $_GET['edit_id']]);
+                // Scoped to this seller — without this, any seller could read another
+                // seller's warehouse address, contact name, email, phone and coordinates
+                // just by changing ?edit_id= in the URL.
+                $this->data['fetched_data'] = fetch_details('pickup_locations', ['id' => $_GET['edit_id'], 'seller_id' => $this->session->userdata('user_id')]);
             }
             $this->load->view('seller/template', $this->data);
         } else {

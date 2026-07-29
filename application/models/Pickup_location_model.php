@@ -23,7 +23,11 @@ class Pickup_location_model extends CI_Model
             'longitude' => $data['longitude'],
         ];
         if (isset($data['edit_pickup_location'])) {
-            $this->db->set($pickup_location_data)->where('id', $data['edit_pickup_location'])->update('pickup_locations');
+            // Scoped to this seller on the row being matched, not just the seller_id being
+            // written — previously the WHERE ignored ownership entirely, so any seller could
+            // overwrite another seller's pickup location by id, and since seller_id was part
+            // of the SET data, the row was simultaneously reassigned to the caller's account.
+            $this->db->set($pickup_location_data)->where(['id' => $data['edit_pickup_location'], 'seller_id' => $data['seller_id']])->update('pickup_locations');
         } else {
             $this->db->insert('pickup_locations', $pickup_location_data);
 

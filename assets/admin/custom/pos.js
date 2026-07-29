@@ -310,7 +310,7 @@ function display_products(products) {
                 '  <img class="item-image" src="' + products[i].image + '">' +
                 '</div>' +
                 '<span class="d-none shop-item-partner-id">' + products[i].seller_id + '</span>' +
-                '<select class="form-control mt-4 product-variants variant_value" id="change">';
+                '<select class="form-control mt-4 product-variants variant_value" id="change-' + products[i].id + '">';
             var total_price = document.getElementById('cart-total-price');
             var currency = "";
             if ($('#cart-total-price').length) {

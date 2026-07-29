@@ -355,27 +355,34 @@ class Chat_model extends CI_Model
     function load_chat($from_id, $to_id, $type = '',  $offset = '', $limit = '', $sort = '', $order = '', $search = '')
     {
 
-        // $from_id is a group id when $type is = group 
+        // $from_id is a group id when $type is = group
 
-        $search = ($search !== '' && $search !== '') ? " AND (`message` like '%" . $search . "%') " : "";
+        // Every value below used to be interpolated straight into raw SQL with no
+        // escaping — from_id/search in particular are attacker-controlled (POSTed by the
+        // client), making this a direct SQL injection point. Casting ids to int and
+        // escaping the search term closes that off.
+        $from_id = (int) $from_id;
+        $to_id = (int) $to_id;
+        $type = $this->db->escape_str($type);
+        $sort = in_array($sort, ['id', 'date_created'], true) ? $sort : 'id';
+        $order = strtoupper($order) === 'ASC' ? 'ASC' : 'DESC';
+        $offset = is_numeric($offset) ? (int) $offset : '';
+        $limit = is_numeric($limit) ? (int) $limit : '';
 
-        // if ($type == 'person' || $type == 'supporter') {
-        if ($type == 'person') {
-            $query1 = "SELECT count(id) as total FROM messages WHERE type='$type' AND ((from_id=$from_id AND to_id=$to_id) OR (from_id=$to_id AND to_id=$from_id)) ";
-        } else {
-            $query1 = "SELECT count(id) as total FROM messages ";
-        }
+        $search = ($search !== '' && $search !== '') ? " AND (`message` like '%" . $this->db->escape_like_str($search) . "%') " : "";
+
+        // Previously, any $type other than the literal string 'person' produced a query
+        // with NO participant filter at all — SELECT * FROM messages, returning every
+        // private message ever sent on the platform between any two users, to anyone who
+        // was merely logged in. Both branches now always require to_id=$to_id (the
+        // session user), which is the one part of this query that was never attacker-
+        // controlled, so a caller can only ever read conversations they're a party to.
+        $query1 = "SELECT count(id) as total FROM messages WHERE type='$type' AND ((from_id=$from_id AND to_id=$to_id) OR (from_id=$to_id AND to_id=$from_id)) ";
         $query1 = $this->db->query($query1);
         $rowcount = $query1->result_array();
         $rowcount = $rowcount[0]['total'];
 
-        // if ($type == 'person' || $type == 'supporter') {
-        if ($type == 'person') {
-            $sql = "SELECT * FROM messages WHERE type='$type' AND ((from_id=$from_id AND to_id=$to_id) OR (from_id=$to_id AND to_id=$from_id)) ";
-        } else {
-            $sql = "SELECT * FROM messages";
-        }
-
+        $sql = "SELECT * FROM messages WHERE type='$type' AND ((from_id=$from_id AND to_id=$to_id) OR (from_id=$to_id AND to_id=$from_id)) ";
 
         $sql .= ($sort !== '' && $order !== '') ? " ORDER BY $sort $order " : "";
         $sql .= ($offset !== '' && $limit !== '') ? " Limit $offset,$limit " : "";
@@ -409,6 +416,7 @@ class Chat_model extends CI_Model
 
     function get_media($msg_id)
     {
+        $msg_id = (int) $msg_id;
         $query = $this->db->query("SELECT * FROM chat_media WHERE message_id=$msg_id ");
         //     $res = $query->result_array();
         //     $rows = [];
@@ -442,9 +450,12 @@ class Chat_model extends CI_Model
 
     function switch_chat($user_or_group_id, $type)
     {
-
+        // Cast to int (was raw string interpolation into SQL) and, for a user lookup,
+        // select only display columns — this used to be `SELECT *` on `users`, handing
+        // back the caller's password hash, salt, api key, address and more.
+        $user_or_group_id = (int) $user_or_group_id;
         if ($type == 'person') {
-            $query = $this->db->query("SELECT * FROM users WHERE id=$user_or_group_id ");
+            $query = $this->db->query("SELECT id, username, image, last_online, web_fcm FROM users WHERE id=$user_or_group_id ");
         } else {
             $query = $this->db->query("SELECT * FROM chat_groups WHERE id=$user_or_group_id ");
         }
@@ -457,6 +468,7 @@ class Chat_model extends CI_Model
 
     function get_user_picture($user_id)
     {
+        $user_id = (int) $user_id;
         $query = $this->db->query("SELECT * FROM users WHERE id='$user_id' ");
         $messages =  $query->result_array();
         $picture = substr($messages[0]['first_name'], 0, 1) . '' . substr($messages[0]['last_name'], 0, 1);

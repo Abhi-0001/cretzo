@@ -41,7 +41,7 @@ class Customer_model extends CI_Model
         if (isset($_GET['search']) and $_GET['search'] != '') {
             $search = $_GET['search'];
             $multipleWhere = [
-                '`u.id`' => $search, '`u.username`' => $search, '`u.email`' => $search, '`u.mobile`' => $search, '`c.name`' => $search, '`a.name`' => $search, '`u.street`' => $search
+                '`u.id`' => $search, '`u.username`' => $search, '`u.email`' => $search, '`u.mobile`' => $search, '`c.city_name`' => $search, '`a.name`' => $search, '`u.street`' => $search
             ];
         }
 
@@ -49,7 +49,7 @@ class Customer_model extends CI_Model
             $where['u.active'] = $_GET['order_status'];
         }
 
-        $count_res = $this->db->select(' COUNT(u.id) as `total` ,a.name as area_name,c.name as city_name')->join('cities c', 'u.city=c.id', 'left')->join('areas a', 'u.area=a.id', 'left');
+        $count_res = $this->db->select(' COUNT(u.id) as `total` ,a.name as area_name,c.city_name as city_name')->join('cities c', 'u.city=c.city_id', 'left')->join('areas a', 'u.area=a.id', 'left');
 
         if (isset($multipleWhere) && !empty($multipleWhere)) {
             $count_res->group_start();
@@ -67,7 +67,7 @@ class Customer_model extends CI_Model
             $total = $row['total'];
         }
 
-        $search_res = $this->db->select(' u.*,a.name as area_name,c.name as city_name')->join('cities c', 'u.city=c.id', 'left')->join('areas a', 'u.area=a.id', 'left');;
+        $search_res = $this->db->select(' u.*,a.name as area_name,c.city_name as city_name')->join('cities c', 'u.city=c.city_id', 'left')->join('areas a', 'u.area=a.id', 'left');;
         if (isset($multipleWhere) && !empty($multipleWhere)) {
             $search_res->group_start();
             $search_res->or_like($multipleWhere);
@@ -147,14 +147,14 @@ class Customer_model extends CI_Model
         $where['ug.group_id'] =  2;
         if (!empty($search)) {
             $multipleWhere = [
-                '`u.id`' => $search, '`u.username`' => $search, '`u.email`' => $search, '`u.mobile`' => $search, '`c.name`' => $search, '`a.name`' => $search, '`u.street`' => $search
+                '`u.id`' => $search, '`u.username`' => $search, '`u.email`' => $search, '`u.mobile`' => $search, '`c.city_name`' => $search, '`a.name`' => $search, '`u.street`' => $search
             ];
         }
         if (!empty($id)) {
             $where['u.id'] = $id;
         }
 
-        $count_res = $this->db->select(' COUNT(u.id) as `total` ,a.name as area_name,c.name as city_name')->join('cities c', 'u.city=c.id', 'left')->join('areas a', 'u.area=a.id', 'left');
+        $count_res = $this->db->select(' COUNT(u.id) as `total` ,a.name as area_name,c.city_name as city_name')->join('cities c', 'u.city=c.city_id', 'left')->join('areas a', 'u.area=a.id', 'left');
 
         if (isset($multipleWhere) && !empty($multipleWhere)) {
             $count_res->group_start();
@@ -172,7 +172,7 @@ class Customer_model extends CI_Model
             $total = $row['total'];
         }
 
-        $search_res = $this->db->select(' u.*,a.name as area_name,c.name as city_name')->join('cities c', 'u.city=c.id', 'left')->join('areas a', 'u.area=a.id', 'left');
+        $search_res = $this->db->select(' u.*,a.name as area_name,c.city_name as city_name')->join('cities c', 'u.city=c.city_id', 'left')->join('areas a', 'u.area=a.id', 'left');
         if (isset($multipleWhere) && !empty($multipleWhere)) {
             $search_res->group_start();
             $search_res->or_like($multipleWhere);

@@ -222,13 +222,13 @@ class Chat extends CI_Controller {
             return 'No matching products were found.';
         }
 
-        $this->db->select('p.name as product_name, MIN(CASE WHEN pv.special_price IS NOT NULL AND pv.special_price > 0 THEN pv.special_price ELSE pv.price END) as product_price, u.username as seller_name, sd.store_name', false)
+        $this->db->select('p.name as product_name, MIN(CASE WHEN pv.special_price IS NOT NULL AND pv.special_price > 0 THEN pv.special_price ELSE pv.price END) as product_price, u.username as seller_name, COALESCE(NULLIF(sd.shop_name, ""), sd.store_name) as store_name', false)
             ->from('products p')
             ->join('product_variants pv', 'p.id = pv.product_id', 'left')
             ->join('users u', 'p.seller_id = u.id', 'left')
             ->join('seller_data sd', 'p.seller_id = sd.user_id', 'left')
             ->like('p.name', $product_name)
-            ->group_by(['p.id', 'p.name', 'u.username', 'sd.store_name'])
+            ->group_by(['p.id', 'p.name', 'u.username', 'sd.shop_name', 'sd.store_name'])
             ->limit(5);
 
         if ($this->db->field_exists('status', 'products')) {

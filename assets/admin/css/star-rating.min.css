@@ -14,7 +14,7 @@
     height: 25px;
     font-size: 0;
     color: #fff;
-    background: url('/assets/loading.gif') top left no-repeat;
+    background: url('../images/loading.gif') top left no-repeat;
     border: none
 }
 

@@ -443,7 +443,7 @@ class Product_model extends CI_Model
             $total = $row['total'];
         }
 
-        $search_res = $this->db->select('product_variants.id AS id,c.name as category_name,sd.store_name, p.id as pid,p.rating,p.no_of_ratings,p.name, p.type, p.image, p.status,p.brand,product_variants.price , product_variants.special_price, product_variants.stock')
+        $search_res = $this->db->select('product_variants.id AS id,c.name as category_name,COALESCE(NULLIF(sd.shop_name, ""), sd.store_name) as store_name, p.id as pid,p.rating,p.no_of_ratings,p.name, p.type, p.image, p.status,p.brand,product_variants.price , product_variants.special_price, product_variants.stock')
             ->join("categories c", "p.category_id=c.id")
             ->join("seller_data sd", "sd.user_id=p.seller_id ")
             ->join('product_variants', 'product_variants.product_id = p.id');
@@ -502,8 +502,8 @@ class Product_model extends CI_Model
         $tempRow = array();
         foreach ($pro_search_res as $row) {
             $row = output_escaping($row);
-            $operate = "<div><a href='view-product?edit_id=" . $row['pid'] . "'  class='btn action-btn btn-primary btn-xs mr-1 mb-1' title='View'><i class='fa fa-eye'></i></a>";
-            $operate .= " <a href='create-product?edit_id=" . $row['pid'] . "' data-id=" . $row['pid'] . " class='btn action-btn btn-success btn-xs mr-1 mb-1' title='Edit' ><i class='fa fa-pen'></i></a>";
+            $operate = "<div><a href='" . base_url('seller/product/view-product?edit_id=' . $row['pid']) . "'  class='btn action-btn btn-primary btn-xs mr-1 mb-1' title='View'><i class='fa fa-eye'></i></a>";
+            $operate .= " <a href='" . base_url('seller/product/create-product?edit_id=' . $row['pid']) . "' data-id=" . $row['pid'] . " class='btn action-btn btn-success btn-xs mr-1 mb-1' title='Edit' ><i class='fa fa-pen'></i></a>";
             if ($row['status'] == '2') {
                 $tempRow['status'] = '<a class="badge badge-danger text-white">Not-Approved</a>';
                 if ($this->ion_auth->is_seller()) {
@@ -519,7 +519,7 @@ class Product_model extends CI_Model
                 $tempRow['status'] = '<a class="badge badge-danger text-white" >Inactive</a>';
                 $operate .= '<a class="btn btn-secondary action-btn mr-1 mb-1 ml-1 btn-xs update_active_status" data-table="products" href="javascript:void(0)" title="Active" data-id="' . $row['pid'] . '" data-status="' . $row['status'] . '" ><i class="fa fa-toggle-off"></i></a></div>';
             }
-            $operate .= '<div><a href="javascript:void(0)" id="delete-product" data-id=' . $row['pid'] . ' class="btn action-btn btn-danger mr-1 mb-1  btn-xs"><i class="fa fa-trash"></i></a>';
+            $operate .= '<div><a href="javascript:void(0)" data-id=' . $row['pid'] . ' class="btn action-btn btn-danger mr-1 mb-1  btn-xs delete-product"><i class="fa fa-trash"></i></a>';
             $operate .= " <a href='javascript:void(0)' data-id=" . $row['pid'] . " data-toggle='modal' data-target='#product-rating-modal' class='btn action-btn btn-success btn-xs mr-1 mb-1' title='View Ratings' ><i class='fa fa-star'></i></a>";
             $operate .= "<a href='javascript:void(0)' data-id=" . $row['pid'] . " data-toggle='modal' data-target='#product-faqs-modal' class='btn action-btn btn-info btn-xs mr-1 mb-1 ml-1' title='View FAQs' ><i class='fas fa-question-circle'></i></a></div>";
 
@@ -618,7 +618,7 @@ class Product_model extends CI_Model
             $total = $row['total'];
         }
 
-        $search_res = $this->db->select('product_variants.id AS id,c.name as category_name,sd.store_name, p.id as pid,p.rating,p.no_of_ratings,p.name, p.type, p.image, p.status,p.brand,product_variants.price , product_variants.special_price, product_variants.stock')
+        $search_res = $this->db->select('product_variants.id AS id,c.name as category_name,COALESCE(NULLIF(sd.shop_name, ""), sd.store_name) as store_name, p.id as pid,p.rating,p.no_of_ratings,p.name, p.type, p.image, p.status,p.brand,product_variants.price , product_variants.special_price, product_variants.stock')
             ->join("categories c", "p.category_id=c.id")
             ->join("seller_data sd", "sd.user_id=p.seller_id ")
             ->join('product_variants', 'product_variants.product_id = p.id');
@@ -927,15 +927,15 @@ class Product_model extends CI_Model
 
         $multipleWhere = '';
 
-        if (isset($offset))
+        if (isset($_GET['offset']))
             $offset = $_GET['offset'];
-        if (isset($limit))
+        if (isset($_GET['limit']))
             $limit = $_GET['limit'];
         if (isset($_GET['sort']))
-            if ($sort == 'id') {
+            if ($_GET['sort'] == 'id') {
                 $sort = "id";
             } else {
-                $sort = $sort;
+                $sort = $_GET['sort'];
             }
 
         if (isset($order) and $order != '') {

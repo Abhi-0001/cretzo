@@ -37,35 +37,56 @@ class Seller_model extends CI_Model
         $seller_data = [
                 'user_id' => $data['user_id'] ?? null,
                 'national_identity_card' => $data['national_identity_card'] ?? null,
-            
+                'authorized_signature' => $data['authorized_signature'] ?? null,
+
                 'first_name' => $data['first_name'] ?? null,
+                'middle_name' => $data['middle_name'] ?? null,
                 'last_name' => $data['last_name'] ?? null,
                 'phone' => $data['phone'] ?? null,
                 'email' => $data['email'] ?? null,
-            
+
                 'address1' => $data['address1'] ?? null,
                 'address2' => $data['address2'] ?? null,
                 'district' => $data['district'] ?? null,
                 'city' => $data['city'] ?? null,
                 'state' => $data['state'] ?? null,
                 'pin' => $data['pin'] ?? null,
-            
-                'logo' => $data['logo'] ?? null,
+                'logo' => $data['logo'] ?? ($data['store_logo'] ?? null),
                 'shop_name' => $data['shop_name'] ?? null,
                 'social' => $data['social'] ?? null,
                 'shop_phone' => $data['shop_phone'] ?? null,
-            
+                'slug' => $data['slug'] ?? null,
+                'store_description' => $data['store_description'] ?? null,
+                'category_ids' => $data['category_ids'] ?? null,
+                'primary_category_id' => $data['primary_category_id'] ?? null,
+
                 'pickup_address1' => $data['pickup_address1'] ?? null,
                 'pickup_address2' => $data['pickup_address2'] ?? null,
                 'pickup_district' => $data['pickup_district'] ?? null,
                 'pickup_state' => $data['pickup_state'] ?? null,
                 'pickup_pin' => $data['pickup_pin'] ?? null,
-            
                 'entity_type' => $data['entity_type'] ?? null,
+                'legal_business_name' => $data['legal_business_name'] ?? null,
                 'pan' => $data['pan'] ?? null,
                 'gst' => $data['gst'] ?? null,
                 'is_gst_registered' => $data['is_gst_registered'] ?? 1,
                 'gst_enrollment_number' => $data['gst_enrollment_number'] ?? null,
+
+                'business_address1' => $data['business_address1'] ?? null,
+                'business_address2' => $data['business_address2'] ?? null,
+                'business_district' => $data['business_district'] ?? null,
+                'business_city' => $data['business_city'] ?? null,
+                'business_state' => $data['business_state'] ?? null,
+                'business_pin' => $data['business_pin'] ?? null,
+
+                'pan_card_document' => $data['pan_card_document'] ?? null,
+                'gstin_document' => $data['gstin_document'] ?? null,
+                'gst_enrollment_ack_document' => $data['gst_enrollment_ack_document'] ?? null,
+                'business_proof_document' => $data['business_proof_document'] ?? null,
+                'business_address_proof_document' => $data['business_address_proof_document'] ?? null,
+                'partnership_deed_document' => $data['partnership_deed_document'] ?? null,
+                'bank_account_proof_document' => $data['bank_account_proof_document'] ?? null,
+
                 'account_number' => $data['account_number'] ?? null,
                 'account_holder_name' => $data['account_holder_name'] ?? null,
                 'ifsc' => $data['ifsc'] ?? null,
@@ -88,6 +109,11 @@ class Seller_model extends CI_Model
                 'latitude' => $profile['latitude'],
                 'longitude' => $profile['longitude'],
             ];
+            // Only touch users.image when a new photo was actually uploaded,
+            // otherwise every profile save would blank out the seller's existing photo.
+            if (!empty($profile['image'])) {
+                $seller_profile['image'] = $profile['image'];
+            }
         }
         if (isset($data['edit_seller_data_id'])) {
             if (!empty($com_data)) {
@@ -208,19 +234,19 @@ class Seller_model extends CI_Model
                 $tempRow['mobile'] = "";
             }
             $tempRow['address'] = $row['address'];
-            $tempRow['store_name'] = $row['store_name'];
+            $tempRow['store_name'] = $row['shop_name'] ?: $row['store_name'];
             $tempRow['store_url'] = $row['store_url'];
             $tempRow['store_description'] = $row['store_description'];
             $tempRow['account_number'] = $row['account_number'];
-            $tempRow['account_name'] = $row['account_name'];
+            $tempRow['account_name'] = $row['account_holder_name'] ?: $row['account_name'];
             $tempRow['bank_code'] = $row['bank_code'];
             $tempRow['bank_name'] = $row['bank_name'];
             $tempRow['latitude'] = $row['latitude'];
             $tempRow['longitude'] = $row['longitude'];
             $tempRow['tax_name'] = $row['tax_name'];
             $tempRow['rating'] = ' <p> (' . intval($row['rating']) . '/' . $row['no_of_ratings'] . ') </p>';;
-            $tempRow['tax_number'] = $row['tax_number'];
-            $tempRow['pan_number'] = $row['pan_number'];
+            $tempRow['tax_number'] = $row['gst'] ?: $row['tax_number'];
+            $tempRow['pan_number'] = $row['pan'] ?: $row['pan_number'];
 
             // seller status
             if ($row['status'] == 2)
@@ -278,7 +304,7 @@ class Seller_model extends CI_Model
             $where['sd.user_id'] = $_POST['seller_id'];
         }
         if (isset($search) and $search != '') {
-            $multipleWhere = ['u.`id`' => $search, 'u.`username`' => $search, 'u.`email`' => $search, 'u.`mobile`' => $search, 'u.`address`' => $search, 'u.`balance`' => $search, 'sd.`store_name`' => $search];
+            $multipleWhere = ['u.`id`' => $search, 'u.`username`' => $search, 'u.`email`' => $search, 'u.`mobile`' => $search, 'u.`address`' => $search, 'u.`balance`' => $search, 'sd.`store_name`' => $search, 'sd.`shop_name`' => $search];
         }
 
         $count_res = $this->db->select(' COUNT(DISTINCT u.id) as `total` ')->join('users_groups ug', ' ug.user_id = u.id ')->join('seller_data sd', ' sd.user_id = u.id ')->join('products p', ' p.seller_id = u.id ');
@@ -345,7 +371,7 @@ class Seller_model extends CI_Model
             $tempRow['slug'] = $row['slug'];
             $tempRow['seller_rating'] = $row['rating'];
             $tempRow['no_of_ratings'] = $row['no_of_ratings'];
-            $tempRow['store_name'] = $row['store_name'];
+            $tempRow['store_name'] = $row['shop_name'] ?: $row['store_name'];
             $tempRow['store_url'] = $row['store_url'];
             $tempRow['store_description'] = $row['store_description'];
             $tempRow['seller_profile'] = base_url() . $row['logo'];
@@ -466,7 +492,7 @@ class Seller_model extends CI_Model
 
     public function top_sellers()
     {
-        $query = $this->db->select(" `seller_id`, s.store_name,(SELECT username FROM users as u WHERE u.id=s.user_id) as seller_name ,( SELECT SUM(sub_total) AS total FROM order_items i WHERE i.seller_id = oi.seller_id AND active_status = 'delivered' ) AS total")
+        $query = $this->db->select(" `seller_id`, COALESCE(NULLIF(s.shop_name, ''), s.store_name) as store_name,(SELECT username FROM users as u WHERE u.id=s.user_id) as seller_name ,( SELECT SUM(sub_total) AS total FROM order_items i WHERE i.seller_id = oi.seller_id AND active_status = 'delivered' ) AS total")
             ->join('seller_data s', 's.user_id = oi.seller_id', "left")
             ->join('users u', 'u.id=s.id', 'left')
             ->limit('5')
@@ -509,7 +535,7 @@ class Seller_model extends CI_Model
             $multipleWhere = ['u.`id`' => $search, 'u.`username`' => $search, 'u.`email`' => $search, 'u.`mobile`' => $search, 'u.`address`' => $search, 'u.`balance`' => $search];
         }
 
-        $count_res = $this->db->select(' COUNT(u.id) as `total` ')->where('status', 1)->join('users_groups ug', ' ug.user_id = u.id ')->join('seller_data sd', ' sd.user_id = u.id ');
+        $count_res = $this->db->select(' COUNT(u.id) as `total` ')->where('sd.status', 1)->join('users_groups ug', ' ug.user_id = u.id ')->join('seller_data sd', ' sd.user_id = u.id ');
 
         if (isset($multipleWhere) && !empty($multipleWhere)) {
             $count_res->group_start();
@@ -526,7 +552,7 @@ class Seller_model extends CI_Model
             $total = $row['total'];
         }
 
-        $search_res = $this->db->select(' u.*,sd.* ')->join('users_groups ug', ' ug.user_id = u.id ')->join('seller_data sd', ' sd.user_id = u.id ')->where('status', 1);
+        $search_res = $this->db->select(' u.*,sd.* ')->join('users_groups ug', ' ug.user_id = u.id ')->join('seller_data sd', ' sd.user_id = u.id ')->where('sd.status', 1);
         if (isset($multipleWhere) && !empty($multipleWhere)) {
             $search_res->group_start();
             $search_res->or_like($multipleWhere);
@@ -558,19 +584,19 @@ class Seller_model extends CI_Model
             $tempRow['email'] = $row['email'];
             $tempRow['mobile'] = $row['mobile'];
             $tempRow['address'] = $row['address'];
-            $tempRow['store_name'] = $row['store_name'];
+            $tempRow['store_name'] = $row['shop_name'] ?: $row['store_name'];
             $tempRow['store_url'] = $row['store_url'];
             $tempRow['store_description'] = $row['store_description'];
             $tempRow['account_number'] = $row['account_number'];
-            $tempRow['account_name'] = $row['account_name'];
+            $tempRow['account_name'] = $row['account_holder_name'] ?: $row['account_name'];
             $tempRow['bank_code'] = $row['bank_code'];
             $tempRow['bank_name'] = $row['bank_name'];
             $tempRow['latitude'] = $row['latitude'];
             $tempRow['longitude'] = $row['longitude'];
             $tempRow['tax_name'] = $row['tax_name'];
             $tempRow['rating'] = ' <p> (' . intval($row['rating']) . '/' . $row['no_of_ratings'] . ') </p>';;
-            $tempRow['tax_number'] = $row['tax_number'];
-            $tempRow['pan_number'] = $row['pan_number'];
+            $tempRow['tax_number'] = $row['gst'] ?: $row['tax_number'];
+            $tempRow['pan_number'] = $row['pan'] ?: $row['pan_number'];
 
             // seller status
             if ($row['status'] == 2)
@@ -631,7 +657,7 @@ class Seller_model extends CI_Model
             $multipleWhere = ['u.`id`' => $search, 'u.`username`' => $search, 'u.`email`' => $search, 'u.`mobile`' => $search, 'u.`address`' => $search, 'u.`balance`' => $search];
         }
 
-        $count_res = $this->db->select(' COUNT(u.id) as `total` ')->join('users_groups ug', ' ug.user_id = u.id ')->join('seller_data sd', ' sd.user_id = u.id ');
+        $count_res = $this->db->select(' COUNT(u.id) as `total` ')->where('sd.status', '2')->join('users_groups ug', ' ug.user_id = u.id ')->join('seller_data sd', ' sd.user_id = u.id ');
 
         if (isset($multipleWhere) && !empty($multipleWhere)) {
             $count_res->group_start();
@@ -648,7 +674,7 @@ class Seller_model extends CI_Model
             $total = $row['total'];
         }
 
-        $search_res = $this->db->select(' u.*,sd.* ')->where('status', '2')->join('users_groups ug', ' ug.user_id = u.id ')->join('seller_data sd', ' sd.user_id = u.id ');
+        $search_res = $this->db->select(' u.*,sd.* ')->where('sd.status', '2')->join('users_groups ug', ' ug.user_id = u.id ')->join('seller_data sd', ' sd.user_id = u.id ');
         if (isset($multipleWhere) && !empty($multipleWhere)) {
             $search_res->group_start();
             $search_res->or_like($multipleWhere);
@@ -680,19 +706,19 @@ class Seller_model extends CI_Model
             $tempRow['email'] = $row['email'];
             $tempRow['mobile'] = $row['mobile'];
             $tempRow['address'] = $row['address'];
-            $tempRow['store_name'] = $row['store_name'];
+            $tempRow['store_name'] = $row['shop_name'] ?: $row['store_name'];
             $tempRow['store_url'] = $row['store_url'];
             $tempRow['store_description'] = $row['store_description'];
             $tempRow['account_number'] = $row['account_number'];
-            $tempRow['account_name'] = $row['account_name'];
+            $tempRow['account_name'] = $row['account_holder_name'] ?: $row['account_name'];
             $tempRow['bank_code'] = $row['bank_code'];
             $tempRow['bank_name'] = $row['bank_name'];
             $tempRow['latitude'] = $row['latitude'];
             $tempRow['longitude'] = $row['longitude'];
             $tempRow['tax_name'] = $row['tax_name'];
             $tempRow['rating'] = ' <p> (' . intval($row['rating']) . '/' . $row['no_of_ratings'] . ') </p>';;
-            $tempRow['tax_number'] = $row['tax_number'];
-            $tempRow['pan_number'] = $row['pan_number'];
+            $tempRow['tax_number'] = $row['gst'] ?: $row['tax_number'];
+            $tempRow['pan_number'] = $row['pan'] ?: $row['pan_number'];
 
             // seller status
             if ($row['status'] == 2)
@@ -753,7 +779,7 @@ class Seller_model extends CI_Model
             $multipleWhere = ['u.`id`' => $search, 'u.`username`' => $search, 'u.`email`' => $search, 'u.`mobile`' => $search, 'u.`address`' => $search, 'u.`balance`' => $search];
         }
 
-        $count_res = $this->db->select(' COUNT(u.id) as `total` ')->join('users_groups ug', ' ug.user_id = u.id ')->join('seller_data sd', ' sd.user_id = u.id ');
+        $count_res = $this->db->select(' COUNT(u.id) as `total` ')->where('sd.status', '0')->join('users_groups ug', ' ug.user_id = u.id ')->join('seller_data sd', ' sd.user_id = u.id ');
 
         if (isset($multipleWhere) && !empty($multipleWhere)) {
             $count_res->group_start();
@@ -770,7 +796,7 @@ class Seller_model extends CI_Model
             $total = $row['total'];
         }
 
-        $search_res = $this->db->select(' u.*,sd.* ')->where('status', '0')->join('users_groups ug', ' ug.user_id = u.id ')->join('seller_data sd', ' sd.user_id = u.id ');
+        $search_res = $this->db->select(' u.*,sd.* ')->where('sd.status', '0')->join('users_groups ug', ' ug.user_id = u.id ')->join('seller_data sd', ' sd.user_id = u.id ');
         if (isset($multipleWhere) && !empty($multipleWhere)) {
             $search_res->group_start();
             $search_res->or_like($multipleWhere);
@@ -802,19 +828,19 @@ class Seller_model extends CI_Model
             $tempRow['email'] = $row['email'];
             $tempRow['mobile'] = $row['mobile'];
             $tempRow['address'] = $row['address'];
-            $tempRow['store_name'] = $row['store_name'];
+            $tempRow['store_name'] = $row['shop_name'] ?: $row['store_name'];
             $tempRow['store_url'] = $row['store_url'];
             $tempRow['store_description'] = $row['store_description'];
             $tempRow['account_number'] = $row['account_number'];
-            $tempRow['account_name'] = $row['account_name'];
+            $tempRow['account_name'] = $row['account_holder_name'] ?: $row['account_name'];
             $tempRow['bank_code'] = $row['bank_code'];
             $tempRow['bank_name'] = $row['bank_name'];
             $tempRow['latitude'] = $row['latitude'];
             $tempRow['longitude'] = $row['longitude'];
             $tempRow['tax_name'] = $row['tax_name'];
             $tempRow['rating'] = ' <p> (' . intval($row['rating']) . '/' . $row['no_of_ratings'] . ') </p>';;
-            $tempRow['tax_number'] = $row['tax_number'];
-            $tempRow['pan_number'] = $row['pan_number'];
+            $tempRow['tax_number'] = $row['gst'] ?: $row['tax_number'];
+            $tempRow['pan_number'] = $row['pan'] ?: $row['pan_number'];
 
             // seller status
             if ($row['status'] == 2)
@@ -918,19 +944,19 @@ class Seller_model extends CI_Model
             $tempRow['email'] = $row['email'];
             $tempRow['mobile'] = $row['mobile'];
             $tempRow['address'] = $row['address'];
-            $tempRow['store_name'] = $row['store_name'];
+            $tempRow['store_name'] = $row['shop_name'] ?: $row['store_name'];
             $tempRow['store_url'] = $row['store_url'];
             $tempRow['store_description'] = $row['store_description'];
             $tempRow['account_number'] = $row['account_number'];
-            $tempRow['account_name'] = $row['account_name'];
+            $tempRow['account_name'] = $row['account_holder_name'] ?: $row['account_name'];
             $tempRow['bank_code'] = $row['bank_code'];
             $tempRow['bank_name'] = $row['bank_name'];
             $tempRow['latitude'] = $row['latitude'];
             $tempRow['longitude'] = $row['longitude'];
             $tempRow['tax_name'] = $row['tax_name'];
             $tempRow['rating'] = ' <p> (' . intval($row['rating']) . '/' . $row['no_of_ratings'] . ') </p>';;
-            $tempRow['tax_number'] = $row['tax_number'];
-            $tempRow['pan_number'] = $row['pan_number'];
+            $tempRow['tax_number'] = $row['gst'] ?: $row['tax_number'];
+            $tempRow['pan_number'] = $row['pan'] ?: $row['pan_number'];
 
             // seller status
 

@@ -13,6 +13,24 @@ class Orders extends CI_Controller
         $this->load->model('Order_model');
     }
 
+    // True only if the order behind this order_tracking row (looked up by shipment_id or
+    // shiprocket_order_id) has at least one item belonging to this seller. Without this,
+    // any seller could generate an AWB/label/invoice, request pickup, or cancel a shipment
+    // that belongs entirely to another seller just by knowing its shipment/order id — and
+    // the Shiprocket API would already have been called by the time anyone noticed.
+    private function shipment_owned_by_seller($column, $value, $seller_id)
+    {
+        if (empty($value)) {
+            return false;
+        }
+        $tracking = fetch_details('order_tracking', [$column => $value], 'order_id');
+        if (empty($tracking)) {
+            return false;
+        }
+        $owned = fetch_details('order_items', ['order_id' => $tracking[0]['order_id'], 'seller_id' => $seller_id], 'id');
+        return !empty($owned);
+    }
+
     public function index()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
@@ -23,13 +41,17 @@ class Orders extends CI_Controller
             $this->data['about_us'] = get_settings('about_us');
             $this->data['curreny'] = get_settings('currency');
             if (isset($_GET['edit_id'])) {
-                $order_item_data = fetch_details('order_items', ['id' => $_GET['edit_id']], 'order_id,product_name,user_id');
-                $order_data = fetch_details('orders', ['id' => $order_item_data[0]['order_id']], 'email');
-                $user_data = fetch_details('users', ['id' => $order_item_data[0]['user_id']], 'username');
-                $this->data['fetched'] = $order_data;
-                $this->data['order_item_data'] = $order_item_data;
-                $this->data['user_data'] = $user_data[0];
-                // $this->data['attribute'] = $attribute_value[0]['value'];
+                // Scoped to this seller — without this, any seller could pull another
+                // seller's order item plus that order's customer name/email just by
+                // changing ?edit_id= in the URL.
+                $order_item_data = fetch_details('order_items', ['id' => $_GET['edit_id'], 'seller_id' => $this->ion_auth->get_user_id()], 'order_id,product_name,user_id');
+                if (!empty($order_item_data)) {
+                    $order_data = fetch_details('orders', ['id' => $order_item_data[0]['order_id']], 'email');
+                    $user_data = fetch_details('users', ['id' => $order_item_data[0]['user_id']], 'username');
+                    $this->data['fetched'] = $order_data;
+                    $this->data['order_item_data'] = $order_item_data;
+                    $this->data['user_data'] = $user_data[0];
+                }
             }
             $this->load->view('seller/template', $this->data);
         } else {
@@ -149,9 +171,11 @@ class Orders extends CI_Controller
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
             $order_item_id = $_POST['order_item_id'];
-            $status = $_POST['status'];
+            $status = ($_POST['status'] == '1') ? '1' : '0';
 
-            if (update_details(['is_sent' => $status], ['id' => $order_item_id], 'order_items')) {
+            // Scoped to this seller — without this, any seller could mark any other
+            // seller's order item as sent just by knowing its id.
+            if (update_details(['is_sent' => $status], ['id' => $order_item_id, 'seller_id' => $this->ion_auth->get_user_id()], 'order_items')) {
                 $this->response['error'] = false;
                 $this->response['message'] = 'Status Updated Successfully';
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
@@ -183,6 +207,12 @@ class Orders extends CI_Controller
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
 
+            // seller_id must always come from the authenticated session, never from the
+            // submitted form — trusting the POSTed value let any seller cancel, return, or
+            // change the status of another seller's order items by passing their id/seller_id.
+            $seller_id = $this->ion_auth->get_user_id();
+            $_POST['seller_id'] = $seller_id;
+
             if (isset($_POST['status']) && !empty($_POST['status']) && $_POST['status'] != '' && ($_POST['status'] == 'cancelled' || $_POST['status'] == 'returned')) {
                 $this->form_validation->set_rules('order_item_id[]', 'Order Item ID', 'trim|required|xss_clean', array('required' => "Please select atleast one item of seller for order cancelation or return."));
             }
@@ -208,7 +238,22 @@ class Orders extends CI_Controller
             $order_itam_id = [];
             $order_itam_ids = [];
             if ($_POST['status'] == 'cancelled' || $_POST['status'] == 'returned') {
-                $order_itam_ids = $_POST['order_item_id'];
+                // These ids come straight from the client with no other scoping below, so
+                // verify every one of them actually belongs to this seller before touching
+                // anything — otherwise a seller could cancel/return another seller's order
+                // items just by knowing their ids.
+                $submitted_ids = array_unique(array_map('intval', (array) $_POST['order_item_id']));
+                $owned_items = fetch_details('order_items', ['seller_id' => $seller_id], 'id', '', '', '', '', 'id', $submitted_ids);
+                if (count($owned_items) != count($submitted_ids)) {
+                    $this->response['error'] = true;
+                    $this->response['message'] = 'One or more order items were not found.';
+                    $this->response['data'] = array();
+                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                    print_r(json_encode($this->response));
+                    return false;
+                }
+                $order_itam_ids = $submitted_ids;
             } else {
                 $order_itam_id = fetch_details('order_items', ['order_id' => $_POST['order_id'], 'seller_id' => $_POST['seller_id'], 'active_status !=' => 'cancelled'], 'id');
                 foreach ($order_itam_id as $ids) {
@@ -575,10 +620,22 @@ class Orders extends CI_Controller
                 $order_id = $this->input->post('order_id', true);
                 $order_item_id = $this->input->post('order_item_id', true);
                 $courier_agency = $this->input->post('courier_agency', true);
-                $seller_id = $this->input->post('seller_id', true);
+                // seller_id must always come from the authenticated session, never from the
+                // submitted form — trusting the POSTed value let any seller overwrite another
+                // seller's order-tracking rows (and the customer-facing tracking URL) just by
+                // passing that seller's id.
+                $seller_id = $this->ion_auth->get_user_id();
                 $tracking_id = $this->input->post('tracking_id', true);
                 $url = $this->input->post('url', true);
                 $order_item_ids = fetch_details('order_items', ['order_id' => $order_id, 'seller_id' => $seller_id], 'id');
+                if (empty($order_item_ids)) {
+                    $this->response['error'] = true;
+                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                    $this->response['message'] = "Order not found.";
+                    print_r(json_encode($this->response));
+                    return false;
+                }
                 foreach ($order_item_ids as $ids) {
 
                     $data = array(
@@ -728,6 +785,13 @@ class Orders extends CI_Controller
                 $subtotal = 0;
                 $order_id = 0;
 
+                // seller_id must always come from the authenticated session — the submitted
+                // order_items JSON (including each row's own seller_id) is entirely
+                // client-controlled, so trusting it let a seller build a Shiprocket shipment
+                // out of another seller's order items just by relabeling them in the request.
+                $seller_id = $this->ion_auth->get_user_id();
+                $_POST['shiprocket_seller_id'] = $seller_id;
+
                 $pickup_location_pincode = fetch_details('pickup_locations', ['pickup_location' => $_POST['pickup_location']], 'pin_code');
                 $user_data = fetch_details('users', ['id' => $_POST['user_id']], 'username,email');
                 $order_data = fetch_details('orders', ['id' => $_POST['order_id']], 'date_added,address_id,mobile,payment_method,delivery_charge');
@@ -746,6 +810,13 @@ class Orders extends CI_Controller
 
                 foreach ($order_items as $row) {
                     if ($row['pickup_location'] == $_POST['pickup_location'] && $row['seller_id'] == $_POST['shiprocket_seller_id']) {
+                        // Verify this order item id is real and actually belongs to this
+                        // seller and this order — the rest of $row is still client-supplied
+                        // JSON, but the id itself must check out against the database.
+                        $owned_item = fetch_details('order_items', ['id' => $row['id'], 'order_id' => $_POST['order_id'], 'seller_id' => $seller_id], 'id');
+                        if (empty($owned_item)) {
+                            continue;
+                        }
                         $order_item_id[] = $row['id'];
                         $order_id .= '-' . $row['id'];
                         $order_item_data = fetch_details('order_items', ['id' => $row['id']], 'sub_total');
@@ -843,6 +914,15 @@ class Orders extends CI_Controller
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
 
+            if (!$this->shipment_owned_by_seller('shipment_id', $_POST['shipment_id'] ?? null, $this->ion_auth->get_user_id())) {
+                $this->response['error'] = true;
+                $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                $this->response['message'] = 'Shipment not found';
+                print_r(json_encode($this->response));
+                return false;
+            }
+
             $res = generate_awb($_POST['shipment_id']);
 
             if (!empty($res) && $res['status_code'] == 200) {
@@ -868,6 +948,15 @@ class Orders extends CI_Controller
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
 
+            if (!$this->shipment_owned_by_seller('shipment_id', $_POST['shipment_id'] ?? null, $this->ion_auth->get_user_id())) {
+                $this->response['error'] = true;
+                $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                $this->response['message'] = 'Shipment not found';
+                print_r(json_encode($this->response));
+                return false;
+            }
+
             $res = send_pickup_request($_POST['shipment_id']);
 
             if (!empty($res)) {
@@ -892,6 +981,14 @@ class Orders extends CI_Controller
     public function generate_label()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
+            if (!$this->shipment_owned_by_seller('shipment_id', $_POST['shipment_id'] ?? null, $this->ion_auth->get_user_id())) {
+                $this->response['error'] = true;
+                $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                $this->response['message'] = 'Shipment not found';
+                print_r(json_encode($this->response));
+                return false;
+            }
             $res = generate_label($_POST['shipment_id']);
             if (!empty($res)) {
                 $this->response['error'] = false;
@@ -916,6 +1013,17 @@ class Orders extends CI_Controller
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
 
+            // Despite the field name, this is matched against order_tracking.shiprocket_order_id
+            // below (see generate_invoice() in function_helper.php) — scope on that same column.
+            if (!$this->shipment_owned_by_seller('shiprocket_order_id', $_POST['order_id'] ?? null, $this->ion_auth->get_user_id())) {
+                $this->response['error'] = true;
+                $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                $this->response['message'] = 'Shipment not found';
+                print_r(json_encode($this->response));
+                return false;
+            }
+
             $res = generate_invoice($_POST['order_id']);
             if (!empty($res) && isset($res['is_invoice_created']) && $res['is_invoice_created'] == 1) {
                 $this->response['error'] = false;
@@ -938,6 +1046,15 @@ class Orders extends CI_Controller
     public function cancel_shiprocket_order()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
+
+            if (!$this->shipment_owned_by_seller('shiprocket_order_id', $_POST['shiprocket_order_id'] ?? null, $this->ion_auth->get_user_id())) {
+                $this->response['error'] = true;
+                $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                $this->response['message'] = 'Shipment not found';
+                print_r(json_encode($this->response));
+                return false;
+            }
 
             $res = cancel_shiprocket_order($_POST['shiprocket_order_id']);
             if (!empty($res) && $res['status'] == 200) {

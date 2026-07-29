@@ -79,7 +79,10 @@ class Invoice extends CI_Controller
     public function get_sales_list()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
-            return $this->Invoice_model->get_sales_list();
+            // Scoped to this seller — get_sales_list() previously trusted a client-submitted
+            // seller_id (or none at all), so any seller could see every seller's orders on
+            // the platform just by adding/changing that one request parameter.
+            return $this->Invoice_model->get_sales_list(0, 10, ' o.id ', 'ASC', $this->ion_auth->get_user_id());
         } else {
             redirect('seller/login', 'refresh');
         }

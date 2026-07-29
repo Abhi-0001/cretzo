@@ -23,7 +23,7 @@
                 <div class="modal-dialog modal-lg">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title" id="exampleModalLongTitle">Digital Order Mails</h5>
+                            <h5 class="modal-title" id="digitalOrderMailsModalTitle">Digital Order Mails</h5>
                             <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                                 <span aria-hidden="true">&times;</span>
                             </button>
@@ -47,7 +47,7 @@
                             </table>
                         </div>
                         <div class="d-flex justify-content-center">
-                            <div class="form-group" id="error_box">
+                            <div class="form-group" id="digitalOrderMailsErrorBox">
                             </div>
                         </div>
                     </div>
@@ -59,7 +59,7 @@
                 <div class="modal-dialog modal-lg ">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title" id="exampleModalLongTitle">Manage Digital Product</h5>
+                            <h5 class="modal-title" id="manageDigitalProductModalTitle">Manage Digital Product</h5>
                             <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                                 <span aria-hidden="true">&times;</span>
                             </button>
@@ -103,7 +103,7 @@
                             </form>
                         </div>
                         <div class="d-flex justify-content-center">
-                            <div class="form-group" id="error_box">
+                            <div class="form-group" id="manageDigitalProductErrorBox">
                             </div>
                         </div>
                     </div>
@@ -144,7 +144,7 @@
                                     </div>
                                 </div>
                                 <div class="d-flex justify-content-center">
-                                    <div class="form-group" id="error_box">
+                                    <div class="form-group" id="orderTrackingErrorBox">
                                     </div>
                                 </div>
                             </form>

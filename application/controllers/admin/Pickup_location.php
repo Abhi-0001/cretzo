@@ -29,7 +29,7 @@ class Pickup_location extends CI_Controller
             $settings = get_settings('system_settings', true);
             $this->data['title'] = 'Pickup location Management | ' . $settings['app_name'];
             $this->data['meta_description'] = ' Pickup location Management  | ' . $settings['app_name'];
-            $this->data['sellers'] = $this->db->select(' u.username as seller_name,u.id as seller_id,sd.category_ids,sd.store_name,sd.id as seller_data_id  ')
+            $this->data['sellers'] = $this->db->select(' u.username as seller_name,u.id as seller_id,sd.category_ids,COALESCE(NULLIF(sd.shop_name, ""), sd.store_name) as store_name,sd.id as seller_data_id  ')
                 ->join('users_groups ug', ' ug.user_id = u.id ')
                 ->join('seller_data sd', ' sd.user_id = u.id ')
                 ->where(['ug.group_id' => '4'])

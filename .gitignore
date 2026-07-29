@@ -15,3 +15,7 @@ application/config/database.php
 *.psd
 /vendor/
 composer.phar
+
+# Backup/source archives must never be web-servable — they contain application/config/*.php
+# (DB credentials, encryption_key) and were previously being deployed and served publicly.
+*.zip
