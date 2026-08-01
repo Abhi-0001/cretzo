@@ -1,0 +1,35 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8090:80"
+    environment:
+      CI_ENV: testing
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_USER: root
+      DB_PASS: root
+      DB_NAME: cretzo_test
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: cretzo_test
+    ports:
+      - "3308:3306"
+    # Drop a .sql dump in docker/init-db/ to have it auto-imported on first start
+    volumes:
+      - ./docker/init-db:/docker-entrypoint-initdb.d:ro
+      - cretzo_test_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  cretzo_test_db_data:
