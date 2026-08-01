@@ -255,7 +255,7 @@
                   
                     <div class="form-step form1">
                       <div class="photo-upload d-flex gap-4 justify-content-between align-items-center mb-3">
-                        <input type="file" class="hidden" name="seller_photo" id="personalPhotoInput" accept="image/*">
+                        <input type="file" class="hidden" name="seller_photo" id="personalPhotoInput" accept="image/*,application/pdf">
                         <div class="personal-photo-preview" id="personalPhotoContainer">
                           <svg class="personal-photo-icon" id="personalPhotoIcon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="<?= !empty($fetched_data[0]['image']) ? 'display:none;' : '' ?>">
                             <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6m2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0m4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4m-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10s-3.516.68-4.168 1.332c-.678.678-.83 1.418-.832 1.664z"/>
@@ -319,7 +319,7 @@
 
                         <div class="col-md-6 mb-3">
                           <label class="form-label">Identity Proof <span class="text-danger">*</span></label>
-                          <input type="file" class="input" name="national_identity_card" id="national_identity_card_input" accept="image/*">
+                          <input type="file" class="input" name="national_identity_card" id="national_identity_card_input" accept="image/*,application/pdf">
                           <input type="hidden" name="old_national_identity_card" value="<?= htmlspecialchars($fetched_data[0]['national_identity_card'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                           <div class="doc-upload-preview-wrap<?= empty($fetched_data[0]['national_identity_card']) ? ' hidden' : '' ?>" id="national_identity_card_wrap">
                             <a href="<?= !empty($fetched_data[0]['national_identity_card']) ? base_url($fetched_data[0]['national_identity_card']) : '' ?>" target="_blank" id="national_identity_card_link">
@@ -331,7 +331,7 @@
                         </div>
                         <div class="col-md-6 mb-3">
                           <label class="form-label">Authorized Signatory <span class="text-danger">*</span></label>
-                          <input type="file" class="input" name="authorized_signature" id="authorized_signature_input" accept="image/*">
+                          <input type="file" class="input" name="authorized_signature" id="authorized_signature_input" accept="image/*,application/pdf">
                           <input type="hidden" name="old_authorized_signature" value="<?= htmlspecialchars($fetched_data[0]['authorized_signature'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                           <div class="doc-upload-preview-wrap<?= empty($fetched_data[0]['authorized_signature']) ? ' hidden' : '' ?>" id="authorized_signature_wrap">
                             <a href="<?= !empty($fetched_data[0]['authorized_signature']) ? base_url($fetched_data[0]['authorized_signature']) : '' ?>" target="_blank" id="authorized_signature_link">
@@ -352,7 +352,7 @@
                     <div class="form-step form2">
                         <div>
                           <div class="photo-upload d-flex gap-4 justify-content-between align-items-center mb-3">
-                            <input type="file" class="hidden" name="store_logo" id="photoInput" accept="image/*">
+                            <input type="file" class="hidden" name="store_logo" id="photoInput" accept="image/*,application/pdf">
                             <input type="hidden" name="old_store_logo" value="<?= htmlspecialchars($fetched_data[0]['logo'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                             <div class="preview-container">
                               <svg class="profile-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-person" viewBox="0 0 16 16" style="<?= !empty($fetched_data[0]['logo']) ? 'display:none;' : '' ?>">
@@ -590,8 +590,9 @@
                               <label for="entity_check">We are not a registered Entity.</label>
                           </div>
                           <div>
-                              <input type="checkbox" id="gst_check" name="gst_check" value="1" class="check-input" <?= $is_non_gst ? 'checked' : '' ?>>
+                              <input type="checkbox" id="gst_check" name="gst_check" value="1" class="check-input" <?= ($is_non_gst || $selected_entity_type === 'individual') ? 'checked' : '' ?>>
                               <label for="gst_check">We are not GST registered.</label>
+                              <small class="text-muted d-block" id="gst_check_individual_hint" style="<?= $selected_entity_type === 'individual' ? '' : 'display:none;' ?>">Mandatory for Individual entity type.</small>
                           </div>
                       </div>
 
@@ -826,6 +827,20 @@ function validateForm3() {
     }
   }
 
+  // Individual sellers are never GST-registered in this app's flow — "We are not GST
+  // registered" is forced checked and can't be unchecked while Entity Type is Individual.
+  // Not implemented via the `disabled` attribute: a disabled checkbox is dropped from
+  // FormData on submit, which would flip is_gst_registered back to 1 server-side.
+  function enforceIndividualGstLock() {
+    var isIndividual = (entityType.value === 'individual');
+    var hint = document.getElementById('gst_check_individual_hint');
+    if (isIndividual && !gstCheck.checked) {
+      gstCheck.checked = true;
+    }
+    gstCheck.title = isIndividual ? 'Mandatory for Individual entity type' : '';
+    if (hint) hint.style.display = isIndividual ? '' : 'none';
+  }
+
   function updateEntityTypeUI() {
     var type = entityType.value;
     var panLabelEl = document.getElementById('pan_label');
@@ -855,10 +870,14 @@ function validateForm3() {
 
     if (partnershipSection) partnershipSection.style.display = (type === 'partnership_firm') ? '' : 'none';
 
-    updateBusinessProofVisibility();
+    enforceIndividualGstLock();
+    syncGstFields();
   }
 
-  gstCheck.addEventListener('change', syncGstFields);
+  gstCheck.addEventListener('change', function () {
+    enforceIndividualGstLock();
+    syncGstFields();
+  });
   entityType.addEventListener('change', updateEntityTypeUI);
   // "individual" is already the default selection, so entity_type's own 'change'
   // event never fires for the common case of a first-time seller typing their name

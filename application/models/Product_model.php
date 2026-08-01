@@ -98,7 +98,10 @@ class Product_model extends CI_Model
         $hsn_code = (isset($data['hsn_code']) && !empty($data['hsn_code'])) ? $data['hsn_code'] : "";
         $download_type = (isset($data['download_link_type']) && !empty($data['download_link_type'])) ? $data['download_link_type'] : "";
         $download_link = (!empty($download_type)) ? (($download_type == 'add_link') ? $data['download_link'] : $data['pro_input_zip']) : "";
-        $pickup_location = (isset($data['pickup_location'])) ? $data['pickup_location'] : null;
+        // products.pickup_location is NOT NULL — a literal null here fatals the insert
+        // (1048 "Column 'pickup_location' cannot be null"). Mirrors the same coercion
+        // the mobile API already applies before calling this method.
+        $pickup_location = (isset($data['pickup_location']) && $data['pickup_location'] !== 'NULL' && $data['pickup_location'] !== null) ? $data['pickup_location'] : '';
 
         $pro_data = [
             'name' => $data['pro_input_name'],

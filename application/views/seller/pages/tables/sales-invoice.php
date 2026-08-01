@@ -74,3 +74,47 @@
     </section>
     <!-- /.content -->
 </div>
+
+<script>
+    $(document).ready(function () {
+        $('#datepicker').daterangepicker({
+            showDropdowns: true,
+            alwaysShowCalendars: true,
+            autoUpdateInput: false,
+            ranges: {
+                'Today': [moment(), moment()],
+                'Yesterday': [moment().subtract(1, 'days'), moment().subtract(1, 'days')],
+                'Last 7 Days': [moment().subtract(6, 'days'), moment()],
+                'Last 30 Days': [moment().subtract(29, 'days'), moment()],
+                'This Month': [moment().startOf('month'), moment().endOf('month')],
+                'Last Month': [moment().subtract(1, 'month').startOf('month'), moment().subtract(1, 'month').endOf('month')]
+            }
+        });
+    });
+    $('#datepicker').on('apply.daterangepicker', function (ev, picker) {
+        $('#start_date').val(picker.startDate.format('YYYY-MM-DD'));
+        $('#end_date').val(picker.endDate.format('YYYY-MM-DD'));
+        $(this).val(picker.startDate.format('MM/DD/YYYY') + ' - ' + picker.endDate.format('MM/DD/YYYY'));
+    });
+    $('#datepicker').on('cancel.daterangepicker', function () {
+        $(this).val('');
+        $('#start_date').val('');
+        $('#end_date').val('');
+    });
+
+    function status_date_wise_search() {
+        $('.table-striped').bootstrapTable('refresh');
+    }
+
+    function sales_invoice_query_params(p) {
+        return {
+            start_date: $('#start_date').val(),
+            end_date: $('#end_date').val(),
+            limit: p.limit,
+            sort: p.sort,
+            order: p.order,
+            offset: p.offset,
+            search: p.search
+        };
+    }
+</script>

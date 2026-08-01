@@ -89,7 +89,9 @@ class Product extends CI_Controller
         $this->data['fetched_data'] = $this->fetch_owned_faq($_GET['edit_id'], $seller_id);
     }
 
-    $this->data['categories'] = json_decode(json_encode($this->category_model->get_seller_categories($seller_id)), 1);
+    // Sellers may list products in ANY active category, not just the primary/secondary
+    // categories picked on their profile (that's data-collection only) — full tree, no seller filter.
+    $this->data['categories'] = json_decode(json_encode($this->category_model->get_categories()), 1);
     $this->data['brands'] = fetch_details('brands', ['status' => 1], 'id,name');
     $this->load->view('seller/template', $this->data);
 }
@@ -108,6 +110,7 @@ class Product extends CI_Controller
             $this->data['meta_description'] = 'Add Product | ' . $settings['app_name'];
             $this->data['taxes'] = fetch_details('taxes', null,  '*');
             $this->data['seller_id'] = $seller_id;
+            $this->data['pickup_locations'] = fetch_details('pickup_locations', ['seller_id' => $seller_id, 'status' => 1], 'id,pickup_location');
             $this->data['listing_quota'] = $this->Seller_subscription_model->check_listing_quota($seller_id, 1);
             $this->data['countries'] = fetch_details('countries', null, 'name,id');
             $this->data['brands'] = fetch_details('brands', null, 'name,id');
@@ -168,7 +171,9 @@ class Product extends CI_Controller
                     }
                 }
             }
-            $this->data['categories'] = $this->category_model->get_seller_categories($seller_id);
+            // Sellers may list products in ANY active category, not just the primary/secondary
+            // categories picked on their profile (that's data-collection only) — full tree, no seller filter.
+            $this->data['categories'] = $this->category_model->get_categories();
             $this->data['attributes_refind'] = $attributes_refind;
             $this->load->view('seller/template', $this->data);
         } else {
@@ -390,6 +395,22 @@ class Product extends CI_Controller
         $this->form_validation->set_rules('warranty_period', 'Warranty Period', 'trim|xss_clean');
         $this->form_validation->set_rules('guarantee_period', 'Guarantee Period', 'trim|xss_clean');
         $this->form_validation->set_rules('hsn_code', 'HSN Code', 'trim|xss_clean');
+
+        // products.pickup_location is NOT NULL — submitting the form without one used
+        // to fatal with "Column 'pickup_location' cannot be null" instead of a normal
+        // validation message. Require it only when the seller actually has a pickup
+        // location to pick from; a seller with none yet can still create the product
+        // (it just can't be shipped via Shiprocket until they add one and select it).
+        $seller_pickup_locations = fetch_details('pickup_locations', ['seller_id' => $_POST['seller_id'], 'status' => 1], 'id');
+        if (!empty($seller_pickup_locations)) {
+            $this->form_validation->set_rules('pickup_location', 'Pickup Location', 'trim|required|xss_clean', [
+                'required' => 'Please select a pickup location for this product.'
+            ]);
+        } else {
+            $this->form_validation->set_rules('pickup_location', 'Pickup Location', 'trim|xss_clean');
+        }
+        $_POST['pickup_location'] = (isset($_POST['pickup_location']) && $_POST['pickup_location'] !== 'NULL') ? trim((string) $_POST['pickup_location']) : '';
+
         $this->form_validation->set_rules('video', 'Video', 'trim|xss_clean');
         $this->form_validation->set_rules('video_type', 'Video Type', 'trim|xss_clean');
         $this->form_validation->set_rules('deliverable_type', 'Deliverable Type', 'trim|xss_clean');
@@ -427,8 +448,12 @@ class Product extends CI_Controller
         }
     
         // Cancelable validation
+        // Not `required` — the product form has no input for this field at all
+        // (only the is_cancelable checkbox exists), so a `required` rule here could
+        // never be satisfied and blocked every product submission where the seller
+        // checked "Is Cancelable?".
         if (isset($_POST['is_cancelable']) && $_POST['is_cancelable'] == '1') {
-            $this->form_validation->set_rules('cancelable_till', 'Till which status', 'trim|required|xss_clean');
+            $this->form_validation->set_rules('cancelable_till', 'Cancelable till', 'trim|xss_clean');
         }
     
         if (isset($_POST['cod_allowed'])) {
@@ -536,19 +561,12 @@ class Product extends CI_Controller
         }
 
         $parent_id = (int) $this->input->get('parent_id', true);
-        $seller_id = (int) $this->session->userdata('user_id');
-        $category_ids = [];
-        $seller_data = fetch_details('seller_data', ['user_id' => $seller_id], 'category_ids');
-        if (!empty($seller_data[0]['category_ids'])) {
-            $category_ids = array_filter(array_map('intval', explode(',', $seller_data[0]['category_ids'])));
-        }
 
+        // Sellers may browse/pick ANY active category's sub-categories, not just the ones
+        // in their profile's category_ids (that field is data-collection only).
         $this->db->select('id,name,parent_id');
         $this->db->from('categories');
         $this->db->where(['parent_id' => $parent_id, 'status' => 1]);
-        if (!empty($category_ids)) {
-            $this->db->where_in('id', $category_ids);
-        }
         $rows = $this->db->order_by('name', 'ASC')->get()->result_array();
 
         $response = [
@@ -967,16 +985,9 @@ class Product extends CI_Controller
                             }
 
                             $seller_id = $this->ion_auth->get_user_id();
-                            $seller_data = fetch_details('seller_data', ['user_id' => $seller_id], 'category_ids');
 
-                            if (!in_array($row[0], explode(',', $seller_data[0]['category_ids']))) {
-                                $this->response['error'] = true;
-                                $this->response['message'] = 'This Category ID : ' . $row[0] . ' is not assign to seller id:' . $seller_id . ' at row ' . $temp;
-                                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                print_r(json_encode($this->response));
-                                return false;
-                            }
+                            // Sellers may list products in any active category — no longer
+                            // restricted to their profile's category_ids (data-collection only).
 
                             $index1 = 30;
                             $total_variants = 0;
@@ -1301,20 +1312,9 @@ class Product extends CI_Controller
                                 }
                             }
 
-                            if (!empty($row[1])) {
-                                
-                                $seller_id =$this->ion_auth->get_user_id();
-                                $seller_data = fetch_details('seller_data', ['user_id' => $seller_id], 'category_ids');
-
-                                if (!in_array($row[1], explode(',', $seller_data[0]['category_ids']))) {
-                                    $this->response['error'] = true;
-                                    $this->response['message'] = 'This Category ID : ' . $row[1] . ' is not assign to seller id:' . $seller_id . ' at row ' . $temp;
-                                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                    print_r(json_encode($this->response));
-                                    return false;
-                                }
-                            }
+                            // Sellers may list products in any active category — no longer
+                            // restricted to their profile's category_ids (data-collection only).
+                            $seller_id = $this->ion_auth->get_user_id();
                         }
                         $temp++;
                     }

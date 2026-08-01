@@ -200,4 +200,24 @@
             search: p.search
         };
     }
+
+    // The .kv-fa star-rating plugin has to be initialized explicitly (there's no
+    // seller-side equivalent of admin's custom.js that does this on ready), otherwise
+    // both the product's own rating badge above and the per-review rows loaded into
+    // #product-rating-table are left showing their raw "loading" input markup.
+    function init_kv_fa_rating() {
+        $('.kv-fa').rating({
+            theme: 'krajee-fa',
+            filledStar: '<i class="fas fa-star"></i>',
+            emptyStar: '<i class="far fa-star"></i>',
+            showClear: false,
+            size: 'md'
+        });
+    }
+
+    $(function () {
+        init_kv_fa_rating();
+    });
+
+    $(document).on('load-success.bs.table', '#product-rating-table', init_kv_fa_rating);
 </script>
