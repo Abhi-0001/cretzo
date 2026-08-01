@@ -106,6 +106,12 @@
                                 <p>Order Tracking</p>
                             </a>
                         </li>
+                        <li class="nav-item">
+                            <a href="<?= base_url('seller/invoice/sales_invoice') ?>" class="nav-link">
+                                <i class="fa fa-file-invoice nav-icon"></i>
+                                <p>Sales Invoice</p>
+                            </a>
+                        </li>
                     </ul>
                 </li>
 
@@ -137,6 +143,24 @@
                 </li>
 
                 <li class="nav-item">
+                    <a href="<?= base_url('seller/customer/') ?>" class="nav-link">
+                        <i class="nav-icon fas fa-users text-info"></i>
+                        <p>
+                            Customers
+                        </p>
+                    </a>
+                </li>
+
+                <li class="nav-item">
+                    <a href="<?= base_url('seller/pickup_location/manage_pickup_locations') ?>" class="nav-link">
+                        <i class="nav-icon fas fa-warehouse text-success"></i>
+                        <p>
+                            Pickup Location
+                        </p>
+                    </a>
+                </li>
+
+                <li class="nav-item">
                     <a href="<?= base_url('seller/chat') ?>" class="nav-link">
                         <i class="nav-icon 	far fa-comments text-warning"></i>
                         <p>
@@ -163,6 +187,13 @@
                     <a href="<?= base_url('seller/payment-request/withdrawal-requests') ?>" class="nav-link">
                         <i class="nav-icon fas fa-money-bill-wave text-danger"></i>
                         <p> Withdrawal Requests</p>
+                    </a>
+                </li>
+
+                <li class="nav-item">
+                    <a href="<?= base_url('seller/settlement/settlement-history') ?>" class="nav-link">
+                        <i class="nav-icon fas fa-file-invoice-dollar text-primary"></i>
+                        <p>Settlement History</p>
                     </a>
                 </li>
 

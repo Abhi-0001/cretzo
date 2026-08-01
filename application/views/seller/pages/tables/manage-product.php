@@ -254,12 +254,35 @@
         border-radius: 8px;
         min-height: 40px;
         box-shadow: none;
+        box-sizing: border-box;
+    }
+    .manage-product-page .select2-container--bootstrap4 .select2-selection--single {
+        height: 40px !important;
     }
     .manage-product-page .select2-container--bootstrap4 .select2-selection--single .select2-selection__rendered {
         line-height: 38px;
     }
+    /* The stock select2 arrow is placed with a top:50%/margin-top combo tuned for
+       the vendor theme's own fixed height; our custom border/height on the box threw
+       that math off and left the triangle poking out below the box. Stretching the
+       arrow to the full box height and centering its (now in-flow) triangle with
+       flexbox sidesteps the percentage math entirely, so it can't drift again. */
     .manage-product-page .select2-container--bootstrap4 .select2-selection--single .select2-selection__arrow {
-        height: 38px;
+        top: 0;
+        bottom: 0;
+        height: auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .manage-product-page .select2-container--bootstrap4 .select2-selection--single .select2-selection__arrow b {
+        position: static;
+        margin: 0;
+        border-color: #888 transparent transparent transparent;
+        border-style: solid;
+        border-width: 5px 4px 0 4px;
+        width: 0;
+        height: 0;
     }
     .manage-product-page #status_filter.form-control:focus,
     .manage-product-page .select2-container--bootstrap4.select2-container--focus .select2-selection,
@@ -269,6 +292,35 @@
     }
     .manage-product-page .select2-container--bootstrap4 .select2-results__option--highlighted[aria-selected] {
         background-color: var(--color-orange) !important;
+    }
+
+    /* Category dropdown: the search box should read as the same field as "Select
+       Categories", not a second box stacked underneath it. #category_parent's open
+       dropdown gets shifted up (via JS) to sit exactly over the selection, so the
+       selection itself is hidden while open and the search input takes its place. */
+    .manage-product-page .select2-container--open .select2-selection {
+        visibility: hidden;
+    }
+    .manage-product-page .select2-container--bootstrap4 .select2-dropdown {
+        border: 1px solid rgba(0,0,0,0.12);
+        border-radius: 8px;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+    }
+    .manage-product-page .select2-search--dropdown {
+        padding: 0;
+    }
+    .manage-product-page .select2-search--dropdown .select2-search__field {
+        width: 100%;
+        height: 38px;
+        margin: 0;
+        padding: 0 12px;
+        border: none;
+        border-radius: 8px 8px 0 0;
+        outline: none;
+        box-shadow: none;
+    }
+    .manage-product-page .select2-results {
+        border-top: 1px solid rgba(0,0,0,0.06);
     }
 
     .manage-product-page .btn-primary-theme {
@@ -370,6 +422,19 @@
             allowClear: true
         });
 
+        // Pull the dropdown's search field up over the "Select Categories" box itself
+        // (instead of leaving it as its own row below) so typing happens in the same
+        // spot the box already occupies.
+        $('#category_parent').on('select2:open', function () {
+            var height = $(this).data('select2').$container.find('.select2-selection').outerHeight();
+            setTimeout(function () {
+                var $dropdown = $('.select2-container--open .select2-dropdown');
+                if ($dropdown.hasClass('select2-dropdown--above')) return;
+                $dropdown.css('margin-top', -height + 'px');
+                $dropdown.find('.select2-search__field').css('height', height + 'px');
+            }, 0);
+        });
+
         $(document).on('change', '#category_parent, #status_filter', function () {
             $('#products_table').bootstrapTable('refresh');
         });
@@ -386,6 +451,25 @@
             search: p.search
         };
     }
+
+    // The rating column's <input class="kv-fa"> only renders as stars once the
+    // star-rating plugin initializes it — custom.js does that on document.ready, but
+    // these rows are injected later via bootstrap-table's AJAX load, so without
+    // re-running init here on every (re)load the input is left showing its raw
+    // "loading" state instead of stars. Mirrors the admin panel's custom.js handlers.
+    function init_kv_fa_rating() {
+        $('.kv-fa').rating({
+            theme: 'krajee-fa',
+            filledStar: '<i class="fas fa-star"></i>',
+            emptyStar: '<i class="far fa-star"></i>',
+            showClear: false,
+            size: 'md'
+        });
+    }
+
+    $(document).on('load-success.bs.table', '#products_table', init_kv_fa_rating);
+    $(document).on('column-switch.bs.table', '#products_table', init_kv_fa_rating);
+    $(document).on('load-success.bs.table', '#product-rating-table', init_kv_fa_rating);
 
     // FAQs and Ratings modal tables below need their own query-params functions for the
     // same reason product_query_params above does — the shared queryParams/ratingParams

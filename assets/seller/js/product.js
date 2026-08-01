@@ -222,7 +222,9 @@
      *       inside a d-none block, so we scope it to the visible
      *       block only.
      * ─────────────────────────────────────────────────────────── */
-    function validateForm() {
+    function validateForm(updateAlert) {
+        if (typeof updateAlert === 'undefined') updateAlert = true;
+
         var type        = $('#product_type').val();
         var hasName     = $.trim($('#pro_input_text').val()) !== '';
         var hasCategory = $.trim($('#selected_category_id').val()) !== '';
@@ -241,6 +243,14 @@
 
         var valid = hasName && hasCategory && hasImage && hasDesc && hasPrice;
         $('#submit_product_btn').prop('disabled', !valid || state.isSubmitting);
+
+        // updateAlert=false skips touching #product-form-alert — used right after an
+        // AJAX response so this doesn't immediately re-hide the server's error/success
+        // message the same tick it was shown (the always() handler used to call this
+        // unconditionally, which is why failed submissions used to show nothing at all).
+        if (!updateAlert) {
+            return valid;
+        }
 
         /* helpful inline hints while fields are still empty */
         var hints = [];
@@ -263,6 +273,12 @@
         return valid;
     }
 
+    /* Strip HTML tags for toast display — server validation messages arrive as
+     * "<p>...</p>" (CI's default form_validation delimiters). */
+    function stripHtml(html) {
+        return $('<div>').html(html).text().trim();
+    }
+
     /* ── Form submit ──────────────────────────────────────────── */
     function initFormSubmit() {
         // re-validate on any change inside the form
@@ -271,11 +287,12 @@
         $('#save-product').on('submit', function (e) {
             e.preventDefault();
             if (!validateForm() || state.isSubmitting) {
-                showAlert(
-                    'Please complete all required fields: Name, Short Description, ' +
-                    'Category, Main Image and Price before submitting.',
-                    'danger'
-                );
+                var incompleteMsg = 'Please complete all required fields: Name, Short Description, ' +
+                    'Category, Main Image and Price before submitting.';
+                showAlert(incompleteMsg, 'danger');
+                if (typeof iziToast !== 'undefined') {
+                    iziToast.error({ title: 'Please fix the following', message: incompleteMsg, position: 'topRight' });
+                }
                 return;
             }
 
@@ -295,21 +312,37 @@
                     if (typeof csrfHash !== 'undefined') csrfHash = res.csrfHash;
                 }
                 if (res.error) {
+                    var errorMsg = stripHtml(res.message) || 'Unable to save product. Please check the form and try again.';
                     showAlert(res.message || 'Unable to save product.', 'danger');
+                    if (typeof iziToast !== 'undefined') {
+                        iziToast.error({ title: 'Please fix the following', message: errorMsg, position: 'topRight' });
+                    } else {
+                        alert(errorMsg);
+                    }
                 } else {
-                    showAlert(res.message || 'Product saved successfully.', 'success');
+                    var successMsg = res.message || 'Product saved successfully.';
+                    showAlert(successMsg, 'success');
+                    if (typeof iziToast !== 'undefined') {
+                        iziToast.success({ message: successMsg, position: 'topRight' });
+                    }
                     var redirectUrl = res.redirect || res.redirect||redirectBase;
                     console.log(redirectUrl);
-                    setTimeout(function () { 
-                        window.location.href = redirectUrl; 
+                    setTimeout(function () {
+                        window.location.href = redirectUrl;
                     }, 1500);
                 }
             }).fail(function () {
-                showAlert('Failed to submit form. Please try again.', 'danger');
+                var failMsg = 'Failed to submit form. Please try again.';
+                showAlert(failMsg, 'danger');
+                if (typeof iziToast !== 'undefined') {
+                    iziToast.error({ message: failMsg, position: 'topRight' });
+                } else {
+                    alert(failMsg);
+                }
             }).always(function () {
                 state.isSubmitting = false;
                 $('#submit_spinner').addClass('d-none');
-                validateForm();
+                validateForm(false);
             });
         });
     }

@@ -545,10 +545,12 @@
                                             </div>
 
                                             <div class="form-group col-md-8" id="video_url_container">
+                                                <label for="video">Video URL <span class="text-danger">*</span></label>
                                                 <input type="url" class="form-control" name="video" id="video" placeholder="https://..." value="<?= ($existing_video_type === 'youtube' || $existing_video_type === 'vimeo') && !empty($product_details[0]['video']) ? output_escaping($product_details[0]['video']) : '' ?>">
                                             </div>
                                         </div>
                                         <div id="video_file_container" class="d-none">
+                                            <label for="video_file_input">Video File <span class="text-danger">*</span></label>
                                             <input type="file" class="form-control-file" id="video_file_input" accept="video/*">
                                             <input type="hidden" name="pro_input_video" id="pro_input_video" value="<?= $existing_video_type === 'self_hosted' && !empty($product_details[0]['video']) ? output_escaping($product_details[0]['video']) : '' ?>">
                                             <small id="video_file_name" class="text-muted"><?= $existing_video_type === 'self_hosted' && !empty($product_details[0]['video']) ? 'Current: ' . output_escaping(basename($product_details[0]['video'])) : '' ?></small>
@@ -592,6 +594,23 @@
                                     <div class="col-md-3 form-group">
                                         <label>HSN Code</label>
                                         <input type="text" class="form-control" name="hsn_code" id="hsn_code" value="<?= isset($product_details[0]['hsn_code']) ? output_escaping($product_details[0]['hsn_code']) : '' ?>">
+                                    </div>
+
+                                    <div class="col-md-4 form-group">
+                                        <?php if (!empty($pickup_locations)) : ?>
+                                            <label for="pickup_location">Pickup Location <span class="text-danger">*</span></label>
+                                            <select class="form-control" name="pickup_location" id="pickup_location">
+                                                <option value="">Select Pickup Location</option>
+                                                <?php foreach ($pickup_locations as $loc) : ?>
+                                                    <option value="<?= output_escaping($loc['pickup_location']) ?>" <?= isset($product_details[0]['pickup_location']) && $product_details[0]['pickup_location'] === $loc['pickup_location'] ? 'selected' : '' ?>><?= output_escaping($loc['pickup_location']) ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        <?php else : ?>
+                                            <label>Pickup Location</label>
+                                            <div class="alert alert-warning py-2 px-3 mb-0" style="font-size: 13px;">
+                                                You haven't added a pickup location yet. <a href="<?= base_url('seller/pickup_location/manage_pickup_locations') ?>">Add one</a> so this product can be shipped.
+                                            </div>
+                                        <?php endif; ?>
                                     </div>
 
                                     <div class="col-md-4 form-group">

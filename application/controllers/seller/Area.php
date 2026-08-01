@@ -74,6 +74,39 @@ class Area extends CI_Controller
         }
     }
 
+    /* Bulk-select helper for the deliverable-locations picker: returns every zipcode in
+       the seller's own profile state, so a state-restricted (GST Enrollment Number) seller
+       doesn't have to search and add zipcodes one at a time. Capped at 5000 rows — no
+       Indian state has anywhere near that many zipcodes, but the cap keeps the query bounded. */
+    public function get_state_zipcodes()
+    {
+        if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
+            $seller_id = $this->session->userdata('user_id');
+            $seller_data = fetch_details('seller_data', ['user_id' => $seller_id], 'state');
+            $state = isset($seller_data[0]['state']) ? trim((string) $seller_data[0]['state']) : '';
+            $state_id = $state !== '' ? $this->Area_model->get_state_id_by_name($state) : null;
+
+            $this->response['csrfName'] = $this->security->get_csrf_token_name();
+            $this->response['csrfHash'] = $this->security->get_csrf_hash();
+
+            if (empty($state_id)) {
+                $this->response['error'] = true;
+                $this->response['message'] = 'Please set a valid state in your seller profile before using this option.';
+                print_r(json_encode($this->response));
+                return;
+            }
+
+            $zipcodes = $this->Area_model->get_zipcodes(null, 5000, 0, $state_id);
+            $this->response['error'] = false;
+            $this->response['state'] = $state;
+            $this->response['data'] = $zipcodes['data'];
+            $this->response['total'] = $zipcodes['total'];
+            print_r(json_encode($this->response));
+        } else {
+            redirect('seller/login', 'refresh');
+        }
+    }
+
     public function update_deliverable_location()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {

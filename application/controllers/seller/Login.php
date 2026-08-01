@@ -16,47 +16,37 @@ class Login extends CI_Controller
 
     public function index()
     {
-        if (!$this->ion_auth->logged_in() && !$this->ion_auth->is_seller()) {
-            $this->data['main_page'] = FORMS . 'login';
-            $settings = get_settings('system_settings', true);
-            $this->data['title'] = 'Seller Login Panel | ' . $settings['app_name'];
-            $this->data['meta_description'] = 'Seller Login Panel | ' . $settings['app_name'];
-            $this->data['logo'] = get_settings('logo');
-            $this->data['app_name'] = $settings['app_name'];
-            $identity = $this->config->item('identity', 'ion_auth');
-            if (empty($identity)) {
-                $identity_column = 'text';
-            } else {
-                $identity_column = $identity;
-            }
-            $this->data['identity_column'] = $identity_column;
-            $this->data['launch_offer_active'] = $this->Seller_subscription_model->is_launch_offer_active();
-            $this->load->view('seller/login', $this->data);
-        } else if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 2 || $this->ion_auth->seller_status() == 7)) {
-            $this->ion_auth->logout();
-            $this->data['main_page'] = FORMS . 'login';
-            $settings = get_settings('system_settings', true);
-            $this->data['title'] = 'Seller Login Panel | ' . $settings['app_name'];
-            $this->data['meta_description'] = 'Seller Login Panel | ' . $settings['app_name'];
-            $this->data['logo'] = get_settings('logo');
-            $this->data['app_name'] = $settings['app_name'];
-            $identity = $this->config->item('identity', 'ion_auth');
-            if (empty($identity)) {
-                $identity_column = 'text';
-            } else {
-                $identity_column = $identity;
-            }
-            $this->data['identity_column'] = $identity_column;
-            $this->data['launch_offer_active'] = $this->Seller_subscription_model->is_launch_offer_active();
-            $this->load->view('seller/login', $this->data);
-        } else if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
+        if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
             redirect('seller/home', 'refresh');
         } else if ($this->ion_auth->logged_in() && $this->ion_auth->is_delivery_boy()) {
             redirect('delivery_boy/home', 'refresh');
         } else if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
             redirect('admin/home', 'refresh');
         } else {
-            redirect('error_404', 'refresh');
+            // Reaches here when: nobody is logged in, a plain customer is logged in
+            // (no seller/admin/delivery_boy role), or a seller is logged in but
+            // suspended/rejected (status 2/7). In every case we show the seller
+            // login form instead of a 404 — a logged-in customer can switch into a
+            // seller session by entering valid seller credentials (ion_auth->login()
+            // fully overwrites the session identity), same as any logged-out visitor.
+            if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 2 || $this->ion_auth->seller_status() == 7)) {
+                $this->ion_auth->logout();
+            }
+            $this->data['main_page'] = FORMS . 'login';
+            $settings = get_settings('system_settings', true);
+            $this->data['title'] = 'Seller Login Panel | ' . $settings['app_name'];
+            $this->data['meta_description'] = 'Seller Login Panel | ' . $settings['app_name'];
+            $this->data['logo'] = get_settings('logo');
+            $this->data['app_name'] = $settings['app_name'];
+            $identity = $this->config->item('identity', 'ion_auth');
+            if (empty($identity)) {
+                $identity_column = 'text';
+            } else {
+                $identity_column = $identity;
+            }
+            $this->data['identity_column'] = $identity_column;
+            $this->data['launch_offer_active'] = $this->Seller_subscription_model->is_launch_offer_active();
+            $this->load->view('seller/login', $this->data);
         }
     }
 
@@ -111,6 +101,49 @@ class Login extends CI_Controller
                 print_r(json_encode($this->response));
             } else {
 
+                // Duplicacy check: shop name and store URL must be unique across sellers.
+                // Checked up front (before any file upload processing) so a seller can't
+                // burn an upload attempt on a name/URL that's going to be rejected anyway.
+                // Store URL normally auto-de-dupes with a numeric suffix via
+                // create_unique_slug() below, but the requirement here is to reject the
+                // save outright instead of silently changing what the seller asked for.
+                $duplicate_user_id = $this->session->userdata('user_id');
+                $posted_shop_name = trim($this->input->post('shop_name', true) ?? '');
+                if ($posted_shop_name !== '') {
+                    $shop_name_taken = $this->db
+                        ->where('user_id !=', $duplicate_user_id)
+                        ->where('LOWER(TRIM(shop_name))', strtolower($posted_shop_name))
+                        ->get('seller_data')
+                        ->num_rows() > 0;
+                    if ($shop_name_taken) {
+                        $this->response['error'] = true;
+                        $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                        $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                        $this->response['message'] = 'Shop Name already exists. Please choose a different Shop Name.';
+                        print_r(json_encode($this->response));
+                        return;
+                    }
+                }
+
+                $posted_slug_raw = trim($this->input->post('slug', true) ?? '');
+                $slug_check_source = ($posted_slug_raw !== '') ? $posted_slug_raw : $posted_shop_name;
+                if ($slug_check_source !== '') {
+                    $normalized_slug_check = strtolower(url_title($slug_check_source, '-', TRUE));
+                    $slug_taken = $this->db
+                        ->where('user_id !=', $duplicate_user_id)
+                        ->where('slug', $normalized_slug_check)
+                        ->get('seller_data')
+                        ->num_rows() > 0;
+                    if ($slug_taken) {
+                        $this->response['error'] = true;
+                        $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                        $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                        $this->response['message'] = 'Store URL already exists. Please choose a different Store URL.';
+                        print_r(json_encode($this->response));
+                        return;
+                    }
+                }
+
                 // process images of seller
 
                 if (!file_exists(FCPATH . SELLER_DOCUMENTS_PATH)) {
@@ -126,7 +159,7 @@ class Login extends CI_Controller
                     }
                     $photo_config = [
                         'upload_path' => FCPATH . USER_IMG_PATH,
-                        'allowed_types' => 'jpg|png|jpeg|gif',
+                        'allowed_types' => 'jpg|png|jpeg|gif|pdf',
                         'max_size' => 8000,
                     ];
                     $this->upload->initialize($photo_config);
@@ -154,7 +187,7 @@ class Login extends CI_Controller
                 $store_logo_error = "";
                 $config = [
                     'upload_path' =>  FCPATH . SELLER_DOCUMENTS_PATH,
-                    'allowed_types' => 'jpg|png|jpeg|gif',
+                    'allowed_types' => 'jpg|png|jpeg|gif|pdf',
                     'max_size' => 8000,
                 ];
                 if (isset($logo_files['store_logo']) && !empty($logo_files['store_logo']['name']) && isset($logo_files['store_logo']['name'])) {
@@ -215,7 +248,7 @@ class Login extends CI_Controller
                 $store_banner_error = "";
                 $config = [
                     'upload_path' =>  FCPATH . SELLER_DOCUMENTS_PATH,
-                    'allowed_types' => 'jpg|png|jpeg|gif',
+                    'allowed_types' => 'jpg|png|jpeg|gif|pdf',
                     'max_size' => 8000,
                 ];
                 if (isset($store_banner_files['store_banner']) && !empty($store_banner_files['store_banner']['name']) && isset($store_banner_files['store_banner']['name'])) {
@@ -277,7 +310,7 @@ class Login extends CI_Controller
                 $authorized_signature_error = "";
                 $config = [
                     'upload_path' =>  FCPATH . SELLER_DOCUMENTS_PATH,
-                    'allowed_types' => 'jpg|png|jpeg|gif',
+                    'allowed_types' => 'jpg|png|jpeg|gif|pdf',
                     'max_size' => 8000,
                 ];
                 if (isset($authorized_signature_files['authorized_signature']) && !empty($authorized_signature_files['authorized_signature']['name']) && isset($authorized_signature_files['authorized_signature']['name'])) {
@@ -338,7 +371,7 @@ class Login extends CI_Controller
                 $id_card_error = "";
                 $config = [
                     'upload_path' =>  FCPATH . SELLER_DOCUMENTS_PATH,
-                    'allowed_types' => 'jpg|png|jpeg|gif',
+                    'allowed_types' => 'jpg|png|jpeg|gif|pdf',
                     'max_size' => 8000,
                 ];
                 if (isset($id_card_files['national_identity_card']) &&  !empty($id_card_files['national_identity_card']['name']) && isset($id_card_files['national_identity_card']['name'])) {
@@ -399,7 +432,7 @@ class Login extends CI_Controller
                 $proof_error = "";
                 $config = [
                     'upload_path' =>  FCPATH . SELLER_DOCUMENTS_PATH,
-                    'allowed_types' => 'jpg|png|jpeg|gif',
+                    'allowed_types' => 'jpg|png|jpeg|gif|pdf',
                     'max_size' => 8000,
                 ];
                 if (isset($proof_files['address_proof']) && !empty($proof_files['address_proof']['name']) && isset($proof_files['address_proof']['name'])) {
@@ -562,6 +595,7 @@ class Login extends CI_Controller
                         'pickup_address1' => $this->input->post('pickup_address1') ?? null,
                         'pickup_address2' => $this->input->post('pickup_address2') ?? null,
                         'pickup_district' => $this->input->post('pickup_district') ?? null,
+                        'pickup_city' => $this->input->post('pickup_city') ?? null,
                         'pickup_state' => $this->input->post('pickup_state') ?? null,
                         'pickup_pin' => $this->input->post('pickup_pin') ?? null,
                         'entity_type' => $this->input->post('entity_type') ?? null,

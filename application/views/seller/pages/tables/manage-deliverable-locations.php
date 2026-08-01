@@ -81,6 +81,12 @@
           </div>
           <div class="form-group" id="dl-zipcodes-wrapper" style="display:none;">
             <label>Zipcodes</label>
+            <div class="mb-2">
+              <button type="button" class="btn btn-outline-primary btn-sm" id="dl-select-state-zipcodes-btn">
+                <i class="fas fa-map-marker-alt"></i> Select All Zipcodes in My State
+              </button>
+              <small class="text-muted d-block mt-1" id="dl-select-state-zipcodes-hint"></small>
+            </div>
             <select name="deliverable_zipcodes[]" id="dl-zipcodes" class="form-control w-100" multiple></select>
           </div>
           <div id="dl-error-box" class="alert alert-danger d-none"></div>
@@ -148,6 +154,45 @@
 
     $('#dl-deliverable-type').on('change', toggleZipcodesField);
 
+    // Bulk-select every zipcode in the seller's own profile state, so a state-restricted
+    // (GST Enrollment Number) seller doesn't have to search and add zipcodes one at a time.
+    $('#dl-select-state-zipcodes-btn').on('click', function () {
+      var $btn = $(this).prop('disabled', true);
+      var originalHtml = $btn.html();
+      $btn.html('<i class="fas fa-spinner fa-spin"></i> Loading...');
+
+      $.ajax({
+        url: base_url + 'seller/area/get_state_zipcodes',
+        type: 'GET',
+        dataType: 'json',
+        success: function (response) {
+          if (response.error) {
+            $('#dl-error-box').removeClass('d-none').text(response.message);
+            return;
+          }
+          dlZipcodeSelect.empty();
+          (response.data || []).forEach(function (row) {
+            dlZipcodeSelect.append(new Option(row.zipcode, row.id, true, true));
+          });
+          dlZipcodeSelect.trigger('change');
+          $('#dl-error-box').addClass('d-none').text('');
+
+          var count = (response.data || []).length;
+          var note = 'Selected all ' + count + ' zipcode(s) in ' + (response.state || 'your state') + '.';
+          if (response.total > count) {
+            note += ' (showing first ' + count + ' of ' + response.total + ')';
+          }
+          $('#dl-select-state-zipcodes-hint').text(note);
+        },
+        error: function () {
+          $('#dl-error-box').removeClass('d-none').text('Something went wrong fetching zipcodes for your state.');
+        },
+        complete: function () {
+          $btn.prop('disabled', false).html(originalHtml);
+        }
+      });
+    });
+
     $(document).on('click', '.edit-deliverable-location', function () {
       var id = $(this).data('id');
       var name = $(this).data('name');
@@ -157,6 +202,7 @@
       $('#dl-product-id').val(id);
       $('#dl-product-name').text(name);
       $('#dl-error-box').addClass('d-none').text('');
+      $('#dl-select-state-zipcodes-hint').text('');
 
       var restrictedTypeBlocked = sellerGstRestricted && (type === '<?= ALL ?>' || type === '<?= EXCLUDED ?>');
       $('#dl-deliverable-type').val(restrictedTypeBlocked ? '<?= NONE ?>' : type);

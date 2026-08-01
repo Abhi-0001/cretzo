@@ -8,7 +8,8 @@ class Seller_model extends CI_Model
     {
         $this->load->database();
         $this->load->library(['ion_auth', 'form_validation']);
-        $this->load->helper(['url', 'language', 'function_helper']);
+        $this->load->helper(['url', 'language', 'function_helper', 'sms_helper']);
+        $this->load->model(['Seller_subscription_model', 'Seller_settlement_model']);
     }
     
      function seller_cereate_user($data){
@@ -63,6 +64,7 @@ class Seller_model extends CI_Model
                 'pickup_address1' => $data['pickup_address1'] ?? null,
                 'pickup_address2' => $data['pickup_address2'] ?? null,
                 'pickup_district' => $data['pickup_district'] ?? null,
+                'pickup_city' => $data['pickup_city'] ?? null,
                 'pickup_state' => $data['pickup_state'] ?? null,
                 'pickup_pin' => $data['pickup_pin'] ?? null,
                 'entity_type' => $data['entity_type'] ?? null,
@@ -413,33 +415,65 @@ class Seller_model extends CI_Model
         } else {
             $where = "oi.active_status='delivered' AND is_credited=0 ";
         }
-        $data = $this->db->select("c.id as category_id, oi.id,date(oi.date_added) as order_date,oi.order_id,oi.product_variant_id,oi.seller_id,oi.sub_total ")
-            ->join('product_variants pv', 'pv.id=oi.product_variant_id', 'left')
-            ->join('products p', 'p.id=pv.product_id')
-            ->join('categories c', 'p.category_id=c.id')
+        // No join to product_variants/products/categories here — the old per-category
+        // commission lookup needed it, but the slab commission below comes from the
+        // seller's subscription plan instead. Joining on a since-deleted product/variant
+        // silently dropped the order item from every settlement run forever, so this
+        // also fixes orders never getting settled when their product was removed later.
+        $data = $this->db->select("oi.id,date(oi.date_added) as order_date,oi.order_id,oi.product_variant_id,oi.seller_id,oi.sub_total ")
             ->where($where)
+            ->order_by('oi.seller_id, oi.date_added', 'ASC')
             ->get('order_items oi')->result_array();
         $wallet_updated = false;
         if (isset($data) && !empty($data)) {
 
+            $order_count_by_seller = [];
             foreach ($data as $row) {
-                $cat_com = fetch_details('seller_commission', ['seller_id' => $row['seller_id'], 'category_id' => $row['category_id']], 'commission');
-                if (!empty($cat_com) && ($cat_com[0]['commission'] != 0)) {
-                    $commission_pr = $cat_com[0]['commission'];
-                } else {
-                    $global_comm = fetch_details('seller_data', ['user_id' => $row['seller_id']],  'commission');
-                    $commission_pr = $global_comm[0]['commission'];
+                // Commission comes from the seller's active subscription plan, based on
+                // their lifetime completed-order count: first 50 orders / 51-100 / 100+
+                // each carry the plan's own slab %, not a flat per-category/global rate.
+                $plan = $this->Seller_subscription_model->get_current_plan($row['seller_id']);
+                if (empty($plan)) {
+                    // No subscription yet — leave is_credited=0, retried next cron run.
+                    continue;
                 }
 
-                $commission_amt = $row['sub_total'] / 100 * $commission_pr;
-                $transfer_amt = $row['sub_total'] - $commission_amt;
+                if (!isset($order_count_by_seller[$row['seller_id']])) {
+                    $order_count_by_seller[$row['seller_id']] = $this->Seller_settlement_model->get_settled_order_count($row['seller_id']);
+                }
+                $order_count_by_seller[$row['seller_id']]++;
+                $order_no = $order_count_by_seller[$row['seller_id']];
+
+                if ($order_no <= 50) {
+                    $commission_pr = (float) $plan['commission_first50'];
+                } elseif ($order_no <= 100) {
+                    $commission_pr = (float) $plan['commission_51_100'];
+                } else {
+                    $commission_pr = (float) $plan['commission_after100'];
+                }
+
+                $commission_amt = round($row['sub_total'] / 100 * $commission_pr, 2);
+                $transfer_amt = round($row['sub_total'] - $commission_amt, 2);
                 $response = update_wallet_balance('credit', $row['seller_id'], $transfer_amt, 'Commission Amount Credited for Order Item ID  : ' . $row['id']);
                 if ($response['error'] == false) {
                     update_details(['is_credited' => 1, 'admin_commission_amount' => $commission_amt, "seller_commission_amount" => $transfer_amt], ['id' => $row['id']], 'order_items');
+                    $this->Seller_settlement_model->record_settlement([
+                        'seller_id' => $row['seller_id'],
+                        'order_id' => $row['order_id'],
+                        'order_item_id' => $row['id'],
+                        'order_amount' => $row['sub_total'],
+                        'commission_percent' => $commission_pr,
+                        'commission_amount' => $commission_amt,
+                        'net_payable' => $transfer_amt,
+                        'settlement_status' => 'settled',
+                    ]);
                     $wallet_updated = true;
                     $response_data['error'] = false;
                     $response_data['message'] = 'Commission settled Successfully';
                 } else {
+                    // Wallet credit failed — undo the in-memory count bump so a retry
+                    // next run lands on the same slab, and leave is_credited untouched.
+                    $order_count_by_seller[$row['seller_id']]--;
                     $wallet_updated = false;
                     $response_data['error'] =  true;
                     $response_data['message'] =  'Commission not settled';
