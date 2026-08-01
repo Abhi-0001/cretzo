@@ -1,0 +1,6 @@
+.git
+vendor
+node_modules
+application/logs/*.php
+!application/logs/index.html
+.env
