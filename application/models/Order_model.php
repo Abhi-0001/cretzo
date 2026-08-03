@@ -1,5 +1,14 @@
 <?php
-error_reporting(0);
+// error_reporting(0) used to sit here, disabling ALL PHP error reporting - not just for this
+// file, but for the rest of every request that loads this model, since error_reporting() is a
+// global runtime setting with no automatic scope. Sixteen controllers load Order_model,
+// spanning the admin, seller, delivery-boy and public-facing checkout/API surfaces - every one
+// of them has been silently swallowing every warning, notice and deprecation raised anywhere
+// in that request (in this model, in whichever controller loaded it, in the view it renders,
+// in any other model or helper touched afterward) for as long as this line existed. Confirmed
+// directly: a real "undefined variable" bug in the admin Orders page (below) produced zero
+// visible warning and zero log entry with this line in place, and was fully visible once it
+// was removed. Left deliberately removed rather than reintroduced.
 defined('BASEPATH') or exit('No direct script access allowed');
 
 class Order_model extends CI_Model
@@ -787,6 +796,17 @@ class Order_model extends CI_Model
             $count_res->where('payment_method', $_GET['payment_method']);
         }
 
+        // Filter By order status. The dashboard has always sent an order_status parameter
+        // (see home_query_params in assets/admin/custom/custom.js) but nothing here ever
+        // read it, so choosing a status silently returned the unfiltered list.
+        if (isset($_GET['order_status']) && !empty($_GET['order_status'])) {
+            $allowed_statuses = ['awaiting', 'received', 'processed', 'shipped', 'delivered', 'cancelled', 'returned'];
+            if (in_array($_GET['order_status'], $allowed_statuses, true)) {
+                $count_res->where('oi.active_status', $_GET['order_status']);
+                $search_res->where('oi.active_status', $_GET['order_status']);
+            }
+        }
+
         // Filter By order type
         if (isset($_GET['order_type']) && !empty($_GET['order_type']) && $_GET['order_type'] == 'physical_order') {
             $search_res->where('p.type!=', 'digital_product');
@@ -795,7 +815,21 @@ class Order_model extends CI_Model
             $search_res->where('p.type', 'digital_product');
         }
 
-        $user_details = $search_res->group_by('o.id')->order_by($sort, "DESC")->limit($limit, $offset)->get('`orders` o')->result_array();
+        // Sorting was hardcoded to "o.id DESC" and $_GET['sort'] / $_GET['order'] were never
+        // read, so every sortable column header in the UI moved its arrow but left the rows
+        // untouched. Resolved through a whitelist rather than interpolating the raw parameter,
+        // so an attacker cannot inject an expression through the sort field.
+        $sortable = [
+            'id' => 'o.id', 'user_id' => 'o.user_id', 'total' => 'o.total',
+            'delivery_charge' => 'o.delivery_charge', 'wallet_balance' => 'o.wallet_balance',
+            'promo_code' => 'o.promo_code', 'promo_discount' => 'o.promo_discount',
+            'final_total' => 'o.final_total', 'payment_method' => 'o.payment_method',
+            'delivery_date' => 'o.delivery_date', 'date_added' => 'o.date_added',
+        ];
+        $sort_column = (isset($_GET['sort']) && isset($sortable[$_GET['sort']])) ? $sortable[$_GET['sort']] : 'o.id';
+        $sort_dir = (isset($_GET['order']) && strtolower($_GET['order']) === 'asc') ? 'ASC' : 'DESC';
+
+        $user_details = $search_res->group_by('o.id')->order_by($sort_column, $sort_dir)->limit($limit, $offset)->get('`orders` o')->result_array();
 
         $i = 0;
         foreach ($user_details as $row) {
@@ -868,8 +902,18 @@ class Order_model extends CI_Model
                 $final_tota_amount += intval($row['final_total']);
                 $tempRow['deliver_by'] = $row['delivery_boy'];
                 $tempRow['payment_method'] = $row['payment_method'];
-                $updated_username = fetch_details('users', 'id =' . $row['items'][0]['updated_by'], 'username');
-                $tempRow['updated_by'] = $updated_username[0]['username'];
+                // updated_by is 0 for every order_items row in this database (none has ever
+                // been status-updated by a specific user id), so this lookup always came back
+                // empty and $updated_username[0] always raised an "Undefined array key 0"
+                // warning - on every row, every time this table loaded. Confirmed live: 10
+                // warnings across 5 rows. That was invisible only because error_reporting was
+                // disabled sitewide for the whole Order_model file (see the top of this file);
+                // with that restored, this endpoint is consumed via dataType:'json', so warning
+                // HTML text prepended to the response would break bootstrap-table's JSON parsing
+                // on every load.
+                $updated_by_id = $row['items'][0]['updated_by'];
+                $updated_username = (!empty($updated_by_id)) ? fetch_details('users', ['id' => $updated_by_id], 'username') : [];
+                $tempRow['updated_by'] = (!empty($updated_username[0]['username'])) ? $updated_username[0]['username'] : '';
                 $tempRow['address'] = output_escaping(str_replace('\r\n', '</br>', $row['address']));
                 $tempRow['delivery_date'] = $row['delivery_date'];
                 $tempRow['delivery_time'] = $row['delivery_time'];
@@ -1153,8 +1197,12 @@ class Order_model extends CI_Model
             $tempRow['courier_agency'] = (isset($row['courier_agency']) && !empty($row['courier_agency'])) ?  $row['courier_agency'] : "";
             $tempRow['tracking_id'] = (isset($row['tracking_id']) && !empty($row['tracking_id'])) ? $row['tracking_id'] : "";
             $tempRow['url'] = (isset($row['url']) && !empty($row['url'])) ? $row['url'] : "";
-            $updated_username = fetch_details('users', 'id =' . $row['updated_by'], 'username');
-            $tempRow['updated_by'] = $updated_username[0]['username'];
+            // Same defect as the other order/order-items list methods above: updated_by is 0
+            // for order items that have never had their status changed by a specific user,
+            // and this lookup previously raised an "Undefined array key 0" warning on every
+            // such row.
+            $updated_username = (!empty($row['updated_by'])) ? fetch_details('users', ['id' => $row['updated_by']], 'username') : [];
+            $tempRow['updated_by'] = (!empty($updated_username[0]['username'])) ? $updated_username[0]['username'] : '';
             $tempRow['status'] = $status;
             $tempRow['transaction_status'] = $transaction_status;
             $tempRow['active_status'] = $active_status;
@@ -1172,7 +1220,11 @@ class Order_model extends CI_Model
                     $operate .= ' <a href="javascript:void(0)" class="edit_order_tracking btn btn-success btn-xs action-btn ml-1  mb-1" title="Order Tracking" data-order_id="' . $row['order_id'] . '" data-order_item_id="' . $row['order_item_id'] . '" data-seller_id="' . $row['seller_id'] . '" data-courier_agency="' . $row['courier_agency'] . '"  data-tracking_id="' . $row['tracking_id'] . '" data-url="' . $row['url'] . '" data-target="#transaction_modal" data-toggle="modal"><i class="fa fa-map-marker-alt"></i></a>';
                 }
                 if ($row['download_allowed'] == 0 && $row['type'] == 'digital_product') {
-                    $operate .= '<a href="javascript:void(0)" class="sendMailBtn btn action-btn btn-primary btn-xs mr-1 mb-1 ml-1" data-target="#ManageOrderSendMailModal" data-toggle="modal" title="Edit" data-email="' . $row['email']  . '" data-id="' . $row['order_item_id']  . '" data-url="seller/orders/"><i class="fas fa-paper-plane"></i></a>';
+                    // data-order_id and data-username added (previously only data-email and
+                    // data-id/order_item_id were provided). See the admin equivalent below for
+                    // why: without them, the modal this button opens had no way to know which
+                    // order or customer it was actually sending a digital product for.
+                    $operate .= '<a href="javascript:void(0)" class="sendMailBtn btn action-btn btn-primary btn-xs mr-1 mb-1 ml-1" data-target="#ManageOrderSendMailModal" data-toggle="modal" title="Edit" data-email="' . html_escape($row['email'])  . '" data-id="' . $row['order_item_id']  . '" data-order_id="' . $row['order_id'] . '" data-username="' . html_escape($row['username']) . '" data-url="seller/orders/"><i class="fas fa-paper-plane"></i></a>';
                     $operate .= '<a href="https://mail.google.com/mail/?view=cm&fs=1&tf=1&to=' . $row['email'] . '" class="btn action-btn btn-danger btn-xs ml-1 mr-1 mb-1" target="_blank"><i class="fab fa-google"></i></a>';
                     $operate .= ' <a href="javascript:void(0)" class="edit_digital_order_mails action-btn btn btn-warning btn-xs ml-1 mb-1" title="Digital Order Mails" data-order_item_id="' . $row['order_item_id'] . '"  data-target="#digital-order-mails" data-toggle="modal"><i class="far fa-envelope-open"></i></a>';
                 }
@@ -1185,7 +1237,18 @@ class Order_model extends CI_Model
                 }
                 if ($row['download_allowed'] == 0 && $row['type'] == 'digital_product') {
                     // $operate .= '<a href="javascript:void(0)" class="edit_btn btn action-btn btn-primary btn-xs mr-1 mb-1" title="Edit" data-id="' . $row['order_item_id']  . '" data-url="admin/orders/"><i class="fas fa-paper-plane"></i></a>';
-                    $operate .= '<a href="javascript:void(0)" class="btn sendMailBtn action-btn btn-primary btn-xs mr-1 mb-1" data-target="#ManageOrderSendMailModal" data-toggle="modal" title="Edit" data-email="' . $row['email']  . '" data-id="' . $row['order_item_id']  . '" data-url="admin/orders/"><i class="fas fa-paper-plane"></i></a>';
+                    // This button opens #ManageOrderSendMailModal, whose order_id/order_item_id/
+                    // username hidden fields used to be filled in only by the server, from
+                    // $order_item_data/$user_data - variables that only ever existed when the
+                    // URL happened to contain ?edit_id=..., which nothing on this page ever set.
+                    // In practice every "Send Mail" click opened the modal with order_id and
+                    // order_item_id both blank: the resulting request updated no order's status
+                    // to delivered, recorded a digital_orders_mails row linked to no real order,
+                    // and greeted the customer with an empty name - while still reporting "Mail
+                    // sent successfully." data-order_id and data-username are added here so the
+                    // JS handler (assets/admin/custom/custom.js) can fill in the whole modal
+                    // correctly from the row that was actually clicked.
+                    $operate .= '<a href="javascript:void(0)" class="btn sendMailBtn action-btn btn-primary btn-xs mr-1 mb-1" data-target="#ManageOrderSendMailModal" data-toggle="modal" title="Edit" data-email="' . html_escape($row['email'])  . '" data-id="' . $row['order_item_id']  . '" data-order_id="' . $row['order_id'] . '" data-username="' . html_escape($row['username']) . '" data-url="admin/orders/"><i class="fas fa-paper-plane"></i></a>';
                     $operate .= '<a href="https://mail.google.com/mail/?view=cm&fs=1&tf=1&to=' . $row['email'] . '" class="btn action-btn btn-danger btn-xs mb-1" target="_blank"><i class="fab fa-google"></i></a>';
                     $operate .= ' <a href="javascript:void(0)" class="edit_digital_order_mails btn btn-warning action-btn btn-xs mr-1 mb-1" title="Digital Order Mails" data-order_item_id="' . $row['order_item_id'] . '"  data-target="#digital-order-mails" data-toggle="modal"><i class="far fa-envelope-open"></i></a>';
                 }
@@ -1404,8 +1467,18 @@ class Order_model extends CI_Model
                 $final_tota_amount += intval($row['final_total']);
                 $tempRow['deliver_by'] = $row['delivery_boy'];
                 $tempRow['payment_method'] = $row['payment_method'];
-                $updated_username = fetch_details('users', 'id =' . $row['items'][0]['updated_by'], 'username');
-                $tempRow['updated_by'] = $updated_username[0]['username'];
+                // updated_by is 0 for every order_items row in this database (none has ever
+                // been status-updated by a specific user id), so this lookup always came back
+                // empty and $updated_username[0] always raised an "Undefined array key 0"
+                // warning - on every row, every time this table loaded. Confirmed live: 10
+                // warnings across 5 rows. That was invisible only because error_reporting was
+                // disabled sitewide for the whole Order_model file (see the top of this file);
+                // with that restored, this endpoint is consumed via dataType:'json', so warning
+                // HTML text prepended to the response would break bootstrap-table's JSON parsing
+                // on every load.
+                $updated_by_id = $row['items'][0]['updated_by'];
+                $updated_username = (!empty($updated_by_id)) ? fetch_details('users', ['id' => $updated_by_id], 'username') : [];
+                $tempRow['updated_by'] = (!empty($updated_username[0]['username'])) ? $updated_username[0]['username'] : '';
                 $tempRow['address'] = output_escaping(str_replace('\r\n', '</br>', $row['address']));
                 $tempRow['delivery_date'] = $row['delivery_date'];
                 $tempRow['delivery_time'] = $row['delivery_time'];
@@ -1643,8 +1716,12 @@ class Order_model extends CI_Model
             $tempRow['courier_agency'] = (isset($row['courier_agency']) && !empty($row['courier_agency'])) ?  $row['courier_agency'] : "";
             $tempRow['tracking_id'] = (isset($row['tracking_id']) && !empty($row['tracking_id'])) ? $row['tracking_id'] : "";
             $tempRow['url'] = (isset($row['url']) && !empty($row['url'])) ? $row['url'] : "";
-            $updated_username = fetch_details('users', 'id =' . $row['updated_by'], 'username');
-            $tempRow['updated_by'] = $updated_username[0]['username'];
+            // Same defect as the other order/order-items list methods above: updated_by is 0
+            // for order items that have never had their status changed by a specific user,
+            // and this lookup previously raised an "Undefined array key 0" warning on every
+            // such row.
+            $updated_username = (!empty($row['updated_by'])) ? fetch_details('users', ['id' => $row['updated_by']], 'username') : [];
+            $tempRow['updated_by'] = (!empty($updated_username[0]['username'])) ? $updated_username[0]['username'] : '';
             $tempRow['status'] = $status;
             $tempRow['active_status'] = $active_status;
             $tempRow['date_added'] = date('d-m-Y', strtotime($row['date_added']));

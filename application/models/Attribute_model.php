@@ -40,14 +40,10 @@ class Attribute_model extends CI_Model
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "id";
-            } else {
-                $sort = $_GET['sort'];
-            }
-        if (isset($_GET['order']))
-            $order = $_GET['order'];
+        // $_GET['sort'] was passed straight into order_by(). Whitelisted.
+        $sortable = ['id' => 'id', 'name' => 'name', 'status' => 'status'];
+        $sort = (isset($_GET['sort']) && isset($sortable[$_GET['sort']])) ? $sortable[$_GET['sort']] : 'id';
+        $order = (isset($_GET['order']) && strtolower($_GET['order']) === 'desc') ? 'DESC' : 'ASC';
 
         if (isset($_GET['search']) and $_GET['search'] != '') {
             $search = $_GET['search'];
@@ -86,6 +82,9 @@ class Attribute_model extends CI_Model
 
         foreach ($city_search_res as $row) {
             $row = output_escaping($row);
+            // $tempRow was declared once outside this loop and reused between rows.
+            $tempRow = array();
+            $operate = '';
             if (!$this->ion_auth->is_seller()) {
                 $operate = ' <a href="javascript:void(0)" class="edit_btn btn action-btn btn-success btn-xs mr-1 mb-1" title="Edit" data-id="' . $row['id'] . '" data-url="admin/attribute_set/"><i class="fa fa-pen"></i></a>';
             }
@@ -101,50 +100,84 @@ class Attribute_model extends CI_Model
                 }
             }
             $tempRow['id'] = $row['id'];
-            $tempRow['name'] = $row['name'];
+            $tempRow['name'] = html_escape((string) $row['name']);
             if (!$this->ion_auth->is_seller()) {
                 $tempRow['operate'] = $operate;
             }
             $rows[] = $tempRow;
         }
         $bulkData['rows'] = $rows;
-        print_r(json_encode($bulkData));
+        echo json_encode($bulkData);
     }
 
     public function add_attributes($data)
     {
         $data = escape_array($data);
-       
+
         $attr_data = [
             'name' => $data['name'],
             'attribute_set_id' => $data['attribute_set'],
             'status' => '1',
         ];
-        if (isset($data['edit_attribute'])) {
-            $this->db->set($attr_data)->where('id', $data['edit_attribute'])->update('attributes');
+
+        if (isset($data['edit_attribute']) && !empty($data['edit_attribute'])) {
+            $attribute_id = (int) $data['edit_attribute'];
+            $this->db->set($attr_data)->where('id', $attribute_id)->update('attributes');
         } else {
             $this->db->insert('attributes', $attr_data);
+            // The attribute used to be looked up again by name:
+            //   get_where('attributes', ['name' => $data['name']])->result_array()[0]['id']
+            // Attribute names are not unique (this database already holds two rows named
+            // "Color" and both "Size" and "size", which MySQL's case-insensitive collation
+            // treats as equal), so that lookup returned the FIRST matching attribute and the
+            // submitted values were silently attached to the wrong one. It also raised a fatal
+            // error whenever the lookup found nothing. Using the id of the row just written.
+            $attribute_id = (int) $this->db->insert_id();
         }
 
-        $attribute_id = $this->db->get_where('attributes', array('name' => $data['name']))->result_array();
-      
+        if (empty($attribute_id)) {
+            return false;
+        }
+
         $attribute_value_count = !empty($data['attribute_value']) ? count($data['attribute_value']) : 0;
-        for($i=0;$i < $attribute_value_count;$i++) {
-         
+
+        for ($i = 0; $i < $attribute_value_count; $i++) {
+            $value = $data['attribute_value'][$i];
+            if ($value === '' || $value === null) {
+                continue;
+            }
+
             $attr_val = [
-                'attribute_id' => $attribute_id[0]['id'],
-                'value' => $data['attribute_value'][$i],
-                'swatche_type' => $data['swatche_type'][$i],
-                'swatche_value' => $data['swatche_value'][$i],
+                'attribute_id' => $attribute_id,
+                'value' => $value,
+                // These parallel arrays are not guaranteed to be the same length as
+                // attribute_value[], so indexing them blindly raised undefined-offset warnings.
+                'swatche_type' => isset($data['swatche_type'][$i]) ? $data['swatche_type'][$i] : 0,
+                'swatche_value' => isset($data['swatche_value'][$i]) ? $data['swatche_value'][$i] : null,
                 'status' => '1',
             ];
 
-            if (isset($data['edit_attribute_value'])) {
-                $this->db->set($attr_val)->where('id', $data['edit_attribute_value'])->update('attribute_values');
+            // Previously this branched on edit_attribute_value: when set, every iteration of the
+            // loop overwrote that same single row, so all but the last submitted value were lost;
+            // when not set, re-saving an attribute inserted its whole value list again, so each
+            // save duplicated every value.
+            //
+            // Values are matched on (attribute_id, value) and updated in place, or inserted when
+            // new. Existing rows are never deleted, because product_variants.attribute_value_ids
+            // references these ids and removing them would orphan the variants.
+            $existing = $this->db->select('id')
+                ->where('attribute_id', $attribute_id)
+                ->where('value', $value)
+                ->get('attribute_values')->row_array();
+
+            if (!empty($existing)) {
+                $this->db->set($attr_val)->where('id', $existing['id'])->update('attribute_values');
             } else {
                 $this->db->insert('attribute_values', $attr_val);
             }
         }
+
+        return true;
     }
 
 
@@ -161,14 +194,13 @@ class Attribute_model extends CI_Model
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "attr.id";
-            } else {
-                $sort = $_GET['sort'];
-            }
-        if (isset($_GET['order']))
-            $order = $_GET['order'];
+        // $_GET['sort'] was passed straight into order_by(). Whitelisted.
+        $sortable = [
+            'id' => 'attr.id', 'name' => 'attr.name',
+            'attribute_set' => 'attr_set.name', 'status' => 'attr.status',
+        ];
+        $sort = (isset($_GET['sort']) && isset($sortable[$_GET['sort']])) ? $sortable[$_GET['sort']] : 'attr.id';
+        $order = (isset($_GET['order']) && strtolower($_GET['order']) === 'desc') ? 'DESC' : 'ASC';
 
         if (isset($_GET['search']) and $_GET['search'] != '') {
             $search = $_GET['search'];
@@ -207,8 +239,11 @@ class Attribute_model extends CI_Model
         $tempRow = array();
         foreach ($city_search_res as $row) {
             $row = output_escaping($row);
+            // $tempRow was declared once outside this loop and reused between rows.
+            $tempRow = array();
+            $operate = '';
             if (!$this->ion_auth->is_seller()) {
-                $operate = ' <a href="javascript:void(0)" class="edit_btn action-btn btn btn-success btn-xs mr-1 mb-1" title="View" data-id="' . $row['id'] . '" data-url="admin/attributes/"><i class="fa fa-pen"></i></a>';
+                $operate = ' <a href="javascript:void(0)" class="edit_btn action-btn btn btn-success btn-xs mr-1 mb-1" title="Edit" data-id="' . $row['id'] . '" data-url="admin/attributes/"><i class="fa fa-pen"></i></a>';
             }
             if ($row['status'] == '1') {
                 $tempRow['status'] = '<a class="badge badge-success text-white" >Active</a>';
@@ -222,8 +257,8 @@ class Attribute_model extends CI_Model
                 }
             }
             $tempRow['id'] = $row['id'];
-            $tempRow['name'] = $row['name'];
-            $tempRow['attribute_set'] = $row['attr_set_name'];
+            $tempRow['name'] = html_escape((string) $row['name']);
+            $tempRow['attribute_set'] = html_escape((string) $row['attr_set_name']);
             if (!$this->ion_auth->is_seller()) {
                 $tempRow['operate'] = $operate;
             }
@@ -267,14 +302,13 @@ class Attribute_model extends CI_Model
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "id";
-            } else {
-                $sort = $_GET['sort'];
-            }
-        if (isset($_GET['order']))
-            $order = $_GET['order'];
+        // $_GET['sort'] was passed straight into order_by(). Whitelisted.
+        $sortable = [
+            'id' => 'attr_vals.id', 'name' => 'attr_vals.value', 'value' => 'attr_vals.value',
+            'attributes' => 'attr.name', 'status' => 'attr_vals.status',
+        ];
+        $sort = (isset($_GET['sort']) && isset($sortable[$_GET['sort']])) ? $sortable[$_GET['sort']] : 'attr_vals.id';
+        $order = (isset($_GET['order']) && strtolower($_GET['order']) === 'desc') ? 'DESC' : 'ASC';
 
         if (isset($_GET['search']) and $_GET['search'] != '') {
             $search = $_GET['search'];
@@ -313,12 +347,17 @@ class Attribute_model extends CI_Model
 
         foreach ($city_search_res as $row) {
             $row = output_escaping($row);
+            // $tempRow was declared once outside this loop and reused, so any field not set on a
+            // given iteration silently carried over the previous row's value.
+            $tempRow = array();
+            $operate = '';
             if (!$this->ion_auth->is_seller()) {
-                $operate = ' <a href="javascript:void(0)" class="edit_btn btn btn-success action-btn btn-xs mr-1 mb-1" title="View" data-id="' . $row['id'] . '" data-url="admin/attribute_value/"><i class="fa fa-pen"></i></a>';
+                $operate = ' <a href="javascript:void(0)" class="edit_btn btn btn-success action-btn btn-xs mr-1 mb-1" title="Edit" data-id="' . $row['id'] . '" data-url="admin/attribute_value/"><i class="fa fa-pen"></i></a>';
             }
             $tempRow['id'] = $row['id'];
-            $tempRow['name'] = $row['value'];
-            $tempRow['attributes'] = $row['attr_name'];
+            $tempRow['name'] = html_escape((string) $row['value']);
+            $tempRow['value'] = html_escape((string) $row['value']);
+            $tempRow['attributes'] = html_escape((string) $row['attr_name']);
             if ($row['status'] == '1') {
                 $tempRow['status'] = '<a class="badge badge-success text-white" >Active</a>';
                 if (!$this->ion_auth->is_seller()) {

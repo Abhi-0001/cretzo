@@ -20,14 +20,17 @@ class Promo_code_model extends CI_Model
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "id";
-            } else {
-                $sort = $_GET['sort'];
-            }
-        if (isset($_GET['order']))
-            $order = $_GET['order'];
+        // Sort column was passed straight into order_by() with no whitelist - an injection
+        // route the same as already fixed on other list pages.
+        $allowed_sort_columns = ['id', 'promo_code', 'start_date', 'end_date', 'discount', 'no_of_users', 'discount_type', 'max_discount_amount', 'no_of_repeat_usage', 'status'];
+        if (isset($_GET['sort']) && in_array($_GET['sort'], $allowed_sort_columns, true)) {
+            $sort = $_GET['sort'];
+        }
+        if (isset($_GET['order']) && strtolower($_GET['order']) === 'asc') {
+            $order = 'asc';
+        } else {
+            $order = 'desc';
+        }
 
         if (isset($_GET['search']) and $_GET['search'] != '') {
             $search = $_GET['search'];
@@ -36,11 +39,10 @@ class Promo_code_model extends CI_Model
 
         $count_res = $this->db->select(' COUNT(p.id) as `total` ');
 
+        // Was or_where() here (exact match) while the data query below uses or_like() (partial
+        // match), corrupting the pagination total on a partial search.
         if (isset($multipleWhere) && !empty($multipleWhere)) {
-            $count_res->or_where($multipleWhere);
-        }
-        if (isset($where) && !empty($where)) {
-            $count_res->where($where);
+            $count_res->or_like($multipleWhere);
         }
 
         $sc_count = $count_res->get('promo_codes p')->result_array();
@@ -49,20 +51,22 @@ class Promo_code_model extends CI_Model
             $total = $row['total'];
         }
 
-        $search_res = $this->db->select(' p.`id` as id , p.`promo_code`, p.`image` , p.`message` , p.`start_date` , p.`end_date`, p.`discount` , p.`repeat_usage` ,p.`minimum_order_amount` ,p.`no_of_users` ,p.`discount_type` , p.`max_discount_amount`, p.`no_of_repeat_usage` , p.`status`,p.`is_cashback`,p.`list_promocode`');
+        $search_res = $this->db->select(' p.`id` as id , p.`promo_code`, p.`message` , p.`start_date` , p.`end_date`, p.`discount` , p.`repeat_usage` ,p.`minimum_order_amount` ,p.`no_of_users` ,p.`discount_type` , p.`max_discount_amount`, p.`no_of_repeat_usage` , p.`status`,p.`is_cashback`,p.`list_promocode`');
         // echo $this->db->last_query();
 
         if (isset($multipleWhere) && !empty($multipleWhere)) {
             $search_res->or_like($multipleWhere);
         }
-        if (isset($where) && !empty($where)) {
-            $search_res->where($where);
-        }
 
-        $sc_search_res = $search_res->order_by($sort, "desc")->limit($limit, $offset)->get('promo_codes p')->result_array();
-        // print_r($sc_search_res);
+        // Was hardcoded "desc" - $order (read from $_GET above) was computed but never actually
+        // used, so sorting ascending from the UI had no effect.
+        $sc_search_res = $search_res->order_by($sort, $order)->limit($limit, $offset)->get('promo_codes p')->result_array();
         $bulkData = array();
-        $bulkData['total'] = count($sc_search_res);
+        // Was count($sc_search_res) - the count of THIS PAGE's rows (bounded by the limit
+        // above), not the real total computed into $total a few lines up. bootstrap-table's
+        // pagination always reported total <= page size, so promo codes beyond the first page
+        // were unreachable through the UI.
+        $bulkData['total'] = $total;
         $rows = array();
         $tempRow = array();
 
@@ -74,8 +78,11 @@ class Promo_code_model extends CI_Model
             $operate .= '<a class="btn btn-danger action-btn btn-xs ml-1 mr-1 mb-1" href="javascript:void(0)" id="delete-promo-code" title="Delete" data-id="' . $row['id'] . '" ><i class="fa fa-trash"></i></a>';
 
             $tempRow['id'] = $row['id'];
-            $tempRow['promo_code'] = $row['promo_code'];
-            $tempRow['message'] = $row['message'];
+            // output_escaping() only strips backslash-escaping, it does not HTML-encode - a
+            // stored-XSS route the same as already fixed on other list pages (this is the
+            // admin-facing list, rendered as raw HTML by bootstrap-table).
+            $tempRow['promo_code'] = html_escape($row['promo_code']);
+            $tempRow['message'] = html_escape($row['message']);
             $tempRow['start_date'] = $row['start_date'];
             $tempRow['end_date'] = $row['end_date'];
             $tempRow['discount'] = $row['discount'];
@@ -84,8 +91,6 @@ class Promo_code_model extends CI_Model
             $tempRow['no_of_users'] = $row['no_of_users'];
             $tempRow['discount_type'] = $row['discount_type'];
             $tempRow['max_discount_amt'] = $row['max_discount_amount'];
-            $row['image'] = (isset($row['image']) && !empty($row['image'])) ? base_url() . $row['image'] :  base_url() . NO_IMAGE;
-            $tempRow['image'] = '<div class="image-box-100"><a href=' . $row['image'] . ' data-toggle="lightbox" data-gallery="gallery"><img src=' . $row['image'] . ' class="rounded"></a></div>';
             $tempRow['no_of_repeat_usage'] = $row['no_of_repeat_usage'];
             if ($row['status'] == '1') {
                 $tempRow['status'] = '<span class="badge badge-success" >Active</span>';

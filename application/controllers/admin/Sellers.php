@@ -42,14 +42,21 @@ class Sellers extends CI_Controller
             if (isset($_GET['edit_id']) && !empty($_GET['edit_id'])) {
                 $this->data['title'] = 'Update Seller | ' . $settings['app_name'];
                 $this->data['meta_description'] = 'Update Seller | ' . $settings['app_name'];
-                $this->data['fetched_data'] = $this->db->select(' u.*,sd.* ')
+                // seller_data was an INNER join - a seller with no seller_data row yet (e.g.
+                // registered through self-service sign-up before that flow created one) matched
+                // zero rows here, and the next line's [0] access on an empty result faulted with
+                // an undefined-index warning while rendering a blank/broken form - this seller
+                // could be listed nowhere AND not opened directly by id either.
+                $this->data['fetched_data'] = $this->db->select(' u.*,sd.*, u.id as user_id ')
                     ->join('users_groups ug', ' ug.user_id = u.id ')
-                    ->join('seller_data sd', ' sd.user_id = u.id ')
+                    ->join('seller_data sd', ' sd.user_id = u.id ', 'left')
                     ->where(['ug.group_id' => '4', 'ug.user_id' => $_GET['edit_id']])
                     ->get('users u')
                     ->result_array();
 
-                $this->data['fetched_data'][0] = output_escaping($this->data['fetched_data'][0]);
+                if (!empty($this->data['fetched_data'])) {
+                    $this->data['fetched_data'][0] = output_escaping($this->data['fetched_data'][0]);
+                }
             }
             $this->load->view('admin/template', $this->data);
         } else {
@@ -98,7 +105,12 @@ class Sellers extends CI_Controller
                 return;
                 exit();
             }
-            $status = ($status == 7) ? 1 : (($status == 1) ? 7 : 1);
+            // For a Deactive seller (status 0), this used to fall through to the final ": 1"
+            // branch - clicking "Remove Seller" on a deactivated seller silently APPROVED them
+            // instead, despite the button, confirmation dialog, and "removed successfully"
+            // message all describing a removal. Only a currently-Removed (7) seller should be
+            // restored (-> 1); every other actionable status (0 or 1) should be removed (-> 7).
+            $status = ($status == 7) ? 1 : 7;
 
             if (update_details(['status' => $status], ['user_id' => $id], 'seller_data') == TRUE) {
                 $this->response['error'] = false;

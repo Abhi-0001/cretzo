@@ -16,7 +16,20 @@ class Cron_job extends CI_Controller
 
     public function settle_seller_commission()
     {
-       
+        // This controller had no authentication check on any method - confirmed live with no
+        // session cookie at all: the request succeeded and returned a normal application
+        // response rather than being rejected. Both endpoints here move real money (crediting
+        // seller commissions / settling promo code discounts) and are triggered from an
+        // authenticated admin button (the "Settle Promo Code Discount" button on the Orders
+        // page), so - as with every other admin controller in this codebase - they should only
+        // ever run for a logged-in administrator.
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {
+            $this->response['error'] = true;
+            $this->response['message'] = 'Unauthorized';
+            echo json_encode($this->response);
+            return false;
+        }
+
         $this->form_validation->set_data($this->input->get());
         $this->form_validation->set_rules('is_date', 'is_date', 'trim|required|xss_clean');
         if (!$this->form_validation->run()) {
@@ -31,6 +44,13 @@ class Cron_job extends CI_Controller
     }
     public function settle_cashback_discount()
     {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {
+            $this->response['error'] = true;
+            $this->response['message'] = 'Unauthorized';
+            echo json_encode($this->response);
+            return false;
+        }
+
         return $this->Promo_code_model->settle_cashback_discount();
     }
 

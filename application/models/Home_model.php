@@ -95,67 +95,48 @@ class Home_model extends CI_Model
         return  $product_count[0]['total'];
     }
 
-    public function approved_seller()
+    /**
+     * Counts sellers in a given seller_data.status bucket.
+     *
+     * The dashboard cards and the modal lists behind them used to be built from different
+     * queries. The cards counted seller_data rows alone, while the lists
+     * (Seller_model::approved_sellers / not_approved_sellers / deactive_sellers) additionally
+     * require the linked user to be active and to be in the seller group - so an orphaned or
+     * deactivated seller_data row was counted on the card but never appeared in the list.
+     * On the current database that showed "4" approved sellers above a list containing 1, and
+     * "8" pending above a list containing 6. This mirrors the list queries exactly so the
+     * number on the card is always the number of rows in the modal.
+     *
+     * @param int $status 1 = approved, 2 = pending approval, 0 = deactivated
+     */
+    private function count_sellers_by_status($status)
     {
+        $res = $this->db->select('COUNT(u.id) as counter')
+            ->join('users_groups ug', 'ug.user_id = u.id')
+            ->join('seller_data sd', 'sd.user_id = u.id')
+            ->where('sd.status', $status)
+            ->where('u.active', 1)
+            ->where('ug.group_id', '4')
+            ->get('users u')->result_array();
 
-        $query_approved_seller = $this->db->select('*')->where('status', '1')->get('seller_data');
-
-        $approved_seller = $query_approved_seller->result_array();
-
-        return $approved_seller;
+        return isset($res[0]['counter']) ? (int) $res[0]['counter'] : 0;
     }
-
 
     public function count_approved_seller()
     {
-
-        $query_approved_seller = $this->db->select('*')->where('status', '1')->get('seller_data');
-
-        $count_approved_seller = $query_approved_seller->num_rows();
-
-        return $count_approved_seller;
+        return $this->count_sellers_by_status(1);
     }
-
-    public function not_approved_seller()
-    {
-
-        $query_not_approved_seller = $this->db->select('*')->where('status', '2')->get('seller_data');
-
-        $not_approved_seller = $query_not_approved_seller->result_array();
-
-        return $not_approved_seller;
-    }
-
 
     public function count_not_approved_seller()
     {
-
-        $query_not_approved_seller = $this->db->select('*')->where('status', '2')->get('seller_data');
-
-        $count_not_approved_seller = $query_not_approved_seller->num_rows();
-
-        return $count_not_approved_seller;
+        return $this->count_sellers_by_status(2);
     }
-
-    public function deactive_seller()
-    {
-
-        $query_deactive_seller = $this->db->select('*')->where('status', '0')->get('seller_data');
-
-        $deactive_seller = $query_deactive_seller->result_array();
-
-        return $deactive_seller;
-    }
-
 
     public function count_deactive_seller()
     {
-
-        $query_deactive_seller = $this->db->select('*')->where('status', '')->get('seller_data');
-
-        $count_deactive_seller = $query_deactive_seller->num_rows();
-
-        return $count_deactive_seller;
+        // Was where('status', ''), which MySQL coerces to 0 on this tinyint column only by
+        // accident and errors outright under strict mode.
+        return $this->count_sellers_by_status(0);
     }
 
     public function total_earnings($type = "admin", $seller_id = "")
@@ -177,6 +158,8 @@ class Home_model extends CI_Model
         }
 
         $product_count = $count_res->get('order_items')->result_array();
-        return $product_count[0]['total'];
+        // SUM() returns NULL when nothing matches, and the dashboard fed that straight into
+        // number_format(), which is a deprecation warning on PHP 8.1+ (this install is 8.2).
+        return isset($product_count[0]['total']) ? (float) $product_count[0]['total'] : 0.0;
     }
 }

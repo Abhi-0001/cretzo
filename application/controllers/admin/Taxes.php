@@ -62,8 +62,10 @@ class Taxes extends CI_Controller
                 }
             }
 
-            $this->form_validation->set_rules('title', 'Title', 'trim|required|xss_clean');
-            $this->form_validation->set_rules('percentage', 'Percentage', 'trim|required|numeric|xss_clean');
+            $this->form_validation->set_rules('title', 'Title', 'trim|required|xss_clean|max_length[100]');
+            // "numeric" alone accepted -50 and 5000 as valid tax rates, which then flow straight
+            // into order totals. Bounded to a sane percentage range.
+            $this->form_validation->set_rules('percentage', 'Percentage', 'trim|required|numeric|greater_than_equal_to[0]|less_than_equal_to[100]|xss_clean');
 
             if (!$this->form_validation->run()) {
                 $this->response['error'] = true;
@@ -99,7 +101,10 @@ class Taxes extends CI_Controller
                 $this->response['error'] = false;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = 'Tax Details Added Successfully';
+                // Editing an existing tax also reported "Added Successfully".
+                $this->response['message'] = (isset($_POST['edit_tax_id']) && !empty($_POST['edit_tax_id']))
+                    ? 'Tax Details Updated Successfully'
+                    : 'Tax Details Added Successfully';
                 print_r(json_encode($this->response));
             }
         } else {
@@ -124,14 +129,23 @@ class Taxes extends CI_Controller
                 return false;
             }
 
-            if (delete_details(['id' => $_GET['id']], 'taxes') == TRUE) {
+            // The record id came from the query string with no validation at all.
+            $id = isset($_GET['id']) ? $_GET['id'] : null;
+            if (!is_numeric($id)) {
+                $response['error'] = true;
+                $response['message'] = 'Invalid tax id';
+                echo json_encode($response);
+                return false;
+            }
+
+            if (delete_details(['id' => (int) $id], 'taxes') == TRUE) {
                 $response['error'] = false;
-                $response['message'] = 'Deleted Succesfully';
+                $response['message'] = 'Deleted Successfully';
             } else {
                 $response['error'] = true;
                 $response['message'] = 'Something Went Wrong';
             }
-            print_r(json_encode($response));
+            echo json_encode($response);
         } else {
             redirect('admin/login', 'refresh');
         }

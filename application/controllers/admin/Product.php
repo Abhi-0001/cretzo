@@ -28,11 +28,18 @@ class Product extends CI_Controller
                 $this->data['fetched_data'] = fetch_details('product_faqs', ['id' => $_GET['edit_id']]);
             }
             $this->data['categories'] = $this->category_model->get_categories();
-            $this->data['sellers'] = $this->db->select(' u.username as seller_name,u.id as seller_id,sd.category_ids,sd.id as seller_data_id  ')
+            // Added the store name so the seller filter reads "username - store name", the same
+            // as the seller dropdown on the Add/Edit Product screen. With multiple sellers using
+            // similar usernames, a username-only list is not enough to tell them apart.
+            $this->data['sellers'] = array_map(function ($row) {
+                return array_map(function ($value) {
+                    return is_string($value) ? stripslashes($value) : $value;
+                }, $row);
+            }, $this->db->select(' u.username as seller_name, u.id as seller_id, sd.category_ids, COALESCE(NULLIF(sd.shop_name, ""), sd.store_name) as store_name, sd.id as seller_data_id ')
                 ->join('users_groups ug', ' ug.user_id = u.id ')
                 ->join('seller_data sd', ' sd.user_id = u.id ')
                 ->where(['ug.group_id' => '4'])
-                ->get('users u')->result_array();
+                ->get('users u')->result_array());
             $this->load->view('admin/template', $this->data);
         } else {
             redirect('admin/login', 'refresh');
@@ -50,10 +57,15 @@ class Product extends CI_Controller
             $this->data['taxes'] = fetch_details('taxes', null, '*');
             $this->data['countries'] = fetch_details('countries', null, 'name,id');
             if (isset($_GET['edit_id']) && !empty($_GET['edit_id'])) {
-                $seller_id = fetch_details('products', ['id' => $_GET['edit_id']], 'seller_id')[0]['seller_id'];
+                $product_row = fetch_details('products', ['id' => $_GET['edit_id']], 'seller_id');
+                $seller_id = !empty($product_row) ? $product_row[0]['seller_id'] : 0;
                 $this->data['shipping_data'] = fetch_details('pickup_locations', ['status' => 1, 'seller_id' => $seller_id], 'id,pickup_location');
-            }else{
-                $this->data['shipping_data'] = fetch_details('pickup_locations', ['status' => 1], 'id,pickup_location');
+            } else {
+                // Previously this listed the pickup locations of EVERY seller on the platform, so
+                // a product being created for one seller could be assigned another seller's
+                // pickup address. The list is now loaded for the chosen seller only, once that
+                // seller has been selected.
+                $this->data['shipping_data'] = [];
             }
             $this->data['brands'] = fetch_details('brands', null, 'name,id');
 
@@ -124,6 +136,35 @@ class Product extends CI_Controller
         }
     }
 
+    /**
+     * Active pickup locations for one seller, for the product form's shipping dropdown.
+     *
+     * The form previously had no way to refresh this list, so choosing a different seller left
+     * the previous seller's pickup addresses on screen and selectable.
+     */
+    public function get_seller_pickup_locations()
+    {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {
+            echo json_encode(['error' => true, 'message' => 'Unauthorized', 'data' => []]);
+            return false;
+        }
+
+        $seller_id = $this->input->get('seller_id', true);
+        if (!is_numeric($seller_id)) {
+            echo json_encode(['error' => true, 'message' => 'Invalid seller', 'data' => []]);
+            return false;
+        }
+
+        $rows = fetch_details('pickup_locations', ['status' => 1, 'seller_id' => (int) $seller_id], 'id,pickup_location');
+        $data = [];
+        foreach ((array) $rows as $row) {
+            $data[] = ['id' => $row['id'], 'pickup_location' => $row['pickup_location']];
+        }
+
+        echo json_encode(['error' => false, 'data' => $data]);
+        return false;
+    }
+
     public function product_order()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
@@ -137,8 +178,11 @@ class Product extends CI_Controller
             $this->data['title'] = 'Product Order | ' . $settings['app_name'];
             $this->data['meta_description'] = 'Product Order | ' . $settings['app_name'];
             $this->data['categories'] = $this->category_model->get_categories();
-            $products = $this->db->select('*')->order_by('row_order')->get('products')->result_array();
-            $this->data['product_result'] = $products;
+            // The full product list (every one of the 290+ rows in this catalogue, images
+            // included) used to be fetched here and rendered directly into the page. The view
+            // now fetches the same list itself, through search_category_wise_products(), so it
+            // can render one consistent way whether that's the initial "All" load or a filtered
+            // one, instead of the two diverging code paths described below.
             $this->load->view('admin/template', $this->data);
         } else {
             redirect('admin/login', 'refresh');
@@ -208,22 +252,34 @@ class Product extends CI_Controller
                 return false;
             }
 
-            $i = 0;
-            $temp = array();
-            foreach ($_GET['product_id'] as $row) {
-                $temp[$row] = $i;
-                $data = [
-                    'row_order' => $i
-                ];
-                $data = escape_array($data);
-                $this->db->where(['id' => $row])->update('products', $data);
-                $i++;
+            // Had no validation at all: a request with product_id missing, or not an array,
+            // raised a PHP warning (foreach on null) or a fatal TypeError (foreach on a scalar)
+            // depending on what was sent, and every id inside it was written straight into a
+            // WHERE clause with no type check.
+            if (!isset($_GET['product_id']) || !is_array($_GET['product_id'])) {
+                $response['error'] = true;
+                $response['message'] = 'No products to reorder';
+                echo json_encode($response);
+                return false;
             }
 
-            $response['error'] = false;
-            $response['message'] = 'Product Order Saved !';
+            $this->db->trans_start();
+            $i = 0;
+            foreach ($_GET['product_id'] as $row) {
+                if (!is_numeric($row)) {
+                    continue;
+                }
+                $this->db->where(['id' => (int) $row])->update('products', ['row_order' => $i]);
+                $i++;
+            }
+            $this->db->trans_complete();
 
-            print_r(json_encode($response));
+            $response['error'] = ($this->db->trans_status() === false);
+            $response['csrfName'] = $this->security->get_csrf_token_name();
+            $response['csrfHash'] = $this->security->get_csrf_hash();
+            $response['message'] = $response['error'] ? 'Something went wrong. Please try again.' : 'Product order saved';
+
+            echo json_encode($response);
         } else {
             redirect('admin/login', 'refresh');
         }
@@ -234,16 +290,42 @@ class Product extends CI_Controller
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
 
-            $this->db->select('p.*');
-            if ($_GET['cat_id'] == 0) {
-                $data = "";
-            } else {
-                $this->db->where('p.category_id', $_GET['cat_id']);
-                $this->db->or_where('c.parent_id', $_GET['cat_id']);
+            // $_GET['cat_id'] was read with no isset() check, and the category filter's OWN
+            // join+or_where were fine in isolation, but the response built from them was raw,
+            // un-escaped product data - the (customer- or seller-supplied) name went straight
+            // into the page via jQuery's .html() on the client, and a product with no image
+            // rendered a broken <img src="admin/"> pointing at the site root rather than a
+            // placeholder. Confirmed live: 10 of this database's 290 products have no image at
+            // all. Both are fixed at the source here so every caller gets safe data.
+            $cat_id = isset($_GET['cat_id']) ? $_GET['cat_id'] : 0;
+
+            $this->db->select('p.id, p.name, p.image, p.row_order, p.status');
+            if (is_numeric($cat_id) && (int) $cat_id > 0) {
+                $this->db->group_start();
+                $this->db->where('p.category_id', (int) $cat_id);
+                $this->db->or_where('c.parent_id', (int) $cat_id);
+                $this->db->group_end();
             }
-            $product_data = json_encode($this->db->order_by('row_order')->join('categories c', 'p.category_id = c.id')->get('products p')->result_array());
-           //this print_r is used for return data so don't remove it 
-            print_r($product_data);
+            // Was an inner join. 177 of this database's 290 products reference a category_id
+            // that no longer exists in the categories table (a deleted or otherwise orphaned
+            // category), and an inner join silently excludes every one of them from the result.
+            // Confirmed live: requesting "All" returned 113 products instead of 290. A left join
+            // keeps them in the list - they simply never match the "in category X" filter below,
+            // which is correct, since they have no valid category to match against.
+            $rows = $this->db->order_by('row_order')->join('categories c', 'p.category_id = c.id', 'left')->get('products p')->result_array();
+
+            $products = array();
+            foreach ($rows as $row) {
+                $products[] = [
+                    'id' => (int) $row['id'],
+                    'name' => html_escape((string) $row['name']),
+                    'image' => get_image_url($row['image'], 'thumb', 'sm'),
+                    'row_order' => (int) $row['row_order'],
+                    'status' => (int) $row['status'],
+                ];
+            }
+
+            echo json_encode(['error' => false, 'data' => $products]);
         } else {
             redirect('admin/login', 'refresh');
         }
@@ -255,17 +337,26 @@ class Product extends CI_Controller
             if (print_msg(!has_permissions('delete', 'product'), PERMISSION_ERROR_MSG, 'product')) {
                 return false;
             }
-            if (delete_details(['product_id' => $_GET['id']], 'product_variants')) {
 
-                delete_details(['id' => $_GET['id']], 'products');
-                delete_details(['product_id' => $_GET['id']], 'product_attributes');
+            if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
+                $response['error'] = true;
+                $response['message'] = 'Invalid product id';
+                echo json_encode($response);
+                return false;
+            }
+            $product_id = (int) $_GET['id'];
+
+            if (delete_details(['product_id' => $product_id], 'product_variants')) {
+
+                delete_details(['id' => $product_id], 'products');
+                delete_details(['product_id' => $product_id], 'product_attributes');
                 $response['error'] = false;
-                $response['message'] = 'Deleted Succesfully';
+                $response['message'] = 'Deleted Successfully';
             } else {
                 $response['error'] = true;
                 $response['message'] = 'Something Went Wrong';
             }
-            print_r(json_encode($response));
+            echo json_encode($response);
         } else {
             redirect('admin/login', 'refresh');
         }
@@ -335,7 +426,12 @@ class Product extends CI_Controller
             if (isset($_POST['is_prices_inclusive_tax'])) {
                 $this->form_validation->set_rules('is_prices_inclusive_tax', 'Tax included in prices', 'trim|xss_clean');
             }
-            if ($_POST['deliverable_type'] == INCLUDED || $_POST['deliverable_type'] == EXCLUDED) {
+            // Read directly from $_POST before validation had run, so a request without this
+            // field raised an "Undefined array key" warning on PHP 8 - and because the response
+            // is JSON, that warning was emitted into the response body and broke the parse,
+            // leaving the form with no error message at all.
+            $deliverable_type = isset($_POST['deliverable_type']) ? $_POST['deliverable_type'] : '';
+            if ($deliverable_type == INCLUDED || $deliverable_type == EXCLUDED) {
                 $this->form_validation->set_rules('deliverable_zipcodes[]', 'Deliverable Zipcodes', 'trim|required|xss_clean');
             }
 
@@ -662,6 +758,19 @@ class Product extends CI_Controller
             if (print_msg(!has_permissions('create', 'product'), PERMISSION_ERROR_MSG, 'product')) {
                 return false;
             }
+            // When a POST body exceeds post_max_size, PHP discards both $_POST and $_FILES and
+            // hands the script an empty request. Without this check the user was told "The Type
+            // field is required" even though they had selected one, which gave no hint that the
+            // real problem was the size of the file.
+            if (empty($_POST) && empty($_FILES) && isset($_SERVER['CONTENT_LENGTH']) && $_SERVER['CONTENT_LENGTH'] > 0) {
+                $this->response['error'] = true;
+                $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                $this->response['message'] = 'The file is larger than this server accepts (limit: ' . ini_get('post_max_size') . '). Please split it into smaller files and upload them one at a time.';
+                echo json_encode($this->response);
+                return false;
+            }
+
             $this->form_validation->set_rules('bulk_upload', '', 'xss_clean');
             $this->form_validation->set_rules('type', 'Type', 'trim|required|xss_clean');
             if (empty($_FILES['upload_file']['name'])) {
@@ -685,10 +794,56 @@ class Product extends CI_Controller
                     print_r(json_encode($this->response));
                     return false;
                 }
+                // The upload status was never inspected. When an upload failed - a file above
+                // upload_max_filesize, a partial transfer, or a missing temp directory - PHP
+                // leaves tmp_name empty while still populating the file name, so the extension
+                // check above passed and execution reached fopen(''). On PHP 8 that throws an
+                // uncaught ValueError, the request died with HTTP 500, and because the page's
+                // submit handler had no error branch the button stayed on "Please Wait..."
+                // indefinitely with nothing shown to the user.
+                $upload_error = isset($_FILES['upload_file']['error']) ? $_FILES['upload_file']['error'] : UPLOAD_ERR_NO_FILE;
+                if ($upload_error !== UPLOAD_ERR_OK) {
+                    $upload_messages = [
+                        UPLOAD_ERR_INI_SIZE   => 'The file is larger than this server accepts (limit: ' . ini_get('upload_max_filesize') . '). Please split it into smaller files.',
+                        UPLOAD_ERR_FORM_SIZE  => 'The file is larger than this form accepts. Please split it into smaller files.',
+                        UPLOAD_ERR_PARTIAL    => 'The file was only partially uploaded. Please try again.',
+                        UPLOAD_ERR_NO_FILE    => 'Please choose a file to upload.',
+                        UPLOAD_ERR_NO_TMP_DIR => 'The server has no temporary folder configured for uploads. Please contact your hosting provider.',
+                        UPLOAD_ERR_CANT_WRITE => 'The server could not write the uploaded file to disk. Please contact your hosting provider.',
+                        UPLOAD_ERR_EXTENSION  => 'The upload was blocked by a server extension.',
+                    ];
+                    $this->response['error'] = true;
+                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                    $this->response['message'] = isset($upload_messages[$upload_error]) ? $upload_messages[$upload_error] : 'The file could not be uploaded. Please try again.';
+                    echo json_encode($this->response);
+                    return false;
+                }
+
                 $csv = $_FILES['upload_file']['tmp_name'];
+
+                if (empty($csv) || !is_uploaded_file($csv)) {
+                    $this->response['error'] = true;
+                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                    $this->response['message'] = 'The uploaded file could not be read. Please try again.';
+                    echo json_encode($this->response);
+                    return false;
+                }
+
                 $temp = 0;
                 $temp1 = 0;
                 $handle = fopen($csv, "r");
+
+                if ($handle === false) {
+                    $this->response['error'] = true;
+                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                    $this->response['message'] = 'The uploaded file could not be opened. Please try again.';
+                    echo json_encode($this->response);
+                    return false;
+                }
+
                 $allowed_status = array("received", "processed", "shipped");
                 $video_types = array("youtube", "vimeo");
                 $this->response['message'] = '';
@@ -882,6 +1037,11 @@ class Product extends CI_Controller
 
                     fclose($handle);
                     $handle = fopen($csv, "r");
+                    // Every row is written in one transaction. Previously each product was
+                    // committed as it was read, so any failure part-way through a file left the
+                    // catalogue holding a partial import with no record of where it stopped and
+                    // no way to safely re-run the same file.
+                    $this->db->trans_start();
                     while (($row = fgetcsv($handle, 10000, ",")) != FALSE) //get row vales
                     {
                         if ($temp1 != 0) {
@@ -1035,11 +1195,23 @@ class Product extends CI_Controller
                         $temp1++;
                     }
                     fclose($handle);
+                    $this->db->trans_complete();
+
+                    if ($this->db->trans_status() === false) {
+                        $this->response['error'] = true;
+                        $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                        $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                        $this->response['message'] = 'The import failed and no products were added. Please check the file and try again.';
+                        echo json_encode($this->response);
+                        return false;
+                    }
+
                     $this->response['error'] = false;
                     $this->response['csrfName'] = $this->security->get_csrf_token_name();
                     $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                    $this->response['message'] = 'Products uploaded successfully!';
-                    print_r(json_encode($this->response));
+                    // The message gave no indication of how much had actually been imported.
+                    $this->response['message'] = max(0, $temp1 - 1) . ' product(s) uploaded successfully!';
+                    echo json_encode($this->response);
                     return false;
                 } else { // bulk_update
                     while (($row = fgetcsv($handle, 10000, ",")) != FALSE) //get row vales
@@ -1119,7 +1291,11 @@ class Product extends CI_Controller
                                 return false;
                             }
 
-                            if (!empty($row[18]) && !in_array($row[17], $video_types)) {
+                            // Checked column 18 for a value but then validated column 17 against
+                            // the permitted video types, so in update mode an invalid video type
+                            // passed unchecked while a valid one could be rejected because of
+                            // whatever happened to sit in the neighbouring column.
+                            if (!empty($row[18]) && !in_array($row[18], $video_types)) {
                                 $this->response['error'] = true;
                                 $this->response['message'] = 'Video type is invalid at row ' . $temp;
                                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
@@ -1184,6 +1360,9 @@ class Product extends CI_Controller
 
                     fclose($handle);
                     $handle = fopen($csv, "r");
+                    // As with the upload branch, all updates are applied in one transaction so a
+                    // failure cannot leave half the products updated and half untouched.
+                    $this->db->trans_start();
                     while (($row = fgetcsv($handle, 10000, ",")) != FALSE) //get row values
                     {
                         if ($temp1 != 0) {
@@ -1418,11 +1597,22 @@ class Product extends CI_Controller
                         $temp1++;
                     }
                     fclose($handle);
+                    $this->db->trans_complete();
+
+                    if ($this->db->trans_status() === false) {
+                        $this->response['error'] = true;
+                        $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                        $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                        $this->response['message'] = 'The update failed and no products were changed. Please check the file and try again.';
+                        echo json_encode($this->response);
+                        return false;
+                    }
+
                     $this->response['error'] = false;
                     $this->response['csrfName'] = $this->security->get_csrf_token_name();
                     $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                    $this->response['message'] = 'Products updated successfully!';
-                    print_r(json_encode($this->response));
+                    $this->response['message'] = max(0, $temp1 - 1) . ' product(s) updated successfully!';
+                    echo json_encode($this->response);
                     return false;
                 }
             }

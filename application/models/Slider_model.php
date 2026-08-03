@@ -58,14 +58,17 @@ class Slider_model extends CI_Model
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "id";
-            } else {
-                $sort = $_GET['sort'];
-            }
-        if (isset($_GET['order']))
-            $order = $_GET['order'];
+        // Sort column was passed straight into order_by() with no whitelist - an injection
+        // route the same as already fixed on other list pages.
+        $allowed_sort_columns = ['id', 'type', 'type_id', 'image', 'link'];
+        if (isset($_GET['sort']) && in_array($_GET['sort'], $allowed_sort_columns, true)) {
+            $sort = $_GET['sort'];
+        }
+        if (isset($_GET['order']) && strtolower($_GET['order']) === 'desc') {
+            $order = 'desc';
+        } else {
+            $order = 'asc';
+        }
 
         if (isset($_GET['search']) and $_GET['search'] != '') {
             $search = $_GET['search'];
@@ -74,8 +77,11 @@ class Slider_model extends CI_Model
 
         $count_res = $this->db->select(' COUNT(id) as `total` ');
 
+        // Was or_where() here (exact match) while the data query below uses or_like() (partial
+        // match) - a partial search term matched real rows in the data query but zero rows in
+        // the count query, so the pagination footer/total disagreed with what was actually shown.
         if (isset($multipleWhere) && !empty($multipleWhere)) {
-            $count_res->or_where($multipleWhere);
+            $count_res->or_like($multipleWhere);
         }
         if (isset($where) && !empty($where)) {
             $count_res->where($where);
@@ -95,7 +101,7 @@ class Slider_model extends CI_Model
             $search_res->where($where);
         }
 
-        $slider_search_res = $search_res->order_by($sort, "asc")->limit($limit, $offset)->get('sliders')->result_array();
+        $slider_search_res = $search_res->order_by($sort, $order)->limit($limit, $offset)->get('sliders')->result_array();
 
         $bulkData = array();
         $bulkData['total'] = $total;
@@ -109,9 +115,12 @@ class Slider_model extends CI_Model
             $operate .= ' <a  href="javascript:void(0)" class="btn btn-danger btn-xs action-btn mr-1 mb-1 ml-1"  title="Delete" id="delete-slider" data-id="' . $row['id'] . '"  ><i class="fa fa-trash"></i></a>';
 
             $tempRow['id'] = $row['id'];
-            $tempRow['type'] = $row['type'];
+            $tempRow['type'] = html_escape($row['type']);
             $tempRow['type_id'] = $row['type_id'];
-            $tempRow['link'] = $row['link'];
+            // output_escaping() only strips backslash-escaping, it does not HTML-encode - link
+            // is an admin-entered URL that gets rendered raw into the table, a stored-XSS route
+            // the same as already fixed on other list pages.
+            $tempRow['link'] = html_escape($row['link']);
 
             if (empty($row['image']) || file_exists(FCPATH . $row['image']) == FALSE) {
                 $row['image'] = base_url() . NO_IMAGE;

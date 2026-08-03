@@ -80,6 +80,13 @@ class Orders extends CI_Controller
     public function send_digital_product()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
+            // order_id/order_item_id had no validation at all - previously they were also
+            // always blank in practice (see the note on the sendMailBtn markup in
+            // Order_model.php), so a "successful" send silently updated no order and recorded
+            // a mail-sent row linked to nothing. Required and validated as numeric now that the
+            // form actually supplies them.
+            $this->form_validation->set_rules('order_id', 'Order', 'trim|required|numeric');
+            $this->form_validation->set_rules('order_item_id', 'Order item', 'trim|required|numeric');
             $this->form_validation->set_rules('message', 'Message', 'trim|required|xss_clean');
             $this->form_validation->set_rules('subject', 'Subject', 'trim|required|xss_clean');
             $this->form_validation->set_rules('pro_input_file', 'Attachment file', 'trim|required|xss_clean');
@@ -527,16 +534,31 @@ class Orders extends CI_Controller
                     $temp['tax_amount'] = $row['tax_amount'];
                     $temp['discounted_price'] = $row['discounted_price'];
                     $temp['price'] = $row['price'];
-                    $temp['row_price'] = $row['row_price'];
-                    $temp['updated_by'] = $updated_username[0]['username'];
-                    $temp['deliver_by'] = $deliver_by[0]['username'];
+                    // 'row_price' is not a column this query selects (see get_order_details()
+                    // above) and the view never reads $items[...]['row_price'] either - this
+                    // raised "Undefined array key 'row_price'" on every single load of this page.
+                    // Because it fires here in the controller, before admin/template is loaded,
+                    // the warning's HTML was emitted to the response before the page's own
+                    // <!DOCTYPE>/<head>/sidebar markup - which is what made the page appear to
+                    // render "behind" the sidebar: the warning box was genuinely the first thing
+                    // in the response, sitting outside the real page structure entirely.
+
+                    // Same defect fixed four times over in Order_model.php's list-building
+                    // methods, just living here in the controller instead: updated_by is 0 for
+                    // every order item that has never had its status changed by a specific user
+                    // (true of every row in this database), delivery_boy_id is 0/empty until a
+                    // delivery boy is actually assigned, and order_charges has no row at all for
+                    // orders that predate that feature - each lookup came back empty and
+                    // indexing [0] on an empty array raised "Undefined array key 0" every time.
+                    $temp['updated_by'] = !empty($updated_username[0]['username']) ? $updated_username[0]['username'] : '';
+                    $temp['deliver_by'] = !empty($deliver_by[0]['username']) ? $deliver_by[0]['username'] : '';
                     $temp['active_status'] = $row['oi_active_status'];
                     $temp['product_image'] = $row['product_image'];
                     $temp['product_variants'] = get_variants_values_by_id($row['product_variant_id']);
                     $temp['product_type'] = $row['type'];
                     $temp['product_id'] = $row['product_id'];
                     $temp['pickup_location'] = $row['pickup_location'];
-                    $temp['seller_otp'] = $order_charge_data[0]['otp'];
+                    $temp['seller_otp'] = !empty($order_charge_data[0]['otp']) ? $order_charge_data[0]['otp'] : '';
                     $temp['is_sent'] = $row['is_sent'];
                     $temp['seller_id'] = $row['seller_id'];
                     $temp['download_allowed'] = $row['download_allowed'];
@@ -544,7 +566,15 @@ class Orders extends CI_Controller
                     $temp['product_slug'] = $row['product_slug'];
                     $temp['sku'] = isset($row['product_sku']) && !empty($row['product_sku']) ? $row['product_sku'] : $row['sku'];
                     $temp['address_number'] = $address_number[0]['mobile'];
-                    $temp['county_code'] = $row[0]['county_code'];
+                    // Was $row[0]['county_code'] - $row is already a single order-item row here
+                    // (we're inside `foreach ($res as $row)`), not an array of rows, so $row[0]
+                    // doesn't exist ("Undefined array key 0"), and 'county_code' isn't a real
+                    // column either (the actual field, selected in get_order_details() above,
+                    // is country_code - the commented-out debug line right below this one still
+                    // shows the original, correct reference: $res[0]['country_code']). The view
+                    // never reads $items[...]['county_code'] regardless - it reads
+                    // $order_detls[0]['country_code'] directly - so this was dead, broken code
+                    // rather than a value anything actually depended on. Removed.
                     array_push($items, $temp);
                 }
 // echo "<pre>";
@@ -1195,6 +1225,20 @@ class Orders extends CI_Controller
                 $url = $this->input->post('url', true);
 
                 $order_item_ids = fetch_details('order_items', ['order_id' => $order_id, 'seller_id' => $seller_id], 'id');
+
+                // If order_id/seller_id matched no order_items at all, the loop below never ran
+                // and $this->response was never assigned - json_encode(undefined property)
+                // silently returned the literal string "null" with no error/message keys at all,
+                // which the calling JS reads as result.error / result.message (undefined),
+                // reporting neither success nor failure.
+                if (empty($order_item_ids)) {
+                    $this->response['error'] = true;
+                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                    $this->response['message'] = 'No matching order items found for this seller.';
+                    print_r(json_encode($this->response));
+                    return false;
+                }
 
                 foreach ($order_item_ids as $ids) {
 

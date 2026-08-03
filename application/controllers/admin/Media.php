@@ -46,12 +46,23 @@ class Media extends CI_Controller
         }
 
         $temp_array = $media_ids = $other_images_new_name = array();
+        // Every existing caller of this endpoint only ever reads error/message/csrfName/csrfHash
+        // and re-fetches the media library table separately to find the file it just uploaded
+        // (the two-step "upload, then go select it from the list" flow). Adding the saved
+        // path for each file here is purely additive - it lets a caller attach an uploaded
+        // image immediately, without touching how any existing caller behaves.
+        $uploaded_files = array();
         $files = $_FILES;
-       
+
         $other_image_info_error = "";
         $allowed_media_types = implode('|', allowed_media_types());
         $config['upload_path'] = $target_path;
         $config['allowed_types'] = $allowed_media_types;
+        // No size cap was set at all here (CI's Upload library defaults max_size to 0 =
+        // unlimited), and this is the one endpoint that accepts arbitrary file types
+        // (image/video/doc/spreadsheet/archive) from any admin - bounded to 50MB, generous
+        // enough for the video/archive types this library allows, without being unlimited.
+        $config['max_size'] = 51200;
         $other_image_cnt = count($_FILES['documents']['name']);
         $other_img = $this->upload;
         $other_img->initialize($config);
@@ -72,6 +83,7 @@ class Media extends CI_Controller
                     if (strtolower($temp_array['image_type']) != 'gif')
                         resize_image($temp_array,  $target_path, $media_id);
                     $other_images_new_name[$i] = $temp_array['file_name'];
+                    $uploaded_files[] = ['name' => $temp_array['file_name'], 'sub_directory' => $sub_directory];
                 }
             } else {
 
@@ -110,6 +122,7 @@ class Media extends CI_Controller
             $this->response['file_name'] = $_FILES['documents']['name'][0];
             $this->response['message'] = "Files Uploaded Successfully..!";
             $this->response['error'] = $other_image_info_error;
+            $this->response['uploaded_files'] = $uploaded_files;
             print_r(json_encode($this->response));
         }
     }
@@ -126,7 +139,10 @@ class Media extends CI_Controller
         $urlid = $this->uri->segment(4);
         $id = (isset($urlid)  && !empty($urlid)) ? $urlid : $mediaid;
         /* check if id is not empty or invalid */
-        if (!is_numeric($id) && $id == '') {
+        // Was "!is_numeric($id) && $id == ''", which only ever trips when $id is exactly an
+        // empty string - non-numeric garbage like "abc" fell straight through (caught downstream
+        // anyway by the "Media does not exist!" check below, so not a real hole, just dead logic).
+        if (empty($id) || !is_numeric($id)) {
             $this->response['error'] = true;
             $this->response['csrfName'] = $this->security->get_csrf_token_name();
             $this->response['csrfHash'] = $this->security->get_csrf_hash();
@@ -144,7 +160,20 @@ class Media extends CI_Controller
             print_r(json_encode($this->response));
             return false;
         }
-        $path = FCPATH . $media[0]['sub_directory'] . $media[0]['name'];
+
+        // The single most important check on this page: nothing links a media row to where
+        // it's actually used - every consuming table just stores the same path as plain text.
+        // Without this, deleting a file still attached to a live product/category/brand/etc
+        // silently broke that image site-wide, with no warning here that it was even in use.
+        if ($this->media_model->is_media_in_use($media[0]['sub_directory'] . $media[0]['name'])) {
+            $this->response['error'] = true;
+            $this->response['csrfName'] = $this->security->get_csrf_token_name();
+            $this->response['csrfHash'] = $this->security->get_csrf_hash();
+            $this->response['message'] = "This file is still in use elsewhere on the site and can't be deleted.";
+            print_r(json_encode($this->response));
+            return false;
+        }
+
         $where = array('id' => $id);
 
         if (delete_details($where, 'media')) {

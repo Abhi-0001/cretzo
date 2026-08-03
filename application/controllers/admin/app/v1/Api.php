@@ -1215,7 +1215,10 @@ Defined Methods:-
             return false;
         }
 
-        $this->form_validation->set_rules('ticket_id', 'Ticket Id', 'trim|required|xss_clean');
+        // ticket_id was only checked 'required', not 'numeric' - it's used a few lines down
+        // in a raw string-concatenated WHERE clause, not a parameterized one, so a non-numeric
+        // value could inject arbitrary SQL into that query.
+        $this->form_validation->set_rules('ticket_id', 'Ticket Id', 'trim|required|numeric|xss_clean');
         $this->form_validation->set_rules('status', 'Status', 'trim|required|xss_clean');
 
 
@@ -1268,13 +1271,19 @@ Defined Methods:-
                 'edit_ticket_status' => $ticket_id
             );
             $system_settings = get_settings('system_settings', true);
-            if (!$this->ticket_model->add_ticket($data)) {
+            // Ticket_model::add_ticket() previously never returned anything on this (status-edit)
+            // path, so this check ("!result") was always true regardless of whether the update
+            // actually succeeded - every status change reported success. Now that it returns a
+            // real result, the condition is flipped to match.
+            if ($this->ticket_model->add_ticket($data)) {
                 $result = $this->ticket_model->get_tickets($ticket_id);
                 if (!empty($result)) {
                     //custom message
-                    $ticket_res = fetch_details('ticket_messages', ['user_type' => 'user', 'ticket_id' => $ticket_id], 'user_id');
-
-                    $user_res = fetch_details("users", ['id' => $ticket_res[0]['user_id']], 'fcm_id', '',  '', '', '');
+                    // Was looking up the ticket's owner via a ticket_messages row filtered to
+                    // user_type='user' - if the ticket had no such message yet, this came back
+                    // empty and the next line threw an undefined-index notice, silently failing
+                    // to notify anyone. The ticket's own owner is already known from $res[0].
+                    $user_res = fetch_details("users", ['id' => $res[0]['user_id']], 'fcm_id', '',  '', '', '');
                     $fcm_ids[0][] = $user_res[0]['fcm_id'];
                     $custom_notification =  fetch_details('custom_notifications', ['type' => "ticket_status"], '');
                     $hashtag_application_name = '< application_name >';

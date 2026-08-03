@@ -29,9 +29,14 @@ class Ticket_model extends CI_Model
             ];
         }
         if (isset($data['edit_ticket'])) {
-            $this->db->set($ticket_data)->where('id', $data['edit_ticket'])->update('tickets');
+            return $this->db->set($ticket_data)->where('id', $data['edit_ticket'])->update('tickets');
         } else if (isset($data['edit_ticket_status'])) {
-            $this->db->set($ticket_data)->where('id', $data['edit_ticket_status'])->update('tickets');
+            // Neither edit branch used to return anything, so the caller's
+            // "!add_ticket($data)" check (Tickets::edit_ticket_status()) was always true
+            // regardless of whether the update actually succeeded - the "it failed" branch
+            // there was dead code, and the "it succeeded" branch (which sends the status-change
+            // notification) ran unconditionally even on a failed update.
+            return $this->db->set($ticket_data)->where('id', $data['edit_ticket_status'])->update('tickets');
         } else {
             $this->db->insert('tickets', $ticket_data);
             $insert_id = $this->db->insert_id();
@@ -98,14 +103,15 @@ class Ticket_model extends CI_Model
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "t.id";
-            } else {
-                $sort = $_GET['sort'];
-            }
-        if (isset($_GET['order']))
-            $order = $_GET['order'];
+        // Sort column was passed straight into order_by() with no whitelist - an injection
+        // route the same as already fixed on other list pages.
+        $allowed_sort_columns = ['t.id', 'id', 't.subject', 't.status', 't.date_created', 't.last_updated'];
+        if (isset($_GET['sort']) && in_array($_GET['sort'], $allowed_sort_columns, true)) {
+            $sort = ($_GET['sort'] === 'id') ? 't.id' : $_GET['sort'];
+        }
+        if (isset($_GET['order']) && strtolower($_GET['order']) === 'desc') {
+            $order = 'DESC';
+        }
 
         if (isset($_GET['search']) and $_GET['search'] != '') {
             $search = $_GET['search'];
@@ -114,10 +120,17 @@ class Ticket_model extends CI_Model
             ];
         }
 
-        $count_res = $this->db->select(' COUNT(u.id) as `total`')->join('ticket_types tty', 'tty.id=t.ticket_type_id', 'left')->join('users u', 'u.id=t.user_id', 'left');
+        // COUNT(u.id) undercounts here: u.id comes from a LEFT JOIN, so a ticket whose user
+        // account was since deleted has a NULL u.id, and COUNT() ignores NULLs - that ticket
+        // would be in the data results but missing from the total. t.id (the tickets table's
+        // own primary key) is never null.
+        $count_res = $this->db->select(' COUNT(t.id) as `total`')->join('ticket_types tty', 'tty.id=t.ticket_type_id', 'left')->join('users u', 'u.id=t.user_id', 'left');
 
+        // Was or_where() here (exact match) while the data query below uses or_like() (partial
+        // match) - a partial search term matched real rows in the data query but zero rows in
+        // the count query, breaking the pagination footer.
         if (isset($multipleWhere) && !empty($multipleWhere)) {
-            $count_res->or_where($multipleWhere);
+            $count_res->or_like($multipleWhere);
         }
         if (isset($where) && !empty($where)) {
             $count_res->where($where);
@@ -146,15 +159,20 @@ class Ticket_model extends CI_Model
         $tempRow = array();
         foreach ($cat_search_res as $row) {
             $row = output_escaping($row);
-            $operate = '<a href="javascript:void(0)" class="view_ticket btn btn-success action-btn btn-xs mr-1 mb-1 ml-1" data-id=' . $row['id'] . ' data-username=' . $row['username'] . ' data-date_created=' . $row['date_created'] . ' data-subject=' . $row['subject'] . ' data-status=' . $row['status'] . ' data-ticket_type="' . $row['title'] . '" title="View" data-target="#ticket_modal" data-toggle="modal" ><i class="fa fa-eye"></i></a>';
-            $operate .= ' <a href="javascript:void(0)" id="delete-ticket" data-id=' . $row['id'] . ' class="btn btn-danger action-btn mr-1 mb-1 ml-1 btn-xs"><i class="fa fa-trash"></i></a>';
+            // The data-* attributes below used to be entirely unquoted (data-username=Foo
+            // instead of data-username="Foo"), and output_escaping() doesn't HTML-encode
+            // anything - both together meant a subject/username containing a space or quote
+            // broke the markup, and one containing HTML was a stored-XSS route straight into
+            // the ticket-view modal's JS (which reads these via .data()/.html()).
+            $operate = '<a href="javascript:void(0)" class="view_ticket btn btn-success action-btn btn-xs mr-1 mb-1 ml-1" data-id="' . $row['id'] . '" data-username="' . html_escape($row['username']) . '" data-date_created="' . html_escape($row['date_created']) . '" data-subject="' . html_escape($row['subject']) . '" data-status="' . html_escape($row['status']) . '" data-ticket_type="' . html_escape($row['title']) . '" title="View" data-target="#ticket_modal" data-toggle="modal" ><i class="fa fa-eye"></i></a>';
+            $operate .= ' <a href="javascript:void(0)" id="delete-ticket" data-id="' . $row['id'] . '" class="btn btn-danger action-btn mr-1 mb-1 ml-1 btn-xs"><i class="fa fa-trash"></i></a>';
 
             $tempRow['id'] = $row['id'];
             $tempRow['ticket_type_id'] = $row['ticket_type_id'];
             $tempRow['user_id'] = $row['user_id'];
-            $tempRow['subject'] = $row['subject'];
-            $tempRow['email'] = $row['email'];
-            $tempRow['description'] = $row['description'];
+            $tempRow['subject'] = html_escape($row['subject']);
+            $tempRow['email'] = html_escape($row['email']);
+            $tempRow['description'] = html_escape($row['description']);
             if ($row['status'] == "1") {
                 $status = '<label class="badge badge-secondary">PENDING</label>';
             } else if ($row['status'] == "2") {
@@ -169,8 +187,8 @@ class Ticket_model extends CI_Model
             $tempRow['status'] = $status;
             $tempRow['last_updated'] = $row['last_updated'];
             $tempRow['date_created'] = $row['date_created'];
-            $tempRow['username'] = $row['username'];
-            $tempRow['ticket_type'] = $row['title'];
+            $tempRow['username'] = html_escape($row['username']);
+            $tempRow['ticket_type'] = html_escape($row['title']);
             $tempRow['operate'] = $operate;
             $rows[] = $tempRow;
         }
@@ -181,22 +199,20 @@ class Ticket_model extends CI_Model
     {
         $multipleWhere = '';
 
-        if (isset($_GET['offset']))
-            $offset = $_GET['offset'];
-        if (isset($_GET['limit']))
-            $limit = $_GET['limit'];
+        // This function has exactly one caller (Tickets::get_ticket_messages()), which already
+        // validates/sanitizes every one of these before calling in - re-reading raw $_GET here
+        // discarded that validation entirely (including the numeric checks on ticket_id/user_id/
+        // limit/offset) in favor of whatever was in the querystring.
+        if ($sort === 'id') {
+            $sort = 'tm.id';
+        }
+        $allowed_sort_columns = ['tm.id', 'tm.date_created', 't.subject'];
+        if (!in_array($sort, $allowed_sort_columns, true)) {
+            $sort = 'tm.id';
+        }
+        $order = (strtolower((string) $order) === 'asc') ? 'ASC' : 'DESC';
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "tm.id";
-            } else {
-                $sort = $_GET['sort'];
-            }
-        if (isset($_GET['order']))
-            $order = $_GET['order'];
-
-        if (isset($_GET['search']) and $_GET['search'] != '') {
-            $search = $_GET['search'];
+        if (!empty($search)) {
             $multipleWhere = [
                 '`u.id`' => $search, '`u.username`' => $search, '`t.subject`' => $search, '`tm.message`' => $search
             ];
@@ -213,9 +229,12 @@ class Ticket_model extends CI_Model
             $where['tm.id'] = $msg_id;
         }
 
+        // Was or_where() (exact match) while the data query below uses or_like() (partial
+        // match), corrupting the pagination total on a partial search the same as the ticket
+        // list's own count query.
         $count_res = $this->db->select(' COUNT(tm.id) as `total`')->join('tickets t', 't.id=tm.ticket_id', 'left')->join('users u', 'u.id=tm.user_id', 'left');
         if (isset($multipleWhere) && !empty($multipleWhere)) {
-            $count_res->or_where($multipleWhere);
+            $count_res->or_like($multipleWhere);
         }
         if (isset($where) && !empty($where)) {
             $count_res->where($where);
@@ -248,8 +267,10 @@ class Ticket_model extends CI_Model
                 $tempRow['user_type'] = $row['user_type'];
                 $tempRow['user_id'] = $row['user_id'];
                 $tempRow['ticket_id'] = $row['ticket_id'];
-                $tempRow['message'] = (!empty($row['message'])) ? $row['message'] : "";
-                $tempRow['name'] = $row['username'];
+                // output_escaping() doesn't HTML-encode - message is free text and the JS
+                // renders it via .html(), so this was a stored-XSS route in the ticket thread.
+                $tempRow['message'] = (!empty($row['message'])) ? html_escape($row['message']) : "";
+                $tempRow['name'] = html_escape($row['username']);
                 if (!empty($row['attachments'])) {
                     $attachments = json_decode($row['attachments'], 1);
                     $counter = 0;
@@ -273,7 +294,7 @@ class Ticket_model extends CI_Model
                     $attachments = array();
                 }
                 $tempRow['attachments'] = $attachments;
-                $tempRow['subject'] = $row['subject'];
+                $tempRow['subject'] = html_escape($row['subject']);
                 $tempRow['last_updated'] = $row['last_updated'];
                 $tempRow['date_created'] = $row['date_created'];
                 $rows[] = $tempRow;
@@ -345,14 +366,14 @@ class Ticket_model extends CI_Model
                 $tempRow['id'] = $row['id'];
                 $tempRow['ticket_type_id'] = $row['ticket_type_id'];
                 $tempRow['user_id'] = $row['user_id'];
-                $tempRow['subject'] = $row['subject'];
+                $tempRow['subject'] = html_escape($row['subject']);
                 $tempRow['email'] = $row['email'];
                 $tempRow['description'] = $row['description'];
                 $tempRow['status'] = $row['status'];
                 $tempRow['last_updated'] = $row['last_updated'];
                 $tempRow['date_created'] = $row['date_created'];
-                $tempRow['name'] = $row['username'];
-                $tempRow['ticket_type'] = $row['title'];
+                $tempRow['name'] = html_escape($row['username']);
+                $tempRow['ticket_type'] = html_escape($row['title']);
                 $rows[] = $tempRow;
             }
             $bulkData['data'] = $rows;
@@ -420,8 +441,10 @@ class Ticket_model extends CI_Model
                 $tempRow['user_type'] = $row['user_type'];
                 $tempRow['user_id'] = $row['user_id'];
                 $tempRow['ticket_id'] = $row['ticket_id'];
-                $tempRow['message'] = (!empty($row['message'])) ? $row['message'] : "";
-                $tempRow['name'] = $row['username'];
+                // output_escaping() doesn't HTML-encode - message is free text and the JS
+                // renders it via .html(), so this was a stored-XSS route in the ticket thread.
+                $tempRow['message'] = (!empty($row['message'])) ? html_escape($row['message']) : "";
+                $tempRow['name'] = html_escape($row['username']);
                 if (!empty($row['attachments'])) {
                     $attachments = json_decode($row['attachments'], 1);
                     $counter = 0;
@@ -445,7 +468,7 @@ class Ticket_model extends CI_Model
                     $attachments = array();
                 }
                 $tempRow['attachments'] = $attachments;
-                $tempRow['subject'] = $row['subject'];
+                $tempRow['subject'] = html_escape($row['subject']);
                 $tempRow['last_updated'] = $row['last_updated'];
                 $tempRow['date_created'] = $row['date_created'];
                 $rows[] = $tempRow;
@@ -481,14 +504,15 @@ class Ticket_model extends CI_Model
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "id";
-            } else {
-                $sort = $_GET['sort'];
-            }
-        if (isset($_GET['order']))
-            $order = $_GET['order'];
+        // Sort column was passed straight into order_by() with no whitelist - an injection
+        // route the same as already fixed on other list pages.
+        $allowed_sort_columns = ['id', 'title', 'date_created'];
+        if (isset($_GET['sort']) && in_array($_GET['sort'], $allowed_sort_columns, true)) {
+            $sort = $_GET['sort'];
+        }
+        if (isset($_GET['order']) && strtolower($_GET['order']) === 'desc') {
+            $order = 'DESC';
+        }
 
         if (isset($_GET['search']) and $_GET['search'] != '') {
             $search = $_GET['search'];
@@ -499,8 +523,10 @@ class Ticket_model extends CI_Model
 
         $count_res = $this->db->select(' COUNT(id) as `total`');
 
+        // Was or_where() here (exact match) while the data query below uses or_like() (partial
+        // match), corrupting the pagination total on a partial search.
         if (isset($multipleWhere) && !empty($multipleWhere)) {
-            $count_res->or_where($multipleWhere);
+            $count_res->or_like($multipleWhere);
         }
         if (isset($where) && !empty($where)) {
             $count_res->where($where);
@@ -533,7 +559,7 @@ class Ticket_model extends CI_Model
             $operate .= '<a class="delete-ticket-type btn btn-danger action-btn btn-xs ml-1 mr-1 mb-1" title="Delete" href="javascript:void(0)" data-id="' . $row['id'] . '" ><i class="fa fa-trash"></i></a>';
 
             $tempRow['id'] = $row['id'];
-            $tempRow['title'] = $row['title'];
+            $tempRow['title'] = html_escape($row['title']);
             $tempRow['date_created'] = $row['date_created'];
             $tempRow['operate'] = $operate;
             $rows[] = $tempRow;

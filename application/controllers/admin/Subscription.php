@@ -51,12 +51,24 @@ class Subscription extends CI_Controller
     if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
 
         $this->form_validation->set_rules('name', 'Plan Name', 'trim|required|xss_clean');
-        $this->form_validation->set_rules('price', 'Price', 'trim|xss_clean');
+        // price/validity only had 'xss_clean' - not even 'numeric' - so a plan could be saved
+        // with a negative or non-numeric price, or a zero/negative validity period, with
+        // nothing stopping it server-side beyond a client-side keypress filter that a direct
+        // POST bypasses entirely.
+        $this->form_validation->set_rules('price', 'Price', 'trim|required|numeric|greater_than_equal_to[0]|xss_clean');
         $this->form_validation->set_rules('listings_limit', 'Listings Limit', 'trim|xss_clean');
-        $this->form_validation->set_rules('validity', 'Validity', 'trim|xss_clean');
-        $this->form_validation->set_rules('commission_first50', 'Commission (first 50 orders)', 'trim|numeric|xss_clean');
-        $this->form_validation->set_rules('commission_51_100', 'Commission (51-100 orders)', 'trim|numeric|xss_clean');
-        $this->form_validation->set_rules('commission_after100', 'Commission (after 100 orders)', 'trim|numeric|xss_clean');
+        $this->form_validation->set_rules('validity', 'Validity', 'trim|required|numeric|greater_than[0]|xss_clean');
+        $this->form_validation->set_rules('commission_first50', 'Commission (first 50 orders)', 'trim|numeric|greater_than_equal_to[0]|less_than_equal_to[100]|xss_clean');
+        $this->form_validation->set_rules('commission_51_100', 'Commission (51-100 orders)', 'trim|numeric|greater_than_equal_to[0]|less_than_equal_to[100]|xss_clean');
+        $this->form_validation->set_rules('commission_after100', 'Commission (after 100 orders)', 'trim|numeric|greater_than_equal_to[0]|less_than_equal_to[100]|xss_clean');
+        // Feature descriptions had no validation rule at all - completely bypassing xss_clean
+        // unlike every other free-text field on this same form.
+        $features_post = $this->input->post('features');
+        if (!empty($features_post) && is_array($features_post)) {
+            foreach (array_keys($features_post) as $i) {
+                $this->form_validation->set_rules('features[' . $i . '][description]', 'Feature', 'trim|xss_clean');
+            }
+        }
 
         if (!$this->form_validation->run()) {
 

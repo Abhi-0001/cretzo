@@ -21,15 +21,18 @@ class Manage_stock extends CI_Controller
             $this->data['meta_description'] = 'Stock Management |' . $settings['app_name'];
             if (isset($_GET['edit_id'])) {
 
+                // No guard against a stale/deleted/tampered edit_id - $stock[0] on an empty
+                // result threw an undefined-index notice and left the modal populated with
+                // nothing useful. The seller-side equivalent of this page already guards this.
                 $stock = fetch_details("product_variants", ['id' => $_GET['edit_id']], ['stock', 'product_id', 'attribute_value_ids']);
-                $attribute_value = fetch_details("attribute_values", ['id' => $stock[0]['attribute_value_ids']], ['value']);
-                $id = $stock[0]['product_id'];
-              
-                $this->data['fetched_data'] = fetch_product("", "", $id);
-                $this->data['fetched'] = $stock[0]['stock'];
-                $this->data['attribute'] = $attribute_value;
-                // $this->data['attribute'] = $attribute_value[0]['value'];
+                if (!empty($stock)) {
+                    $attribute_value = fetch_details("attribute_values", ['id' => $stock[0]['attribute_value_ids']], ['value']);
+                    $id = $stock[0]['product_id'];
 
+                    $this->data['fetched_data'] = fetch_product("", "", $id);
+                    $this->data['fetched'] = $stock[0]['stock'];
+                    $this->data['attribute'] = $attribute_value;
+                }
             }
             $this->data['categories'] = $this->category_model->get_categories();
 
@@ -63,16 +66,15 @@ class Manage_stock extends CI_Controller
 
     public function update_stock()
     {
-        // $this->form_validation->set_rules(if (($_POST['type'] == 'add') {
-        //     # code...
-        // } else {
-        //     # code...
-        // }
-        // );
         $this->form_validation->set_rules('product_name', 'Product Name', 'trim|required|xss_clean');
-        $this->form_validation->set_rules('current_stock', 'Current Stock', 'trim|required|xss_clean');
-        $this->form_validation->set_rules('quantity', 'Quantity', 'trim|required|xss_clean');
-        $this->form_validation->set_rules('type', 'Type', 'trim|required|xss_clean');
+        $this->form_validation->set_rules('current_stock', 'Current Stock', 'trim|required|xss_clean|numeric');
+        // Only checked 'required' before - a negative quantity on type=add subtracted from
+        // stock instead of adding to it (the only floor check in this whole method lived
+        // inside the type=='subtract' branch, so 'add' had no protection at all), and a
+        // non-numeric value would have flowed straight into intval() math downstream.
+        $this->form_validation->set_rules('quantity', 'Quantity', 'trim|required|xss_clean|numeric|greater_than[0]');
+        $this->form_validation->set_rules('type', 'Type', 'trim|required|xss_clean|in_list[add,subtract]');
+        $this->form_validation->set_rules('variant_id', 'Variant', 'trim|required|xss_clean|numeric');
         if (!$this->form_validation->run()) {
             $this->response['error'] = true;
             $this->response['csrfName'] = $this->security->get_csrf_token_name();
@@ -81,23 +83,32 @@ class Manage_stock extends CI_Controller
             print_r(json_encode($this->response));
         } else {
 
+            // Never checked whether variant_id actually still exists - a stale/deleted variant
+            // id silently updated nothing while the response still claimed success.
+            $variant_exists = fetch_details('product_variants', ['id' => $_POST['variant_id']], 'id');
+            if (empty($variant_exists)) {
+                $this->response['error'] = true;
+                $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                $this->response['message'] = 'This product variant no longer exists. Please refresh and try again.';
+                print_r(json_encode($this->response));
+                return;
+            }
+
             if ($_POST['type'] == 'add') {
                 update_stock([$_POST['variant_id']], [$_POST['quantity']], 'plus');
             } else {
-                if ($_POST['type'] == 'subtract') {
-
-                    if (
-                        $_POST['quantity'] > $_POST['current_stock']
-                    ) {
-                        $this->response['error'] = true;
-                        $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                        $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                        $this->response['message'] = "Subtracted stock cannot be greater than current stock";
-                        print_r(
-                            json_encode($this->response)
-                        );
-                        return;
-                    }
+                if (
+                    $_POST['quantity'] > $_POST['current_stock']
+                ) {
+                    $this->response['error'] = true;
+                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                    $this->response['message'] = "Subtracted stock cannot be greater than current stock";
+                    print_r(
+                        json_encode($this->response)
+                    );
+                    return;
                 }
                 update_stock([$_POST['variant_id']], [$_POST['quantity']]);
             }

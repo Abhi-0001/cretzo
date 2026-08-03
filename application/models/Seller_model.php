@@ -163,21 +163,32 @@ class Seller_model extends CI_Model
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "u.id";
-            } else {
-                $sort = $_GET['sort'];
-            }
-        if (isset($_GET['order']))
-            $order = $_GET['order'];
+        // Sort column was passed straight into order_by() with no whitelist - an injection
+        // route the same as already fixed on other list pages.
+        $allowed_sort_columns = ['u.id', 'u.username', 'u.email', 'u.mobile', 'u.balance', 'u.created_at'];
+        if (isset($_GET['sort']) && in_array($_GET['sort'], $allowed_sort_columns, true)) {
+            $sort = $_GET['sort'];
+        }
+        if (isset($_GET['order']) && strtolower($_GET['order']) === 'asc') {
+            $order = 'ASC';
+        }
 
         if (isset($_GET['search']) and $_GET['search'] != '') {
             $search = $_GET['search'];
             $multipleWhere = ['u.`id`' => $search, 'u.`username`' => $search, 'u.`email`' => $search, 'u.`mobile`' => $search, 'u.`address`' => $search, 'u.`balance`' => $search];
         }
 
-        $count_res = $this->db->select(' COUNT(u.id) as `total` ')->join('users_groups ug', ' ug.user_id = u.id ')->join('seller_data sd', ' sd.user_id = u.id ');
+        // seller_data was joined as an INNER join - any seller registered through the
+        // self-service sign-up flow (seller/Auth::ajax_signup()) has a row in `users` and
+        // `users_groups` (group 4) but, until this fix, NO row in `seller_data` at all, since
+        // that endpoint never created one. Every such seller silently failed to match this join
+        // and never appeared in Manage Sellers, on any page, under any filter or search - not a
+        // pagination bug, the row simply never matched. Confirmed live: 6 such "ghost" sellers
+        // existed in this database alone, invisible on this page until this LEFT JOIN. Also
+        // fixed at the source (ajax_signup now creates the seller_data row at signup), but this
+        // still needs to be a LEFT JOIN so sellers who became ghosts before that fix - and any
+        // that slip through some other path in the future - are always visible for review.
+        $count_res = $this->db->select(' COUNT(u.id) as `total` ')->join('users_groups ug', ' ug.user_id = u.id ')->join('seller_data sd', ' sd.user_id = u.id ', 'left');
 
         if (isset($multipleWhere) && !empty($multipleWhere)) {
             $count_res->group_start();
@@ -194,7 +205,11 @@ class Seller_model extends CI_Model
             $total = $row['total'];
         }
 
-        $search_res = $this->db->select(' u.*,sd.* ')->join('users_groups ug', ' ug.user_id = u.id ')->join('seller_data sd', ' sd.user_id = u.id ');
+        // u.*,sd.* both being selected means the result has two columns literally named
+        // user_id (u.id is aliased below, sd.user_id from the join) - trailing alias wins in
+        // the associative row, so this must come after sd.* or a ghost row's NULL sd.user_id
+        // would overwrite the real id, breaking every edit/delete/remove link for that row.
+        $search_res = $this->db->select(' u.*,sd.*, u.id as user_id ')->join('users_groups ug', ' ug.user_id = u.id ')->join('seller_data sd', ' sd.user_id = u.id ', 'left');
         if (isset($multipleWhere) && !empty($multipleWhere)) {
             $search_res->group_start();
             $search_res->or_like($multipleWhere);
@@ -224,7 +239,11 @@ class Seller_model extends CI_Model
             $operate .= '<a href="' . base_url('admin/orders?seller_id=' . $row['user_id']) . '" class="btn action-btn btn-primary btn-xs mr-2 mb-1" title="View Orders" ><i class="fa fa-eye"></i></a>';
 
             $tempRow['id'] = $row['user_id'];
-            $tempRow['name'] = $row['username'];
+            // output_escaping() only strips backslash-escaping, it does not HTML-encode - these
+            // free-text fields are seller-controlled (via self-service sign-up/onboarding) and
+            // were rendered raw into the table, a stored-XSS route. Escaped here individually
+            // rather than changing output_escaping() itself, which other code may rely on as-is.
+            $tempRow['name'] = html_escape($row['username']);
             if (isset($row['email']) && !empty($row['email']) && $row['email'] != "" && $row['email'] != " ") {
                 $tempRow['email'] = (defined('ALLOW_MODIFICATION') && ALLOW_MODIFICATION == 0) ? str_repeat("X", strlen($row['email']) - 3) . substr($row['email'], -3) : ucfirst($row['email']);
             } else {
@@ -235,22 +254,25 @@ class Seller_model extends CI_Model
             } else {
                 $tempRow['mobile'] = "";
             }
-            $tempRow['address'] = $row['address'];
-            $tempRow['store_name'] = $row['shop_name'] ?: $row['store_name'];
+            $tempRow['address'] = html_escape($row['address']);
+            $tempRow['store_name'] = html_escape($row['shop_name'] ?: $row['store_name']);
             $tempRow['store_url'] = $row['store_url'];
-            $tempRow['store_description'] = $row['store_description'];
+            $tempRow['store_description'] = html_escape($row['store_description']);
             $tempRow['account_number'] = $row['account_number'];
-            $tempRow['account_name'] = $row['account_holder_name'] ?: $row['account_name'];
+            $tempRow['account_name'] = html_escape($row['account_holder_name'] ?: $row['account_name']);
             $tempRow['bank_code'] = $row['bank_code'];
-            $tempRow['bank_name'] = $row['bank_name'];
+            $tempRow['bank_name'] = html_escape($row['bank_name']);
             $tempRow['latitude'] = $row['latitude'];
             $tempRow['longitude'] = $row['longitude'];
-            $tempRow['tax_name'] = $row['tax_name'];
+            $tempRow['tax_name'] = html_escape($row['tax_name']);
             $tempRow['rating'] = ' <p> (' . intval($row['rating']) . '/' . $row['no_of_ratings'] . ') </p>';;
             $tempRow['tax_number'] = $row['gst'] ?: $row['tax_number'];
             $tempRow['pan_number'] = $row['pan'] ?: $row['pan_number'];
 
-            // seller status
+            // seller status - a seller with no seller_data row at all (registered through
+            // self-service sign-up before that flow created one, or via some other path) has no
+            // status to compare here; previously this fell through silently and showed a blank
+            // status cell with no way to tell why. Made explicit.
             if ($row['status'] == 2)
                 $tempRow['status'] = "<label class='badge badge-warning'>Not-Approved</label>";
             else if ($row['status'] == 1)
@@ -259,6 +281,8 @@ class Seller_model extends CI_Model
                 $tempRow['status'] = "<label class='badge badge-danger'>Deactive</label>";
             else if ($row['status'] == 7)
                 $tempRow['status'] = "<label class='badge badge-danger'>Removed</label>";
+            else
+                $tempRow['status'] = "<label class='badge badge-secondary'>Pending Setup</label>";
 
             $tempRow['category_ids'] = $row['category_ids'];
 
@@ -526,19 +550,31 @@ class Seller_model extends CI_Model
 
     public function top_sellers()
     {
+        // The previous version also did ->join('users u', 'u.id = s.id') - joining users on the
+        // seller_data primary key rather than seller_data.user_id, so it matched an unrelated
+        // user row. Nothing selected from that alias (the username comes from the correlated
+        // subquery below), so the join only ever added a wrong row multiplier. Removed.
         $query = $this->db->select(" `seller_id`, COALESCE(NULLIF(s.shop_name, ''), s.store_name) as store_name,(SELECT username FROM users as u WHERE u.id=s.user_id) as seller_name ,( SELECT SUM(sub_total) AS total FROM order_items i WHERE i.seller_id = oi.seller_id AND active_status = 'delivered' ) AS total")
             ->join('seller_data s', 's.user_id = oi.seller_id', "left")
-            ->join('users u', 'u.id=s.id', 'left')
             ->limit('5')
             ->group_by('seller_id')
             ->order_by('total', 'Desc')
             ->get('order_items oi');
 
-        $data['total'] = $query->num_rows();
-        $data['rows'] = $query->result_array();
+        $rows = $query->result_array();
+        foreach ($rows as &$row) {
+            // Shop/store names are seller-controlled free text rendered into the admin
+            // dashboard by bootstrap-table, which does not escape cell values by default.
+            $row['store_name']  = html_escape((string) $row['store_name']);
+            $row['seller_name'] = html_escape((string) $row['seller_name']);
+            $row['total']       = (float) $row['total'];
+        }
+        unset($row);
 
+        $data['total'] = count($rows);
+        $data['rows'] = $rows;
 
-        print_r(json_encode($data));
+        echo json_encode($data);
     }
 
     function approved_sellers()
@@ -555,14 +591,14 @@ class Seller_model extends CI_Model
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "u.id";
-            } else {
-                $sort = $_GET['sort'];
-            }
-        if (isset($_GET['order']))
-            $order = $_GET['order'];
+        // Sort column injection route, same class of bug as fixed on get_sellers_list() above.
+        $allowed_sort_columns = ['u.id', 'u.username', 'u.email', 'u.mobile', 'u.balance', 'u.created_at'];
+        if (isset($_GET['sort']) && in_array($_GET['sort'], $allowed_sort_columns, true)) {
+            $sort = $_GET['sort'];
+        }
+        if (isset($_GET['order']) && strtolower($_GET['order']) === 'asc') {
+            $order = 'ASC';
+        }
 
         if (isset($_GET['search']) and $_GET['search'] != '') {
             $search = $_GET['search'];
@@ -614,20 +650,23 @@ class Seller_model extends CI_Model
                 $operate .= '<a  href="javascript:void(0)" class="remove-sellers btn btn-primary btn-xs mr-1 mb-1" title="Restore Seller"  data-id="' . $row['user_id'] . '" data-seller_status="' . $row['status'] . '" ><i class="fas fa-user"></i></a>';
             }
             $tempRow['id'] = $row['id'];
-            $tempRow['name'] = $row['username'];
+            // These free-text fields are seller-controlled; output_escaping() (used above on
+            // the whole row) only strips backslash-escaping, it does not HTML-encode, so this
+            // was a stored-XSS route the same as already fixed on get_sellers_list().
+            $tempRow['name'] = html_escape($row['username']);
             $tempRow['email'] = $row['email'];
             $tempRow['mobile'] = $row['mobile'];
-            $tempRow['address'] = $row['address'];
-            $tempRow['store_name'] = $row['shop_name'] ?: $row['store_name'];
+            $tempRow['address'] = html_escape($row['address']);
+            $tempRow['store_name'] = html_escape($row['shop_name'] ?: $row['store_name']);
             $tempRow['store_url'] = $row['store_url'];
-            $tempRow['store_description'] = $row['store_description'];
+            $tempRow['store_description'] = html_escape($row['store_description']);
             $tempRow['account_number'] = $row['account_number'];
-            $tempRow['account_name'] = $row['account_holder_name'] ?: $row['account_name'];
+            $tempRow['account_name'] = html_escape($row['account_holder_name'] ?: $row['account_name']);
             $tempRow['bank_code'] = $row['bank_code'];
-            $tempRow['bank_name'] = $row['bank_name'];
+            $tempRow['bank_name'] = html_escape($row['bank_name']);
             $tempRow['latitude'] = $row['latitude'];
             $tempRow['longitude'] = $row['longitude'];
-            $tempRow['tax_name'] = $row['tax_name'];
+            $tempRow['tax_name'] = html_escape($row['tax_name']);
             $tempRow['rating'] = ' <p> (' . intval($row['rating']) . '/' . $row['no_of_ratings'] . ') </p>';;
             $tempRow['tax_number'] = $row['gst'] ?: $row['tax_number'];
             $tempRow['pan_number'] = $row['pan'] ?: $row['pan_number'];
@@ -677,14 +716,14 @@ class Seller_model extends CI_Model
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "u.id";
-            } else {
-                $sort = $_GET['sort'];
-            }
-        if (isset($_GET['order']))
-            $order = $_GET['order'];
+        // Sort column injection route, same class of bug as fixed on get_sellers_list() above.
+        $allowed_sort_columns = ['u.id', 'u.username', 'u.email', 'u.mobile', 'u.balance', 'u.created_at'];
+        if (isset($_GET['sort']) && in_array($_GET['sort'], $allowed_sort_columns, true)) {
+            $sort = $_GET['sort'];
+        }
+        if (isset($_GET['order']) && strtolower($_GET['order']) === 'asc') {
+            $order = 'ASC';
+        }
 
         if (isset($_GET['search']) and $_GET['search'] != '') {
             $search = $_GET['search'];
@@ -736,20 +775,23 @@ class Seller_model extends CI_Model
                 $operate .= '<a  href="javascript:void(0)" class="remove-sellers btn btn-primary btn-xs mr-1 mb-1" title="Restore Seller"  data-id="' . $row['user_id'] . '" data-seller_status="' . $row['status'] . '" ><i class="fas fa-user"></i></a>';
             }
             $tempRow['id'] = $row['id'];
-            $tempRow['name'] = $row['username'];
+            // These free-text fields are seller-controlled; output_escaping() (used above on
+            // the whole row) only strips backslash-escaping, it does not HTML-encode, so this
+            // was a stored-XSS route the same as already fixed on get_sellers_list().
+            $tempRow['name'] = html_escape($row['username']);
             $tempRow['email'] = $row['email'];
             $tempRow['mobile'] = $row['mobile'];
-            $tempRow['address'] = $row['address'];
-            $tempRow['store_name'] = $row['shop_name'] ?: $row['store_name'];
+            $tempRow['address'] = html_escape($row['address']);
+            $tempRow['store_name'] = html_escape($row['shop_name'] ?: $row['store_name']);
             $tempRow['store_url'] = $row['store_url'];
-            $tempRow['store_description'] = $row['store_description'];
+            $tempRow['store_description'] = html_escape($row['store_description']);
             $tempRow['account_number'] = $row['account_number'];
-            $tempRow['account_name'] = $row['account_holder_name'] ?: $row['account_name'];
+            $tempRow['account_name'] = html_escape($row['account_holder_name'] ?: $row['account_name']);
             $tempRow['bank_code'] = $row['bank_code'];
-            $tempRow['bank_name'] = $row['bank_name'];
+            $tempRow['bank_name'] = html_escape($row['bank_name']);
             $tempRow['latitude'] = $row['latitude'];
             $tempRow['longitude'] = $row['longitude'];
-            $tempRow['tax_name'] = $row['tax_name'];
+            $tempRow['tax_name'] = html_escape($row['tax_name']);
             $tempRow['rating'] = ' <p> (' . intval($row['rating']) . '/' . $row['no_of_ratings'] . ') </p>';;
             $tempRow['tax_number'] = $row['gst'] ?: $row['tax_number'];
             $tempRow['pan_number'] = $row['pan'] ?: $row['pan_number'];
@@ -799,14 +841,14 @@ class Seller_model extends CI_Model
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "u.id";
-            } else {
-                $sort = $_GET['sort'];
-            }
-        if (isset($_GET['order']))
-            $order = $_GET['order'];
+        // Sort column injection route, same class of bug as fixed on get_sellers_list() above.
+        $allowed_sort_columns = ['u.id', 'u.username', 'u.email', 'u.mobile', 'u.balance', 'u.created_at'];
+        if (isset($_GET['sort']) && in_array($_GET['sort'], $allowed_sort_columns, true)) {
+            $sort = $_GET['sort'];
+        }
+        if (isset($_GET['order']) && strtolower($_GET['order']) === 'asc') {
+            $order = 'ASC';
+        }
 
         if (isset($_GET['search']) and $_GET['search'] != '') {
             $search = $_GET['search'];
@@ -858,20 +900,23 @@ class Seller_model extends CI_Model
                 $operate .= '<a  href="javascript:void(0)" class="remove-sellers btn btn-primary btn-xs mr-1 mb-1" title="Restore Seller"  data-id="' . $row['user_id'] . '" data-seller_status="' . $row['status'] . '" ><i class="fas fa-user"></i></a>';
             }
             $tempRow['id'] = $row['id'];
-            $tempRow['name'] = $row['username'];
+            // These free-text fields are seller-controlled; output_escaping() (used above on
+            // the whole row) only strips backslash-escaping, it does not HTML-encode, so this
+            // was a stored-XSS route the same as already fixed on get_sellers_list().
+            $tempRow['name'] = html_escape($row['username']);
             $tempRow['email'] = $row['email'];
             $tempRow['mobile'] = $row['mobile'];
-            $tempRow['address'] = $row['address'];
-            $tempRow['store_name'] = $row['shop_name'] ?: $row['store_name'];
+            $tempRow['address'] = html_escape($row['address']);
+            $tempRow['store_name'] = html_escape($row['shop_name'] ?: $row['store_name']);
             $tempRow['store_url'] = $row['store_url'];
-            $tempRow['store_description'] = $row['store_description'];
+            $tempRow['store_description'] = html_escape($row['store_description']);
             $tempRow['account_number'] = $row['account_number'];
-            $tempRow['account_name'] = $row['account_holder_name'] ?: $row['account_name'];
+            $tempRow['account_name'] = html_escape($row['account_holder_name'] ?: $row['account_name']);
             $tempRow['bank_code'] = $row['bank_code'];
-            $tempRow['bank_name'] = $row['bank_name'];
+            $tempRow['bank_name'] = html_escape($row['bank_name']);
             $tempRow['latitude'] = $row['latitude'];
             $tempRow['longitude'] = $row['longitude'];
-            $tempRow['tax_name'] = $row['tax_name'];
+            $tempRow['tax_name'] = html_escape($row['tax_name']);
             $tempRow['rating'] = ' <p> (' . intval($row['rating']) . '/' . $row['no_of_ratings'] . ') </p>';;
             $tempRow['tax_number'] = $row['gst'] ?: $row['tax_number'];
             $tempRow['pan_number'] = $row['pan'] ?: $row['pan_number'];
@@ -974,20 +1019,23 @@ class Seller_model extends CI_Model
             $row = output_escaping($row);
 
             $tempRow['id'] = $row['id'];
-            $tempRow['name'] = $row['username'];
+            // These free-text fields are seller-controlled; output_escaping() (used above on
+            // the whole row) only strips backslash-escaping, it does not HTML-encode, so this
+            // was a stored-XSS route the same as already fixed on get_sellers_list().
+            $tempRow['name'] = html_escape($row['username']);
             $tempRow['email'] = $row['email'];
             $tempRow['mobile'] = $row['mobile'];
-            $tempRow['address'] = $row['address'];
-            $tempRow['store_name'] = $row['shop_name'] ?: $row['store_name'];
+            $tempRow['address'] = html_escape($row['address']);
+            $tempRow['store_name'] = html_escape($row['shop_name'] ?: $row['store_name']);
             $tempRow['store_url'] = $row['store_url'];
-            $tempRow['store_description'] = $row['store_description'];
+            $tempRow['store_description'] = html_escape($row['store_description']);
             $tempRow['account_number'] = $row['account_number'];
-            $tempRow['account_name'] = $row['account_holder_name'] ?: $row['account_name'];
+            $tempRow['account_name'] = html_escape($row['account_holder_name'] ?: $row['account_name']);
             $tempRow['bank_code'] = $row['bank_code'];
-            $tempRow['bank_name'] = $row['bank_name'];
+            $tempRow['bank_name'] = html_escape($row['bank_name']);
             $tempRow['latitude'] = $row['latitude'];
             $tempRow['longitude'] = $row['longitude'];
-            $tempRow['tax_name'] = $row['tax_name'];
+            $tempRow['tax_name'] = html_escape($row['tax_name']);
             $tempRow['rating'] = ' <p> (' . intval($row['rating']) . '/' . $row['no_of_ratings'] . ') </p>';;
             $tempRow['tax_number'] = $row['gst'] ?: $row['tax_number'];
             $tempRow['pan_number'] = $row['pan'] ?: $row['pan_number'];

@@ -44,9 +44,6 @@ class Notification_settings extends CI_Controller
             $this->data['title'] = 'Send Notification | ' . $settings['app_name'];
             $this->data['meta_description'] = ' Send Notification | ' . $settings['app_name'];
             $this->data['categories'] = $this->category_model->get_categories();
-            if (isset($_GET['edit_id'])) {
-                $this->data['fetched_data'] = fetch_details('notifications', ['id' => $_GET['edit_id']]);
-            }
             $this->load->view('admin/template', $this->data);
         } else {
             redirect('admin/login', 'refresh');
@@ -55,6 +52,11 @@ class Notification_settings extends CI_Controller
 
     public function get_notification_list()
     {
+        // NOTE: intentionally NOT restricted to is_admin() - this same endpoint is also called
+        // directly by the customer-facing "My Account > Notifications" front-end page
+        // (front-end/*/pages/notifications.php), so a logged-in customer legitimately needs
+        // to reach it too. See the report for the real, separate issue this raises (every
+        // customer currently sees every notification ever sent to anyone, not just their own).
         if ($this->ion_auth->logged_in()) {
             return $this->notification_model->get_notification_list();
         } else {
@@ -63,7 +65,7 @@ class Notification_settings extends CI_Controller
     }
     public function get_notifications_data()
     {
-        if ($this->ion_auth->logged_in()) {
+        if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
             return $this->notification_model->get_notifications_data();
         } else {
             redirect('admin/login', 'refresh');
@@ -95,7 +97,14 @@ class Notification_settings extends CI_Controller
                 return true;
             }
 
-            if (delete_details(['id' => $_GET['id']], 'notifications')) {
+            if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
+                $response['error'] = true;
+                $response['message'] = 'Invalid notification id';
+                echo json_encode($response);
+                return false;
+            }
+
+            if (delete_details(['id' => (int) $_GET['id']], 'notifications')) {
                 $response['error'] = false;
                 $response['message'] = 'Deleted Succesfully';
             } else {
@@ -219,10 +228,14 @@ class Notification_settings extends CI_Controller
                 /* select user's FCM IDs */
                 $user_ids = $this->input->post("select_user_id[]", true);
                 $results = fetch_details('users', null, 'fcm_id', 10000, 0, '', '', "id", $user_ids);
-                $result = array();
-                for ($i = 0; $i <= count($results); $i++) {
-                    if (isset($results[$i]['fcm_id']) && !empty($results[$i]['fcm_id']) && ($results[$i]['fcm_id'] != 'NULL')) {
-                        $res = array_merge($result, $results);
+                // Was looping with an off-by-one bound (count($results), not count($results)-1)
+                // and, on every matching iteration, re-merging the ENTIRE $results array (with
+                // empty/'NULL' fcm_id rows still included) instead of appending just the one
+                // qualifying row - the filter never actually filtered anything.
+                $res = array();
+                foreach ($results as $result_row) {
+                    if (isset($result_row['fcm_id']) && !empty($result_row['fcm_id']) && ($result_row['fcm_id'] != 'NULL')) {
+                        $res[] = $result_row;
                     }
                 }
             } else {
@@ -257,9 +270,16 @@ class Notification_settings extends CI_Controller
             if ($is_image_included) {
                 $notification_image_name =  $_POST['image'];
                 $data['image'] = $_POST['image'];
-                $this->notification_model->add_notification($data);
-            } else {
-                $this->notification_model->add_notification($data);
+            }
+            // Was never checked - a failed insert still fell through and reported the push as
+            // sent successfully, with no record of it ever appearing in this log.
+            if (!$this->notification_model->add_notification($data)) {
+                $this->response['error'] = true;
+                $this->response['message'] = 'Something went wrong saving the notification.';
+                $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                echo json_encode($this->response);
+                return;
             }
             //first check if the push has an image with it
             if ($is_image_included) {
@@ -310,14 +330,34 @@ class Notification_settings extends CI_Controller
                 return true;
             }
 
-            if (delete_details(['id' => $_GET['id']], 'system_notification')) {
+            if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
+                $response['error'] = true;
+                $response['message'] = 'Invalid notification id';
+                echo json_encode($response);
+                return false;
+            }
+
+            if (delete_details(['id' => (int) $_GET['id']], 'system_notification')) {
                 $response['error'] = false;
-                $response['message'] = 'Deleted Succesfully';
+                $response['message'] = 'Deleted successfully';
             } else {
                 $response['error'] = true;
                 $response['message'] = 'Something Went Wrong';
             }
             echo json_encode($response);
+        } else {
+            redirect('admin/login', 'refresh');
+        }
+    }
+
+    public function mark_notification_read()
+    {
+        if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
+            if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
+                echo json_encode(['error' => true, 'message' => 'Invalid notification id']);
+                return false;
+            }
+            return $this->notification_model->mark_notification_read((int) $_GET['id']);
         } else {
             redirect('admin/login', 'refresh');
         }

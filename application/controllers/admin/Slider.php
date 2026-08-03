@@ -74,14 +74,6 @@ class Slider extends CI_Controller
         }
     }
 
-    function get_values_by_type()
-    {
-        if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin() && isset($_GET['type_val'])) {
-            print_r(json_encode(fetch_details($_GET['type_val'], '', 'id,name')));
-        } else {
-            redirect('admin/login', 'refresh');
-        }
-    }
     public function add_slider()
     {
         if (isset($_POST['edit_slider'])) {
@@ -101,13 +93,17 @@ class Slider extends CI_Controller
             }
         }
 
-        $this->form_validation->set_rules('slider_type', 'Slider Type', 'trim|required|xss_clean');
+        // slider_type was only checked for 'required' - never against the actual allowed set,
+        // so a forged request could store an arbitrary type string the rest of the app doesn't
+        // know how to render.
+        $this->form_validation->set_rules('slider_type', 'Slider Type', 'trim|required|xss_clean|in_list[default,categories,products,slider_url]');
         $this->form_validation->set_rules('image', 'Slider Image', 'trim|required|xss_clean', array('required' => 'Slider image is required'));
         if (isset($_POST['slider_type']) && $_POST['slider_type'] == 'categories') {
             $this->form_validation->set_rules('category_id', 'Category', 'trim|required|xss_clean');
         }
         if (isset($_POST['slider_type']) && $_POST['slider_type'] == 'slider_url') {
-            $this->form_validation->set_rules('link', 'Link', 'trim|required|xss_clean');
+            // Had no real URL validation at all - any string passed 'required'.
+            $this->form_validation->set_rules('link', 'Link', 'trim|required|xss_clean|valid_url');
         }
         if (isset($_POST['slider_type']) && $_POST['slider_type'] == 'products') {
             $this->form_validation->set_rules('product_id', 'Product', 'trim|required|xss_clean');
@@ -135,7 +131,10 @@ class Slider extends CI_Controller
 
     public function view_slider()
     {
-
-        return $this->Slider_model->get_slider_list();
+        if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
+            return $this->Slider_model->get_slider_list();
+        } else {
+            redirect('admin/login', 'refresh');
+        }
     }
 }

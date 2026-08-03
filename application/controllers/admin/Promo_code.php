@@ -61,7 +61,11 @@ class Promo_code extends CI_Controller
     public function delete_promo_code()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
-            if (!has_permissions('delete', 'promo_code')) {
+            // Was "return false" with nothing printed - the AJAX call expects a JSON body
+            // (dataType: 'json'), so a permission-denied response came back empty, failed to
+            // parse as JSON, and surfaced as a generic "Something went wrong with ajax!" instead
+            // of a clear permission message.
+            if (print_msg(!has_permissions('delete', 'promo_code'), PERMISSION_ERROR_MSG, 'promo_code', false)) {
                 return false;
             }
 
@@ -98,9 +102,15 @@ class Promo_code extends CI_Controller
             $this->form_validation->set_rules('end_date', 'End date ', 'trim|required|xss_clean');
             $this->form_validation->set_rules('no_of_users', 'No of Users ', 'trim|required|numeric|xss_clean');
             $this->form_validation->set_rules('minimum_order_amount', 'Minimum Order Amount ', 'trim|numeric|required|xss_clean');
-            $this->form_validation->set_rules('discount', 'Discount ', 'trim|required|numeric|xss_clean');
-            $this->form_validation->set_rules('discount_type', 'Discount Type ', 'trim|required|xss_clean');
-            $this->form_validation->set_rules('max_discount_amount', 'Maximum Discount Amount ', 'trim|numeric|required|xss_clean');
+            // 'discount' only had 'numeric' - no bound at all, so a negative discount, or a
+            // percentage discount over 100%, could be created via a direct request with no
+            // server-side check (the client-side keypress/JS guard doesn't count as one).
+            $this->form_validation->set_rules('discount', 'Discount ', 'trim|required|numeric|greater_than[0]|xss_clean');
+            $this->form_validation->set_rules('discount_type', 'Discount Type ', 'trim|required|xss_clean|in_list[percentage,amount]');
+            if (isset($_POST['discount_type']) && $_POST['discount_type'] == 'percentage') {
+                $this->form_validation->set_rules('discount', 'Discount ', 'trim|required|numeric|greater_than[0]|less_than_equal_to[100]|xss_clean');
+            }
+            $this->form_validation->set_rules('max_discount_amount', 'Maximum Discount Amount ', 'trim|numeric|required|greater_than[0]|xss_clean');
             $this->form_validation->set_rules('repeat_usage', 'Repeat Usage ', 'trim|required|xss_clean');
             $this->form_validation->set_rules('is_cashback', 'Is Cashback ', 'trim|xss_clean');
             $this->form_validation->set_rules('list_promocode', 'List Promocode ', 'trim|xss_clean');
@@ -116,6 +126,15 @@ class Promo_code extends CI_Controller
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
                 $this->response['message'] = validation_errors();
+                print_r(json_encode($this->response));
+            } elseif (strtotime($_POST['end_date']) < strtotime($_POST['start_date'])) {
+                // Nothing checked start_date against end_date - an admin could save a code
+                // that can never be redeemed (validate_promo_code()'s date-range WHERE clause
+                // can never be true) with no feedback that anything was wrong.
+                $this->response['error'] = true;
+                $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                $this->response['message'] = 'End date cannot be before the start date.';
                 print_r(json_encode($this->response));
             } else {
 

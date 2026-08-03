@@ -41,21 +41,6 @@ class Customer extends CI_Controller
         }
     }
 
-    public function manage_customer_wallet()
-    {
-        if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
-
-            $this->data['main_page'] = TABLES . 'manage-customer-wallet';
-            $settings = get_settings('system_settings', true);
-            $this->data['title'] = 'View Customer | ' . $settings['app_name'];
-            $this->data['meta_description'] = ' View Customer  | ' . $settings['app_name'];
-            $this->data['about_us'] = get_settings('about_us');
-            $this->load->view('admin/template', $this->data);
-        } else {
-            redirect('admin/login', 'refresh');
-        }
-    }
-
     public function update_customer_wallet()
     {
 
@@ -66,7 +51,12 @@ class Customer extends CI_Controller
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
             $this->form_validation->set_rules('user_id', 'User ID', 'trim|required|xss_clean');
             $this->form_validation->set_rules('type', 'Type', 'trim|required|xss_clean');
-            $this->form_validation->set_rules('amount', 'Amount', 'trim|required|xss_clean|numeric');
+            // 'numeric' alone allows negative amounts and zero - a credit/refund submitted with
+            // a negative amount would run update_wallet_balance()'s credit branch but actually
+            // DEBIT the balance (balance + a negative number), while the transaction log still
+            // records it as type=credit - a direction mismatch between what's logged and what
+            // actually happened to the balance.
+            $this->form_validation->set_rules('amount', 'Amount', 'trim|required|xss_clean|numeric|greater_than[0]');
             $this->form_validation->set_rules('message', 'Message', 'trim|required|xss_clean');
 
             if (!$this->form_validation->run()) {
@@ -91,9 +81,13 @@ class Customer extends CI_Controller
 
     public function search_user()
     {
+        // The search term was pasted directly into a raw WHERE string - a real, live SQL
+        // injection reachable by any logged-in admin/sub-admin. Uses the query builder's
+        // own escaping instead.
+        $search = isset($_GET['search']) ? $_GET['search'] : '';
         // Fetch users
         $this->db->select('*');
-        $this->db->where("username like '%" . $_GET['search'] . "%'");
+        $this->db->like('username', $search);
         $fetched_records = $this->db->get('users');
         $users = $fetched_records->result_array();
         // Initialize Array with fetched data
@@ -122,8 +116,10 @@ class Customer extends CI_Controller
     public function get_address()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
-
-            $this->address_model->get_address_list();
+            // This admin view is read-only (no edit/delete/set-default controls of its own) -
+            // the action buttons this model can build post straight to the customer-facing
+            // My_account endpoints and have no place being rendered here.
+            $this->address_model->get_address_list('', true, false);
         } else {
             redirect('admin/login', 'refresh');
         }

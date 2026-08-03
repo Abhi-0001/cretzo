@@ -50,14 +50,15 @@ class Transaction_model extends CI_Model
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "id";
-            } else {
-                $sort = $_GET['sort'];
-            }
-        if (isset($_GET['order']))
-            $order = $_GET['order'];
+        // Sort column was passed straight into order_by() with no whitelist - an injection
+        // route the same as already fixed on other list pages.
+        $allowed_sort_columns = ['id', 'transactions.id', 'amount', 'transactions.amount', 'date_created', 'transactions.date_created'];
+        if (isset($_GET['sort']) && in_array($_GET['sort'], $allowed_sort_columns, true)) {
+            $sort = $_GET['sort'];
+        }
+        if (isset($_GET['order']) && strtolower($_GET['order']) === 'desc') {
+            $order = 'DESC';
+        }
 
         if (isset($_GET['search']) and $_GET['search'] != '') {
             $search = $_GET['search'];
@@ -79,29 +80,6 @@ class Transaction_model extends CI_Model
                 $group_id = $group_id_res[0]['id'];
             }
         }
-        // $count_res = $this->db->select(' COUNT(transactions.id) as `total` ')->join('users', ' transactions.user_id = users.id', 'left')->join('users_groups ug', 'ug.user_id = users.id')->where('ug.group_id = ' . $group_id);
-
-        // if (isset($multipleWhere) && !empty($multipleWhere)) {
-        //     $this->db->group_Start();
-        //     $count_res->or_like($multipleWhere);
-        //     $this->db->group_End();
-        // }
-        // if (isset($where) && !empty($where)) {
-        //     $count_res->where($where);
-        // }
-        // if (isset($user_where) && !empty($user_where)) {
-        //     $count_res->where($user_where);
-        // }
-        // if (isset($group_id) && !empty($group_id) && $group_id == 2) {
-        //     $count_res->or_where('ug.group_id = 1');
-        // }
-
-        // $txn_count = $count_res->get('transactions')->result_array();
-        // // print_R(count($txn_count));
-
-        //     $total = $txn_count[0]['total'];
-
-
         $count_res = $this->db->select(' COUNT(transactions.id) as `total`  ');
 
         if (isset($multipleWhere) && !empty($multipleWhere)) {
@@ -115,14 +93,30 @@ class Transaction_model extends CI_Model
         if (isset($user_where) && !empty($user_where)) {
             $count_res->where($user_where);
         }
+        // Was or_where('ug.group_id = 1') here, followed unconditionally by
+        // where('ug.group_id = ' . $group_id) below - SQL's AND binding tighter than OR
+        // collapsed the whole clause to "<other conditions> OR (ug.group_id=1 AND
+        // ug.group_id=2)", an always-false second half, which silently dropped the group
+        // filter entirely the moment any other where/search condition was present (any
+        // $_GET['transaction_type']) - customer-only views like View Transaction and Customer
+        // Wallet ended up showing every role's transactions mixed together instead of just
+        // customers'. Grouped so the two group ids are evaluated together, independent of
+        // whatever other conditions are already attached.
         if (isset($group_id) && !empty($group_id) && $group_id == 2) {
-            $count_res->or_where('ug.group_id = 1');
+            $count_res->group_start()->where('ug.group_id', 1)->or_where('ug.group_id', 2)->group_end();
+        } else {
+            $count_res->where('ug.group_id', $group_id);
         }
-        $txn_count = $count_res->join('users', ' transactions.user_id = users.id', 'left')->join('users_groups ug', 'ug.user_id = users.id')->where('ug.group_id = ' . $group_id)->get('transactions')->result_array();
+        // users_groups was joined with no join-type argument, which CodeIgniter renders as a
+        // plain (INNER) JOIN. Combined with the mandatory ug.group_id filter, any transaction
+        // whose user has no matching users_groups row (deleted account, orphaned/system
+        // transaction) was silently excluded from both the count and the row list, on every
+        // page, under every filter.
+        $txn_count = $count_res->join('users', ' transactions.user_id = users.id', 'left')->join('users_groups ug', 'ug.user_id = users.id', 'left')->get('transactions')->result_array();
 
         $total = $txn_count[0]['total'];
         // ---------------------------------------
-        
+
 
         $search_res = $this->db->select(' transactions.*,users.username as name  ');
 
@@ -138,9 +132,11 @@ class Transaction_model extends CI_Model
             $search_res->where($user_where);
         }
         if (isset($group_id) && !empty($group_id) && $group_id == 2) {
-            $count_res->or_where('ug.group_id = 1');
+            $search_res->group_start()->where('ug.group_id', 1)->or_where('ug.group_id', 2)->group_end();
+        } else {
+            $search_res->where('ug.group_id', $group_id);
         }
-        $search_res->join('users', ' transactions.user_id = users.id', 'left')->join('users_groups ug', 'ug.user_id = users.id')->where('ug.group_id = ' . $group_id);
+        $search_res->join('users', ' transactions.user_id = users.id', 'left')->join('users_groups ug', 'ug.user_id = users.id', 'left');
         $txn_search_res = $search_res->order_by($sort, $order)->limit($limit, $offset)->get('transactions')->result_array();
         // print_R(count($txn_search_res));
        
@@ -151,22 +147,23 @@ class Transaction_model extends CI_Model
 
         foreach ($txn_search_res as $row) {
             $row = output_escaping($row);
-            // echo "<pre>";
-            // print_r($row);
+            // output_escaping() only strips backslash-escaping, it does not HTML-encode - name/
+            // message/txn_id are free text (the message in particular is admin/seller-entered)
+            // and were rendered raw, a stored-XSS route the same as already fixed elsewhere.
             if ($row['type'] == 'bank_transfer') {
-                $operate = ' <a href="javascript:void(0)" class="edit_transaction action-btn btn btn-success btn-xs mr-1 mb-1" title="Edit" data-id="' . $row['id'] . '" data-txn_id="' . $row['txn_id'] . '" data-status="' . $row['status'] . '" data-message="' . $row['message'] . '"  data-target="#transaction_modal" data-toggle="modal"><i class="fa fa-pen"></i></a>';
+                $operate = ' <a href="javascript:void(0)" class="edit_transaction action-btn btn btn-success btn-xs mr-1 mb-1" title="Edit" data-id="' . $row['id'] . '" data-txn_id="' . html_escape($row['txn_id']) . '" data-status="' . html_escape($row['status']) . '" data-message="' . html_escape($row['message']) . '"  data-target="#transaction_modal" data-toggle="modal"><i class="fa fa-pen"></i></a>';
             } else {
                 $operate = "";
             }
             $tempRow['id'] = $row['id'];
-            $tempRow['name'] = $row['name'];
+            $tempRow['name'] = html_escape($row['name']);
             $tempRow['order_id'] = $row['order_id'];
             $tempRow['type'] = $row['type'];
-            $tempRow['txn_id'] = $row['txn_id'];
+            $tempRow['txn_id'] = html_escape($row['txn_id']);
             $tempRow['payu_txn_id'] = $row['payu_txn_id'];
             $tempRow['amount'] = $row['amount'];
             $tempRow['status'] = $row['status'];
-            $tempRow['message'] = $row['message'];
+            $tempRow['message'] = html_escape($row['message']);
             $tempRow['txn_date'] = $row['transaction_date'];
             $tempRow['date'] = $row['date_created'];
             $tempRow['operate'] = $operate;

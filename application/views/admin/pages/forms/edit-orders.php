@@ -1,17 +1,19 @@
-<div class="content-wrapper">
+<div class="content-wrapper admin-view-order-page">
     <!-- Content Header (Page header) -->
     <!-- Main content -->
     <section class="content-header">
         <div class="container-fluid">
-            <div class="row mb-2">
+            <div class="row mb-2 align-items-center">
                 <div class="col-sm-6">
-                    <h4>View Order</h4>
+                    <h4 class="mb-0"><i class="fas fa-receipt mr-2 text-primary-theme"></i>View Order #<?= (int) $order_detls[0]['id'] ?></h4>
+                    <p class="text-muted mb-0 small">Order status, courier tracking and item details for this order.</p>
                 </div>
 
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">
                         <li class="breadcrumb-item"><a href="<?= base_url('admin/home') ?>">Home</a></li>
-                        <li class="breadcrumb-item active">Orders</li>
+                        <li class="breadcrumb-item"><a href="<?= base_url('admin/orders') ?>">Orders</a></li>
+                        <li class="breadcrumb-item active">View Order</li>
                     </ol>
                 </div>
             </div>
@@ -225,9 +227,13 @@
                 </div>
 
                 <div class="col-md-12">
-                    <div class="card card-info">
+                    <div class="card attribute-card">
+                        <div class="card-header attribute-card-header">
+                            <span class="header-icon bg-set"><i class="fas fa-receipt"></i></span>
+                            <h5 class="mb-0">Order Summary</h5>
+                        </div>
                         <div class="card-body">
-                            <table class="table">
+                            <table class="table order-detail-table">
                                 <?php
                                 $mobile_data = fetch_details('addresses', ['id' => $order_detls[0]['address_id']], 'mobile');
                                 ?>
@@ -322,9 +328,24 @@
                                                     </select>
                                                 </div>
                                                 <div class="col-md-6">
-                                                    <!-- <a href="javascript:void(0)" class="edit_order_tracking btn btn-success btn-xl" title="Order Tracking" data-order_id=' <?= $order_detls[0]['id']; ?>' data-seller_id=' <?= $sellers[$i] ?> ' data-courier_agency=' <?= $item['courier_agency'] ?> ' data-tracking_id=' <?= $item['tracking_id'] ?> ' data-url=' <?= $item['url'] ?> ' data-target="#transaction_modal" data-toggle="modal" style="height:35px;width:38px;"><i class="fa fa-map-marker-alt"></i></a> -->
+                                                    <?php
+                                                    // A leftover, HTML-commented copy of the line below it - PHP still evaluates
+                                                    // short-echo tags inside an HTML comment, so this raised "Undefined variable $i" /
+                                                    // "Undefined array key ''" on every load ($i isn't defined until the per-seller
+                                                    // loop starts further down) despite never actually rendering anything.
+                                                    ?>
                                                     <a href="javascript:void(0)" class="edit_order_tracking btn btn-success btn-xl " title="Order Tracking" data-order_id=' <?= $order_detls[0]['id']; ?>' data-target="#transaction_modal" data-toggle="modal" style="height:35px;width:38px;"><i class="fa fa-map-marker-alt"></i></a>
-                                                    <a href="javascript:void(0);" title="Bulk Update" data-id=' <?= $sellers[$i] ?> ' class="btn btn-primary ml-3 col-md-4 update_status_admin_bulk">
+                                                    <?php
+                                                    // data-id here relied on $sellers[$i], but $i isn't defined until the per-seller
+                                                    // loop below starts - this button renders before it, on the seller-agnostic
+                                                    // "bulk update" row. The JS handler (update_status_admin_bulk in custom.js)
+                                                    // already treats data-id as a last-resort fallback behind the actual seller
+                                                    // radio button (input[name="seller_id"]:checked, rendered correctly per-seller
+                                                    // further down) - removing this broken attribute doesn't change how seller
+                                                    // selection actually works, it just stops raising a warning for a value
+                                                    // nothing meaningfully depended on.
+                                                    ?>
+                                                    <a href="javascript:void(0);" title="Bulk Update" class="btn btn-primary ml-3 col-md-4 update_status_admin_bulk">
                                                         Update
                                                     </a>
                                                     <?php if ($shipping_method['shiprocket_shipping_method'] == 1) { ?>
@@ -346,11 +367,20 @@
                                     </td>
                                 </tr>
                                 <div class="row">
-                                    <form id="update_form" class="<?= $sellers[$i] ?>">
+                                    <?php
+                                    // This form's class attribute referenced the per-seller $sellers[$i] value before the
+                                    // per-seller loop below defines it, and nothing in custom.js ever selects this form by
+                                    // a per-seller class anyway - it's targeted throughout by #update_form (an id, already
+                                    // unique and correct).
+                                    ?>
+                                    <form id="update_form">
                                         <?php
                                         for ($i = 0; $i < count($sellers); $i++) {
                                             $seller_data = fetch_details('users', ['id' => $sellers[$i]], 'username,fcm_id,email,mobile');
-                                            $seller_otp = fetch_details('order_items', ['order_id' => $order_detls[0]['order_id'], 'seller_id' => $sellers[$i]], 'otp')[0]['otp'];
+                                            // fetch_details(...)[0]['otp'] indexed straight into the result with no guard - an
+                                            // order whose items for this seller have no otp recorded raised "Undefined array key 0".
+                                            $seller_otp_rows = fetch_details('order_items', ['order_id' => $order_detls[0]['order_id'], 'seller_id' => $sellers[$i]], 'otp');
+                                            $seller_otp = !empty($seller_otp_rows[0]['otp']) ? $seller_otp_rows[0]['otp'] : '';
                                             $order_caharges_data = fetch_details('order_charges', ['order_id' => $order_detls[0]['order_id'], 'seller_id' => $sellers[$i]]);
                                             $this->load->model('Order_model');
                                             $seller_order = $this->Order_model->get_order_details(['o.id' => $order_detls[0]['order_id'], 'oi.seller_id' => $sellers[$i]]);
@@ -366,7 +396,7 @@
                                                                 <strong>
                                                                     <p class="mb-0">Seller :
                                                                 </strong>
-                                                                <?= ucfirst($seller_data[0]['username']) ?></p>
+                                                                <?= !empty($seller_data[0]['username']) ? ucfirst($seller_data[0]['username']) : 'N/A' ?></p>
                                                                 <?php if ($items[0]['product_type'] != 'digital_product') { ?>
                                                                     <strong>
                                                                         <p>OTP :
@@ -384,29 +414,49 @@
                                                                 }
                                                                 $order_item_ids = explode(',', trim($ids, ','));
                                                                 $order_tracking_data = get_shipment_id($order_item_ids[0], $order_detls[0]['order_id']);
-                                                                $shiprocket_order = get_shiprocket_order($order_tracking_data[0]['shiprocket_order_id']);
+                                                                // get_shipment_id() returns false when this pickup location has never actually
+                                                                // been shipped via Shiprocket - true of every order in this database, and true
+                                                                // of any order on a site that doesn't use Shiprocket at all. The code below
+                                                                // used to call the live Shiprocket API with a null order id in that case
+                                                                // ($order_tracking_data[0][...] on a bool - "Trying to access array offset on
+                                                                // value of type bool"), then read ['data']['status'] off of whatever came back
+                                                                // from that meaningless call, cascading into "Undefined array key" warnings on
+                                                                // every status check and every action button below. Both are skipped now
+                                                                // unless there is an actual shipment on record, and $shiprocket_order always
+                                                                // has a 'data' array (even if empty) so every ['data'][...] read below stays
+                                                                // safe either way.
+                                                                $shiprocket_order = ['data' => []];
+                                                                if (!empty($order_tracking_data) && !empty($order_tracking_data[0]['shiprocket_order_id'])) {
+                                                                    $fetched_shiprocket_order = get_shiprocket_order($order_tracking_data[0]['shiprocket_order_id']);
+                                                                    if (is_array($fetched_shiprocket_order) && !empty($fetched_shiprocket_order['data'])) {
+                                                                        $shiprocket_order = $fetched_shiprocket_order;
+                                                                    }
+                                                                }
+                                                                $shiprocket_status = isset($shiprocket_order['data']['status']) ? $shiprocket_order['data']['status'] : '';
+                                                                $shiprocket_status_code = isset($shiprocket_order['data']['status_code']) ? $shiprocket_order['data']['status_code'] : null;
                                                                 foreach ($order_item_ids as $id) {
-                                                                    $active_status = fetch_details('order_items', ['id' => $id, 'seller_id' => $sellers[$i]], 'active_status')[0]['active_status'];
+                                                                    $active_status_rows = fetch_details('order_items', ['id' => $id, 'seller_id' => $sellers[$i]], 'active_status');
+                                                                    $active_status = !empty($active_status_rows[0]['active_status']) ? $active_status_rows[0]['active_status'] : '';
 
-                                                                    if ($shiprocket_order['data']['status'] == 'PICKUP SCHEDULED' &&  $active_status != 'shipped') {
+                                                                    if ($shiprocket_status == 'PICKUP SCHEDULED' &&  $active_status != 'shipped') {
                                                                         $this->Order_model->update_order(['active_status' => 'shipped'], ['id' => $id, 'seller_id' => $sellers[$i]], false, 'order_items');
                                                                         $this->Order_model->update_order(['status' => 'shipped'], ['id' => $id, 'seller_id' => $sellers[$i]], true, 'order_items');
                                                                         $type = ['type' => "customer_order_shipped"];
                                                                         $order_status = 'shipped';
                                                                     }
-                                                                    if (($shiprocket_order['data']['status'] == 'CANCELED' || $shiprocket_order['data']['status'] == 'CANCELLATION REQUESTED') &&  $active_status != 'cancelled') {
+                                                                    if (($shiprocket_status == 'CANCELED' || $shiprocket_status == 'CANCELLATION REQUESTED') &&  $active_status != 'cancelled') {
                                                                         $this->Order_model->update_order(['active_status' => 'cancelled'], ['id' => $id, 'seller_id' => $sellers[$i]], false, 'order_items');
                                                                         $this->Order_model->update_order(['status' => 'cancelled'], ['id' => $id, 'seller_id' => $sellers[$i]], true, 'order_items');
                                                                         $type = ['type' => "customer_order_cancelled"];
                                                                         $order_status = 'cancelled';
                                                                     }
-                                                                    if (strtolower($shiprocket_order['data']['status']) == 'delivered' &&  $active_status != 'delivered') {
+                                                                    if (strtolower($shiprocket_status) == 'delivered' &&  $active_status != 'delivered') {
                                                                         $this->Order_model->update_order(['active_status' => 'delivered'], ['id' => $id, 'seller_id' => $sellers[$i]], false, 'order_items');
                                                                         $this->Order_model->update_order(['status' => 'delivered'], ['id' => $id, 'seller_id' => $sellers[$i]], true, 'order_items');
                                                                         $type = ['type' => "customer_order_delivered"];
                                                                         $order_status = 'delivered';
                                                                     }
-                                                                    if ($shiprocket_order['data']['status'] == 'READY TO SHIP' &&  $active_status != 'processed') {
+                                                                    if ($shiprocket_status == 'READY TO SHIP' &&  $active_status != 'processed') {
                                                                         $this->Order_model->update_order(['active_status' => 'processed'], ['id' => $id, 'seller_id' => $sellers[$i]], false, 'order_items');
                                                                         $this->Order_model->update_order(['status' => 'processed'], ['id' => $id, 'seller_id' => $sellers[$i]], true, 'order_items');
                                                                         $type = ['type' => "customer_order_processed"];
@@ -463,7 +513,10 @@
                                                                 <?php if ($shipping_method['shiprocket_shipping_method'] == 1 && isset($pickup_location[$j]) && !empty($pickup_location[$j]) && $pickup_location[$j] != 'NULL') { ?>
                                                                     <div class="row">
                                                                         <div class="col-sm-0 ml-4 m-2 text-left mt-3 ">
-                                                                            <?php if ($item['product_type'] != 'digital_product' && empty($order_tracking_data[0]['shipment_id'])) { ?>
+                                                                            <?php // $item isn't defined yet here (only set later by the foreach($items as $item)
+                                                                            // loop below) - $items[0] is the same fallback the rest of this page already
+                                                                            // uses before that loop runs. ?>
+                                                                            <?php if ($items[0]['product_type'] != 'digital_product' && empty($order_tracking_data[0]['shipment_id'])) { ?>
                                                                                 <input type="radio" name="pickup_location" class="check_create_order" data-id="<?= $sellers[$i] ?>" id="<?php print_r($pickup_location[$j]); ?>" />
                                                                             <?php } ?>
                                                                         </div>
@@ -479,12 +532,12 @@
                                                                     </div>
                                                                     <div class="row m-2 ml-6">
                                                                         <div class="col-sm-0 ml-4 m-2"></div>
-                                                                        <?php if (isset($order_tracking_data[0]['shipment_id']) && !empty($order_tracking_data[0]['shipment_id']) && empty($order_tracking_data[0]['is_canceled']) && $order_tracking_data[0]['is_canceled'] != 1 && $shiprocket_order['data']['status'] != 'CANCELED') { ?>
+                                                                        <?php if (isset($order_tracking_data[0]['shipment_id']) && !empty($order_tracking_data[0]['shipment_id']) && empty($order_tracking_data[0]['is_canceled']) && $order_tracking_data[0]['is_canceled'] != 1 && $shiprocket_status != 'CANCELED') { ?>
                                                                             <div class="col-md-1">
                                                                                 <span class="badge bg-success ml-1">Order created</span>
                                                                             </div>
                                                                         <?php } ?>
-                                                                        <?php if (isset($items[0]['product_type']) && ($item['product_type'] != 'digital_product')) {  ?>
+                                                                        <?php if (isset($items[0]['product_type']) && ($items[0]['product_type'] != 'digital_product')) {  ?>
                                                                             <?php if (empty($order_tracking_data[0]['shipment_id'])) { ?>
                                                                                 <div class="col-md-1">
                                                                                     <span class="badge bg-primary ml-1">Order not created</span>
@@ -492,17 +545,17 @@
                                                                         <?php }
                                                                         } ?>
 
-                                                                        <?php if ((isset($order_tracking_data[0]['is_canceled']) && $order_tracking_data[0]['is_canceled'] != 0) || $shiprocket_order['data']['status'] == 'CANCELED') { ?>
+                                                                        <?php if ((isset($order_tracking_data[0]['is_canceled']) && $order_tracking_data[0]['is_canceled'] != 0) || $shiprocket_status == 'CANCELED') { ?>
                                                                             <div class="col-md-1">
                                                                                 <span class="badge bg-danger ml-1">Order cancelled</span>
                                                                             </div>
                                                                         <?php  } ?>
                                                                         <div class="col-md-5">
                                                                             <?php if (isset($order_tracking_data[0])) { ?>
-                                                                                <?php if (isset($order_tracking_data[0]['shipment_id']) && (empty($order_tracking_data[0]['awb_code']) || $order_tracking_data[0]['awb_code'] == 'NULL') && $shiprocket_order['data']['status'] != 'CANCELED') { ?>
+                                                                                <?php if (isset($order_tracking_data[0]['shipment_id']) && (empty($order_tracking_data[0]['awb_code']) || $order_tracking_data[0]['awb_code'] == 'NULL') && $shiprocket_status != 'CANCELED') { ?>
                                                                                     <a href="" title="Generate AWB" class="btn btn-primary btn-xs mr-1 generate_awb" data-fromadmin="1" id=<?php print_r($order_tracking_data[0]['shipment_id']); ?>>AWB</a>
                                                                                 <?php } else { ?>
-                                                                                    <?php if (empty($order_tracking_data[0]['pickup_scheduled_date']) && ($shiprocket_order['data']['status_code'] != 4 || $shiprocket_order['data']['status'] != 'PICKUP SCHEDULED') && $shiprocket_order['data']['status'] != 'CANCELED' && $shiprocket_order['data']['status'] != 'CANCELLATION REQUESTED') { ?>
+                                                                                    <?php if (empty($order_tracking_data[0]['pickup_scheduled_date']) && ($shiprocket_status_code != 4 || $shiprocket_status != 'PICKUP SCHEDULED') && $shiprocket_status != 'CANCELED' && $shiprocket_status != 'CANCELLATION REQUESTED') { ?>
                                                                                         <a href="" title="Send Pickup Request" class="btn btn-primary btn-xs mr-1 send_pickup_request" data-fromadmin="1" name=<?php print_r($order_tracking_data[0]['shipment_id']); ?>><i class="fas fa-shipping-fast "></i></a>
                                                                                     <?php }
                                                                                     if (isset($order_tracking_data[0]['is_canceled']) && $order_tracking_data[0]['is_canceled'] == 0) { ?>
@@ -621,51 +674,34 @@
                                                                                         </div>
                                                                                     <?php } ?>
 
-                                                                                    <!-- <div class="row mb-1 mt-1 order_item_status">
-                                                    <div class="col-md-7 text-center"><select class="form-control-sm w-100">
-                                                            <option value="processed" <?= (strtolower($item['active_status']) == 'processed') ? 'selected' : '' ?>>Processed</option>
-                                                            <option value="shipped" <?= (strtolower($item['active_status']) == 'shipped') ? 'selected' : '' ?>>Shipped</option>
-                                                            <option value="delivered" <?= (strtolower($item['active_status']) == 'delivered') ? 'selected' : '' ?>>Delivered</option>
-                                                            <option value="returned" <?= (strtolower($item['active_status']) == 'returned') ? 'selected' : '' ?>>Return</option>
-                                                            <option value="cancelled" <?= (strtolower($item['active_status']) == 'cancelled') ? 'selected' : '' ?>>Cancel</option>
-                                                        </select>
-                                                    </div>
-                                                    <div class="col-md-5 d-flex align-items-center">
-                                                        <a href="javascript:void(0);" title="Update status" data-id=' <?= $item['id'] ?> ' class="btn btn-primary btn-xs action-btn ml-1 update_status_admin mr-1">
-                                                            <i class="far fa-arrow-alt-circle-up"></i>
-                                                        </a>
-                                                        <a href=" <?= BASE_URL('admin/product/view-product?edit_id=' . $item['product_id'] . '') ?> " title="View Product" class="btn action-btn ml-1 btn-primary btn-xs">
-                                                            <i class="fa fa-eye"></i>
-                                                        </a>
-                                                    </div>
-                                                </div> -->
-                                                                                    <!-- <div class="row mb-1 mt-1 delivery_boy">
-                                                    <div class="col-md-7 text-center">
-                                                        <select name='single_deliver_by' class='form-control-sm w-100' required>
-                                                            <option value=''>Select Delivery Boy</option>
-                                                            <?php
-                                                                                $delivery_boy_id = fetch_details('order_items', ['id' => $item['id']], 'delivery_boy_id');
-                                                                                foreach ($delivery_res as $row) {
-                                                                                    $selected = (isset($delivery_boy_id) && !empty($delivery_boy_id) && $delivery_boy_id[0]['delivery_boy_id'] == $row['user_id']) ? 'selected' : '';
-                                                            ?>
-                                                                <option value="<?= $row['user_id'] ?>" <?= $selected ?>><?= $row['username'] ?></option>
-                                                            <?php  } ?>
-                                                        </select>
-                                                    </div>
-                                                    <div class="col-md-5 d-flex align-items-center">
-
-                                                        <a href="javascript:void(0);" title="Update Delivery Boy" data-id=' <?= $item['id'] ?> ' class="btn btn-primary btn-xs action-btn ml-1 update_delivery_boy_admin mr-1">
-                                                            <i class="far fa-arrow-alt-circle-up"></i>
-                                                        </a>
-                                                        <a href="javascript:void(0)" class="edit_order_tracking btn btn-success btn-xs mr-1 action-btn ml-1 " title="Order Tracking" data-order_id=' <?= $order_detls[0]['id']; ?>' data-order_item_id=' <?= $item['id'] ?> ' data-seller_id=' <?= $item['seller_id'] ?> ' data-courier_agency=' <?= $item['courier_agency'] ?> ' data-tracking_id=' <?= $item['tracking_id'] ?> ' data-url=' <?= $item['url'] ?> ' data-target="#transaction_modal" data-toggle="modal"><i class="fa fa-map-marker-alt"></i></a>
-                                                        <?php
-                                                                                $transaction_data = fetch_details('transactions', ['order_item_id' => $item['id']], 'txn_id,amount');
-                                                                                if (($order_detls[0]['payment_method'] == 'RazorPay' || $order_detls[0]['payment_method'] == 'razorpay' || $order_detls[0]['payment_method'] == 'Razorpay') && $item['active_status'] == 'cancelled' || $item['active_status'] == 'returned') { ?>
-                                                            <a href="javascript:void(0)" class="edit_order_refund btn shipped-box btn-xs mr-1 " title="Refund" data-order_id=' <?= $order_detls[0]['id']; ?>' data-order_item_id=' <?= $item['id'] ?>' data-txn_id=' <?= $transaction_data[0]['txn_id'] ?>' data-txn_amount=' <?= $transaction_data[0]['amount'] ?>' data-target="#refund_modal" data-toggle="modal"><i class="fa fa-undo"></i></a>
-                                                        <?php }
-                                                        ?>
-                                                    </div>
-                                                </div> -->
+                                                                                    <?php
+                                                                                    // Two dead sections used to sit here, wrapped in HTML comments so nothing
+                                                                                    // rendered - but PHP evaluates short-echo tags regardless of the surrounding
+                                                                                    // HTML comment syntax, so both still executed on every page load. The
+                                                                                    // "order_item_status" section (per-item status change) is superseded by
+                                                                                    // the seller-level bulk update control above and is dropped entirely. The
+                                                                                    // "delivery_boy" section also contained the ONLY trigger anywhere on this
+                                                                                    // page for the Refund button - #refund_modal and its working
+                                                                                    // admin/orders/refund_payment endpoint both still exist, but with this
+                                                                                    // commented out there was no way to open that modal at all. Restored,
+                                                                                    // fixed, and pared down to just that: the per-item delivery-boy and
+                                                                                    // tracking controls it also contained are dropped as duplicates of the
+                                                                                    // bulk section and the seller-level tracking button above.
+                                                                                    $transaction_data = fetch_details('transactions', ['order_item_id' => $item['id']], 'txn_id,amount');
+                                                                                    // Operator precedence bug: "A || B || C) && D || E" parses as
+                                                                                    // "((A||B||C) && D) || E" - so ANY item with active_status=='returned'
+                                                                                    // showed a refund button regardless of payment method, including COD and
+                                                                                    // bank transfer orders that were never charged through Razorpay at all.
+                                                                                    $is_razorpay_payment = in_array($order_detls[0]['payment_method'], ['RazorPay', 'razorpay', 'Razorpay'], true);
+                                                                                    $is_refundable_status = in_array($item['active_status'], ['cancelled', 'returned'], true);
+                                                                                    if ($is_razorpay_payment && $is_refundable_status) { ?>
+                                                                                        <a href="javascript:void(0)" class="edit_order_refund btn shipped-box btn-xs mr-1" title="Refund"
+                                                                                            data-order_id="<?= (int) $order_detls[0]['id'] ?>"
+                                                                                            data-order_item_id="<?= (int) $item['id'] ?>"
+                                                                                            data-txn_id="<?= html_escape($transaction_data[0]['txn_id'] ?? '') ?>"
+                                                                                            data-txn_amount="<?= html_escape($transaction_data[0]['amount'] ?? '') ?>"
+                                                                                            data-target="#refund_modal" data-toggle="modal"><i class="fa fa-undo"></i></a>
+                                                                                    <?php } ?>
 
 
                                                                                 </div>
@@ -888,3 +924,62 @@
         </div>
     </div>
 </div>
+
+<style>
+    .admin-view-order-page .text-primary-theme { color: var(--color-orange); }
+
+    .admin-view-order-page .attribute-card { border: none; border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,0.06); }
+    .admin-view-order-page .attribute-card-header {
+        background: #fff;
+        border-bottom: 1px solid rgba(0,0,0,0.06);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        border-radius: 10px 10px 0 0;
+    }
+    .admin-view-order-page .header-icon {
+        width: 34px; height: 34px; border-radius: 8px;
+        display: flex; align-items: center; justify-content: center;
+        color: #fff; font-size: 14px; flex: none;
+    }
+    .admin-view-order-page .header-icon.bg-set { background: var(--color-orange); }
+
+    /* The order summary is a label/value table, not a header+rows list table, so it gets its
+       own treatment rather than the uppercase-header style used on this page's list tables. */
+    .admin-view-order-page .order-detail-table th {
+        border-top: none;
+        border-bottom: 1px solid rgba(0,0,0,0.05);
+        color: var(--color-grey);
+        font-weight: 600;
+        width: 220px;
+        white-space: nowrap;
+        vertical-align: top;
+        padding-top: 14px;
+    }
+    .admin-view-order-page .order-detail-table td {
+        border-top: none;
+        border-bottom: 1px solid rgba(0,0,0,0.05);
+        vertical-align: top;
+        padding-top: 14px;
+    }
+    .admin-view-order-page .order-detail-table tr:last-child th,
+    .admin-view-order-page .order-detail-table tr:last-child td { border-bottom: none; }
+
+    /* Per-seller and per-item cards used the default AdminLTE "info" skin (a blue accent bar) -
+       restyled to the same soft shadow/rounded look used everywhere else in the redesigned panel. */
+    .admin-view-order-page .card-info {
+        border: none;
+        border-radius: 10px;
+        box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+    }
+    .admin-view-order-page .card-info.card-outline { border-top: 3px solid var(--color-orange); }
+
+    .admin-view-order-page .form-control:focus { border-color: var(--color-orange); box-shadow: 0 0 0 .15rem var(--color-orange-light); }
+
+    /* Same action-button spacing fix applied on every other page this engagement - these rows
+       carry several icons (Order Tracking / View Product / Refund / Send Mail) that would
+       otherwise crowd or wrap unpredictably. */
+    .admin-view-order-page .action-btn { display: inline-block; vertical-align: middle; }
+    .admin-view-order-page .grow { transition: box-shadow .15s ease; }
+    .admin-view-order-page .grow:hover { box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
+</style>

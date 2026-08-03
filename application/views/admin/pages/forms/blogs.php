@@ -31,7 +31,7 @@
                                     <label for="blog_title" class="col-sm-2 col-form-label">Title <span class='text-danger text-sm'>*</span></label>
 
                                     <div class="col-md-6">
-                                        <input type="text" class="form-control" id="blog_title" placeholder="Title" name="blog_title" value="<?= isset($fetched_data[0]['title']) ? output_escaping($fetched_data[0]['title']) : "" ?>">
+                                        <input type="text" class="form-control" id="blog_title" placeholder="Title" name="blog_title" value="<?= isset($fetched_data[0]['title']) ? html_escape($fetched_data[0]['title']) : "" ?>">
                                     </div>
                                 </div>
 
@@ -41,21 +41,21 @@
                                 <div class="form-group row">
                                     <label for="blog_category" class="col-sm-2 col-form-label">Select Categories <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-md-6 ">
-                                        <select name="blog_category" class="get_blog_category w-100" data-placeholder=" Type to search and select products">
-
+                                        <select name="blog_category" class="get_blog_category w-100" data-placeholder=" Type to search and select category">
                                             <?php
-                                            $category_name =  fetch_details('blog_categories', "", 'name,id', "", "", "", "", "id", $category_id);
-                                            foreach ($category_name as $row) {
+                                            // Only pre-render the currently selected category (its option needs a real
+                                            // value="<id>", which this never had - without one the browser defaults an
+                                            // option's value to its own text, so saving without touching this dropdown
+                                            // silently submitted the category NAME as blog_category, corrupting the
+                                            // integer category_id column). Everything else is found via this field's
+                                            // own AJAX search (get_blog_category), so nothing needs pre-listing here.
+                                            if ($category_id !== '') {
+                                                $category_name = fetch_details('blog_categories', ['id' => $category_id], 'name,id');
+                                                if (!empty($category_name)) {
                                             ?>
-
-                                                <?php if (isset($fetched_data[0]['category_id']) && ($fetched_data[0]['category_id']) != '') {
-                                                ?>
-                                                    <option><?= $row['name'] ?></option>
-
-                                                <?php } else { ?>
-                                                    <option><?= '' ?></option>
-                                                <?php } ?>
+                                                    <option value="<?= $category_name[0]['id'] ?>" selected><?= html_escape($category_name[0]['name']) ?></option>
                                             <?php
+                                                }
                                             }
                                             ?>
                                         </select>

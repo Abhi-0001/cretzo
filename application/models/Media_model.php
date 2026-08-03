@@ -40,6 +40,57 @@ class Media_model extends CI_Model
         return $q->result_array();
     }
 
+    /**
+     * Whether this file's path is still referenced anywhere in the site. There is no real
+     * foreign key between the media library and where an image actually gets used - every
+     * consuming table just stores the same relative path (sub_directory.name) as a plain
+     * string - so this is the only way to answer "is it safe to delete this?" Deleting a file
+     * still in use here would silently break a live product/category/brand/etc image with no
+     * warning, since get_image_url() just falls back to a placeholder for a missing file.
+     * Checked against the tables that actually store an image-path column, per the schema;
+     * JSON/CSV array columns (other_images, product_variants.images, etc.) are matched with
+     * LIKE since the path is a substring of the stored array, not an exact match.
+     */
+    public function is_media_in_use($relative_path)
+    {
+        $exact_match_columns = [
+            'blogs' => ['image'],
+            'blog_categories' => ['image', 'banner'],
+            'brands' => ['image'],
+            'categories' => ['image', 'banner'],
+            'notifications' => ['image'],
+            'offers' => ['image'],
+            'products' => ['image'],
+            'promo_codes' => ['image'],
+            'seller_data' => ['logo', 'store_banner'],
+            'sliders' => ['image'],
+            'themes' => ['image'],
+            'users' => ['image'],
+        ];
+        foreach ($exact_match_columns as $table => $columns) {
+            foreach ($columns as $column) {
+                if ($this->db->where($column, $relative_path)->count_all_results($table) > 0) {
+                    return true;
+                }
+            }
+        }
+
+        $like_match_columns = [
+            'products' => ['other_images'],
+            'product_rating' => ['images'],
+            'product_variants' => ['images'],
+        ];
+        foreach ($like_match_columns as $table => $columns) {
+            foreach ($columns as $column) {
+                if ($this->db->like($column, $relative_path)->count_all_results($table) > 0) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
 
     public function fetch_media($fromSeller = false, $seller_id = null)
     {
@@ -56,14 +107,15 @@ class Media_model extends CI_Model
             if (isset($_GET['limit']))
                 $limit = $_GET['limit'];
 
-            if (isset($_GET['sort']))
-                if ($_GET['sort'] == 'id') {
-                    $sort = "id";
-                } else {
-                    $sort = $_GET['sort'];
-                }
-            if (isset($_GET['order']))
-                $order = $_GET['order'];
+            // Sort column was passed straight into order_by() with no whitelist - an injection
+            // route the same as already fixed on other list pages.
+            $allowed_sort_columns = ['id', 'name', 'size', 'extension', 'sub_directory', 'date_created'];
+            if (isset($_GET['sort']) && in_array($_GET['sort'], $allowed_sort_columns, true)) {
+                $sort = $_GET['sort'];
+            }
+            if (isset($_GET['order']) && strtolower($_GET['order']) === 'asc') {
+                $order = 'ASC';
+            }
 
             if (isset($_GET['search']) and $_GET['search'] != '') {
                 $search = $_GET['search'];
@@ -134,11 +186,20 @@ class Media_model extends CI_Model
                 if ($this->ion_auth->is_seller() && $row['seller_id'] == $this->session->userdata('user_id')) {
                     $operate = '<a href="javascript:void(0);" class="delete-media action-btn btn btn-danger btn-xs ml-1 mr-1 mb-1" title="Delete" data-id="' . $row['id'] . '" ><i class="fa fa-trash"></i></a>';
                 }
-                if ($this->ion_auth->is_admin()) {
+                // Only checked is_admin(), not this admin's own delete permission on the media
+                // module - the button showed for every admin regardless, even though the server
+                // side (Media::delete()) already correctly blocked a restricted admin from
+                // actually using it. Harmless as a security matter, but confusing to show a
+                // working-looking button that silently errors on click.
+                if ($this->ion_auth->is_admin() && has_permissions('delete', 'media')) {
                     $operate = '<a href="javascript:void(0);" class="delete-media action-btn btn btn-danger btn-xs ml-1 mr-1 mb-1" title="Delete" data-id="' . $row['id'] . '" ><i class="fa fa-trash"></i></a>';
                 }
                 $operate .= '<a href="javascript:void(0);" class="copy-to-clipboard btn btn-primary btn-xs action-btn ml-1 mr-1 mb-1" title="Copy to clipboard" ><i class="fa fa-copy"></i></a>';
-                $operate .= "<a href='javascript:void(0);' class='btn btn-info btn-xs mr-1 mb-1 ml-1 action-btn copy-relative-path' data-path=" . $row['sub_directory'] . $row['name'] . " title='Copy image path for csv file'><i class='fa fa-copy'></i></a>";
+                // data-path's value used to be unquoted - harmless today only because
+                // Security::sanitize_filename() already strips the characters that would be
+                // needed to break out of an unquoted attribute at upload time, but that's an
+                // upstream side effect, not a defense this line actually provides itself.
+                $operate .= '<a href="javascript:void(0);" class="btn btn-info btn-xs mr-1 mb-1 ml-1 action-btn copy-relative-path" data-path="' . html_escape($row['sub_directory'] . $row['name']) . '" title="Copy image path for csv file"><i class="fa fa-copy"></i></a>';
 
                 $tempRow['id'] = $row['id'];
                 $tempRow['seller_id'] = $row['seller_id'];
