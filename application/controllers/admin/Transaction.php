@@ -82,11 +82,13 @@ class Transaction extends CI_Controller {
                 print_r(json_encode($this->response));
             } else {
                 $_POST['message'] = (isset($_POST['message']) && trim($_POST['message']) != "") ? $this->input->post('message', true) : "";
-                $this->Transaction_model->edit_transactions($_POST);
-                $this->response['error'] = false;
+                // Was never checked - the model's update() result (a real boolean) was
+                // discarded, so this always reported success even if nothing was saved.
+                $updated = $this->Transaction_model->edit_transactions($_POST);
+                $this->response['error'] = !$updated;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = "Transaction Updated Successfuly.";
+                $this->response['message'] = $updated ? "Transaction Updated Successfuly." : "Something went wrong.";
                 print_r(json_encode($this->response));
             }
 		}

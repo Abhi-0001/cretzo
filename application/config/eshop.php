@@ -16,11 +16,20 @@ $config['system_modules'] = [
     'attribute_set' => array('create', 'read', 'update', 'delete'),
     'attribute_value' => array('create', 'read', 'update', 'delete'),
     'home_slider_images' => array('create', 'read', 'update', 'delete'),
-    'new_offer_images' => array('create', 'read', 'delete'),
+    // Missing 'update' meant has_permissions('update','new_offer_images') could never find
+    // 'update' in this module's allowed-action list, so the deny check in has_permissions()
+    // (function_helper.php) never even ran for it - falling through to an unconditional allow.
+    // Any sub-admin with ANY permission on this module (even just 'read') could edit/replace
+    // offer banners regardless of whether an admin actually granted them update rights.
+    'new_offer_images' => array('create', 'read', 'update', 'delete'),
     'promo_code' => array('create', 'read', 'update', 'delete'),
     'featured_section' => array('create', 'read', 'update', 'delete'),
     'customers' => array('read', 'update'),
     'return_request' => array('read', 'update'),
+    // Payment Request (seller/delivery-boy withdrawal payouts) was previously gated on the
+    // unrelated 'return_request' module - any admin role granted Return Request access could
+    // approve/reject real money payouts with no way to grant/revoke that independently.
+    'payment_request' => array('read', 'update'),
     'delivery_boy' => array('create', 'read', 'update', 'delete'),
     'fund_transfer' => array('create', 'read', 'update', 'delete'),
     'send_notification' => array('create', 'read', 'delete'),
@@ -38,6 +47,13 @@ $config['system_modules'] = [
     'shipping_settings' => array('read', 'update'),
     'pickup_location' => array('create', 'read', 'update', 'delete'),
     'chat' => array('create', 'read', 'delete'),
+    // 'blogs'/'blog_categories' were already referenced by has_permissions() calls in
+    // admin/Blogs.php but never actually defined here - for any non-super-admin role,
+    // has_permissions() denies outright when a module isn't a key in this array, so
+    // create/update/delete on blogs and blog categories was permanently blocked for every
+    // restricted admin, regardless of what their role's permissions were set to.
+    'blogs' => array('create', 'read', 'update', 'delete'),
+    'blog_categories' => array('create', 'read', 'update', 'delete'),
 ];
 
 $config['notification_modules'] = [ 

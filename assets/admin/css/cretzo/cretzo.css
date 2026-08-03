@@ -89,11 +89,58 @@ a.nav-link{
 .brand-link {
     overflow: hidden;
 }
-/* Active item uses the Cretzo orange with white text/icons */
+/* ============================================================
+   SIDEBAR: ACTIVE / HOVER COLORS
+   The admin body carries AdminLTE's own "sidebar-light-primary" skin
+   class, which ships its own active/hover colors at a HIGHER CSS
+   specificity than a plain ".nav-sidebar .nav-link.active" rule ever
+   had:
+     .sidebar-light-primary .nav-sidebar>.nav-item>.nav-link.active
+       { background-color:#007bff; color:#fff }               (top level: Bootstrap blue)
+     [class*=sidebar-light-] .nav-treeview>.nav-item>.nav-link.active
+       { background-color:rgba(0,0,0,.1); color:#212529 }     (submenu items: grey)
+     [class*=sidebar-light-] .nav-sidebar>.nav-item.menu-open>.nav-link
+       { background-color:rgba(0,0,0,.1); color:#212529 }     (an OPEN section header: grey)
+   All three have more class/attribute steps than a plain override,
+   so they always won the cascade regardless of source order.
+   !important on every property below is the reliable way to beat a
+   third-party skin's own selectors here. */
+
+/* The current page's own link: a light tint, matching :hover exactly - a solid, fully-
+   saturated block here read as too heavy against the rest of the sidebar. */
 .nav-sidebar .nav-link.active,
-.nav-sidebar .nav-link.active .nav-icon {
-    background-color: var(--color-orange);
-    color: #fff !important;
+.nav-sidebar .nav-link.active .nav-icon,
+.nav-sidebar .nav-treeview > .nav-item > .nav-link.active {
+    background-color: var(--color-orange-light) !important;
+    color: var(--color-orange-dark) !important;
+}
+.nav-sidebar .nav-link.active:hover,
+.nav-sidebar .nav-treeview > .nav-item > .nav-link.active:hover {
+    background-color: var(--color-orange-light) !important;
+    color: var(--color-orange-dark) !important;
+}
+
+/* An open section's own heading (e.g. "Orders" expanded to reveal its children) should read
+   the same as any other, closed heading - only the chevron rotating indicates it's open. This
+   only ever applies when that heading is NOT itself the active page (:not(.active) - a page
+   that is both the open section's own link is covered by the .active rule above instead). */
+.nav-sidebar > .nav-item.menu-open > .nav-link:not(.active) {
+    background-color: transparent !important;
+    color: var(--color-orange) !important;
+}
+
+/* Hover on a non-active link: AdminLTE's own submenu hover
+   ([class*=sidebar-light-] .nav-treeview>.nav-item>.nav-link:hover)
+   paints a flat grey background with no theme color at all. Matched
+   and overridden here so hovering any sidebar item - top level or
+   nested - gives the same, on-brand feedback. */
+.nav-sidebar .nav-link:not(.active):hover,
+.nav-sidebar .nav-treeview > .nav-item > .nav-link:not(.active):hover {
+    background-color: var(--color-orange-light) !important;
+    color: var(--color-orange-dark) !important;
+}
+.nav-sidebar .nav-link:not(.active):hover .nav-icon {
+    color: var(--color-orange-dark) !important;
 }
 
 

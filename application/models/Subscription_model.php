@@ -65,8 +65,13 @@ class Subscription_model extends CI_Model
 
         $offset = $this->input->get('offset') ?? $offset;
         $limit = $this->input->get('limit') ?? $limit;
-        $sort = $this->input->get('sort') ?? $sort;
-        $order = $this->input->get('order') ?? 'asc';
+
+        // Sort column was passed straight into order_by() with no whitelist - an injection
+        // route the same as already fixed on other list pages.
+        $allowed_sort_columns = ['id', 'name', 'price', 'listings_limit', 'validity', 'commission_first50', 'commission_51_100', 'commission_after100'];
+        $requested_sort = $this->input->get('sort');
+        $sort = in_array($requested_sort, $allowed_sort_columns, true) ? $requested_sort : $sort;
+        $order = (strtolower((string) $this->input->get('order')) === 'desc') ? 'desc' : 'asc';
 
         $search = $this->input->get('search');
 
@@ -122,7 +127,9 @@ class Subscription_model extends CI_Model
             $tempRow = [];
 
             $tempRow['id'] = $row['id'];
-            $tempRow['name'] = $row['name'];
+            // output_escaping() only strips backslash-escaping, it does not HTML-encode - a
+            // stored-XSS route the same as already fixed on other list pages.
+            $tempRow['name'] = html_escape($row['name']);
             $tempRow['price'] = $row['price'];
             $tempRow['listings_limit'] = $row['listings_limit'];
             $tempRow['validity'] = $row['validity'];

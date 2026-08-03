@@ -1044,10 +1044,15 @@ function validate_promo_code($promo_code, $user_id, $final_total)
     if (isset($promo_code) && !empty($promo_code)) {
         $t = &get_instance();
 
-        //Fetch Promo Code Details
-        $promo_code = $t->db->select('pc.*,count(o.id) as promo_used_counter ,( SELECT count(user_id) from orders where user_id =' . $user_id . ' and promo_code ="' . $promo_code . '") as user_promo_usage_counter ')
+        // user_id and promo_code were spliced directly into this raw SELECT subquery string
+        // with no escaping at all - promo_code in particular is attacker-controlled (typed into
+        // the "apply promo code" box at checkout), so a crafted value could break out of the
+        // quoted string and inject arbitrary SQL. $t->db->escape() quotes/escapes it safely for
+        // this raw-string context; user_id is cast to int since it's only ever a numeric id.
+        $promo_code_input = $promo_code;
+        $promo_code = $t->db->select('pc.*,count(o.id) as promo_used_counter ,( SELECT count(user_id) from orders where user_id =' . (int) $user_id . ' and promo_code =' . $t->db->escape($promo_code_input) . ') as user_promo_usage_counter ')
             ->join('orders o', 'o.promo_code=pc.promo_code', 'left')
-            ->where(['pc.promo_code' => $promo_code, 'pc.status' => '1', ' start_date <= ' => date('Y-m-d'), '  end_date >= ' => date('Y-m-d')])
+            ->where(['pc.promo_code' => $promo_code_input, 'pc.status' => '1', ' start_date <= ' => date('Y-m-d'), '  end_date >= ' => date('Y-m-d')])
             ->get('promo_codes pc')->result_array();
         if (!empty($promo_code[0]['id'])) {
 
@@ -1072,6 +1077,11 @@ function validate_promo_code($promo_code, $user_id, $final_total)
                                 $total = (isset($promo_code[0]['is_cashback']) && $promo_code[0]['is_cashback'] == 0) ? floatval($final_total) - $promo_code[0]['max_discount_amount'] : floatval($final_total);
                                 $promo_code_discount = $promo_code[0]['max_discount_amount'];
                             }
+                            // A flat "amount" discount larger than the order total (nothing anywhere
+                            // enforced discount <= order total) could drive this negative with no
+                            // floor - the customer would be shown (and could potentially be charged)
+                            // a negative payable amount.
+                            $total = max(0, $total);
                             $promo_code[0]['final_total'] = strval(floatval($total));
                             $promo_code[0]['image'] = (isset($promo_code[0]['image']) && !empty($promo_code[0]['image'])) ? $promo_code[0]['image'] : '';
                             $promo_code[0]['final_discount'] = strval(floatval($promo_code_discount));
@@ -1093,7 +1103,14 @@ function validate_promo_code($promo_code, $user_id, $final_total)
                             if ($promo_code[0]['discount_type'] == 'percentage') {
                                 $promo_code_discount =   floatval($final_total  * $promo_code[0]['discount'] / 100);
                             } else {
-                                $promo_code_discount =  floatval($final_total - $promo_code[0]['discount']);
+                                // Was "$final_total - $promo_code[0]['discount']" - computing
+                                // final_total-minus-discount as the DISCOUNT ITSELF, not the flat
+                                // discount amount. Combined with $total below (final_total -
+                                // promo_code_discount), this collapsed to "$total = $discount" -
+                                // a customer redeeming a non-repeatable, flat-amount promo code
+                                // paid only the discount value (e.g. a Rs. 500 order with a Rs. 10
+                                // discount charged just Rs. 10, not Rs. 490).
+                                $promo_code_discount = $promo_code[0]['discount'];
                             }
                             if ($promo_code_discount <= $promo_code[0]['max_discount_amount']) {
                                 $total = (isset($promo_code[0]['is_cashback']) && $promo_code[0]['is_cashback'] == 0) ? floatval($final_total) - $promo_code_discount : floatval($final_total);
@@ -1101,6 +1118,7 @@ function validate_promo_code($promo_code, $user_id, $final_total)
                                 $total = (isset($promo_code[0]['is_cashback']) && $promo_code[0]['is_cashback'] == 0) ? floatval($final_total) - $promo_code[0]['max_discount_amount'] : floatval($final_total);
                                 $promo_code_discount = $promo_code[0]['max_discount_amount'];
                             }
+                            $total = max(0, $total);
                             $promo_code[0]['final_total'] = strval(floatval($total));
                             $promo_code[0]['final_discount'] = strval(floatval($promo_code_discount));
                             $response['data'] = $promo_code;
@@ -1173,7 +1191,19 @@ function update_wallet_balance($operation, $user_id, $amount, $message = "Balanc
                 'order_item_id' => $order_item_id,
                 'is_refund' => $is_refund,
             ];
-            $payment_data =  fetch_details('transactions', ['order_item_id' => $order_item_id], 'type');
+            // Credits/refunds tied to a razorpay order are skipped here because Razorpay pays
+            // out directly and crediting the wallet too would double-pay. That lookup used to run
+            // even with no $order_item_id (the case for every manual admin credit/refund, which
+            // has no order context at all) - 'order_item_id' => '' matched essentially every past
+            // manual transaction with no ORDER BY, so whether a manual credit/refund actually
+            // touched the balance depended on an arbitrary unrelated row's type, not this
+            // transaction. Only run the check when there's a real order to check.
+            $skip_for_razorpay = false;
+            if (!empty($order_item_id)) {
+                $payment_data = fetch_details('transactions', ['order_item_id' => $order_item_id], 'type');
+                $skip_for_razorpay = isset($payment_data[0]['type']) && $payment_data[0]['type'] == 'razorpay';
+            }
+            $t->db->trans_start();
             if ($operation == 'debit') {
                 $data['message'] = (isset($message)) ? $message : 'Balance Debited';
                 $data['type'] = 'debit';
@@ -1181,21 +1211,26 @@ function update_wallet_balance($operation, $user_id, $amount, $message = "Balanc
             } else if ($operation == 'credit') {
                 $data['message'] = (isset($message)) ? $message : 'Balance Credited';
                 $data['type'] = 'credit';
-                // $t->db->set('balance', '`balance` + ' . $amount, false)->where('id', $user_id)->update('users');
-                if ($payment_data[0]['type'] != 'razorpay') {
+                if (!$skip_for_razorpay) {
                     $t->db->set('balance', '`balance` + ' . $amount, false)->where('id', $user_id)->update('users');
                 }
             } else {
                 $data['message'] = (isset($message)) ? $message : 'Balance refuned';
                 $data['type'] = 'refund';
-                if ($payment_data[0]['type'] != 'razorpay') {
+                if (!$skip_for_razorpay) {
                     $t->db->set('balance', '`balance` + ' . $amount, false)->where('id', $user_id)->update('users');
                 }
             }
             $data = escape_array($data);
             $t->db->insert('transactions', $data);
-            $response['error'] = false;
-            $response['message'] = "Balance Update Successfully";
+            // The balance UPDATE and the transactions INSERT above used to run as two separate,
+            // unwrapped writes - if the second failed after the first succeeded (or vice versa),
+            // users.balance would no longer reconcile with the transaction log, with nothing to
+            // detect or roll it back.
+            $t->db->trans_complete();
+
+            $response['error'] = ($t->db->trans_status() === false);
+            $response['message'] = $response['error'] ? 'Something went wrong. Please try again.' : "Balance Update Successfully";
             $response['data'] = array();
         } else {
             $response['error'] = true;
@@ -1959,7 +1994,11 @@ function get_subcategory_option_html($subcategories, $selected_vals)
     $html = "";
     for ($i = 0; $i < count($subcategories); $i++) {
         $pre_selected = (!empty($selected_vals) && in_array($subcategories[$i]['id'], $selected_vals)) ? "selected" : "";
-        $html .= '<option value="' . $subcategories[$i]['id'] . '" class="l' . $subcategories[$i]['level'] . '" ' . $pre_selected . '  >' . $subcategories[$i]['name'] . '</option>';
+        // get_categories_option_html() (the top-level caller) escapes the name via
+        // output_escaping(); this nested version never did, for every subcategory at every
+        // depth, in every "Select Category/Parent" dropdown across the whole admin and seller
+        // panels that render more than one level deep.
+        $html .= '<option value="' . $subcategories[$i]['id'] . '" class="l' . $subcategories[$i]['level'] . '" ' . $pre_selected . '  >' . output_escaping($subcategories[$i]['name']) . '</option>';
         if (!empty($subcategories[$i]['children'])) {
             $html .=  get_subcategory_option_html($subcategories[$i]['children'], $selected_vals);
         }
@@ -4741,6 +4780,12 @@ function get_sliders($id = '', $type = '', $type_id = '')
     $res = $ci->db->get('sliders')->result_array();
     $res = array_map(function ($d) {
         $ci = &get_instance();
+        // The admin-entered link was unconditionally wiped here, then only ever re-populated
+        // for 'categories'/'products' - there was no branch for 'slider_url' at all, so every
+        // "Slider URL" banner the admin configures loses its link entirely and just reloads the
+        // current page when clicked. Preserve the stored (and already output_escaping()'d, see
+        // below) link for that type instead of erasing it.
+        $original_link = $d['link'];
         $d['link'] = '';
         if (!empty($d['type'])) {
             if ($d['type'] == "categories") {
@@ -4753,6 +4798,12 @@ function get_sliders($id = '', $type = '', $type_id = '')
                 if (!empty($type_details)) {
                     $d['link'] = base_url('products/details/' . $type_details['slug']);
                 }
+            } elseif ($d['type'] == "slider_url") {
+                // html_escape() here, not just at the categories/products branches above (whose
+                // links are entirely server-built, not admin text) - this is the one branch
+                // where the value came from an admin-entered field and is rendered raw into an
+                // href attribute at the storefront render site.
+                $d['link'] = html_escape($original_link);
             }
         }
         return $d;
@@ -4775,6 +4826,12 @@ function get_offers($id = '', $type = '', $type_id = '')
     $res = $ci->db->get('offers')->result_array();
     $res = array_map(function ($d) {
         $ci = &get_instance();
+        // Same bug as get_sliders() just above (this function is a copy of it): the
+        // admin-entered link was unconditionally wiped, then only ever re-populated for
+        // 'categories'/'products' - there was no branch for 'offer_url' (the admin offer form
+        // does support this type, per Offer.php's own validation), so every URL-type offer
+        // banner lost its link entirely.
+        $original_link = $d['link'];
         $d['link'] = '';
         if (!empty($d['type'])) {
             if ($d['type'] == "categories") {
@@ -4787,6 +4844,8 @@ function get_offers($id = '', $type = '', $type_id = '')
                 if (!empty($type_details)) {
                     $d['link'] = base_url('products/details/' . $type_details['slug']);
                 }
+            } elseif ($d['type'] == "offer_url") {
+                $d['link'] = html_escape($original_link);
             }
         }
         return $d;

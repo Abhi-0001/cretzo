@@ -1,36 +1,49 @@
-<div class="content-wrapper">
-    <!-- Content Header (Page header) -->
-    <!-- Main content -->
+<div class="content-wrapper admin-create-product-page">
     <section class="content-header">
         <div class="container-fluid">
-            <div class="row mb-2">
+            <div class="row mb-2 align-items-center">
                 <div class="col-sm-6">
-                    <h4><?= isset($product_details[0]['id']) ? 'Update' : 'Add' ?> Product</h4>
+                    <h4 class="mb-0">
+                        <i class="fas fa-box-open mr-2 text-primary-theme"></i><?= isset($product_details[0]['id']) ? 'Update' : 'Add' ?> Product
+                    </h4>
+                    <p class="text-muted mb-0 small">
+                        <?= isset($product_details[0]['id']) ? 'Edit this product\'s details, pricing and stock.' : 'Create a new product and assign it to a seller.' ?>
+                    </p>
                 </div>
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">
                         <li class="breadcrumb-item"><a href="<?= base_url('admin/home') ?>">Home</a></li>
-                        <li class="breadcrumb-item active">Products</li>
+                        <li class="breadcrumb-item"><a href="<?= base_url('admin/product') ?>">Products</a></li>
+                        <li class="breadcrumb-item active"><?= isset($product_details[0]['id']) ? 'Update' : 'Add' ?></li>
                     </ol>
                 </div>
             </div>
-        </div><!-- /.container-fluid -->
+        </div>
     </section>
     <section class="content">
         <div class="container-fluid">
             <div class="row">
                 <div class="col-md-12">
-                    <div class="card card-info">
+                    <div class="card attribute-card">
                         <!-- form start -->
                         <form class="form-horizontal" action="<?= base_url('admin/product/add_product'); ?>" method="POST" enctype="multipart/form-data" id="save-product">
                             <?php if (isset($product_details[0]['id'])) {
                             ?>
                                 <input type="hidden" name="edit_product_id" value="<?= (isset($product_details[0]['id'])) ? $product_details[0]['id'] : "" ?>">
-                                <input type="hidden" name="category_id" value="<?= (isset($product_details[0]['category_id'])) ? $product_details[0]['category_id'] : "" ?>">
-                                <input type="hidden" name="seller_id" value="<?= (isset($product_details[0]['seller_id'])) ? $product_details[0]['seller_id'] : "" ?>">
+                                <?php // The seller_id was also emitted here as a hidden input while the Seller
+                                      // dropdown below carries the same name, so the form submitted the field
+                                      // twice and relied on document order to decide which value won. ?>
                                 <input type="hidden" id="subcategory_id_js" value="<?= (isset($product_details[0]['subcategory_id'])) ? $product_details[0]['subcategory_id'] : "" ?>">
                             <?php } ?>
+                            <?php
+                            // Single source of truth for the chosen category, in both create and edit mode.
+                            // Previously this input existed only when editing, so on the create screen the
+                            // category lived solely inside the tree widget.
+                            ?>
+                            <input type="hidden" name="category_id" id="product_category_id" value="<?= isset($product_details[0]['category_id']) ? (int) $product_details[0]['category_id'] : '' ?>">
                             <div class="card-body">
+
+                                <div class="section-header"><i class="fas fa-info-circle"></i> Basic Details</div>
 
                                 <div class="form-group col-md-12">
                                     <label for="pro_input_text" class="col-form-label">Name <span class='text-danger text-sm'>*</span> </label>
@@ -101,8 +114,12 @@
                                                 <label for="made_in" class="col-form-label">Made In</label>
                                                 <select class="col-md-12 form-control country_list" id="country_list" name="made_in">
                                                     <?php if (isset($product_details[0]['made_in']) && ($product_details[0]['made_in']) != '') {
+                                                        // The option was marked selected only when the product's country
+                                                        // happened to equal $countries[0] - the first row of the whole
+                                                        // countries table - so the saved country was usually rendered as
+                                                        // an unselected option and the field looked empty when editing.
                                                     ?>
-                                                        <option value="<?= $product_details[0]['made_in'] ?>" <?= (isset($product_details[0]['made_in']) &&  $product_details[0]['made_in'] == $countries[0]['name']) ? 'selected' : ''; ?>><?= $product_details[0]['made_in'] ?></option>
+                                                        <option value="<?= html_escape($product_details[0]['made_in']) ?>" selected><?= html_escape($product_details[0]['made_in']) ?></option>
                                                     <?php } ?>
                                                     <!-- countries display here  -->
                                                 </select>
@@ -111,9 +128,11 @@
                                                 <label for="brand" class="col-form-label">Brand</label>
                                                 <select class=" col-md-12  form-control admin_brand_list" id="admin_brand_list" name="brand">
                                                     <?php
+                                                    // Same defect as Made In: selected only when the product's brand
+                                                    // matched the first row of the brands table.
                                                     if (isset($product_details[0]['brand']) && $product_details[0]['brand'] != '') {
                                                     ?>
-                                                        <option value="<?= $product_details[0]['brand'] ?>" <?= (isset($product_details[0]['brand']) &&  $product_details[0]['brand'] == $brands[0]['name']) ? 'selected' : ''; ?>><?= $product_details[0]['brand'] ?></option>
+                                                        <option value="<?= html_escape($product_details[0]['brand']) ?>" selected><?= html_escape($product_details[0]['brand']) ?></option>
                                                     <?php } ?>
                                                     <!-- brands display here  -->
                                                 </select>
@@ -178,16 +197,23 @@
                                         </div>
                                         <div class="row col mt-3 pickup_locations <?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
                                             <div class="col-md-8 standdard_shipping">
-                                                <label for="shipping_type" class="col-form-label">For standdard shipping <span class='text-danger text-sm'>*</span></label>
-                                                <!-- drop down menu in while create product -->
-                                                <select class='form-control shiprocket_type' name="pickup_location" id="pickup_location">
-                                                    <option value=" ">Select Pickup Location</option>
-                                                    <?php foreach ($shipping_data as $row) {
-                                                        $pickup_location = (isset($product_details[0]['pickup_location']) && !empty($product_details[0]['pickup_location']) ? $product_details[0]['pickup_location'] : "") ?>
-
-                                                        <option <?php if ($row['pickup_location'] == $pickup_location) { ?> selected <?php } ?> value="<?php echo $row['pickup_location']; ?>"><?php echo $row['pickup_location']; ?></option>
+                                                <label for="pickup_location" class="col-form-label">Pickup Location <small>(for standard shipping)</small> <span class='text-danger text-sm'>*</span></label>
+                                                <?php
+                                                // On the create screen this listed the pickup locations of every
+                                                // seller on the platform, so a product could be created against
+                                                // another seller's pickup address. It is now populated for the
+                                                // selected seller only and refreshed whenever that seller changes.
+                                                $current_pickup = (isset($product_details[0]['pickup_location']) && !empty($product_details[0]['pickup_location'])) ? $product_details[0]['pickup_location'] : "";
+                                                ?>
+                                                <select class='form-control shiprocket_type' name="pickup_location" id="pickup_location"
+                                                    data-url="<?= base_url('admin/product/get_seller_pickup_locations') ?>"
+                                                    data-selected="<?= html_escape($current_pickup) ?>">
+                                                    <option value="">Select Pickup Location</option>
+                                                    <?php foreach ((array) $shipping_data as $row) { ?>
+                                                        <option <?= ($row['pickup_location'] == $current_pickup) ? 'selected' : '' ?> value="<?= html_escape($row['pickup_location']); ?>"><?= html_escape($row['pickup_location']); ?></option>
                                                     <?php } ?>
                                                 </select>
+                                                <small class="text-muted d-block mt-1" id="pickup_hint"></small>
                                             </div>
                                         </div>
                                         <div class="row col mt-3">
@@ -227,6 +253,7 @@
                                         <div class="row col mt-3">
 
                                             <div class="col pt-4 pb-4">
+                                                <div class="section-header"><i class="fas fa-images"></i> Media</div>
                                                 <div class="form-group col-sm-12">
                                                     <label for="image">Main Image <span class='text-danger text-sm'>*</span><small>(Recommended Size : 180 x 180 pixels)</small></label>
                                                     <div class='col-md-12'><a class="uploadFile img btn btn-primary text-white btn-sm" data-input='pro_input_image' data-isremovable='0' data-is-multiple-uploads-allowed='0' data-toggle="modal" data-target="#media-upload-modal" value="Upload Photo"><i class='fa fa-upload'></i> Upload</a></div>
@@ -333,11 +360,29 @@
                                         </div>
                                     </div>
                                     <div class="col-md-4 mt-3">
-                                        <label for="pro_input_tax" class="col-form-label">Select Category <span class='text-danger text-sm'>*</span></label>
-                                        <div id="product_category_tree_view_html" class='category-tree-container'></div>
+                                        <label class="col-form-label">Select Category <span class='text-danger text-sm'>*</span></label>
+                                        <?php
+                                        // Replaces the previous checkbox tree. That tree was fed straight from
+                                        // admin/category/get_categories, whose nodes carry a "name" key, but the
+                                        // tree widget only ever reads "text" - so every node rendered with an
+                                        // empty label and the whole category list appeared as a column of blank
+                                        // checkboxes. This is the same searchable selector the seller product
+                                        // form uses.
+                                        ?>
+                                        <div class="category-combo">
+                                            <div class="category-search-box">
+                                                <i class="fas fa-search category-search-icon"></i>
+                                                <input type="text" class="form-control category-search-input"
+                                                    id="category_search_input" placeholder="Search category..." autocomplete="off">
+                                                <button type="button" class="category-search-clear" id="category_search_clear" aria-label="Clear">&times;</button>
+                                            </div>
+                                            <div id="category_dropdown"></div>
+                                        </div>
+                                        <small class="text-muted d-block mt-1" id="category_hint">Select a seller first to see their categories</small>
+                                        <input type="hidden" id="category_tree_data" value='<?= htmlspecialchars(json_encode($categories ?? []), ENT_QUOTES, "UTF-8") ?>'>
                                     </div>
                                     <div class="form-group  col-md-12 mb-3">
-                                        <h3 class="card-title">Additional Info</h3>
+                                        <div class="section-header"><i class="fas fa-sliders-h"></i> Pricing, Stock &amp; Variations</div>
 
                                         <?php
                                         if (isset($product_details)) {
@@ -772,6 +817,7 @@
                                             </div>
                                     </div>
                                     <div class="card-body pad">
+                                        <div class="section-header"><i class="fas fa-align-left"></i> Description</div>
                                         <div class="form-group col-md-12">
                                             <label for="pro_input_description">Description </label>
                                             <div class="mb-3">
@@ -805,3 +851,292 @@
     </section>
     <!-- /.content -->
 </div>
+
+<style>
+    .admin-create-product-page .text-primary-theme { color: var(--color-orange); }
+
+    .admin-create-product-page .attribute-card { border: none; border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,0.06); }
+
+    .admin-create-product-page .section-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .4px;
+        color: var(--color-orange-dark);
+        border-bottom: 2px solid var(--color-orange-light);
+        padding-bottom: 8px;
+        margin: 26px 0 18px;
+        width: 100%;
+    }
+    .admin-create-product-page .card-body > .section-header:first-child { margin-top: 0; }
+    .admin-create-product-page .section-header i { color: var(--color-orange); }
+
+    .admin-create-product-page label.col-form-label,
+    .admin-create-product-page label.control-label { font-weight: 600; font-size: 14px; }
+    .admin-create-product-page .form-control:focus {
+        border-color: var(--color-orange);
+        box-shadow: 0 0 0 .15rem rgba(242,130,46,.18);
+    }
+    .admin-create-product-page .nav-tabs .nav-link.active {
+        color: var(--color-orange-dark);
+        border-bottom: 2px solid var(--color-orange);
+        font-weight: 600;
+    }
+    .admin-create-product-page .btn-success {
+        background: var(--color-orange);
+        border-color: var(--color-orange);
+        font-weight: 600;
+    }
+    .admin-create-product-page .btn-success:hover:not(:disabled) { background: var(--color-orange-dark); border-color: var(--color-orange-dark); }
+
+    /* ---- searchable category selector ---- */
+    .admin-create-product-page .category-combo { position: relative; }
+    .admin-create-product-page .category-search-box { position: relative; }
+    .admin-create-product-page .category-search-icon {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--color-grey);
+        font-size: 13px;
+        pointer-events: none;
+    }
+    .admin-create-product-page .category-search-input { padding-left: 32px; padding-right: 30px; }
+    .admin-create-product-page .category-search-clear {
+        display: none;
+        position: absolute;
+        right: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+        border: none;
+        background: transparent;
+        font-size: 20px;
+        line-height: 1;
+        color: var(--color-grey);
+        cursor: pointer;
+        padding: 0 4px;
+    }
+    .admin-create-product-page .category-search-clear:hover { color: var(--color-theme-red); }
+    .admin-create-product-page #category_dropdown {
+        display: none;
+        position: absolute;
+        z-index: 1050;
+        left: 0;
+        right: 0;
+        max-height: 260px;
+        overflow-y: auto;
+        background: #fff;
+        border: 1px solid rgba(0,0,0,0.12);
+        border-radius: 8px;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+        margin-top: 4px;
+    }
+    .admin-create-product-page .category-result-item {
+        padding: 8px 12px;
+        cursor: pointer;
+        border-bottom: 1px solid rgba(0,0,0,0.05);
+    }
+    .admin-create-product-page .category-result-item:last-child { border-bottom: none; }
+    .admin-create-product-page .category-result-item:hover { background: var(--color-orange-light); }
+    .admin-create-product-page .category-result-name { font-weight: 600; font-size: 14px; }
+    .admin-create-product-page .category-result-path { font-size: 12px; color: var(--color-grey); }
+    .admin-create-product-page .category-empty { padding: 10px 12px; color: var(--color-grey); font-size: 13px; }
+</style>
+
+<script>
+$(document).ready(function () {
+    // ------------------------------------------------------------------
+    // Searchable category selector.
+    //
+    // The previous control was a jsTree checkbox tree fed from
+    // admin/category/get_categories. Those nodes carry a "name" property, but
+    // jsTree reads its label from "text" only and falls back to an empty string -
+    // so every category rendered as an unlabelled checkbox. This replaces it with
+    // the same search-and-select control used on the seller product form, and
+    // reloads the list for whichever seller is chosen.
+    // ------------------------------------------------------------------
+    var $input    = $('#category_search_input');
+    var $dropdown = $('#category_dropdown');
+    var $clearBtn = $('#category_search_clear');
+    var $selected = $('#product_category_id');
+    var $hint     = $('#category_hint');
+    var $seller   = $('#seller_id');
+
+    var allCategories = [];
+
+    // Flattens the category tree (to any depth) into one searchable list, keeping
+    // each entry's own name plus its full breadcrumb path.
+    function flatten(nodes, pathParts, into) {
+        (nodes || []).forEach(function (cat) {
+            var parts = pathParts.concat([cat.name]);
+            var existing = into[cat.id];
+            if (!existing || parts.length > existing.depth) {
+                into[cat.id] = { id: cat.id, name: cat.name, fullPath: parts.join(' > '), depth: parts.length };
+            }
+            if (cat.children && cat.children.length) {
+                flatten(cat.children, parts, into);
+            }
+        });
+        return into;
+    }
+
+    function setCategories(tree) {
+        var byId = flatten(tree, [], {});
+        allCategories = Object.keys(byId).map(function (id) { return byId[id]; });
+
+        // Keep the current selection only if it still exists for this seller.
+        var currentId = $selected.val();
+        if (currentId) {
+            var match = allCategories.filter(function (c) { return String(c.id) === String(currentId); })[0];
+            if (match) {
+                $input.val(match.fullPath);
+                $clearBtn.show();
+            } else {
+                $selected.val('');
+                $input.val('');
+                $clearBtn.hide();
+            }
+        }
+
+        if (!allCategories.length) {
+            $hint.text('This seller has no categories assigned.');
+        } else {
+            $hint.text('Search and select a category (' + allCategories.length + ' available)');
+        }
+    }
+
+    function renderDropdown(term) {
+        $dropdown.empty();
+        var lower = (term || '').toLowerCase();
+        var filtered = allCategories.filter(function (c) {
+            return c.fullPath.toLowerCase().indexOf(lower) > -1;
+        });
+
+        if (!filtered.length) {
+            $dropdown.append($('<div>').addClass('category-empty').text(
+                allCategories.length ? 'No category matches that search' : 'No categories available for this seller'
+            )).show();
+            return;
+        }
+
+        filtered.slice(0, 200).forEach(function (cat) {
+            var $item = $('<div>').addClass('category-result-item')
+                .append($('<div>').addClass('category-result-name').text(cat.name));
+            if (cat.fullPath !== cat.name) {
+                $item.append($('<div>').addClass('category-result-path').text(cat.fullPath));
+            }
+            $item.on('mousedown', function (e) {
+                e.preventDefault();
+                $input.val(cat.fullPath);
+                $selected.val(cat.id);
+                $clearBtn.show();
+                $dropdown.hide();
+            });
+            $dropdown.append($item);
+        });
+        $dropdown.show();
+    }
+
+    $input.on('focus', function () { renderDropdown($(this).val()); });
+    $input.on('input', function () {
+        // Typing invalidates the previous pick, so the hidden id is cleared until
+        // something is chosen from the list again.
+        $selected.val('');
+        $clearBtn.toggle($(this).val().length > 0);
+        renderDropdown($(this).val());
+    });
+    $clearBtn.on('mousedown', function (e) {
+        e.preventDefault();
+        $input.val('').trigger('focus');
+        $selected.val('');
+        $clearBtn.hide();
+    });
+    $input.on('blur', function () { setTimeout(function () { $dropdown.hide(); }, 150); });
+    $(document).on('click', function (e) {
+        if (!$(e.target).closest('.category-combo').length) { $dropdown.hide(); }
+    });
+
+    function loadCategoriesForSeller(sellerId) {
+        if (!sellerId) {
+            setCategories([]);
+            $hint.text('Select a seller first to see their categories');
+            return;
+        }
+        $hint.text('Loading categories...');
+        $.ajax({
+            url: "<?= base_url('admin/category/get_seller_categories') ?>",
+            type: 'GET',
+            data: { seller_id: sellerId, ignore_status: 1 },
+            dataType: 'json',
+            success: function (result) { setCategories((result && result.data) || []); },
+            error: function () { setCategories([]); $hint.text('Categories could not be loaded. Please try again.'); }
+        });
+    }
+
+    // ------------------------------------------------------------------
+    // Pickup locations follow the selected seller.
+    // ------------------------------------------------------------------
+    var $pickup = $('#pickup_location');
+    var $pickupHint = $('#pickup_hint');
+
+    function loadPickupLocations(sellerId) {
+        if (!$pickup.length) return;
+        var keep = $pickup.data('selected') || '';
+        if (!sellerId) {
+            $pickup.html('<option value="">Select Pickup Location</option>');
+            $pickupHint.text('Select a seller first to see their pickup locations');
+            return;
+        }
+        $pickupHint.text('Loading pickup locations...');
+        $.ajax({
+            url: $pickup.data('url'),
+            type: 'GET',
+            data: { seller_id: sellerId },
+            dataType: 'json',
+            success: function (result) {
+                var rows = (result && result.data) || [];
+                var html = '<option value="">Select Pickup Location</option>';
+                rows.forEach(function (row) {
+                    var sel = (row.pickup_location === keep) ? ' selected' : '';
+                    html += '<option value="' + $('<div>').text(row.pickup_location).html() + '"' + sel + '>' +
+                            $('<div>').text(row.pickup_location).html() + '</option>';
+                });
+                $pickup.html(html);
+                $pickupHint.text(rows.length ? '' : 'This seller has no active pickup location yet.');
+            },
+            error: function () {
+                $pickup.html('<option value="">Select Pickup Location</option>');
+                $pickupHint.text('Pickup locations could not be loaded. Please try again.');
+            }
+        });
+    }
+
+    $seller.on('change', function () {
+        var sellerId = $(this).val();
+        // Changing seller invalidates both selections, since categories and pickup
+        // addresses both belong to a specific seller.
+        $selected.val('');
+        $input.val('');
+        $clearBtn.hide();
+        $pickup.data('selected', '');
+        loadCategoriesForSeller(sellerId);
+        loadPickupLocations(sellerId);
+    });
+
+    // Initial load. On the edit screen the seller is already known.
+    var initialSeller = $seller.val();
+    if (initialSeller) {
+        loadCategoriesForSeller(initialSeller);
+    } else {
+        // Create screen with no seller chosen yet: show the full category tree the
+        // controller already rendered into the page, so the field is usable straight away.
+        var seed = [];
+        try { seed = JSON.parse($('#category_tree_data').val() || '[]'); } catch (e) { seed = []; }
+        setCategories(seed);
+        $hint.text(allCategories.length ? 'Showing all categories - choose a seller to narrow this list' : 'Select a seller first to see their categories');
+    }
+});
+</script>

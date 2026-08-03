@@ -210,7 +210,21 @@ class Area extends CI_Controller
     public function delete_city()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
-            if (trim($_GET['table']) == 'cities') {
+            // $_GET['table'] used to go straight into delete_details() with no whitelist at
+            // all - this is a shared generic delete-by-id endpoint (used by cities, areas,
+            // pickup locations, AND subscription plans, per their respective list pages), so an
+            // unrestricted table name meant any admin who could reach this URL could delete a
+            // row from ANY table in the database, not just the four this button is meant for.
+            $allowed_tables = ['cities', 'area', 'pickup_locations', 'subscriptions'];
+            $table = trim((string) $_GET['table']);
+            if (!in_array($table, $allowed_tables, true)) {
+                $response['error'] = true;
+                $response['message'] = 'Invalid request';
+                echo json_encode($response);
+                return false;
+            }
+
+            if ($table == 'cities') {
                 if (print_msg(!has_permissions('delete', 'city'), PERMISSION_ERROR_MSG, 'city')) {
                     return false;
                 }
@@ -219,10 +233,26 @@ class Area extends CI_Controller
                     return false;
                 }
             }
-            if (trim($_GET['table']) == 'cities') {
+            if ($table == 'cities') {
                 delete_details(['city_id' => $_GET['id']], 'areas');
             }
-            if (delete_details(['id' => $_GET['id']], $_GET['table'])) {
+
+            // Deleting a subscription plan while sellers are still on it doesn't just orphan a
+            // reference - Seller_subscription_model::get_listing_limit() treats a missing plan
+            // row as "no limit configured" and silently grants those sellers UNLIMITED listings,
+            // not an error. Same reasoning as the brand delete-guard added earlier this pass.
+            if ($table == 'subscriptions') {
+                $this->load->model('Subscription_model');
+                $sellers_on_plan = $this->db->where('subscription_id', $_GET['id'])->count_all_results('seller_subscriptions');
+                if ($sellers_on_plan > 0) {
+                    $response['error'] = true;
+                    $response['message'] = 'This plan is still assigned to ' . $sellers_on_plan . ' seller subscription(s). Move them to another plan before deleting.';
+                    echo json_encode($response);
+                    return false;
+                }
+            }
+
+            if (delete_details(['id' => $_GET['id']], $table)) {
                 $response['error'] = false;
                 $response['message'] = 'Deleted Successfully';
             } else {

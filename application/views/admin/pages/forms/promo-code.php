@@ -1,16 +1,17 @@
-<div class="content-wrapper">
+<div class="content-wrapper admin-promo-code-form-page">
     <!-- Content Header (Page header) -->
     <!-- Main content -->
     <section class="content-header">
         <div class="container-fluid">
-            <div class="row mb-2">
+            <div class="row mb-2 align-items-center">
                 <div class="col-sm-6">
-                    <h4>Add Promo Code</h4>
+                    <h4 class="mb-0"><i class="fas fa-percent mr-2 text-primary-theme"></i><?= (isset($fetched_details[0]['id'])) ? 'Edit Promo Code' : 'Add Promo Code' ?></h4>
                 </div>
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">
                         <li class="breadcrumb-item"><a href="<?= base_url('admin/home') ?>">Home</a></li>
-                        <li class="breadcrumb-item active">Promo Code</li>
+                        <li class="breadcrumb-item"><a href="<?= base_url('admin/promo-code/manage-promo-code') ?>">Promo Code</a></li>
+                        <li class="breadcrumb-item active"><?= (isset($fetched_details[0]['id'])) ? 'Edit' : 'Add' ?></li>
                     </ol>
                 </div>
             </div>
@@ -20,7 +21,11 @@
         <div class="container-fluid">
             <div class="row">
                 <div class="col-md-12">
-                    <div class="card card-info">
+                    <div class="card attribute-card">
+                        <div class="card-header attribute-card-header">
+                            <span class="header-icon bg-set mr-2"><i class="fas fa-percent"></i></span>
+                            <h5 class="mb-0"><?= (isset($fetched_details[0]['id'])) ? 'Edit Promo Code' : 'Add Promo Code' ?></h5>
+                        </div>
                         <!-- form start -->
                         <form class="form-horizontal form-submit-event" action="<?= base_url('admin/promo_code/add_promo_code'); ?>" method="POST">
 
@@ -35,11 +40,11 @@
                                 <div class="row">
                                     <div class="form-group col-md-6">
                                         <label for="">Promo Code <span class='text-danger text-sm'>*</span></label>
-                                        <input type="text" class="form-control" name="promo_code" value="<?= @$fetched_details[0]['promo_code'] ?>">
+                                        <input type="text" class="form-control" name="promo_code" value="<?= isset($fetched_details[0]['promo_code']) ? html_escape($fetched_details[0]['promo_code']) : '' ?>">
                                     </div>
                                     <div class="form-group col-md-6">
                                         <label for="">Message <span class='text-danger text-sm'>*</span></label>
-                                        <input type="text" class="form-control" name="message" value="<?= @$fetched_details[0]['message'] ?>">
+                                        <input type="text" class="form-control" name="message" value="<?= isset($fetched_details[0]['message']) ? html_escape($fetched_details[0]['message']) : '' ?>">
                                     </div>
                                    
                                     <div class="form-group col-md-6">
@@ -132,3 +137,23 @@
     </section>
     <!-- /.content -->
 </div>
+
+<style>
+    .admin-promo-code-form-page .text-primary-theme { color: var(--color-orange); }
+
+    .admin-promo-code-form-page .attribute-card { border: none; border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,0.06); }
+    .admin-promo-code-form-page .attribute-card-header {
+        background: #fff;
+        border-bottom: 1px solid rgba(0,0,0,0.06);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        border-radius: 10px 10px 0 0;
+    }
+    .admin-promo-code-form-page .header-icon {
+        width: 34px; height: 34px; border-radius: 8px;
+        display: flex; align-items: center; justify-content: center;
+        color: #fff; font-size: 14px; flex: none;
+    }
+    .admin-promo-code-form-page .header-icon.bg-set { background: var(--color-orange); }
+</style>

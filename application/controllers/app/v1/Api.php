@@ -4333,7 +4333,11 @@ Defined Methods:-
                 'ticket_id' => $ticket_id,
                 'edit_ticket' => $ticket_id
             );
-            if (!$this->ticket_model->add_ticket($data)) {
+            // Ticket_model::add_ticket() previously never returned anything on this (edit)
+            // path, so this check ("!result") was always true regardless of whether the
+            // update actually succeeded - every edit reported success. Now that it returns a
+            // real result, the condition is flipped to match.
+            if ($this->ticket_model->add_ticket($data)) {
                 $result = $this->ticket_model->get_tickets($ticket_id, $ticket_type_id, $user_id);
                 $this->response['error'] = false;
                 $this->response['message'] = 'Ticket updated Successfully';

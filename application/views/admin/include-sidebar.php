@@ -47,7 +47,7 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
 
                 <?php if (has_permissions('read', 'product') || has_permissions('read', 'attribute') || has_permissions('read', 'attribute_set') || has_permissions('read', 'attribute_value') || has_permissions('read', 'tax') || has_permissions('read', 'product_order')) { ?>
                     <li class="nav-item has-treeview ">
-                        <a href="#" class="nav-link menu-open">
+                        <a href="#" class="nav-link">
                             <i class="nav-icon fas fa-cubes text-primary"></i>
                             <p>
                                 Products
@@ -118,7 +118,13 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
                                     </a>
                                 </li>
                             <?php } ?>
-                            <?php if (has_permissions('read', 'product_faqs')) { ?>
+                            <?php
+                            // 'product_faqs' is not a registered module in the system_modules
+                            // permission list, so this link was permanently hidden from every
+                            // restricted admin account - only the primary administrator (who
+                            // bypasses permission checks entirely) could ever see it, matching
+                            // the same fix applied to Product_faqs::__construct().
+                            if (has_permissions('read', 'product')) { ?>
                                 <li class="nav-item">
                                     <a href="<?= base_url('admin/product_faqs/') ?>" class="nav-link">
                                         <i class="fas fa-question-circle nav-icon"></i>
@@ -275,7 +281,7 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
                 <?php } ?>
 
                 <li class="nav-item">
-                    <a href="#" class="nav-link menu-open">
+                    <a href="#" class="nav-link">
                         <i class="nav-icon fas fa-blog text-warning"></i>
                         <p>
                             Blogs
@@ -359,7 +365,7 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
 
                 <?php if (has_permissions('read', 'support_tickets')) { ?>
                     <li class="nav-item has-treeview">
-                        <a href="#" class="nav-link menu-open">
+                        <a href="#" class="nav-link">
                             <i class="nav-icon fas fa-ticket-alt text-danger"></i>
                             <p>
                                 Support Tickets
@@ -394,7 +400,7 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
                 <?php } ?>
                 <?php if (has_permissions('read', 'featured_section')) { ?>
                     <li class="nav-item has-treeview">
-                        <a href="#" class="nav-link menu-open">
+                        <a href="#" class="nav-link">
                             <i class="nav-icon fas fa-layer-group text-danger"></i>
                             <p>
                                 Featured Sections
@@ -821,3 +827,37 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
     </div>
     <!-- /.sidebar -->
 </aside>
+
+<script>
+    // No link in this sidebar was ever marked active for the page currently being viewed -
+    // every single admin page rendered every nav-link identically, with no indication at all
+    // of where you are. Matches each link's own URL against the current page and highlights it,
+    // opening its parent submenu (if nested) the same way AdminLTE's own treeview widget does
+    // when a user clicks to expand a section (adding "menu-open" to the parent <li>, not the
+    // <a> - a few submenu toggles in this file had "menu-open" on the <a> instead, which matches
+    // neither this widget's own convention nor the CSS that depends on it).
+    $(function () {
+        var currentPath = window.location.pathname.replace(/\/+$/, '');
+
+        $('.main-sidebar .nav-link[href]').each(function () {
+            var rawHref = $(this).attr('href');
+            // Section toggles (Products / Orders / Categories / ...) use href="#" to expand
+            // their own submenu rather than navigate anywhere. "#" resolves its .pathname to
+            // the CURRENT page (a same-page anchor), so every one of these toggles matched the
+            // "current page" check below and got marked active - which is why every section
+            // rendered open, and its heading solid orange, on every single page load regardless
+            // of which page was actually open. Real page links only past this point.
+            if (!rawHref || rawHref === '#' || rawHref.charAt(0) === '#' || rawHref.indexOf('javascript:') === 0) {
+                return;
+            }
+
+            var linkPath = this.pathname.replace(/\/+$/, '');
+            if (!linkPath || linkPath !== currentPath) {
+                return;
+            }
+
+            $(this).addClass('active');
+            $(this).parents('li.nav-item.has-treeview').addClass('menu-open');
+        });
+    });
+</script>

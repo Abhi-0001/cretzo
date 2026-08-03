@@ -503,21 +503,48 @@ class Product_model extends CI_Model
         $bulkData['total'] = $total;
         $rows = array();
         $tempRow = array();
+        // Whichever panel is rendering this table. Used below to pick the correct View/Edit
+        // destinations - see the note at those two links for why this matters.
+        $is_seller_context = $this->ion_auth->is_seller();
+
         foreach ($pro_search_res as $row) {
             $row = output_escaping($row);
-            $operate = "<div><a href='" . base_url('seller/product/view-product?edit_id=' . $row['pid']) . "'  class='btn action-btn btn-primary btn-xs mr-1 mb-1' title='View'><i class='fa fa-eye'></i></a>";
-            $operate .= " <a href='" . base_url('seller/product/create-product?edit_id=' . $row['pid']) . "' data-id=" . $row['pid'] . " class='btn action-btn btn-success btn-xs mr-1 mb-1' title='Edit' ><i class='fa fa-pen'></i></a>";
+
+            // This model is shared by both admin/product/get_product_data and
+            // seller/product/get_product_data, but the View and Edit links were hardcoded to
+            // seller/product/view-product and seller/product/create-product regardless of which
+            // panel was asking. On the admin product list this sent an administrator's click to
+            // a controller method guarded by is_seller(), which is false for an admin account -
+            // the request silently redirected to the seller login page instead of showing
+            // anything. Confirmed live: every row's View/Edit link pointed at seller/product/...
+            // even when requested through admin/product/get_product_data. Both admin/product
+            // controller methods (view_product / create_product) already exist, are already
+            // gated on is_admin(), and were already reachable directly - this just makes the
+            // list's own buttons use them.
+            $view_url = $is_seller_context
+                ? base_url('seller/product/view-product?edit_id=' . $row['pid'])
+                : base_url('admin/product/view_product?edit_id=' . $row['pid']);
+            $edit_url = $is_seller_context
+                ? base_url('seller/product/create-product?edit_id=' . $row['pid'])
+                : base_url('admin/product/create_product?edit_id=' . $row['pid']);
+
+            $operate = "<div><a href='" . $view_url . "'  class='btn action-btn btn-primary btn-xs mr-1 mb-1' title='View'><i class='fa fa-eye'></i></a>";
+            $operate .= " <a href='" . $edit_url . "' data-id=" . $row['pid'] . " class='btn action-btn btn-success btn-xs mr-1 mb-1' title='Edit' ><i class='fa fa-pen'></i></a>";
             if ($row['status'] == '2') {
                 $tempRow['status'] = '<a class="badge badge-danger text-white">Not-Approved</a>';
-                if ($this->ion_auth->is_seller()) {
-                    $operate .= '<a class="btn btn-secondary action-btn mr-1 mb-1 ml-1 btn-xs" data-table="products" href="javascript:void(0)" title="Not-Approved" ><i class="fa fa-ban"></i></a>';
+                if ($is_seller_context) {
+                    $operate .= '<a class="btn btn-secondary action-btn mr-1 mb-1 ml-1 btn-xs" data-table="products" href="javascript:void(0)" title="Not-Approved" ><i class="fa fa-ban"></i></a></div>';
                 } else {
-                    $operate .= '<a class="btn btn-secondary mr-1 mb-1 action-btn ml-1 btn-xs update_active_status" data-table="products" href="javascript:void(0)" title="Approve" data-id="' . $row['pid'] . '" data-status="' . $row['status'] . '" ><i class="fa fa-ban"></i></a>';
+                    $operate .= '<a class="btn btn-secondary mr-1 mb-1 action-btn ml-1 btn-xs update_active_status" data-table="products" href="javascript:void(0)" title="Approve" data-id="' . $row['pid'] . '" data-status="' . $row['status'] . '" ><i class="fa fa-ban"></i></a></div>';
                 }
             }
             if ($row['status'] == '1') {
                 $tempRow['status'] = '<a class="badge badge-success text-white" >Active</a>';
-                $operate .= '<a class="btn btn-warning action-btn btn-xs update_active_status mr-1 mb-1 ml-1" data-table="products" title="Deactivate" href="javascript:void(0)" data-id="' . $row['pid'] . '" data-status="' . $row['status'] . '" ><i class="fa fa-toggle-on"></i></a>';
+                // The closing </div> for the opening tag above only ever appeared in the
+                // status==0 branch below, so for every ACTIVE product (290 of 290 in this
+                // database) the first <div> was left unclosed and the second <div> that follows
+                // (rating/FAQ/delete buttons) nested incorrectly inside it.
+                $operate .= '<a class="btn btn-warning action-btn btn-xs update_active_status mr-1 mb-1 ml-1" data-table="products" title="Deactivate" href="javascript:void(0)" data-id="' . $row['pid'] . '" data-status="' . $row['status'] . '" ><i class="fa fa-toggle-on"></i></a></div>';
             } else  if ($row['status'] == '0') {
                 $tempRow['status'] = '<a class="badge badge-danger text-white" >Inactive</a>';
                 $operate .= '<a class="btn btn-secondary action-btn mr-1 mb-1 ml-1 btn-xs update_active_status" data-table="products" href="javascript:void(0)" title="Active" data-id="' . $row['pid'] . '" data-status="' . $row['status'] . '" ><i class="fa fa-toggle-off"></i></a></div>';
@@ -1100,9 +1127,12 @@ class Product_model extends CI_Model
 
             $limit = $_GET['limit'];
 
-        if (isset($_GET['order']))
+        // $order was passed straight through with no whitelist - $sort itself is hardcoded
+        // above (never read from $_GET), so this alone isn't the same class of injection risk
+        // as elsewhere, but relying on that rather than an explicit whitelist is fragile.
+        if (isset($_GET['order']) && strtolower($_GET['order']) === 'desc')
 
-            $order = $_GET['order'];
+            $order = 'DESC';
 
         $products = fetch_product("", (isset($filters)) ? $filters : null, "", isset($category_id) ? $category_id : null, $limit, $offset, $sort, $order, "", "", isset($seller_id) ? $seller_id : null);
 
@@ -1132,21 +1162,30 @@ class Product_model extends CI_Model
 
             $tempRow['id'] = $product['variants'][0]['id'];
 
-            $tempRow['name'] = $product['name'];
+            // Neither product name, category name, nor variant attribute values were ever
+            // escaped here - all three are seller-controlled input, rendered raw into the
+            // bootstrap-table's HTML payload. A stored-XSS route the same as already fixed
+            // on other list pages.
+            $tempRow['name'] = html_escape($product['name']);
 
-            $tempRow['seller_name'] = $product['seller_name'];
+            $tempRow['seller_name'] = html_escape($product['seller_name']);
 
-            $tempRow['category_name'] = $category_name[0]['name'];
+            $tempRow['category_name'] = html_escape($category_name[0]['name']);
 
             $tempRow['image'] = '<div class="mx-auto product-image image-box-100"><a href=' . $product['image'] . ' data-toggle="lightbox" data-gallery="gallery"><img src=' . $product['image'] . ' class="rounded"></a></div>';
 
+            // $edit was only ever assigned inside this loop - a product with zero variant rows
+            // (a data inconsistency, but not impossible) left it undefined, and the ternary
+            // below then referenced it regardless, producing a PHP notice and an Edit button
+            // with no real target for that row.
+            $edit = '';
             $operate = "<table class='table-borderless table-sm w-100'>";
 
             for ($i = 0; $i < count($variants); $i++) {
 
                 $edit = '<a href="javascript:void(0)" class="edit_btn btn action-btn btn-success btn-xs mr-1 mb-1" title="Edit" data-id="' . $variants[$i]['id'] . '" data-url="admin/manage_stock/"><i class="fa fa-pen"></i></a>';
 
-                $operate .= "<tr> <th>" . str_replace(",", ", ", $variants[$i]['variant_values'])  . '</th>';
+                $operate .= "<tr> <th>" . html_escape(str_replace(",", ", ", $variants[$i]['variant_values']))  . '</th>';
 
                 if ($product['stock_type'] != 1) {
 

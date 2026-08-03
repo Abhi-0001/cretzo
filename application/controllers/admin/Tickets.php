@@ -72,6 +72,22 @@ class Tickets extends CI_Controller
             if (print_msg(!has_permissions('delete', 'support_tickets'), PERMISSION_ERROR_MSG, 'support_tickets')) {
                 return false;
             }
+            if (!is_numeric($_GET['id'])) {
+                $response['error'] = true;
+                $response['message'] = 'Invalid request';
+                echo json_encode($response);
+                return false;
+            }
+            // Deleting a ticket type still referenced by existing tickets would leave those
+            // tickets pointing at a type that no longer exists - same class of dangling
+            // reference already guarded against on Brand/Subscription deletes this session.
+            $tickets_using_type = $this->db->where('ticket_type_id', $_GET['id'])->count_all_results('tickets');
+            if ($tickets_using_type > 0) {
+                $response['error'] = true;
+                $response['message'] = 'This ticket type is still used by ' . $tickets_using_type . ' ticket(s). Reassign them before deleting.';
+                echo json_encode($response);
+                return false;
+            }
             if (delete_details(['id' => $_GET['id']], "ticket_types")) {
                 $response['error'] = false;
                 $response['message'] = 'Deleted Successfully';
@@ -88,7 +104,12 @@ class Tickets extends CI_Controller
     public function add_ticket_type()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
-            if (isset($_POST['edit_ticket_types'])) {
+            // Was checking $_POST['edit_ticket_types'] (plural) - the actual hidden field the
+            // edit form submits is 'edit_ticket_type' (singular, matches Ticket_model::
+            // add_ticket_type()'s own check). Because of the mismatch, isset() here was
+            // always false, so editing a ticket type always ran the CREATE permission check
+            // instead of UPDATE, and always reported "Added Successfully" even when editing.
+            if (isset($_POST['edit_ticket_type'])) {
                 if (print_msg(!has_permissions('update', 'support_tickets'), PERMISSION_ERROR_MSG, 'support_tickets')) {
                     return false;
                 }
@@ -109,7 +130,7 @@ class Tickets extends CI_Controller
                 $this->response['error'] = false;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $message = (isset($_POST['edit_ticket_types'])) ? 'Ticket Types Updated Successfully' : 'Ticket Types Added Successfully';
+                $message = (isset($_POST['edit_ticket_type'])) ? 'Ticket Types Updated Successfully' : 'Ticket Types Added Successfully';
                 $this->response['message'] = $message;
                 print_r(json_encode($this->response));
             }
@@ -203,6 +224,14 @@ class Tickets extends CI_Controller
     }
     public function get_ticket_messages()
     {
+        // Had no login/admin check at all - every other method in this controller checks
+        // ion_auth->logged_in() && is_admin() before touching a ticket, but this one didn't,
+        // letting anyone who could reach the URL read any ticket's full conversation and
+        // attachments just by guessing/incrementing ticket_id, regardless of who it belongs to.
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {
+            redirect('admin/login', 'refresh');
+            return;
+        }
         $this->form_validation->set_data($this->input->get());
         $this->form_validation->set_rules('ticket_id', 'Ticket ID', 'trim|numeric|required|xss_clean');
         if (!$this->form_validation->run()) {
@@ -248,7 +277,11 @@ class Tickets extends CI_Controller
             if (print_msg(!has_permissions('update', 'support_tickets'), PERMISSION_ERROR_MSG, 'support_tickets')) {
                 return false;
             }
-            $this->form_validation->set_rules('ticket_id', 'Ticket Id', 'trim|required|xss_clean');
+            // ticket_id was only checked 'required', not 'numeric' - it's used a few lines down
+            // in a raw string-concatenated WHERE clause (fetch_details('tickets', 'id=' .
+            // $ticket_id, '*')), not a parameterized one, so a non-numeric value could inject
+            // arbitrary SQL into that query.
+            $this->form_validation->set_rules('ticket_id', 'Ticket Id', 'trim|required|numeric|xss_clean');
             $this->form_validation->set_rules('status', 'Status', 'trim|required|xss_clean');
 
 
@@ -313,7 +346,7 @@ class Tickets extends CI_Controller
                     'edit_ticket_status' => $ticket_id
                 );
                 $settings = get_settings('system_settings', true);
-                if (!$this->ticket_model->add_ticket($data)) {
+                if ($this->ticket_model->add_ticket($data)) {
                     $result = $this->ticket_model->get_tickets($ticket_id);
                     if (!empty($result)) {
                         //custom message
@@ -323,9 +356,12 @@ class Tickets extends CI_Controller
                         $hashtag = html_entity_decode($string);
                         $data = str_replace($hashtag_application_name, $settings['app_name'], $hashtag);
                         $message = output_escaping(trim($data, '"'));
-                        $ticket_res = fetch_details('ticket_messages', ['user_type' => 'user', 'ticket_id' => $ticket_id], 'user_id');
-
-                        $user_res = fetch_details("users", ['id' => $ticket_res[0]['user_id']], 'fcm_id', '',  '', '', '');
+                        // Was looking up the ticket's owner via a ticket_messages row filtered to
+                        // user_type='user' - if the ticket had no such message yet (e.g. only
+                        // admin replies so far), this came back empty and $ticket_res[0]['user_id']
+                        // threw an undefined-index notice, silently failing to notify anyone.
+                        // The ticket's own owner is already known from $res[0]['user_id'] above.
+                        $user_res = fetch_details("users", ['id' => $res[0]['user_id']], 'fcm_id', '',  '', '', '');
                         $fcm_ids[0][] = $user_res[0]['fcm_id'];
                         $fcm_admin_subject =  (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Your Ticket status has been changed";
                         $fcm_admin_msg = (!empty($custom_notification)) ? $message : "Ticket Message";

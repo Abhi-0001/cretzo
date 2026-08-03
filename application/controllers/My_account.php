@@ -512,6 +512,17 @@ class My_account extends CI_Controller
                 print_r(json_encode($this->response));
                 return false;
             }
+            // Was never verified that this address actually belongs to the logged-in user -
+            // any logged-in customer could edit any other customer's address just by knowing
+            // its numeric id (IDOR).
+            $owned = fetch_details('addresses', ['id' => $_POST['id'], 'user_id' => $this->data['user']->id], 'id');
+            if (empty($owned)) {
+                $this->response['error'] = true;
+                $this->response['message'] = 'Address not found';
+                $this->response['data'] = array();
+                print_r(json_encode($this->response));
+                return false;
+            }
             // print_R($_POST);
             $this->address_model->set_address($_POST);
             $res = $this->address_model->get_address(null, $_POST['id'], true);
@@ -536,6 +547,17 @@ class My_account extends CI_Controller
             if (!$this->form_validation->run()) {
                 $this->response['error'] = true;
                 $this->response['message'] = validation_errors();
+                $this->response['data'] = array();
+                print_r(json_encode($this->response));
+                return false;
+            }
+            // Was never verified that this address actually belongs to the logged-in user -
+            // any logged-in customer could delete any other customer's address just by knowing
+            // its numeric id (IDOR).
+            $owned = fetch_details('addresses', ['id' => $_POST['id'], 'user_id' => $this->data['user']->id], 'id');
+            if (empty($owned)) {
+                $this->response['error'] = true;
+                $this->response['message'] = 'Address not found';
                 $this->response['data'] = array();
                 print_r(json_encode($this->response));
                 return false;
@@ -566,6 +588,19 @@ class My_account extends CI_Controller
                 print_r(json_encode($this->response));
                 return false;
             }
+            // Was never verified that this address actually belongs to the logged-in user -
+            // any logged-in customer could make any other customer's address "default" (and,
+            // via set_address()'s is_default handling, clear that OTHER customer's own default
+            // flag) just by knowing its numeric id (IDOR).
+            $owned = fetch_details('addresses', ['id' => $_POST['id'], 'user_id' => $this->data['user']->id], 'id');
+            if (empty($owned)) {
+                $this->response['error'] = true;
+                $this->response['message'] = 'Address not found';
+                $this->response['data'] = array();
+                print_r(json_encode($this->response));
+                return false;
+            }
+            $_POST['user_id'] = $this->data['user']->id;
             $_POST['is_default'] = true;
             $this->address_model->set_address($_POST);
             $this->response['error'] = false;

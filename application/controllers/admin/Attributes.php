@@ -65,9 +65,28 @@ class Attributes extends CI_Controller
 			$this->form_validation->set_rules('name', 'Name', 'trim|required|xss_clean');
 			$this->form_validation->set_rules('attribute_set', 'Attribute set', 'trim|required|xss_clean');
 			$this->form_validation->set_rules('attribute_value[]', 'Attribute Value', 'trim|required|xss_clean');
-			$this->form_validation->set_rules('swatche_value[]', 'Attribute Image', 'trim|required|xss_clean');
+			// swatche_value[] was unconditionally required as "Attribute Image". A value whose
+			// swatch type is "Default" has no image or colour to supply, so adding a plain
+			// attribute value was rejected with "The Attribute Image field is required" and
+			// could not be saved at all. It is now required only for the swatch types that
+			// actually carry a value.
 			$swatche_type = $this->input->post('swatche_type', true);
-           
+			$swatche_value = $this->input->post('swatche_value', true);
+
+			if (is_array($swatche_type)) {
+				foreach ($swatche_type as $i => $type) {
+					// 1 = colour, 2 = image; 0 = default, which needs nothing.
+					if (($type == '1' || $type == '2') && (!isset($swatche_value[$i]) || trim((string) $swatche_value[$i]) === '')) {
+						$this->response['error'] = true;
+						$this->response['csrfName'] = $this->security->get_csrf_token_name();
+						$this->response['csrfHash'] = $this->security->get_csrf_hash();
+						$this->response['message'] = 'Please provide a ' . ($type == '1' ? 'colour' : 'image') . ' for every swatch of that type.';
+						echo json_encode($this->response);
+						return false;
+					}
+				}
+			}
+
 			if (!$this->form_validation->run()) {
 				$this->response['error'] = true;
 				$this->response['csrfName'] = $this->security->get_csrf_token_name();

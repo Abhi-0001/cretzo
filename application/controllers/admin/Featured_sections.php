@@ -117,43 +117,50 @@ class Featured_sections extends CI_Controller
     public function update_section_order()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
+            // Had no permission check at all - the constructor only requires 'read' access for
+            // this whole controller, so a user granted read-only access to Featured Sections
+            // could still reorder them, matching the exact permission check its own sibling
+            // create/update/delete endpoints already have.
+            if (print_msg(!has_permissions('update', 'featured_section'), PERMISSION_ERROR_MSG, 'featured_section', false)) {
+                return false;
+            }
             if (defined('ALLOW_MODIFICATION') && ALLOW_MODIFICATION == 0) {
                 $this->response['error'] = true;
                 $this->response['message'] = DEMO_VERSION_MSG;
-                echo json_encode($this->response);
-                $response['csrfName'] = $this->security->get_csrf_token_name();
-                $response['csrfHash'] = $this->security->get_csrf_hash();
-                return false;
-                exit();
-            }
-            $i = 0;
-            $temp = array();
-            $flag = false;
-            foreach ($_GET['section_id'] as $row) {
-                $temp[$row] = $i;
-                $data = [
-                    'row_order' => $i
-                ];
-                $data = escape_array($data);
-                $this->db->where(['id' => $row])->update('sections', $data);
-                $i++;
-                $flag = true;
-            }
-            if ($flag == true) {
-                $this->response['error'] = false;
-                $this->response['message'] = "Section order update successfully";
-                $response['csrfName'] = $this->security->get_csrf_token_name();
-                $response['csrfHash'] = $this->security->get_csrf_hash();
+                $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                $this->response['csrfHash'] = $this->security->get_csrf_hash();
                 echo json_encode($this->response);
                 return false;
-            } else {
+            }
+
+            // Had no validation at all: a request with section_id missing, or not an array,
+            // raised a PHP warning (foreach on null) and every id inside it was written straight
+            // into a WHERE clause with no type check - the same bug already fixed on the
+            // equivalent Category/Product order-save endpoints.
+            if (!isset($_GET['section_id']) || !is_array($_GET['section_id'])) {
                 $this->response['error'] = true;
-                $this->response['message'] = "Order not updated.";
-                $response['csrfName'] = $this->security->get_csrf_token_name();
-                $response['csrfHash'] = $this->security->get_csrf_hash();
+                $this->response['message'] = 'No sections to reorder';
                 echo json_encode($this->response);
                 return false;
             }
+
+            $this->db->trans_start();
+            $i = 0;
+            foreach ($_GET['section_id'] as $row) {
+                if (!is_numeric($row)) {
+                    continue;
+                }
+                $this->db->where(['id' => (int) $row])->update('sections', ['row_order' => $i]);
+                $i++;
+            }
+            $this->db->trans_complete();
+
+            $this->response['error'] = ($this->db->trans_status() === false);
+            $this->response['csrfName'] = $this->security->get_csrf_token_name();
+            $this->response['csrfHash'] = $this->security->get_csrf_hash();
+            $this->response['message'] = $this->response['error'] ? 'Something went wrong. Please try again.' : 'Section order updated successfully';
+            echo json_encode($this->response);
+            return false;
         } else {
             redirect('admin/login', 'refresh');
         }
@@ -189,7 +196,9 @@ class Featured_sections extends CI_Controller
                 $this->response['message'] = 'Deleted Succesfully';
                 print_r(json_encode($this->response));
             } else {
-                $this->response['error'] = false;
+                // Was hardcoded to error:false (success) even in this failure branch, so a
+                // failed delete still reported success to the caller.
+                $this->response['error'] = true;
                 $this->response['message'] = 'Something Went Wrong';
                 print_r(json_encode($this->response));
             }

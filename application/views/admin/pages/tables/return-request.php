@@ -1,11 +1,12 @@
-<div class="content-wrapper">
+<div class="content-wrapper admin-return-request-page">
     <!-- Content Header (Page header) -->
     <!-- Main content -->
     <section class="content-header">
         <div class="container-fluid">
-            <div class="row mb-2">
+            <div class="row mb-2 align-items-center">
                 <div class="col-sm-6">
-                    <h4>Return Request</h4>
+                    <h4 class="mb-0"><i class="fas fa-undo-alt mr-2 text-primary-theme"></i>Return Request</h4>
+                    <p class="text-muted mb-0 small">Review and action customer return requests.</p>
                 </div>
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">
@@ -24,7 +25,7 @@
                     <div class="modal-dialog modal-lg">
                         <div class="modal-content">
                             <div class="modal-header">
-                                <h5 class="modal-title">Update Return Request</h5>
+                                <h5 class="modal-title"><i class="fas fa-undo-alt mr-2 text-primary-theme"></i>Update Return Request</h5>
                                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                                     <span aria-hidden="true">&times;</span>
                                 </button>
@@ -34,7 +35,6 @@
                                     <input type="hidden" name="return_request_id" id="return_request_id">
                                     <input type="hidden" name="user_id" id="user_id">
                                     <input type="hidden" name="order_item_id" id="order_item_id">
-                                    <input type="hidden" name="delivery_by" id="delivery_by">
 
                                     <div class="form-group">
                                         <label class="control-label col-md-3 col-sm-3 col-xs-12">Status <span class='text-danger text-sm'>*</span></label>
@@ -53,7 +53,7 @@
                                         </div>
                                     </div>
                                     <div class="col-md-5 d-none" id="return_request_delivery_by">
-                                        
+
                                         <select id='deliver_by' name='deliver_by' class='form-control'>
                                             <option value=''>Select Delivery Boy</option>
                                             <?php foreach ($delivery_res as $row) { ?>
@@ -69,7 +69,7 @@
                                     <div class="ln_solid"></div>
                                     <div class="form-group">
                                         <button type="reset" class="btn btn-warning">Reset</button>
-                                        <button type="submit" class="btn btn-success" id="submit_btn">Update</button>
+                                        <button type="submit" class="btn btn-primary-theme" id="submit_btn">Update</button>
                                     </div>
                                     <div class="d-flex justify-content-center">
                                         <div class="form-group" id="error_box">
@@ -83,9 +83,14 @@
             </div>
         </div>
         <div class="col-md-12 main-content">
-            <div class="card content-area p-4">
-                <div class="card-innr">
-                    <div class="gaps-1-5x"></div>
+            <div class="card attribute-card">
+                <div class="card-header attribute-card-header d-flex justify-content-between align-items-center flex-wrap">
+                    <div class="d-flex align-items-center">
+                        <span class="header-icon bg-set"><i class="fas fa-undo-alt"></i></span>
+                        <h5 class="mb-0">Return Requests</h5>
+                    </div>
+                </div>
+                <div class="card-body">
                     <table class='table-striped' id='return_request_table' data-toggle="table" data-url="<?= base_url('admin/return_request/view_return_request_list') ?>" data-click-to-select="true" data-side-pagination="server" data-pagination="true" data-page-list="[5, 10, 20, 50, 100, 200]" data-search="true" data-show-columns="true" data-show-refresh="true" data-trim-on-search="false" data-sort-name="id" data-sort-order="desc" data-mobile-responsive="true" data-toolbar="" data-show-export="true" data-maintain-selected="true" data-query-params="queryParams">
                         <thead>
                             <tr>
@@ -103,7 +108,7 @@
                             </tr>
                         </thead>
                     </table>
-                </div><!-- .card-innr -->
+                </div><!-- .card-body -->
             </div><!-- .card -->
         </div>
 </div>
@@ -112,3 +117,58 @@
 </section>
 <!-- /.content -->
 </div>
+
+<style>
+    .admin-return-request-page .text-primary-theme { color: var(--color-orange); }
+
+    .admin-return-request-page .btn-primary-theme {
+        background: var(--color-orange);
+        border-color: var(--color-orange);
+        color: #fff;
+        font-weight: 600;
+    }
+    .admin-return-request-page .btn-primary-theme:hover { background: var(--color-orange-dark); border-color: var(--color-orange-dark); color: #fff; }
+
+    .admin-return-request-page .attribute-card { border: none; border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,0.06); }
+    .admin-return-request-page .attribute-card-header {
+        background: #fff;
+        border-bottom: 1px solid rgba(0,0,0,0.06);
+        gap: 10px;
+        border-radius: 10px 10px 0 0;
+    }
+    .admin-return-request-page .header-icon {
+        width: 34px; height: 34px; border-radius: 8px;
+        display: flex; align-items: center; justify-content: center;
+        color: #fff; font-size: 14px; flex: none;
+    }
+    .admin-return-request-page .header-icon.bg-set { background: var(--color-orange); }
+
+    .admin-return-request-page .fixed-table-toolbar { margin-bottom: 10px; }
+    .admin-return-request-page .fixed-table-toolbar > div { margin-left: 10px !important; }
+    .admin-return-request-page .fixed-table-toolbar .search input {
+        border-radius: 20px;
+        border: 1px solid rgba(0,0,0,0.12);
+        padding: 6px 14px;
+        box-shadow: none;
+    }
+    .admin-return-request-page .fixed-table-toolbar .search input:focus { border-color: var(--color-orange); }
+    .admin-return-request-page table.table thead th {
+        background: #fafafa;
+        border-top: none;
+        border-bottom: 2px solid rgba(0,0,0,0.06);
+        color: var(--color-grey);
+        font-weight: 600;
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: .3px;
+        white-space: nowrap;
+    }
+    .admin-return-request-page table.table tbody td { vertical-align: middle; font-size: 14px; border-top: 1px solid rgba(0,0,0,0.05); }
+    .admin-return-request-page table.table tbody tr:hover { background-color: var(--color-orange-light); }
+    .admin-return-request-page .fixed-table-pagination .pagination .page-item.active .page-link { color: #fff; background-color: var(--color-orange); border-color: var(--color-orange); }
+    .admin-return-request-page .fixed-table-pagination .pagination .page-link { color: var(--color-orange-dark); border-radius: 6px; margin: 0 2px; border: 1px solid rgba(0,0,0,0.08); }
+
+    .admin-return-request-page td:has(.action-btn) { white-space: nowrap; }
+    .admin-return-request-page .action-btn { display: inline-block; vertical-align: middle; }
+    .admin-return-request-page #status .btn { border-radius: 20px; margin-right: 4px; }
+</style>

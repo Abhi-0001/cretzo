@@ -46,9 +46,13 @@ class Pickup_location extends CI_Controller
             $this->form_validation->set_rules('country', ' Country ', 'trim|required|xss_clean');
             $this->form_validation->set_rules('pincode', ' Pincode ', 'trim|required|xss_clean');
             $this->form_validation->set_rules('address', ' Address ', 'trim|required|xss_clean');
-            $this->form_validation->set_rules('address2', ' Address 2 ', 'trim|required|xss_clean');
-            $this->form_validation->set_rules('latitude', ' Latitude ', 'trim|required|numeric|xss_clean');
-            $this->form_validation->set_rules('longitude', ' Longitude ', 'trim|required|numeric|xss_clean');
+            // Optional, matching the form (these three carry no required marker) and the
+            // admin-side controller. They were `required` here, so a seller who filled in
+            // every starred field still got "The Address 2 field is required." — and there
+            // is no way for a seller to supply latitude/longitude from this form at all.
+            $this->form_validation->set_rules('address2', ' Address 2 ', 'trim|xss_clean');
+            $this->form_validation->set_rules('latitude', ' Latitude ', 'trim|numeric|xss_clean');
+            $this->form_validation->set_rules('longitude', ' Longitude ', 'trim|numeric|xss_clean');
 
 
             if (!$this->form_validation->run()) {

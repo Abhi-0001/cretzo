@@ -90,9 +90,6 @@ class Blog_model extends CI_Model
         $sort = 'id';
         $order = 'ASC';
         $multipleWhere = '';
-        if (isset($_GET['category_id'])) {
-            $category_id = $_GET['category_id'];
-        }
 
         if (isset($_GET['id']))
             $where['parent_id'] = $_GET['id'];
@@ -101,14 +98,15 @@ class Blog_model extends CI_Model
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "id";
-            } else {
-                $sort = $_GET['sort'];
-            }
-        if (isset($_GET['order']))
-            $order = $_GET['order'];
+        // Sort column was passed straight into order_by() with no whitelist - an injection
+        // route the same as already fixed on other list pages.
+        $allowed_sort_columns = ['id', 'name', 'status'];
+        if (isset($_GET['sort']) && in_array($_GET['sort'], $allowed_sort_columns, true)) {
+            $sort = $_GET['sort'];
+        }
+        if (isset($_GET['order']) && strtolower($_GET['order']) === 'desc') {
+            $order = 'desc';
+        }
 
         if (isset($_GET['search']) and $_GET['search'] != '') {
             $search = $_GET['search'];
@@ -149,7 +147,7 @@ class Blog_model extends CI_Model
             $count_res->where_in('id', $cat_ids);
         }
 
-        $cat_search_res = $search_res->order_by($sort, "asc")->limit($limit, $offset)->get('blog_categories')->result_array();
+        $cat_search_res = $search_res->order_by($sort, $order)->limit($limit, $offset)->get('blog_categories')->result_array();
         $bulkData = array();
         $bulkData['total'] = $total;
         $rows = array();
@@ -175,7 +173,9 @@ class Blog_model extends CI_Model
             }
 
             $tempRow['id'] = $row['id'];
-            $tempRow['name'] = '<a href="' . base_url() . 'admin/category?id=' . $row['id'] . '">' . output_escaping($row['name']) . '</a>';
+            // output_escaping() only strips backslash-escaping, it does not HTML-encode -
+            // a stored-XSS route the same as already fixed on other list pages.
+            $tempRow['name'] = '<a href="' . base_url() . 'admin/category?id=' . $row['id'] . '">' . html_escape($row['name']) . '</a>';
 
             if (empty($row['image']) || file_exists(FCPATH  . $row['image']) == FALSE) {
                 $row['image'] = base_url() . NO_IMAGE;
@@ -237,9 +237,12 @@ class Blog_model extends CI_Model
 
     function get_blog_category($search_term = "")
     {
-        // Fetch users
+        // $search_term used to be spliced directly into a raw WHERE string ("name like '%...%'"),
+        // bypassing the query builder's escaping entirely - a real SQL injection reachable at
+        // admin/blogs/get_blog_category?search=... by any logged-in staff member. like() escapes
+        // the value and builds the same query safely.
         $this->db->select('name,id');
-        $this->db->where("name like '%" . $search_term . "%'");
+        $this->db->like('name', $search_term);
         $this->db->where("status", 1);
 
         $fetched_records = $this->db->get('blog_categories');
@@ -261,23 +264,30 @@ class Blog_model extends CI_Model
         $sort = 'id';
         $order = 'ASC';
         $multipleWhere = '';
-        $category_id = $_GET['category_id'];
+        // Read unguarded before - a direct call to this endpoint without category_id (the
+        // page's own JS always sends it, even as "", but nothing else calling this is
+        // guaranteed to) raised an undefined-index warning that, on a server configured to
+        // display errors, gets prepended to the JSON response and breaks the AJAX parse.
+        $category_id = isset($_GET['category_id']) ? $_GET['category_id'] : '';
 
-        isset($category_id) && !empty($category_id) ? $where['category_id'] = $category_id : '';
+        if (!empty($category_id)) {
+            $where['category_id'] = $category_id;
+        }
 
         if (isset($_GET['offset']))
             $offset = $_GET['offset'];
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "id";
-            } else {
-                $sort = $_GET['sort'];
-            }
-        if (isset($_GET['order']))
-            $order = $_GET['order'];
+        // Sort column was passed straight into order_by() with no whitelist - an injection
+        // route the same as already fixed on other list pages.
+        $allowed_sort_columns = ['id', 'title', 'category_id'];
+        if (isset($_GET['sort']) && in_array($_GET['sort'], $allowed_sort_columns, true)) {
+            $sort = $_GET['sort'];
+        }
+        if (isset($_GET['order']) && strtolower($_GET['order']) === 'desc') {
+            $order = 'desc';
+        }
 
         if (isset($_GET['search']) and $_GET['search'] != '') {
             $search = $_GET['search'];
@@ -307,7 +317,10 @@ class Blog_model extends CI_Model
             $search_res->where($where);
         }
 
-        $cat_search_res = $search_res->order_by($sort, "asc")->limit($limit, $offset, $category_id)->get('blogs')->result_array();
+        // limit()'s 2nd param is the offset - it takes no 3rd argument, so the $category_id
+        // passed here was always silently ignored (filtering by category is already handled
+        // above via $where['category_id']).
+        $cat_search_res = $search_res->order_by($sort, $order)->limit($limit, $offset)->get('blogs')->result_array();
         $bulkData = array();
         $bulkData['total'] = $total;
         $rows = array();
@@ -339,8 +352,12 @@ class Blog_model extends CI_Model
 
                 $tempRow['blog_category'] = $categories['name'];
             }
-            $tempRow['title'] = $row['title'];
-            $tempRow['description'] = description_word_limit(output_escaping(str_replace('\r\n', '&#13;&#10;', $row['description'])));
+            // Title was rendered completely raw (no escaping call at all); description only had
+            // output_escaping() (backslash-stripping, not real HTML encoding) applied. Both are
+            // author-controlled - a stored-XSS route on this admin list, same as already fixed
+            // elsewhere.
+            $tempRow['title'] = html_escape($row['title']);
+            $tempRow['description'] = html_escape(description_word_limit(str_replace('\r\n', '&#13;&#10;', $row['description'])));
 
             if (empty($row['image']) || file_exists(FCPATH  . $row['image']) == FALSE) {
                 $row['image'] = base_url() . NO_IMAGE;

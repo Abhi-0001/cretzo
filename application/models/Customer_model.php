@@ -20,6 +20,10 @@ class Customer_model extends CI_Model
         $order = 'ASC';
         $multipleWhere = '';
         $where = ['ug.group_id' => 2];
+        // Whitelist against the actual selected columns, mapped from the table's own
+        // data-field names to their real SQL columns/aliases - $_GET['sort'] was previously
+        // passed straight into order_by() unchecked (SQL injection shape).
+        $allowed_sort_columns = ['id' => 'u.id', 'name' => 'u.username', 'email' => 'u.email', 'mobile' => 'u.mobile', 'balance' => 'u.balance', 'street' => 'u.street', 'area' => 'area_name', 'city' => 'city_name', 'date' => 'u.created_at'];
 
         if (isset($_GET['offset'])) {
             $offset = $_GET['offset'];
@@ -28,15 +32,13 @@ class Customer_model extends CI_Model
             $limit = $_GET['limit'];
         }
 
-        if (isset($_GET['sort'])) {
-            if ($_GET['sort'] == 'id') {
-                $sort = "id";
-            } else {
-                $sort = $_GET['sort'];
-            }
+        if (isset($_GET['sort']) && isset($allowed_sort_columns[$_GET['sort']])) {
+            $sort = $allowed_sort_columns[$_GET['sort']];
         }
-        if (isset($_GET['order'])) {
-            $order = $_GET['order'];
+        if (isset($_GET['order']) && strtolower($_GET['order']) === 'asc') {
+            $order = 'asc';
+        } else {
+            $order = 'desc';
         }
         if (isset($_GET['search']) and $_GET['search'] != '') {
             $search = $_GET['search'];
@@ -59,7 +61,10 @@ class Customer_model extends CI_Model
         if (isset($where) && !empty($where)) {
             $count_res->where($where);
         }
-        $count_res->join('`users_groups` `ug`', '`u`.`id` = `ug`.`user_id`');
+        // No join type defaulted to an INNER JOIN - a customer whose users_groups row had been
+        // deleted independently of the user record was silently dropped from the total and the
+        // list, with no filter or search combination able to surface them again.
+        $count_res->join('`users_groups` `ug`', '`u`.`id` = `ug`.`user_id`', 'left');
 
         $cat_count = $count_res->get('users u')->result_array();
        
@@ -77,9 +82,9 @@ class Customer_model extends CI_Model
             $search_res->where($where);
         }
 
-        $search_res->join('`users_groups` `ug`', '`u`.`id` = `ug`.`user_id`');
+        $search_res->join('`users_groups` `ug`', '`u`.`id` = `ug`.`user_id`', 'left');
 
-        $cat_search_res = $search_res->order_by($sort, "desc")->limit($limit, $offset)->get('users u')->result_array();
+        $cat_search_res = $search_res->order_by($sort, $order)->limit($limit, $offset)->get('users u')->result_array();
 
         $bulkData = array();
         $bulkData['total'] = $total;
@@ -99,7 +104,9 @@ class Customer_model extends CI_Model
                 }
             }
             $tempRow['id'] = $row['id'];
-            $tempRow['name'] = $row['username'];
+            // output_escaping() only strips backslash-escaping, it does not HTML-encode - a
+            // stored-XSS route on this admin list the same as already fixed on other pages.
+            $tempRow['name'] = html_escape($row['username']);
             if (isset($row['email']) && !empty($row['email']) && $row['email'] != "" && $row['email'] != " ") {
                 $tempRow['email'] = (defined('ALLOW_MODIFICATION') && ALLOW_MODIFICATION == 0) ? str_repeat("X", strlen($row['email']) - 3) . substr($row['email'], -3) : ucfirst($row['email']);
             } else {
@@ -111,9 +118,9 @@ class Customer_model extends CI_Model
                 $tempRow['mobile'] = "";
             }
             $tempRow['balance'] = $row['balance'] == null || $row['balance'] == 0 || empty($row['balance']) ? "0" : number_format($row['balance'], 2);
-            $tempRow['city'] = $row['city_name'];
-            $tempRow['area'] = $row['area_name'];
-            $tempRow['street'] = $row['street'];
+            $tempRow['city'] = html_escape($row['city_name']);
+            $tempRow['area'] = html_escape($row['area_name']);
+            $tempRow['street'] = html_escape($row['street']);
             $tempRow['status'] = ($row['active'] == '1') ? '<a class="badge badge-success text-white" >Active</a>' : '<a class="badge badge-danger text-white" >Inactive</a>';
             $tempRow['date'] = $row['created_at'];
             if (!$this->ion_auth->is_seller()) {

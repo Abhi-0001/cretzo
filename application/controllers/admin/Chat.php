@@ -21,14 +21,17 @@ class Chat extends CI_Controller
     public function index()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
-            if (!has_permissions('read', 'notification_setting')) {
-                $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-                redirect('admin/home', 'refresh');
-            }
+            // Was also gating this page on has_permissions('read','notification_setting') - an
+            // unrelated module, almost certainly copy-pasted from elsewhere. The constructor
+            // already checks the correct module ('chat') for every method in this controller;
+            // this second check meant an admin who could see chat but had no notification-
+            // settings access at all was redirected out with a generic "not authorized" message.
             $this->data['main_page'] = VIEW . 'chat';
             $settings = get_settings('system_settings', true);
             $this->data['title'] = 'Chat | ' . $settings['app_name'];
             $this->data['meta_description'] = ' chat  | ' . $settings['app_name'];
+            $this->data['whatsapp_status'] = !empty($settings['whatsapp_status']) ? $settings['whatsapp_status'] : 0;
+            $this->data['whatsapp_number'] = !empty($settings['whatsapp_number']) ? $settings['whatsapp_number'] : '';
             $this->data['fcm_server_key'] = get_settings('fcm_server_key');
             // $users = fetch_details('users', ['active' => 1]);
             $users = $this->chat_model->get_chat_history($_SESSION['user_id'], 10, 0);
@@ -37,17 +40,14 @@ class Chat extends CI_Controller
             $i = 0;
             $type = 'person';
             $to_id = $this->session->userdata('user_id');
-            // $unread_meg = 0;
 
             foreach ($users as $row) {
-                // echo "<pre>";
-                // print_r($row);
-
                 $from_id = $row['opponent_user_id'];
 
-                // print_r($from_id);
-                // print_r($to_id);
-                // die;
+                // Was declared outside the loop (and only assigned when $from_id was non-empty),
+                // so a conversation row with an empty opponent id silently reused whatever
+                // unread count the PREVIOUS row happened to compute, instead of showing 0.
+                $unread_meg = 0;
                 if (isset($from_id) && !empty($from_id)) {
                     $unread_meg = $this->chat_model->get_unread_msg_count($type, $from_id, $to_id);
                 }
@@ -892,10 +892,11 @@ class Chat extends CI_Controller
             curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($fcmFields));
             $result = curl_exec($ch);
             curl_close($ch);
-            echo $result;
 
-
-            print_r(json_encode($fcmFields));
+            // Was echoing $result (FCM's raw API response) and then $fcmFields - the latter
+            // contains the recipient's raw FCM device token (registration_ids), which has no
+            // reason to ever reach the client. Already fixed the same way on the seller side.
+            print_r(json_encode(['error' => false]));
         }
     }
 }

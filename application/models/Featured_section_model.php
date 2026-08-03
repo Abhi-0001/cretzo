@@ -39,7 +39,10 @@ class Featured_section_model extends CI_Model
     {
         $offset = 0;
         $limit = 10;
-        $sort = 'u.id';
+        // Defaulted to 'u.id', copy-pasted from a users-table list method - this table has no
+        // 'u' alias, so any call reaching order_by() without an explicit $_GET['sort'] (bypassing
+        // the bootstrap-table UI, which always sends one) would throw an "Unknown column" error.
+        $sort = 'id';
         $order = 'ASC';
         $multipleWhere = '';
 
@@ -48,14 +51,15 @@ class Featured_section_model extends CI_Model
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "id";
-            } else {
-                $sort = $_GET['sort'];
-            }
-        if (isset($_GET['order']))
-            $order = $_GET['order'];
+        // Sort column was passed straight into order_by() with no whitelist - an injection
+        // route the same as already fixed on other list pages.
+        $allowed_sort_columns = ['id', 'title', 'short_description', 'style', 'product_type', 'date_added'];
+        if (isset($_GET['sort']) && in_array($_GET['sort'], $allowed_sort_columns, true)) {
+            $sort = $_GET['sort'];
+        }
+        if (isset($_GET['order']) && strtolower($_GET['order']) === 'desc') {
+            $order = 'DESC';
+        }
 
         if (isset($_GET['search']) and $_GET['search'] != '') {
             $search = $_GET['search'];
@@ -66,9 +70,6 @@ class Featured_section_model extends CI_Model
 
         if (isset($multipleWhere) && !empty($multipleWhere)) {
             $count_res->or_like($multipleWhere);
-        }
-        if (isset($where) && !empty($where)) {
-            $count_res->where($where);
         }
 
         $city_count = $count_res->get('sections')->result_array();
@@ -81,11 +82,10 @@ class Featured_section_model extends CI_Model
         if (isset($multipleWhere) && !empty($multipleWhere)) {
             $search_res->or_like($multipleWhere);
         }
-        if (isset($where) && !empty($where)) {
-            $search_res->where($where);
-        }
 
-        $city_search_res = $search_res->order_by($sort, "asc")->limit($limit, $offset)->get('sections')->result_array();
+        // $order was read from $_GET but the query always hardcoded "asc" - clicking a
+        // sortable column header to sort descending had no effect.
+        $city_search_res = $search_res->order_by($sort, $order)->limit($limit, $offset)->get('sections')->result_array();
         $bulkData = array();
         $bulkData['total'] = $total;
         $rows = array();
@@ -96,8 +96,10 @@ class Featured_section_model extends CI_Model
             $operate = ' <a href="javascript:void(0)" class="edit_btn action-btn btn btn-primary btn-xs ml-1 mr-1 mb-1" title="Edit" data-id="' . $row['id'] . '" data-url="admin/Featured_sections/"><i class="fa fa-pen"></i></a>';
             $operate .= ' <a  href="javascript:void(0)" class="btn btn-danger action-btn btn-xs mr-1 mb-1 ml-1" title="Delete" data-id="' . $row['id'] . '" id="delete-featured-section" ><i class="fa fa-trash"></i></a>';
             $tempRow['id'] = $row['id'];
-            $tempRow['title'] = $row['title'];
-            $tempRow['short_description'] = $row['short_description'];
+            // output_escaping() only strips backslash-escaping, it does not HTML-encode - a
+            // stored-XSS route the same as already fixed on other list pages.
+            $tempRow['title'] = html_escape($row['title']);
+            $tempRow['short_description'] = html_escape($row['short_description']);
             $tempRow['style'] = ucfirst(str_replace('_', ' ', $row['style']));
             $tempRow['product_ids'] = $row['product_ids'];
             $tempRow['categories'] = $row['categories'];

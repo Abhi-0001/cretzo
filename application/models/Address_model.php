@@ -39,8 +39,10 @@ class Address_model extends CI_Model
         if (isset($data['landmark'])) {
             $address_data['landmark'] = $data['landmark'];
         }
-        $city = fetch_details('cities', ['city_id' => $data['city_id']], 'city_name');
-        $area = fetch_details('areas', ['id' => $data['area_id']], 'name');
+        // Read unconditionally even when the caller (e.g. set_default_address(), which only
+        // ever posts an id) has neither key - a guaranteed warning on every such call.
+        $city = isset($data['city_id']) ? fetch_details('cities', ['city_id' => $data['city_id']], 'city_name') : [];
+        $area = isset($data['area_id']) ? fetch_details('areas', ['id' => $data['area_id']], 'name') : [];
 
         if (isset($data['general_area_name'])) {
             // $address_data['general_area_name'] = isset($data['general_area_name']) && !empty($data['general_area_name']) ? $data['general_area_name'] : '';
@@ -174,14 +176,17 @@ class Address_model extends CI_Model
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "id";
-            } else {
-                $sort = $_GET['sort'];
-            }
-        if (isset($_GET['order']))
-            $order = $_GET['order'];
+        // Whitelist against the actual selected columns - $_GET['sort'] was previously
+        // passed straight into order_by() unchecked (SQL injection shape).
+        $allowed_sort_columns = ['id', 'name', 'type', 'mobile', 'alternate_mobile', 'landmark', 'area', 'city', 'state', 'pincode', 'country'];
+        if (isset($_GET['sort']) && in_array($_GET['sort'], $allowed_sort_columns, true)) {
+            $sort = $_GET['sort'];
+        }
+        if (isset($_GET['order']) && strtolower($_GET['order']) === 'desc') {
+            $order = 'desc';
+        } else {
+            $order = 'asc';
+        }
 
         if (isset($_GET['search']) and $_GET['search'] != '') {
             $search = $_GET['search'];
@@ -208,9 +213,11 @@ class Address_model extends CI_Model
         $search_res = $this->db->select('addr.*');
 
         if (isset($multipleWhere) && !empty($multipleWhere)) {
-            $count_res->group_start();
+            // Was grouping on $count_res (already finalized above) instead of $search_res -
+            // the OR-search terms never actually got their parentheses on the real data query.
+            $search_res->group_start();
             $search_res->or_like($multipleWhere);
-            $count_res->group_end();
+            $search_res->group_end();
         }
         if (isset($where) && !empty($where)) {
             $search_res->where($where);
@@ -229,21 +236,23 @@ class Address_model extends CI_Model
             $class = $row['is_default'] == 1 ? '' : 'default-address ';
             
             $tempRow['id'] = $row['id'];
-            $tempRow['name'] = $row['name'];
-            $tempRow['type'] = $row['type'];
+            // output_escaping() only strips backslash-escaping, it does not HTML-encode - a
+            // stored-XSS route on this admin list the same as already fixed on other pages.
+            $tempRow['name'] = html_escape($row['name']);
+            $tempRow['type'] = html_escape($row['type']);
             $tempRow['mobile'] = (defined('ALLOW_MODIFICATION') && ALLOW_MODIFICATION == 0) ? str_repeat("X", strlen($row['mobile']) - 3) . substr($row['mobile'], -3) : $row['mobile'];
             $tempRow['alternate_mobile'] = $row['alternate_mobile'];
-            $tempRow['address'] = $row['address'];
-            $tempRow['landmark'] = $row['landmark'];
-            $tempRow['area'] = $row['area'];
+            $tempRow['address'] = html_escape($row['address']);
+            $tempRow['landmark'] = html_escape($row['landmark']);
+            $tempRow['area'] = html_escape($row['area']);
             $tempRow['area_id'] = $row['area_id'];
-            $tempRow['city'] = $row['city'];
+            $tempRow['city'] = html_escape($row['city']);
             $tempRow['city_id'] = $row['city_id'];
-            $tempRow['state'] = $row['state'];
+            $tempRow['state'] = html_escape($row['state']);
             $tempRow['pincode'] = $row['pincode'];
             $tempRow['system_pincode'] = $row['system_pincode'];
             $tempRow['pincode_name'] = $row['pincode'];
-            $tempRow['country'] = $row['country'];
+            $tempRow['country'] = html_escape($row['country']);
             $tempRow['is_default'] = $row['is_default'];
 
             if($include_action_btns){

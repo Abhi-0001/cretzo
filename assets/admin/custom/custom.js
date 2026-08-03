@@ -658,46 +658,14 @@ function create_fetched_attributes_html(from) {
     return $.Deferred().resolve();
 }
 
-function search_category_wise_products() {
-    var category_id = $('#category_parent').val();
-    if (category_id != '') {
-        $.ajax({
-            data: {
-                'cat_id': category_id,
-            },
-            type: 'GET',
-            url: base_url + 'admin/product/search_category_wise_products',
-            dataType: 'json',
-            success: function (result) {
-                var html = "";
-                var i = 0;
-                if (!$.isEmptyObject(result)) {
-                    $.each(result, function (index, value) {
-                        html += '<li class="list-group-item d-flex bg-gray-light align-items-center h-25 ui-sortable-handle" id="product_id-' + value['id'] + '">';
-                        html += '<div class="col-md-1"><span> ' + i + ' </span></div>';
-                        html += '<div class="col-md-3"><span> ' + value['row_order'] + ' </span></div>';
-                        html += '<div class="col-md-4"><span>' + value['name'] + '</span></div>';
-                        html += '<div class="col-md-4"><img src="' + base_url + value['image'] + '"  class="w-25"></div>';
-                        i++;
-                    });
-                    $('#sortable').html(html);
-                } else {
-
-                    iziToast.error({
-                        message: 'No Products Are Available',
-                    });
-
-                    html += '<li class="list-group-item d-flex justify-content-center bg-gray-light align-items-center h-25 ui-sortable-handle" id="product_id-3"><div class="col-md-12 d-flex justify-content-center"><span>No Products  Are  Available</span></div></li>';
-                    $('#sortable').html(html);
-                }
-            }
-        });
-    } else {
-        iziToast.error({
-            message: 'Category Field Should Be Selected',
-        });
-    }
-}
+// The admin/product/product-order page used to be driven from here: this built its list by
+// string-concatenating a product's name straight into the page's HTML with no escaping at all
+// (a stored-XSS path, since product names come from sellers), rendered a mismatched column count
+// against the page's own table header, dropped the Status column entirely, and pointed missing
+// images at the site root instead of a placeholder. That page is now fully self-contained
+// (application/views/admin/pages/tables/products-order.php) and no longer calls this function -
+// confirmed nothing else in the codebase references it - so it has been removed rather than
+// left as unused, misleading dead code with the same bugs still sitting in it.
 
 
 
@@ -1074,11 +1042,15 @@ function mediaParams(p) {
 }
 
 function mediaUploadParams(p) {
+    // seller_id previously read from '#seller_id', an element that does not exist on the Media
+    // Library page - fetch_media() doesn't read a seller_id GET parameter either (it only takes
+    // the seller scope as a function argument from the seller-side caller). Removed rather than
+    // left silently sending "undefined" on every request (same cleanup already applied
+    // elsewhere).
     return {
         'type': $('#media-type').val(),
         "start_date": $('#start_date').val(),
         "end_date": $('#end_date').val(),
-        "seller_id": $('#seller_id').val(),
         limit: p.limit,
         sort: p.sort,
         order: p.order,
@@ -1180,8 +1152,12 @@ function digital_order_mails_query_params(p) {
 }
 
 function category_query_params(p) {
+    // category_id previously read from '#category_id', an element that does not exist on
+    // either page using this function (product categories or blog categories) - neither
+    // Category_model::get_categories() nor Blog_model::get_category_list() reads a category_id
+    // parameter either. Removed rather than left silently sending "undefined" on every request
+    // (same cleanup already applied to product_query_params/brand_query_params).
     return {
-        "category_id": $('#category_id').val(),
         limit: p.limit,
         sort: p.sort,
         order: p.order,
@@ -1202,8 +1178,11 @@ function blog_query_params(p) {
 }
 
 function brand_query_params(p) {
+    // brand_id previously read from '#brand_id', an element that does not exist anywhere on
+    // the brand list - Brand_model::get_brand_list() doesn't read a brand_id parameter either.
+    // Removed rather than left silently sending "undefined" on every request (same cleanup
+    // already applied to product_query_params above).
     return {
-        "brand_id": $('#brand_id').val(),
         limit: p.limit,
         sort: p.sort,
         order: p.order,
@@ -1215,7 +1194,10 @@ function brand_query_params(p) {
 function product_query_params(p) {
     return {
         "category_id": $('#category_parent').val(),
-        "brand_id": $('#brand_filter').val(),
+        // brand_id previously read from '#brand_filter', an element that does not exist
+        // anywhere on the product list - there is no brand filter control on this page, and
+        // Product_model::get_product_details() does not read a brand_id parameter either.
+        // Removed rather than left silently sending "undefined" on every request.
         "seller_id": $('#seller_filter').val(),
         "status": $('#status_filter').val(),
         limit: p.limit,
@@ -1227,8 +1209,11 @@ function product_query_params(p) {
 }
 
 function stock_query_params(p) {
+    // status previously read from '#status_filter', an element that does not exist on the
+    // Stock Management page - the default listing (get_stock_details()) doesn't read a status
+    // GET parameter either. Removed rather than left silently sending "undefined" on every
+    // request (same cleanup already applied elsewhere).
     return {
-        "status": $('#status_filter').val(),
         limit: p.limit,
         offset: p.offset,
         sort: p.sort,
@@ -1399,9 +1384,15 @@ if ($("input[data-bootstrap-switch]").length) {
 }
 
 $(document).on('click', '.sendMailBtn', function () {
-    var email = $(this).data('email');
-    $('.ManageOrderEmail').val(email);
-
+    // Used to only fill in the email field. order_id/order_item_id/username were meant to come
+    // from server-rendered values tied to a ?edit_id= URL parameter that nothing on this page
+    // ever set, so every "Send Mail" submission went out with a blank order_id and
+    // order_item_id - see the note beside these hidden fields in manage-orders.php for what
+    // that broke. All four are now taken directly from the button that was actually clicked.
+    $('.ManageOrderEmail').val($(this).data('email'));
+    $('#send_mail_order_item_id').val($(this).data('id'));
+    $('#send_mail_order_id').val($(this).data('order_id'));
+    $('#send_mail_username').val($(this).data('username'));
 });
 $(document).ready(function () {
 //     $('#sms-gateway-modal').on('show.bs.modal', function () {
@@ -1690,12 +1681,6 @@ function searchable_zipcodes_deliveryboy() {
     return search_zipcodes;
 }
 
-
-$(document).on('click', '.view_address', function () {
-    var id = $(this).data('id');
-    var url = $(this).data('url');;
-
-});
 
 $(document).on('click', '.view_btn', function () {
     var id = $(this).data('id');
@@ -2089,53 +2074,16 @@ $('#sortable').sortable({
     cursor: 'grab'
 });
 
-$('#sortable').sortableJS({
-    axis: 'y',
-    opacity: 0.6,
-    cursor: 'grab'
-});
-
-$(document).on('click', '#save_product_order', function () {
-    var data = $('#sortable').sortable('serialize');
-    $.ajax({
-        data: data,
-        type: 'GET',
-        url: base_url + 'admin/product/update_product_order',
-        dataType: 'json',
-        success: function (response) {
-            if (response.error == false) {
-                iziToast.success({
-                    message: response.message,
-                });
-            } else {
-                iziToast.error({
-                    message: response.message,
-                });
-            }
-        }
-    });
-});
-
-$(document).on('click', '#save_product_order', function () {
-    var data = $('#sortable').sortableJS('serialize');
-    $.ajax({
-        data: data,
-        type: 'GET',
-        url: base_url + 'admin/product/update_product_order',
-        dataType: 'json',
-        success: function (response) {
-            if (response.error == false) {
-                iziToast.success({
-                    message: response.message,
-                });
-            } else {
-                iziToast.error({
-                    message: response.message,
-                });
-            }
-        }
-    });
-});
+// #save_product_order (Product Display Order) and #save_category_order (Category Display
+// Order) used to have this exact same problem and were already fixed this pass - each had two
+// identical-looking handlers bound to the same button, one serializing via jQuery UI's
+// $('#sortable').sortable('serialize') (works), the other via SortableJS's
+// $('#sortable').sortableJS('serialize') (SortableJS instances have no serialize() method or
+// matching option, so this "data" was never the reordered list at all). Clicking Save fired
+// BOTH as separate, unordered AJAX requests to the same endpoint, and whichever happened to
+// finish last silently won. #save_section_order (Featured Section Display Order) had the same
+// bug, still present here until now - the broken SortableJS handler and its matching
+// $('#sortable').sortableJS(...) init call are both removed below rather than left racing.
 
 $(document).on('click', '#save_section_order', function () {
     var data = $('#sortable').sortable('serialize');
@@ -2145,27 +2093,10 @@ $(document).on('click', '#save_section_order', function () {
         url: base_url + 'admin/featured_sections/update_section_order',
         dataType: 'json',
         success: function (response) {
-            if (response.error == false) {
-                iziToast.success({
-                    message: response.message,
-                });
-            } else {
-                iziToast.error({
-                    message: response.message,
-                });
+            if (response.csrfName && response.csrfHash) {
+                csrfName = response.csrfName;
+                csrfHash = response.csrfHash;
             }
-        }
-    });
-});
-
-$(document).on('click', '#save_section_order', function () {
-    var data = $('#sortable').sortableJS('serialize');
-    $.ajax({
-        data: data,
-        type: 'GET',
-        url: base_url + 'admin/featured_sections/update_section_order',
-        dataType: 'json',
-        success: function (response) {
             if (response.error == false) {
                 iziToast.success({
                     message: response.message,
@@ -2355,7 +2286,11 @@ $(document).on('submit', '#save-product', function (e) {
 
 
 
-$(document).on('click', '#delete-product', function () {
+// Was bound to '#delete-product' (an id). The product list renders this button with
+// class="...delete-product" on every row - there is no element anywhere in the panel with that
+// id - so this handler never fired and the Delete button on the product list did nothing at all.
+// Same class of bug as the tax list's delete button fixed earlier in this engagement.
+$(document).on('click', '.delete-product', function () {
     var id = $(this).data('id');
     Swal.fire({
         title: 'Are You Sure!',
@@ -2958,6 +2893,23 @@ $(document).on('click', '.save-digital-product-settings', function (e) {
     e.preventDefault();
     $('.product-attributes').removeClass('disabled');
 });
+$(document).on('click', '.mark_notification_read', function () {
+    var $btn = $(this);
+    $.ajax({
+        url: base_url + 'admin/Notification_settings/mark_notification_read',
+        type: 'GET',
+        data: { id: $btn.data('id') },
+        dataType: 'json'
+    }).done(function (result) {
+        if (result.error == false) {
+            $('#system_notofication_table').bootstrapTable('refresh');
+        } else {
+            iziToast.error({ message: result.message });
+        }
+    }).fail(function () {
+        iziToast.error({ message: 'Something went wrong. Please try again.' });
+    });
+});
 $(document).on('click', '.delete_system_noti', function () {
     var value = $(this).data('id');
     var url = base_url + 'admin/Notification_settings/delete_system_notification';
@@ -3091,7 +3043,15 @@ function get_seller_categories(seller_id, ignore_status, edit_id, from) {
                 plugins: ["checkbox", 'themes'],
                 'core': {
                     multiple: false,
-                    'data': result['data'],
+                    // jsTree takes a node's label from "text" and defaults to an empty string
+                    // when it is absent. The category endpoints return "name", so every node in
+                    // this tree previously rendered as an unlabelled checkbox.
+                    'data': (result['data'] || []).map(function mapNode(n) {
+                        return $.extend({}, n, {
+                            text: n.text || n.name,
+                            children: (n.children || []).map(mapNode)
+                        });
+                    }),
                 },
                 checkbox: {
                     three_state: false,
@@ -3107,7 +3067,14 @@ function get_seller_categories(seller_id, ignore_status, edit_id, from) {
     });
 }
 
-if (window.location.href.indexOf("admin/product") > -1) {
+// The admin product form now uses the searchable category selector defined in
+// application/views/admin/pages/forms/product.php, so the tree loader below only runs if that
+// tree element is still present on the page.
+//
+// The guard also used to be just indexOf("admin/product"), which matches the product list and
+// the bulk-upload screen as well - neither has a category tree, so both fired a pointless
+// request for the entire category tree on every page load.
+if (window.location.href.indexOf("admin/product") > -1 && $('#product_category_tree_view_html').length) {
     var edit_id = $('input[name="category_id"]').val();
     var seller_id = $('input[name="seller_id"]').val();
     var ignore_status = $.isNumeric(edit_id) && edit_id > 0 ? 1 : 0;
@@ -3126,7 +3093,13 @@ if (window.location.href.indexOf("admin/product") > -1) {
                 $('#product_category_tree_view_html').jstree({
                     plugins: ["checkbox", 'themes'],
                     'core': {
-                        'data': result['data'],
+                        // jsTree labels nodes from "text"; the endpoint supplies "name".
+                        'data': (result['data'] || []).map(function mapNode(n) {
+                            return $.extend({}, n, {
+                                text: n.text || n.name,
+                                children: (n.children || []).map(mapNode)
+                            });
+                        }),
                         multiple: false
                     },
                     checkbox: {
@@ -3248,9 +3221,24 @@ $(document).on('click', '#tree_view', function () {
         url: category_url,
         dataType: 'json',
         success: function (result) {
+            // jsTree reads a node's label from "text" and falls back to an empty string when
+            // it's absent; the category endpoints return "name". Every node in this tree
+            // previously rendered with no label at all - a blank column of checkboxes/rows with
+            // nothing to tell them apart. destroy().empty() first: without it, switching to
+            // List View and back to Tree View re-ran this same success handler against an
+            // already-initialized element, which jsTree ignores rather than refreshes, so any
+            // category added/renamed/deleted since the tree was first opened this session never
+            // showed up until a full page reload.
+            function mapNode(n) {
+                return $.extend({}, n, {
+                    text: n.text || n.name,
+                    children: (n.children || []).map(mapNode)
+                });
+            }
+            $('#tree_view_html').jstree('destroy').empty();
             $('#tree_view_html').jstree({
                 'core': {
-                    'data': result['data']
+                    'data': (result['data'] || []).map(mapNode)
                 }
             });
         }
@@ -3532,47 +3520,14 @@ $('#category_parent').each(function () {
     });
 });
 
-$(document).on('click', '#save_category_order', function () {
-    var data = $('#sortable').sortable('serialize');
-    $.ajax({
-        data: data,
-        type: 'GET',
-        url: base_url + 'admin/category/update_category_order',
-        dataType: 'json',
-        success: function (response) {
-            if (response.error == false) {
-                iziToast.success({
-                    message: response.message,
-                });
-            } else {
-                iziToast.error({
-                    message: response.message,
-                });
-            }
-        }
-    });
-});
-
-$(document).on('click', '#save_category_order', function () {
-    var data = $('#sortable').sortableJS('serialize');
-    $.ajax({
-        data: data,
-        type: 'GET',
-        url: base_url + 'admin/category/update_category_order',
-        dataType: 'json',
-        success: function (response) {
-            if (response.error == false) {
-                iziToast.success({
-                    message: response.message,
-                });
-            } else {
-                iziToast.error({
-                    message: response.message,
-                });
-            }
-        }
-    });
-});
+// Two identical-looking handlers used to be bound here - one serialized via jQuery UI's
+// $('#sortable').sortable('serialize'), the other via SortableJS's $('#sortable').sortableJS('serialize'),
+// which has no such method/option and so submitted no real order data at all. Clicking Save fired
+// BOTH as separate, unordered AJAX requests to the same endpoint - the same defect already removed
+// from #save_product_order (see note above). #save_category_order is unique to
+// admin/category/category-order, which now has its own single, correct save handler
+// (application/views/admin/pages/tables/category-order.php), so both are removed here rather than
+// left racing each other.
 
 
 
@@ -4480,7 +4435,15 @@ $(document).on('click', '#delete-promo-code', function () {
                     dataType: 'json',
                 })
                     .done(function (response, textStatus) {
-                        Swal.fire('Deleted!', response.message, 'success');
+                        // Was firing the green "Deleted!" success dialog unconditionally, even
+                        // when the server responded with error:true (e.g. permission denied, or
+                        // a genuine delete failure) - the admin had no way to tell a failed
+                        // delete from a real one.
+                        if (response.error == false) {
+                            Swal.fire('Deleted!', response.message, 'success');
+                        } else {
+                            Swal.fire('Oops...', response.message, 'warning');
+                        }
                         $('.table-striped').bootstrapTable('refresh');
                     })
                     .fail(function (jqXHR, textStatus, errorThrown) {
@@ -4492,7 +4455,7 @@ $(document).on('click', '#delete-promo-code', function () {
     });
 });
 
-//11.Delivery_boys-Module 
+//11.Delivery_boys-Module
 $(document).on('click', '#delete-delivery-boys', function () {
     var id = $(this).data('id');
     Swal.fire({
@@ -4633,7 +4596,7 @@ $("#return_request_table").on("click-cell.bs.table", function (field, value, row
     $('input[name="return_request_id"]').val($el.id);
     $('#user_id').val($el.user_id);
     $('#order_item_id').val($el.order_item_id);
-    $('#update_remarks').html($el.remarks);
+    $('#update_remarks').val($el.remarks);
 
     if ($el.status_digit == 0) {
         $('.pending').prop('checked', true);
@@ -4642,13 +4605,15 @@ $("#return_request_table").on("click-cell.bs.table", function (field, value, row
         $('.approved').prop('checked', true);
         $('#return_request_delivery_by').removeClass('d-none');
     } else if ($el.status_digit == 2) {
-        $('.rejected').prop('rejected', true);
+        $('.rejected').prop('checked', true);
         $('#return_request_delivery_by').addClass('d-none');
     }
 });
 
 //18.Tax-Module
-$(document).on('click', '#delete-tax', function () {
+// Was bound to '#delete-tax'. The tax list rendered that same element id once per row, which
+// is invalid HTML; the delete button is now a class so each row is targeted correctly.
+$(document).on('click', '.delete-tax, #delete-tax', function () {
     var tax_id = $(this).data('id');
     Swal.fire({
         title: 'Are You Sure!',
@@ -4689,14 +4654,14 @@ $(document).on('click', '#delete-tax', function () {
 //19.Payment-Request-Module
 $("#payment_request_table").on("click-cell.bs.table", function (field, value, row, $el) {
     $('input[name="payment_request_id"]').val($el.id);
-    $('#update_remarks').html($el.remarks);
+    $('#update_remarks').val($el.remarks);
 
     if ($el.status_digit == 0) {
         $('.pending').prop('checked', true);
     } else if ($el.status_digit == 1) {
         $('.approved').prop('checked', true);
     } else if ($el.status_digit == 2) {
-        $('.rejected').prop('rejected', true);
+        $('.rejected').prop('checked', true);
     }
 });
 
@@ -4985,6 +4950,80 @@ $('#upload-files-btn').on('click', function (e) {
     e.preventDefault();
     myDropzone.processQueue();
 });
+
+// The Media Library page (admin/media/) has its own upload widget, page-scoped to
+// #media-gallery-dropzone / #media-gallery-upload-btn (not the shared #dropzone/
+// #upload-files-btn above, which belongs to #media-upload-modal - that modal is included on
+// every admin page including this one, so the two used to collide on identical ids here).
+if (document.getElementById('media-gallery-dropzone')) {
+
+    var mediaGalleryDropzone = new Dropzone("#media-gallery-dropzone", {
+        url: base_url + from + '/media/upload',
+        paramName: "documents",
+        acceptedFiles: getAcceptedMediaTypes('image'),
+        clickable: true,
+        autoProcessQueue: false,
+        parallelUploads: 12,
+        maxFiles: 12,
+        autoDiscover: false,
+        addRemoveLinks: true,
+        timeout: 180000,
+        dictRemoveFile: 'x',
+        dictMaxFilesExceeded: 'Only 12 files can be uploaded at a time ',
+        dictResponseError: 'Error',
+        uploadMultiple: true,
+        dictDefaultMessage: '<p><button type="button" class="btn btn-success dz-browse">Select Files</button><br> or <br> Drag & Drop Media Files Here</p>',
+    });
+
+    $('#media-gallery-dropzone').on('click', '.dz-browse', function (e) {
+        e.preventDefault();
+        if (mediaGalleryDropzone.hiddenFileInput) {
+            mediaGalleryDropzone.hiddenFileInput.click();
+        }
+    });
+
+    mediaGalleryDropzone.on("addedfile", function (file) {
+        if (this.files.length) {
+            var _i, _len;
+            for (_i = 0, _len = this.files.length; _i < _len - 1; _i++) {
+                if (this.files[_i].name === file.name && this.files[_i].size === file.size && this.files[_i].lastModifiedDate.toString() === file.lastModifiedDate.toString()) {
+                    this.removeFile(file);
+                }
+            }
+        }
+    });
+
+    mediaGalleryDropzone.on("error", function (file, response) { });
+
+    mediaGalleryDropzone.on('sending', function (file, xhr, formData) {
+        formData.append(csrfName, csrfHash);
+        xhr.onreadystatechange = function () {
+            if (this.readyState == 4 && this.status == 200) {
+                var response = JSON.parse(this.response);
+                csrfName = response.csrfName;
+                csrfHash = response.csrfHash;
+                if (response['error'] == false) {
+                    Dropzone.forElement('#media-gallery-dropzone').removeAllFiles(true);
+                    $('#media-table').bootstrapTable('refresh');
+                    iziToast.success({
+                        message: response['message'],
+                    });
+                } else {
+                    iziToast.error({
+                        title: 'Error',
+                        message: response['message'],
+                    });
+                }
+                $(file.previewElement).find('.dz-error-message').text(response.message);
+            }
+        };
+    });
+
+    $('#media-gallery-upload-btn').on('click', function (e) {
+        e.preventDefault();
+        mediaGalleryDropzone.processQueue();
+    });
+}
 
 
 
@@ -5369,38 +5408,70 @@ $('#area_wise_delivery_charge').on('switchChange.bootstrapSwitch', function (eve
 
 $('#bulk_upload_form').on('submit', function (e) {
     e.preventDefault();
+
     var type = $('#type').val();
-    if (type != '') {
-        var formdata = new FormData(this);
-        formdata.append(csrfName, csrfHash);
-        $.ajax({
-            type: 'POST',
-            data: formdata,
-            url: $(this).attr('action'),
-            dataType: 'json',
-            cache: false,
-            contentType: false,
-            processData: false,
-            beforeSend: function () {
-                $('#submit_btn').html('Please Wait...').attr('disabled', true);
-            },
-            success: function (result) {
-                csrfName = result.csrfName;
-                csrfHash = result.csrfHash;
-                if (result.error == false) {
-                    $('#upload_result').show().removeClass('msg_error').addClass('msg_success').html(result.message).delay(3000).fadeOut();
-                } else {
-                    $('#upload_result').show().removeClass('msg_success').addClass('msg_error').html(result.message).delay(3000).fadeOut();
-                }
-                $('#submit_btn').html('Submit').attr('disabled', false);
-            }
-        })
-    } else {
-        iziToast.error({
-            message: 'Please select type',
-        });
+    if (type == '') {
+        iziToast.error({ message: 'Please select type' });
+        return;
     }
 
+    // A file was never checked for on the client, so submitting with none selected made a
+    // pointless round trip before the server answered "Please choose file".
+    var fileInput = $(this).find('input[name="upload_file"]')[0];
+    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+        iziToast.error({ message: 'Please choose a CSV file' });
+        return;
+    }
+
+    var formdata = new FormData(this);
+    formdata.append(csrfName, csrfHash);
+
+    $.ajax({
+        type: 'POST',
+        data: formdata,
+        url: $(this).attr('action'),
+        dataType: 'json',
+        cache: false,
+        contentType: false,
+        processData: false,
+        beforeSend: function () {
+            $('#submit_btn').html('Please Wait...').attr('disabled', true);
+            $('#upload_result').hide().stop(true, true);
+        },
+        success: function (result) {
+            csrfName = result.csrfName;
+            csrfHash = result.csrfHash;
+            // The result used to fade out after three seconds. Import failures are reported per
+            // row ("Category id is empty at row 47"), so the one piece of information needed to
+            // fix the file disappeared before it could be read or copied. The message now stays
+            // on screen until the next submission.
+            if (result.error == false) {
+                $('#upload_result').removeClass('msg_error').addClass('msg_success').html(result.message).show();
+            } else {
+                $('#upload_result').removeClass('msg_success').addClass('msg_error').html(result.message).show();
+            }
+        },
+        // Without an error branch, any server-side failure - and an oversized file reliably
+        // produced one - left the button disabled on "Please Wait..." forever with no
+        // explanation, so the page looked frozen.
+        error: function (jqXHR) {
+            var message = 'The upload could not be completed.';
+            if (jqXHR.status === 413) {
+                message = 'The file is too large for the server to accept. Please split it into smaller files.';
+            } else if (jqXHR.status === 504 || jqXHR.status === 408) {
+                message = 'The server took too long to process this file. Please split it into smaller files.';
+            } else if (jqXHR.status === 0) {
+                message = 'The connection was lost during the upload. Please check your connection and try again.';
+            } else if (jqXHR.status >= 500) {
+                message = 'The server reported an error (' + jqXHR.status + ') while processing this file. No products were imported.';
+            }
+            $('#upload_result').removeClass('msg_success').addClass('msg_error').html(message).show();
+        },
+        // Runs on both success and failure, so the button can never be left stuck.
+        complete: function () {
+            $('#submit_btn').html('Submit').attr('disabled', false);
+        }
+    });
 });
 $('#location_bulk_upload_form').on('submit', function (e) {
     e.preventDefault();
@@ -6496,7 +6567,12 @@ $(document).on('click', '.add_promo_code_discount', function () {
         allowOutsideClick: false
     });
 });
-$('.discount_type').on('change', function () {
+// Were bound directly ($('.discount_type').on(...)) at script-load time, when .discount_type/
+// .discount don't exist yet on the Promo Code list page - they only appear inside the edit/view
+// modal after it's AJAX-loaded. Rebound with delegation so this validation actually runs there
+// too (previously the only client-side guard against a >100% percentage discount silently never
+// fired when editing or viewing an existing code through the modal).
+$(document).on('change', '.discount_type', function () {
     if ($(this).val() == 'percentage') {
         if ($('.discount').val() > 100) {
             $('.discount').attr('max', 100);
@@ -6513,7 +6589,7 @@ $('.discount_type').on('change', function () {
         $('.error').html('')
     }
 });
-$('.discount').keyup(function () {
+$(document).on('keyup', '.discount', function () {
     if ($('.discount_type').val() == 'percentage') {
         if ($('.discount').val() > 100) {
             $('.discount').attr('max', 100);
@@ -7516,23 +7592,24 @@ $(document).on('click', '.delete-brand', function () {
                     dataType: 'json'
                 })
                     .done(function (response, textStatus) {
-                        if (response.error == true) {
-                            Swal.fire('Deleted!', 'Brand deleted successfully', 'success');
-                            $('table').bootstrapTable('refresh');
-                            csrfName = response['csrfName'];
-                            csrfHash = response['csrfHash'];
+                        // admin/brand/delete_brand used to report success with error:true (the
+                        // opposite of every other endpoint's error:false-means-success
+                        // convention), so this had to match that inversion just to work at all.
+                        // Now that the endpoint follows the standard convention (and reports a
+                        // real, specific message - e.g. refusing to delete a brand still in use -
+                        // instead of always "deleted successfully"), this checks error:false and
+                        // shows the actual message either way.
+                        csrfName = response['csrfName'];
+                        csrfHash = response['csrfHash'];
+                        if (response.error == false) {
+                            Swal.fire('Deleted!', response.message, 'success');
                         } else {
-                            Swal.fire('Oops...', 'Something went wrong with ajax !', 'error');
-                            $('table').bootstrapTable('refresh');
-                            csrfName = response['csrfName'];
-                            csrfHash = response['csrfHash'];
+                            Swal.fire('Oops...', response.message, 'error');
                         }
-
+                        $('table').bootstrapTable('refresh');
                     })
                     .fail(function (jqXHR, textStatus, errorThrown) {
                         Swal.fire('Oops...', 'Something went wrong with ajax !', 'error');
-                        csrfName = response['csrfName'];
-                        csrfHash = response['csrfHash'];
                     });
             });
         },
@@ -7547,21 +7624,29 @@ $(document).on('click', '#add_attribute_value', function (e) {
 });
 
 $(document).on('change', '.swatche_type', function () {
+    // Selecting "Image" used to strip the name attribute off this row's colour input and never
+    // put it back, so switching Image -> Colour left the row submitting no swatche_value[] entry
+    // at all. attribute_value[] and swatche_value[] are read as parallel arrays server-side, so
+    // one short row shifted every later swatch onto the wrong attribute value. The name is now
+    // restored whenever the row can supply a value again.
+    var colorPicker = $(this).siblings('.color_picker');
+
     if ($(this).val() == '1') {
-        $(this).siblings('.color_picker').show();
+        colorPicker.attr('name', 'swatche_value[]').show();
         $(this).siblings('.upload_media').hide();
         $(this).siblings('.grow').hide();
     }
     if ($(this).val() == "2") {
-        $(this).siblings(".color_picker").hide();
-        $(this).siblings(".color_picker").attr('name', null);
+        colorPicker.hide().attr('name', null);
         $(this).siblings(".upload_media").show();
         $(this).siblings(".grow").show();
     }
     if ($(this).val() == "0") {
-        $(".color_picker").hide();
-        $(".upload_media").hide();
-        $('.grow').hide();
+        // Only this row should change - the previous version hid every swatch control on the
+        // form, so changing one row to "Default" blanked the colour pickers of all the others.
+        colorPicker.attr('name', 'swatche_value[]').hide();
+        $(this).siblings('.upload_media').hide();
+        $(this).siblings('.grow').hide();
     }
 });
 
@@ -9215,26 +9300,6 @@ $('input[type=radio][name=status]').change(function () {
     }
 
 });
-
-// $(document).on('click', '.edit_return_request', function () {
-//     var order_item_id = $(this).data('id');
-//     console.log(order_item_id);
-//     $.ajax({
-//         type: 'POST',
-//         url: base_url + 'admin/return-request/get_order_details',
-//         dataType: 'json',
-//         data: {
-//             'order_item_id': order_item_id,
-//             [csrfName]: csrfHash
-//         },
-//         success: function (result) {
-//             csrfName = result['csrfName'];
-//             csrfHash = result['csrfHash'];
-//             // $('#delivery_by').val()
-
-//         }
-//     });
-// });
 
 // 23.Whatsapp status
 $(document).on('change', '#whatsapp_status', function (e, data) {

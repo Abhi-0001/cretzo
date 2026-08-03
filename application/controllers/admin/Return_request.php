@@ -45,7 +45,7 @@ class Return_request extends CI_Controller {
 			$this->form_validation->set_rules('update_remarks', 'Remarks ', 'trim|xss_clean');
 			$this->form_validation->set_rules('order_item_id', 'Order Id ', 'trim|required|numeric|xss_clean');
 			if(isset($_POST['status']) && $_POST['status'] == 1){
-				$this->form_validation->set_rules('deliver_by', 'Delivery Boy ', 'trim|required|xss_clean');
+				$this->form_validation->set_rules('deliver_by', 'Delivery Boy ', 'trim|required|numeric|xss_clean');
 			}
 			
 			 if(!$this->form_validation->run()){
@@ -55,14 +55,14 @@ class Return_request extends CI_Controller {
 				$this->response['csrfHash'] = $this->security->get_csrf_hash();
 				$this->response['message'] = validation_errors() ;
 				print_r(json_encode($this->response));	
-	        } else {             
+	        } else {
 
-	        	$this->return_request_model->update_return_request($_POST);
-	        	$this->response['error'] = false;				
+	        	$result = $this->return_request_model->update_return_request($_POST);
+	        	$this->response['error'] = $result['error'];
 				$this->response['csrfName'] = $this->security->get_csrf_token_name();
-				$this->response['csrfHash'] = $this->security->get_csrf_hash();				
-				$this->response['message'] = 'Return request updated successfully';
-				print_r(json_encode($this->response));	
+				$this->response['csrfHash'] = $this->security->get_csrf_hash();
+				$this->response['message'] = $result['message'];
+				print_r(json_encode($this->response));
 	        }
 		}
 		else{
@@ -79,15 +79,5 @@ class Return_request extends CI_Controller {
 			redirect('admin/login','refresh');
 		}		
 	}
-    public function get_order_details(){
-		if($this->ion_auth->logged_in() && $this->ion_auth->is_admin())
-		{			
-			return $this->return_request_model->get_order_details($_POST);
-		} else {
-			redirect('admin/login','refresh');
-		}		
-	}
-
-
 }
 ?>

@@ -141,13 +141,13 @@ class Blogs extends CI_Controller
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
             $this->data['main_page'] = TABLES . 'manage-blogs';
             $settings = get_settings('system_settings', true);
-            $this->data['title'] = (isset($_GET['edit_id']) && !empty($_GET['edit_id'])) ? 'Edit Category | ' . $settings['app_name'] : 'Add Category | ' . $settings['app_name'];
-            $this->data['meta_description'] = 'Add Category , Create Category | ' . $settings['app_name'];
-            if (isset($_GET['edit_id']) && !empty($_GET['edit_id'])) {
-                $this->data['fetched_data'] = fetch_details('blogs', ['id' => $_GET['edit_id']]);
-            }
-
-            $this->data['categories'] = $this->blog_model->get_categories();
+            // Was copy-pasted from the category page and still said "Category" for what is
+            // the blogs list page's own <title>.
+            $this->data['title'] = 'Manage Blogs | ' . $settings['app_name'];
+            $this->data['meta_description'] = 'Manage Blogs | ' . $settings['app_name'];
+            // The view only ever uses $fetched_data to populate the "Filter By Category"
+            // dropdown (the full blog_categories list) - this edit_id lookup was immediately
+            // and unconditionally overwritten by that assignment below, so it never did anything.
             $this->data['fetched_data'] = fetch_details('blog_categories');
 
             $this->load->view('admin/template', $this->data);
@@ -178,6 +178,21 @@ class Blogs extends CI_Controller
     public function add_blog()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
+
+            // Had no module-specific permission check at all - only the constructor's blanket
+            // has_permissions('read', 'categories') applied, an unrelated (product-category)
+            // permission, so anyone granted that could freely create/edit blog posts regardless
+            // of whether they had any blogs permission. Matches the check already used by the
+            // sibling add_category()/delete_blog() actions in this same controller.
+            if (isset($_POST['edit_blog'])) {
+                if (print_msg(!has_permissions('update', 'blogs'), PERMISSION_ERROR_MSG, 'blogs')) {
+                    return false;
+                }
+            } else {
+                if (print_msg(!has_permissions('create', 'blogs'), PERMISSION_ERROR_MSG, 'blogs')) {
+                    return false;
+                }
+            }
 
             $this->form_validation->set_rules('blog_title', 'Title', 'trim|required|xss_clean');
             $this->form_validation->set_rules('blog_category', 'Blog category', 'trim|required|xss_clean');

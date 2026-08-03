@@ -205,8 +205,6 @@ class Category_model extends CI_Model
     {
         $offset = 0;
         $limit = 10;
-        $sort = 'id';
-        $order = 'ASC';
         $multipleWhere = '';
         $where = ['status !=' => NULL];
 
@@ -217,14 +215,13 @@ class Category_model extends CI_Model
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "id";
-            } else {
-                $sort = $_GET['sort'];
-            }
-        if (isset($_GET['order']))
-            $order = $_GET['order'];
+        // $_GET['sort'] was passed straight into order_by() with no whitelist, and the
+        // direction was hardcoded to "asc" a few lines down regardless of what $_GET['order']
+        // said - every sortable column header moved its arrow but the query never actually
+        // reversed. Both fixed together, matching the pattern used on every other list page.
+        $sortable = ['id' => 'id', 'name' => 'name', 'status' => 'status'];
+        $sort = (isset($_GET['sort']) && isset($sortable[$_GET['sort']])) ? $sortable[$_GET['sort']] : 'id';
+        $order = (isset($_GET['order']) && strtolower($_GET['order']) === 'desc') ? 'DESC' : 'ASC';
 
         if (isset($_GET['search']) and $_GET['search'] != '') {
             $search = $_GET['search'];
@@ -276,7 +273,7 @@ class Category_model extends CI_Model
             $search_res->where_in('id', $cat_ids);
         }
 
-        $cat_search_res = $search_res->order_by($sort, "asc")->limit($limit, $offset)->get('categories')->result_array();
+        $cat_search_res = $search_res->order_by($sort, $order)->limit($limit, $offset)->get('categories')->result_array();
         $bulkData = array();
         $bulkData['total'] = $total;
         $rows = array();
@@ -364,14 +361,25 @@ class Category_model extends CI_Model
 
     public function top_category()
     {
-        $query = $this->db->select('*')
+        // Was select('*'), which shipped every column of every category to the browser when the
+        // dashboard widget only renders three of them.
+        $query = $this->db->select('id, name, clicks')
             ->limit('4')
             ->order_by('clicks', 'Desc')
             ->get('categories');
 
-        $data['total'] = $query->num_rows();
-        $data['rows'] = $query->result_array();
+        $rows = $query->result_array();
+        foreach ($rows as &$row) {
+            // Category names are admin-supplied free text rendered by bootstrap-table, which
+            // does not escape cell values by default.
+            $row['name']   = html_escape((string) $row['name']);
+            $row['clicks'] = (int) $row['clicks'];
+        }
+        unset($row);
 
-        print_r(json_encode($data));
+        $data['total'] = count($rows);
+        $data['rows'] = $rows;
+
+        echo json_encode($data);
     }
 }

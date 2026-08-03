@@ -1,11 +1,12 @@
-    <div class="content-wrapper">
+    <div class="content-wrapper admin-manage-subscriptions-page">
     <!-- Content Header (Page header) -->
     <!-- Main content -->
     <section class="content-header">
         <div class="container-fluid">
-            <div class="row mb-2">
+            <div class="row mb-2 align-items-center">
                 <div class="col-md-6">
-                    <h4>Manage Subscription Plans</h4>
+                    <h4 class="mb-0"><i class="fas fa-crown mr-2 text-primary-theme"></i>Manage Subscription Plans</h4>
+                    <p class="text-muted mb-0 small">Plans sellers can subscribe to across the marketplace.</p>
                 </div>
                 <div class="col-md-6">
                     <ol class="breadcrumb float-sm-right">
@@ -20,9 +21,21 @@
         <div class="container-fluid">
             <div class="row">
                 <div class="col-md-12">
-                    <div class="card card-info">
+                    <div class="card attribute-card mb-3">
+                        <div class="card-header attribute-card-header">
+                            <span class="header-icon bg-set mr-2"><i class="fas fa-plus"></i></span>
+                            <h5 class="mb-0"><?= (isset($fetched_data[0]['id'])) ? 'Edit Subscription' : 'Add Subscription' ?></h5>
+                        </div>
                         <form class="form-horizontal form-submit-event" action="<?= base_url('admin/subscription/add_subscription'); ?>" method="POST" id="subscription_form">
                             <?php if (isset($fetched_data[0]['id'])) { ?>
+                                <!-- This form is loaded into the edit modal as a fragment, but this page ALSO
+                                     renders a static copy of the same form (for Add), so any edit loaded into
+                                     the modal ends up with duplicate #subscription_form/#submit_btn ids on the
+                                     page at once. custom.js's shared submit handler branches on #update_id to
+                                     tell those two copies apart and disable the right Save button - without it,
+                                     it always targeted the static page's button instead of the modal's, so on a
+                                     validation error the real (modal) button never showed any busy/disabled state. -->
+                                <input type="hidden" id="update_id" name="update_id" value="1">
                                 <input type="hidden" id="edit_subscription" name="edit_subscription" value="<?= @$fetched_data[0]['id'] ?>">
                             <?php } ?>
                             <div class="card-body">
@@ -31,7 +44,7 @@
                                         <label for="name" class="control-label">Plan Name <span class='text-danger text-xs'>*</span></label>
                                     </div>
                                     <div class="form-group col-md-8">
-                                        <input type="text" class="form-control" name="name" id="name" value="<?= (isset($fetched_data[0]['name']) ? $fetched_data[0]['name'] : '') ?>">
+                                        <input type="text" class="form-control" name="name" id="name" value="<?= (isset($fetched_data[0]['name']) ? html_escape($fetched_data[0]['name']) : '') ?>">
                                     </div>
                                 </div>
                                 <div class="row">
@@ -177,12 +190,12 @@
                     </div>
                 </div>
                 <div class="col-md-12 main-content">
-                    <div class="card content-area p-4">
-                        <div class="card-head">
-                            <h4 class="card-title">Subscription Details</h4>
+                    <div class="card attribute-card">
+                        <div class="card-header attribute-card-header">
+                            <span class="header-icon bg-set mr-2"><i class="fas fa-list"></i></span>
+                            <h5 class="mb-0">Plans</h5>
                         </div>
-                        <div class="card-innr">
-                            <div class="gaps-1-5x"></div>
+                        <div class="card-body">
                             <table class='table-striped' data-toggle="table" data-url="<?= base_url('admin/subscription/view_subscription') ?>" data-click-to-select="true" data-side-pagination="server" data-pagination="true" data-page-list="[5, 10, 20, 50, 100, 200]" data-search="true" data-show-columns="true" data-show-refresh="true" data-trim-on-search="false" data-sort-name="id" data-sort-order="asc" data-mobile-responsive="true" data-toolbar="" data-show-export="true" data-maintain-selected="true" data-export-types='["txt","excel"]' data-query-params="queryParams">
                                 <thead>
                                     <tr>
@@ -198,7 +211,7 @@
                                     </tr>
                                 </thead>
                             </table>
-                        </div><!-- .card-innr -->
+                        </div><!-- .card-body -->
                     </div><!-- .card -->
                 </div>
             </div>
@@ -207,6 +220,63 @@
     </section>
     <!-- /.content -->
 </div>
+
+<style>
+    .admin-manage-subscriptions-page .text-primary-theme { color: var(--color-orange); }
+
+    .admin-manage-subscriptions-page .btn-primary-theme {
+        background: var(--color-orange);
+        border-color: var(--color-orange);
+        color: #fff;
+        font-weight: 600;
+    }
+    .admin-manage-subscriptions-page .btn-primary-theme:hover { background: var(--color-orange-dark); border-color: var(--color-orange-dark); color: #fff; }
+
+    .admin-manage-subscriptions-page .attribute-card { border: none; border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,0.06); }
+    .admin-manage-subscriptions-page .attribute-card-header {
+        background: #fff;
+        border-bottom: 1px solid rgba(0,0,0,0.06);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        border-radius: 10px 10px 0 0;
+    }
+    .admin-manage-subscriptions-page .header-icon {
+        width: 34px; height: 34px; border-radius: 8px;
+        display: flex; align-items: center; justify-content: center;
+        color: #fff; font-size: 14px; flex: none;
+    }
+    .admin-manage-subscriptions-page .header-icon.bg-set { background: var(--color-orange); }
+
+    .admin-manage-subscriptions-page .fixed-table-toolbar { margin-bottom: 10px; }
+    .admin-manage-subscriptions-page .fixed-table-toolbar > div { margin-left: 10px !important; }
+    .admin-manage-subscriptions-page .fixed-table-toolbar .search input {
+        border-radius: 20px;
+        border: 1px solid rgba(0,0,0,0.12);
+        padding: 6px 14px;
+        box-shadow: none;
+    }
+    .admin-manage-subscriptions-page .fixed-table-toolbar .search input:focus { border-color: var(--color-orange); }
+    .admin-manage-subscriptions-page table.table thead th {
+        background: #fafafa;
+        border-top: none;
+        border-bottom: 2px solid rgba(0,0,0,0.06);
+        color: var(--color-grey);
+        font-weight: 600;
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: .3px;
+        white-space: nowrap;
+    }
+    .admin-manage-subscriptions-page table.table tbody td { vertical-align: middle; font-size: 14px; border-top: 1px solid rgba(0,0,0,0.05); }
+    .admin-manage-subscriptions-page table.table tbody tr:hover { background-color: var(--color-orange-light); }
+    .admin-manage-subscriptions-page .fixed-table-pagination .pagination .page-item.active .page-link { color: #fff; background-color: var(--color-orange); border-color: var(--color-orange); }
+    .admin-manage-subscriptions-page .fixed-table-pagination .pagination .page-link { color: var(--color-orange-dark); border-radius: 6px; margin: 0 2px; border: 1px solid rgba(0,0,0,0.08); }
+
+    .admin-manage-subscriptions-page td:has(.action-btn) { white-space: nowrap; }
+    .admin-manage-subscriptions-page .action-btn { display: inline-block; vertical-align: middle; }
+</style>
+
 <script>
 
 $(document).ready(function () {

@@ -192,12 +192,29 @@ class Auth extends CI_Controller
 
             // Register user
             $user_id = $this->ion_auth->register($mobile, $password, $email, ['name' => $name], [4]); // 4 is seller group
-            
+
             if (!$user_id) {
                 $response['message'] = 'Registration failed. ' . $this->ion_auth->messages();
                 $this->output->set_content_type('application/json')->set_output(json_encode($response));
                 return;
             }
+
+            // This never created a seller_data row, so every seller who registered through this
+            // endpoint had a users/users_groups row but no seller profile at all - a "ghost"
+            // seller, invisible on admin/sellers/ (Seller_model::get_sellers_list() innner-joined
+            // seller_data, so a seller with no row there never matched, on any page or filter)
+            // and unopenable by its edit link either. status 2 (Not-Approved) matches how every
+            // other new-seller path in this app starts a profile, pending admin review.
+            $this->Seller_model->seller_cereate_user([
+                'user_id' => $user_id,
+                'status' => 2,
+                'shop_name' => $name,
+                'email' => $email,
+                'phone' => $mobile,
+                // NOT NULL with no default in the schema - relying on the server's SQL mode to
+                // silently substitute '' would work locally but isn't guaranteed everywhere.
+                'authorized_signature' => '',
+            ]);
 
             // Launch promotion: first 100 vendors get "Launch Offer" (50 free listings /
             // 1 year), everyone after gets the free plan. Never blocks registration.

@@ -24,14 +24,17 @@ class Payment_request_model extends CI_Model
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "pr.id";
-            } else {
-                $sort = $_GET['sort'];
-            }
-        if (isset($_GET['order']))
-            $order = $_GET['order'];
+        // Whitelist against the actual selected columns - $_GET['sort'] was previously
+        // passed straight into order_by() unchecked (SQL injection shape).
+        $allowed_sort_columns = ['id' => 'pr.id', 'user_name' => 'u.username', 'payment_type' => 'pr.payment_type', 'amount_requested' => 'pr.amount_requested', 'date_created' => 'pr.date_created'];
+        if (isset($_GET['sort']) && isset($allowed_sort_columns[$_GET['sort']])) {
+            $sort = $allowed_sort_columns[$_GET['sort']];
+        }
+        if (isset($_GET['order']) && strtolower($_GET['order']) === 'asc') {
+            $order = 'asc';
+        } else {
+            $order = 'desc';
+        }
 
         if (isset($_GET['search']) and $_GET['search'] != '') {
             $search = $_GET['search'];
@@ -76,7 +79,7 @@ class Payment_request_model extends CI_Model
             $search_res->where($where);
         }
 
-        $offer_search_res = $search_res->order_by($sort, "desc")->limit($limit, $offset)->select('u.username,pr.*')->get('payment_requests pr')->result_array();
+        $offer_search_res = $search_res->order_by($sort, $order)->limit($limit, $offset)->select('u.username,pr.*')->get('payment_requests pr')->result_array();
 
         $bulkData = array();
         $bulkData['total'] = $total;
@@ -89,11 +92,12 @@ class Payment_request_model extends CI_Model
             }
             $tempRow['id'] = $row['id'];
             $tempRow['user_id'] = $row['user_id'];
-            $tempRow['user_name'] = $row['username'];
-            $tempRow['payment_type'] = $row['payment_type'];
+            // output_escaping() only strips backslash-escaping, it does not HTML-encode - a
+            // stored-XSS route the same as already fixed on other pages.
+            $tempRow['user_name'] = html_escape($row['username']);
+            $tempRow['payment_type'] = html_escape($row['payment_type']);
             $tempRow['amount_requested'] = $row['amount_requested'];
-            $tempRow['remarks'] = $row['remarks'];
-            $tempRow['payment_address'] = $row['payment_address'];
+            $tempRow['payment_address'] = html_escape($row['payment_address']);
             $tempRow['date_created'] = $row['date_created'];
             $status = [
                 '0' => '<span class="badge badge-success">Pending</span>',
@@ -102,7 +106,8 @@ class Payment_request_model extends CI_Model
             ];
 
             $tempRow['status'] = $status[$row['status']];
-            $tempRow['remarks'] = $row['remarks'];
+            $tempRow['status_digit'] = $row['status'];
+            $tempRow['remarks'] = html_escape($row['remarks']);
             if (!isset($user_id) && empty($user_id)) {
                 $tempRow['operate'] = $operate;
             }
@@ -122,11 +127,17 @@ class Payment_request_model extends CI_Model
             'remarks' => (isset($data['update_remarks']) && !empty($data['update_remarks'])) ? $data['update_remarks'] : null,
         );
         $amount = fetch_details("payment_requests", ['id' => $data['payment_request_id']], "amount_requested,user_id,status");
-        // Only credit on the transition into "rejected" — without this check, re-submitting
-        // a reject action (already rejected) re-credits the wallet every time.
+
+        // The wallet credit and the status flip were two separate, unwrapped writes - if the
+        // process died between them, a retry could see the still-pending status and credit
+        // the wallet a second time. Wrapped so both happen atomically or not at all.
+        $this->db->trans_start();
         if ($data['status'] == 2 && $amount[0]['status'] != 2) {
             update_balance($amount[0]['amount_requested'], $amount[0]['user_id'], "add");
         }
-        return $this->db->where('id', $data['payment_request_id'])->update('payment_requests', $request);
+        $this->db->where('id', $data['payment_request_id'])->update('payment_requests', $request);
+        $this->db->trans_complete();
+
+        return $this->db->trans_status() !== FALSE;
     }
 }

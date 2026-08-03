@@ -22,7 +22,7 @@
                 <div class="col-md-12">
                     <div class="card card-info">
                         <!-- form start -->
-                        <form class="form-horizontal form-submit-event" action="<?= base_url('seller/pickup_location/add_pickup_location'); ?>" method="POST" id="add_product_form" enctype="multipart/form-data">
+                        <form class="form-horizontal form-submit-event" action="<?= base_url('seller/pickup_location/add_pickup_location'); ?>" method="POST" id="add_pickup_location_form" enctype="multipart/form-data">
                             <?php
                             if (isset($fetched_data[0]['id'])) {
                             ?>
@@ -104,17 +104,14 @@
                                         <button type="submit" class="btn btn-success" id="submit_btn"><?= (isset($fetched_data[0]['id'])) ? 'Update Pickup Location' : 'Add Pickup Location' ?></button>
                                     </div>
                                 </div>
-                            </div>
-                    </div>
-                    <div class="d-flex justify-content-center">
-                        <div class="form-group" id="error_box">
-                        </div>
-                    </div>
-                    </form>
+                                <div class="d-flex justify-content-center">
+                                    <div class="form-group d-none" id="error_box"></div>
+                                </div>
+                            </div><!-- /.card-body -->
+                        </form>
+                    </div><!--/.card-->
                 </div>
-                <!--/.card-->
-            </div>
-            
+
             <div class="col-md-12 main-content">
                 <div class="card content-area p-4">
                     <div class="card-head">
@@ -123,7 +120,7 @@
                     <div class="card-innr">
                         <div class="gaps-1-5x"></div>
                      
-                        <table class='table-striped' data-toggle="table" data-url="<?= base_url('seller/pickup_location/view_pickup_location') ?>" data-click-to-select="true" data-side-pagination="server" data-pagination="true" data-page-list="[5, 10, 20, 50, 100, 200]" data-search="true" data-show-columns="true" data-show-refresh="true" data-trim-on-search="false" data-sort-name="id" data-sort-order="asc" data-mobile-responsive="true" data-toolbar="" data-show-export="true" data-export-types='["txt","excel"]' data-export-options='{
+                        <table id="pickup_locations_table" class='table-striped' data-toggle="table" data-url="<?= base_url('seller/pickup_location/view_pickup_location') ?>" data-click-to-select="true" data-side-pagination="server" data-pagination="true" data-page-list="[5, 10, 20, 50, 100, 200]" data-search="true" data-show-columns="true" data-show-refresh="true" data-trim-on-search="false" data-sort-name="id" data-sort-order="asc" data-mobile-responsive="true" data-toolbar="" data-show-export="true" data-export-types='["txt","excel"]' data-export-options='{
                         "fileName": "area-list",
                         "ignoreColumn": ["operate"] 
                         }' data-maintain-selected="true" data-query-params="queryParams">
@@ -178,6 +175,8 @@
 </div>
 
 <script>
+    // queryParams normally comes from the admin-only custom.js, which seller pages never
+    // load — same reason the .form-submit-event handler below has to live here.
     function queryParams(p) {
         return {
             limit: p.limit,
@@ -187,4 +186,47 @@
             search: p.search
         };
     }
+
+    // Without this the form fell through to a plain browser POST and the controller's JSON
+    // response was rendered as the whole page instead of an inline error / toast.
+    $('#add_pickup_location_form').on('submit', function (e) {
+        e.preventDefault();
+
+        var error_box = $('#error_box');
+        var submit_btn = $('#submit_btn');
+        var button_text = submit_btn.html();
+
+        $.ajax({
+            url: $(this).attr('action'),
+            type: 'POST',
+            dataType: 'json',
+            data: $(this).serialize() + '&' + csrfName + '=' + csrfHash,
+            beforeSend: function () {
+                submit_btn.html('Please Wait..').prop('disabled', true);
+            },
+            success: function (response) {
+                if (response.csrfName && response.csrfHash) {
+                    csrfName = response.csrfName;
+                    csrfHash = response.csrfHash;
+                }
+                if (response.error) {
+                    error_box.removeClass('d-none msg_success').addClass('msg_error rounded p-3').html(response.message);
+                    iziToast.error({ message: $('<div>').html(response.message).text(), position: 'topRight' });
+                } else {
+                    error_box.addClass('d-none');
+                    iziToast.success({ message: response.message, position: 'topRight' });
+                    $('#pickup_locations_table').bootstrapTable('refresh');
+                    setTimeout(function () {
+                        location.href = base_url + 'seller/pickup_location/manage_pickup_locations';
+                    }, 1000);
+                }
+            },
+            error: function () {
+                error_box.removeClass('d-none msg_success').addClass('msg_error rounded p-3').text('Something went wrong. Please try again.');
+            },
+            complete: function () {
+                submit_btn.html(button_text).prop('disabled', false);
+            }
+        });
+    });
 </script>

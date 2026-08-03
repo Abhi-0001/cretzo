@@ -59,13 +59,16 @@ class Offer extends CI_Controller
             }
         }
 
-        $this->form_validation->set_rules('offer_type', 'Offer Type', 'trim|required|xss_clean');
+        // offer_type was only checked for 'required' - never against the actual allowed set,
+        // so a forged request could store an arbitrary type string.
+        $this->form_validation->set_rules('offer_type', 'Offer Type', 'trim|required|xss_clean|in_list[default,categories,products,offer_url]');
         $this->form_validation->set_rules('image', 'Offer Image', 'trim|required|xss_clean', array('required' => 'Offer image is required'));
         if (isset($_POST['offer_type']) && $_POST['offer_type'] == 'categories') {
             $this->form_validation->set_rules('category_id', 'Category', 'trim|required|xss_clean');
         }
         if (isset($_POST['offer_type']) && $_POST['offer_type'] == 'offer_url') {
-            $this->form_validation->set_rules('link', 'Link', 'trim|required|xss_clean');
+            // Had no real URL validation at all - any string passed 'required'.
+            $this->form_validation->set_rules('link', 'Link', 'trim|required|xss_clean|valid_url');
         }
         if (isset($_POST['offer_type']) && $_POST['offer_type'] == 'products') {
             $this->form_validation->set_rules('product_id', 'Product', 'trim|required|xss_clean');
@@ -89,7 +92,11 @@ class Offer extends CI_Controller
 
     public function view_offers()
     {
-        return $this->Offer_model->get_offer_list();
+        if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
+            return $this->Offer_model->get_offer_list();
+        } else {
+            redirect('admin/login', 'refresh');
+        }
     }
 
     public function delete_offer()

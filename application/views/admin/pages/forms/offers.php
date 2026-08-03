@@ -5,12 +5,13 @@
         <div class="container-fluid">
             <div class="row mb-2">
                 <div class="col-sm-6">
-                    <h4> Upload Offer Images </h4>
+                    <h4><?= (isset($fetched_data[0]['id'])) ? 'Edit Offer' : 'Add Offer' ?></h4>
                 </div>
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">
                         <li class="breadcrumb-item"><a href="<?= base_url('admin/home') ?>">Home</a></li>
-                        <li class="breadcrumb-item active">Offers</li>
+                        <li class="breadcrumb-item"><a href="<?= base_url('admin/offer/manage-offer') ?>">Offers</a></li>
+                        <li class="breadcrumb-item active"><?= (isset($fetched_data[0]['id'])) ? 'Edit' : 'Add' ?></li>
                     </ol>
                 </div>
             </div>
@@ -47,9 +48,12 @@
                                             <?php
                                             if (!empty($categories)) {
                                                 foreach ($categories as $row) {
-                                                    $selected = ($row['id'] == $fetched_data[0]['type_id'] && strtolower($fetched_data[0]['type']) == 'categories') ? 'selected' : '';
+                                                    // isset() guard - $fetched_data isn't set at all on the Add form,
+                                                    // which previously threw undefined-variable/undefined-index warnings
+                                                    // on every load of this branch.
+                                                    $selected = (isset($fetched_data[0]['type_id']) && $row['id'] == $fetched_data[0]['type_id'] && strtolower($fetched_data[0]['type']) == 'categories') ? 'selected' : '';
                                             ?>
-                                                    <option value="<?= $row['id'] ?>" <?= $selected ?>> <?= $row['name'] ?></option>
+                                                    <option value="<?= $row['id'] ?>" <?= $selected ?>> <?= html_escape($row['name']) ?></option>
                                             <?php
                                                 }
                                             }
@@ -60,7 +64,7 @@
                                     <div class="form-group offer-url <?= $hiddenStatus ?> ">
 
                                         <label for="slider_url"> Link <span class='text-danger text-sm'>*</span></label>
-                                        <input type="text" class="form-control" placeholder="https://example.com" name="link" value="<?= isset($fetched_data[0]['link'])?output_escaping($fetched_data[0]['link']):"" ?>">
+                                        <input type="text" class="form-control" placeholder="https://example.com" name="link" value="<?= isset($fetched_data[0]['link'])?html_escape($fetched_data[0]['link']):"" ?>">
                                     </div>
                                     <?php $hiddenStatus = (isset($fetched_data[0]['id']) && $fetched_data[0]['type']  == 'products') ? '' : 'd-none' ?>
                                     <div class="form-group row slider-products <?= $hiddenStatus ?>">
@@ -72,7 +76,7 @@
                                                     $product_details = fetch_details('products', ['id' => $fetched_data[0]['type_id']], 'id,name');
                                                     if (!empty($product_details)) {
                                                 ?>
-                                                        <option value="<?= $product_details[0]['id'] ?>" selected> <?= $product_details[0]['name'] ?></option>
+                                                        <option value="<?= $product_details[0]['id'] ?>" selected> <?= html_escape($product_details[0]['name']) ?></option>
                                                 <?php
                                                     }
                                                 }

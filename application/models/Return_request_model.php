@@ -18,20 +18,23 @@ class Return_request_model extends CI_Model
         $sort = 'id';
         $order = 'ASC';
         $multipleWhere = '';
+        // Whitelist against the actual selected columns - $_GET['sort'] was previously
+        // passed straight into order_by() unchecked (SQL injection shape).
+        $allowed_sort_columns = ['id', 'order_id', 'username', 'product_name', 'price', 'discounted_price', 'quantity', 'sub_total', 'status'];
 
         if (isset($_GET['offset']))
             $offset = $_GET['offset'];
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "id";
-            } else {
-                $sort = $_GET['sort'];
-            }
-        if (isset($_GET['order']))
-            $order = $_GET['order'];
+        if (isset($_GET['sort']) && in_array($_GET['sort'], $allowed_sort_columns, true)) {
+            $sort = $_GET['sort'];
+        }
+        if (isset($_GET['order']) && strtolower($_GET['order']) === 'desc') {
+            $order = 'desc';
+        } else {
+            $order = 'asc';
+        }
 
         if (isset($_GET['search']) and $_GET['search'] != '') {
             $search = $_GET['search'];
@@ -41,7 +44,10 @@ class Return_request_model extends CI_Model
         $count_res = $this->db->select(' COUNT(rr.id) as `total` ')->join('users u', 'u.id=rr.user_id')->join('products p', 'p.id=rr.product_id')->join('order_items oi', 'oi.id=rr.order_item_id');
 
         if (isset($multipleWhere) && !empty($multipleWhere)) {
-            $count_res->or_where($multipleWhere);
+            // Was or_where() (exact match) while the data query below uses or_like()
+            // (partial match) - a mismatch here means the reported pagination "total"
+            // doesn't equal the number of rows the search actually returns.
+            $count_res->or_like($multipleWhere);
         }
         if (isset($where) && !empty($where)) {
             $count_res->where($where);
@@ -61,7 +67,7 @@ class Return_request_model extends CI_Model
             $search_res->where($where);
         }
 
-        $offer_search_res = $search_res->order_by($sort, "desc")->limit($limit, $offset)->get('return_requests rr')->result_array();
+        $offer_search_res = $search_res->order_by($sort, $order)->limit($limit, $offset)->get('return_requests rr')->result_array();
 
         $bulkData = array();
         $bulkData['total'] = $total;
@@ -75,10 +81,10 @@ class Return_request_model extends CI_Model
 
             $tempRow['id'] = $row['id'];
             $tempRow['user_id'] = $row['user_id'];
-            $tempRow['user_name'] = $row['username'];
+            $tempRow['user_name'] = html_escape($row['username']);
             $tempRow['order_id'] = $row['order_id'];
             $tempRow['order_item_id'] = $row['order_item_id'];
-            $tempRow['product_name'] = $row['product_name'];
+            $tempRow['product_name'] = html_escape($row['product_name']);
             $tempRow['price'] = $row['price'];
             $tempRow['discounted_price'] = $row['discounted_price'];
             $tempRow['quantity'] = $row['quantity'];
@@ -91,7 +97,7 @@ class Return_request_model extends CI_Model
             ];
 
             $tempRow['status'] = $status[$row['status']];
-            $tempRow['remarks'] = $row['remarks'];
+            $tempRow['remarks'] = html_escape($row['remarks']);
             $tempRow['operate'] = $operate;
             $rows[] = $tempRow;
         }
@@ -102,25 +108,41 @@ class Return_request_model extends CI_Model
     {
 
         $data = escape_array($data);
+
+        // Prevent re-approving/re-rejecting a request that's already been finalized -
+        // without this guard, hitting "Approve" twice would re-run process_refund() and
+        // update_stock() a second time for the same return.
+        $existing = fetch_details('return_requests', ['id' => $data['return_request_id']], 'status');
+        if (empty($existing) || $existing[0]['status'] != '0') {
+            return ['error' => true, 'message' => 'This return request has already been finalized.'];
+        }
+
         $request = array(
             'status' => $data['status'],
             'remarks' => (isset($data['update_remarks']) && !empty($data['update_remarks'])) ? $data['update_remarks'] : null,
         );
         $item_id  = $data['order_item_id'];
 
+        $this->db->trans_start();
+
         $this->db->where('id', $data['return_request_id'])->update('return_requests', $request);
 
         if ($data['status'] == '1') {
             $this->load->model('order_model');
-            process_refund($data['order_item_id'], 'returned');
+            $refund_res = process_refund($data['order_item_id'], 'returned');
+            if (!empty($refund_res['error'])) {
+                $this->db->trans_complete();
+                return ['error' => true, 'message' => $refund_res['message']];
+            }
+            $deliver_by = $data['deliver_by'];
             $data = fetch_details('order_items', ['id' => $data['order_item_id']], 'product_variant_id,quantity,user_id');
-            update_stock($data[0]['product_variant_id'], $data[0]['quantity'], 'plus');
-            update_details(['delivery_boy_id' => $_POST['deliver_by']], ['id' => $item_id], 'order_items');
+            update_stock([$data[0]['product_variant_id']], [$data[0]['quantity']], 'plus');
+            update_details(['delivery_boy_id' => $deliver_by], ['id' => $item_id], 'order_items');
             $this->order_model->update_order_item($item_id, 'return_request_approved', 1);
 
             //for delivery boy notification
             $order_item_res = fetch_details('order_items', ['id' => $item_id], 'order_id');
-            $user_id = $_POST['deliver_by'];
+            $user_id = $deliver_by;
             $cutomer_id = $data[0]['user_id'];
             $settings = get_settings('system_settings', true);
             $app_name = isset($settings['app_name']) && !empty($settings['app_name']) ? $settings['app_name'] : '';
@@ -213,11 +235,11 @@ class Return_request_model extends CI_Model
                 send_notification($fcmMsg, $fcm_ids);
             }
         }
-    }
-    function get_order_details($data)
-    {
-        $data = escape_array($data);
-        $res = fetch_details('order_items', ['id' => $data['order_item_id']]);
-        print_r(json_encode($res[0]));
+
+        $this->db->trans_complete();
+        if ($this->db->trans_status() === FALSE) {
+            return ['error' => true, 'message' => 'Something went wrong while updating the return request.'];
+        }
+        return ['error' => false, 'message' => 'Return request updated successfully'];
     }
 }

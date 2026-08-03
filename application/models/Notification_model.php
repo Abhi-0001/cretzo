@@ -62,27 +62,30 @@ class Notification_model extends CI_Model
     {
 
         $multipleWhere = '';
+        $where = [];
         if (isset($_GET['offset']))
             $offset = $_GET['offset'];
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'read_by') {
-                $sort = "read_by";
-            } else {
-                $sort = $_GET['sort'];
-            }
-        if (isset($_GET['order']))
-            $order = $_GET['order'];
+        // $_GET['sort'] was passed straight into order_by() with no whitelist - the same
+        // injection-shaped pattern fixed on every other list page in this admin panel.
+        $sortable = ['id' => 'id', 'title' => 'title', 'type' => 'type', 'read_by' => 'read_by'];
+        $sort = (isset($_GET['sort']) && isset($sortable[$_GET['sort']])) ? $sortable[$_GET['sort']] : 'read_by';
+        $order = (isset($_GET['order']) && strtolower($_GET['order']) === 'desc') ? 'DESC' : 'ASC';
 
         if (isset($_GET['search']) and $_GET['search'] != '') {
             $search = $_GET['search'];
             $multipleWhere = ['id' => $search, 'title' => $search, 'message' => $search];
         }
 
-        if (isset($_GET['message_type']) && ($_GET['message_type'] != '')) {
-            $where = ('read_by =' . $_GET['message_type']);
+        // message_type was concatenated directly into a raw WHERE string with no escaping or
+        // validation at all - $_GET['message_type'] went straight from the request into SQL.
+        // Confirmed live: requesting message_type=0 OR 1=1 returned every row (18) instead of
+        // the single matching one, proving arbitrary boolean conditions could be injected here.
+        // read_by is only ever 0 or 1, so anything else is simply ignored instead of filtered.
+        if (isset($_GET['message_type']) && in_array($_GET['message_type'], ['0', '1'], true)) {
+            $where['read_by'] = (int) $_GET['message_type'];
         }
 
         $count_res = $this->db->select(' COUNT(id) as `total` ');
@@ -90,7 +93,7 @@ class Notification_model extends CI_Model
         if (isset($multipleWhere) && !empty($multipleWhere)) {
             $count_res->or_like($multipleWhere);
         }
-        if (isset($where) && !empty($where)) {
+        if (!empty($where)) {
             $count_res->where($where);
         }
         $city_count = $count_res->get('system_notification')->result_array();
@@ -103,25 +106,47 @@ class Notification_model extends CI_Model
         if (isset($multipleWhere) && !empty($multipleWhere)) {
             $search_res->or_like($multipleWhere);
         }
-        if (isset($where) && !empty($where)) {
+        if (!empty($where)) {
             $search_res->where($where);
         }
 
         $city_search_res = $search_res->order_by($sort, $order)->limit($limit, $offset)->get('system_notification')->result_array();
 
+        // Notification "type" is only ever one of a small, known set produced elsewhere in the
+        // codebase (place_order, seller_verification_request); the View button used to always
+        // link to the order detail page regardless, so a seller-verification notification's
+        // "View" button sent an admin to admin/orders/edit_orders with a seller's user id
+        // passed off as an order id - that page immediately does $res[0]['address_id'] on an
+        // empty result, an "Undefined array key 0" (and further downstream) warning. Each known
+        // type now links somewhere that actually exists for it, and an unrecognised future type
+        // gets no View button at all rather than a guaranteed-broken link.
+        $view_links = [
+            'place_order' => ['url' => 'admin/orders/edit_orders', 'param' => 'edit_id', 'title' => 'View Order'],
+            'seller_verification_request' => ['url' => 'admin/sellers/manage-seller', 'param' => 'edit_id', 'title' => 'View Seller'],
+        ];
+
         $bulkData = array();
         $bulkData['total'] = $total;
         $rows = array();
-        $tempRow = array();
         foreach ($city_search_res as $row) {
             $row = output_escaping($row);
+            $tempRow = array();
+
             $operate = ' <a class="delete_system_noti action-btn  btn btn-danger btn-xs mr-1 mb-1 ml-1" title="Delete" href="javascript:void(0)"  data-id="' . $row['id'] . '" ><i class="fa fa-trash"></i></a>';
-            $operate .= '<a href=' . base_url('admin/orders/edit_orders') . '?edit_id=' . $row['type_id'] . '&noti_id=' . $row['id'] . ' class="btn action-btn btn-primary btn-xs ml-1 mr-1 mb-1" title="View Order" ><i class="fa fa-eye"></i></a>';
+
+            if ($row['read_by'] != '1') {
+                $operate .= '<a href="javascript:void(0)" class="mark_notification_read action-btn btn btn-secondary btn-xs mr-1 mb-1 ml-1" title="Mark as Read" data-id="' . $row['id'] . '"><i class="fa fa-check"></i></a>';
+            }
+
+            if (isset($view_links[$row['type']])) {
+                $link = $view_links[$row['type']];
+                $operate .= '<a href="' . base_url($link['url']) . '?' . $link['param'] . '=' . rawurlencode($row['type_id']) . '&noti_id=' . $row['id'] . '" class="btn action-btn btn-primary btn-xs ml-1 mr-1 mb-1" title="' . $link['title'] . '"><i class="fa fa-eye"></i></a>';
+            }
 
             $tempRow['id'] = $row['id'];
-            $tempRow['title'] = $row['title'];
-            $tempRow['message'] = $row['message'];
-            $tempRow['type'] = $row['type'];
+            $tempRow['title'] = html_escape((string) $row['title']);
+            $tempRow['message'] = html_escape((string) $row['message']);
+            $tempRow['type'] = html_escape(ucwords(str_replace('_', ' ', (string) $row['type'])));
             $tempRow['type_id'] = $row['type_id'];
             $tempRow['read_by'] = ($row['read_by'] == 1) ? '<label class="badge badge-primary">Read</label>' : '<label class="badge badge-danger">Un-Read</label>';
             $tempRow['operate'] = $operate;
@@ -129,6 +154,26 @@ class Notification_model extends CI_Model
         }
         $bulkData['rows'] = $rows;
         print_r(json_encode($bulkData));
+    }
+
+    /**
+     * Marks one system notification as read. mark_all_as_read() below already existed for the
+     * bulk case, but there was no way to mark a single notification read on its own - the only
+     * thing that ever set read_by=1 for one row was a side effect of clicking through to
+     * admin/orders/edit_orders, which only ever applied to "place_order" notifications and
+     * silently did nothing for any other type.
+     */
+    public function mark_notification_read($id)
+    {
+        $response = array();
+        if (update_details(['read_by' => '1'], ['id' => $id], 'system_notification')) {
+            $response['error'] = false;
+            $response['message'] = 'Marked as read.';
+        } else {
+            $response['error'] = true;
+            $response['message'] = 'Something went wrong.';
+        }
+        print_r(json_encode($response));
     }
     public function get_notification_list($offset = 0, $limit = 10, $sort = 'id', $order = 'ASC')
     {
@@ -139,14 +184,17 @@ class Notification_model extends CI_Model
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "id";
-            } else {
-                $sort = $_GET['sort'];
-            }
-        if (isset($_GET['order']))
-            $order = $_GET['order'];
+        // Whitelist against the actual selected columns - $_GET['sort'] was previously
+        // passed straight into order_by() unchecked (SQL injection shape).
+        $allowed_sort_columns = ['id', 'title', 'type', 'message', 'send_to'];
+        if (isset($_GET['sort']) && in_array($_GET['sort'], $allowed_sort_columns, true)) {
+            $sort = $_GET['sort'];
+        }
+        if (isset($_GET['order']) && strtolower($_GET['order']) === 'desc') {
+            $order = 'desc';
+        } else {
+            $order = 'asc';
+        }
 
         if (isset($_GET['search']) and $_GET['search'] != '') {
             $search = $_GET['search'];
@@ -184,11 +232,14 @@ class Notification_model extends CI_Model
             $row = output_escaping($row);
             $operate = ' <a class="delete_notifications btn btn-danger action-btn btn-xs mr-1 ml-1 mb-1" title="Delete" href="javascript:void(0)"  data-id="' . $row['id'] . '" ><i class="fa fa-trash"></i></a>';
             $tempRow['id'] = $row['id'];
-            $tempRow['title'] = $row['title'];
-            $tempRow['type'] = $row['type'];
-            $tempRow['message'] = $row['message'];
-            $tempRow['send_to'] = ucwords(str_replace('_', " ", $row['send_to']));
-            $tempRow['users_id'] = str_replace(array('[', ']', '"'), '', $row['users_id']);
+            // output_escaping() only strips backslash-escaping, it does not HTML-encode - a
+            // stored-XSS route the same as already fixed on other list pages (title/message are
+            // admin-entered and only pass through xss_clean's blocklist filter before saving).
+            $tempRow['title'] = html_escape($row['title']);
+            $tempRow['type'] = html_escape(ucwords(str_replace('_', ' ', $row['type'])));
+            $tempRow['message'] = html_escape($row['message']);
+            $tempRow['send_to'] = html_escape(ucwords(str_replace('_', " ", $row['send_to'])));
+            $tempRow['users_id'] = html_escape(str_replace(array('[', ']', '"'), '', $row['users_id']));
 
             if (empty($row['image'])) {
                 $row['image'] = '';
@@ -200,10 +251,13 @@ class Notification_model extends CI_Model
                 }
             }
             $tempRow['image_src'] = $row['image'];
-            $tempRow['image'] = "<div class='mx-auto product-image image-box-100'><a href='" . $row['image'] . "' data-toggle='lightbox' data-gallery='gallery' >
-      <img class='rounded'  src='"  . $row['image'] . "'></a></div>";
-            $tempRow['link'] = $row['link'];
-            $tempRow['full_notification'] = '<h4>' . $row['title'] . '</h4><p>' . $row['message'] . '</p><img src=' . $row['image'] . ' alt="Notification Image" height="100px" />';
+            $tempRow['image'] = "<div class='mx-auto product-image image-box-100'><a href='" . html_escape($row['image']) . "' data-toggle='lightbox' data-gallery='gallery' >
+      <img class='rounded'  src='"  . html_escape($row['image']) . "'></a></div>";
+            $tempRow['link'] = html_escape($row['link']);
+            // Consumed by the customer-facing "My Account > Notifications" front-end page
+            // (front-end/*/pages/notifications.php), which renders this single combined field
+            // rather than the individual title/message/image columns above.
+            $tempRow['full_notification'] = '<h4>' . html_escape($row['title']) . '</h4><p>' . html_escape($row['message']) . '</p><img src="' . html_escape($row['image']) . '" alt="Notification Image" height="100px" />';
             $tempRow['operate'] = $operate;
             $rows[] = $tempRow;
         }
