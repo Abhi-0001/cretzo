@@ -10,6 +10,10 @@ class Admin_privacy_policy extends CI_Controller
         $this->load->database();
         $this->load->helper(['url', 'language', 'timezone_helper']);
         $this->load->model('Setting_model');
+        if (!has_permissions('read', 'admin_privacy_policy')) {
+            $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
+            redirect('admin/home', 'refresh');
+        }
     }
 
     public function index()
@@ -31,13 +35,17 @@ class Admin_privacy_policy extends CI_Controller
     public function update_privacy_policy_settings()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
-            if (print_msg(!has_permissions('update', 'privacy_policy'), PERMISSION_ERROR_MSG, 'privacy_policy')) {
+            // Was checking the generic 'privacy_policy' module - the same module the
+            // customer-facing Privacy Policy controller uses, meaning a grant on one would
+            // silently unlock the other three (admin/delivery-boy/seller) too. Each variant
+            // now has its own module.
+            if (print_msg(!has_permissions('update', 'admin_privacy_policy'), PERMISSION_ERROR_MSG, 'admin_privacy_policy')) {
                 return false;
             }
 
-            $this->form_validation->set_rules('terms_n_conditions_input_description', 'Terms and Condition Description', 'trim|required');
+            $this->form_validation->set_rules('terms_n_conditions_input_description', 'Terms and Condition Description', 'trim|required|xss_clean');
 
-            $this->form_validation->set_rules('privacy_policy_input_description', 'Privay Policy Description', 'trim|required');
+            $this->form_validation->set_rules('privacy_policy_input_description', 'Privay Policy Description', 'trim|required|xss_clean');
 
             if (!$this->form_validation->run()) {
 
@@ -47,13 +55,13 @@ class Admin_privacy_policy extends CI_Controller
                 $this->response['message'] = validation_errors();
                 print_r(json_encode($this->response));
             } else {
-                $this->Setting_model->update_admin_privacy_policy($_POST);
-                $this->Setting_model->update_admin_terms_n_condtions($_POST);
+                $updated = $this->Setting_model->update_admin_privacy_policy($_POST);
+                $updated = $this->Setting_model->update_admin_terms_n_condtions($_POST) && $updated;
 
-                $this->response['error'] = false;
+                $this->response['error'] = !$updated;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = 'System Setting Updated Successfully';
+                $this->response['message'] = $updated ? 'System Setting Updated Successfully' : 'Something went wrong.';
                 print_r(json_encode($this->response));
             }
         } else {

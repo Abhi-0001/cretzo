@@ -19,6 +19,20 @@ class Sales_report_model extends CI_Model
             $limit = $_GET['limit'];
         }
 
+        // Whitelist against the actual selected columns - $_GET['sort']/$_GET['order'] were
+        // never read at all before, and the sort direction was hardcoded to DESC regardless of
+        // what the bootstrap-table widget sent.
+        $allowed_sort_columns = ['id', 'date_added', 'final_total', 'username', 'email', 'mobile', 'product_name'];
+        $sort_column_map = ['id' => 'o.id', 'date_added' => 'o.date_added', 'final_total' => 'o.final_total', 'username' => 'u.username', 'email' => 'u.email', 'mobile' => 'u.mobile', 'product_name' => 'oi.product_name'];
+        if (isset($_GET['sort']) && in_array($_GET['sort'], $allowed_sort_columns, true)) {
+            $sort = $sort_column_map[$_GET['sort']];
+        }
+        if (isset($_GET['order']) && strtolower($_GET['order']) === 'asc') {
+            $order = 'ASC';
+        } else {
+            $order = 'DESC';
+        }
+
         if (isset($_GET['search']) and $_GET['search'] != '') {
             $search = $_GET['search'];
             $filters = [
@@ -31,21 +45,27 @@ class Sales_report_model extends CI_Model
                 'oi.product_name' => $search,
             ];
         }
-        $count_res = $this->db->select(' COUNT(o.id) as `total` ')->join(' `users` u', 'u.id= o.user_id');
+
+        // seller_id is only ever compared against a numeric id column - cast to int rather
+        // than concatenating the raw $_GET/$_POST value into a where() string, which was a
+        // real SQL injection (the value was never escaped or bound).
+        $seller_id = null;
+        if (!empty($_GET['seller_id'])) {
+            $seller_id = (int) $_GET['seller_id'];
+        } elseif (!empty($_POST['seller_id'])) {
+            $seller_id = (int) $_POST['seller_id'];
+        }
+
+        $count_res = $this->db->select(' COUNT(DISTINCT o.id) as `total` ')->join(' `users` u', 'u.id= o.user_id');
         $count_res->join(' `order_items` oi', 'oi.order_id=o.id');
-        if (!empty($_GET['seller_id']) || !empty($_POST['seller_id'])) {
-            $seller_id = (!empty($_GET['seller_id']) && isset($_GET['seller_id'])) ? $_GET['seller_id'] : $_POST['seller_id'];
-            $count_res->where("oi.seller_id=" . $seller_id);
+        if (!empty($seller_id)) {
+            $count_res->where('oi.seller_id', $seller_id);
         }
 
         if (!empty($_GET['start_date']) && !empty($_GET['end_date'])) {
 
             $count_res->where("DATE(o.date_added) >=", date('Y-m-d', strtotime($_GET['start_date'])));
             $count_res->where("DATE(o.date_added) <=", date('Y-m-d', strtotime($_GET['end_date'])));
-        }
-
-        if (!empty($_GET['seller_id']) && !empty($_GET['seller_id'])) {
-            $count_res->where(" seller_id= " . $_GET['seller_id']);
         }
 
         if (isset($filters) && !empty($filters)) {
@@ -64,12 +84,16 @@ class Sales_report_model extends CI_Model
             ->join('order_items oi', 'oi.order_id=o.id', 'left')
             ->join('seller_data sd', 'sd.user_id=oi.seller_id', 'left');
 
+        if (!empty($seller_id)) {
+            // Was previously applied to $count_res a second time (already-spent query
+            // builder object) instead of $search_res, so the "Filter By Seller" dropdown had
+            // zero effect on the actually-displayed rows.
+            $search_res->where('oi.seller_id', $seller_id);
+        }
+
         if (!empty($_GET['start_date']) && !empty($_GET['end_date'])) {
             $search_res->where("DATE(o.date_added) >=", date('Y-m-d', strtotime($_GET['start_date'])));
             $search_res->where("DATE(o.date_added) <=", date('Y-m-d', strtotime($_GET['end_date'])));
-        }
-        if (!empty($_GET['seller_id']) && !empty($_GET['seller_id'])) {
-            $count_res->where("oi.seller_id= " . $_GET['seller_id']);
         }
 
         if (isset($filters) && !empty($filters)) {
@@ -78,7 +102,7 @@ class Sales_report_model extends CI_Model
             $search_res->group_End();
         }
         $search_res->group_by('o.id');
-        $user_details = $search_res->order_by($sort, "DESC")->limit($limit, $offset)->get('`orders` o')->result_array();
+        $user_details = $search_res->order_by($sort, $order)->limit($limit, $offset)->get('`orders` o')->result_array();
 
         $bulkData = array();
         $bulkData['total'] = $total;

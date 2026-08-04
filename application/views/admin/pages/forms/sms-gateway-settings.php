@@ -1,11 +1,12 @@
-<div class="content-wrapper">
+<div class="content-wrapper admin-sms-gateway-page">
     <!-- Content Header (Page header) -->
     <!-- Main content -->
     <section class="content-header">
         <div class="container-fluid">
-            <div class="row mb-2">
+            <div class="row mb-2 align-items-center">
                 <div class="col-sm-6">
-                    <h4>SMS Gateway Settings</h4>
+                    <h4 class="mb-0"><i class="fas fa-sms mr-2 text-primary-theme"></i>SMS Gateway Settings</h4>
+                    <p class="text-muted mb-0 small">Configure the SMS gateway used to deliver order and account notifications.</p>
                 </div>
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">
@@ -20,16 +21,22 @@
     </section>
     <?php
 
-    use function PHPSTORM_META\type;
-
     $sms = json_encode($sms_gateway_settings);
 
     ?>
     <section class="content">
-        <input type="hidden" id="sms_gateway_settings" name="sms_gateway_settings" value='<?= $sms ?>'>
+        <input type="hidden" id="sms_gateway_settings" name="sms_gateway_settings" value='<?= htmlspecialchars($sms, ENT_QUOTES) ?>'>
         <div class="container-fluid">
             <div class="row">
                 <div class="col-md-12">
+                    <div class="card attribute-card">
+                        <div class="card-header attribute-card-header d-flex justify-content-between align-items-center flex-wrap">
+                            <div class="d-flex align-items-center">
+                                <span class="header-icon bg-set mr-2"><i class="fas fa-sms"></i></span>
+                                <h5 class="mb-0">SMS Gateway</h5>
+                            </div>
+                        </div>
+                        <div class="card-body pt-3">
                     <div class="nav" id="product-tab" role="tablist">
                         <nav class="w-100">
                             <ul class="nav nav-tabs">
@@ -608,8 +615,45 @@
                         </div>
 
                     </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </section>
 </div>
+
+<style>
+    .admin-sms-gateway-page .text-primary-theme { color: var(--color-orange); }
+
+    .admin-sms-gateway-page .btn-primary-theme {
+        background: var(--color-orange);
+        border-color: var(--color-orange);
+        color: #fff;
+        font-weight: 600;
+    }
+    .admin-sms-gateway-page .btn-primary-theme:hover { background: var(--color-orange-dark); border-color: var(--color-orange-dark); color: #fff; }
+
+    .admin-sms-gateway-page .attribute-card { border: none; border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,0.06); }
+    .admin-sms-gateway-page .attribute-card-header {
+        background: #fff;
+        border-bottom: 1px solid rgba(0,0,0,0.06);
+        gap: 10px;
+        border-radius: 10px 10px 0 0;
+    }
+    .admin-sms-gateway-page .header-icon {
+        width: 34px; height: 34px; border-radius: 8px;
+        display: flex; align-items: center; justify-content: center;
+        color: #fff; font-size: 14px; flex: none;
+    }
+    .admin-sms-gateway-page .header-icon.bg-set { background: var(--color-orange); }
+
+    .admin-sms-gateway-page .btn-success {
+        background: var(--color-orange);
+        border-color: var(--color-orange);
+    }
+    .admin-sms-gateway-page .btn-success:hover {
+        background: var(--color-orange-dark);
+        border-color: var(--color-orange-dark);
+    }
+</style>

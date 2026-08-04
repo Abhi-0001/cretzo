@@ -1,11 +1,12 @@
-<div class="content-wrapper">
+﻿<div class="content-wrapper admin-payment-settings-page">
     <!-- Content Header (Page header) -->
     <!-- Main content -->
     <section class="content-header">
         <div class="container-fluid">
-            <div class="row mb-2">
+            <div class="row mb-2 align-items-center">
                 <div class="col-sm-6">
-                    <h4>Payment Methods Settings</h4>
+                    <h4 class="mb-0"><i class="fas fa-credit-card mr-2 text-primary-theme"></i>Payment Settings</h4>
+                    <p class="text-muted mb-0 small">Configure payment gateways, keys, and webhook endpoints for the marketplace.</p>
                 </div>
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">
@@ -22,11 +23,16 @@
         <div class="container-fluid">
             <div class="row">
                 <div class="col-md-12">
-                    <div class="card card-info">
-                        <form class="form-horizontal form-submit-event" action="<?= base_url('admin/Payment_settings/update_payment_settings'); ?>" method="POST" id="payment_setting_form">
-                            <div class="card-body">
-                                <h5>Paypal Payments</h5>
-                                <hr>
+                    <form class="form-horizontal form-submit-event" action="<?= base_url('admin/Payment_settings/update_payment_settings'); ?>" method="POST" id="payment_setting_form">
+
+                        <div class="card attribute-card">
+                            <div class="card-header attribute-card-header d-flex justify-content-between align-items-center flex-wrap">
+                                <div class="d-flex align-items-center">
+                                    <span class="header-icon bg-set mr-2"><i class="fas fa-credit-card"></i></span>
+                                    <h5 class="mb-0">PayPal Payments</h5>
+                                </div>
+                            </div>
+                            <div class="card-body pt-3">
                                 <div class="row">
                                     <div class="form-group col-md-4">
                                         <label for="paypal_payment_method">Paypal Payments <small>[ Enable / Disable ] </small></label>
@@ -60,7 +66,7 @@
                                         <label for="currency_code">Currency code</label>
                                     </div>
                                     <div class="form-group col-md-8">
-                                        <select class="form-control" name="currency_code" value="<?= @$settings['currency_code'] ?>">
+                                        <select class="form-control" name="currency_code">
                                             <option value="AUD" <?= (isset($settings["currency_code"]) && $settings["currency_code"] == "AUD") ? "selected" : '' ?>>AUD</option>
                                             <option value="BRL" <?= (isset($settings["currency_code"]) && $settings["currency_code"] == "BRL") ? "selected" : '' ?>>BRL</option>
                                             <option value="CAD" <?= (isset($settings["currency_code"]) && $settings["currency_code"] == "CAD") ? "selected" : '' ?>>CAD</option>
@@ -98,8 +104,17 @@
                                         <input type="text" class="form-control" readonly value="<?= base_url('app/v1/api/ipn') ?>" />
                                     </div>
                                 </div>
-                                <h5>Razorpay Payments </h5>
-                                <hr>
+                            </div>
+                        </div>
+
+                        <div class="card attribute-card">
+                            <div class="card-header attribute-card-header d-flex justify-content-between align-items-center flex-wrap">
+                                <div class="d-flex align-items-center">
+                                    <span class="header-icon bg-set mr-2"><i class="fas fa-credit-card"></i></span>
+                                    <h5 class="mb-0">Razorpay Payments</h5>
+                                </div>
+                            </div>
+                            <div class="card-body pt-3">
                                 <div class="row">
                                     <div class="form-group col-md-4">
                                         <label for="razorpay_payment_method">Razorpay Payments <small>[ Enable / Disable ] </small>
@@ -114,7 +129,7 @@
                                         <label for="razorpay_key_id">Razorpay key ID</label>
                                     </div>
                                     <div class="form-group col-md-8">
-                                        <input type="text" class="form-control" name="razorpay_key_id" value="<?= @$settings['razorpay_key_id'] ?>" placeholder="Razor Key ID" />
+                                        <input type="text" class="form-control" name="razorpay_key_id" value="<?= html_escape(@$settings['razorpay_key_id']) ?>" placeholder="Razor Key ID" />
                                     </div>
                                 </div>
                                 <div class="row">
@@ -122,7 +137,7 @@
                                         <label for="razorpay_secret_key">Secret Key</label>
                                     </div>
                                     <div class="form-group col-md-8">
-                                        <input type="text" class="form-control" name="razorpay_secret_key" value="<?= @$settings['razorpay_secret_key'] ?>" placeholder="Razorpay Secret Key " />
+                                        <input type="text" class="form-control" name="razorpay_secret_key" value="<?= html_escape(@$settings['razorpay_secret_key']) ?>" placeholder="Razorpay Secret Key " />
                                     </div>
                                 </div>
                                 <div class="row">
@@ -138,12 +153,21 @@
                                         <label for="refund_webhook_secret_key">Webhoook Secret Key</label>
                                     </div>
                                     <div class="form-group col-md-8">
-                                        <input type="text" class="form-control" name="refund_webhook_secret_key" value="<?= @$settings['refund_webhook_secret_key'] ?>" />
+                                        <input type="text" class="form-control" name="refund_webhook_secret_key" value="<?= html_escape(@$settings['refund_webhook_secret_key']) ?>" />
                                     </div>
                                 </div>
 
-                                <h5>Paystack Payments </h5>
-                                <hr>
+                            </div>
+                        </div>
+
+                        <div class="card attribute-card">
+                            <div class="card-header attribute-card-header d-flex justify-content-between align-items-center flex-wrap">
+                                <div class="d-flex align-items-center">
+                                    <span class="header-icon bg-set mr-2"><i class="fas fa-credit-card"></i></span>
+                                    <h5 class="mb-0">Paystack Payments</h5>
+                                </div>
+                            </div>
+                            <div class="card-body pt-3">
                                 <div class="row">
                                     <div class="form-group col-md-4">
                                         <label for="paystack_payment_method">Paystack Payments <small>[ Enable / Disable ] </small></label>
@@ -157,7 +181,7 @@
                                         <label for="paystack_key_id">Paystack key ID</label>
                                     </div>
                                     <div class="form-group col-md-8">
-                                        <input type="text" class="form-control" name="paystack_key_id" value="<?= @$settings['paystack_key_id'] ?>" placeholder="Paystack Public Key" />
+                                        <input type="text" class="form-control" name="paystack_key_id" value="<?= html_escape(@$settings['paystack_key_id']) ?>" placeholder="Paystack Public Key" />
                                     </div>
                                 </div>
                                 <div class="row">
@@ -165,7 +189,7 @@
                                         <label for="paystack_secret_key">Secret Key</label>
                                     </div>
                                     <div class="form-group col-md-8">
-                                        <input type="text" class="form-control" name="paystack_secret_key" value="<?= @$settings['paystack_secret_key'] ?>" placeholder="Paystack Secret Key " />
+                                        <input type="text" class="form-control" name="paystack_secret_key" value="<?= html_escape(@$settings['paystack_secret_key']) ?>" placeholder="Paystack Secret Key " />
                                     </div>
                                 </div>
                                 <div class="row">
@@ -176,8 +200,17 @@
                                         <input type="text" class="form-control" name="paystack_webhook_url" value="<?= base_url("app/v1/api/paystack-webhook"); ?>" disabled />
                                     </div>
                                 </div>
-                                <h5>Stripe Payments </h5>
-                                <hr>
+                            </div>
+                        </div>
+
+                        <div class="card attribute-card">
+                            <div class="card-header attribute-card-header d-flex justify-content-between align-items-center flex-wrap">
+                                <div class="d-flex align-items-center">
+                                    <span class="header-icon bg-set mr-2"><i class="fas fa-credit-card"></i></span>
+                                    <h5 class="mb-0">Stripe Payments</h5>
+                                </div>
+                            </div>
+                            <div class="card-body pt-3">
                                 <div class="row">
                                     <div class="form-group col-md-4">
                                         <label for="stripe_payment_method">Stripe Payments <small>[ Enable / Disable ] </small></label>
@@ -212,7 +245,7 @@
                                         <label for="stripe_publishable_key">Stripe Publishable Key</label>
                                     </div>
                                     <div class="form-group col-md-8">
-                                        <input type="text" class="form-control" name="stripe_publishable_key" value="<?= @$settings['stripe_publishable_key'] ?>" placeholder="Stripe Publishable Key" />
+                                        <input type="text" class="form-control" name="stripe_publishable_key" value="<?= html_escape(@$settings['stripe_publishable_key']) ?>" placeholder="Stripe Publishable Key" />
                                     </div>
                                 </div>
                                 <div class="row">
@@ -220,7 +253,7 @@
                                         <label for="stripe_secret_key">Stripe Secret Key</label>
                                     </div>
                                     <div class="form-group col-md-8">
-                                        <input type="text" class="form-control" name="stripe_secret_key" value="<?= @$settings['stripe_secret_key'] ?>" placeholder="Stripe Secret Key" />
+                                        <input type="text" class="form-control" name="stripe_secret_key" value="<?= html_escape(@$settings['stripe_secret_key']) ?>" placeholder="Stripe Secret Key" />
                                     </div>
                                 </div>
                                 <div class="row">
@@ -228,7 +261,7 @@
                                         <label for="stripe_webhook_secret_key">Stripe Webhook Secret Key</label>
                                     </div>
                                     <div class="form-group col-md-8">
-                                        <input type="text" class="form-control" name="stripe_webhook_secret_key" value="<?= @$settings['stripe_webhook_secret_key'] ?>" placeholder="Stripe Webhook Secret Key" />
+                                        <input type="text" class="form-control" name="stripe_webhook_secret_key" value="<?= html_escape(@$settings['stripe_webhook_secret_key']) ?>" placeholder="Stripe Webhook Secret Key" />
                                     </div>
                                 </div>
                                 <div class="row">
@@ -377,8 +410,17 @@
                                     </div>
                                 </div>
 
-                                <h5>Flutterwave Payments </h5>
-                                <hr>
+                            </div>
+                        </div>
+
+                        <div class="card attribute-card">
+                            <div class="card-header attribute-card-header d-flex justify-content-between align-items-center flex-wrap">
+                                <div class="d-flex align-items-center">
+                                    <span class="header-icon bg-set mr-2"><i class="fas fa-credit-card"></i></span>
+                                    <h5 class="mb-0">Flutterwave Payments</h5>
+                                </div>
+                            </div>
+                            <div class="card-body pt-3">
                                 <div class="row">
                                     <div class="form-group col-md-4">
                                         <label for="flutterwave_payment_method">Flutterwave Payments <small>[ Enable / Disable ] </small></label>
@@ -393,7 +435,7 @@
                                         <label for="flutterwave_public_key">Flutterwave Public Key</label>
                                     </div>
                                     <div class="form-group col-md-8">
-                                        <input type="text" class="form-control" name="flutterwave_public_key" value="<?= @$settings['flutterwave_public_key'] ?>" placeholder="Flutterwave Public Key" />
+                                        <input type="text" class="form-control" name="flutterwave_public_key" value="<?= html_escape(@$settings['flutterwave_public_key']) ?>" placeholder="Flutterwave Public Key" />
                                     </div>
                                 </div>
                                 <div class="row">
@@ -401,7 +443,7 @@
                                         <label for="flutterwave_secret_key">Secret Key</label>
                                     </div>
                                     <div class="form-group col-md-8">
-                                        <input type="text" class="form-control" name="flutterwave_secret_key" value="<?= @$settings['flutterwave_secret_key'] ?>" placeholder="Flutterwave Secret Key " />
+                                        <input type="text" class="form-control" name="flutterwave_secret_key" value="<?= html_escape(@$settings['flutterwave_secret_key']) ?>" placeholder="Flutterwave Secret Key " />
                                     </div>
                                 </div>
                                 <div class="row">
@@ -409,7 +451,7 @@
                                         <label for="flutterwave_encryption_key">Flutterwave Encryption key</label>
                                     </div>
                                     <div class="form-group col-md-8">
-                                        <input type="text" class="form-control" name="flutterwave_encryption_key" value="<?= @$settings['flutterwave_encryption_key'] ?>" placeholder="Flutterwave Encryption Key " />
+                                        <input type="text" class="form-control" name="flutterwave_encryption_key" value="<?= html_escape(@$settings['flutterwave_encryption_key']) ?>" placeholder="Flutterwave Encryption Key " />
                                     </div>
                                 </div>
                                 <div class="row">
@@ -443,7 +485,7 @@
                                         <label for="flutterwave_webhook_secret_key">Flutterwave Webhook Secret Key</label>
                                     </div>
                                     <div class="form-group col-md-8">
-                                        <input type="text" class="form-control" name="flutterwave_webhook_secret_key" value="<?= @$settings['flutterwave_webhook_secret_key'] ?>" placeholder="Flutterwave Webhook Secret Key" />
+                                        <input type="text" class="form-control" name="flutterwave_webhook_secret_key" value="<?= html_escape(@$settings['flutterwave_webhook_secret_key']) ?>" placeholder="Flutterwave Webhook Secret Key" />
                                     </div>
                                 </div>
                                 <div class="row">
@@ -455,8 +497,17 @@
                                     </div>
                                 </div>
 
-                                <h5>Paytm Payments </h5>
-                                <hr>
+                            </div>
+                        </div>
+
+                        <div class="card attribute-card">
+                            <div class="card-header attribute-card-header d-flex justify-content-between align-items-center flex-wrap">
+                                <div class="d-flex align-items-center">
+                                    <span class="header-icon bg-set mr-2"><i class="fas fa-credit-card"></i></span>
+                                    <h5 class="mb-0">Paytm Payments</h5>
+                                </div>
+                            </div>
+                            <div class="card-body pt-3">
                                 <div class="row">
                                     <div class="form-group col-md-4">
                                         <label for="paytm_payment_method">Paytm Payments <small>[ Enable / Disable ] </small></label>
@@ -482,7 +533,7 @@
                                         <label for="paytm_merchant_key">Paytm Merchant Key </label>
                                     </div>
                                     <div class="form-group col-md-8">
-                                        <input type="text" class="form-control" name="paytm_merchant_key" value="<?= @$settings['paytm_merchant_key'] ?>" placeholder="Paytm Merchant Key" />
+                                        <input type="text" class="form-control" name="paytm_merchant_key" value="<?= html_escape(@$settings['paytm_merchant_key']) ?>" placeholder="Paytm Merchant Key" />
                                     </div>
                                 </div>
                                 <div class="row">
@@ -490,7 +541,7 @@
                                         <label for="paytm_merchant_id">Paytm Merchant ID </label>
                                     </div>
                                     <div class="form-group col-md-8">
-                                        <input type="text" class="form-control" name="paytm_merchant_id" value="<?= @$settings['paytm_merchant_id'] ?>" placeholder="Paytm Merchant ID" />
+                                        <input type="text" class="form-control" name="paytm_merchant_id" value="<?= html_escape(@$settings['paytm_merchant_id']) ?>" placeholder="Paytm Merchant ID" />
                                     </div>
                                 </div>
                                 <?php
@@ -501,7 +552,7 @@
                                             <label for="paytm_website">Paytm Website <small>[<a href="https://dashboard.paytm.com/next/apikeys?src=dev" target="_blank">click here</a> to know]</small></label>
                                         </div>
                                         <div class="form-group col-md-8">
-                                            <input type="text" class="form-control" name="paytm_website" value="<?= @$settings['paytm_website'] ?>" placeholder="Paytm Website" />
+                                            <input type="text" class="form-control" name="paytm_website" value="<?= html_escape(@$settings['paytm_website']) ?>" placeholder="Paytm Website" />
                                         </div>
                                     </div>
                                     <div class="row">
@@ -509,7 +560,7 @@
                                             <label for="paytm_industry_type_id">Industry Type ID <small>[<a href="https://dashboard.paytm.com/next/apikeys?src=dev" target="_blank">click here</a> to know]</small></label>
                                         </div>
                                         <div class="form-group col-md-8">
-                                            <input type="text" class="form-control" name="paytm_industry_type_id" value="<?= @$settings['paytm_industry_type_id'] ?>" placeholder="Industry Type ID" />
+                                            <input type="text" class="form-control" name="paytm_industry_type_id" value="<?= html_escape(@$settings['paytm_industry_type_id']) ?>" placeholder="Industry Type ID" />
                                         </div>
                                     </div>
                                 <?php } else { ?>
@@ -531,8 +582,17 @@
                                     </div>
                                 <?php } ?>
 
-                                <h5>Midtrans Payments </h5>
-                                <hr>
+                            </div>
+                        </div>
+
+                        <div class="card attribute-card">
+                            <div class="card-header attribute-card-header d-flex justify-content-between align-items-center flex-wrap">
+                                <div class="d-flex align-items-center">
+                                    <span class="header-icon bg-set mr-2"><i class="fas fa-credit-card"></i></span>
+                                    <h5 class="mb-0">Midtrans Payments</h5>
+                                </div>
+                            </div>
+                            <div class="card-body pt-3">
                                 <div class="row">
                                     <div class="form-group col-md-4">
                                         <label for="midtrans_payment_method">Midtrans Payments <small>[ Enable / Disable ] </small></label>
@@ -558,7 +618,7 @@
                                         <label for="midtrans_client_key">Midtrans Client Key </label>
                                     </div>
                                     <div class="form-group col-md-8">
-                                        <input type="text" class="form-control" name="midtrans_client_key" value="<?= @$settings['midtrans_client_key'] ?>" placeholder="Midtrans Client Key" />
+                                        <input type="text" class="form-control" name="midtrans_client_key" value="<?= html_escape(@$settings['midtrans_client_key']) ?>" placeholder="Midtrans Client Key" />
                                     </div>
                                 </div>
                                 <div class="row">
@@ -566,7 +626,7 @@
                                         <label for="midtrans_merchant_id">Midtrans Merchant ID </label>
                                     </div>
                                     <div class="form-group col-md-8">
-                                        <input type="text" class="form-control" name="midtrans_merchant_id" value="<?= @$settings['midtrans_merchant_id'] ?>" placeholder="Midtrans Merchant ID" />
+                                        <input type="text" class="form-control" name="midtrans_merchant_id" value="<?= html_escape(@$settings['midtrans_merchant_id']) ?>" placeholder="Midtrans Merchant ID" />
                                     </div>
                                 </div>
                                 <div class="row">
@@ -574,7 +634,7 @@
                                         <label for="midtrans_server_key">Midtrans Server Key </label>
                                     </div>
                                     <div class="form-group col-md-8">
-                                        <input type="text" class="form-control" name="midtrans_server_key" value="<?= @$settings['midtrans_server_key'] ?>" placeholder="Midtrans Server Key" />
+                                        <input type="text" class="form-control" name="midtrans_server_key" value="<?= html_escape(@$settings['midtrans_server_key']) ?>" placeholder="Midtrans Server Key" />
                                     </div>
                                 </div>
                                 <div class="row">
@@ -593,11 +653,18 @@
                                         <input type="text" class="form-control" readonly value="<?= base_url('app/v1/api/midtrans_payment_process') ?>" />
                                     </div>
                                 </div>
-                                <!-- -------------------------------  Myfaroorah Payments  -------------------------------- -->
+                            </div>
+                        </div>
 
-
-                                <h5>Myfatoorah Payments Settings</h5>
-                                <hr>
+                        <!-- -------------------------------  Myfaroorah Payments  -------------------------------- -->
+                        <div class="card attribute-card">
+                            <div class="card-header attribute-card-header d-flex justify-content-between align-items-center flex-wrap">
+                                <div class="d-flex align-items-center">
+                                    <span class="header-icon bg-set mr-2"><i class="fas fa-credit-card"></i></span>
+                                    <h5 class="mb-0">Myfatoorah Payments Settings</h5>
+                                </div>
+                            </div>
+                            <div class="card-body pt-3">
                                 <div class="row">
                                     <div class="form-group col-md-4">
                                         <label for="myfaoorah_payment_method">Myfatoorah Payments <small>[ Enable / Disable ] </small></label>
@@ -611,7 +678,7 @@
                                         <label for="myfatoorah_token">Myfatoorah Token </label>
                                     </div>
                                     <div class="form-group col-md-8">
-                                        <textarea rows=4 name="myfatoorah_token" class="form-control"><?= @$settings['myfatoorah_token'] ?></textarea>
+                                        <textarea rows=4 name="myfatoorah_token" class="form-control"><?= html_escape(@$settings['myfatoorah_token']) ?></textarea>
                                     </div>
                                 </div>
                                 <div class="row">
@@ -685,16 +752,22 @@
                                         <label for="myfatoorah__secret_key">Myfatoorah Secret Key </label>
                                     </div>
                                     <div class="form-group col-md-8">
-                                        <input type="text" class="form-control" name="myfatoorah__secret_key" value="<?= @$settings['myfatoorah__secret_key'] ?>" />
+                                        <input type="text" class="form-control" name="myfatoorah__secret_key" value="<?= html_escape(@$settings['myfatoorah__secret_key']) ?>" />
 
                                     </div>
                                 </div>
-                                <!--------------------------------------------------------------------------------------------------  -->
-                                <!-- -------------------------------  InstaMojo Payments  -------------------------------- -->
+                            </div>
+                        </div>
 
-
-                                <h5>Instamojo Payments Settings</h5>
-                                <hr>
+                        <!-- -------------------------------  InstaMojo Payments  -------------------------------- -->
+                        <div class="card attribute-card">
+                            <div class="card-header attribute-card-header d-flex justify-content-between align-items-center flex-wrap">
+                                <div class="d-flex align-items-center">
+                                    <span class="header-icon bg-set mr-2"><i class="fas fa-credit-card"></i></span>
+                                    <h5 class="mb-0">Instamojo Payments Settings</h5>
+                                </div>
+                            </div>
+                            <div class="card-body pt-3">
                                 <div class="row">
                                     <div class="form-group col-md-4">
                                         <label for="instamojo_payment_method">Instamojo Payments <small>[ Enable / Disable ] </small></label>
@@ -721,7 +794,7 @@
                                         <label for="instamojo_client_id">Client ID </label>
                                     </div>
                                     <div class="form-group col-md-8">
-                                        <input type="text" class="form-control" name="instamojo_client_id" value="<?= @$settings['instamojo_client_id']  ?>" />
+                                        <input type="text" class="form-control" name="instamojo_client_id" value="<?= html_escape(@$settings['instamojo_client_id']) ?>" />
                                     </div>
                                 </div>
                                 <div class="row">
@@ -729,7 +802,7 @@
                                         <label for="instamojo_client_secret">Client Secret </label>
                                     </div>
                                     <div class="form-group col-md-8">
-                                        <input type="text" class="form-control" name="instamojo_client_secret" value="<?= @$settings['instamojo_client_secret']  ?>" />
+                                        <input type="text" class="form-control" name="instamojo_client_secret" value="<?= html_escape(@$settings['instamojo_client_secret']) ?>" />
                                     </div>
                                 </div>
 
@@ -742,10 +815,18 @@
                                     </div>
                                 </div>
 
-                                <!------------------------------------------------------------------------------------>
-                                <!-----------------------------------------------phone pe ---------------------------->
-                                <h5>Phone Pe </h5>
-                                <hr>
+                            </div>
+                        </div>
+
+                        <!-----------------------------------------------phone pe ---------------------------->
+                        <div class="card attribute-card">
+                            <div class="card-header attribute-card-header d-flex justify-content-between align-items-center flex-wrap">
+                                <div class="d-flex align-items-center">
+                                    <span class="header-icon bg-set mr-2"><i class="fas fa-credit-card"></i></span>
+                                    <h5 class="mb-0">Phone Pe</h5>
+                                </div>
+                            </div>
+                            <div class="card-body pt-3">
                                 <div>
                                     <div class="row">
                                         <div class="form-group col-md-4">
@@ -773,7 +854,7 @@
                                             <label for="phonepe_marchant_id">Marchant ID</label>
                                         </div>
                                         <div class="form-group col-md-8">
-                                            <input type="text" class="form-control" name="phonepe_marchant_id" value="<?= @$settings['phonepe_marchant_id']  ?>" />
+                                            <input type="text" class="form-control" name="phonepe_marchant_id" value="<?= html_escape(@$settings['phonepe_marchant_id']) ?>" />
                                         </div>
                                     </div>
                                     <div class="row">
@@ -781,7 +862,7 @@
                                             <label for="phonepe_app_id">App id</label>
                                         </div>
                                         <div class="form-group col-md-8">
-                                            <input type="text" class="form-control" name="phonepe_app_id" value="<?= @$settings['phonepe_app_id']  ?>" />
+                                            <input type="text" class="form-control" name="phonepe_app_id" value="<?= html_escape(@$settings['phonepe_app_id']) ?>" />
                                         </div>
                                     </div>
                                     <div class="row">
@@ -789,7 +870,7 @@
                                             <label for="phonepe_salt_index">Salt index</label>
                                         </div>
                                         <div class="form-group col-md-8">
-                                            <input type="text" class="form-control" name="phonepe_salt_index" value="<?= @$settings['phonepe_salt_index']  ?>" />
+                                            <input type="text" class="form-control" name="phonepe_salt_index" value="<?= html_escape(@$settings['phonepe_salt_index']) ?>" />
                                         </div>
                                     </div>
                                     <div class="row">
@@ -797,7 +878,7 @@
                                             <label for="phonepe_salt_key">Salt key</label>
                                         </div>
                                         <div class="form-group col-md-8">
-                                            <input type="text" class="form-control" name="phonepe_salt_key" value="<?= @$settings['phonepe_salt_key']  ?>" />
+                                            <input type="text" class="form-control" name="phonepe_salt_key" value="<?= html_escape(@$settings['phonepe_salt_key']) ?>" />
                                         </div>
                                     </div>
 
@@ -810,11 +891,18 @@
                                         </div>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
 
-                                <!------------------------------------------------------------------------------------>
-                                <!------------------------------------------Bank Transfer ---------------------------->
-                                <h5>Direct Bank Transfer </h5>
-                                <hr>
+                        <!------------------------------------------Bank Transfer ---------------------------->
+                        <div class="card attribute-card">
+                            <div class="card-header attribute-card-header d-flex justify-content-between align-items-center flex-wrap">
+                                <div class="d-flex align-items-center">
+                                    <span class="header-icon bg-set mr-2"><i class="fas fa-credit-card"></i></span>
+                                    <h5 class="mb-0">Direct Bank Transfer</h5>
+                                </div>
+                            </div>
+                            <div class="card-body pt-3">
                                 <div class="row">
                                     <div class="form-group col-md-4">
                                         <label for="direct_bank_transfer">Direct Bank Transfer <small>[ Enable / Disable ] </small></label>
@@ -828,7 +916,7 @@
                                         <label for="account_name">Account Name</label>
                                     </div>
                                     <div class="form-group col-md-8">
-                                        <input type="text" class="form-control" name="account_name" value="<?= @$settings['account_name'] ?>" placeholder="Account Name" />
+                                        <input type="text" class="form-control" name="account_name" value="<?= html_escape(@$settings['account_name']) ?>" placeholder="Account Name" />
                                     </div>
                                 </div>
                                 <div class="row">
@@ -836,7 +924,7 @@
                                         <label for="account_number">Account Number</label>
                                     </div>
                                     <div class="form-group col-md-8">
-                                        <input type="number" step="any" class="form-control" name="account_number" value="<?= @$settings['account_number'] ?>" placeholder="Account Number " />
+                                        <input type="number" step="any" class="form-control" name="account_number" value="<?= html_escape(@$settings['account_number']) ?>" placeholder="Account Number " />
                                     </div>
                                 </div>
                                 <div class="row">
@@ -844,7 +932,7 @@
                                         <label for="bank_name">Bank Name</label>
                                     </div>
                                     <div class="form-group col-md-8">
-                                        <input type="text" class="form-control" name="bank_name" value="<?= @$settings['bank_name'] ?>" placeholder="Bank Name " />
+                                        <input type="text" class="form-control" name="bank_name" value="<?= html_escape(@$settings['bank_name']) ?>" placeholder="Bank Name " />
                                     </div>
                                 </div>
                                 <div class="row">
@@ -852,7 +940,7 @@
                                         <label for="bank_code">Bank Code</label>
                                     </div>
                                     <div class="form-group col-md-8">
-                                        <input type="text" class="form-control" name="bank_code" value="<?= @$settings['bank_code'] ?>" placeholder="Bank Code " />
+                                        <input type="text" class="form-control" name="bank_code" value="<?= html_escape(@$settings['bank_code']) ?>" placeholder="Bank Code " />
                                     </div>
                                 </div>
                                 <div class="row">
@@ -862,10 +950,18 @@
                                     </div>
                                 </div>
 
-                                <!------------------------------------------------------------------------------------>
-                                <!-------------------------------------- Cash on Delivery ---------------------------->
-                                <h5>Cash On Delivery </h5>
-                                <hr>
+                            </div>
+                        </div>
+
+                        <!-------------------------------------- Cash on Delivery ---------------------------->
+                        <div class="card attribute-card">
+                            <div class="card-header attribute-card-header d-flex justify-content-between align-items-center flex-wrap">
+                                <div class="d-flex align-items-center">
+                                    <span class="header-icon bg-set mr-2"><i class="fas fa-credit-card"></i></span>
+                                    <h5 class="mb-0">Cash On Delivery</h5>
+                                </div>
+                            </div>
+                            <div class="card-body pt-3">
                                 <div class="row">
                                     <div class="form-group col-md-4">
                                         <label for="cod_method">COD <small>[ Enable / Disable ] </small></label>
@@ -874,18 +970,18 @@
                                         <input type="checkbox" name="cod_method" <?= (@$settings['cod_method']) == '1' ? 'Checked' : '' ?> data-bootstrap-switch data-off-color="danger" data-on-color="success">
                                     </div>
                                 </div>
-                                <div class="form-group">
-                                    <button type="reset" class="btn btn-warning">Reset</button>
-                                    <button type="submit" class="btn btn-success" id="submit_btn">Update Payment Settings</button>
-                                </div>
                             </div>
-                            <div class="d-flex justify-content-center">
-                                <div class="form-group" id="error_box">
-                                </div>
+                        </div>
+
+                        <div class="form-group">
+                            <button type="reset" class="btn btn-warning">Reset</button>
+                            <button type="submit" class="btn btn-success" id="submit_btn">Update Payment Settings</button>
+                        </div>
+                        <div class="d-flex justify-content-center">
+                            <div class="form-group" id="error_box">
                             </div>
-                        </form>
-                    </div>
-                    <!--/.card-->
+                        </div>
+                    </form>
                 </div>
                 <!--/.col-md-12-->
             </div>
@@ -895,3 +991,27 @@
     </section>
     <!-- /.content -->
 </div>
+
+<style>
+    .admin-payment-settings-page .text-primary-theme { color: var(--color-orange); }
+
+    .admin-payment-settings-page .btn-success {
+        background: var(--color-orange);
+        border-color: var(--color-orange);
+    }
+    .admin-payment-settings-page .btn-success:hover { background: var(--color-orange-dark); border-color: var(--color-orange-dark); }
+
+    .admin-payment-settings-page .attribute-card { border: none; border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,0.06); margin-bottom: 1.5rem; }
+    .admin-payment-settings-page .attribute-card-header {
+        background: #fff;
+        border-bottom: 1px solid rgba(0,0,0,0.06);
+        gap: 10px;
+        border-radius: 10px 10px 0 0;
+    }
+    .admin-payment-settings-page .header-icon {
+        width: 34px; height: 34px; border-radius: 8px;
+        display: flex; align-items: center; justify-content: center;
+        color: #fff; font-size: 14px; flex: none;
+    }
+    .admin-payment-settings-page .header-icon.bg-set { background: var(--color-orange); }
+</style>

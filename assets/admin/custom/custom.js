@@ -5478,6 +5478,15 @@ $('#location_bulk_upload_form').on('submit', function (e) {
     var type = $('#type').val();
     var location_type = $('#location_type').val();
     if (type != '' && location_type != "" && type != "undefined" && location_type != "undefined") {
+        // A file was never checked for on the client, so submitting with none selected made a
+        // pointless round trip before the server answered "Please choose file" - same fix
+        // already applied to the sibling #bulk_upload_form handler above.
+        var fileInput = $(this).find('input[name="upload_file"]')[0];
+        if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+            iziToast.error({ message: 'Please choose a CSV file' });
+            return;
+        }
+
         var formdata = new FormData(this);
         formdata.append(csrfName, csrfHash);
         $.ajax({
@@ -5490,15 +5499,39 @@ $('#location_bulk_upload_form').on('submit', function (e) {
             processData: false,
             beforeSend: function () {
                 $('#submit_btn').html('Please Wait...').attr('disabled', true);
+                $('#upload_result').hide().stop(true, true);
             },
             success: function (result) {
                 csrfName = result.csrfName;
                 csrfHash = result.csrfHash;
+                // The result used to fade out after three seconds. Import failures are
+                // reported per row ("City id is empty at row 47"), so the one piece of
+                // information needed to fix the file disappeared before it could be read or
+                // copied - same fix already applied to the sibling #bulk_upload_form handler.
                 if (result.error == false) {
-                    $('#upload_result').show().removeClass('msg_error').addClass('msg_success').html(result.message).delay(3000).fadeOut();
+                    $('#upload_result').removeClass('msg_error').addClass('msg_success').html(result.message).show();
                 } else {
-                    $('#upload_result').show().removeClass('msg_success').addClass('msg_error').html(result.message).delay(3000).fadeOut();
+                    $('#upload_result').removeClass('msg_success').addClass('msg_error').html(result.message).show();
                 }
+            },
+            // Without an error branch, any server-side failure - and an oversized file
+            // reliably produced one - left the button disabled on "Please Wait..." forever
+            // with no explanation, so the page looked frozen.
+            error: function (jqXHR) {
+                var message = 'The upload could not be completed.';
+                if (jqXHR.status === 413) {
+                    message = 'The file is too large for the server to accept. Please split it into smaller files.';
+                } else if (jqXHR.status === 504 || jqXHR.status === 408) {
+                    message = 'The server took too long to process this file. Please split it into smaller files.';
+                } else if (jqXHR.status === 0) {
+                    message = 'The connection was lost during the upload. Please check your connection and try again.';
+                } else if (jqXHR.status >= 500) {
+                    message = 'The server reported an error (' + jqXHR.status + ') while processing this file. No data was imported.';
+                }
+                $('#upload_result').removeClass('msg_success').addClass('msg_error').html(message).show();
+            },
+            // Runs on both success and failure, so the button can never be left stuck.
+            complete: function () {
                 $('#submit_btn').html('Submit').attr('disabled', false);
             }
         });
@@ -9310,7 +9343,7 @@ $(document).on('change', '#whatsapp_status', function (e, data) {
     }
 });
 
-var sms_data = $("#sms_gateway_data").val() ? $("#sms_gateway_data").val() : [];
+var sms_data = $("#sms_gateway_settings").val() ? $("#sms_gateway_settings").val() : [];
 console.log(sms_data.length);
 if (sms_data.length != 0) {
     var sms_data = JSON.parse(sms_data);

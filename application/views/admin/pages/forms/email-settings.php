@@ -1,11 +1,12 @@
-<div class="content-wrapper">
+<div class="content-wrapper admin-email-settings-page">
     <!-- Content Header (Page header) -->
     <!-- Main content -->
     <section class="content-header">
         <div class="container-fluid">
-            <div class="row mb-2">
+            <div class="row mb-2 align-items-center">
                 <div class="col-sm-6">
-                    <h4>Email SMTP Settings</h4>
+                    <h4 class="mb-0"><i class="fas fa-envelope mr-2 text-primary-theme"></i>Email Settings</h4>
+                    <p class="text-muted mb-0 small">SMTP configuration used to send transactional and notification emails.</p>
                 </div>
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">
@@ -20,18 +21,24 @@
         <div class="container-fluid">
             <div class="row">
                 <div class="col-md-12">
-                    <div class="card card-info">
+                    <div class="card attribute-card">
+                        <div class="card-header attribute-card-header d-flex justify-content-between align-items-center flex-wrap">
+                            <div class="d-flex align-items-center">
+                                <span class="header-icon bg-set mr-2"><i class="fas fa-envelope"></i></span>
+                                <h5 class="mb-0">Email SMTP Settings</h5>
+                            </div>
+                        </div>
                         <!-- form start -->
-                        <form class="form-horizontal form-submit-event" action="<?= base_url('admin/email_settings/set_email_settings   '); ?>" method="POST" id="add_product_form" enctype="multipart/form-data">
+                        <form class="form-horizontal form-submit-event" action="<?= base_url('admin/email_settings/set_email_settings'); ?>" method="POST" id="add_product_form" enctype="multipart/form-data">
                             <!-- card -->
-                            <div class="card-body">
+                            <div class="card-body pt-3">
                                 <p class="text-muted text-bold">Email SMTP settings, notifications and others related to email.</p>
 
 
                                 <div class="form-group row align-items-center">
                                     <label for="email-set" class="control-label">Email <span class="text-danger text-sm">*</span></label>
                                     <div class="col-sm-12 col-md-12">
-                                        <input type="text" name="email" class="form-control" id="email-set" value="<?= (isset($email_settings)) ? $email_settings['email'] : '' ?>" required="" dir="ltr">
+                                        <input type="text" name="email" class="form-control" id="email-set" value="<?= (isset($email_settings)) ? html_escape($email_settings['email']) : '' ?>" required="" dir="ltr">
                                         <div class="form-text text-muted">This is the email address that the contact and report emails will be sent to, aswell as being the from address in signup and notification emails.</div>
                                     </div>
 
@@ -40,7 +47,7 @@
                                 <div class="form-group row align-items-center">
                                     <label for="password" class="col-form-label">Password <span class="text-danger text-sm">*</span></label>
                                     <div class="col-sm-6 col-md-12">
-                                        <input type="text" name="password" class="form-control" id="password" value="<?= (isset($email_settings)) ? $email_settings['password'] : '' ?>" required="">
+                                        <input type="password" name="password" class="form-control" id="password" value="<?= (isset($email_settings)) ? html_escape($email_settings['password']) : '' ?>" required="">
                                         <div class="form-text text-muted">Password of above given email.</div>
                                     </div>
                                 </div>
@@ -49,7 +56,7 @@
                                 <div class="form-group row align-items-center">
                                     <label for="smtp_host" class="col-form-label ">SMTP Host <span class="text-danger text-sm">*</span></label>
                                     <div class="col-sm-6 col-md-12">
-                                        <input type="text" name="smtp_host" class="form-control" id="smtp_host" value="<?= (isset($email_settings)) ? $email_settings['smtp_host'] : '' ?>" required="">
+                                        <input type="text" name="smtp_host" class="form-control" id="smtp_host" value="<?= (isset($email_settings)) ? html_escape($email_settings['smtp_host']) : '' ?>" required="">
                                         <div class="form-text text-muted">This is the host address for your smtp server, this is only needed if you are using SMTP as the Email Send Type.</div>
                                     </div>
                                 </div>
@@ -58,7 +65,7 @@
                                 <div class="form-group row align-items-center">
                                     <label for="smtp_port" class="col-form-label ">SMTP Port <span class="text-danger text-sm">*</span></label>
                                     <div class="col-sm-6 col-md-12">
-                                        <input type="text" name="smtp_port" class="form-control" id="smtp_port" value="<?= (isset($email_settings)) ? $email_settings['smtp_port'] : '' ?>" required="">
+                                        <input type="text" name="smtp_port" class="form-control" id="smtp_port" value="<?= (isset($email_settings)) ? html_escape($email_settings['smtp_port']) : '' ?>" required="">
                                         <div class="form-text text-muted">SMTP port this will provide your service provider.</div>
                                     </div>
                                 </div>
@@ -109,3 +116,27 @@
     </section>
     <!-- /.content -->
 </div>
+
+<style>
+    .admin-email-settings-page .text-primary-theme { color: var(--color-orange); }
+
+    .admin-email-settings-page .btn-success {
+        background: var(--color-orange);
+        border-color: var(--color-orange);
+    }
+    .admin-email-settings-page .btn-success:hover { background: var(--color-orange-dark); border-color: var(--color-orange-dark); }
+
+    .admin-email-settings-page .attribute-card { border: none; border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,0.06); }
+    .admin-email-settings-page .attribute-card-header {
+        background: #fff;
+        border-bottom: 1px solid rgba(0,0,0,0.06);
+        gap: 10px;
+        border-radius: 10px 10px 0 0;
+    }
+    .admin-email-settings-page .header-icon {
+        width: 34px; height: 34px; border-radius: 8px;
+        display: flex; align-items: center; justify-content: center;
+        color: #fff; font-size: 14px; flex: none;
+    }
+    .admin-email-settings-page .header-icon.bg-set { background: var(--color-orange); }
+</style>

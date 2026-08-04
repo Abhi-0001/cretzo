@@ -7,13 +7,15 @@ class Area_model extends CI_Model
     function add_city($data)
     {
         $data = escape_array($data);
+        // cities' real name/PK columns are city_name/city_id, not name/id - this previously
+        // threw a raw "Unknown column" database error on every single Add/Edit City save.
         $city_data = [
-            'name' => $data['city_name'],
+            'city_name' => $data['city_name'],
         ];
         if (isset($data['edit_city'])) {
-            $this->db->set($city_data)->where('id', $data['edit_city'])->update('cities');
+            return $this->db->set($city_data)->where('city_id', $data['edit_city'])->update('cities');
         } else {
-            $this->db->insert('cities', $city_data);
+            return $this->db->insert('cities', $city_data);
         }
     }
     function add_zipcode($data)
@@ -26,9 +28,9 @@ class Area_model extends CI_Model
             'delivery_charges' => $data['delivery_charges'],
         ];
         if (isset($data['edit_zipcode'])) {
-            $this->db->set($zipcode_data)->where('id', $data['edit_zipcode'])->update('zipcodes');
+            return $this->db->set($zipcode_data)->where('id', $data['edit_zipcode'])->update('zipcodes');
         } else {
-            $this->db->insert('zipcodes', $zipcode_data);
+            return $this->db->insert('zipcodes', $zipcode_data);
         }
     }
     function add_area($data)
@@ -44,9 +46,9 @@ class Area_model extends CI_Model
         ];
 
         if (isset($data['edit_area'])) {
-            $this->db->set($area_data)->where('id', $data['edit_area'])->update('areas');
+            return $this->db->set($area_data)->where('id', $data['edit_area'])->update('areas');
         } else {
-            $this->db->insert('areas', $area_data);
+            return $this->db->insert('areas', $area_data);
         }
     }
     function bulk_edit_area($data)
@@ -57,26 +59,37 @@ class Area_model extends CI_Model
             'minimum_free_delivery_order_amount' => $data['bulk_update_minimum_free_delivery_order_amount'],
             'delivery_charges' => $data['bulk_update_delivery_charges'],
         ];
-        $this->db->set($area_data)->where('city_id', $data['city'])->update('areas');
+        return $this->db->set($area_data)->where('city_id', $data['city'])->update('areas');
     }
     public function get_list($table, $offset = 0, $limit = 10, $sort = 'u.id')
     {
         $multipleWhere = '';
+        $order = 'asc';
 
         if (isset($_GET['offset']))
             $offset = $_GET['offset'];
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                // cities' primary key column is city_id, not id.
-                $sort = ($table == 'cities') ? 'city_id' : 'id';
-            } else {
-                $sort = $_GET['sort'];
-            }
-        if (isset($_GET['order']))
-            $order = $_GET['order'];
+        // Whitelist against the actual selected columns - $_GET['sort'] was previously passed
+        // straight into order_by() unchecked for any value other than "id" (an injection
+        // shape), and $_GET['order'] was read but never actually applied below (hardcoded
+        // "asc" regardless of what was requested).
+        if ($table == 'areas') {
+            $allowed_sort_columns = ['id' => 'areas.id', 'name' => 'areas.name', 'city_name' => 'cities.city_name', 'zipcode' => 'zipcodes.zipcode', 'minimum_free_delivery_order_amount' => 'areas.minimum_free_delivery_order_amount', 'delivery_charges' => 'areas.delivery_charges'];
+        } elseif ($table == 'cities') {
+            $allowed_sort_columns = ['id' => 'city_id', 'name' => 'city_name'];
+        } else {
+            $allowed_sort_columns = ['id' => 'id', 'name' => 'name'];
+        }
+        if (isset($_GET['sort']) && array_key_exists($_GET['sort'], $allowed_sort_columns)) {
+            $sort = $allowed_sort_columns[$_GET['sort']];
+        } else {
+            $sort = $allowed_sort_columns['id'];
+        }
+        if (isset($_GET['order']) && strtolower($_GET['order']) === 'desc') {
+            $order = 'desc';
+        }
 
         if (isset($_GET['search']) and $_GET['search'] != '') {
             $search = $_GET['search'];
@@ -125,26 +138,31 @@ class Area_model extends CI_Model
             $search_res->where($where);
         }
 
-        $city_search_res = $search_res->order_by($sort, "asc")->limit($limit, $offset)->get($table)->result_array();
+        $city_search_res = $search_res->order_by($sort, $order)->limit($limit, $offset)->get($table)->result_array();
         $bulkData = array();
         $bulkData['total'] = $total;
         $rows = array();
         $tempRow = array();
         $url = 'manage_' . $table;
         foreach ($city_search_res as $row) {
-            $row = output_escaping($row);
             // cities rows come back keyed by city_id/city_name, not id/name.
             $row_id = ($table == 'cities') ? $row['city_id'] : $row['id'];
             $row_name = ($table == 'cities') ? $row['city_name'] : $row['name'];
             if (!$this->ion_auth->is_seller()) {
-                // $operate = ' <a href="javascript:void(0)" class="edit_btn action-btn btn btn-success btn-xs mr-1 mb-1 ml-1" title="Edit" data-id="' . $row_id . '" data-url="admin/area/' . $url . '"><i class="fa fa-pen"></i></a>';
-                $operate = '  <a  href="javascript:void(0)" class=" btn btn-danger action-btn btn-xs mr-1 mb-1 ml-1" title="Delete" id="delete-location" data-table="' . $table . '" data-id="' . $row_id . '" ><i class="fa fa-trash"></i></a>';
+                // The Edit button was commented out here - the list's Action column only ever
+                // showed Delete, with no way to open the Edit modal (the row's own edit_btn
+                // markup is what custom.js's generic .edit_btn handler loads into the modal).
+                $operate = ' <a href="javascript:void(0)" class="edit_btn action-btn btn btn-success btn-xs mr-1 mb-1 ml-1" title="Edit" data-id="' . (int) $row_id . '" data-url="admin/area/' . $url . '"><i class="fa fa-pen"></i></a>';
+                $operate .= '  <a  href="javascript:void(0)" class=" btn btn-danger action-btn btn-xs mr-1 mb-1 ml-1" title="Delete" id="delete-location" data-table="' . $table . '" data-id="' . (int) $row_id . '" ><i class="fa fa-trash"></i></a>';
             }
             $tempRow['id'] = $row_id;
-            $tempRow['name'] = $row_name;
+            // Was run through output_escaping() only - despite the name, that helper does NOT
+            // HTML-encode anything (just stripcslashes()), so a name/zipcode containing a
+            // script tag rendered as live, unescaped HTML in every admin's browser (stored XSS).
+            $tempRow['name'] = html_escape($row_name);
             if ($table == 'areas') {
-                $tempRow['city_name'] = $row['city_name'];
-                $tempRow['zipcode'] = $row['zipcode'];
+                $tempRow['city_name'] = html_escape($row['city_name']);
+                $tempRow['zipcode'] = html_escape($row['zipcode']);
                 $tempRow['minimum_free_delivery_order_amount'] = $row['minimum_free_delivery_order_amount'];
                 $tempRow['delivery_charges'] = $row['delivery_charges'];
             }
@@ -162,8 +180,8 @@ class Area_model extends CI_Model
     {
         $offset = 0;
         $limit = 10;
-        $sort = 'id';
-        $order = 'ASC';
+        $sort = 'zipcodes.id';
+        $order = 'asc';
         $multipleWhere = '';
 
         if (isset($_GET['offset']))
@@ -171,27 +189,34 @@ class Area_model extends CI_Model
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "zipcodes.id";
-            } else {
-                $sort = $_GET['sort'];
-            }
-        if (isset($_GET['order']))
-            $order = $_GET['order'];
+        // Whitelist against the actual selected columns - $_GET['sort'] was previously passed
+        // straight into order_by() unchecked (an injection shape), and $_GET['order'] was read
+        // but never actually applied below (hardcoded "asc" regardless).
+        $allowed_sort_columns = ['id' => 'zipcodes.id', 'zipcode' => 'zipcodes.zipcode', 'city_name' => 'cities.city_name', 'minimum_free_delivery_order_amount' => 'zipcodes.minimum_free_delivery_order_amount', 'delivery_charges' => 'zipcodes.delivery_charges'];
+        if (isset($_GET['sort']) && array_key_exists($_GET['sort'], $allowed_sort_columns)) {
+            $sort = $allowed_sort_columns[$_GET['sort']];
+        }
+        if (isset($_GET['order']) && strtolower($_GET['order']) === 'desc') {
+            $order = 'desc';
+        }
 
         if (isset($_GET['search']) and $_GET['search'] != '') {
             $search = $_GET['search'];
-            $multipleWhere = ['`zipcodes.id`' => $search, '`zipcodes.zipcode`' => $search];
+            // Was wrapping the whole "table.column" string in one pair of backticks
+            // ('`zipcodes.id`') - CI3 sees the existing backtick and skips re-quoting, so this
+            // was sent to MySQL as a single, nonexistent identifier literally named
+            // "zipcodes.id", throwing a database error on every search on this page.
+            $multipleWhere = ['zipcodes.id' => $search, 'zipcodes.zipcode' => $search];
         }
 
-        $count_res = $this->db->select(' COUNT(id) as `total` ');
+        $count_res = $this->db->select(' COUNT(zipcodes.id) as `total` ');
 
         if (isset($multipleWhere) && !empty($multipleWhere)) {
-            $count_res->or_where($multipleWhere);
-        }
-        if (isset($where) && !empty($where)) {
-            $count_res->where($where);
+            // Was or_where() here (exact match) against the same $multipleWhere the data
+            // query below matches with or_like() (partial match) - a partial search term
+            // returned real rows from the data query but a mismatched (often 0) count from
+            // this query, breaking the table's reported total/pagination.
+            $count_res->or_like($multipleWhere);
         }
 
         $tax_count = $count_res->get('zipcodes')->result_array();
@@ -209,11 +234,8 @@ class Area_model extends CI_Model
         if (isset($multipleWhere) && !empty($multipleWhere)) {
             $search_res->or_like($multipleWhere);
         }
-        if (isset($where) && !empty($where)) {
-            $search_res->where($where);
-        }
 
-        $tax_search_res = $search_res->order_by($sort, "asc")->limit($limit, $offset)->get('zipcodes')->result_array();
+        $tax_search_res = $search_res->order_by($sort, $order)->limit($limit, $offset)->get('zipcodes')->result_array();
 
         $bulkData = array();
         $bulkData['total'] = $total;
@@ -221,20 +243,22 @@ class Area_model extends CI_Model
         $tempRow = array();
 
         foreach ($tax_search_res as $row) {
-            $row = output_escaping($row);
-
             if (!$this->ion_auth->is_seller()) {
-                $operate = ' <a href="javascript:void(0)" class="edit_btn btn action-btn btn-success btn-xs mr-1 mb-1 ml-1"  title="Edit" data-id="' . $row['id'] . '" data-url="admin/area/manage_zipcodes"><i class="fa fa-pen"></i></a>';
-                $operate .= ' <a  href="javascript:void(0)" class="btn btn-danger action-btn btn-xs mr-1 mb-1 ml-1"  title="Delete" id="delete-zipcode" data-id="' . $row['id'] . '" ><i class="fa fa-trash"></i></a>';
+                $operate = ' <a href="javascript:void(0)" class="edit_btn btn action-btn btn-success btn-xs mr-1 mb-1 ml-1"  title="Edit" data-id="' . (int) $row['id'] . '" data-url="admin/area/manage_zipcodes"><i class="fa fa-pen"></i></a>';
+                $operate .= ' <a  href="javascript:void(0)" class="btn btn-danger action-btn btn-xs mr-1 mb-1 ml-1"  title="Delete" id="delete-zipcode" data-id="' . (int) $row['id'] . '" ><i class="fa fa-trash"></i></a>';
             }
             $tempRow['id'] = $row['id'];
-            $tempRow['zipcode'] = $row['zipcode'];
+            // Was run through output_escaping() only - despite the name, that helper does
+            // NOT HTML-encode anything (just stripcslashes()), so a zipcode/city name
+            // containing a script tag rendered as live, unescaped HTML in every admin's
+            // browser viewing this list (stored XSS).
+            $tempRow['zipcode'] = html_escape($row['zipcode']);
             if (!$this->db->field_exists('city_id', 'zipcodes')) {
                 $tempRow['city_name'] = '';
                 $tempRow['minimum_free_delivery_order_amount'] = 0;
                 $tempRow['delivery_charges'] = 0;
             }else{
-                $tempRow['city_name'] = $row['city_name'];
+                $tempRow['city_name'] = html_escape($row['city_name']);
                 $tempRow['minimum_free_delivery_order_amount'] = $row['minimum_free_delivery_order_amount'];
                 $tempRow['delivery_charges'] = $row['delivery_charges'];
             }
@@ -536,7 +560,9 @@ class Area_model extends CI_Model
     {
         // Fetch users
         $this->db->select('*');
-        $this->db->where("zipcode like '%" . $search . "%'");
+        // Was raw string concatenation of $search directly into a where() string with no
+        // escaping at all - a real SQL injection reachable via this select2 search endpoint.
+        $this->db->like('zipcode', $search);
         $fetched_records = $this->db->get('zipcodes');
         $zipcodes = $fetched_records->result_array();
 
@@ -547,12 +573,6 @@ class Area_model extends CI_Model
         }
         return $data;
     }
-    public function get_countries()
-    {
-        $this->load->helper('file');
-        $data =  file_get_contents(base_url('countries.sql'));
-    }
-
     public function get_countries_list(
         $offset = 0,
         $limit = 10,
@@ -566,14 +586,17 @@ class Area_model extends CI_Model
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "id";
-            } else {
-                $sort = $_GET['sort'];
-            }
-        if (isset($_GET['order']))
-            $order = $_GET['order'];
+        // Whitelist against the actual selected columns - $_GET['sort'] was previously passed
+        // straight into order_by() unchecked for any value other than "id" (an injection shape).
+        $allowed_sort_columns = ['id', 'numeric_code', 'name', 'capital', 'phonecode', 'currency', 'currency_name', 'currency_symbol'];
+        if (isset($_GET['sort']) && in_array($_GET['sort'], $allowed_sort_columns, true)) {
+            $sort = $_GET['sort'];
+        }
+        if (isset($_GET['order']) && strtolower($_GET['order']) === 'desc') {
+            $order = 'DESC';
+        } else {
+            $order = 'ASC';
+        }
 
         if (isset($_GET['search']) and $_GET['search'] != '') {
             $search = $_GET['search'];
@@ -609,15 +632,14 @@ class Area_model extends CI_Model
         $rows = array();
         $tempRow = array();
         foreach ($city_search_res as $row) {
-            $row = output_escaping($row);
             $tempRow['id'] = $row['id'];
-            $tempRow['numeric_code'] = $row['numeric_code'];
-            $tempRow['name'] = $row['name'];
-            $tempRow['capital'] = $row['capital'];
-            $tempRow['phonecode'] = $row['phonecode'];
-            $tempRow['currency'] = $row['currency'];
-            $tempRow['currency_name'] = $row['currency_name'];
-            $tempRow['currency_symbol'] = $row['currency_symbol'];
+            $tempRow['numeric_code'] = html_escape($row['numeric_code']);
+            $tempRow['name'] = html_escape($row['name']);
+            $tempRow['capital'] = html_escape($row['capital']);
+            $tempRow['phonecode'] = html_escape($row['phonecode']);
+            $tempRow['currency'] = html_escape($row['currency']);
+            $tempRow['currency_name'] = html_escape($row['currency_name']);
+            $tempRow['currency_symbol'] = html_escape($row['currency_symbol']);
             $rows[] = $tempRow;
         }
         $bulkData['rows'] = $rows;

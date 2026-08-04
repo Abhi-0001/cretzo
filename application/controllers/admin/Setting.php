@@ -105,11 +105,13 @@ class Setting extends CI_Controller
                 $_POST['system_timezone_gmt'] = preg_replace('/\s+/', '', $_POST['system_timezone_gmt']);
                 $_POST['system_timezone_gmt'] = ($_POST['system_timezone_gmt'] == '00:00') ? "+" . $_POST['system_timezone_gmt'] : $_POST['system_timezone_gmt'];
                 $_POST['whatsapp_number'] =  $_POST['whatsapp_number'];
-                $this->Setting_model->update_system_setting($_POST);
-                $this->response['error'] = false;
+                // Was never checked - the model's write result was discarded, so this always
+                // reported success even if the underlying database write actually failed.
+                $updated = $this->Setting_model->update_system_setting($_POST);
+                $this->response['error'] = !$updated;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = 'System Setting Updated Successfully';
+                $this->response['message'] = $updated ? 'System Setting Updated Successfully' : 'Something went wrong.';
                 print_r(json_encode($this->response));
             }
         } else {
@@ -149,6 +151,48 @@ class Setting extends CI_Controller
             $this->form_validation->set_rules('site_title', 'Site Title', 'trim|required|xss_clean');
             $this->form_validation->set_rules('support_number', 'Support number', 'trim|required|numeric|xss_clean');
             $this->form_validation->set_rules('support_email', 'Support Email', 'trim|required|xss_clean|valid_email');
+            // The rest of this form's ~20 fields had zero filtering at all before storage -
+            // only SQL-escaping, no XSS blocklist - despite several being rendered raw on the
+            // public storefront (e.g. app_short_description in the site footer). xss_clean is
+            // only added below for URL and colour-code fields: CI3's xss_clean has a confirmed
+            // bug (reproduced live against this exact form, then reverted) that mangles
+            // multi-byte UTF-8 characters (©, em dashes, accented letters) and standalone `%`
+            // signs - applying it to the free-text title/description fields below would have
+            // silently corrupted legitimate content like "Copyright 2026 © cretzo.com" on the
+            // very next save. Those fields are left as `trim` only and rely on the html_escape()
+            // now applied at every render site instead (admin form + public storefront).
+            $this->form_validation->set_rules('copyright_details', 'Copyright Details', 'trim');
+            $this->form_validation->set_rules('address', 'Address', 'trim');
+            $this->form_validation->set_rules('app_short_description', 'App Short Description', 'trim');
+            // NOT xss_clean either - this field is deliberately meant to hold a raw <iframe>
+            // embed (a Google Maps embed code) and is rendered raw on the storefront for that
+            // reason. CI3's xss_clean specifically neutralizes <iframe>/<object>/<embed> tags as
+            // a security measure on top of the UTF-8 bug above, which would strip this field's
+            // entire purpose out from under it on every save (confirmed live).
+            $this->form_validation->set_rules('map_iframe', 'Map Iframe', 'trim');
+            $this->form_validation->set_rules('meta_keywords', 'Meta Keywords', 'trim');
+            $this->form_validation->set_rules('meta_description', 'Meta Description', 'trim');
+            $this->form_validation->set_rules('app_download_section_title', 'App Download Section Title', 'trim');
+            $this->form_validation->set_rules('app_download_section_tagline', 'App Download Section Tagline', 'trim');
+            $this->form_validation->set_rules('app_download_section_short_description', 'App Download Section Short Description', 'trim');
+            $this->form_validation->set_rules('app_download_section_playstore_url', 'Playstore URL', 'trim|xss_clean');
+            $this->form_validation->set_rules('app_download_section_appstore_url', 'Appstore URL', 'trim|xss_clean');
+            $this->form_validation->set_rules('twitter_link', 'Twitter Link', 'trim|xss_clean');
+            $this->form_validation->set_rules('facebook_link', 'Facebook Link', 'trim|xss_clean');
+            $this->form_validation->set_rules('instagram_link', 'Instagram Link', 'trim|xss_clean');
+            $this->form_validation->set_rules('youtube_link', 'Youtube Link', 'trim|xss_clean');
+            $this->form_validation->set_rules('shipping_title', 'Shipping Title', 'trim');
+            $this->form_validation->set_rules('shipping_description', 'Shipping Description', 'trim');
+            $this->form_validation->set_rules('return_title', 'Return Title', 'trim');
+            $this->form_validation->set_rules('return_description', 'Return Description', 'trim');
+            $this->form_validation->set_rules('support_title', 'Support Title', 'trim');
+            $this->form_validation->set_rules('support_description', 'Support Description', 'trim');
+            $this->form_validation->set_rules('safety_security_title', 'Safety Security Title', 'trim');
+            $this->form_validation->set_rules('safety_security_description', 'Safety Security Description', 'trim');
+            $this->form_validation->set_rules('primary_color', 'Primary Color', 'trim|xss_clean');
+            $this->form_validation->set_rules('secondary_color', 'Secondary Color', 'trim|xss_clean');
+            $this->form_validation->set_rules('font_color', 'Font Color', 'trim|xss_clean');
+            $this->form_validation->set_rules('modern_theme_color', 'Modern Theme Color', 'trim|xss_clean');
             if (!$this->form_validation->run()) {
                 $this->response['error'] = true;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
@@ -156,11 +200,18 @@ class Setting extends CI_Controller
                 $this->response['message'] = validation_errors();
                 print_r(json_encode($this->response));
             } else {
-                $this->Setting_model->update_web_setting($this->input->post(null, true));
-                $this->response['error'] = false;
+                // Was $this->input->post(null, true) - the `true` forces CI's own xss_clean()
+                // over EVERY field unconditionally, regardless of each field's own
+                // form_validation rule above. That's what was still mangling map_iframe's
+                // <iframe> markup even after removing xss_clean from its specific rule
+                // (confirmed live), plus needlessly re-running the same UTF-8-unsafe filter a
+                // second time on every other field. The per-field rules above already apply
+                // xss_clean exactly where each field needs it.
+                $updated = $this->Setting_model->update_web_setting($this->input->post(null, false));
+                $this->response['error'] = !$updated;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = 'System Setting Updated Successfully';
+                $this->response['message'] = $updated ? 'System Setting Updated Successfully' : 'Something went wrong.';
                 print_r(json_encode($this->response));
             }
         } else {

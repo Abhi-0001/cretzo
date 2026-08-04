@@ -9,6 +9,13 @@ class Sales_inventory extends CI_Controller
                     $this->load->database();
                     $this->load->helper(['url', 'language', 'timezone_helper']);
                     $this->load->model(['Sales_inventory_model', 'Order_model', 'Product_model']);
+                    // Was no permission check at all - any account satisfying is_admin() could
+                    // see full inventory data regardless of the granular permission system every
+                    // other page uses.
+                    if (!has_permissions('read', 'sales_inventory')) {
+                              $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
+                              redirect('admin/home', 'refresh');
+                    }
                     $this->session->set_flashdata('authorize_flag', "");
           }
 

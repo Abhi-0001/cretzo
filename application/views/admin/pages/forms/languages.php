@@ -1,11 +1,12 @@
-<div class="content-wrapper">
+<div class="content-wrapper admin-languages-page">
     <!-- Content Header (Page header) -->
     <!-- Main content -->
     <section class="content-header">
         <div class="container-fluid">
-            <div class="row mb-2">
+            <div class="row mb-2 align-items-center">
                 <div class="col-sm-6">
-                    <h4>Languages</h4>
+                    <h4 class="mb-0"><i class="fas fa-language mr-2 text-primary-theme"></i>Language Management</h4>
+                    <p class="text-muted mb-0 small">Manage storefront languages and their translated labels.</p>
                 </div>
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">
@@ -20,12 +21,18 @@
         <div class="container-fluid">
             <div class="row">
                 <div class="col-md-12">
-                    <div class="text-right m-2">
-                        <a href="#" class="btn btn-primary" data-toggle="modal" data-target="#language-modal">Add Language</a>
-                    </div>
-                    <div class="card card-info">
+                    <div class="card attribute-card">
+                        <div class="card-header attribute-card-header d-flex justify-content-between align-items-center flex-wrap">
+                            <div class="d-flex align-items-center">
+                                <span class="header-icon bg-set mr-2"><i class="fas fa-globe"></i></span>
+                                <h5 class="mb-0">Select Language</h5>
+                            </div>
+                            <a href="#" class="btn btn-primary-theme btn-sm" data-toggle="modal" data-target="#language-modal">
+                                <i class="fas fa-plus mr-1"></i>Add Language
+                            </a>
+                        </div>
                         <!-- form start -->
-                        <div class="card-body">
+                        <div class="card-body pt-3">
                             <div class="col-md-12">
                                 <div class="msg_error p-3 mb-3">Select the Language to add labels.</div>
                                 <div class="form-group">
@@ -37,13 +44,20 @@
                                     </select>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+
+                    <div class="card attribute-card">
+                        <div class="card-header attribute-card-header d-flex justify-content-between align-items-center flex-wrap">
+                            <div class="d-flex align-items-center">
+                                <span class="header-icon bg-set mr-2"><i class="fas fa-tags"></i></span>
+                                <h5 class="mb-0">Labels</h5>
+                            </div>
+                        </div>
+                        <div class="card-body pt-3">
                             <form class="form-horizontal" id="update-language-form" action="<?= base_url('admin/language/save'); ?>" method="POST">
                                 <input type="hidden" id="id" name="language_id" value="<?= $language['id'] ?>">
                                 <div class="row">
-                                    <hr class="w-100">
-                                    <div class="col-md-12 text-center mb-2">
-                                        <h4 class="h4">Labels</h4>
-                                    </div>
                                     <div class="col-md-12">
                                         <div class="form-group">
                                             <input type="checkbox" name="is_rtl" class="form-checkbox" id="is_rtl" value="<?= $language['is_rtl'] ?>" <?= ($language['is_rtl']) ? 'checked' : '' ?> />
@@ -561,8 +575,8 @@
                                         </div>
                                     </div>
                                     <div class="col-md-6">
-                                        <div class="form-grouplabel_create_new
-                                            <label for=" view_more" class="control-checkbox">View More</label>
+                                        <div class="form-group">
+                                            <label for="view_more" class="control-checkbox">View More</label>
                                             <input type="text" name="view_more" class="form-control" value="<?= (isset($lang_labels['view_more']) && !empty($lang_labels['view_more'])) ? $lang_labels['view_more'] : 'View More'; ?>" />
                                         </div>
                                     </div>
@@ -647,7 +661,7 @@
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label for="payment_cancelled_message" class="control-checkbox">It seems like payment process is failed or cancelled.Please Try again.</label>
-                                            <input type="text" name="payment_cancelled_message" class="form-control" value="<?= (isset($lang_labels['payment_cancelled_message']) && !empty($lang_labels['payment_cancelled_message'])) ? $lang_labels['payment_cancelled_message'] : 'It seems like payment process is fai                                        </div>led or cancelled.Please Try again.'; ?>" />
+                                            <input type="text" name="payment_cancelled_message" class="form-control" value="<?= (isset($lang_labels['payment_cancelled_message']) && !empty($lang_labels['payment_cancelled_message'])) ? $lang_labels['payment_cancelled_message'] : 'It seems like payment process is failed or cancelled.Please Try again.'; ?>" />
                                         </div>
                                     </div>
                                     <div class="col-md-6">
@@ -1102,6 +1116,40 @@
     </section>
     <!-- /.content -->
 </div>
+
+<style>
+    .admin-languages-page .text-primary-theme { color: var(--color-orange); }
+
+    .admin-languages-page .btn-primary-theme {
+        background: var(--color-orange);
+        border-color: var(--color-orange);
+        color: #fff;
+        font-weight: 600;
+    }
+    .admin-languages-page .btn-primary-theme:hover { background: var(--color-orange-dark); border-color: var(--color-orange-dark); color: #fff; }
+
+    .admin-languages-page .attribute-card { border: none; border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,0.06); margin-bottom: 1.5rem; }
+    .admin-languages-page .attribute-card-header {
+        background: #fff;
+        border-bottom: 1px solid rgba(0,0,0,0.06);
+        gap: 10px;
+        border-radius: 10px 10px 0 0;
+    }
+    .admin-languages-page .header-icon {
+        width: 34px; height: 34px; border-radius: 8px;
+        display: flex; align-items: center; justify-content: center;
+        color: #fff; font-size: 14px; flex: none;
+    }
+    .admin-languages-page .header-icon.bg-set { background: var(--color-orange); }
+
+    .admin-languages-page .btn-success {
+        background: var(--color-orange);
+        border-color: var(--color-orange);
+        color: #fff;
+        font-weight: 600;
+    }
+    .admin-languages-page .btn-success:hover { background: var(--color-orange-dark); border-color: var(--color-orange-dark); color: #fff; }
+</style>
 <div class="modal fade" id="language-modal" tabindex="-1" role="dialog" aria-labelledby="myLargeModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -1117,7 +1165,7 @@
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label for="">Name <small>(Language name should be in english)<small< /label>
+                                    <label for="">Name <small>(Language name should be in english)</small></label>
                                                 <input type="text" name="language" id="language" class="form-control" placeholder="Ex. English , Hindi" />
                                 </div>
                             </div>

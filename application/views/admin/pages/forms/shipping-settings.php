@@ -48,11 +48,11 @@
                                 <div class="row">
                                     <div class="form-group col-5">
                                         <label for="email">Email</label>
-                                        <input type="email" class="form-control" name="email" id="email" value="<?= (defined('ALLOW_MODIFICATION') && ALLOW_MODIFICATION == 0) ? str_repeat("X", strlen(@$settings['email']) - 3) . substr(@$settings['email'], -3) : @$settings['email'] ?>" placeholder="Shiprocket acount email" />
+                                        <input type="email" class="form-control" name="email" id="email" value="<?= html_escape((defined('ALLOW_MODIFICATION') && ALLOW_MODIFICATION == 0) ? str_repeat("X", strlen(@$settings['email']) - 3) . substr(@$settings['email'], -3) : @$settings['email']) ?>" placeholder="Shiprocket acount email" />
                                     </div>
                                     <div class="form-group col-5">
                                         <label for="password">Password</label>
-                                        <input type="password" class="form-control" name="password" id="" value="<?= @$settings['password'] ?>" placeholder="Shiprocket acount Password" />
+                                        <input type="password" class="form-control" name="password" id="" value="<?= html_escape((defined('ALLOW_MODIFICATION') && ALLOW_MODIFICATION == 0) ? str_repeat("X", strlen(@$settings['password']) - 3) . substr(@$settings['password'], -3) : @$settings['password']) ?>" placeholder="Shiprocket acount Password" />
                                     </div>
                                     <div class="form-group col-5">
                                         <label for="webhook_url">Shiprocket Webhoook Url</label>
@@ -60,7 +60,7 @@
                                     </div>
                                     <div class="form-group col-5">
                                         <label for="webhook_token">Shiprocket webhook token</label>
-                                        <input type="text" class="form-control" name="webhook_token" id="" value="<?= (defined('ALLOW_MODIFICATION') && ALLOW_MODIFICATION == 0) ? str_repeat("X", strlen(@$settings['webhook_token']) - 3) . substr(@$settings['webhook_token'], -3) : @$settings['webhook_token'] ?>" />
+                                        <input type="text" class="form-control" name="webhook_token" id="" value="<?= html_escape((defined('ALLOW_MODIFICATION') && ALLOW_MODIFICATION == 0) ? str_repeat("X", strlen(@$settings['webhook_token']) - 3) . substr(@$settings['webhook_token'], -3) : @$settings['webhook_token']) ?>" />
                                     </div>
                                 </div>
 
@@ -79,7 +79,7 @@
                                     <div class="form-group col-5">
                                         <label for="local_shipping_method">Minimum free delivery order amount </label>
                                         <div>
-                                            <input type="text" class="form-control" name="minimum_free_delivery_order_amount" id="" value="<?= @$settings['minimum_free_delivery_order_amount'] ?>" />
+                                            <input type="text" class="form-control" name="minimum_free_delivery_order_amount" id="" value="<?= html_escape(@$settings['minimum_free_delivery_order_amount']) ?>" />
                                         </div>
                                     </div>
                                 </div>

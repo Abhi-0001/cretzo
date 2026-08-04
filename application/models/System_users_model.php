@@ -33,7 +33,7 @@ class System_users_model extends CI_Model
                 'role' => $data['role']
             ];
             if ($data['role'] > 0) {
-                $permission_data['permissions'] = json_encode($data['permissions']);
+                $permission_data['permissions'] = json_encode(isset($data['permissions']) ? $data['permissions'] : []);
             } else {
                 $permission_data['permissions'] = NULL;
             }
@@ -57,7 +57,7 @@ class System_users_model extends CI_Model
             ];
 
             if ($data['role'] > 0) {
-                $permission_data['permissions'] = json_encode($data['permissions']);
+                $permission_data['permissions'] = json_encode(isset($data['permissions']) ? $data['permissions'] : []);
             } else {
                 $permission_data['permissions'] = NULL;
             }
@@ -85,14 +85,17 @@ class System_users_model extends CI_Model
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "id";
-            } else {
-                $sort = $_GET['sort'];
-            }
-        if (isset($_GET['order']))
-            $order = $_GET['order'];
+        // Whitelist against the actual selected columns - $_GET['sort'] was previously
+        // passed straight into order_by() unchecked (SQL injection shape).
+        $allowed_sort_columns = ['id', 'username', 'email', 'mobile', 'role', 'active'];
+        if (isset($_GET['sort']) && in_array($_GET['sort'], $allowed_sort_columns, true)) {
+            $sort = $_GET['sort'];
+        }
+        if (isset($_GET['order']) && strtolower($_GET['order']) === 'desc') {
+            $order = 'desc';
+        } else {
+            $order = 'asc';
+        }
 
         if (isset($_GET['search']) and $_GET['search'] != '') {
             $search = $_GET['search'];
@@ -115,7 +118,7 @@ class System_users_model extends CI_Model
             $total = $row['total'];
         }
 
-        $search_res = $this->db->select('up.id,u.id as user_id,u.username,u.email,up.role,u.mobile,,up.permissions,u.active')->join('users u', 'up.user_id=u.id');
+        $search_res = $this->db->select('up.id,u.id as user_id,u.username,u.email,up.role,u.mobile,up.permissions,u.active')->join('users u', 'up.user_id=u.id');
         if (isset($multipleWhere) && !empty($multipleWhere)) {
             $search_res->or_like($multipleWhere);
         }
@@ -123,7 +126,7 @@ class System_users_model extends CI_Model
             $search_res->where($where);
         }
 
-        $sys_search_res = $search_res->order_by($sort, "asc")->limit($limit, $offset)->get('user_permissions up')->result_array();
+        $sys_search_res = $search_res->order_by($sort, $order)->limit($limit, $offset)->get('user_permissions up')->result_array();
 
         $bulkData = array();
         $bulkData['total'] = $total;
@@ -148,10 +151,10 @@ class System_users_model extends CI_Model
             }
 
             $tempRow['id'] = $row['id'];
-            $tempRow['username'] = ucfirst($row['username']);
-           
+            $tempRow['username'] = html_escape(ucfirst($row['username']));
+
             if (isset($row['email']) && !empty($row['email']) && $row['email'] != "" && $row['email'] != " ") {
-                $tempRow['email'] = (defined('ALLOW_MODIFICATION') && ALLOW_MODIFICATION == 0) ? str_repeat("X", strlen($row['email']) - 3) . substr($row['email'], -3) : ucfirst($row['email']);
+                $tempRow['email'] = html_escape((defined('ALLOW_MODIFICATION') && ALLOW_MODIFICATION == 0) ? str_repeat("X", strlen($row['email']) - 3) . substr($row['email'], -3) : ucfirst($row['email']));
             } else {
                 $tempRow['email'] = "";
             }

@@ -135,12 +135,12 @@ class Area extends CI_Controller
                     }
                 }
 
-                $this->Area_model->add_area($_POST);
-                $this->response['error'] = false;
+                $saved = $this->Area_model->add_area($_POST);
+                $this->response['error'] = !$saved;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
                 $message = (isset($_POST['edit_area'])) ? 'Area Updated Successfully' : 'Area Added Successfully';
-                $this->response['message'] = $message;
+                $this->response['message'] = $saved ? $message : 'Something went wrong.';
                 print_r(json_encode($this->response));
             }
         } else {
@@ -153,6 +153,13 @@ class Area extends CI_Controller
     {
 
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
+            // Was reachable by anyone who merely passed the constructor's blanket read-only
+            // gate - this bulk-overwrites the delivery charge/free-delivery threshold for
+            // every area in a city with no create/update permission check of its own.
+            if (print_msg(!has_permissions('update', 'area'), PERMISSION_ERROR_MSG, 'area')) {
+                return false;
+            }
+
             $this->form_validation->set_rules('city', ' City ', 'trim|required|xss_clean');
             $this->form_validation->set_rules('bulk_update_minimum_free_delivery_order_amount', ' Minimum Free Delivery Amount ', 'trim|required|numeric|xss_clean');
             $this->form_validation->set_rules('bulk_update_delivery_charges', ' Delivery Charges ', 'trim|required|numeric|xss_clean');
@@ -165,11 +172,11 @@ class Area extends CI_Controller
                 $this->response['message'] = validation_errors();
                 print_r(json_encode($this->response));
             } else {
-                $this->Area_model->bulk_edit_area($_POST);
-                $this->response['error'] = false;
+                $updated = $this->Area_model->bulk_edit_area($_POST);
+                $this->response['error'] = !$updated;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = 'Delivery Charge Updated Successfully';
+                $this->response['message'] = $updated ? 'Delivery Charge Updated Successfully' : 'Something went wrong.';
                 print_r(json_encode($this->response));
             }
         } else {
@@ -191,7 +198,10 @@ class Area extends CI_Controller
             $this->data['title'] = 'City Management | ' . $settings['app_name'];
             $this->data['meta_description'] = ' City Management  | ' . $settings['app_name'];
             if (isset($_GET['edit_id'])) {
-                $this->data['fetched_data'] = fetch_details('cities', ['id' => $_GET['edit_id']]);
+                // cities' real primary key column is city_id, not id - this previously
+                // threw a raw "Unknown column 'id'" database error the moment anyone clicked
+                // Edit on a city, making city editing completely unreachable.
+                $this->data['fetched_data'] = fetch_details('cities', ['city_id' => $_GET['edit_id']]);
             }
             $this->load->view('admin/template', $this->data);
         } else {
@@ -224,14 +234,23 @@ class Area extends CI_Controller
                 return false;
             }
 
-            if ($table == 'cities') {
-                if (print_msg(!has_permissions('delete', 'city'), PERMISSION_ERROR_MSG, 'city')) {
-                    return false;
-                }
+            // Was checking 'area' permission for every non-'cities' table, including
+            // 'pickup_locations' AND 'cities' itself - a role granted delete on City (or
+            // Pickup Location) but not on Area, or vice versa, got the wrong answer. 'subscriptions'
+            // intentionally stays on the 'area' check it already had - that module was never
+            // registered in eshop.php, and this whole feature has no real permission gating yet
+            // (flagged separately, not fixed, in an earlier pass) - switching it to a
+            // never-registered module here would newly deny every non-owner admin rather than
+            // just correct a mismatch.
+            if ($table === 'pickup_locations') {
+                $permission_module = 'pickup_location';
+            } elseif ($table === 'cities') {
+                $permission_module = 'city';
             } else {
-                if (print_msg(!has_permissions('delete', 'area'), PERMISSION_ERROR_MSG, 'area')) {
-                    return false;
-                }
+                $permission_module = 'area';
+            }
+            if (print_msg(!has_permissions('delete', $permission_module), PERMISSION_ERROR_MSG, $permission_module)) {
+                return false;
             }
             if ($table == 'cities') {
                 delete_details(['city_id' => $_GET['id']], 'areas');
@@ -252,7 +271,10 @@ class Area extends CI_Controller
                 }
             }
 
-            if (delete_details(['id' => $_GET['id']], $table)) {
+            // cities' real PK column is city_id, not id - deleting a city with the generic
+            // 'id' key previously threw a raw "Unknown column 'id'" database error.
+            $delete_key = ($table === 'cities') ? 'city_id' : 'id';
+            if (delete_details([$delete_key => $_GET['id']], $table)) {
                 $response['error'] = false;
                 $response['message'] = 'Deleted Successfully';
             } else {
@@ -278,7 +300,14 @@ class Area extends CI_Controller
                 }
             }
 
-            $this->form_validation->set_rules('city_name', ' City Name ', 'trim|required|is_unique[cities.name]|xss_clean', array('is_unique' => ' The ' . $_POST['city_name'] . ' city is already added.'));
+            // Was "is_unique[cities.name]" - cities has no "name" column (its real name
+            // column is city_name), so this threw a raw database error on every single
+            // Add/Edit City submission. Also, being wired to run on BOTH add and edit meant
+            // that even with the column name fixed, saving an edit without changing the name
+            // would always fail (the name still "exists" as the row being edited) - the
+            // uniqueness check belongs only in the is_exist()-based check below, matching how
+            // every sibling create/edit flow in this file (area, zipcode) already handles it.
+            $this->form_validation->set_rules('city_name', ' City Name ', 'trim|required|xss_clean');
 
             if (!$this->form_validation->run()) {
 
@@ -289,7 +318,12 @@ class Area extends CI_Controller
                 print_r(json_encode($this->response));
             } else {
                 if (isset($_POST['edit_city'])) {
-                    if (is_exist(['name' => $_POST['city_name']], 'cities', $_POST['edit_city'])) {
+                    // is_exist()'s update-id exclusion path hardcodes 'id' as the PK column
+                    // (correct for every other table this helper is used against) - cities is
+                    // the one table in this app whose real PK is city_id, so checked inline here
+                    // instead of teaching the shared helper about a table-specific exception.
+                    $duplicate = $this->db->where('city_name', $_POST['city_name'])->where_not_in('city_id', $_POST['edit_city'])->get('cities')->num_rows() > 0;
+                    if ($duplicate) {
                         $response["error"]   = true;
                         $response["message"] = "City Name Already Exist ! Provide a unique name";
                         $response['csrfName'] = $this->security->get_csrf_token_name();
@@ -299,7 +333,7 @@ class Area extends CI_Controller
                         return false;
                     }
                 } else {
-                    if (is_exist(['name' => $_POST['city_name']], 'cities')) {
+                    if (is_exist(['city_name' => $_POST['city_name']], 'cities')) {
                         $response["error"]   = true;
                         $response["message"] = "City Name Already Exist ! Provide a unique name";
                         $response['csrfName'] = $this->security->get_csrf_token_name();
@@ -309,12 +343,12 @@ class Area extends CI_Controller
                         return false;
                     }
                 }
-                $this->Area_model->add_city($_POST);
-                $this->response['error'] = false;
+                $saved = $this->Area_model->add_city($_POST);
+                $this->response['error'] = !$saved;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
                 $message = (isset($_POST['edit_city'])) ? 'City Updated Successfully' : 'City Added Successfully';
-                $this->response['message'] = $message;
+                $this->response['message'] = $saved ? $message : 'Something went wrong.';
                 print_r(json_encode($this->response));
             }
         } else {
@@ -335,14 +369,12 @@ class Area extends CI_Controller
 
             $this->data['main_page'] = TABLES . 'manage-zipcodes';
             $settings = get_settings('system_settings', true);
-            $default_zipcode_detail = get_settings('default_zipcode_detail', true);
             $this->data['title'] = 'Zipcodes Management | ' . $settings['app_name'];
             $this->data['meta_description'] = ' Zipcode Management  | ' . $settings['app_name'];
             if (isset($_GET['edit_id'])) {
                 $this->data['fetched_data'] = fetch_details('zipcodes', ['id' => $_GET['edit_id']]);
             }
             $this->data['city'] = fetch_details('cities', '');
-            $this->data['default_zipcode_detail'] = $default_zipcode_detail;
             $this->load->view('admin/template', $this->data);
         } else {
             redirect('admin/login', 'refresh');
@@ -422,12 +454,12 @@ class Area extends CI_Controller
                         return false;
                     }
                 }
-                $this->Area_model->add_zipcode($_POST);
-                $this->response['error'] = false;
+                $saved = $this->Area_model->add_zipcode($_POST);
+                $this->response['error'] = !$saved;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
                 $message = (isset($_POST['edit_zipcode'])) ? 'Zipcode Updated Successfully' : 'Zipcode Added Successfully';
-                $this->response['message'] = $message;
+                $this->response['message'] = $saved ? $message : 'Something went wrong.';
                 print_r(json_encode($this->response));
             }
         } else {
@@ -441,8 +473,32 @@ class Area extends CI_Controller
             if (print_msg(!has_permissions('delete', 'zipcodes'), PERMISSION_ERROR_MSG, 'zipcodes')) {
                 return false;
             }
-            delete_details(['zipcode_id' => $_GET['id']], 'areas');
-            if (delete_details(['id' => $_GET['id']], 'zipcodes')) {
+
+            if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
+                $response['error'] = true;
+                $response['message'] = 'Invalid zipcode id';
+                echo json_encode($response);
+                return false;
+            }
+            $zipcode_id = (int) $_GET['id'];
+
+            if (!is_exist(['id' => $zipcode_id], 'zipcodes')) {
+                $response['error'] = true;
+                $response['message'] = 'Zipcode not found';
+                echo json_encode($response);
+                return false;
+            }
+
+            delete_details(['zipcode_id' => $zipcode_id], 'areas');
+            if (delete_details(['id' => $zipcode_id], 'zipcodes')) {
+                // A deleted zipcode's id can still be sitting inside a product's
+                // comma-separated deliverable_zipcodes list (Included/Excluded delivery
+                // areas) - strip it out everywhere it's referenced so the list doesn't
+                // silently point at an id that no longer exists.
+                $this->db->query(
+                    "UPDATE products SET deliverable_zipcodes = TRIM(BOTH ',' FROM REPLACE(CONCAT(',', deliverable_zipcodes, ','), CONCAT(',', ?, ','), ',')) WHERE FIND_IN_SET(?, deliverable_zipcodes)",
+                    [$zipcode_id, $zipcode_id]
+                );
                 $response['error'] = false;
                 $response['message'] = 'Deleted Successfully';
             } else {
@@ -473,7 +529,18 @@ class Area extends CI_Controller
     public function process_bulk_upload()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
-            if (print_msg(!has_permissions('create', 'product'), PERMISSION_ERROR_MSG, 'product')) {
+            // Was checking 'create' on the unrelated 'product' module (a copy-paste
+            // leftover) regardless of what this specific upload actually creates/updates -
+            // cities, areas, or zipcodes. A role granted product-create access but no
+            // area/city/zipcode access could bulk-write location data regardless, while a
+            // role correctly granted area/city/zipcode access alone was wrongly blocked from
+            // using this page's own bulk upload feature.
+            $location_type = isset($_POST['location_type']) ? $_POST['location_type'] : '';
+            $upload_type = isset($_POST['type']) ? $_POST['type'] : '';
+            $module_map = ['city' => 'city', 'area' => 'area', 'zipcode' => 'zipcodes'];
+            $permission_module = isset($module_map[$location_type]) ? $module_map[$location_type] : null;
+            $permission_action = ($upload_type === 'update') ? 'update' : 'create';
+            if ($permission_module === null || print_msg(!has_permissions($permission_action, $permission_module), PERMISSION_ERROR_MSG, $permission_module)) {
                 return false;
             }
             $this->form_validation->set_rules('bulk_upload', '', 'xss_clean');
@@ -530,7 +597,7 @@ class Area extends CI_Controller
                                 return false;
                             }
                             if (!empty($row[1]) && $row[1] != "") {
-                                if (!is_exist(['id' => $row[1]], 'cities')) {
+                                if (!is_exist(['city_id' => $row[1]], 'cities')) {
                                     $this->response['error'] = true;
                                     $this->response['message'] = 'City is not exist in your database at row ' . $temp;
                                     $this->response['csrfName'] = $this->security->get_csrf_token_name();
@@ -562,6 +629,9 @@ class Area extends CI_Controller
 
                     fclose($handle);
                     $handle = fopen($csv, "r");
+                    // A failure partway through this loop used to leave a half-imported file
+                    // with no way to tell where it stopped - now all-or-nothing.
+                    $this->db->trans_start();
                     while (($row = fgetcsv($handle, 10000, ",")) != FALSE) //get row vales
                     {
                         if ($temp1 != 0) {
@@ -573,6 +643,7 @@ class Area extends CI_Controller
                         }
                         $temp1++;
                     }
+                    $this->db->trans_complete();
                     fclose($handle);
                     $this->response['error'] = false;
                     $this->response['csrfName'] = $this->security->get_csrf_token_name();
@@ -598,14 +669,18 @@ class Area extends CI_Controller
 
                     fclose($handle);
                     $handle = fopen($csv, "r");
+                    // cities' real name column is city_name, not name - this previously threw
+                    // a raw "Unknown column" database error on every bulk city upload.
+                    $this->db->trans_start();
                     while (($row = fgetcsv($handle, 10000, ",")) != FALSE) //get row vales
                     {
                         if ($temp1 != 0) {
-                            $data['name'] = $row[0];
+                            $data['city_name'] = $row[0];
                             $this->db->insert('cities', $data);
                         }
                         $temp1++;
                     }
+                    $this->db->trans_complete();
                     fclose($handle);
                     $this->response['error'] = false;
                     $this->response['csrfName'] = $this->security->get_csrf_token_name();
@@ -634,7 +709,7 @@ class Area extends CI_Controller
                                 return false;
                             }
                             if (!empty($row[1]) && $row[1] != "") {
-                                if (!is_exist(['id' => $row[1]], 'cities')) {
+                                if (!is_exist(['city_id' => $row[1]], 'cities')) {
                                     $this->response['error'] = true;
                                     $this->response['message'] = 'City is not exist in your database at row ' . $temp;
                                     $this->response['csrfName'] = $this->security->get_csrf_token_name();
@@ -676,6 +751,7 @@ class Area extends CI_Controller
 
                     fclose($handle);
                     $handle = fopen($csv, "r");
+                    $this->db->trans_start();
                     while (($row = fgetcsv($handle, 10000, ",")) != FALSE) //get row vales
                     {
                         if ($temp1 != 0) {
@@ -688,6 +764,7 @@ class Area extends CI_Controller
                         }
                         $temp1++;
                     }
+                    $this->db->trans_complete();
                     fclose($handle);
                     $this->response['error'] = false;
                     $this->response['csrfName'] = $this->security->get_csrf_token_name();
@@ -736,7 +813,7 @@ class Area extends CI_Controller
                                 return false;
                             }
                             if (!empty($row[2]) && $row[2] != "") {
-                                if (!is_exist(['id' => $row[2]], 'cities')) {
+                                if (!is_exist(['city_id' => $row[2]], 'cities')) {
                                     $this->response['error'] = true;
                                     $this->response['message'] = 'City is not exist in your database at row ' . $temp;
                                     $this->response['csrfName'] = $this->security->get_csrf_token_name();
@@ -767,6 +844,7 @@ class Area extends CI_Controller
                     }
                     fclose($handle);
                     $handle = fopen($csv, "r");
+                    $this->db->trans_start();
                     while (($row = fgetcsv($handle, 10000, ",")) != FALSE) //get row values
                     {
 
@@ -795,6 +873,7 @@ class Area extends CI_Controller
                         }
                         $temp1++;
                     }
+                    $this->db->trans_complete();
                     fclose($handle);
                     $this->response['error'] = false;
                     $this->response['csrfName'] = $this->security->get_csrf_token_name();
@@ -816,7 +895,7 @@ class Area extends CI_Controller
                             }
 
                             if (!empty($row[0]) && $row[0] != "") {
-                                if (!is_exist(['id' => $row[0]], 'cities')) {
+                                if (!is_exist(['city_id' => $row[0]], 'cities')) {
                                     $this->response['error'] = true;
                                     $this->response['message'] = 'City id is not exist in your database at row ' . $temp;
                                     $this->response['csrfName'] = $this->security->get_csrf_token_name();
@@ -839,18 +918,23 @@ class Area extends CI_Controller
                     }
                     fclose($handle);
                     $handle = fopen($csv, "r");
+                    $this->db->trans_start();
                     while (($row = fgetcsv($handle, 10000, ",")) != FALSE) //get row values
                     {
                         if ($temp1 != 0) {
                             $city_id = $row[0];
-                            $city = fetch_details('cities', ['id' => $city_id], '*');
+                            // cities' real PK/name columns are city_id/city_name, not id/name -
+                            // this whole branch was fetching/matching/writing against columns
+                            // that don't exist on this table, which would have thrown a raw SQL
+                            // error on every bulk "update city" upload that reached this row.
+                            $city = fetch_details('cities', ['city_id' => $city_id], '*');
                             if (!empty($city)) {
                                 if (!empty($row[1])) {
-                                    $data['name'] = $row[1];
+                                    $data['city_name'] = $row[1];
                                 } else {
-                                    $data['name'] = $city[0]['name'];
+                                    $data['city_name'] = $city[0]['city_name'];
                                 }
-                                $this->db->where('id', $city_id)->update('cities', $data);
+                                $this->db->where('city_id', $city_id)->update('cities', $data);
                             } else {
                                 $this->response['error'] = true;
                                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
@@ -860,6 +944,7 @@ class Area extends CI_Controller
                         }
                         $temp1++;
                     }
+                    $this->db->trans_complete();
                     fclose($handle);
                     $this->response['error'] = false;
                     $this->response['csrfName'] = $this->security->get_csrf_token_name();
@@ -900,7 +985,7 @@ class Area extends CI_Controller
                                 return false;
                             }
                             if (!empty($row[2]) && $row[2] != "") {
-                                if (!is_exist(['id' => $row[2]], 'cities')) {
+                                if (!is_exist(['city_id' => $row[2]], 'cities')) {
                                     $this->response['error'] = true;
                                     $this->response['message'] = 'City is not exist in your database at row ' . $temp;
                                     $this->response['csrfName'] = $this->security->get_csrf_token_name();
@@ -924,6 +1009,7 @@ class Area extends CI_Controller
                     }
                     fclose($handle);
                     $handle = fopen($csv, "r");
+                    $this->db->trans_start();
                     while (($row = fgetcsv($handle, 10000, ",")) != FALSE) //get row values
                     {
                         if ($temp1 != 0) {
@@ -965,6 +1051,7 @@ class Area extends CI_Controller
                         }
                         $temp1++;
                     }
+                    $this->db->trans_complete();
                     fclose($handle);
                     $this->response['error'] = false;
                     $this->response['csrfName'] = $this->security->get_csrf_token_name();
@@ -986,6 +1073,11 @@ class Area extends CI_Controller
 
     public function table_sync()
     {
+        // Was reachable by anyone who merely passed the constructor's blanket read-only
+        // gate, despite mutating the zipcodes table's schema and bulk-overwriting rows.
+        if (print_msg(!has_permissions('update', 'zipcodes'), PERMISSION_ERROR_MSG, 'zipcodes')) {
+            return false;
+        }
         $columns_to_check = array('city_id', 'minimum_free_delivery_order_amount', 'delivery_charges'); // Add the column names you want to check
         // check if $columns_to_check is exist in zipcodes table if not add that column
         if ($this->db->field_exists('city_id', 'zipcodes')) {
@@ -1000,7 +1092,10 @@ class Area extends CI_Controller
             }
             // Get data from the area table
 
-            $query = $this->db->select(' areas.* , cities.name as city_name , zipcodes.zipcode as zipcode')->join('cities', 'areas.city_id=cities.id')->join('zipcodes', 'areas.zipcode_id=zipcodes.id');
+            // cities' real PK/name columns are city_id/city_name, not id/name - this join
+            // previously referenced a nonexistent cities.id and would have thrown a raw SQL
+            // error on every sync attempt for an install with any area data to sync.
+            $query = $this->db->select(' areas.* , cities.city_name as city_name , zipcodes.zipcode as zipcode')->join('cities', 'areas.city_id=cities.city_id')->join('zipcodes', 'areas.zipcode_id=zipcodes.id');
             $area_data = $query->get('areas')->result_array();
 
             if (!empty($area_data)) {
@@ -1022,7 +1117,14 @@ class Area extends CI_Controller
     }
     public function add_field($field_name)
     {
+        // Was directly callable at admin/area/add_field/<segment> with no permission check
+        // of its own (only table_sync()'s internal calls were ever meant to reach it), and
+        // relied on the constructor's blanket read-only gate.
+        if (print_msg(!has_permissions('update', 'zipcodes'), PERMISSION_ERROR_MSG, 'zipcodes')) {
+            return false;
+        }
         $this->load->dbforge();
+        $fields = null;
         if (isset($field_name) && $field_name == 'city_id') {
             // Add city_id field to the zipcode table
 
@@ -1060,6 +1162,9 @@ class Area extends CI_Controller
             );
         }
 
+        if (empty($fields)) {
+            return false;
+        }
         $this->dbforge->add_column('zipcodes', $fields);
     }
 

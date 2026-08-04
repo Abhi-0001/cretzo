@@ -30,6 +30,10 @@ $config['system_modules'] = [
     // unrelated 'return_request' module - any admin role granted Return Request access could
     // approve/reject real money payouts with no way to grant/revoke that independently.
     'payment_request' => array('read', 'update'),
+    // Custom Notifications' controller already called has_permissions('create'/'update'/
+    // 'delete', 'custom_notifications') but this module was never registered here - every
+    // non-owner admin role was unconditionally denied regardless of what was actually granted.
+    'custom_notifications' => array('create', 'read', 'update', 'delete'),
     'delivery_boy' => array('create', 'read', 'update', 'delete'),
     'fund_transfer' => array('create', 'read', 'update', 'delete'),
     'send_notification' => array('create', 'read', 'delete'),
@@ -54,6 +58,39 @@ $config['system_modules'] = [
     // restricted admin, regardless of what their role's permissions were set to.
     'blogs' => array('create', 'read', 'update', 'delete'),
     'blog_categories' => array('create', 'read', 'update', 'delete'),
+    // The CMS-content pages below (Contact Us, About Us, Privacy Policy + its Shipping/Return
+    // Policy tabs, and the Admin/Delivery-Boy/Seller privacy policy variants) all already
+    // called has_permissions() against these module names, but none were registered here -
+    // every non-owner admin role was unconditionally denied regardless of what was granted.
+    // The three role-specific privacy policy pages previously all shared the SAME
+    // 'privacy_policy' module string as the customer-facing page (a real bug: granting one
+    // would silently unlock all four) - each now has its own module so they can be granted
+    // independently.
+    'contact_us' => array('read', 'update'),
+    'about_us' => array('read', 'update'),
+    'privacy_policy' => array('read', 'update'),
+    'shipping_policy' => array('read', 'update'),
+    'return_policy' => array('read', 'update'),
+    'admin_privacy_policy' => array('read', 'update'),
+    'delivery_boy_privacy_policy' => array('read', 'update'),
+    'seller_privacy_policy' => array('read', 'update'),
+    // Time Slots' controller already called has_permissions('read'/'update'/'delete',
+    // 'time_slots') but this module was never registered here - same unconditional-deny bug.
+    'time_slots' => array('read', 'update', 'delete'),
+    // Email Settings and Payment Settings both already gated on modules never registered
+    // here - no non-owner admin could ever manage SMTP or payment-gateway credentials
+    // regardless of granted permissions.
+    'email_settings' => array('read', 'update'),
+    'payment_settings' => array('read', 'update'),
+    // Purchase Code's controller was checking the unrelated 'contact_us' module (copy-paste
+    // leftover) instead of its own - registering its own module so it can be gated correctly
+    // and granted independently once the controller is fixed to reference it.
+    'purchase_code' => array('read', 'update'),
+    // Sales Report and Sales Inventory had no has_permissions() call at all - any account
+    // satisfying is_admin() could see full sales/financial data regardless of the granular
+    // permission system used everywhere else in this panel.
+    'sales_report' => array('read'),
+    'sales_inventory' => array('read'),
 ];
 
 $config['notification_modules'] = [ 

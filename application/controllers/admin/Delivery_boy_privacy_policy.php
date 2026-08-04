@@ -10,10 +10,10 @@ class Delivery_boy_privacy_policy extends CI_Controller
         $this->load->database();
         $this->load->helper(['url', 'language', 'timezone_helper']);
         $this->load->model('Setting_model');
-        // if (!has_permissions('read', 'delivery_boy')) {
-        //     $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-        //     redirect('admin/home', 'refresh');
-        // }
+        if (!has_permissions('read', 'delivery_boy_privacy_policy')) {
+            $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
+            redirect('admin/home', 'refresh');
+        }
     }
 
     public function index()
@@ -35,13 +35,15 @@ class Delivery_boy_privacy_policy extends CI_Controller
     public function update_privacy_policy_settings()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
-            if (print_msg(!has_permissions('update', 'privacy_policy'), PERMISSION_ERROR_MSG, 'privacy_policy')) {
+            // Was checking the generic 'privacy_policy' module shared with the customer-facing
+            // page and the other two role variants - now its own independently-grantable module.
+            if (print_msg(!has_permissions('update', 'delivery_boy_privacy_policy'), PERMISSION_ERROR_MSG, 'delivery_boy_privacy_policy')) {
                 return false;
             }
 
-            $this->form_validation->set_rules('terms_n_conditions_input_description', 'Terms and Condition Description', 'trim|required');
+            $this->form_validation->set_rules('terms_n_conditions_input_description', 'Terms and Condition Description', 'trim|required|xss_clean');
 
-            $this->form_validation->set_rules('privacy_policy_input_description', 'Privay Policy Description', 'trim|required');
+            $this->form_validation->set_rules('privacy_policy_input_description', 'Privay Policy Description', 'trim|required|xss_clean');
 
             if (!$this->form_validation->run()) {
 
@@ -51,13 +53,13 @@ class Delivery_boy_privacy_policy extends CI_Controller
                 $this->response['message'] = validation_errors();
                 print_r(json_encode($this->response));
             } else {
-                $this->Setting_model->update_delivery_boy_privacy_policy($_POST);
-                $this->Setting_model->update_delivery_boy_terms_n_condtions($_POST);
+                $updated = $this->Setting_model->update_delivery_boy_privacy_policy($_POST);
+                $updated = $this->Setting_model->update_delivery_boy_terms_n_condtions($_POST) && $updated;
 
-                $this->response['error'] = false;
+                $this->response['error'] = !$updated;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = 'System Setting Updated Successfully';
+                $this->response['message'] = $updated ? 'System Setting Updated Successfully' : 'Something went wrong.';
                 print_r(json_encode($this->response));
             }
         } else {

@@ -58,23 +58,22 @@ class Pickup_location_model extends CI_Model
         if (isset($_POST['limit']))
             $limit = $_POST['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "id";
-            } else {
-                $sort = $_GET['sort'];
-            }
-        if (isset($_POST['sort']))
-            if ($_POST['sort'] == 'id') {
-                $sort = "id";
-            } else {
-                $sort = $_POST['sort'];
-            }
+        // Whitelist against the actual selected columns - $_GET/$_POST['sort'] was previously
+        // passed straight into order_by() unchecked (SQL injection shape).
+        $allowed_sort_columns = ['id', 'pickup_location', 'name', 'email', 'phone', 'address', 'address_2', 'city', 'state', 'country', 'pin_code', 'status'];
+        if (isset($_GET['sort']) && in_array($_GET['sort'], $allowed_sort_columns, true)) {
+            $sort = $_GET['sort'];
+        }
+        if (isset($_POST['sort']) && in_array($_POST['sort'], $allowed_sort_columns, true)) {
+            $sort = $_POST['sort'];
+        }
 
-        if (isset($_GET['order']))
-            $order = $_GET['order'];
-        if (isset($_POST['order']))
-            $order = $_POST['order'];
+        if (isset($_GET['order']) && strtolower($_GET['order']) === 'desc') {
+            $order = 'desc';
+        }
+        if (isset($_POST['order']) && strtolower($_POST['order']) === 'desc') {
+            $order = 'desc';
+        }
 
         if (isset($_GET['search']) and $_GET['search'] != '') {
             $search = $_GET['search'];
@@ -151,16 +150,16 @@ class Pickup_location_model extends CI_Model
             }
             $tempRow['id'] = $row['id'];
             $tempRow['seller_id'] = $row['seller_id'];
-            $tempRow['pickup_location'] = $row['pickup_location'];
-            $tempRow['name'] = $row['name'];
-            $tempRow['email'] = $row['email'];
-            $tempRow['phone'] = $row['phone'];
-            $tempRow['address'] = $row['address'];
-            $tempRow['address2'] = $row['address_2'];
-            $tempRow['city'] = $row['city'];
-            $tempRow['state'] = $row['state'];
-            $tempRow['country'] = $row['country'];
-            $tempRow['pin_code'] = $row['pin_code'];
+            $tempRow['pickup_location'] = html_escape($row['pickup_location']);
+            $tempRow['name'] = html_escape($row['name']);
+            $tempRow['email'] = html_escape($row['email']);
+            $tempRow['phone'] = html_escape($row['phone']);
+            $tempRow['address'] = html_escape($row['address']);
+            $tempRow['address2'] = html_escape($row['address_2']);
+            $tempRow['city'] = html_escape($row['city']);
+            $tempRow['state'] = html_escape($row['state']);
+            $tempRow['country'] = html_escape($row['country']);
+            $tempRow['pin_code'] = html_escape($row['pin_code']);
             if ($this->ion_auth->is_admin()) {
                 $tempRow['verified'] = $verify;
                 $tempRow['operate'] = $operate;

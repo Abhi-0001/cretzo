@@ -34,6 +34,37 @@ class Updater extends CI_Controller
         return (count(scandir($dir)) == 2);
     }
 
+    // The update package's own JSON manifests (folders.json/files.json/archives.json) name
+    // every mkdir/copy/extract destination as plain strings, taken with zero validation that
+    // they resolve inside the app root - a crafted manifest (e.g. "../../../var/www/shell.php")
+    // could write anywhere the web server user can write, regardless of intent. Resolves the
+    // path manually (rather than realpath(), which returns false for paths that don't exist
+    // yet - the normal case for something about to be created) and confirms it stays under
+    // FCPATH before any write is allowed to proceed.
+    private function is_safe_update_destination($path)
+    {
+        $root = str_replace('\\', '/', rtrim(FCPATH, '/\\'));
+        $normalized = str_replace('\\', '/', $path);
+        if (!preg_match('#^([a-zA-Z]:)?/#', $normalized)) {
+            $normalized = $root . '/' . $normalized;
+        }
+        $isAbsolute = (strpos($normalized, '/') === 0);
+        $parts = explode('/', $normalized);
+        $resolved = [];
+        foreach ($parts as $part) {
+            if ($part === '' || $part === '.') {
+                continue;
+            }
+            if ($part === '..') {
+                array_pop($resolved);
+            } else {
+                $resolved[] = $part;
+            }
+        }
+        $resolvedPath = ($isAbsolute ? '/' : '') . implode('/', $resolved);
+        return strpos($resolvedPath . '/', $root . '/') === 0;
+    }
+
     public function upload_update_file()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
@@ -96,6 +127,9 @@ class Updater extends CI_Controller
                                             if (!empty($lines_array)) {
                                                 $lines_array = json_decode($lines_array);
                                                 foreach ($lines_array as $key => $line) {
+                                                    if (!$this->is_safe_update_destination($line)) {
+                                                        continue;
+                                                    }
                                                     if (!is_dir($line) && !file_exists($line)) {
                                                         mkdir($line, 0777, true);
                                                     }
@@ -111,6 +145,9 @@ class Updater extends CI_Controller
                                             if (!empty($lines_array)) {
                                                 $lines_array = json_decode($lines_array);
                                                 foreach ($lines_array as $key => $line) {
+                                                    if (!$this->is_safe_update_destination($line)) {
+                                                        continue;
+                                                    }
                                                     copy($sub_directory . $key, $line);
                                                 }
                                             }
@@ -125,10 +162,12 @@ class Updater extends CI_Controller
                                                 $lines_array = json_decode($lines_array);
                                                 $zip = new ZipArchive;
                                                 foreach ($lines_array as $source => $destination) {
+                                                    if (!$this->is_safe_update_destination($destination)) {
+                                                        continue;
+                                                    }
                                                     $source = UPDATE_PATH . $sub_directory . $source;
                                                     $res = $zip->open($source);
                                                     if ($res === TRUE) {
-                                                        $destination = $source = $destination;
                                                         $zip->extractTo($destination);
                                                         $zip->close();
                                                     }
@@ -199,6 +238,9 @@ class Updater extends CI_Controller
                                 $lines_array = file_get_contents(UPDATE_PATH . $sub_directory . "folders.json");
                                 $lines_array = json_decode($lines_array);
                                 foreach ($lines_array as $key => $line) {
+                                    if (!$this->is_safe_update_destination($line)) {
+                                        continue;
+                                    }
                                     if (!is_dir($line) && !file_exists($line)) {
                                         mkdir($line, 0777, true);
                                     }
@@ -209,6 +251,9 @@ class Updater extends CI_Controller
                                 $lines_array = file_get_contents(UPDATE_PATH . $sub_directory . "files.json");
                                 $lines_array = json_decode($lines_array);
                                 foreach ($lines_array as $key => $line) {
+                                    if (!$this->is_safe_update_destination($line)) {
+                                        continue;
+                                    }
                                     copy($sub_directory . $key, $line);
                                 }
                             }
@@ -225,10 +270,12 @@ class Updater extends CI_Controller
                                         $lines_array = json_decode($lines_array);
                                         $zip = new ZipArchive;
                                         foreach ($lines_array as $source => $destination) {
+                                            if (!$this->is_safe_update_destination($destination)) {
+                                                continue;
+                                            }
                                             $source = UPDATE_PATH . $sub_directory . $source;
                                             $res = $zip->open($source);
                                             if ($res === TRUE) {
-                                                $destination = $source = $destination;
                                                 $zip->extractTo($destination);
                                                 $zip->close();
                                             }
@@ -255,10 +302,12 @@ class Updater extends CI_Controller
                                             $lines_array = json_decode($lines_array);
                                             $zip = new ZipArchive;
                                             foreach ($lines_array as $source => $destination) {
+                                                if (!$this->is_safe_update_destination($destination)) {
+                                                    continue;
+                                                }
                                                 $source = UPDATE_PATH . $sub_directory . $source;
                                                 $res = $zip->open($source);
                                                 if ($res === TRUE) {
-                                                    $destination = $source = $destination;
                                                     $zip->extractTo($destination);
                                                     $zip->close();
                                                 }

@@ -1,11 +1,12 @@
-<div class="content-wrapper">
+<div class="content-wrapper admin-system-user-form-page">
     <!-- Content Header (Page header) -->
     <!-- Main content -->
     <section class="content-header">
         <div class="container-fluid">
-            <div class="row mb-2">
+            <div class="row mb-2 align-items-center">
                 <div class="col-sm-6">
-                    <h4>System Users</h4>
+                    <h4 class="mb-0"><i class="fas fa-user-shield mr-2 text-primary-theme"></i>Add/Edit System User</h4>
+                    <p class="text-muted mb-0 small">Create or update an admin panel user and their module permissions.</p>
                 </div>
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">
@@ -20,7 +21,11 @@
         <div class="container-fluid">
             <div class="row">
                 <div class="col-md-12">
-                    <div class="card card-info">
+                    <div class="card attribute-card">
+                        <div class="card-header attribute-card-header d-flex align-items-center">
+                            <span class="header-icon bg-set mr-2"><i class="fas fa-user-shield"></i></span>
+                            <h5 class="mb-0">System User Details</h5>
+                        </div>
                         <form class="form-horizontal form-submit-event" action="<?= base_url('admin/system_users/update_system_user'); ?>" method="POST" id="add_product_form" enctype="multipart/form-data">
                             <div class="card-body row">
 
@@ -108,7 +113,7 @@
                                         'delete'
                                     ];
                                     ?>
-                                    <table class="table table-responsive permission-table <?= (isset($fetched_data[0]['role']) && $fetched_data[0]['role'] == 0) ? 'd-none' : '' ?>">
+                                    <table class="table table-responsive permission-table permission-table-styled <?= (isset($fetched_data[0]['role']) && $fetched_data[0]['role'] == 0) ? 'd-none' : '' ?>">
                                         <tr>
                                             <th>Module/Permissions</th>
                                             <?php foreach ($actions as $row) { ?>
@@ -178,3 +183,55 @@
     </section>
     <!-- /.content -->
 </div>
+
+<style>
+    .admin-system-user-form-page .text-primary-theme { color: var(--color-orange); }
+
+    .admin-system-user-form-page .attribute-card { border: none; border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,0.06); }
+    .admin-system-user-form-page .attribute-card-header {
+        background: #fff;
+        border-bottom: 1px solid rgba(0,0,0,0.06);
+        gap: 10px;
+        border-radius: 10px 10px 0 0;
+    }
+    .admin-system-user-form-page .header-icon {
+        width: 34px; height: 34px; border-radius: 8px;
+        display: flex; align-items: center; justify-content: center;
+        color: #fff; font-size: 14px; flex: none;
+    }
+    .admin-system-user-form-page .header-icon.bg-set { background: var(--color-orange); }
+
+    .admin-system-user-form-page .permission-table-styled {
+        border: 1px solid rgba(0,0,0,0.08);
+        border-radius: 8px;
+        overflow: hidden;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+    .admin-system-user-form-page .permission-table-styled tr:first-child th {
+        background: #fafafa;
+        color: var(--color-grey);
+        font-weight: 600;
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: .3px;
+        padding: 10px 12px;
+        border-bottom: 2px solid rgba(0,0,0,0.06);
+    }
+    .admin-system-user-form-page .permission-table-styled tbody tr {
+        border-bottom: 1px solid rgba(0,0,0,0.05);
+    }
+    .admin-system-user-form-page .permission-table-styled tbody tr:hover {
+        background-color: var(--color-orange-light);
+    }
+    .admin-system-user-form-page .permission-table-styled td,
+    .admin-system-user-form-page .permission-table-styled th {
+        padding: 8px 12px;
+        vertical-align: middle;
+    }
+    .admin-system-user-form-page .permission-table-styled td:first-child {
+        font-weight: 600;
+        text-transform: capitalize;
+        color: var(--color-black, #333);
+    }
+</style>

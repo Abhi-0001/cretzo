@@ -44,14 +44,17 @@ class Language_model extends CI_Model
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "id";
-            } else {
-                $sort = $_GET['sort'];
-            }
-        if (isset($_GET['order']))
-            $order = $_GET['order'];
+        // Whitelist against the actual selected columns - $_GET['sort'] was previously
+        // passed straight into order_by() unchecked (SQL injection shape).
+        $allowed_sort_columns = ['id', 'language', 'code', 'is_rtl', 'created_on'];
+        if (isset($_GET['sort']) && in_array($_GET['sort'], $allowed_sort_columns, true)) {
+            $sort = $_GET['sort'];
+        }
+        if (isset($_GET['order']) && strtolower($_GET['order']) === 'desc') {
+            $order = 'desc';
+        } else {
+            $order = 'asc';
+        }
 
         if (isset($_GET['search']) and $_GET['search'] != '') {
             $search = $_GET['search'];
@@ -82,7 +85,7 @@ class Language_model extends CI_Model
             $search_res->where($where);
         }
 
-        $theme = $search_res->order_by($sort, "DESC")->limit($limit, $offset)->get('languages')->result_array();
+        $theme = $search_res->order_by($sort, $order)->limit($limit, $offset)->get('languages')->result_array();
         $bulkData = array();
         $bulkData['total'] = $total;
         $rows = array();
@@ -91,8 +94,8 @@ class Language_model extends CI_Model
             $row = output_escaping($row);
             $operate = '';
             $tempRow['id'] = $row['id'];
-            $tempRow['language'] = $row['language'];
-            $tempRow['code'] = $row['code'];
+            $tempRow['language'] = html_escape($row['language']);
+            $tempRow['code'] = html_escape($row['code']);
             if ($row['is_rtl'] == '1') {
                 $tempRow['is_rtl'] = '<a class="badge badge-success text-white" >Yes</a>';
             } else {

@@ -49,7 +49,13 @@ class Time_slots extends CI_Controller
             if (print_msg(!has_permissions('delete', 'time_slots'), PERMISSION_ERROR_MSG, 'time_slots')) {
                 return false;
             }
-            if (delete_details(['id' => $_GET['id']], 'time_slots') == TRUE) {
+            if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
+                $this->response['error'] = true;
+                $this->response['message'] = 'Invalid time slot id';
+                print_r(json_encode($this->response));
+                return false;
+            }
+            if (delete_details(['id' => (int) $_GET['id']], 'time_slots') == TRUE) {
                 $this->response['error'] = false;
                 $this->response['message'] = 'Deleted Succesfully';
                 print_r(json_encode($this->response));
@@ -83,12 +89,12 @@ class Time_slots extends CI_Controller
                 $this->response['message'] = validation_errors();
                 print_r(json_encode($this->response));
             } else {
-                $this->Setting_model->update_time_slot($_POST);
-                $this->response['error'] = false;
+                $updated = $this->Setting_model->update_time_slot($_POST);
+                $this->response['error'] = !$updated;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
                 $message = (isset($_POST['edit_time_slot'])) ? 'Time slot updated successfully' : 'Time slot added successfully';
-                $this->response['message'] = $message;
+                $this->response['message'] = $updated ? $message : 'Something went wrong.';
                 print_r(json_encode($this->response));
             }
         } else {
@@ -116,11 +122,11 @@ class Time_slots extends CI_Controller
                 $this->response['message'] = validation_errors();
                 print_r(json_encode($this->response));
             } else {
-                $this->Setting_model->update_time_slot_config($_POST);
-                $this->response['error'] = false;
+                $updated = $this->Setting_model->update_time_slot_config($_POST);
+                $this->response['error'] = !$updated;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = 'Time Slot Config Updated Successfully';
+                $this->response['message'] = $updated ? 'Time Slot Config Updated Successfully' : 'Something went wrong.';
                 print_r(json_encode($this->response));
             }
         } else {
