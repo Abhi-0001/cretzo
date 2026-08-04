@@ -11,6 +11,12 @@ class Sales_report extends CI_Controller
         $this->load->database();
         $this->load->helper(['url', 'language', 'timezone_helper']);
         $this->load->model(['Sales_report_model', 'Order_model', 'Category_model']);
+        // Was no permission check at all - any account satisfying is_admin() could see full
+        // sales data regardless of the granular permission system every other page uses.
+        if (!has_permissions('read', 'sales_report')) {
+            $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
+            redirect('admin/home', 'refresh');
+        }
         $this->session->set_flashdata('authorize_flag', "");
     }
 

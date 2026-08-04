@@ -27,14 +27,17 @@ class Custom_notification_model extends CI_Model
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "id";
-            } else {
-                $sort = $_GET['sort'];
-            }
-        if (isset($_GET['order']))
-            $order = $_GET['order'];
+        // Whitelist against the actual selected columns - $_GET['sort'] was previously
+        // passed straight into order_by() unchecked (SQL injection shape).
+        $allowed_sort_columns = ['id', 'title', 'type'];
+        if (isset($_GET['sort']) && in_array($_GET['sort'], $allowed_sort_columns, true)) {
+            $sort = $_GET['sort'];
+        }
+        if (isset($_GET['order']) && strtolower($_GET['order']) === 'desc') {
+            $order = 'desc';
+        } else {
+            $order = 'asc';
+        }
 
         if (isset($_GET['search']) and $_GET['search'] != '') {
             $search = $_GET['search'];
@@ -75,9 +78,11 @@ class Custom_notification_model extends CI_Model
             $operate .= '<a href="javascript:void(0)" class="edit_btn action-btn btn btn-primary btn-xs mr-1 mb-1 ml-1" data-id="' . $row['id'] . '" data-url="admin/custom_notification" title="View Order" ><i class="fa fa-pen"></i></a>';
 
             $tempRow['id'] = $row['id'];
-            $tempRow['title'] = $row['title'];
-            $tempRow['message'] = $row['message'];
-            $tempRow['type'] = ucwords(str_replace('_', " ", $row['type']));
+            // output_escaping() only strips backslash-escaping, it does not HTML-encode - a
+            // stored-XSS route the same as already fixed on other list pages.
+            $tempRow['title'] = html_escape($row['title']);
+            $tempRow['message'] = html_escape($row['message']);
+            $tempRow['type'] = html_escape(ucwords(str_replace('_', " ", $row['type'])));
             $tempRow['operate'] = $operate;
             $rows[] = $tempRow;
         }

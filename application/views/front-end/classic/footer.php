@@ -77,7 +77,7 @@ $system_settings = get_settings('system_settings', true); ?>
                         </div>
                         <div class="footer-text">
                             <?php if (isset($web_settings['app_short_description'])) { ?>
-                                <p><?= $web_settings['app_short_description'] ?></p>
+                                <p><?= html_escape($web_settings['app_short_description']) ?></p>
                             <?php } ?>
                         </div>
                     </div>

@@ -38,6 +38,22 @@ class System_users extends CI_Controller
     public function add_system_users()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
+            // Managing OTHER system users' accounts/permissions is Super-Admin-only by design -
+            // the list view already only ever renders Edit/Delete buttons for a role-0 viewer
+            // (System_users_model::get_users_list(), the `$userData[0]['role'] == 0` check), but
+            // nothing server-side actually enforced that. A role-1 "Admin" (already allowed into
+            // this whole controller by the constructor's `role > 1` check) could open this exact
+            // form for ANY user - including the real Super Admin - by guessing/incrementing
+            // edit_id, and the save endpoint below had no check stopping them from then
+            // overwriting that account's username/email/password or self-promoting to role 0,
+            // which bypasses every permission check in the entire app. Restored the same
+            // Super-Admin-only boundary the UI already implies.
+            $acting_user = get_user_permissions($this->session->userdata('user_id'));
+            $is_super_admin = !empty($acting_user) && $acting_user[0]['role'] == 0;
+            if (isset($_GET['edit_id']) && !empty($_GET['edit_id']) && !$is_super_admin) {
+                $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
+                redirect('admin/system-users', 'refresh');
+            }
 
             $this->data['main_page'] = FORMS . 'system-users';
             $settings = get_settings('system_settings', true);
@@ -75,6 +91,35 @@ class System_users extends CI_Controller
             }
 
             $edit_id = $this->input->post('edit_system_user', true);
+
+            // Was completely unrestricted - any account satisfying is_admin() (including a
+            // role-1 "Admin", already allowed into this whole controller) could submit
+            // role=0 for themselves or anyone else and instantly become Super Admin (role 0
+            // bypasses every permission check in has_permissions()), or overwrite an EXISTING
+            // higher-privileged account's username/email/password outright, including the real
+            // owner's. A non-owner may now only ever create a brand-new Editor/Supporter-level
+            // account (matching the "Add System User" button already being visible to them in
+            // the UI) - they can never edit an existing account, and can never set role 0 or 1.
+            $acting_user = get_user_permissions($this->session->userdata('user_id'));
+            $is_super_admin = !empty($acting_user) && $acting_user[0]['role'] == 0;
+            if (!$is_super_admin) {
+                if (isset($edit_id) && !empty($edit_id)) {
+                    $this->response['error'] = true;
+                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                    $this->response['message'] = PERMISSION_ERROR_MSG;
+                    print_r(json_encode($this->response));
+                    return false;
+                }
+                if (!isset($_POST['role']) || !in_array((string) $_POST['role'], ['2', '3'], true)) {
+                    $this->response['error'] = true;
+                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                    $this->response['message'] = 'You can only create Editor or Supporter accounts.';
+                    print_r(json_encode($this->response));
+                    return false;
+                }
+            }
 
             $this->form_validation->set_rules('username', 'Username', 'trim|required|xss_clean');
             $this->form_validation->set_rules('mobile', 'Mobile', 'trim|required|xss_clean|numeric');
@@ -136,8 +181,27 @@ class System_users extends CI_Controller
 
     public function delete_system_user()
     {
-
-        if (print_msg(!has_permissions('delete', 'categories'), PERMISSION_ERROR_MSG, 'categories')) {
+        // Was checking the unrelated 'categories' permission (copy-paste leftover) instead of
+        // anything tied to system-user management, and had no check at all preventing deletion
+        // of the owner account or of an account with equal/higher privilege than the caller.
+        // Deleting another system user is Super-Admin-only, matching update_system_user().
+        $acting_user = get_user_permissions($this->session->userdata('user_id'));
+        if (empty($acting_user) || $acting_user[0]['role'] != 0) {
+            $this->response['error'] = true;
+            $this->response['message'] = PERMISSION_ERROR_MSG;
+            echo json_encode($this->response);
+            return false;
+        }
+        if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
+            $this->response['error'] = true;
+            $this->response['message'] = 'Invalid user id';
+            echo json_encode($this->response);
+            return false;
+        }
+        if ((int) $_GET['id'] === (int) $this->session->userdata('user_id')) {
+            $this->response['error'] = true;
+            $this->response['message'] = 'You cannot delete your own account.';
+            echo json_encode($this->response);
             return false;
         }
         if (defined('SEMI_DEMO_MODE') && SEMI_DEMO_MODE == 0) {
@@ -147,8 +211,8 @@ class System_users extends CI_Controller
             return false;
             exit();
         }
-        if (delete_details(['user_id' => $_GET['id']], 'user_permissions') == TRUE) {
-            delete_details(['id' => $_GET['id']], 'users');
+        if (delete_details(['user_id' => (int) $_GET['id']], 'user_permissions') == TRUE) {
+            delete_details(['id' => (int) $_GET['id']], 'users');
             $this->response['error'] = false;
             $this->response['csrfName'] = $this->security->get_csrf_token_name();
             $this->response['csrfHash'] = $this->security->get_csrf_hash();

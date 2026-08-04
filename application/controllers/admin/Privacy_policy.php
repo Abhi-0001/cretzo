@@ -10,10 +10,10 @@ class Privacy_policy extends CI_Controller
         $this->load->database();
         $this->load->helper(['url', 'language', 'timezone_helper']);
         $this->load->model('Setting_model');
-        // if (!has_permissions('read', 'privacy_policy')) {
-        //     $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-        //     redirect('admin/home', 'refresh');
-        // }
+        if (!has_permissions('read', 'privacy_policy')) {
+            $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
+            redirect('admin/home', 'refresh');
+        }
     }
 
     public function index()
@@ -39,8 +39,8 @@ class Privacy_policy extends CI_Controller
                 return false;
             }
 
-            $this->form_validation->set_rules('terms_n_conditions_input_description', 'Terms and Condition Description', 'trim|required');
-            $this->form_validation->set_rules('privacy_policy_input_description', 'Privay Policy Description', 'trim|required');
+            $this->form_validation->set_rules('terms_n_conditions_input_description', 'Terms and Condition Description', 'trim|required|xss_clean');
+            $this->form_validation->set_rules('privacy_policy_input_description', 'Privay Policy Description', 'trim|required|xss_clean');
 
 
             if (!$this->form_validation->run()) {
@@ -51,12 +51,12 @@ class Privacy_policy extends CI_Controller
                 $this->response['message'] = validation_errors();
                 print_r(json_encode($this->response));
             } else {
-                $this->Setting_model->update_privacy_policy($_POST);
-                $this->Setting_model->update_terms_n_condtions($_POST);
-                $this->response['error'] = false;
+                $updated = $this->Setting_model->update_privacy_policy($_POST);
+                $updated = $this->Setting_model->update_terms_n_condtions($_POST) && $updated;
+                $this->response['error'] = !$updated;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = 'System Setting Updated Successfully';
+                $this->response['message'] = $updated ? 'System Setting Updated Successfully' : 'Something went wrong.';
                 print_r(json_encode($this->response));
             }
         } else {
@@ -104,7 +104,7 @@ class Privacy_policy extends CI_Controller
                 return false;
             }
 
-            $this->form_validation->set_rules('shipping_policy_input_description', 'Shiping Description', 'trim|required');
+            $this->form_validation->set_rules('shipping_policy_input_description', 'Shiping Description', 'trim|required|xss_clean');
 
 
             if (!$this->form_validation->run()) {
@@ -115,11 +115,11 @@ class Privacy_policy extends CI_Controller
                 $this->response['message'] = validation_errors();
                 print_r(json_encode($this->response));
             } else {
-                $this->Setting_model->update_shipping_policy($_POST);
-                $this->response['error'] = false;
+                $updated = $this->Setting_model->update_shipping_policy($_POST);
+                $this->response['error'] = !$updated;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = 'System Setting Updated Successfully';
+                $this->response['message'] = $updated ? 'System Setting Updated Successfully' : 'Something went wrong.';
                 print_r(json_encode($this->response));
             }
         } else {
@@ -157,7 +157,7 @@ class Privacy_policy extends CI_Controller
                 return false;
             }
 
-            $this->form_validation->set_rules('return_policy_input_description', 'return Description', 'trim|required');
+            $this->form_validation->set_rules('return_policy_input_description', 'return Description', 'trim|required|xss_clean');
 
             if (!$this->form_validation->run()) {
 
@@ -167,11 +167,11 @@ class Privacy_policy extends CI_Controller
                 $this->response['message'] = validation_errors();
                 print_r(json_encode($this->response));
             } else {
-                $this->Setting_model->update_return_policy($_POST);
-                $this->response['error'] = false;
+                $updated = $this->Setting_model->update_return_policy($_POST);
+                $this->response['error'] = !$updated;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = 'System Setting Updated Successfully';
+                $this->response['message'] = $updated ? 'System Setting Updated Successfully' : 'Something went wrong.';
                 print_r(json_encode($this->response));
             }
         } else {

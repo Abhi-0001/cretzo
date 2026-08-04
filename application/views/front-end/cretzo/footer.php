@@ -10,7 +10,7 @@ $system_settings = get_settings('system_settings', true); ?>
         <!-- <li class="op-6">Welcome to cretzo, the one-stop shop for jewellery!</li> -->
         
         <?php if (isset($web_settings['app_short_description'])) { ?>
-            <p><?= $web_settings['app_short_description'] ?></p>
+            <p><?= html_escape($web_settings['app_short_description']) ?></p>
         <?php } else { ?>
             <li class="op-6">Welcome to cretzo, the one-stop shop for jewellery!</li>
         <?php } ?>

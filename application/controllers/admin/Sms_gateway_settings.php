@@ -90,15 +90,17 @@ class Sms_gateway_settings extends CI_Controller
             //     $this->response['message'] = validation_errors();
             //     print_r(json_encode($this->response));
             // } else {
-            $this->Setting_model->update_smsgateway($_POST);
-            $this->response['error'] = false;
+            $updated = $this->Setting_model->update_smsgateway($_POST);
+            $this->response['error'] = !$updated;
             $this->response['csrfName'] = $this->security->get_csrf_token_name();
             $this->response['csrfHash'] = $this->security->get_csrf_hash();
-            $this->response['message'] = 'System Setting Updated Successfully';
+            $this->response['message'] = $updated ? 'System Setting Updated Successfully' : 'Something went wrong.';
             print_r(json_encode($this->response));
             // }
 
 
+        } else {
+            redirect('admin/login', 'refresh');
         }
     }
 
@@ -116,16 +118,17 @@ class Sms_gateway_settings extends CI_Controller
                 return false;
                 exit();
             }
+            // Was only checking 'read' - a role granted read-only access to SMS Gateway
+            // Settings could still change which events send SMS/email/push notifications.
+            if (print_msg(!has_permissions('update', 'sms-gateway-settings'), PERMISSION_ERROR_MSG, 'sms-gateway-settings')) {
+                return false;
+            }
 
-            // echo "<pre>";
-            // print_r($_POST);
-            // die;
-
-            $this->Setting_model->update_notification_setting($_POST);
-            $this->response['error'] = false;
+            $updated = $this->Setting_model->update_notification_setting($_POST);
+            $this->response['error'] = !$updated;
             $this->response['csrfName'] = $this->security->get_csrf_token_name();
             $this->response['csrfHash'] = $this->security->get_csrf_hash();
-            $this->response['message'] = (isset($edit_id)) ? ' Data Updated Successfully' : 'Data Added Successfully';
+            $this->response['message'] = $updated ? 'Data Updated Successfully' : 'Something went wrong.';
 
             print_r(json_encode($this->response));
         } else {

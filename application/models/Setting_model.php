@@ -88,6 +88,8 @@ class Setting_model extends CI_Model
             'variable' => 'system_settings'
         ));
         $count = $query->num_rows();
+
+        $this->db->trans_start();
         if ($main_image_name != NULL && !empty($main_image_name)) {
             $logo_res = $this->db->get_where('settings', array(
                 'variable' => 'logo'
@@ -116,16 +118,29 @@ class Setting_model extends CI_Model
                 'value' => $system_data
             );
             $this->db->insert('settings', $data);
-            $this->db->insert('settings', ['value' => $post['currency']]);
+            // Was missing the 'variable' key entirely - 'variable' is NOT NULL with no default,
+            // so the very first save on a fresh install (before any settings rows exist) would
+            // fail to insert a usable currency row, leaving every currency lookup broken until
+            // someone fixed it directly in the database.
+            $this->db->insert('settings', ['variable' => 'currency', 'value' => $post['currency']]);
         } else {
             $this->db->set('value', $system_data)->where('variable', 'system_settings')->update('settings');
             $this->db->set('value', $post['currency'])->where('variable', 'currency')->update('settings');
         }
+
+        $this->db->trans_complete();
+        return $this->db->trans_status() !== FALSE;
     }
 
     public function update_web_setting($post)
     {
-        $post = escape_array($post);
+        // NOT escape_array()'d - this whole $post array is json_encode()'d below and the
+        // resulting blob is written through the query builder, which already parameter-
+        // escapes it correctly. Pre-escaping every field here first (as this used to do) then
+        // letting the builder escape the encoded blob again double-escapes control characters -
+        // a real CRLF inside a multi-line field like "address" would become the literal,
+        // visible text "\r\n" every time this form was saved (same root cause already fixed for
+        // Contact Us / About Us / Privacy Policy elsewhere in this pass).
         $post['app_download_section'] = (isset($post['app_download_section']) && !empty($post['app_download_section'])) ?: 0;
         $post['shipping_mode'] = (isset($post['shipping_mode']) && !empty($post['shipping_mode'])) ?: 0;
         $post['return_mode'] = (isset($post['return_mode']) && !empty($post['return_mode'])) ?: 0;
@@ -165,9 +180,9 @@ class Setting_model extends CI_Model
                 'variable' => 'web_settings',
                 'value' => $system_data
             );
-            $this->db->insert('settings', $data);
+            return $this->db->insert('settings', $data);
         } else {
-            $this->db->set('value', $system_data)->where('variable', 'web_settings')->update('settings');
+            return $this->db->set('value', $system_data)->where('variable', 'web_settings')->update('settings');
         }
     }
     public function update_payment_method($post)
@@ -262,9 +277,9 @@ class Setting_model extends CI_Model
                 'variable' => 'payment_method',
                 'value' => $payment_data
             );
-            $this->db->insert('settings', $data);
+            return $this->db->insert('settings', $data);
         } else {
-            $this->db->set('value', $payment_data)->where('variable', 'payment_method')->update('settings');
+            return $this->db->set('value', $payment_data)->where('variable', 'payment_method')->update('settings');
         }
     }
 
@@ -280,9 +295,9 @@ class Setting_model extends CI_Model
             'status' => $post['status'],
         ];
         if (isset($post['edit_time_slot']) && !empty($post['edit_time_slot'])) {
-            $this->db->set($time_slot_data)->where('id', $post['edit_time_slot'])->update('time_slots');
+            return $this->db->set($time_slot_data)->where('id', $post['edit_time_slot'])->update('time_slots');
         } else {
-            $this->db->insert('time_slots', $time_slot_data);
+            return $this->db->insert('time_slots', $time_slot_data);
         }
     }
 
@@ -309,9 +324,9 @@ class Setting_model extends CI_Model
                 'variable' => 'time_slot_config',
                 'value' => $config_data
             );
-            $this->db->insert('settings', $data);
+            return $this->db->insert('settings', $data);
         } else {
-            $this->db->set('value', $config_data)->where('variable', 'time_slot_config')->update('settings');
+            return $this->db->set('value', $config_data)->where('variable', 'time_slot_config')->update('settings');
         }
     }
 
@@ -353,9 +368,9 @@ class Setting_model extends CI_Model
                 'variable' => 'fcm_server_key',
                 'value' => $post['fcm_server_key']
             );
-            $this->db->insert('settings', $data);
+            return $this->db->insert('settings', $data);
         } else {
-            $this->db->set('value', $post['fcm_server_key'])->where('variable', 'fcm_server_key')->update('settings');
+            return $this->db->set('value', $post['fcm_server_key'])->where('variable', 'fcm_server_key')->update('settings');
         }
     }
     public function update_vapkey($post)
@@ -371,9 +386,9 @@ class Setting_model extends CI_Model
                 'variable' => 'vap_id_Key',
                 'value' => $post['vap_id_Key']
             );
-            $this->db->insert('settings', $data);
+            return $this->db->insert('settings', $data);
         } else {
-            $this->db->set('value', $post['vap_id_Key'])->where('variable', 'vap_id_Key')->update('settings');
+            return $this->db->set('value', $post['vap_id_Key'])->where('variable', 'vap_id_Key')->update('settings');
         }
     }
     public function update_smsgateway($post)
@@ -406,9 +421,13 @@ class Setting_model extends CI_Model
                 'variable' => 'sms_gateway_settings',
                 'value' => $smsgateway_data
             );
-            $this->db->insert('settings', $smsgateway_data);
+            // Was passing $smsgateway_data (an already-JSON-encoded STRING) instead of $data
+            // (the array insert() actually expects) - on the very first save ever (before this
+            // settings row existed), the insert failed/produced garbage while the controller
+            // still reported success, leaving the SMS gateway silently unconfigured.
+            return $this->db->insert('settings', $data);
         } else {
-            $this->db->set('value', $smsgateway_data)->where('variable', 'sms_gateway_settings')->update('settings');
+            return $this->db->set('value', $smsgateway_data)->where('variable', 'sms_gateway_settings')->update('settings');
         }
     }
 
@@ -428,16 +447,19 @@ class Setting_model extends CI_Model
                 'variable' => 'send_notification_settings',
                 'value' => $notification_data
             );
-            $this->db->insert('settings', $data);
+            return $this->db->insert('settings', $data);
         } else {
-            $this->db->set('value', $notification_data)->where('variable', 'send_notification_settings')->update('settings');
+            return $this->db->set('value', $notification_data)->where('variable', 'send_notification_settings')->update('settings');
         }
     }
 
     public function update_contact_details($post)
     {
-        $post = escape_array($post);
-
+        // NOT escape_array()'d here - the query builder's set()/insert() already parameter-
+        // escapes these values; running escape_array()'s db->escape_str() first and then
+        // letting the builder escape again double-escapes control characters, turning a real
+        // CRLF inside the saved rich text into the literal, visible text "\r\n" every time the
+        // page is re-saved (confirmed live, then reverted before this fix).
         $query = $this->db->get_where('settings', array(
             'variable' => 'contact_us'
         ));
@@ -447,16 +469,16 @@ class Setting_model extends CI_Model
                 'variable' => 'contact_us',
                 'value' => $post['contact_input_description']
             );
-            $this->db->insert('settings', $data);
+            return $this->db->insert('settings', $data);
         } else {
-            $this->db->set('value', $post['contact_input_description'])->where('variable', 'contact_us')->update('settings');
+            return $this->db->set('value', $post['contact_input_description'])->where('variable', 'contact_us')->update('settings');
         }
     }
 
     public function update_privacy_policy($post)
     {
-        $post = escape_array($post);
-
+        // See update_contact_details() above - not escape_array()'d, to avoid double-escaping
+        // the query builder already does.
         $query = $this->db->get_where('settings', array(
             'variable' => 'privacy_policy'
         ));
@@ -466,17 +488,16 @@ class Setting_model extends CI_Model
                 'variable' => 'privacy_policy',
                 'value' => $post['privacy_policy_input_description']
             );
-            $this->db->insert('settings', $data);
+            return $this->db->insert('settings', $data);
         } else {
-            $this->db->set('value', $post['privacy_policy_input_description'])->where('variable', 'privacy_policy')->update('settings');
+            return $this->db->set('value', $post['privacy_policy_input_description'])->where('variable', 'privacy_policy')->update('settings');
         }
     }
 
 
     public function update_shipping_policy($post)
     {
-        $post = escape_array($post);
-
+        // See update_contact_details() above - not escape_array()'d, to avoid double-escaping.
         $query = $this->db->get_where('settings', array(
             'variable' => 'shipping_policy'
         ));
@@ -486,9 +507,9 @@ class Setting_model extends CI_Model
                 'variable' => 'shipping_policy',
                 'value' => $post['shipping_policy_input_description']
             );
-            $this->db->insert('settings', $data);
+            return $this->db->insert('settings', $data);
         } else {
-            $this->db->set('value', $post['shipping_policy_input_description'])->where('variable', 'shipping_policy')->update('settings');
+            return $this->db->set('value', $post['shipping_policy_input_description'])->where('variable', 'shipping_policy')->update('settings');
         }
     }
 
@@ -496,8 +517,7 @@ class Setting_model extends CI_Model
 
     public function update_return_policy($post)
     {
-        $post = escape_array($post);
-
+        // See update_contact_details() above - not escape_array()'d, to avoid double-escaping.
         $query = $this->db->get_where('settings', array(
             'variable' => 'return_policy'
         ));
@@ -507,17 +527,16 @@ class Setting_model extends CI_Model
                 'variable' => 'return_policy',
                 'value' => $post['return_policy_input_description']
             );
-            $this->db->insert('settings', $data);
+            return $this->db->insert('settings', $data);
         } else {
-            $this->db->set('value', $post['return_policy_input_description'])->where('variable', 'return_policy')->update('settings');
+            return $this->db->set('value', $post['return_policy_input_description'])->where('variable', 'return_policy')->update('settings');
         }
     }
 
 
     public function update_terms_n_condtions($post)
     {
-        $post = escape_array($post);
-
+        // See update_contact_details() above - not escape_array()'d, to avoid double-escaping.
         $query = $this->db->get_where('settings', array(
             'variable' => 'terms_conditions'
         ));
@@ -527,14 +546,18 @@ class Setting_model extends CI_Model
                 'variable' => 'terms_conditions',
                 'value' => $post['terms_n_conditions_input_description']
             );
-            $this->db->insert('settings', $data);
+            return $this->db->insert('settings', $data);
         } else {
-            $this->db->set('value', $post['terms_n_conditions_input_description'])->where('variable', 'terms_conditions')->update('settings');
+            return $this->db->set('value', $post['terms_n_conditions_input_description'])->where('variable', 'terms_conditions')->update('settings');
         }
     }
 
     public function update_about_us($post)
     {
+        // See update_contact_details() above - not escape_array()'d, to avoid double-escaping
+        // (confirmed live: a real CRLF byte in saved content became the literal, visible text
+        // "\r\n" the next time this method's original escape_array()+query-builder combination
+        // ran - reverted before landing, fixed at the root here instead).
         $query = $this->db->get_where('settings', array(
             'variable' => 'about_us'
         ));
@@ -544,9 +567,9 @@ class Setting_model extends CI_Model
                 'variable' => 'about_us',
                 'value' => $post['about_us_input_description']
             );
-            $this->db->insert('settings', $data);
+            return $this->db->insert('settings', $data);
         } else {
-            $this->db->set('value', $post['about_us_input_description'])->where('variable', 'about_us')->update('settings');
+            return $this->db->set('value', $post['about_us_input_description'])->where('variable', 'about_us')->update('settings');
         }
     }
 
@@ -563,9 +586,9 @@ class Setting_model extends CI_Model
                 'variable' => 'email_settings',
                 'value' => $email_data
             );
-            $this->db->insert('settings', $data);
+            return $this->db->insert('settings', $data);
         } else {
-            $this->db->set('value', $email_data)->where('variable', 'email_settings')->update('settings');
+            return $this->db->set('value', $email_data)->where('variable', 'email_settings')->update('settings');
         }
     }
 
@@ -573,7 +596,7 @@ class Setting_model extends CI_Model
 
     public function update_delivery_boy_privacy_policy($data)
     {
-        $data = escape_array($data);
+        // See update_contact_details() above - not escape_array()'d, to avoid double-escaping.
         $query = $this->db->get_where('settings', array(
             'variable' => 'delivery_boy_privacy_policy'
         ));
@@ -583,14 +606,14 @@ class Setting_model extends CI_Model
                 'variable' => 'delivery_boy_privacy_policy',
                 'value' => $data['privacy_policy_input_description']
             );
-            $this->db->insert('settings', $data);
+            return $this->db->insert('settings', $data);
         } else {
-            $this->db->set('value', $data['privacy_policy_input_description'])->where('variable', 'delivery_boy_privacy_policy')->update('settings');
+            return $this->db->set('value', $data['privacy_policy_input_description'])->where('variable', 'delivery_boy_privacy_policy')->update('settings');
         }
     }
     public function update_seller_privacy_policy($data)
     {
-        $data = escape_array($data);
+        // See update_contact_details() above - not escape_array()'d, to avoid double-escaping.
         $query = $this->db->get_where('settings', array(
             'variable' => 'seller_privacy_policy'
         ));
@@ -600,15 +623,15 @@ class Setting_model extends CI_Model
                 'variable' => 'seller_privacy_policy',
                 'value' => $data['privacy_policy_input_description']
             );
-            $this->db->insert('settings', $data);
+            return $this->db->insert('settings', $data);
         } else {
-            $this->db->set('value', $data['privacy_policy_input_description'])->where('variable', 'seller_privacy_policy')->update('settings');
+            return $this->db->set('value', $data['privacy_policy_input_description'])->where('variable', 'seller_privacy_policy')->update('settings');
         }
     }
 
     public function update_delivery_boy_terms_n_condtions($data)
     {
-        $data = escape_array($data);
+        // See update_contact_details() above - not escape_array()'d, to avoid double-escaping.
         $query = $this->db->get_where('settings', array(
             'variable' => 'delivery_boy_terms_conditions'
         ));
@@ -618,14 +641,14 @@ class Setting_model extends CI_Model
                 'variable' => 'delivery_boy_terms_conditions',
                 'value' => $data['terms_n_conditions_input_description']
             );
-            $this->db->insert('settings', $data);
+            return $this->db->insert('settings', $data);
         } else {
-            $this->db->set('value', $data['terms_n_conditions_input_description'])->where('variable', 'delivery_boy_terms_conditions')->update('settings');
+            return $this->db->set('value', $data['terms_n_conditions_input_description'])->where('variable', 'delivery_boy_terms_conditions')->update('settings');
         }
     }
     public function update_seller_terms_n_condtions($data)
     {
-        $data = escape_array($data);
+        // See update_contact_details() above - not escape_array()'d, to avoid double-escaping.
         $query = $this->db->get_where('settings', array(
             'variable' => 'seller_terms_conditions'
         ));
@@ -635,14 +658,14 @@ class Setting_model extends CI_Model
                 'variable' => 'seller_terms_conditions',
                 'value' => $data['terms_n_conditions_input_description']
             );
-            $this->db->insert('settings', $data);
+            return $this->db->insert('settings', $data);
         } else {
-            $this->db->set('value', $data['terms_n_conditions_input_description'])->where('variable', 'seller_terms_conditions')->update('settings');
+            return $this->db->set('value', $data['terms_n_conditions_input_description'])->where('variable', 'seller_terms_conditions')->update('settings');
         }
     }
     public function update_admin_privacy_policy($data)
     {
-        $data = escape_array($data);
+        // See update_contact_details() above - not escape_array()'d, to avoid double-escaping.
         $query = $this->db->get_where('settings', array(
             'variable' => 'admin_privacy_policy'
         ));
@@ -652,15 +675,15 @@ class Setting_model extends CI_Model
                 'variable' => 'admin_privacy_policy',
                 'value' => $data['privacy_policy_input_description']
             );
-            $this->db->insert('settings', $data);
+            return $this->db->insert('settings', $data);
         } else {
-            $this->db->set('value', $data['privacy_policy_input_description'])->where('variable', 'admin_privacy_policy')->update('settings');
+            return $this->db->set('value', $data['privacy_policy_input_description'])->where('variable', 'admin_privacy_policy')->update('settings');
         }
     }
 
     public function update_admin_terms_n_condtions($data)
     {
-        $data = escape_array($data);
+        // See update_contact_details() above - not escape_array()'d, to avoid double-escaping.
         $query = $this->db->get_where('settings', array(
             'variable' => 'admin_terms_conditions'
         ));
@@ -670,9 +693,9 @@ class Setting_model extends CI_Model
                 'variable' => 'admin_terms_conditions',
                 'value' => $data['terms_n_conditions_input_description']
             );
-            $this->db->insert('settings', $data);
+            return $this->db->insert('settings', $data);
         } else {
-            $this->db->set('value', $data['terms_n_conditions_input_description'])->where('variable', 'admin_terms_conditions')->update('settings');
+            return $this->db->set('value', $data['terms_n_conditions_input_description'])->where('variable', 'admin_terms_conditions')->update('settings');
         }
     }
 
@@ -688,14 +711,17 @@ class Setting_model extends CI_Model
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "id";
-            } else {
-                $sort = $_GET['sort'];
-            }
-        if (isset($_GET['order']))
-            $order = $_GET['order'];
+        // Whitelist against the actual selected columns - $_GET['sort'] was previously
+        // passed straight into order_by() unchecked (SQL injection shape).
+        $allowed_sort_columns = ['id', 'title', 'from_time', 'to_time', 'last_order_time', 'status'];
+        if (isset($_GET['sort']) && in_array($_GET['sort'], $allowed_sort_columns, true)) {
+            $sort = $_GET['sort'];
+        }
+        if (isset($_GET['order']) && strtolower($_GET['order']) === 'desc') {
+            $order = 'desc';
+        } else {
+            $order = 'asc';
+        }
 
         if (isset($_GET['search']) and $_GET['search'] != '') {
             $search = $_GET['search'];
@@ -705,7 +731,9 @@ class Setting_model extends CI_Model
         $count_res = $this->db->select(' COUNT(id) as `total` ');
 
         if (isset($multipleWhere) && !empty($multipleWhere)) {
-            $count_res->or_where($multipleWhere);
+            // Was or_where() (exact match) while the data query below uses or_like() (partial
+            // match), corrupting the pagination total on a partial search.
+            $count_res->or_like($multipleWhere);
         }
         if (isset($where) && !empty($where)) {
             $count_res->where($where);
@@ -726,7 +754,7 @@ class Setting_model extends CI_Model
             $search_res->where($where);
         }
 
-        $search_res = $search_res->order_by($sort, "asc")->limit($limit, $offset)->get('time_slots')->result_array();
+        $search_res = $search_res->order_by($sort, $order)->limit($limit, $offset)->get('time_slots')->result_array();
         $bulkData = array();
         $bulkData['total'] = $total;
         $rows = array();
@@ -738,7 +766,7 @@ class Setting_model extends CI_Model
             $operate .= '<a class="btn btn-danger action-btn btn-xs mr-1 mb-1 ml-1" title="Delete" id="delete-time-slot" href="javascript:void(0)" data-id="' . $row['id'] . '"><i class="fa fa-trash"></i></a>';
 
             $tempRow['id'] = $row['id'];
-            $tempRow['title'] = $row['title'];
+            $tempRow['title'] = html_escape($row['title']);
             $tempRow['from_time'] = $row['from_time'];
             $tempRow['to_time'] = $row['to_time'];
             $tempRow['last_order_time'] = $row['last_order_time'];
@@ -763,14 +791,17 @@ class Setting_model extends CI_Model
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "id";
-            } else {
-                $sort = $_GET['sort'];
-            }
-        if (isset($_GET['order']))
-            $order = $_GET['order'];
+        // Whitelist against the actual selected columns - $_GET['sort'] was previously
+        // passed straight into order_by() unchecked (SQL injection shape).
+        $allowed_sort_columns = ['id', 'name', 'slug', 'is_default', 'status'];
+        if (isset($_GET['sort']) && in_array($_GET['sort'], $allowed_sort_columns, true)) {
+            $sort = $_GET['sort'];
+        }
+        if (isset($_GET['order']) && strtolower($_GET['order']) === 'asc') {
+            $order = 'asc';
+        } else {
+            $order = 'desc';
+        }
 
         if (isset($_GET['search']) and $_GET['search'] != '') {
             $search = $_GET['search'];
@@ -801,7 +832,7 @@ class Setting_model extends CI_Model
             $search_res->where($where);
         }
 
-        $theme = $search_res->order_by($sort, "DESC")->limit($limit, $offset)->get('themes')->result_array();
+        $theme = $search_res->order_by($sort, $order)->limit($limit, $offset)->get('themes')->result_array();
         $bulkData = array();
         $bulkData['total'] = $total;
         $rows = array();
@@ -810,7 +841,7 @@ class Setting_model extends CI_Model
             $row = output_escaping($row);
             $operate = '';
             $tempRow['id'] = $row['id'];
-            $tempRow['name'] = $row['name'];
+            $tempRow['name'] = html_escape($row['name']);
             $tempRow['image'] = "<div class='image-box-100'><a href='" . base_url('assets/front_end/' . $row['slug'] . '/preview-image/' . $row['image']) . "' data-toggle='lightbox' data-gallery='gallery'><img src='" . base_url('assets/front_end/' . $row['slug'] . '/preview-image/' . $row['image']) . "' class='rounded'></a></div>";
             if ($row['is_default'] == '1') {
                 $tempRow['is_default'] = '<a class="badge badge-success text-white" >Yes</a>';
@@ -835,8 +866,8 @@ class Setting_model extends CI_Model
 
     public function firebase_setting($post)
     {
-        $post = escape_array($post);
-
+        // NOT escape_array()'d - same double-escaping issue fixed elsewhere in this file
+        // (json_encode()'d then written through the query builder, which already escapes it).
         $system_data = json_encode($post);
         $query = $this->db->get_where('settings', array(
             'variable' => 'firebase_settings'
@@ -847,9 +878,9 @@ class Setting_model extends CI_Model
                 'variable' => 'firebase_settings',
                 'value' => $system_data
             );
-            $this->db->insert('settings', $data);
+            return $this->db->insert('settings', $data);
         } else {
-            $this->db->set('value', $system_data)->where('variable', 'firebase_settings')->update('settings');
+            return $this->db->set('value', $system_data)->where('variable', 'firebase_settings')->update('settings');
         }
     }
 
@@ -877,9 +908,9 @@ class Setting_model extends CI_Model
                 'variable' => 'shipping_method',
                 'value' => $shipping_data
             );
-            $this->db->insert('settings', $data);
+            return $this->db->insert('settings', $data);
         } else {
-            $this->db->set('value', $shipping_data)->where('variable', 'shipping_method')->update('settings');
+            return $this->db->set('value', $shipping_data)->where('variable', 'shipping_method')->update('settings');
         }
     }
 }

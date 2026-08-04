@@ -1,17 +1,18 @@
-<div class="content-wrapper">
+<div class="content-wrapper admin-settings-page">
     <!-- Content Header (Page header) -->
     <!-- Main content -->
     <section class="content-header">
         <div class="container-fluid">
-            <div class="row mb-2">
+            <div class="row mb-2 align-items-center">
                 <div class="col-sm-6">
-                    <h4>System Settings</h4>
+                    <h4 class="mb-0"><i class="fas fa-cogs mr-2 text-primary-theme"></i>System Settings</h4>
+                    <p class="text-muted mb-0 small">Store-wide configuration - app details, delivery, maintenance mode, and more.</p>
                 </div>
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">
                         <li class="breadcrumb-item"><a href="<?= base_url('admin/home') ?>">Home</a>
                         </li>
-                        <li class="breadcrumb-item active">Products</li>
+                        <li class="breadcrumb-item active">Settings</li>
                     </ol>
                 </div>
             </div>
@@ -22,7 +23,11 @@
         <div class="container-fluid">
             <div class="row">
                 <div class="col-md-12">
-                    <div class="card card-info">
+                    <div class="card attribute-card">
+                        <div class="card-header attribute-card-header d-flex align-items-center">
+                            <span class="header-icon bg-set"><i class="fas fa-cogs"></i></span>
+                            <h5 class="mb-0">Store Settings</h5>
+                        </div>
                         <form class="form-horizontal form-submit-event" action="<?= base_url('admin/setting/update_system_settings') ?>" method="POST" id="system_setting_form" enctype="multipart/form-data">
                             <input type="hidden" id="system_configurations" name="system_configurations" required="" value="1" aria-required="true">
                             <input type="hidden" id="system_timezone_gmt" name="system_timezone_gmt" value="<?= (isset($settings['system_timezone_gmt']) && !empty($settings['system_timezone_gmt'])) ? $settings['system_timezone_gmt'] : '+05:30'; ?>" aria-required="true">
@@ -31,15 +36,15 @@
                                 <div class="row">
                                     <div class="form-group col-md-4">
                                         <label for="app_name">App Name <span class='text-danger text-xs'>*</span></label>
-                                        <input type="text" class="form-control" name="app_name" value="<?= (isset($settings['app_name'])) ? $settings['app_name'] : '' ?>" placeholder="Name of the App - used in whole system" />
+                                        <input type="text" class="form-control" name="app_name" value="<?= (isset($settings['app_name'])) ? html_escape($settings['app_name']) : '' ?>" placeholder="Name of the App - used in whole system" />
                                     </div>
                                     <div class="form-group col-md-4">
                                         <label for="support_number">Support Number <span class='text-danger text-xs'>*</span></label>
-                                        <input type="number" class="form-control" name="support_number" value="<?= (isset($settings['support_number'])) ? $settings['support_number'] : '' ?>" placeholder="Customer support mobile number - used in whole system" />
+                                        <input type="number" class="form-control" name="support_number" value="<?= (isset($settings['support_number'])) ? html_escape($settings['support_number']) : '' ?>" placeholder="Customer support mobile number - used in whole system" />
                                     </div>
                                     <div class="form-group col-md-4">
                                         <label for="support_email">Support Email <span class='text-danger text-xs'>*</span></label>
-                                        <input type="text" class="form-control" name="support_email" value="<?= (isset($settings['support_email'])) ? $settings['support_email'] : '' ?>" placeholder="Customer support email - used in whole system" />
+                                        <input type="text" class="form-control" name="support_email" value="<?= (isset($settings['support_email'])) ? html_escape($settings['support_email']) : '' ?>" placeholder="Customer support email - used in whole system" />
                                     </div>
                                     <div class="form-group col-md-12">
                                         <div class="row">
@@ -99,11 +104,11 @@
                                 <div class="row">
                                     <div class="form-group col-md-6">
                                         <label for="current_version">Current Version Of Android APP <span class='text-danger text-xs'>*</span></label>
-                                        <input type="text" class="form-control" name="current_version" value="<?= (isset($settings['current_version'])) ? $settings['current_version'] : '' ?>" placeholder='Current For Version For Android APP' />
+                                        <input type="text" class="form-control" name="current_version" value="<?= (isset($settings['current_version'])) ? html_escape($settings['current_version']) : '' ?>" placeholder='Current For Version For Android APP' />
                                     </div>
                                     <div class="form-group col-md-6">
                                         <label for="current_version">Current Version Of IOS APP <span class='text-danger text-xs'>*</span></label>
-                                        <input type="text" class="form-control" name="current_version_ios" value="<?= (isset($settings['current_version_ios'])) ? $settings['current_version_ios'] : '' ?>" placeholder='Current Version For IOS APP' />
+                                        <input type="text" class="form-control" name="current_version_ios" value="<?= (isset($settings['current_version_ios'])) ? html_escape($settings['current_version_ios']) : '' ?>" placeholder='Current Version For IOS APP' />
                                     </div>
                                     <div class="form-group col-md-6">
                                         <label for="is_version_system_on">Version System Status </label>
@@ -122,12 +127,12 @@
                                     <?php $d_none = isset($settings['area_wise_delivery_charge']) && $settings['area_wise_delivery_charge'] == '1' ? 'd-none' : '' ?>
                                     <div class="form-group col-md-4 delivery_charge <?= $d_none ?>">
                                         <label for="delivery_charge">Delivery Charge Amount (<?= $currency ?>) <span class='text-danger text-xs'>*</span></label>
-                                        <input type="number" class="form-control" name="delivery_charge" value="<?= (isset($settings['delivery_charge'])) ? $settings['delivery_charge'] : '' ?>" placeholder='Delivery Charge on Shopping' min='0' />
+                                        <input type="number" class="form-control" name="delivery_charge" value="<?= (isset($settings['delivery_charge'])) ? html_escape($settings['delivery_charge']) : '' ?>" placeholder='Delivery Charge on Shopping' min='0' />
                                     </div>
                                     <div class="form-group col-md-4 min_amount <?= $d_none ?>">
                                         <label for="min_amount">Minimum Amount for Free Delivery (<?= $currency ?>) <span class='text-danger text-xs'>*</span>
                                         </label>
-                                        <input type="number" class="form-control" name="min_amount" value="<?= (isset($settings['min_amount'])) ? $settings['min_amount'] : ''  ?>" placeholder='Minimum Order Amount for Free Delivery' min='0' />
+                                        <input type="number" class="form-control" name="min_amount" value="<?= (isset($settings['min_amount'])) ? html_escape($settings['min_amount']) : ''  ?>" placeholder='Minimum Order Amount for Free Delivery' min='0' />
                                     </div>
                                     <div class="form-group col-md-6">
                                         <label class="system_timezone" for="system_timezone">System Timezone <span class='text-danger text-xs'>*</span></label>
@@ -142,23 +147,23 @@
                                     </div>
                                     <div class="form-group col-md-6">
                                         <label for="minimum_cart_amt">Minimum Cart Amount(<?= $currency ?>) <span class='text-danger text-xs'>*</span></label>
-                                        <input type="number" class="form-control" name="minimum_cart_amt" value="<?= (isset($settings['minimum_cart_amt'])) ? $settings['minimum_cart_amt'] : '' ?>" placeholder='Minimum Cart Amount' min='0' />
+                                        <input type="number" class="form-control" name="minimum_cart_amt" value="<?= (isset($settings['minimum_cart_amt'])) ? html_escape($settings['minimum_cart_amt']) : '' ?>" placeholder='Minimum Cart Amount' min='0' />
                                     </div>
                                     <div class="form-group col-md-6">
                                         <label for="max_items_cart"> Maximum Items Allowed In Cart <span class='text-danger text-xs'>*</span></label>
-                                        <input type="number" class="form-control" name="max_items_cart" value="<?= (isset($settings['max_items_cart'])) ? $settings['max_items_cart'] : '' ?>" placeholder='Maximum Items Allowed In Cart' min='0' />
+                                        <input type="number" class="form-control" name="max_items_cart" value="<?= (isset($settings['max_items_cart'])) ? html_escape($settings['max_items_cart']) : '' ?>" placeholder='Maximum Items Allowed In Cart' min='0' />
                                     </div>
                                     <div class="form-group col-md-6">
                                         <label for="max_items_cart"> Low stock limit <small>(Product will be considered as low stock)</small> </label>
-                                        <input type="number" class="form-control" name="low_stock_limit" value="<?= (isset($settings['low_stock_limit'])) ? $settings['low_stock_limit'] : '5' ?>" placeholder='Product low stock limit' min='1' />
+                                        <input type="number" class="form-control" name="low_stock_limit" value="<?= (isset($settings['low_stock_limit'])) ? html_escape($settings['low_stock_limit']) : '5' ?>" placeholder='Product low stock limit' min='1' />
                                     </div>
                                     <div class="form-group col-md-6">
                                         <label for="">Max days to return item</label>
-                                        <input type="number" class="form-control" name="max_product_return_days" value="<?= (isset($settings['max_product_return_days'])) ? $settings['max_product_return_days'] : '' ?>" placeholder='Max days to return item' />
+                                        <input type="number" class="form-control" name="max_product_return_days" value="<?= (isset($settings['max_product_return_days'])) ? html_escape($settings['max_product_return_days']) : '' ?>" placeholder='Max days to return item' />
                                     </div>
                                     <div class="form-group col-md-6">
                                         <label for="">Delivery Boy Bonus (%)</label>
-                                        <input type="number" class="form-control" name="delivery_boy_bonus_percentage" value="<?= (isset($settings['delivery_boy_bonus_percentage'])) ? $settings['delivery_boy_bonus_percentage'] : '' ?>" placeholder='Delivery Boy Bonus' />
+                                        <input type="number" class="form-control" name="delivery_boy_bonus_percentage" value="<?= (isset($settings['delivery_boy_bonus_percentage'])) ? html_escape($settings['delivery_boy_bonus_percentage']) : '' ?>" placeholder='Delivery Boy Bonus' />
                                     </div>
                                 </div>
                                 <hr>
@@ -190,11 +195,11 @@
                                     </div>
                                     <div class="form-group col-md-3">
                                         <label for="tax_name">Tax Name <small>( This will be visible on your invoice )</small></label>
-                                        <input type="text" class="form-control" name="tax_name" value="<?= (isset($settings['tax_name'])) ? $settings['tax_name'] : '' ?>" placeholder='Example : GST Number / VAT / TIN Number' />
+                                        <input type="text" class="form-control" name="tax_name" value="<?= (isset($settings['tax_name'])) ? html_escape($settings['tax_name']) : '' ?>" placeholder='Example : GST Number / VAT / TIN Number' />
                                     </div>
                                     <div class="form-group col-md-3">
                                         <label for="tax_number">Tax Number </label>
-                                        <input type="text" class="form-control" name="tax_number" value="<?= (isset($settings['tax_number'])) ? $settings['tax_number'] : '' ?>" placeholder='Example : GSTIN240000120' />
+                                        <input type="text" class="form-control" name="tax_number" value="<?= (isset($settings['tax_number'])) ? html_escape($settings['tax_number']) : '' ?>" placeholder='Example : GSTIN240000120' />
                                     </div>
                                     <div class="form-group col-md-6">
                                         <label for="cart_btn_on_list"> Social login ? </label>
@@ -222,7 +227,7 @@
                                                 <a class="form-switch mr-1 mb-1" title="Deactivate" href="javascript:void(0)"> <input type="checkbox" class="form-check-input " id="whatsapp_status" role="switch" name="whatsapp_status" <?= (isset($settings['whatsapp_status']) && $settings['whatsapp_status'] == true) ? 'Checked' : ''  ?> data-bootstrap-switch data-off-color="danger" data-on-color="success" /></a>
                                             </div>
                                             <div>
-                                                <input type="number" class="form-control <?= (isset($settings['whatsapp_status']) && $settings['whatsapp_status'] == 1) ? '' : 'collapse'  ?>" name="whatsapp_number" id="whatapp_number_input" placeholder="Whatsapp Number" value="<?= isset($settings['whatsapp_number']) ? output_escaping(str_replace('\r\n', '&#13;&#10;', $settings['whatsapp_number'])) : ""; ?>">
+                                                <input type="number" class="form-control <?= (isset($settings['whatsapp_status']) && $settings['whatsapp_status'] == 1) ? '' : 'collapse'  ?>" name="whatsapp_number" id="whatapp_number_input" placeholder="Whatsapp Number" value="<?= isset($settings['whatsapp_number']) ? html_escape($settings['whatsapp_number']) : ""; ?>">
                                             </div>
                                         </div>
                                         <!-- </div>
@@ -242,11 +247,11 @@
                                     </div>
                                     <div class="form-group col-md-4">
                                         <label for="min_refer_earn_order_amount"> Minimum Refer & Earn Order Amount (<?= $currency ?>) </label>
-                                        <input type="text" name="min_refer_earn_order_amount" class="form-control" value="<?= (isset($settings['min_refer_earn_order_amount']) && $settings['min_refer_earn_order_amount'] != '') ? $settings['min_refer_earn_order_amount'] : ''  ?>" placeholder="Amount of order eligible for bonus" />
+                                        <input type="text" name="min_refer_earn_order_amount" class="form-control" value="<?= (isset($settings['min_refer_earn_order_amount']) && $settings['min_refer_earn_order_amount'] != '') ? html_escape($settings['min_refer_earn_order_amount']) : ''  ?>" placeholder="Amount of order eligible for bonus" />
                                     </div>
                                     <div class="form-group col-md-4">
                                         <label for="refer_earn_bonus">Refer & Earn Bonus (<?= $currency ?> OR %)</label>
-                                        <input type="text" class="form-control" name="refer_earn_bonus" value="<?= (isset($settings['refer_earn_bonus'])) ? $settings['refer_earn_bonus'] : '' ?>" placeholder='In amount or percentages' />
+                                        <input type="text" class="form-control" name="refer_earn_bonus" value="<?= (isset($settings['refer_earn_bonus'])) ? html_escape($settings['refer_earn_bonus']) : '' ?>" placeholder='In amount or percentages' />
                                     </div>
                                     <div class="form-group col-md-4">
                                         <label for="refer_earn_method">Refer & Earn Method </label>
@@ -258,11 +263,11 @@
                                     </div>
                                     <div class="form-group col-md-4">
                                         <label for="max_refer_earn_amount">Maximum Refer & Earn Amount (<?= $currency ?>)</label>
-                                        <input type="text" class="form-control" name="max_refer_earn_amount" value="<?= (isset($settings['max_refer_earn_amount'])) ? $settings['max_refer_earn_amount'] : '' ?>" placeholder='Maximum Refer & Earn Bonus Amount' />
+                                        <input type="text" class="form-control" name="max_refer_earn_amount" value="<?= (isset($settings['max_refer_earn_amount'])) ? html_escape($settings['max_refer_earn_amount']) : '' ?>" placeholder='Maximum Refer & Earn Bonus Amount' />
                                     </div>
                                     <div class="form-group col-md-4">
                                         <label for="refer_earn_bonus_times">Number of times Bonus to be given to the customer</label>
-                                        <input type="text" class="form-control" name="refer_earn_bonus_times" value="<?= (isset($settings['refer_earn_bonus_times'])) ? $settings['refer_earn_bonus_times'] : '' ?>" placeholder='No of times customer will get bonus' />
+                                        <input type="text" class="form-control" name="refer_earn_bonus_times" value="<?= (isset($settings['refer_earn_bonus_times'])) ? html_escape($settings['refer_earn_bonus_times']) : '' ?>" placeholder='No of times customer will get bonus' />
                                     </div>
                                 </div>
 
@@ -279,7 +284,7 @@
                                     </div>
                                     <div class="form-group col-md-4">
                                         <label for="wallet_balance_amount"> Wallet Balance Amount (<?= $currency ?>) </label>
-                                        <input type="text" name="wallet_balance_amount" class="form-control" value="<?= (isset($settings['wallet_balance_amount']) && $settings['wallet_balance_amount'] != '') ? $settings['wallet_balance_amount'] : ''  ?>" placeholder="Amount of Welcome Wallet Balance" />
+                                        <input type="text" name="wallet_balance_amount" class="form-control" value="<?= (isset($settings['wallet_balance_amount']) && $settings['wallet_balance_amount'] != '') ? html_escape($settings['wallet_balance_amount']) : ''  ?>" placeholder="Amount of Welcome Wallet Balance" />
                                     </div>
                                 </div>
 
@@ -301,7 +306,7 @@
 
                                         <div class="form-group col-md-12 mt-3">
                                             <label class="mb-2" for="upload_limit"> Maximum upload limit </label>
-                                            <input type="number" min="0" name="upload_limit" min="1" class="form-control mb-2" value="<?= (isset($settings['upload_limit']) && $settings['upload_limit'] != '') ? $settings['upload_limit'] : ''  ?>" max="10" placeholder="Maximum upload limit" />
+                                            <input type="number" min="0" name="upload_limit" min="1" class="form-control mb-2" value="<?= (isset($settings['upload_limit']) && $settings['upload_limit'] != '') ? html_escape($settings['upload_limit']) : ''  ?>" max="10" placeholder="Maximum upload limit" />
                                         </div>
 
 
@@ -332,7 +337,7 @@
                                     </div>
                                     <div class="form-group col-md-4">
                                         <label for="currency">Store Currency ( Symbol or Code - $ or USD - Anyone ) <span class='text-danger text-xs'>*</span></label>
-                                        <input type="text" class="form-control" name="currency" value="<?= (isset($settings['currency'])) ? $settings['currency'] : '' ?>" placeholder="Either Symbol or Code - For Example $ or USD" />
+                                        <input type="text" class="form-control" name="currency" value="<?= (isset($settings['currency'])) ? html_escape($settings['currency']) : '' ?>" placeholder="Either Symbol or Code - For Example $ or USD" />
                                     </div>
                                     <div class="form-group col-md-4">
                                         <label for="currency">Decimal Point</label>
@@ -371,7 +376,7 @@
                                         </div>
                                         <label for="message_for_customer_app"> Message for Customer App</label>
                                         <div class="card-body pl-0">
-                                            <textarea type="text" class="form-control" id="message_for_customer_app" placeholder="Message for Customer App" name="message_for_customer_app"><?= isset($settings['message_for_customer_app']) ? output_escaping(str_replace('\r\n', '&#13;&#10;', $settings['message_for_customer_app'])) : ""; ?></textarea>
+                                            <textarea type="text" class="form-control" id="message_for_customer_app" placeholder="Message for Customer App" name="message_for_customer_app"><?= isset($settings['message_for_customer_app']) ? html_escape($settings['message_for_customer_app']) : ""; ?></textarea>
                                         </div>
                                     </div>
                                     <div class="form-group col-md-3">
@@ -381,7 +386,7 @@
                                         </div>
                                         <label for="message_for_seller_app"> Message for Seller App</label>
                                         <div class="card-body pl-0">
-                                            <textarea type="text" class="form-control" id="message_for_seller_app" placeholder="Message for Seller App" name="message_for_seller_app"><?= isset($settings['message_for_seller_app']) ? output_escaping(str_replace('\r\n', '&#13;&#10;', $settings['message_for_seller_app'])) : ""; ?></textarea>
+                                            <textarea type="text" class="form-control" id="message_for_seller_app" placeholder="Message for Seller App" name="message_for_seller_app"><?= isset($settings['message_for_seller_app']) ? html_escape($settings['message_for_seller_app']) : ""; ?></textarea>
                                         </div>
                                     </div>
                                     <div class="form-group col-md-3">
@@ -391,7 +396,7 @@
                                         </div>
                                         <label for="message_for_delivery_boy_app"> Message for Delivery boy App</label>
                                         <div class="card-body pl-0">
-                                            <textarea type="text" class="form-control" id="message_for_delivery_boy_app" placeholder="Message for Delivery boy App" name="message_for_delivery_boy_app"><?= isset($settings['message_for_delivery_boy_app']) ? output_escaping(str_replace('\r\n', '&#13;&#10;', $settings['message_for_delivery_boy_app'])) : ""; ?></textarea>
+                                            <textarea type="text" class="form-control" id="message_for_delivery_boy_app" placeholder="Message for Delivery boy App" name="message_for_delivery_boy_app"><?= isset($settings['message_for_delivery_boy_app']) ? html_escape($settings['message_for_delivery_boy_app']) : ""; ?></textarea>
                                         </div>
                                     </div>
                                     <div class="form-group col-md-3">
@@ -401,7 +406,7 @@
                                         </div>
                                         <label for="message_for_web"> Message for Web</label>
                                         <div class="card-body pl-0">
-                                            <textarea type="text" class="form-control" id="message_for_web" placeholder="Message for Web" name="message_for_web"><?= isset($settings['message_for_web']) ? output_escaping(str_replace('\r\n', '&#13;&#10;', $settings['message_for_web'])) : ""; ?></textarea>
+                                            <textarea type="text" class="form-control" id="message_for_web" placeholder="Message for Web" name="message_for_web"><?= isset($settings['message_for_web']) ? html_escape($settings['message_for_web']) : ""; ?></textarea>
                                         </div>
                                     </div>
 
@@ -430,7 +435,7 @@
                                 </div>
                                 <div class="form-group">
                                     <button type="reset" class="btn btn-warning">Reset</button>
-                                    <button type="submit" class="btn btn-success" id="submit_btn">Update Settings</button>
+                                    <button type="submit" class="btn btn-primary-theme" id="submit_btn">Update Settings</button>
                                 </div>
                             </div>
                     </div>
@@ -514,3 +519,30 @@
     </section>
     <!-- /.content -->
 </div>
+
+<style>
+    .admin-settings-page .text-primary-theme { color: var(--color-orange); }
+
+    .admin-settings-page .btn-primary-theme {
+        background: var(--color-orange);
+        border-color: var(--color-orange);
+        color: #fff;
+        font-weight: 600;
+    }
+    .admin-settings-page .btn-primary-theme:hover { background: var(--color-orange-dark); border-color: var(--color-orange-dark); color: #fff; }
+
+    .admin-settings-page .attribute-card { border: none; border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,0.06); }
+    .admin-settings-page .attribute-card-header {
+        background: #fff;
+        border-bottom: 1px solid rgba(0,0,0,0.06);
+        gap: 10px;
+        border-radius: 10px 10px 0 0;
+    }
+    .admin-settings-page .header-icon {
+        width: 34px; height: 34px; border-radius: 8px;
+        display: flex; align-items: center; justify-content: center;
+        color: #fff; font-size: 14px; flex: none;
+    }
+    .admin-settings-page .header-icon.bg-set { background: var(--color-orange); }
+    .admin-settings-page h4 { color: var(--color-orange-dark); font-size: 16px; font-weight: 700; margin-top: 1.5rem; }
+</style>

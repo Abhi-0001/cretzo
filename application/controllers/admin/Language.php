@@ -52,7 +52,10 @@ class Language extends CI_Controller
                 return false;
             }
             $this->form_validation->set_rules('language', 'Language', 'trim|required|xss_clean|strtolower|alpha|is_unique[languages.language]|strtolower', array('is_unique' => 'This Language is already exists.'));
-            $this->form_validation->set_rules('code', 'Code', 'trim|required|xss_clean|strtolower|is_unique[languages.language]', array('is_unique' => 'This Code is already exists.'));
+            // Was checking is_unique against the 'language' column instead of 'code' - a
+            // duplicate code could never actually be rejected, since it was really just
+            // re-checking the language-name uniqueness a second time.
+            $this->form_validation->set_rules('code', 'Code', 'trim|required|xss_clean|strtolower|is_unique[languages.code]', array('is_unique' => 'This Code is already exists.'));
             $this->form_validation->set_rules('is_rtl', 'RTL', 'trim|xss_clean');
             if (!$this->form_validation->run()) {
                 $this->response['error'] = true;

@@ -1,11 +1,12 @@
-<div class="content-wrapper">
+<div class="content-wrapper admin-time-slots-page">
     <!-- Content Header (Page header) -->
     <!-- Main content -->
     <section class="content-header">
         <div class="container-fluid">
-            <div class="row mb-2">
+            <div class="row mb-2 align-items-center">
                 <div class="col-sm-6">
-                    <h4>Time Slots</h4>
+                    <h4 class="mb-0"><i class="fas fa-clock mr-2 text-primary-theme"></i>Time Slots</h4>
+                    <p class="text-muted mb-0 small">Configure delivery time slots and windows for orders.</p>
                 </div>
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">
@@ -21,11 +22,17 @@
             <div class="row">
                 <?php if (!isset($fetched_data[0]['id'])) { ?>
                     <div class="col-md-12">
-                        <div class="card card-info">
+                        <div class="card attribute-card">
+                            <div class="card-header attribute-card-header d-flex justify-content-between align-items-center flex-wrap">
+                                <div class="d-flex align-items-center">
+                                    <span class="header-icon bg-set mr-2"><i class="fas fa-sliders-h"></i></span>
+                                    <h5 class="mb-0">Time Slots Configuration</h5>
+                                </div>
+                            </div>
                             <!-- form start -->
                             <form class="form-horizontal form-submit-event" action="<?= base_url('admin/Time_slots/update_time_slots_config'); ?>" method="POST" enctype="multipart/form-data">
                                 <input type="hidden" id="time_slot_config" name="time_slot_config" required="" value="1" aria-required="true">
-                                <div class="card-body">
+                                <div class="card-body pt-3">
                                     <div class="row">
                                         <div class="form-group col-md-4">
                                             <label for="">Enable / Disable Time Slots</label>
@@ -80,7 +87,13 @@
                 <?php } ?>
                 <!--/.col-md-12-->
                 <div class="col-md-12">
-                    <div class="card card-info">
+                    <div class="card attribute-card">
+                        <div class="card-header attribute-card-header d-flex justify-content-between align-items-center flex-wrap">
+                            <div class="d-flex align-items-center">
+                                <span class="header-icon bg-set mr-2"><i class="fas fa-clock"></i></span>
+                                <h5 class="mb-0"><?= (isset($fetched_data[0]['id'])) ? 'Edit Time Slot' : 'Add Time Slot' ?></h5>
+                            </div>
+                        </div>
                         <!-- form start -->
                         <form class="form-horizontal form-submit-event" action="<?= base_url('admin/Time_slots/update_time_slots'); ?>" method="POST" enctype="multipart/form-data">
                             <?php if (isset($fetched_data[0]['id'])) { ?>
@@ -88,7 +101,7 @@
                             <?php } else { ?>
                                 <input type="hidden" id="add_time_slot" name="add_time_slot" required="" value="1" aria-required="true">
                             <?php } ?>
-                            <div class="card-body">
+                            <div class="card-body pt-3">
                                 <div class="row">
                                     <div class="form-group col-md-4">
                                         <label for="">Title</label>
@@ -167,9 +180,14 @@
             <!-- /.row -->
             <div class="row">
                 <div class="col-md-12 main-content">
-                    <div class="card content-area p-4">
-                        <div class="card-innr">
-                            <div class="gaps-1-5x"></div>
+                    <div class="card attribute-card">
+                        <div class="card-header attribute-card-header d-flex justify-content-between align-items-center flex-wrap">
+                            <div class="d-flex align-items-center">
+                                <span class="header-icon bg-set mr-2"><i class="fas fa-list"></i></span>
+                                <h5 class="mb-0">Time Slots List</h5>
+                            </div>
+                        </div>
+                        <div class="card-body pt-3">
                             <table class='table-striped' data-toggle="table" data-url="<?= base_url('admin/Time_slots/view_time_slots') ?>" data-click-to-select="true" data-side-pagination="server" data-pagination="true" data-page-list="[5, 10, 20, 50, 100, 200]" data-search="true" data-show-columns="true" data-show-refresh="true" data-trim-on-search="false" data-sort-name="id" data-sort-order="asc" data-mobile-responsive="true" data-toolbar="" data-show-export="true" data-maintain-selected="true" data-export-types='["txt","excel"]' data-query-params="queryParams">
                                 <thead>
                                     <tr>
@@ -183,7 +201,7 @@
                                     </tr>
                                 </thead>
                             </table>
-                        </div><!-- .card-innr -->
+                        </div><!-- .card-body -->
                     </div><!-- .card -->
                 </div>
             </div> <!-- /.row -->
@@ -191,3 +209,85 @@
     </section>
     <!-- /.content -->
 </div>
+
+<style>
+    .admin-time-slots-page .text-primary-theme { color: var(--color-orange); }
+
+    .admin-time-slots-page .btn-primary-theme {
+        background: var(--color-orange);
+        border-color: var(--color-orange);
+        color: #fff;
+        font-weight: 600;
+    }
+    .admin-time-slots-page .btn-primary-theme:hover { background: var(--color-orange-dark); border-color: var(--color-orange-dark); color: #fff; }
+
+    .admin-time-slots-page .btn-success {
+        background: var(--color-orange);
+        border-color: var(--color-orange);
+    }
+    .admin-time-slots-page .btn-success:hover { background: var(--color-orange-dark); border-color: var(--color-orange-dark); }
+
+    .admin-time-slots-page .attribute-card { border: none; border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,0.06); margin-bottom: 1.5rem; }
+    .admin-time-slots-page .attribute-card-header {
+        background: #fff;
+        border-bottom: 1px solid rgba(0,0,0,0.06);
+        gap: 10px;
+        border-radius: 10px 10px 0 0;
+    }
+    .admin-time-slots-page .header-icon {
+        width: 34px; height: 34px; border-radius: 8px;
+        display: flex; align-items: center; justify-content: center;
+        color: #fff; font-size: 14px; flex: none;
+    }
+    .admin-time-slots-page .header-icon.bg-set { background: var(--color-orange); }
+
+    .admin-time-slots-page .fixed-table-toolbar { margin-bottom: 10px; }
+    .admin-time-slots-page .fixed-table-toolbar > div { margin-left: 10px !important; }
+    .admin-time-slots-page .fixed-table-toolbar .btn-group > .btn,
+    .admin-time-slots-page .fixed-table-toolbar .btn-group > .keep-open { margin-left: 8px !important; }
+    .admin-time-slots-page .fixed-table-toolbar .btn-group > .btn:first-child,
+    .admin-time-slots-page .fixed-table-toolbar .btn-group > .keep-open:first-child { margin-left: 0 !important; }
+    .admin-time-slots-page .fixed-table-toolbar .search input {
+        border-radius: 20px;
+        border: 1px solid rgba(0,0,0,0.12);
+        padding: 6px 14px;
+        box-shadow: none;
+    }
+    .admin-time-slots-page .fixed-table-toolbar .search input:focus { border-color: var(--color-orange); }
+    .admin-time-slots-page .fixed-table-toolbar .columns .btn,
+    .admin-time-slots-page .fixed-table-toolbar .export .btn {
+        border-radius: 20px;
+        border-color: rgba(0,0,0,0.12);
+        background: #fff;
+        color: var(--color-grey);
+    }
+    .admin-time-slots-page .fixed-table-toolbar .columns .btn:hover,
+    .admin-time-slots-page .fixed-table-toolbar .export .btn:hover { border-color: var(--color-orange); color: var(--color-orange); }
+
+    .admin-time-slots-page .fixed-table-container { border: none; }
+    .admin-time-slots-page table.table { border-collapse: separate; border-spacing: 0; margin-bottom: 0; }
+    .admin-time-slots-page table.table thead th {
+        background: #fafafa;
+        border-top: none;
+        border-bottom: 2px solid rgba(0,0,0,0.06);
+        color: var(--color-grey);
+        font-weight: 600;
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: .3px;
+        white-space: nowrap;
+    }
+    .admin-time-slots-page table.table tbody td { vertical-align: middle; font-size: 14px; border-top: 1px solid rgba(0,0,0,0.05); }
+    .admin-time-slots-page table.table tbody tr:hover { background-color: var(--color-orange-light); }
+    .admin-time-slots-page .action-btn { border-radius: 6px; }
+    .admin-time-slots-page .badge { font-size: 12px; padding: 5px 10px; border-radius: 20px; font-weight: 600; }
+
+    .admin-time-slots-page .fixed-table-pagination { margin-top: 12px; }
+    .admin-time-slots-page .fixed-table-pagination .pagination .page-item.active .page-link {
+        color: #fff; background-color: var(--color-orange); border-color: var(--color-orange);
+    }
+    .admin-time-slots-page .fixed-table-pagination .pagination .page-link {
+        color: var(--color-orange-dark); border-radius: 6px; margin: 0 2px; border: 1px solid rgba(0,0,0,0.08);
+    }
+    .admin-time-slots-page .fixed-table-pagination .page-list .btn { border-radius: 20px; }
+</style>

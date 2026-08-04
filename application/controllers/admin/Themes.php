@@ -43,6 +43,11 @@ class Themes extends CI_Controller
     public function set_default_theme()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
+            // Was missing entirely - a restricted admin with zero update rights on Settings
+            // could still change the storefront's default theme via this endpoint.
+            if (print_msg(!has_permissions('update', 'settings'), PERMISSION_ERROR_MSG, 'settings')) {
+                return false;
+            }
             $this->form_validation->set_rules('theme_id', 'Theme', 'trim|required|xss_clean|numeric');
             if (!$this->form_validation->run()) {
                 $this->response['error'] = true;
@@ -98,6 +103,11 @@ class Themes extends CI_Controller
     public function switch()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
+            // Was missing entirely - a restricted admin with zero update rights on Settings
+            // could still activate/deactivate storefront themes via this endpoint.
+            if (print_msg(!has_permissions('update', 'settings'), PERMISSION_ERROR_MSG, 'settings')) {
+                return false;
+            }
             $this->form_validation->set_rules('id', 'Theme', 'trim|required|xss_clean|numeric');
             $this->form_validation->set_rules('status', 'Status', 'trim|required|xss_clean|numeric|in_list[0,1]');
             if (!$this->form_validation->run()) {

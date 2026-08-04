@@ -11,7 +11,7 @@ class Purchase_code extends CI_Controller
         $this->load->helper(['url', 'language', 'timezone_helper']);
         $this->load->model('Setting_model');
 
-        if (!has_permissions('read', 'contact_us')) {
+        if (!has_permissions('read', 'purchase_code')) {
             $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
             redirect('admin/home', 'refresh');
         }
@@ -37,7 +37,7 @@ class Purchase_code extends CI_Controller
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
             if ((isset($_POST['app_purchase_code']) && !empty($_POST['app_purchase_code'])) || (isset($_POST['web_purchase_code']) && !empty($_POST['web_purchase_code']))) {
                 $purchase_code = $this->input->post("app_purchase_code", true);
-                $app_url = "https://wrteam.in/validator/home/validator_new?purchase_code=$purchase_code&domain_url=" . base_url() . "&item_id=" . APP_CODE;
+                $app_url = "https://wrteam.in/validator/home/validator_new?purchase_code=" . rawurlencode($purchase_code) . "&domain_url=" . base_url() . "&item_id=" . APP_CODE;
 
                 $app_result = curl($app_url);
                 if (isset($app_result['body']) && !empty($app_result['body'])) {
@@ -60,12 +60,16 @@ class Purchase_code extends CI_Controller
                     $this->response['csrfHash'] = $this->security->get_csrf_hash();
                     $this->response['message'] = "Somthing Went wrong. Please contact Super admin.";
                     print_r(json_encode($this->response));
+                    // Was missing - without it, execution fell through to also process the web
+                    // purchase code below and could print a second, concatenated JSON response,
+                    // which breaks the frontend's dataType:'json' parsing.
+                    return false;
                 }
 
-                // code for web purchase code 
+                // code for web purchase code
 
                 $purchase_code = $this->input->post("web_purchase_code", true);
-                $web_url = "https://wrteam.in/validator/home/validator_new?purchase_code=$purchase_code&domain_url=" . base_url() . "&item_id=" . WEB_CODE;
+                $web_url = "https://wrteam.in/validator/home/validator_new?purchase_code=" . rawurlencode($purchase_code) . "&domain_url=" . base_url() . "&item_id=" . WEB_CODE;
                 $web_result = curl($web_url);
                 if (isset($web_result['body']) && !empty($web_result['body'])) {
 
@@ -88,6 +92,7 @@ class Purchase_code extends CI_Controller
                     $this->response['csrfHash'] = $this->security->get_csrf_hash();
                     $this->response['message'] = "Somthing Went wrong. Please contact Super admin.";
                     print_r(json_encode($this->response));
+                    return false;
                 }
 
                 if (isset($web_result['body']['error']) && $web_result['body']['error'] == 0 && isset($app_result['body']['error']) && $app_result['body']['error'] == 0) {

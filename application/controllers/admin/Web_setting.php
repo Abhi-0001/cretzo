@@ -75,11 +75,11 @@ class Web_setting extends CI_Controller
             } else {
                 $_POST['system_timezone_gmt'] = preg_replace('/\s+/', '', $_POST['system_timezone_gmt']);
                 $_POST['system_timezone_gmt'] = ($_POST['system_timezone_gmt'] == '00:00') ? "+" . $_POST['system_timezone_gmt'] : $_POST['system_timezone_gmt'];
-                $this->Setting_model->update_system_setting($_POST);
-                $this->response['error'] = false;
+                $updated = $this->Setting_model->update_system_setting($_POST);
+                $this->response['error'] = !$updated;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = 'System Setting Updated Successfully';
+                $this->response['message'] = $updated ? 'System Setting Updated Successfully' : 'Something went wrong.';
                 print_r(json_encode($this->response));
             }
         } else {
@@ -99,6 +99,10 @@ class Web_setting extends CI_Controller
             $this->data['favicon'] = get_settings('favicon');
             $this->data['settings'] = get_settings('system_settings', true);
             $this->data['currency'] = get_settings('currency');
+            // Was never set here (unlike index() and Setting::web()) - the web-settings.php
+            // view's isset($web_settings[...]) checks would all silently fail if this method
+            // were ever actually routed to, rendering a blank form over real saved data.
+            $this->data['web_settings'] = get_settings('web_settings', true);
             $this->load->view('admin/template', $this->data);
         } else {
             redirect('admin/login', 'refresh');
@@ -116,6 +120,12 @@ class Web_setting extends CI_Controller
     public function set_default_theme()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
+            // Was missing entirely - the near-identical twin method on Setting.php correctly
+            // requires this, but a restricted admin with zero update rights on Settings could
+            // still change the storefront's default theme via this duplicate route.
+            if (print_msg(!has_permissions('update', 'settings'), PERMISSION_ERROR_MSG, 'settings')) {
+                return false;
+            }
             $this->form_validation->set_rules('theme_id', 'Theme', 'trim|required|xss_clean|numeric');
             if (!$this->form_validation->run()) {
                 $this->response['error'] = true;
@@ -195,14 +205,22 @@ class Web_setting extends CI_Controller
                 return false;
                 exit();
             }
-            $this->form_validation->set_rules('apiKey', 'API Key', 'trim|required|xss_clean');
-            $this->form_validation->set_rules('authDomain', 'Auth Domain', 'trim|required|xss_clean');
-            $this->form_validation->set_rules('databaseURL', 'Database URL', 'trim|required|xss_clean');
-            $this->form_validation->set_rules('projectId', 'Project ID', 'trim|required|xss_clean');
-            $this->form_validation->set_rules('storageBucket', 'Storage Bucket', 'trim|required|xss_clean');
-            $this->form_validation->set_rules('messagingSenderId', 'Messaging Sender ID', 'trim|required|xss_clean');
-            $this->form_validation->set_rules('appId', 'APP Id', 'trim|required|xss_clean');
-            $this->form_validation->set_rules('measurementId', 'Measurement ID', 'trim|required|xss_clean');
+            // These values are written verbatim into a public, unauthenticated JS file
+            // (assets/front_end/js/fcm_config.js -> firebase-config.js) inside a
+            // double-quoted JS string literal ('apiKey: "%APIKEY%"') with a plain str_replace -
+            // xss_clean targets HTML injection, not breaking out of a JS string context, so a
+            // value containing a bare `"` could inject arbitrary JavaScript into a file served
+            // to every storefront visitor on every page load. Blocked with a regex disallowing
+            // the characters that would actually break out of that context.
+            $no_js_breakout = 'regex_match[/^[^"\\\\]*$/]';
+            $this->form_validation->set_rules('apiKey', 'API Key', 'trim|required|xss_clean|' . $no_js_breakout);
+            $this->form_validation->set_rules('authDomain', 'Auth Domain', 'trim|required|xss_clean|' . $no_js_breakout);
+            $this->form_validation->set_rules('databaseURL', 'Database URL', 'trim|required|xss_clean|' . $no_js_breakout);
+            $this->form_validation->set_rules('projectId', 'Project ID', 'trim|required|xss_clean|' . $no_js_breakout);
+            $this->form_validation->set_rules('storageBucket', 'Storage Bucket', 'trim|required|xss_clean|' . $no_js_breakout);
+            $this->form_validation->set_rules('messagingSenderId', 'Messaging Sender ID', 'trim|required|xss_clean|' . $no_js_breakout);
+            $this->form_validation->set_rules('appId', 'APP Id', 'trim|required|xss_clean|' . $no_js_breakout);
+            $this->form_validation->set_rules('measurementId', 'Measurement ID', 'trim|required|xss_clean|' . $no_js_breakout);
             if (!$this->form_validation->run()) {
                 $this->response['error'] = true;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
@@ -265,11 +283,14 @@ class Web_setting extends CI_Controller
                 $new  = str_replace("%MEASUREMENTID%", $measurementId, $new);
                 write_file($output_path2, $new);
 
-                $this->Setting_model->firebase_setting($_POST);
-                $this->response['error'] = false;
+                // Was passing raw $_POST - stored the CSRF token field (and anything else
+                // incidentally present in the request) into the saved settings blob alongside
+                // the real Firebase config values.
+                $updated = $this->Setting_model->firebase_setting($data_json);
+                $this->response['error'] = !$updated;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = 'Firebase Setting Updated Successfully';
+                $this->response['message'] = $updated ? 'Firebase Setting Updated Successfully' : 'Something went wrong.';
                 print_r(json_encode($this->response));
             }
         } else {

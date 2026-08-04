@@ -39,7 +39,9 @@ class About_us extends CI_Controller
             if (print_msg(!has_permissions('update', 'about_us'), PERMISSION_ERROR_MSG, 'about_us')) {
                 return false;
             }
-            $this->form_validation->set_rules('about_us_input_description', 'About Us', 'trim|required');
+            // Was 'trim|required' only - the sole rich-text page in this family with zero
+            // filtering at all (every sibling at least runs the blocklist xss_clean rule).
+            $this->form_validation->set_rules('about_us_input_description', 'About Us', 'trim|required|xss_clean');
             if (!$this->form_validation->run()) {
                 $this->response['error'] = true;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
@@ -47,11 +49,11 @@ class About_us extends CI_Controller
                 $this->response['message'] = validation_errors();
                 print_r(json_encode($this->response));
             } else {
-                $this->Setting_model->update_about_us($_POST);
-                $this->response['error'] = false;
+                $updated = $this->Setting_model->update_about_us($_POST);
+                $this->response['error'] = !$updated;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = 'System Setting Updated Successfully';
+                $this->response['message'] = $updated ? 'System Setting Updated Successfully' : 'Something went wrong.';
                 print_r(json_encode($this->response));
             }
         } else {

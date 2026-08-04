@@ -28,9 +28,15 @@ class Faq_model extends CI_Model
 
     function get_faqs($offset, $limit, $sort, $order)
     {
+        // Whitelist against the actual selected columns - $sort/$order are passed straight
+        // into order_by() unchecked by both callers (the public FAQ page and the mobile API's
+        // get_faqs endpoint), an injection-shaped route reachable by any logged-in app user.
+        $allowed_sort_columns = ['id', 'question', 'answer', 'status'];
+        $sort = in_array((string) $sort, $allowed_sort_columns, true) ? (string) $sort : 'id';
+        $order = (strtolower((string) $order) === 'desc') ? 'desc' : 'asc';
         $faqs_data = [];
         $count_res = $this->db->select(' COUNT(id) as `total` ')->where('status', '1')->get('faqs')->result_array();
-        $search_res = $this->db->select(' * ')->where('status', '1')->order_by((string)$sort, (string)$order)->limit($limit, $offset)->get('faqs')->result_array();
+        $search_res = $this->db->select(' * ')->where('status', '1')->order_by($sort, $order)->limit($limit, $offset)->get('faqs')->result_array();
         if (!empty($search_res)) {
             for ($i = 0; $i < count($search_res); $i++) {
                 $search_res[$i] = output_escaping($search_res[$i]);
