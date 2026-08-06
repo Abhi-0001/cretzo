@@ -46,7 +46,7 @@
                                         <div class="col-4">
                                             <div class="form-group">
                                                 <label for="current_stock"><?= labels('current_stock', 'Current Stock') ?></label>
-                                                <input type="text" class="form-control current_stock" name="current_stock" id="current_stock" value="<?= (isset($fetched_data['product'][0]['stock']) && !empty($fetched_data['product'][0]['stock'])) ? $fetched_data['product'][0]['stock'] :  $fetched  ?>" readonly>
+                                                <input type="text" class="form-control current_stock" name="current_stock" id="current_stock" value="<?= (isset($fetched_data['product'][0]['stock']) && !empty($fetched_data['product'][0]['stock'])) ? $fetched_data['product'][0]['stock'] :  '0'  ?>" readonly>
                                             </div>
                                         </div>
                                         <div class="col-4">

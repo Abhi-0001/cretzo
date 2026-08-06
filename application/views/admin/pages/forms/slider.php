@@ -51,7 +51,7 @@
                                             <?php
                                             if (!empty($categories)) {
                                                 foreach ($categories as $row) {
-                                                    $selected = ($row['id'] == $fetched_data[0]['type_id'] && strtolower($fetched_data[0]['type']) == 'categories') ? 'selected' : '';
+                                                    $selected = ($row['id'] == @$fetched_data[0]['type_id'] && strtolower(@$fetched_data[0]['type']) == 'categories') ? 'selected' : '';
                                             ?>
                                                     <option value="<?= $row['id'] ?>" <?= $selected ?>> <?= html_escape($row['name']) ?></option>
                                             <?php

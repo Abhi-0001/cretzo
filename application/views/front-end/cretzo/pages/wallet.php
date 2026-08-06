@@ -79,8 +79,8 @@
                                         <input type="hidden" id="flutterwave_currency" value="<?= $payment_methods['flutterwave_currency_code'] ?>" />
                                         <input type="hidden" id="user_email" value="<?= $_SESSION['email']  ?>" />
 
-                                        <input type="hidden" id="username" value="<?= $username['username'] ?>" />
-                                        <input type="hidden" id="user_contact" value="<?= $username['mobile'] ?>" />
+                                        <input type="hidden" id="username" value="<?= $name[0]['username'] ?>" />
+                                        <input type="hidden" id="user_contact" value="<?= $name[0]['mobile'] ?>" />
                                         <input type="hidden" name="logo" id="logo" value="<?= base_url(get_settings('web_logo')) ?>" />
 
 

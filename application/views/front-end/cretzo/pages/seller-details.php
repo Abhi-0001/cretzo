@@ -34,7 +34,7 @@
                 <i class="fs-60 orange uil uil-store"></i>
             </div>
             <div class="d-flex flex-column">
-                <h1 class="h1"><?= $row['username'] ?></h1>
+                <h1 class="h1"><?= $seller_details[0]['username'] ?></h1>
                 <ul class="d-flex gap-4 pl-0">
                     <li class="d-inline-block">
                         <i class="text-warning uil uil-star"></i>

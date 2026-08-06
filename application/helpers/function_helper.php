@@ -2044,6 +2044,7 @@ function get_cart_total($user_id, $product_variant_id = false, $is_saved_for_lat
     $amount = array();
     $cod_allowed = 1;
     $download_allowed = array();
+    $is_attachment_required = '0';
     for ($i = 0; $i < count($data); $i++) {
 
         /* echo "<pre>";
@@ -2111,10 +2112,10 @@ function get_cart_total($user_id, $product_variant_id = false, $is_saved_for_lat
     $total = array_sum($total);
 
     $system_settings = get_settings('system_settings', true);
-    $address = fetch_details('addresses', ['id' => $address_id], ['area_id', 'area', 'pincode']);
     $delivery_charge = $system_settings['delivery_charge'];
-    $zipcode_id = fetch_details('zipcodes', ['zipcode' => $address[0]['pincode']], 'id')[0];
     if (!empty($address_id)) {
+        $address = fetch_details('addresses', ['id' => $address_id], ['area_id', 'area', 'pincode']);
+        $zipcode_id = fetch_details('zipcodes', ['zipcode' => $address[0]['pincode']], 'id')[0];
 
         $tmpRow['is_deliverable'] = (!empty($zipcode_id['id']) && $zipcode_id['id'] > 0) ?
             is_product_delivarable('zipcode', $zipcode_id['id'], $data[0]['product_id'])
@@ -2692,7 +2693,8 @@ function fetch_orders($order_id = NULL, $user_id = NULL, $status = NULL, $delive
         $order_details[$i]['tracking_id'] = "";
         $order_details[$i]['url'] = "";
         
-        $city_id = fetch_details('addresses', ['id' => $order_details[$i]['address_id']], 'city_id')[0]['city_id'];
+        $address_city = fetch_details('addresses', ['id' => $order_details[$i]['address_id']], 'city_id');
+        $city_id = !empty($address_city) ? $address_city[0]['city_id'] : null;
         $order_details[$i]['is_shiprocket_order'] = (isset($city_id) && $city_id == 0) ? 1 : 0;
         
         if (isset($seller_id) && !empty($seller_id)) {
@@ -2768,7 +2770,7 @@ function fetch_orders($order_id = NULL, $user_id = NULL, $status = NULL, $delive
                 $order_item_data[$k]['attr_name'] = (!empty($varaint_data)) ? $varaint_data[0]['attr_name'] : '';
                 
                 // Added for cretzo
-                $order_item_data[$k]['variant_image'] = (!empty($varaint_data)) ? $varaint_data[0]['variant_image'] : '';
+                $order_item_data[$k]['variant_image'] = (!empty($varaint_data) && !empty($varaint_data[0]['variant_image'])) ? $varaint_data[0]['variant_image'] : '';
                 
                 $order_item_data[$k]['product_rating'] = (!empty($order_item_data[$k]['product_rating'])) ? number_format($order_item_data[$k]['product_rating'], 1) : "0";
                 $order_item_data[$k]['name'] = (!empty($order_item_data[$k]['name'])) ? $order_item_data[$k]['name'] : $order_item_data[$k]['product_name'];
@@ -2817,12 +2819,11 @@ function fetch_orders($order_id = NULL, $user_id = NULL, $status = NULL, $delive
                 $cancelable_count += (int) $order_item_data[$k]['is_cancelable'];
                 $already_returned_count += (int) $order_item_data[$k]['is_already_returned'];
                 $already_cancelled_count += (int) $order_item_data[$k]['is_already_cancelled'];
-                $delivery_date = $order_item_data[$k]['status'][3][1];
+                $delivery_date = isset($order_item_data[$k]['status'][3][1]) ? $order_item_data[$k]['status'][3][1] : null;
                 $settings = get_settings('system_settings', true);
-                $timestemp = strtotime($delivery_date);
                 $today = date('Y-m-d');
-                $return_till = date('Y-m-d', strtotime($delivery_date . ' + ' . $settings['max_product_return_days'] . ' days'));
-                $order_item_data[$k]['is_returnable'] = ($today < $return_till) ? '1' : '0';
+                $return_till = !empty($delivery_date) ? date('Y-m-d', strtotime($delivery_date . ' + ' . $settings['max_product_return_days'] . ' days')) : null;
+                $order_item_data[$k]['is_returnable'] = (!empty($return_till) && $today < $return_till) ? '1' : '0';
             }
         }
 
@@ -3492,7 +3493,7 @@ function get_category_id_by_slug($slug)
 
     // Fallback: case-insensitive match
     if (empty($res)) {
-        $res = $t->db->select('id')->where("LOWER(slug)", strtolower($slug), FALSE)->get('categories')->row_array();
+        $res = $t->db->select('id')->where("LOWER(slug) = " . $t->db->escape(strtolower($slug)))->get('categories')->row_array();
     }
 
     if (!empty($res) && isset($res['id'])) {

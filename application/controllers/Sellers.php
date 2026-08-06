@@ -131,7 +131,10 @@ class Sellers extends CI_Controller
             redirect(base_url('sellers'));
         }
         $seller_slug = urldecode($seller_slug);
-        $seller_data = fetch_details('seller_data', ['slug' => $seller_slug]);
+        $seller_data = fetch_details('seller_data', ['slug' => $seller_slug, 'status' => 1]);
+        if (empty($seller_data)) {
+            redirect(base_url('sellers'));
+        }
         $seller_details = fetch_details('users', ['id' => $seller_data[0]['user_id']]);
 
 

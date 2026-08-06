@@ -158,7 +158,14 @@ if(empty($order_item)){
                     <div class="order-details-six">
                         <div class="order-details-six-left">
                             <h1 class="text-n heading">Total Order Price</h1>
-                            <p class="text-n">You saved <span class="green">₹ <?= $order_item['main_price'] - $order_item['special_price'] ?></span> on this order</p>
+                            <?php
+                            $main_price = is_numeric($order_item['main_price'] ?? null) ? (float) $order_item['main_price'] : 0;
+                            $special_price = is_numeric($order_item['special_price'] ?? null) ? (float) $order_item['special_price'] : 0;
+                            $saved_amount = $main_price - $special_price;
+                            ?>
+                            <?php if ($saved_amount > 0) { ?>
+                                <p class="text-n">You saved <span class="green">₹ <?= $saved_amount ?></span> on this order</p>
+                            <?php } ?>
                         </div>
                         <h1 class="sub-heading order-details-six-right"><h4 class="mt-1 bold"> <span class="mt-5"><i><?= $settings['currency'] ?></i></span> <?= number_format($order_item['sub_total'], 2) ?> <span class="small text-muted"> <?= !empty($this->lang->line('via')) ? $this->lang->line('via') : 'via' ?> (<?= $order['payment_method'] ?>) </span></h4></h1>
                     </div>
@@ -247,7 +254,7 @@ if(empty($order_item)){
                                         if (!$item['is_already_cancelled'] && $item['is_cancelable'] && $active_index <= $cancellable_index && $item['type'] != 'digital_product') { ?>
                                             <button class="btn btn-danger btn-sm update-order-item" data-status="cancelled" data-item-id="<?= $item['id'] ?>"><?= !empty($this->lang->line('cancel')) ? $this->lang->line('cancel') : 'Cancel' ?></button>
                                         <?php } ?>
-                                        <?php $order_date = $order['order_items'][0]['status'][3][1];
+                                        <?php $order_date = isset($order['order_items'][0]['status'][3][1]) ? $order['order_items'][0]['status'][3][1] : null;
                                         if ($order['is_returnable'] && !$order['is_already_returned'] && isset($order_date) && !empty($order_date)) { ?>
                                             <?php
                                             $settings = get_settings('system_settings', true);
@@ -400,7 +407,7 @@ if(empty($order_item)){
                                     </div>
                                 <?php } ?>
                                 <?php
-                                $order_date = $order['order_items'][0]['status'][3][1];
+                                $order_date = isset($order['order_items'][0]['status'][3][1]) ? $order['order_items'][0]['status'][3][1] : null;
                                 if ($order['is_returnable'] && !$order['is_already_returned'] && isset($order_date) && !empty($order_date)) { ?>
                                     <?php
                                     $settings = get_settings('system_settings', true);
