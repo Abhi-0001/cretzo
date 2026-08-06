@@ -73,7 +73,7 @@
         csrfName = "<?= $this->security->get_csrf_token_name() ?>";
         csrfHash = "<?= $this->security->get_csrf_hash() ?>";
 
-        form_name = '<?= '#' . $main_page . '_form' ?>';
+        form_name = '<?= '#' . (isset($main_page) ? $main_page : '') . '_form' ?>';
     </script>
     
 </head>

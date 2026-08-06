@@ -144,8 +144,8 @@ class Address_model extends CI_Model
                 for ($i = 0; $i < count($res); $i++) {
                     $area_id = (isset($res[$i]['area_id']) && ($res[$i]['area_id']) != 0) ? $res[$i]['area_id'] : "";
                     $minimum_free_delivery_order_amount =  fetch_details('areas', ['id' => $area_id], 'minimum_free_delivery_order_amount,delivery_charges');
-                    $amount = $minimum_free_delivery_order_amount[0]['minimum_free_delivery_order_amount'];
-                    $delivery_charges = $minimum_free_delivery_order_amount[0]['delivery_charges'];
+                    $amount = !empty($minimum_free_delivery_order_amount) ? $minimum_free_delivery_order_amount[0]['minimum_free_delivery_order_amount'] : null;
+                    $delivery_charges = !empty($minimum_free_delivery_order_amount) ? $minimum_free_delivery_order_amount[0]['delivery_charges'] : null;
                     $res[$i] = output_escaping($res[$i]);
                     $res[$i]['minimum_free_delivery_order_amount'] = (isset($amount) && $amount != NULL) ? "$amount" : "0";
                     $res[$i]['delivery_charges'] = (isset($delivery_charges) && $delivery_charges != NULL) ? "$delivery_charges" : "0";

@@ -682,7 +682,7 @@
                                 <option value><?= !empty($this->lang->line('select_city')) ? $this->lang->line('select_city') : '--Select City--' ?></option>
                                 <option value="0"><?= !empty($this->lang->line('other')) ? $this->lang->line('other') : 'other' ?></option>
                                 <?php foreach ($cities as $row) { ?>
-                                    <option value="<?= $row['id'] ?>"><?= $row['name'] ?></option>
+                                    <option value="<?= $row['city_id'] ?>"><?= $row['city_name'] ?></option>
                                 <?php } ?>
                             </select>
                         </div>

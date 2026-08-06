@@ -1321,14 +1321,16 @@
       <div class="modal-body">
         <div class="row">
             <!-- Thumbnails List -->
-            <?php foreach ($product_ratings['product_rating'] as $row) {
-                foreach ($row['images'] as $image) { ?>
+            <?php if (isset($product_ratings['product_rating']) && !empty($product_ratings['product_rating'])) {
+                foreach ($product_ratings['product_rating'] as $row) {
+                    foreach ($row['images'] as $image) { ?>
                     <div class="col-md-4">
                         <a href="<?= $image; ?>" data-lightbox="review-images-all-total" data-title='"<?= $row['comment']?>" - <?=$row['user_name']?>'>
                             <img src="<?= $image; ?>" class="img-thumbnail" alt="Review Image">
                         </a>
                     </div>
-            <?php }
+                <?php }
+                }
             } ?>
         </div>
       </div>

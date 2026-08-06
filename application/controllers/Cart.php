@@ -39,10 +39,11 @@ class Cart extends CI_Controller
             $this->data['title'] = 'Product Cart | ' . $this->data['web_settings']['site_title'];
             $this->data['keywords'] = 'Product Cart, ' . $this->data['web_settings']['meta_keywords'];
             $this->data['description'] = 'Product Cart | ' . $this->data['web_settings']['meta_description'];
-            $this->data['cart'] = get_cart_total($this->data['user']->id);
+            $user_id = $this->data['is_logged_in'] ? $this->data['user']->id : 0;
+            $this->data['cart'] = get_cart_total($user_id);
             // localStorage.getItem("cart")
-           
-            $this->data['save_for_later'] = get_cart_total($this->data['user']->id, false, '1');
+
+            $this->data['save_for_later'] = get_cart_total($user_id, false, '1');
 
             // added for Cretzo theme (to hide header and footer on cart/checkout pages)
             $this->data['hide_header_footer'] = true;
@@ -468,7 +469,8 @@ class Cart extends CI_Controller
             if ($this->ion_auth->logged_in()) {
                 $this->data['addresses'] = $this->address_model->get_address_list($this->data['user']->id, false, false);
             }
-            
+            $this->data['cities'] = get_cities();
+
             $this->load->view('front-end/' . THEME . '/template', $this->data);
         } else {
             redirect(base_url());
@@ -879,7 +881,8 @@ class Cart extends CI_Controller
             } else {
 
 
-                $cart = get_cart_total($this->data['user']->id, false, '0', $_POST['address_id']);
+                $address_id = isset($_POST['address_id']) ? $_POST['address_id'] : '';
+                $cart = get_cart_total($this->data['user']->id, false, '0', $address_id);
                 // print_r($cart);
                 // return false;
 
