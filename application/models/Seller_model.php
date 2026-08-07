@@ -284,6 +284,18 @@ class Seller_model extends CI_Model
             else
                 $tempRow['status'] = "<label class='badge badge-secondary'>Pending Setup</label>";
 
+            // KYC review status, distinct from the account status above: a seller can be
+            // "Approved" and still have never gone through the newer KYC/onboarding wizard,
+            // or be sitting on a submitted-but-unreviewed request - neither is visible from
+            // the account status badge alone.
+            if ($row['status'] == 1) {
+                $tempRow['kyc_status'] = "<label class='badge badge-success'>Verified</label>";
+            } else if (!empty($row['verification_request_at'])) {
+                $tempRow['kyc_status'] = "<label class='badge badge-warning'>Pending Review</label>";
+            } else {
+                $tempRow['kyc_status'] = "<label class='badge badge-secondary'>Not Requested</label>";
+            }
+
             $tempRow['category_ids'] = $row['category_ids'];
 
             $row['logo'] = base_url() . $row['logo'];

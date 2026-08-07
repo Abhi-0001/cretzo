@@ -63,7 +63,9 @@ class Setting extends CI_Controller
             $this->form_validation->set_rules('system_timezone', 'System timezone', 'trim|required|xss_clean');
             $this->form_validation->set_rules('is_version_system_on', 'Version System', 'trim|xss_clean');
             $this->form_validation->set_rules('area_wise_delivery_charge', 'Area Wise Delivery Charges', 'trim|xss_clean');
-            $this->form_validation->set_rules('currency', 'Currency', 'trim|required|xss_clean');
+            // Not xss_clean - CI3's xss_clean mangles multi-byte UTF-8 characters (see the
+            // update_web_settings() note below) and currency is commonly a symbol like ₹.
+            $this->form_validation->set_rules('currency', 'Currency', 'trim|required');
             $this->form_validation->set_rules('max_product_return_days', 'Maximum Product Return Day', 'trim|required|numeric|xss_clean');
             $this->form_validation->set_rules('delivery_boy_bonus_percentage', 'Delivery Boy Bonus', 'trim|required|numeric|xss_clean');
             $this->form_validation->set_rules('minimum_cart_amt', 'Minimum Cart Amount', 'trim|required|numeric|xss_clean');

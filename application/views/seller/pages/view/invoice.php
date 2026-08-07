@@ -220,13 +220,15 @@
                                                     <?= number_format($cal_final_total, 2) ?>
                                                 </td>
                                             </tr>
-                                            <?php if ($order_detls[0]['type'] != 'digital_product') { ?>
+                                            <?php if ($order_detls[0]['type'] != 'digital_product') {
+                                                $order_delivery_charge = isset($order_caharges_data[0]['delivery_charge']) ? $order_caharges_data[0]['delivery_charge'] : 0;
+                                                $cal_final_total += $order_delivery_charge;
+                                            ?>
                                                 <tr>
                                                     <th>Delivery Charge (
                                                         <?= $settings['currency'] ?>)</th>
                                                     <td>+
-                                                        <?php $cal_final_total += $order_caharges_data[0]['delivery_charge'];
-                                                        echo number_format($order_caharges_data[0]['delivery_charge'], 2); ?>
+                                                        <?= number_format($order_delivery_charge, 2) ?>
                                                     </td>
                                                 </tr>
                                             <?php } ?>
@@ -248,8 +250,9 @@
                                                     </th>
                                                     <td>-
                                                         <?php
-                                                        echo $order_caharges_data[0]['promo_discount'];
-                                                        $cal_final_total = $cal_final_total - $order_caharges_data[0]['promo_discount'];
+                                                        $order_promo_discount = isset($order_caharges_data[0]['promo_discount']) ? $order_caharges_data[0]['promo_discount'] : 0;
+                                                        echo $order_promo_discount;
+                                                        $cal_final_total = $cal_final_total - $order_promo_discount;
                                                         ?>
                                                     </td>
                                                 </tr>

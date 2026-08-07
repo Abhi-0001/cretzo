@@ -800,7 +800,17 @@ class Ion_auth_model extends CI_Model
             $this->set_error('account_creation_unsuccessful');
             return FALSE;
         }
-        $this->identity_column = (isset($additional_data['type']) && $additional_data['type'] == 'email') ? $this->identity_column : 'mobile';
+        // Only signups whose $identity is actually an email address should write to the
+        // `email` column - that's type=='email' (unchanged) plus the social types, whose
+        // $identity is likewise an email since Google/Facebook never supply a phone number
+        // (Auth::register_user() passes type='google'/'facebook' with $identity=$email).
+        // Everything else - type=='phone', or no type at all, which covers every caller that
+        // never passes 'type' (seller/delivery-boy signup, POS walk-in customers, etc.) -
+        // keeps the original 'mobile' default so those flows are unaffected. Previously only
+        // type=='email' avoided 'mobile', so social signups wrote their email address
+        // straight into the mobile column.
+        $email_identity_types = ['email', 'google', 'facebook'];
+        $this->identity_column = (isset($additional_data['type']) && in_array($additional_data['type'], $email_identity_types)) ? 'email' : 'mobile';
         // Users table.
         $data = [
             $this->identity_column => $identity,

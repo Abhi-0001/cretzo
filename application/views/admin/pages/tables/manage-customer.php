@@ -27,7 +27,7 @@
                         <div class="modal-body p-0">
                             <div class="row">
                                 <div class="col-md-12">
-                                    <table class='table-striped' id='customer-address-table' data-toggle="table" data-url="<?= base_url('admin/customer/get_address') ?>" data-click-to-select="true" data-side-pagination="server" data-pagination="true" data-page-list="[5, 10, 20, 50, 100, 200]" data-search="true" data-show-columns="true" data-show-refresh="true" data-trim-on-search="false" data-sort-name="id" data-sort-order="desc" data-mobile-responsive="true" data-toolbar="" data-show-export="true" data-maintain-selected="true" data-query-params="queryParams">
+                                    <table class='table-striped fixed-row-height' id='customer-address-table' data-toggle="table" data-url="<?= base_url('admin/customer/get_address') ?>" data-click-to-select="true" data-side-pagination="server" data-pagination="true" data-page-list="[5, 10, 20, 50, 100, 200]" data-search="true" data-show-columns="true" data-show-refresh="true" data-trim-on-search="false" data-sort-name="id" data-sort-order="desc" data-mobile-responsive="true" data-toolbar="" data-show-export="true" data-maintain-selected="true" data-query-params="queryParams">
                                         <thead>
                                             <tr>
                                                 <th data-field="id" data-sortable="true" data-align='center'>Id</th>
@@ -37,7 +37,7 @@
                                                 <th data-field="alternate_mobile" data-sortable="true" data-align='center'>Alternate mobile</th>
                                                 <th data-field="address" data-sortable="false" data-visible="false" data-align='center'>Address</th>
                                                 <th data-field="landmark" data-sortable="true" data-align='center'>Landmark</th>
-                                                <th data-field="area" data-sortable="true" data-align='center'>Area</th>
+                                                <th data-field="area" data-sortable="true" data-align='center'>District</th>
                                                 <th data-field="city" data-sortable="true" data-align='center'>City</th>
                                                 <th data-field="state" data-sortable="true" data-align='center'>State</th>
                                                 <th data-field="pincode" data-sortable="true" data-align='center'>Pincode</th>
@@ -66,7 +66,7 @@
                             </div>
                         </div>
                         <div class="card-body">
-                            <table class='table-striped' data-toggle="table" data-url="<?= base_url('admin/customer/view_customer') ?>" data-side-pagination="server" data-click-to-select="true" data-pagination="true" data-id-field="id" data-page-list="[5, 10, 20, 50, 100, 200]" data-search="true" data-show-columns="true" data-show-refresh="true" data-trim-on-search="false" data-sort-name="id" data-sort-order="desc" data-mobile-responsive="true" data-toolbar="#toolbar" data-show-export="true" data-maintain-selected="true" data-export-types='["txt","excel"]' data-query-params="queryParams">
+                            <table class='table-striped fixed-row-height' data-toggle="table" data-url="<?= base_url('admin/customer/view_customer') ?>" data-side-pagination="server" data-click-to-select="true" data-pagination="true" data-id-field="id" data-page-list="[5, 10, 20, 50, 100, 200]" data-search="true" data-show-columns="true" data-show-refresh="true" data-trim-on-search="false" data-sort-name="id" data-sort-order="desc" data-mobile-responsive="true" data-toolbar="#toolbar" data-show-export="true" data-maintain-selected="true" data-export-types='["txt","excel"]' data-query-params="queryParams">
                                 <thead>
                                     <tr>
                                         <th data-field="id" data-sortable="true">ID</th>
@@ -75,7 +75,7 @@
                                         <th data-field="mobile" data-sortable="true">Mobile No</th>
                                         <th data-field="balance" data-sortable="true">Balance</th>
                                         <th data-field="street" data-sortable="true">Street</th>
-                                        <th data-field="area" data-sortable="true">Area</th>
+                                        <th data-field="area" data-sortable="true">District</th>
                                         <th data-field="city" data-sortable="true">City</th>
                                         <th data-field="date" data-sortable="true">Date</th>
                                         <th data-field="status" data-sortable="true">Status</th>

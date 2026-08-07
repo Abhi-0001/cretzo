@@ -21,7 +21,7 @@ class Transaction_model extends CI_Model
             'transaction_type' => $transaction_type,
             'user_id' => $data['user_id'],
             'order_id' => $data['order_id'],
-            'order_item_id' => $data['order_item_id'],
+            'order_item_id' => isset($data['order_item_id']) ? $data['order_item_id'] : null,
             'type' => strtolower($data['type']),
             'txn_id' => $data['txn_id'],
             'amount' => $data['amount'],

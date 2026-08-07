@@ -48,9 +48,9 @@
                                         </select>
                                     </div>
                                 </div>
-                                <div class="form-group" >
-                                    <label for="image">Main Image <span class='text-danger text-sm'>*</span><small>(Recommended Size : 131 x 131 pixels)</small></label>
-                                    <div class="col-sm-10">
+                                <div class="row">
+                                    <div class="form-group col-md-6">
+                                        <label for="image">Main Image <span class='text-danger text-sm'>*</span><br><small>(Recommended Size : 131 x 131 pixels)</small></label>
                                         <?php
                                         // Previously opened the shared media-library modal: upload a file there, then
                                         // separately click it in a list and click "Choose Media" to actually attach it
@@ -75,11 +75,9 @@
                                             <?php } ?>
                                         </div>
                                     </div>
-                                </div>
 
-                                <div class="form-group">
-                                    <label for="image">Banner Image </label>
-                                    <div class="col-sm-10">
+                                    <div class="form-group col-md-6">
+                                        <label for="image">Banner Image</label>
                                         <div>
                                             <a href="javascript:void(0)" class="direct-upload-btn btn btn-primary text-white btn-sm" data-input='banner'><i class='fa fa-upload'></i> Upload Photo</a>
                                             <input type="file" class="direct-upload-file-input d-none" accept="image/*" data-input='banner'>

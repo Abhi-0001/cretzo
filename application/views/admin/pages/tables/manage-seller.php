@@ -57,6 +57,7 @@
                                 <th data-field="tax_number" data-sortable="true" data-visible="false">Tax Number</th>
                                 <th data-field="pan_number" data-sortable="true" data-visible="false">Pan Number</th>
                                 <th data-field="status" data-sortable="true">Status</th>
+                                <th data-field="kyc_status" data-sortable="false">KYC Status</th>
                                 <th data-field="category_ids" data-sortable="true" data-visible="false">Category Ids</th>
                                 <th data-field="logo" data-sortable="true">Logo</th>
                                 <th data-field="national_identity_card" data-sortable="true" data-visible="false">National Identity Card</th>

@@ -339,6 +339,8 @@ class Order_model extends CI_Model
                     return $promo_code;
                 }
             }
+            $promo_code_discount = isset($promo_code_discount) ? $promo_code_discount : 0;
+
             //create parcel seller wise
 
             $parcels = array();
@@ -362,8 +364,11 @@ class Order_model extends CI_Model
                     $product['total'] = floatval($product['price'] + $price_tax_amount) * $product['qty'];
                 }
 
-                $parcels[$product['seller_id']]['variant_id'] .= (isset($parcels[$product['seller_id']][$product['id']]) && !empty($product['id'])) ? $parcels[$product['seller_id']] : $product['id'] . ',';
-                $parcels[$product['seller_id']]['total'] += (isset($parcels[$product['seller_id']][$product['total']]) && !empty($product['total'])) ? $parcels[$product['seller_id']] : $product['total'];
+                if (!isset($parcels[$product['seller_id']])) {
+                    $parcels[$product['seller_id']] = ['variant_id' => '', 'total' => 0];
+                }
+                $parcels[$product['seller_id']]['variant_id'] .= $product['id'] . ',';
+                $parcels[$product['seller_id']]['total'] += $product['total'];
                 // $parcel_delivery_charge = get_delivery_charge($data['address_id'], $parcels[$product['seller_id']]['total']);
                 // $parcels[$product['seller_id']]['delivery_charge'] = $parcel_delivery_charge;
             }
@@ -497,7 +502,7 @@ class Order_model extends CI_Model
                 $otp = mt_rand(100000, 999999);
                 $order_item_ids = '';
                 $varient_ids = explode(',', trim($parcel['variant_id'], ','));
-                $parcel_total = $parcel['total'] + intval($parcel['delivery_charge']) - $seller_promocode_discount;
+                $parcel_total = $parcel['total'] + intval(isset($parcel['delivery_charge']) ? $parcel['delivery_charge'] : 0) - $seller_promocode_discount;
                 $parcel_total = round($parcel_total, 2);
                 foreach ($varient_ids as $ids) {
                     $order_item_ids .= fetch_details('order_items', ['seller_id' => $seller_id, 'product_variant_id' => $ids, 'order_id' => $last_order_id], 'id')[0]['id'] . ',';
@@ -512,7 +517,7 @@ class Order_model extends CI_Model
                     'order_id' => $last_order_id,
                     'order_item_ids' =>  trim($order_item_ids, ','),
                     'delivery_charge' => round($seller_delivery_charge, 2),
-                    'promo_code' => $data['promo_code'],
+                    'promo_code' => isset($data['promo_code']) ? $data['promo_code'] : '',
                     'promo_discount' => round($seller_promocode_discount, 2),
                     'sub_total' => $parcel['total'],
                     'total' => $parcel_total,
@@ -546,16 +551,18 @@ class Order_model extends CI_Model
 
             //send custom notifications
             $custom_notification = fetch_details('custom_notifications', ['type' => "place_order"], '');
-            $hashtag_order_id = '< order_id >';
-            $string = json_encode($custom_notification[0]['title'], JSON_UNESCAPED_UNICODE);
-            $hashtag = html_entity_decode($string);
-            $data1 = str_replace($hashtag_order_id, $last_order_id, $hashtag);
-            $title = output_escaping(trim($data1, '"'));
-            $hashtag_application_name = '< application_name >';
-            $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
-            $hashtag = html_entity_decode($string);
-            $data2 = str_replace($hashtag_application_name, $system_settings['app_name'], $hashtag);
-            $message = output_escaping(trim($data2, '"'));
+            if (!empty($custom_notification)) {
+                $hashtag_order_id = '< order_id >';
+                $string = json_encode($custom_notification[0]['title'], JSON_UNESCAPED_UNICODE);
+                $hashtag = html_entity_decode($string);
+                $data1 = str_replace($hashtag_order_id, $last_order_id, $hashtag);
+                $title = output_escaping(trim($data1, '"'));
+                $hashtag_application_name = '< application_name >';
+                $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
+                $hashtag = html_entity_decode($string);
+                $data2 = str_replace($hashtag_application_name, $system_settings['app_name'], $hashtag);
+                $message = output_escaping(trim($data2, '"'));
+            }
 
             $fcm_admin_subject = (!empty($custom_notification)) ? $title : 'New order placed ID #' . $last_order_id;
             $fcm_admin_msg = (!empty($custom_notification)) ? $message : 'New order received for  ' . $system_settings['app_name'] . ' please process it.';

@@ -23,7 +23,13 @@ class Customer_model extends CI_Model
         // Whitelist against the actual selected columns, mapped from the table's own
         // data-field names to their real SQL columns/aliases - $_GET['sort'] was previously
         // passed straight into order_by() unchecked (SQL injection shape).
-        $allowed_sort_columns = ['id' => 'u.id', 'name' => 'u.username', 'email' => 'u.email', 'mobile' => 'u.mobile', 'balance' => 'u.balance', 'street' => 'u.street', 'area' => 'area_name', 'city' => 'city_name', 'date' => 'u.created_at'];
+        $allowed_sort_columns = ['id' => 'u.id', 'name' => 'u.username', 'email' => 'u.email', 'mobile' => 'u.mobile', 'balance' => 'u.balance', 'street' => 'street_address', 'area' => 'area_name', 'city' => 'city_name', 'date' => 'u.created_at'];
+        // Customers fill in street/area/city on their saved addresses (`addresses` table),
+        // not on the `users` table directly - `u.street`/`u.city`/`u.area` are a near-dead
+        // legacy profile field almost nobody ever fills in, so joining against those (as this
+        // previously did) showed a blank column for virtually every real customer. This picks
+        // each customer's default address, falling back to their most recently added one.
+        $default_address_join = 'ad.id = (SELECT ad2.id FROM addresses ad2 WHERE ad2.user_id = u.id ORDER BY ad2.is_default DESC, ad2.id DESC LIMIT 1)';
 
         if (isset($_GET['offset'])) {
             $offset = $_GET['offset'];
@@ -43,7 +49,7 @@ class Customer_model extends CI_Model
         if (isset($_GET['search']) and $_GET['search'] != '') {
             $search = $_GET['search'];
             $multipleWhere = [
-                '`u.id`' => $search, '`u.username`' => $search, '`u.email`' => $search, '`u.mobile`' => $search, '`c.city_name`' => $search, '`a.name`' => $search, '`u.street`' => $search
+                '`u.id`' => $search, '`u.username`' => $search, '`u.email`' => $search, '`u.mobile`' => $search, '`ad.city`' => $search, '`ad.area`' => $search, '`ad.address`' => $search
             ];
         }
 
@@ -51,7 +57,7 @@ class Customer_model extends CI_Model
             $where['u.active'] = $_GET['order_status'];
         }
 
-        $count_res = $this->db->select(' COUNT(u.id) as `total` ,a.name as area_name,c.city_name as city_name')->join('cities c', 'u.city=c.city_id', 'left')->join('areas a', 'u.area=a.id', 'left');
+        $count_res = $this->db->select(' COUNT(u.id) as `total` ,ad.area as area_name,ad.city as city_name')->join('addresses ad', $default_address_join, 'left');
 
         if (isset($multipleWhere) && !empty($multipleWhere)) {
             $count_res->group_start();
@@ -67,12 +73,12 @@ class Customer_model extends CI_Model
         $count_res->join('`users_groups` `ug`', '`u`.`id` = `ug`.`user_id`', 'left');
 
         $cat_count = $count_res->get('users u')->result_array();
-       
+
         foreach ($cat_count as $row) {
             $total = $row['total'];
         }
 
-        $search_res = $this->db->select(' u.*,a.name as area_name,c.city_name as city_name')->join('cities c', 'u.city=c.city_id', 'left')->join('areas a', 'u.area=a.id', 'left');;
+        $search_res = $this->db->select(' u.*,ad.area as area_name,ad.city as city_name,ad.address as street_address')->join('addresses ad', $default_address_join, 'left');
         if (isset($multipleWhere) && !empty($multipleWhere)) {
             $search_res->group_start();
             $search_res->or_like($multipleWhere);
@@ -120,7 +126,7 @@ class Customer_model extends CI_Model
             $tempRow['balance'] = $row['balance'] == null || $row['balance'] == 0 || empty($row['balance']) ? "0" : number_format($row['balance'], 2);
             $tempRow['city'] = html_escape($row['city_name']);
             $tempRow['area'] = html_escape($row['area_name']);
-            $tempRow['street'] = html_escape($row['street']);
+            $tempRow['street'] = html_escape($row['street_address']);
             $tempRow['status'] = ($row['active'] == '1') ? '<a class="badge badge-success text-white" >Active</a>' : '<a class="badge badge-danger text-white" >Inactive</a>';
             $tempRow['date'] = $row['created_at'];
             if (!$this->ion_auth->is_seller()) {

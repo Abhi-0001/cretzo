@@ -649,8 +649,8 @@
                         <textarea id="verification_note" name="verification_note" class="input" rows="3" placeholder="Write a short note for admin review..."><?= isset($fetched_data[0]['verification_request_note']) ? htmlspecialchars($fetched_data[0]['verification_request_note']) : '' ?></textarea>
                         <div class="mt-2">
                           <button type="button" id="request_verification_btn" class="btn btn-primary btn-sm">Request Admin Verification</button>
-                          <?php if (!empty($fetched_data[0]['verification_requested_at'])): ?>
-                            <small class="text-muted d-block mt-2">Last requested at: <?= htmlspecialchars($fetched_data[0]['verification_requested_at']) ?></small>
+                          <?php if (!empty($fetched_data[0]['verification_request_at'])): ?>
+                            <small class="text-muted d-block mt-2">Last requested at: <?= htmlspecialchars($fetched_data[0]['verification_request_at']) ?></small>
                           <?php endif; ?>
                           <div id="verification_response" class="small mt-2"></div>
                         </div>

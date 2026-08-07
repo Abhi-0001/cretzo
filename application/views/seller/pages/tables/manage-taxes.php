@@ -175,7 +175,7 @@
 <script>
     function taxPercentageFormatter(value) {
         if (value === null || value === undefined || value === '') return '';
-        return '<span class="tax-badge">' + value + '%</span>';
+        return '<span class="tax-badge">' + value + '</span>';
     }
 
     function queryParams(p) {

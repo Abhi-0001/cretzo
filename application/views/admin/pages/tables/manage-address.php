@@ -28,7 +28,7 @@
                         </div>
                         <div class="card-body">
                             <input type='hidden' id='address_user_id' value='<?=(isset($view_id) && !empty($view_id)) ? $view_id : '' ?>'>
-                            <table class='table-striped' id='customer-address-table' data-toggle="table" data-url="<?= base_url('admin/customer/get_address') ?>" data-click-to-select="true" data-side-pagination="server" data-pagination="true" data-page-list="[5, 10, 20, 50, 100, 200]" data-search="true" data-show-columns="true" data-show-refresh="true" data-trim-on-search="false" data-sort-name="id" data-sort-order="desc" data-mobile-responsive="true" data-toolbar="" data-show-export="true" data-maintain-selected="true" data-query-params="address_query_params">
+                            <table class='table-striped fixed-row-height' id='customer-address-table' data-toggle="table" data-url="<?= base_url('admin/customer/get_address') ?>" data-click-to-select="true" data-side-pagination="server" data-pagination="true" data-page-list="[5, 10, 20, 50, 100, 200]" data-search="true" data-show-columns="true" data-show-refresh="true" data-trim-on-search="false" data-sort-name="id" data-sort-order="desc" data-mobile-responsive="true" data-toolbar="" data-show-export="true" data-maintain-selected="true" data-query-params="address_query_params">
                                 <thead>
                                     <tr>
                                         <th data-field="id" data-sortable="true">Id</th>
@@ -38,7 +38,7 @@
                                         <th data-field="alternate_mobile" data-sortable="true">Alternate mobile</th>
                                         <th data-field="address" data-sortable="false" data-visible="false">Address</th>
                                         <th data-field="landmark" data-sortable="true">Landmark</th>
-                                        <th data-field="area" data-sortable="true">Area</th>
+                                        <th data-field="area" data-sortable="true">District</th>
                                         <th data-field="city" data-sortable="true">City</th>
                                         <th data-field="state" data-sortable="true">State</th>
                                         <th data-field="pincode" data-sortable="true">Pincode</th>

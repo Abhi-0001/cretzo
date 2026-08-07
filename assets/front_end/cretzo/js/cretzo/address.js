@@ -160,6 +160,7 @@ function updateEditAddressForm(row){
     $("#edit_mobile").val(row.mobile);
     $("#edit_alternate_mobile").val(row.alternate_mobile || '');
     $("#edit_address").val(row.address);
+    $("#edit_landmark").val(row.landmark || '');
     /* city column holds the city/block, area column holds the district - matching
        how the add-address form maps its City and District fields. */
     $("#edit_city_name").val(row.city || '');

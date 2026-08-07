@@ -47,6 +47,9 @@
                                 <?=
                                     (isset($row['alternate_mobile']) && !empty($row['alternate_mobile'])) ? '<p class="text-n address-text">Alternate Mobile: ' . $row['alternate_mobile'] . '</p>' : '';
                                 ?>
+                                <?=
+                                    (isset($row['landmark']) && !empty($row['landmark'])) ? '<p class="text-n address-text">Landmark: ' . $row['landmark'] . '</p>' : '';
+                                ?>
                                 <!-- <p class="text-n address-text">Pay on Delivery Available</p> -->
                                 <div>
                                     
@@ -134,6 +137,10 @@
                             <div class="col-md-12 col-sm-12 col-xs-12 form-group mb-3">
                                 <label for="address" class="control-label required"><?= !empty($this->lang->line('address')) ? $this->lang->line('address') : 'Address' ?></label>
                                 <textarea name="address" class="form-control" id="address" cols="30" rows="4" placeholder="#Door no, Street Address, Locality, Area, Pincode"></textarea>
+                            </div>
+                            <div class="col-md-12 col-sm-12 col-xs-12 form-group mb-3">
+                                <label for="landmark" class="control-label"><?= !empty($this->lang->line('landmark')) ? $this->lang->line('landmark') : 'Landmark' ?></label>
+                                <input type="text" class="form-control" id="landmark" name="landmark" placeholder="Landmark (optional)" />
                             </div>
                             <!-- Pincode first: entering it auto-fills city, district and state -->
                             <div class="col-md-6 col-sm-12 col-xs-12 form-group mb-3">
@@ -226,6 +233,10 @@
                             <div class="col-md-12 col-sm-12 col-xs-12 form-group mb-3">
                                 <label for="edit_address" class="control-label required"><?= !empty($this->lang->line('address')) ? $this->lang->line('address') : 'Address' ?></label>
                                 <textarea name="address" class="form-control" id="edit_address" cols="30" rows="4" placeholder="#Door no, Street Address, Locality, Area, Pincode"></textarea>
+                            </div>
+                            <div class="col-md-12 col-sm-12 col-xs-12 form-group mb-3">
+                                <label for="edit_landmark" class="control-label"><?= !empty($this->lang->line('landmark')) ? $this->lang->line('landmark') : 'Landmark' ?></label>
+                                <input type="text" class="form-control" id="edit_landmark" name="landmark" placeholder="Landmark (optional)" />
                             </div>
                             <!-- Pincode first: entering it auto-fills city, district and state -->
                             <div class="col-md-6 col-sm-12 col-xs-12 form-group mb-3">

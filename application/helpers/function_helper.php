@@ -2338,7 +2338,7 @@ function has_permissions($role, $module)
     if (!empty($userData)) {
 
         if (intval($userData[0]['role']) > 0) {
-            $permissions = json_decode($userData[0]['permissions'], 1);
+            $permissions = !empty($userData[0]['permissions']) ? json_decode($userData[0]['permissions'], 1) : [];
             if (array_key_exists($module, $general_system_permissions) && array_key_exists($module, $permissions)) {
                 if (array_key_exists($module, $permissions)) {
                     if (in_array($role, $general_system_permissions[$module])) {
@@ -5162,10 +5162,10 @@ function get_seller_permission($seller_id, $permit = NULL)
     $seller_id = (isset($seller_id) && !empty($seller_id)) ? $seller_id : $t->session->userdata('user_id');
     $permits = fetch_details('seller_data', ['user_id' => $seller_id], 'permissions');
     if (!empty($permit)) {
-        $s_permits = json_decode($permits[0]['permissions'], true);
-        return $s_permits[$permit];
+        $s_permits = !empty($permits[0]['permissions']) ? json_decode($permits[0]['permissions'], true) : null;
+        return isset($s_permits[$permit]) ? $s_permits[$permit] : null;
     } else {
-        return json_decode($permits[0]['permissions']);
+        return !empty($permits[0]['permissions']) ? json_decode($permits[0]['permissions']) : null;
     }
 }
 

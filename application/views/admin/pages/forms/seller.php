@@ -323,9 +323,211 @@
                     <!--/.card-->
                 </div>
                 <!--/.col-md-12-->
+
+                <?php if (isset($fetched_data[0]['id'])) {
+                    $primary_category_name = '';
+                    if (!empty($fetched_data[0]['primary_category_id'])) {
+                        $primary_cat = fetch_details('categories', ['id' => $fetched_data[0]['primary_category_id']], 'name');
+                        $primary_category_name = !empty($primary_cat[0]['name']) ? $primary_cat[0]['name'] : '';
+                    }
+                    $entity_type_labels = [
+                        'individual' => 'Individual',
+                        'sole_proprietorship' => 'Sole Proprietorship',
+                        'partnership_firm' => 'Partnership Firm',
+                        'pvt_ltd' => 'Pvt Ltd.',
+                    ];
+                    $kyc_field = function ($label, $value) {
+                        $value = trim((string) $value);
+                        echo '<div class="kyc-row"><span class="kyc-label">' . html_escape($label) . '</span><span class="kyc-value">' . ($value !== '' ? html_escape($value) : '<span class="text-muted">&mdash;</span>') . '</span></div>';
+                    };
+                    $kyc_doc = function ($label, $path) {
+                        $path = trim((string) $path);
+                        echo '<div class="kyc-row"><span class="kyc-label">' . html_escape($label) . '</span><span class="kyc-value">';
+                        if ($path === '' || !file_exists(FCPATH . $path)) {
+                            echo '<span class="text-muted">Not uploaded</span>';
+                        } else {
+                            $is_pdf = strtolower(pathinfo($path, PATHINFO_EXTENSION)) === 'pdf';
+                            if ($is_pdf) {
+                                echo '<a href="' . base_url($path) . '" target="_blank" class="btn btn-outline-primary btn-xs"><i class="fa fa-file-pdf"></i> View PDF</a>';
+                            } else {
+                                echo '<a href="' . base_url($path) . '" data-toggle="lightbox" data-gallery="gallery_seller_kyc"><img src="' . base_url($path) . '" class="kyc-doc-thumb" alt="' . html_escape($label) . '"></a>';
+                            }
+                        }
+                        echo '</span></div>';
+                    };
+                ?>
+                    <div class="col-md-12">
+                        <div class="card attribute-card mt-4">
+                            <div class="card-header attribute-card-header">
+                                <span class="header-icon bg-set"><i class="fas fa-id-card"></i></span>
+                                <h5 class="mb-0">KYC &amp; Onboarding Details</h5>
+                            </div>
+                            <div class="card-body">
+                                <p class="text-muted small mb-4">Everything below was submitted by the seller through their own onboarding/profile form. Shown here for review only - it is not editable from this page.</p>
+
+                                <h6 class="kyc-section-title">Personal Information</h6>
+                                <div class="kyc-grid">
+                                    <?php
+                                    $kyc_field('First Name', $fetched_data[0]['first_name'] ?? '');
+                                    $kyc_field('Middle Name', $fetched_data[0]['middle_name'] ?? '');
+                                    $kyc_field('Last Name', $fetched_data[0]['last_name'] ?? '');
+                                    $kyc_field('Phone', $fetched_data[0]['phone'] ?? '');
+                                    $kyc_field('Address Line 2', $fetched_data[0]['address2'] ?? '');
+                                    $kyc_field('District', $fetched_data[0]['district'] ?? '');
+                                    $kyc_field('City', $fetched_data[0]['city'] ?? '');
+                                    $kyc_field('State', $fetched_data[0]['state'] ?? '');
+                                    $kyc_field('Pin', $fetched_data[0]['pin'] ?? '');
+                                    ?>
+                                </div>
+
+                                <h6 class="kyc-section-title">Shop Information</h6>
+                                <div class="kyc-grid">
+                                    <?php
+                                    $kyc_field('Shop Phone', $fetched_data[0]['shop_phone'] ?? '');
+                                    $kyc_field('Social Link', $fetched_data[0]['social'] ?? '');
+                                    $kyc_field('Primary Category', $primary_category_name);
+                                    ?>
+                                </div>
+
+                                <h6 class="kyc-section-title">Pickup Address</h6>
+                                <div class="kyc-grid">
+                                    <?php
+                                    $kyc_field('Address Line 1', $fetched_data[0]['pickup_address1'] ?? '');
+                                    $kyc_field('Address Line 2', $fetched_data[0]['pickup_address2'] ?? '');
+                                    $kyc_field('District', $fetched_data[0]['pickup_district'] ?? '');
+                                    $kyc_field('City', $fetched_data[0]['pickup_city'] ?? '');
+                                    $kyc_field('State', $fetched_data[0]['pickup_state'] ?? '');
+                                    $kyc_field('Pin', $fetched_data[0]['pickup_pin'] ?? '');
+                                    ?>
+                                </div>
+
+                                <h6 class="kyc-section-title">Business / Legal Information</h6>
+                                <div class="kyc-grid">
+                                    <?php
+                                    $kyc_field('Entity Type', $entity_type_labels[$fetched_data[0]['entity_type'] ?? ''] ?? ($fetched_data[0]['entity_type'] ?? ''));
+                                    $kyc_field('Legal Business Name', $fetched_data[0]['legal_business_name'] ?? '');
+                                    $kyc_field('Address Line 1', $fetched_data[0]['business_address1'] ?? '');
+                                    $kyc_field('Address Line 2', $fetched_data[0]['business_address2'] ?? '');
+                                    $kyc_field('District', $fetched_data[0]['business_district'] ?? '');
+                                    $kyc_field('City', $fetched_data[0]['business_city'] ?? '');
+                                    $kyc_field('State', $fetched_data[0]['business_state'] ?? '');
+                                    $kyc_field('Pin', $fetched_data[0]['business_pin'] ?? '');
+                                    $kyc_field('GST Registered?', (isset($fetched_data[0]['is_gst_registered']) && $fetched_data[0]['is_gst_registered'] == 0) ? 'No (GST Enrollment Number only)' : 'Yes');
+                                    $kyc_field('GST Number', $fetched_data[0]['gst'] ?? '');
+                                    $kyc_field('GST Enrollment Number', $fetched_data[0]['gst_enrollment_number'] ?? '');
+                                    $kyc_field('PAN', $fetched_data[0]['pan'] ?? '');
+                                    ?>
+                                </div>
+
+                                <h6 class="kyc-section-title">Bank Details</h6>
+                                <div class="kyc-grid">
+                                    <?php
+                                    $kyc_field('Account Holder Name', $fetched_data[0]['account_holder_name'] ?? '');
+                                    $kyc_field('IFSC', $fetched_data[0]['ifsc'] ?? '');
+                                    $kyc_field('Branch', $fetched_data[0]['branch'] ?? '');
+                                    ?>
+                                </div>
+
+                                <h6 class="kyc-section-title">Documents</h6>
+                                <div class="kyc-grid">
+                                    <?php
+                                    $kyc_doc('PAN Card', $fetched_data[0]['pan_card_document'] ?? '');
+                                    $kyc_doc('GSTIN Document', $fetched_data[0]['gstin_document'] ?? '');
+                                    $kyc_doc('GST Enrollment Acknowledgement', $fetched_data[0]['gst_enrollment_ack_document'] ?? '');
+                                    $kyc_doc('Business Proof', $fetched_data[0]['business_proof_document'] ?? '');
+                                    $kyc_doc('Business Address Proof', $fetched_data[0]['business_address_proof_document'] ?? '');
+                                    $kyc_doc('Partnership Deed', $fetched_data[0]['partnership_deed_document'] ?? '');
+                                    $kyc_doc('Bank Account Proof', $fetched_data[0]['bank_account_proof_document'] ?? '');
+                                    ?>
+                                </div>
+
+                                <h6 class="kyc-section-title">Verification</h6>
+                                <div class="kyc-grid">
+                                    <?php
+                                    $kyc_field("Seller's Request Note", $fetched_data[0]['verification_request_note'] ?? '');
+                                    $kyc_field('Requested At', $fetched_data[0]['verification_request_at'] ?? '');
+                                    ?>
+                                </div>
+                                <form id="verification_note_form" class="mt-3">
+                                    <input type="hidden" name="user_id" value="<?= $fetched_data[0]['user_id'] ?>">
+                                    <div class="form-group">
+                                        <label for="verification_note_input">Admin verification note</label>
+                                        <textarea name="verification_note" id="verification_note_input" class="form-control" rows="3" placeholder="Write a note back to the seller about their verification review..."><?= html_escape($fetched_data[0]['verification_note'] ?? '') ?></textarea>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary btn-sm">Save Verification Note</button>
+                                    <span id="verification_note_result" class="ml-2"></span>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                <?php } ?>
             </div>
             <!-- /.row -->
         </div><!-- /.container-fluid -->
     </section>
     <!-- /.content -->
 </div>
+
+<script>
+    $(document).on('submit', '#verification_note_form', function (e) {
+        e.preventDefault();
+        var $form = $(this);
+        var $result = $('#verification_note_result');
+        var $btn = $form.find('button[type="submit"]');
+        $.ajax({
+            type: 'POST',
+            url: '<?= base_url('admin/sellers/save_verification_note') ?>',
+            data: $form.serialize() + '&' + csrfName + '=' + csrfHash,
+            dataType: 'json',
+            beforeSend: function () {
+                $btn.attr('disabled', true);
+            },
+            success: function (result) {
+                if (result.csrfName && result.csrfHash) {
+                    csrfName = result.csrfName;
+                    csrfHash = result.csrfHash;
+                }
+                $result.text(result.message).css('color', result.error ? '#dc3545' : '#28a745');
+                $btn.attr('disabled', false);
+            },
+            error: function () {
+                $result.text('Something went wrong. Please try again.').css('color', '#dc3545');
+                $btn.attr('disabled', false);
+            }
+        });
+    });
+</script>
+
+<style>
+    .kyc-section-title {
+        font-weight: 600;
+        color: #2b2f33;
+        margin-top: 20px;
+        padding-bottom: 8px;
+        border-bottom: 2px solid rgba(0,0,0,0.06);
+    }
+    .kyc-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0 24px;
+    }
+    .kyc-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        width: 100%;
+        max-width: 420px;
+        padding: 7px 0;
+        border-bottom: 1px solid rgba(0,0,0,0.04);
+        font-size: 13px;
+    }
+    .kyc-label { color: var(--color-grey, #6c757d); flex: none; }
+    .kyc-value { color: #2b2f33; font-weight: 500; text-align: right; word-break: break-word; }
+    .kyc-doc-thumb {
+        width: 60px;
+        height: 60px;
+        object-fit: cover;
+        border-radius: 6px;
+        border: 1px solid rgba(0,0,0,0.08);
+    }
+</style>

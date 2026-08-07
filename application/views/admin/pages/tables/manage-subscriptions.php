@@ -100,62 +100,33 @@
                                 <div class="row mt-4">
                                     <div class="col-md-12">
                                         <h5 class="mb-3">Plan Features</h5>
-                                        <div class="table-responsive">
-                                            <table class="table table-bordered table-striped" id="features_table">
-                                                <thead class="bg-light">
-                                                    <tr>
-                                                        <th style="width: 85%;">Description</th>
-                                                        <th style="width: 15%; text-align: center;">Action</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody id="features_tbody">
+                                        <div class="feature-list" id="features_tbody">
 
                                             <?php
-                                            
-                                            
-                                                if (!empty($fetched_data[0]['features'])) {
-                                     
-                                                
-                                                     $json = stripslashes($fetched_data[0]['features']);
-                                                    $features = json_decode($json, true);
-                                                
-                                                    
-                                                    
-                                                    if (!empty($features)) {
-                                           
-                                                    
-                                                        foreach ($features as $index => $feature) {
-                                                ?>
-
-                                                <tr class="feature-row">
-
-                                                <td>
-                                                <textarea 
-                                                class="form-control form-control-sm feature_desc"
-                                                name="features[<?= $index ?>][description]"
-                                                rows="2"
-                                                placeholder="Feature description"><?= htmlspecialchars($feature['description']) ?></textarea>
-                                                </td>
-
-                                                <td style="text-align:center;">
-                                                <button type="button" class="btn btn-danger btn-sm delete-feature-row">
-                                                <i class="fa fa-trash"></i>
-                                                </button>
-                                                </td>
-
-                                                </tr>
-
-                                                <?php
-                                                        }
-
+                                            if (!empty($fetched_data[0]['features'])) {
+                                                $json = stripslashes($fetched_data[0]['features']);
+                                                $features = json_decode($json, true);
+                                                if (!empty($features)) {
+                                                    foreach ($features as $index => $feature) {
+                                            ?>
+                                                <div class="feature-row">
+                                                    <textarea
+                                                        class="form-control feature_desc"
+                                                        name="features[<?= $index ?>][description]"
+                                                        rows="2"
+                                                        placeholder="Feature description"><?= htmlspecialchars($feature['description']) ?></textarea>
+                                                    <button type="button" class="feature-remove-btn delete-feature-row" title="Remove feature">
+                                                        <i class="fa fa-trash"></i>
+                                                    </button>
+                                                </div>
+                                            <?php
                                                     }
                                                 }
-                                                ?>
+                                            }
+                                            ?>
 
-                                                </tbody>
-                                            </table>
                                         </div>
-                                        <button type="button" class="btn btn-primary btn-sm" id="add_feature_row">
+                                        <button type="button" class="btn btn-primary-theme btn-sm mt-2" id="add_feature_row">
                                             <i class="fa fa-plus"></i> Add Feature
                                         </button>
                                         <input type="hidden" id="features_json" name="features_json" value="">
@@ -196,7 +167,7 @@
                             <h5 class="mb-0">Plans</h5>
                         </div>
                         <div class="card-body">
-                            <table class='table-striped' data-toggle="table" data-url="<?= base_url('admin/subscription/view_subscription') ?>" data-click-to-select="true" data-side-pagination="server" data-pagination="true" data-page-list="[5, 10, 20, 50, 100, 200]" data-search="true" data-show-columns="true" data-show-refresh="true" data-trim-on-search="false" data-sort-name="id" data-sort-order="asc" data-mobile-responsive="true" data-toolbar="" data-show-export="true" data-maintain-selected="true" data-export-types='["txt","excel"]' data-query-params="queryParams">
+                            <table class='table-striped fixed-row-height' data-toggle="table" data-url="<?= base_url('admin/subscription/view_subscription') ?>" data-click-to-select="true" data-side-pagination="server" data-pagination="true" data-page-list="[5, 10, 20, 50, 100, 200]" data-search="true" data-show-columns="true" data-show-refresh="true" data-trim-on-search="false" data-sort-name="id" data-sort-order="asc" data-mobile-responsive="true" data-toolbar="" data-show-export="true" data-maintain-selected="true" data-export-types='["txt","excel"]' data-query-params="queryParams">
                                 <thead>
                                     <tr>
                                         <th data-field="id" data-sortable="true">ID</th>
@@ -275,6 +246,50 @@
 
     .admin-manage-subscriptions-page td:has(.action-btn) { white-space: nowrap; }
     .admin-manage-subscriptions-page .action-btn { display: inline-block; vertical-align: middle; }
+
+    .admin-manage-subscriptions-page .feature-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    .admin-manage-subscriptions-page .feature-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        background: #fafafa;
+        border: 1px solid rgba(0,0,0,0.06);
+        border-radius: 10px;
+        padding: 10px;
+    }
+    .admin-manage-subscriptions-page .feature-row .feature_desc {
+        flex: 1;
+        background: #fff;
+        border-radius: 8px;
+        resize: vertical;
+    }
+    .admin-manage-subscriptions-page .feature-row .feature_desc:focus {
+        border-color: var(--color-orange);
+        box-shadow: 0 0 0 .15rem var(--color-orange-light);
+    }
+    .admin-manage-subscriptions-page .feature-remove-btn {
+        flex: none;
+        width: 34px;
+        height: 34px;
+        margin-top: 2px;
+        border: none;
+        border-radius: 50%;
+        background: rgba(220,53,69,0.1);
+        color: #dc3545;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: background .15s ease, color .15s ease;
+    }
+    .admin-manage-subscriptions-page .feature-remove-btn:hover {
+        background: #dc3545;
+        color: #fff;
+    }
 </style>
 
 <script>
@@ -292,24 +307,19 @@ $(document).ready(function () {
             tableBody = $("#features_tbody");
         }
 
-        let count = tableBody.find("tr").length;
+        let count = tableBody.find(".feature-row").length;
 
         let newRow = `
-        <tr class="feature-row">
-            <td>
-                <textarea 
-                class="form-control form-control-sm feature_desc"
+        <div class="feature-row">
+            <textarea
+                class="form-control feature_desc"
                 name="features[${count}][description]"
                 placeholder="Feature description"
                 rows="2"></textarea>
-            </td>
-
-            <td style="text-align:center;">
-                <button type="button" class="btn btn-danger btn-sm delete-feature-row">
-                    <i class="fa fa-trash"></i>
-                </button>
-            </td>
-        </tr>`;
+            <button type="button" class="feature-remove-btn delete-feature-row" title="Remove feature">
+                <i class="fa fa-trash"></i>
+            </button>
+        </div>`;
 
         tableBody.append(newRow);
 
@@ -320,7 +330,7 @@ $(document).ready(function () {
     // DELETE FEATURE
     $(document).on("click", ".delete-feature-row", function () {
 
-        $(this).closest("tr").remove();
+        $(this).closest(".feature-row").remove();
 
     });
 
@@ -331,7 +341,7 @@ $(document).ready(function () {
 
         let features = [];
 
-        $(this).find("#features_tbody tr").each(function () {
+        $(this).find("#features_tbody .feature-row").each(function () {
 
             let description = $(this).find(".feature_desc").val().trim();
 
