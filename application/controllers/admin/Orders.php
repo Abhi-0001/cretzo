@@ -565,7 +565,7 @@ class Orders extends CI_Controller
                     $temp['user_email'] = $row['user_email'];
                     $temp['product_slug'] = $row['product_slug'];
                     $temp['sku'] = isset($row['product_sku']) && !empty($row['product_sku']) ? $row['product_sku'] : $row['sku'];
-                    $temp['address_number'] = $address_number[0]['mobile'];
+                    $temp['address_number'] = !empty($address_number[0]['mobile']) ? $address_number[0]['mobile'] : '';
                     // Was $row[0]['county_code'] - $row is already a single order-item row here
                     // (we're inside `foreach ($res as $row)`), not an array of rows, so $row[0]
                     // doesn't exist ("Undefined array key 0"), and 'county_code' isn't a real

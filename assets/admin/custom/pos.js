@@ -34,7 +34,7 @@ $(document).on("click", ".remove-cart-item", function(e) {
             message: ['Product removed from cart'],
         });
         var variant_id = $(this).data("variant_id");
-        $(this).parent().parent().remove();
+        $(this).closest('.pos-cart-item').remove();
         var cart = localStorage.getItem("cart");
         cart = (localStorage.getItem("cart") !== null) ? JSON.parse(cart) : null;
         if (cart) {
@@ -48,9 +48,8 @@ $(document).on("click", ".remove-cart-item", function(e) {
 $(document).on("click", ".cart-quantity-input", function(e) {
 
     var operation = $(this).data("operation");
-    var variant_id = $(this).siblings().val();
-    var input = (operation == "plus") ? $(this).siblings()[1] : $(this).siblings()[2];
-    var qty = $(this).parent().siblings('.item-quantity').find('.cart-quantity-input').val();
+    var variant_id = $(this).siblings('.product-variant').val();
+    var input = $(this).siblings('.cart-quantity-input-new')[0];
     var qty = parseInt(input.value, 10);
     var data = input.value = (operation == "minus") ? qty - 1 : qty + 1;
 
@@ -91,27 +90,30 @@ function SafeParseFloat(val) {
 
 function add_to_cart(e) {
 
-    var cartRow = document.createElement('div');
-    cartRow.classList.add('cart-row');
-    var button = e.target;
-    var shopItem = button.parentElement.parentElement;
-    var variant_dropdown = shopItem.children[0].children[4];
-    var display_price = variant_dropdown.value;
-    var product_id = shopItem.getElementsByClassName('shop-item-id')[0].innerText;
-    var variant_id = variant_dropdown.options[variant_dropdown.selectedIndex].dataset.variant_id;
-    var seller_id = shopItem.getElementsByClassName('shop-item-partner-id')[0].innerText
-    var variant_values = variant_dropdown.options[variant_dropdown.selectedIndex].dataset.variant_values;
-    var special_price = variant_dropdown.options[variant_dropdown.selectedIndex].dataset.special_price;
-    var price = variant_dropdown.options[variant_dropdown.selectedIndex].dataset.price;
-    var title = shopItem.getElementsByClassName('shop-item-title')[0].innerText;
-    var image = shopItem.getElementsByClassName('item-image')[0].src;
+    var button = e.target.closest('.shop-item-button');
+    var shopItem = button.closest('.shop-item');
+    var variant_el = shopItem.querySelector('.product-variants');
+    var display_price = variant_el.value;
+    // multi-variant products use a <select> (data lives on the chosen <option>);
+    // single-variant products use a plain hidden <input> (data lives on itself)
+    var variant_data = (variant_el.tagName === 'SELECT') ? variant_el.options[variant_el.selectedIndex].dataset : variant_el.dataset;
+    var product_id = shopItem.dataset.productId;
+    var variant_id = variant_data.variantId;
+    var seller_id = shopItem.dataset.sellerId;
+    var variant_values = variant_data.variantValues;
+    var special_price = variant_data.specialPrice;
+    var price = variant_data.price;
+    var title = shopItem.querySelector('.shop-item-title').dataset.title;
+    var image = shopItem.querySelector('.item-image').src;
     /* create JSON array object */
     var cart_item = { "product_id": product_id.trim(), "seller_id": seller_id.trim(), "variant_id": variant_id, "title": title, "variant": variant_values, "image": image, "display_price": display_price.trim(), "quantity": 1, "special_price": special_price, "price": price };
     var cart = localStorage.getItem("cart");
     cart = (localStorage.getItem("cart") !== null) ? JSON.parse(cart) : null;
     if (cart !== null && cart !== undefined) {
         if (cart.find((item) => item.variant_id === variant_id)) {
-            alert("This item is already present in your cart");
+            iziToast.warning({
+                message: ['This item is already present in your cart'],
+            });
             return;
         } else {
             iziToast.success({
@@ -138,38 +140,23 @@ function display_cart() {
     if (cart !== null && cart.length > 0) {
         cart.forEach((item) => {
             cartRowContents += `
-            <div class="container">
-                <div class="row">
-                    <div class="col-md-4">
-                    <div class="cart-image">
-                        <img class="mr-4" src="${item.image}">
-                    </div>
-                        <p class="cart-item-title ">${wordLimit(item.title)}</p>
-                    </div>
-                    <div class="col-md-3">
-                        <span class="cart-price">${currency + parseFloat(item.display_price).toLocaleString()}</span>
-                    </div>
-                    <div class="col-md-3">
-                    <div class="input-group-prepend">
-                        <input type="hidden" class="product-variant" name="variant_ids[]" type="number" value=${item.variant_id}>
-                        <button type="button" class="cart-quantity-input btn btn-xs btn-secondary" data-operation="plus">+</button>
-                            <input class="cart-quantity-input-new form-control text-center p-0" name="quantity[]"value="${item.quantity}">
-                        <button type="button" class="cart-quantity-input btn btn-xs btn-secondary" data-operation="minus">-</button>
-                        </div>
-                    </div>
-                    <div class="col-md-2 text-center">
-                        <button class="btn btn-xs btn-danger remove-cart-item"  data-variant_id=${item.variant_id}><i class="fas fa-trash"></i></button>
-                    </div>
+            <div class="pos-cart-item">
+                <img class="pos-cart-item-image" src="${item.image}">
+                <div class="pos-cart-item-info">
+                    <div class="pos-cart-item-title" title="${item.title}">${wordLimit(item.title)}</div>
+                    <div class="pos-cart-item-price">${currency + parseFloat(item.display_price).toLocaleString()}</div>
                 </div>
+                <div class="pos-cart-item-qty">
+                    <input type="hidden" class="product-variant" name="variant_ids[]" value="${item.variant_id}">
+                    <button type="button" class="cart-quantity-input btn btn-xs btn-secondary" data-operation="minus">-</button>
+                    <input class="cart-quantity-input-new form-control text-center p-0" name="quantity[]" value="${item.quantity}">
+                    <button type="button" class="cart-quantity-input btn btn-xs btn-secondary" data-operation="plus">+</button>
+                </div>
+                <button class="btn btn-xs btn-danger pos-cart-item-remove remove-cart-item" data-variant_id="${item.variant_id}"><i class="fas fa-trash"></i></button>
             </div>`
         })
     } else {
-        cartRowContents = `
-        <div class="container">
-            <div class="row">
-                <div class="col mt-4 d-flex justify-content-center text-primary h5">No items in cart</div>
-            </div>
-        </div>`;
+        cartRowContents = `<div class="pos-cart-empty">No items in cart</div>`;
     }
     $(".cart-items").html(cartRowContents);
     update_cart_total();
@@ -295,41 +282,46 @@ function display_products(products) {
     var i;
     var j;
     var products = products.product;
+    var total_price = document.getElementById('cart-total-price');
+    var currency = (total_price) ? total_price.getAttribute('data-currency') : '';
     if (products !== null && products.length > 0) {
         for (i = 0; i < products.length; i++) {
-            // console.log(products[i]);
-            display_products += '<div class="text-center col-lg-4">' +
-                '<div class="shop-item m-3">' +
-                '<span class="d-none shop-item-id">' +
-                ' <b>' + products[i].id + '</b>' +
-                ' </span>' +
-                '<span class="shop-item-title ">' +
-                ' <a class="title-link" href=' + base_url + 'seller/product/view_product?edit_id=' + products[i].id + ' target="_BLANK"><b class="text text-dark">' + products[i].name + '</b><div class="title-overlay"></div></a>' +
-                ' </span>' +
-                '<div class="shop-item-image d-flex justify-content-center align-item-center">' +
-                '  <img class="item-image" src="' + products[i].image + '">' +
-                '</div>' +
-                '<span class="d-none shop-item-partner-id">' + products[i].seller_id + '</span>' +
-                '<select class="form-control mt-4 product-variants variant_value" id="change-' + products[i].id + '">';
-            var total_price = document.getElementById('cart-total-price');
-            var currency = "";
-            if ($('#cart-total-price').length) {
-                currency = total_price.getAttribute('data-currency');
-            }
             var variants = products[i]['variants'];
-            for (j = 0; j < variants.length; j++) {
-                var variant_values = (variants[j]['variant_values']) ? variants[j]['variant_values'] + ' - ' : "";
+            var variantMarkup;
 
-                var variant_price = variants[j]['special_price'] > 0 ? variants[j]['special_price'] : variants[j]['price'];
-                display_products += '<option data-variant_values="' + variants[j]['variant_values'] + '" data-price="' + variants[j]['price'] + '" data-special_price="' + variants[j]['special_price'] + '" data-variant_id="' + variants[j]['id'] + '" value="' + variant_price + " " + '" class="shop-item-price" > ' + variant_values + currency + " " + parseFloat(variant_price).toLocaleString() + '</option > ';
+            if (variants.length <= 1) {
+                // a single-variant product has nothing to choose between - show a plain
+                // price tag instead of a dropdown, with a hidden input carrying the same data
+                var v = variants[0] || { id: '', price: 0, special_price: 0, variant_values: '' };
+                var v_price = v.special_price > 0 ? v.special_price : v.price;
+                variantMarkup =
+                    '<div class="pos-price-tag">' + currency + ' ' + parseFloat(v_price).toLocaleString() + '</div>' +
+                    '<input type="hidden" class="product-variants" value="' + v_price + '" ' +
+                        'data-variant-id="' + v.id + '" data-price="' + v.price + '" ' +
+                        'data-special-price="' + v.special_price + '" data-variant-values="' + (v.variant_values || '') + '">';
+            } else {
+                var optionsHtml = '';
+                for (j = 0; j < variants.length; j++) {
+                    var variant_values = (variants[j]['variant_values']) ? variants[j]['variant_values'] + ' - ' : "";
+                    var variant_price = variants[j]['special_price'] > 0 ? variants[j]['special_price'] : variants[j]['price'];
+                    optionsHtml += '<option data-variant-values="' + variants[j]['variant_values'] + '" data-price="' + variants[j]['price'] + '" data-special-price="' + variants[j]['special_price'] + '" data-variant-id="' + variants[j]['id'] + '" value="' + variant_price + '">' +
+                        variant_values + currency + ' ' + parseFloat(variant_price).toLocaleString() +
+                        '</option>';
+                }
+                variantMarkup = '<select class="pos-variant-select product-variants variant_value" id="change-' + products[i].id + '">' + optionsHtml + '</select>';
             }
-            display_products += '</select></div>' +
-                ' <div class ="shop-item-details justify-content-center">' +
-                ' <button class ="btn btn-xs btn-info shop-item-button p-2" onclick="add_to_cart(event)" type ="button">Add to Cart</button>' +
-                ' </div>' +
-                ' </div>' +
-                '</div >' +
-                '</div > ';
+
+            display_products +=
+                '<div class="shop-item" data-product-id="' + products[i].id + '" data-seller-id="' + products[i].seller_id + '">' +
+                    '<div class="shop-item-image">' +
+                        '<img class="item-image" src="' + products[i].image + '">' +
+                    '</div>' +
+                    '<div class="shop-item-body">' +
+                        '<a class="shop-item-title" data-title="' + products[i].name + '" href="' + base_url + 'seller/product/view_product?edit_id=' + products[i].id + '" target="_blank">' + products[i].name + '</a>' +
+                        variantMarkup +
+                    '</div>' +
+                    '<button class="pos-add-cart-btn shop-item-button" onclick="add_to_cart(event)" type="button"><i class="fas fa-cart-plus mr-1"></i>Add to Cart</button>' +
+                '</div>';
         }
         $('#get_products').append(display_products)
     } else {
@@ -374,6 +366,9 @@ $(document).ready(function() {
 
 /* payment method selected event  */
 $(".payment_method").on('click', function() {
+    $(".pos-payment-chip").removeClass("checked");
+    $(this).closest(".pos-payment-chip").addClass("checked");
+
     var payment_method = $(this).val();
     var exclude_txn_id = ["COD"];
     var include_payment_method_name = ["other"];
@@ -391,76 +386,6 @@ $(".payment_method").on('click', function() {
     }
 });
 
-// select 2 js select user
-$(".select_user").select2({
-    ajax: {
-        url: base_url + 'seller/point_of_sale/get_users',
-        type: "GET",
-        dataType: 'json',
-        delay: 250,
-        data: function(params) {
-            return {
-                search: params.term, // search term
-            };
-        },
-        processResults: function(response) {
-            return {
-                results: response
-            };
-        },
-        cache: true
-    },
-    minimumInputLength: 1,
-    theme: 'bootstrap4',
-    placeholder: 'Search for user',
-});
-// clear selected values in select2
-
-$("#clear_user_search").on('click', function() { $(".select_user").empty(); });
-
-// Register in pos
-
-$(document).on('submit', '#register_form', function(e) {
-    e.preventDefault();
-    var name = $('#name').val();
-    var mobile = $('#mobile').val();
-    var formData = new FormData(this);
-    formData.append(csrfName, csrfHash);
-    $.ajax({
-        type: 'POST',
-        url: $(this).attr('action'),
-        dataType: 'json',
-        data: formData,
-        processData: false,
-        contentType: false,
-
-        beforeSend: function() {
-            $('#save-register-result-btn').html('Please Wait..');
-            $('#save-register-result-btn').attr('disabled', true);
-        },
-        success: function(result) {
-            csrfName = result['csrfName'];
-            csrfHash = result['csrfHash'];
-            if (result.error == false) {
-                iziToast.success({
-                    message: result.message,
-                });
-                $('#register_form')[0].reset();
-            } else {
-                iziToast.error({
-                    message: result.message,
-                });
-            }
-            $('#save-register-result-btn').html('Register').attr('disabled', false);
-        }
-    });
-});
-
-var pos_user_id = 0;
-$('#select_user_id').on('change', function() {
-    pos_user_id = ($('#select_user_id').val());
-});
-
 $('#pos_form').on('submit', function(e) {
     e.preventDefault();
     if (confirm('Are you sure? want to check out.')) {
@@ -468,6 +393,16 @@ $('#pos_form').on('submit', function(e) {
         if (cart == null || !cart) {
             var message = "Please add items to cart";
             show_message("Oops!", message, "error");
+            return;
+        }
+        var customer_name = $('#customer_name').val();
+        if (!customer_name || !customer_name.trim()) {
+            show_message("Oops!", "Please enter the customer's name", "error");
+            return;
+        }
+        var customer_mobile = $('#customer_mobile').val();
+        if (!customer_mobile || !customer_mobile.trim()) {
+            show_message("Oops!", "Please enter the customer's mobile number", "error");
             return;
         }
         // console.log(cart);
@@ -503,9 +438,10 @@ $('#pos_form').on('submit', function(e) {
         const request_body = {
             [csrfName]: csrfHash,
             data: cart,
+            customer_name: customer_name,
+            customer_mobile: customer_mobile,
             payment_method: payment_method,
             self_pickup: self_pickup,
-            user_id: pos_user_id,
             txn_id: txn_id,
             delivery_charges: delivery_charges,
             discount: discount,
@@ -524,12 +460,20 @@ $('#pos_form').on('submit', function(e) {
                         message: '<span>' + result.message + '</span> ',
                     });
                 } else {
+                    var order_id = result.data && result.data.order_id;
+                    var invoice_link = order_id ? ' <a href="' + base_url + 'seller/invoice?edit_id=' + order_id + '" target="_blank" style="text-decoration:underline;color:inherit;">View Invoice</a>' : '';
                     iziToast.success({
-                        message: '<span style="text-transform:capitalize">' + result.message + '</span> ',
+                        timeout: order_id ? 8000 : 5000,
+                        message: '<span style="text-transform:capitalize">' + result.message + '</span>' + invoice_link,
                     });
                     delete_cart_items();
-                    setTimeout(function() { location.reload(); }, 600);
+                    setTimeout(function() { location.reload(); }, order_id ? 3000 : 600);
                 }
+            },
+            error: function() {
+                iziToast.error({
+                    message: '<span>Something went wrong while placing the order. Please try again.</span> ',
+                });
             }
         });
     }

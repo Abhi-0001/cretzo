@@ -590,7 +590,7 @@
                                                                 <div class="container-fluid">
 
                                                                     <?php
-                                                                    echo '<div class="container-fluid row">';
+                                                                    echo '<div class="order-item-grid">';
 
 
                                                                     foreach ($items as $item) {
@@ -603,90 +603,9 @@
                                                                         <?php if ($sellers[$i] == $item['seller_id']) {
                                                                             if ($pickup_location[$j] == $item['pickup_location']) {
                                                                                 $order_tracking_data = get_shipment_id($item['id'], $order_detls[0]['id']); ?>
-                                                                                <div class=" card col-md-3 col-sm-12 p-3 mb-2 bg-white rounded m-1 grow">
-                                                                                    <div class="row m-2">
-                                                                                    </div>
-                                                                                    <div class="mb-2">
-                                                                                        <input type="checkbox" id="<?= $sellers[$i] ?>" name="order_item_id" value=' <?= $item['id'] ?> ' disabled>
-                                                                                    </div>
-                                                                                    <div class="order-product-image">
-                                                                                        <a href='<?= base_url() . $item['product_image'] ?>' data-toggle='lightbox' data-gallery='order-images'> <img src='<?= base_url() . $item['product_image'] ?>' class='h-75'></a>
-                                                                                    </div>
-                                                                                    <div><span class="text-bold">Product Type : </span><small><?= ucwords(str_replace('_', ' ', $item['product_type'])); ?> </small></div>
-                                                                                    <div><span class="text-bold">Variant ID : </span><?= $item['product_variant_id'] ?> </div>
-                                                                                    <?php if (isset($item['product_variants']) && !empty($item['product_variants'])) { ?>
-                                                                                        <div><span class="text-bold">Variants : </span><?= str_replace(',', ' | ', $item['product_variants'][0]['variant_values']) ?> </div>
-                                                                                    <?php } ?>
-                                                                                    <div><span class="text-bold">Name : </span><small><?= $item['pname'] ?> </small></div>
-                                                                                    <div><span class="text-bold">Quantity : </span><?= $item['quantity'] ?> </div>
-                                                                                    <!-- <div><span class="text-bold">Price : </span><?= $item['price'] + $item['tax_amount'] ?></div> -->
-                                                                                    <div><span class="text-bold">Price : </span><?= $item['price'] ?></div>
-                                                                                    <div><span class="text-bold">Discounted Price : </span> <?= $item['discounted_price'] ?> </div>
-                                                                                    <div><span class="text-bold">Subtotal : </span><?= $item['price'] * $item['quantity'] ?> </div>
-                                                                                    <?php if (isset($item['product_type']) && ($item['product_type'] != 'digital_product')) { ?>
-                                                                                        <div><span class="text-bold">Pickup Location : </span><?= $item['pickup_location'] ?> </div>
-                                                                                        <?php if (isset($order_tracking_data[0]['shipment_id']) && !empty($order_tracking_data[0]['shipment_id'])) { ?>
-                                                                                            <div><span class="text-bold">Shipment Id : </span><?= $order_tracking_data[0]['shipment_id'] ?></div>
-                                                                                    <?php  }
-                                                                                    } ?>
+                                                                                <div class="order-item-card">
                                                                                     <?php
-                                                                                    $badges = ["awaiting" => "secondary", "received" => "primary", "processed" => "info", "shipped" => "warning", "delivered" => "success", "returned" => "danger", "cancelled" => "danger", "return_request_approved" => "success", "return_request_decline" => "danger", "return_request_pending" => "warning"]
-                                                                                    ?>
-                                                                                    <?php if (isset($item['updated_by'])) { ?>
-                                                                                        <div><span class="text-bold">Updated By : </span><?= $item['updated_by'] ?> </div>
-                                                                                    <?php } ?>
-                                                                                    <?php if (isset($item['deliver_by'])) { ?>
-                                                                                        <div><span class="text-bold">Deliver By : </span><?= $item['deliver_by'] ?> </div>
-                                                                                    <?php } ?>
-                                                                                    <div><span class="text-bold">Active Status : </span> <span class="badge ml-1 badge-<?= $badges[$item['active_status']] ?>"> <small><?= str_replace('_', ' ', $item['active_status']) ?></small></span></div>
-                                                                                    <div><span class="text-bold">View Product : </span> <a href=" <?= BASE_URL('admin/product/view-product?edit_id=' . $item['product_id'] . '') ?> " title="View Product" class="btn action-btn ml-1 btn-primary btn-xs">
-                                                                                            <i class="fa fa-eye"></i>
-                                                                                        </a></div>
-
-
-
-                                                                                    <?php if ($item['product_type'] == "digital_product" && $item['download_allowed'] == 0 && $item['is_sent'] == 0) { ?>
-                                                                                        <div class="row mb-1 mt-1 order_item_mail_status">
-
-                                                                                            <div class="col-md-7 text-center">
-                                                                                                <select class="form-control-sm w-100">
-                                                                                                    <option value="1">Mail Sent</option>
-                                                                                                </select>
-                                                                                            </div>
-                                                                                            <div class="col-md-1 mr-1 d-flex align-items-center">
-                                                                                                <a href="javascript:void(0);" title="Update status" data-id=' <?= $item['id'] ?> ' class="btn btn-primary btn-xs action-btn ml-1 update_mail_status_admin mr-1">
-                                                                                                    <i class="far fa-arrow-alt-circle-up"></i>
-                                                                                                </a>
-                                                                                            </div>
-                                                                                            <div class="col-md-1 d-flex ml-1 align-items-center">
-                                                                                                <!-- <a href="javascript:void(0)" class="edit_btn btn action-btn btn-warning btn-xs" title="Edit" data-id="<?= $item['id'] ?>" data-url="admin/orders/">
-                                                            <i class="fas fa-paper-plane"></i>
-                                                        </a> -->
-                                                                                                <a href="javascript:void(0)" class="btn action-btn btn-warning btn-xs " data-target="#sendMailModal" data-toggle="modal" title="Edit" data-id="<?= $item['id'] ?>" data-url="admin/orders/">
-                                                                                                    <i class="fas fa-paper-plane"></i>
-                                                                                                </a>
-                                                                                            </div>
-                                                                                            <div class="col-md-1 d-flex ml-1 align-items-center">
-                                                                                                <a href="https://mail.google.com/mail/?view=cm&fs=1&tf=1&to=<?= $item['user_email'] ?>" class="btn action-btn btn-danger btn-xs" target="_blank">
-                                                                                                    <i class="fab fa-google"></i>
-                                                                                                </a>
-                                                                                            </div>
-                                                                                        </div>
-                                                                                    <?php } ?>
-
-                                                                                    <?php
-                                                                                    // Two dead sections used to sit here, wrapped in HTML comments so nothing
-                                                                                    // rendered - but PHP evaluates short-echo tags regardless of the surrounding
-                                                                                    // HTML comment syntax, so both still executed on every page load. The
-                                                                                    // "order_item_status" section (per-item status change) is superseded by
-                                                                                    // the seller-level bulk update control above and is dropped entirely. The
-                                                                                    // "delivery_boy" section also contained the ONLY trigger anywhere on this
-                                                                                    // page for the Refund button - #refund_modal and its working
-                                                                                    // admin/orders/refund_payment endpoint both still exist, but with this
-                                                                                    // commented out there was no way to open that modal at all. Restored,
-                                                                                    // fixed, and pared down to just that: the per-item delivery-boy and
-                                                                                    // tracking controls it also contained are dropped as duplicates of the
-                                                                                    // bulk section and the seller-level tracking button above.
+                                                                                    $badges = ["awaiting" => "secondary", "received" => "primary", "processed" => "info", "shipped" => "warning", "delivered" => "success", "returned" => "danger", "cancelled" => "danger", "return_request_approved" => "success", "return_request_decline" => "danger", "return_request_pending" => "warning"];
                                                                                     $transaction_data = fetch_details('transactions', ['order_item_id' => $item['id']], 'txn_id,amount');
                                                                                     // Operator precedence bug: "A || B || C) && D || E" parses as
                                                                                     // "((A||B||C) && D) || E" - so ANY item with active_status=='returned'
@@ -694,16 +613,84 @@
                                                                                     // bank transfer orders that were never charged through Razorpay at all.
                                                                                     $is_razorpay_payment = in_array($order_detls[0]['payment_method'], ['RazorPay', 'razorpay', 'Razorpay'], true);
                                                                                     $is_refundable_status = in_array($item['active_status'], ['cancelled', 'returned'], true);
-                                                                                    if ($is_razorpay_payment && $is_refundable_status) { ?>
-                                                                                        <a href="javascript:void(0)" class="edit_order_refund btn shipped-box btn-xs mr-1" title="Refund"
-                                                                                            data-order_id="<?= (int) $order_detls[0]['id'] ?>"
-                                                                                            data-order_item_id="<?= (int) $item['id'] ?>"
-                                                                                            data-txn_id="<?= html_escape($transaction_data[0]['txn_id'] ?? '') ?>"
-                                                                                            data-txn_amount="<?= html_escape($transaction_data[0]['amount'] ?? '') ?>"
-                                                                                            data-target="#refund_modal" data-toggle="modal"><i class="fa fa-undo"></i></a>
+                                                                                    ?>
+                                                                                    <div class="order-item-card-top">
+                                                                                        <label class="order-item-select" title="Select to mark as cancelled/returned">
+                                                                                            <input type="checkbox" id="<?= $sellers[$i] ?>" name="order_item_id" value=' <?= $item['id'] ?> ' disabled>
+                                                                                        </label>
+                                                                                        <span class="badge badge-<?= $badges[$item['active_status']] ?>"><?= str_replace('_', ' ', $item['active_status']) ?></span>
+                                                                                    </div>
+                                                                                    <div class="order-item-media">
+                                                                                        <a href='<?= base_url() . $item['product_image'] ?>' data-toggle='lightbox' data-gallery='order-images'> <img src='<?= base_url() . $item['product_image'] ?>'></a>
+                                                                                    </div>
+                                                                                    <div class="order-item-name"><?= $item['pname'] ?></div>
+                                                                                    <div class="order-item-meta">
+                                                                                        <div class="oi-row"><span class="oi-label">Type</span><span class="oi-value"><?= ucwords(str_replace('_', ' ', $item['product_type'])); ?></span></div>
+                                                                                        <div class="oi-row"><span class="oi-label">Variant ID</span><span class="oi-value"><?= $item['product_variant_id'] ?></span></div>
+                                                                                        <?php if (isset($item['product_variants']) && !empty($item['product_variants'])) { ?>
+                                                                                            <div class="oi-row"><span class="oi-label">Variants</span><span class="oi-value"><?= str_replace(',', ' | ', $item['product_variants'][0]['variant_values']) ?></span></div>
+                                                                                        <?php } ?>
+                                                                                        <div class="oi-row"><span class="oi-label">Quantity</span><span class="oi-value"><?= $item['quantity'] ?></span></div>
+                                                                                        <div class="oi-row"><span class="oi-label">Price</span><span class="oi-value"><?= $item['price'] ?></span></div>
+                                                                                        <div class="oi-row"><span class="oi-label">Discounted Price</span><span class="oi-value"><?= $item['discounted_price'] ?></span></div>
+                                                                                        <div class="oi-row"><span class="oi-label">Subtotal</span><span class="oi-value"><?= $item['price'] * $item['quantity'] ?></span></div>
+                                                                                        <?php if (isset($item['product_type']) && ($item['product_type'] != 'digital_product')) { ?>
+                                                                                            <div class="oi-row"><span class="oi-label">Pickup Location</span><span class="oi-value"><?= $item['pickup_location'] ?></span></div>
+                                                                                            <?php if (isset($order_tracking_data[0]['shipment_id']) && !empty($order_tracking_data[0]['shipment_id'])) { ?>
+                                                                                                <div class="oi-row"><span class="oi-label">Shipment Id</span><span class="oi-value"><?= $order_tracking_data[0]['shipment_id'] ?></span></div>
+                                                                                        <?php  }
+                                                                                        } ?>
+                                                                                        <?php if (isset($item['updated_by']) && !empty($item['updated_by'])) { ?>
+                                                                                            <div class="oi-row"><span class="oi-label">Updated By</span><span class="oi-value"><?= $item['updated_by'] ?></span></div>
+                                                                                        <?php } ?>
+                                                                                        <?php if (isset($item['deliver_by']) && !empty($item['deliver_by'])) { ?>
+                                                                                            <div class="oi-row"><span class="oi-label">Deliver By</span><span class="oi-value"><?= $item['deliver_by'] ?></span></div>
+                                                                                        <?php } ?>
+                                                                                    </div>
+
+                                                                                    <?php if ($item['product_type'] == "digital_product" && $item['download_allowed'] == 0 && $item['is_sent'] == 0) { ?>
+                                                                                        <div class="order-item-mail-status order_item_mail_status">
+                                                                                            <select class="form-control form-control-sm">
+                                                                                                <option value="1">Mail Sent</option>
+                                                                                            </select>
+                                                                                            <a href="javascript:void(0);" title="Update status" data-id=' <?= $item['id'] ?> ' class="btn btn-primary btn-xs action-btn update_mail_status_admin">
+                                                                                                <i class="far fa-arrow-alt-circle-up"></i>
+                                                                                            </a>
+                                                                                            <a href="javascript:void(0)" class="btn btn-warning btn-xs action-btn" data-target="#sendMailModal" data-toggle="modal" title="Edit" data-id="<?= $item['id'] ?>" data-url="admin/orders/">
+                                                                                                <i class="fas fa-paper-plane"></i>
+                                                                                            </a>
+                                                                                            <a href="https://mail.google.com/mail/?view=cm&fs=1&tf=1&to=<?= $item['user_email'] ?>" class="btn btn-danger btn-xs action-btn" target="_blank">
+                                                                                                <i class="fab fa-google"></i>
+                                                                                            </a>
+                                                                                        </div>
                                                                                     <?php } ?>
 
-
+                                                                                    <div class="order-item-actions">
+                                                                                        <a href=" <?= BASE_URL('admin/product/view-product?edit_id=' . $item['product_id'] . '') ?> " title="View Product" class="btn btn-primary btn-xs">
+                                                                                            <i class="fa fa-eye"></i> View Product
+                                                                                        </a>
+                                                                                        <?php
+                                                                                        // Two dead sections used to sit here, wrapped in HTML comments so nothing
+                                                                                        // rendered - but PHP evaluates short-echo tags regardless of the surrounding
+                                                                                        // HTML comment syntax, so both still executed on every page load. The
+                                                                                        // "order_item_status" section (per-item status change) is superseded by
+                                                                                        // the seller-level bulk update control above and is dropped entirely. The
+                                                                                        // "delivery_boy" section also contained the ONLY trigger anywhere on this
+                                                                                        // page for the Refund button - #refund_modal and its working
+                                                                                        // admin/orders/refund_payment endpoint both still exist, but with this
+                                                                                        // commented out there was no way to open that modal at all. Restored,
+                                                                                        // fixed, and pared down to just that: the per-item delivery-boy and
+                                                                                        // tracking controls it also contained are dropped as duplicates of the
+                                                                                        // bulk section and the seller-level tracking button above.
+                                                                                        if ($is_razorpay_payment && $is_refundable_status) { ?>
+                                                                                            <a href="javascript:void(0)" class="edit_order_refund btn btn-outline-danger btn-xs" title="Refund"
+                                                                                                data-order_id="<?= (int) $order_detls[0]['id'] ?>"
+                                                                                                data-order_item_id="<?= (int) $item['id'] ?>"
+                                                                                                data-txn_id="<?= html_escape($transaction_data[0]['txn_id'] ?? '') ?>"
+                                                                                                data-txn_amount="<?= html_escape($transaction_data[0]['amount'] ?? '') ?>"
+                                                                                                data-target="#refund_modal" data-toggle="modal"><i class="fa fa-undo"></i> Refund</a>
+                                                                                        <?php } ?>
+                                                                                    </div>
                                                                                 </div>
                                                                     <?php
                                                                             }
@@ -811,7 +798,7 @@
                                 ?>
                                     <tr>
                                         <th class="w-10px">Address</th>
-                                        <td><?php echo $order_detls[0]['address'] .  ' ,Mobile- ' . $address_number[0]['mobile']; ?></td>
+                                        <td><?php echo $order_detls[0]['address'] .  ' ,Mobile- ' . (!empty($address_number[0]['mobile']) ? $address_number[0]['mobile'] : ''); ?></td>
                                     </tr>
                                     <tr>
                                         <th class="w-10px">Delivery Date & Time</th>
@@ -982,4 +969,76 @@
     .admin-view-order-page .action-btn { display: inline-block; vertical-align: middle; }
     .admin-view-order-page .grow { transition: box-shadow .15s ease; }
     .admin-view-order-page .grow:hover { box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
+
+    /* Per-item cards. Deliberately NOT using Bootstrap's .card class here - .card is a flex
+       container by default, so a stray direct-child link (the old Refund button) stretched to
+       fill the full card width instead of sizing to its own content. */
+    .admin-view-order-page .order-item-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+        margin: 0;
+    }
+    .admin-view-order-page .order-item-card {
+        display: flex;
+        flex-direction: column;
+        width: 260px;
+        background: #fff;
+        border: 1px solid rgba(0,0,0,0.06);
+        border-radius: 10px;
+        box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+        padding: 14px;
+        transition: box-shadow .15s ease;
+    }
+    .admin-view-order-page .order-item-card:hover { box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
+    .admin-view-order-page .order-item-card-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+    }
+    .admin-view-order-page .order-item-select input { width: 16px; height: 16px; margin: 0; cursor: pointer; }
+    .admin-view-order-page .order-item-media {
+        text-align: center;
+        background: #fafafa;
+        border-radius: 8px;
+        padding: 10px;
+        margin-bottom: 10px;
+    }
+    .admin-view-order-page .order-item-media img { max-height: 110px; max-width: 100%; object-fit: contain; }
+    .admin-view-order-page .order-item-name {
+        font-weight: 600;
+        font-size: 14px;
+        color: #2b2f33;
+        margin-bottom: 8px;
+        line-height: 1.3;
+    }
+    .admin-view-order-page .order-item-meta { margin-bottom: 10px; }
+    .admin-view-order-page .oi-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 4px 0;
+        border-bottom: 1px solid rgba(0,0,0,0.04);
+        font-size: 13px;
+    }
+    .admin-view-order-page .oi-row:last-child { border-bottom: none; }
+    .admin-view-order-page .oi-label { color: var(--color-grey); }
+    .admin-view-order-page .oi-value { color: #2b2f33; font-weight: 500; text-align: right; }
+    .admin-view-order-page .order-item-mail-status {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 10px;
+    }
+    .admin-view-order-page .order-item-mail-status select { flex: 1; }
+    .admin-view-order-page .order-item-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: auto;
+        padding-top: 10px;
+        border-top: 1px solid rgba(0,0,0,0.05);
+    }
+    .admin-view-order-page .order-item-actions .btn { white-space: nowrap; }
 </style>

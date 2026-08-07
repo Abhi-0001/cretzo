@@ -300,6 +300,7 @@
         color: #fff;
         font-weight: 600;
         border-radius: 6px;
+        font-size: 14px;
     }
     .manage-orders-page .btn-primary-theme:hover {
         background: var(--color-orange-dark);

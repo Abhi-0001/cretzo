@@ -11,7 +11,7 @@ class Point_of_sale extends CI_Controller
         $this->load->library(['ion_auth', 'form_validation', 'upload', 'pagination']);
         $this->load->helper(['url', 'language', 'file']);
         $this->form_validation->set_error_delimiters($this->config->item('error_start_delimiter', 'ion_auth'), $this->config->item('error_end_delimiter', 'ion_auth'));
-        $this->load->model(['point_of_sale_model', 'customer_model', 'ion_auth_model', 'transaction_model', 'order_model']);
+        $this->load->model(['customer_model', 'ion_auth_model', 'transaction_model', 'order_model']);
         // if (!has_permissions('read', 'media')) {
         //     $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
         //     redirect('admin/home', 'refresh');
@@ -57,55 +57,28 @@ class Point_of_sale extends CI_Controller
         print_r(json_encode($response));
     }
 
-    public function get_users()
+    // The bill's customer is a shop walk-in, not a website account, so their name/mobile
+    // are never looked up against or written into `users` - that would either collide with
+    // an existing customer's real account or silently attach the sale to a stranger's order
+    // history. Every seller gets one reserved, inactive placeholder user reused across all
+    // their walk-in sales purely to satisfy orders/order_items' user_id column; the actual
+    // name+mobile the seller typed is stored on the order itself (see place_order()).
+    private function get_or_create_walkin_user($seller_id)
     {
-        if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0))) {
-            redirect('seller/login', 'refresh');
-            return;
+        $mobile = 'PW' . $seller_id;
+        $existing = $this->db->select('id')->where('mobile', $mobile)->get('users')->row_array();
+        if (!empty($existing)) {
+            return $existing['id'];
         }
 
-        $search = $this->input->get('search');
-        $response = $this->point_of_sale_model->get_users($search);
-        echo json_encode($response);
-    }
-    public function register_user()
-    {
-        if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0))) {
-            redirect('seller/login', 'refresh');
-            return;
-        }
-
-        $this->form_validation->set_rules('name', 'Name', 'trim|required|xss_clean');
-        $this->form_validation->set_rules('mobile', 'Mobile', 'trim|required|xss_clean|min_length[5]|numeric|is_unique[users.mobile]', array('is_unique' => ' The mobile number is already registered . Please login'));
-        $this->form_validation->set_rules('password', 'Password', 'required|min_length[' . $this->config->item('min_password_length', 'ion_auth') . ']');
-        $this->response['csrfName'] = $this->security->get_csrf_token_name();
-        $this->response['csrfHash'] = $this->security->get_csrf_hash();
-        if ($this->form_validation->run() == false) {
-            $this->response['error'] = true;
-            $this->response['message'] = strip_tags(validation_errors());
-            $this->response['data'] = array();
-            $this->response['csrfName'] = $this->security->get_csrf_token_name();
-            $this->response['csrfHash'] = $this->security->get_csrf_hash();
-        } else {
-            $identity_column = $this->config->item('identity', 'ion_auth');
-            $mobile = $this->input->post('mobile');
-            $password = $this->input->post('password');
-            $identity =  $mobile;
-            $additional_data = [
-                'username' => $this->input->post('name'),
-                'active' => 1,
-                'type' => 'phone',
-            ];
-            $res = $this->ion_auth->register($identity, $password, " ", $additional_data, ['2']);
-            update_details(['active' => 1], [$identity_column => $identity], 'users');
-            $data = $this->db->select('u.id,u.username,u.mobile')->where([$identity_column => $identity])->get('users u')->result_array();
-            $this->response['error'] = (!empty($data)) ? false : true;
-            $this->response['message'] = (!empty($data)) ? "Registered Successfully" : "Not Registered";
-            $this->response['csrfName'] = $this->security->get_csrf_token_name();
-            $this->response['csrfHash'] = $this->security->get_csrf_hash();
-            $this->response['data'] = (!empty($data)) ? $data : [];
-        }
-        print_r(json_encode($this->response));
+        $additional_data = [
+            'username' => 'POS Walk-in Customer',
+            'active' => 0,
+            'type' => 'phone',
+        ];
+        $this->ion_auth->register($mobile, bin2hex(random_bytes(16)), ' ', $additional_data, ['2']);
+        $user = $this->db->select('id')->where('mobile', $mobile)->get('users')->row_array();
+        return isset($user['id']) ? $user['id'] : null;
     }
 
     public function place_order()
@@ -121,9 +94,21 @@ class Point_of_sale extends CI_Controller
         }
 
         $post_data = json_decode($_POST['data'], true);
-        if (!isset($_POST['user_id']) || empty($_POST['user_id'])) {
+
+        $customer_name = (isset($_POST['customer_name'])) ? trim($this->input->post('customer_name', true)) : '';
+        $customer_mobile = (isset($_POST['customer_mobile'])) ? trim($this->input->post('customer_mobile', true)) : '';
+        if (empty($customer_name)) {
             $this->response['error'] = true;
-            $this->response['message'] = "Please select the customer!";
+            $this->response['message'] = "Please enter the customer's name.";
+            $this->response['csrfName'] = $this->security->get_csrf_token_name();
+            $this->response['csrfHash'] = $this->security->get_csrf_hash();
+            $this->response['data'] = array();
+            print_r(json_encode($this->response));
+            return false;
+        }
+        if (empty($customer_mobile) || !ctype_digit($customer_mobile) || strlen($customer_mobile) < 7) {
+            $this->response['error'] = true;
+            $this->response['message'] = "Please enter a valid mobile number.";
             $this->response['csrfName'] = $this->security->get_csrf_token_name();
             $this->response['csrfHash'] = $this->security->get_csrf_hash();
             $this->response['data'] = array();
@@ -163,7 +148,6 @@ class Point_of_sale extends CI_Controller
             // creating arr for place order
             $product_variant_id = array_column($post_data, "variant_id");
             $quantity = array_column($post_data, "quantity");
-            $user_id = $_POST['user_id'];
             $seller_id = $this->ion_auth->get_user_id();
 
             // Every variant must belong to a product owned by this seller — without this,
@@ -182,10 +166,10 @@ class Point_of_sale extends CI_Controller
                 return false;
             }
 
-            $user_mobile = fetch_details("users", ['id' => $user_id], "mobile");
-            if (empty($user_mobile)) {
+            $user_id = $this->get_or_create_walkin_user($seller_id);
+            if (empty($user_id)) {
                 $this->response['error'] = true;
-                $this->response['message'] = "Customer not found.";
+                $this->response['message'] = "Something went wrong. Please try again.";
                 $this->response['data'] = array();
                 print_r(json_encode($this->response));
                 return false;
@@ -195,7 +179,8 @@ class Point_of_sale extends CI_Controller
             $place_order_data['product_variant_id'] = implode(",", $product_variant_id);
             $place_order_data['quantity'] = implode(",", $quantity);
             $place_order_data['user_id'] = $user_id;
-            $place_order_data['mobile'] = $user_mobile[0]['mobile'];
+            $place_order_data['mobile'] = $customer_mobile;
+            $place_order_data['order_note'] = 'Walk-in customer: ' . $customer_name;
             $place_order_data['is_wallet_used'] = 0;
             $place_order_data['delivery_charge'] = $_POST['delivery_charges'];
             $place_order_data['discount'] = $_POST['discount'];
@@ -224,6 +209,10 @@ class Point_of_sale extends CI_Controller
                 print_r(json_encode($this->response));
                 return false;
             }
+            // This walk-in user is shared across every sale this seller rings up, so stale
+            // rows from a previous transaction must be cleared - otherwise an old sale's
+            // items would silently ride along into this bill's total.
+            $this->db->where('user_id', $user_id)->delete('cart');
             for ($i = 0; $i < count($post_data); $i++) {
                 $data = array(
                     'product_variant_id' => implode(",", $product_variant_id),

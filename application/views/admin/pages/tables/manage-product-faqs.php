@@ -73,7 +73,7 @@
                     </a>
                 </div>
                 <div class="card-body">
-                    <table class='table-striped' id='products_faqs_table' data-toggle="table"
+                    <table class='table-striped fixed-row-height' id='products_faqs_table' data-toggle="table"
                         data-url="<?= base_url('admin/product_faqs/get_faqs_list') ?>" data-click-to-select="true"
                         data-side-pagination="server" data-pagination="true" data-page-list="[5, 10, 20, 50, 100, 200]"
                         data-search="true" data-show-columns="true" data-show-refresh="true" data-trim-on-search="false"

@@ -112,11 +112,11 @@ class Home extends CI_Controller
 
     private function get_seller_profile_completion($user_id)
     {
-        $verification_requested_at_column = $this->db->field_exists('verification_requested_at', 'seller_data');
+        $verification_requested_at_column = $this->db->field_exists('verification_request_at', 'seller_data');
 
         $select_fields = 'sd.first_name, sd.last_name, sd.phone, sd.email, sd.district, sd.city, sd.state, sd.pin, sd.shop_name, sd.social, sd.shop_phone, sd.pickup_address1, sd.pickup_address2, sd.pickup_district, sd.pickup_state, sd.pickup_pin, sd.entity_type, sd.pan, sd.gst, sd.account_number, sd.account_holder_name, sd.ifsc, sd.branch, sd.bank_name, sd.status, sd.primary_category_id';
         if ($verification_requested_at_column) {
-            $select_fields .= ', sd.verification_requested_at';
+            $select_fields .= ', sd.verification_request_at';
         }
 
         $profile_data =$this->db->select($select_fields)
@@ -188,7 +188,7 @@ class Home extends CI_Controller
         if ($is_admin_verified) {
             $completed_weight += 25;
         } else {
-            $verification_label = !empty($profile_data['verification_requested_at']) ? 'Admin Verification Pending Approval' : 'Request Admin Verification';
+            $verification_label = !empty($profile_data['verification_request_at']) ? 'Admin Verification Pending Approval' : 'Request Admin Verification';
             $missing_sections[] = [
                 'label' => $verification_label,
                 'link' => base_url('seller/home/profile?section=admin'),
@@ -232,8 +232,8 @@ class Home extends CI_Controller
         if ($this->db->field_exists('verification_request_note', 'seller_data')) {
             $payload['verification_request_note'] = $this->input->post('verification_note', true);
         }
-        if ($this->db->field_exists('verification_requested_at', 'seller_data')) {
-            $payload['verification_requested_at'] = date('Y-m-d H:i:s');
+        if ($this->db->field_exists('verification_request_at', 'seller_data')) {
+            $payload['verification_request_at'] = date('Y-m-d H:i:s');
         }
 
         if (empty($payload)) {

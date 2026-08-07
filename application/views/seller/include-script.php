@@ -44,7 +44,7 @@
 <!-- Bootstrap Table -->
 <script src="<?= base_url('assets/admin/js/bootstrap-table.min.js') ?>"></script>
 <script src="<?= base_url('assets/admin/js/tableExport.js') ?>"></script>
-<script src="<?= base_url('assets/admin/js//bootstrap-table-export.min.js"') ?>"></script>
+<script src="<?= base_url('assets/admin/js/bootstrap-table-export.min.js') ?>"></script>
 <!-- Jquery Fancybox -->
 <script src="<?= base_url('assets/admin/js/jquery.fancybox.min.js') ?>"></script>
 <!-- Sweeta Alert 2 -->
@@ -83,7 +83,7 @@
 <script type="text/javascript" src="<?= base_url('assets/admin/js/lightbox.js') ?>"></script>
 <!-- Custom -->
  
-<script src="<?= base_url('assets/admin/custom/pos.js') ?>"></script>
+<script src="<?= add_ver(base_url('assets/admin/custom/pos.js')) ?>"></script>
 <!-- Demo -->
 <script src="<?= base_url('assets/admin/dist/js/demo.js') ?>"></script>
 

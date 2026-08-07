@@ -143,15 +143,6 @@
                 </li>
 
                 <li class="nav-item">
-                    <a href="<?= base_url('seller/customer/') ?>" class="nav-link">
-                        <i class="nav-icon fas fa-users text-info"></i>
-                        <p>
-                            Customers
-                        </p>
-                    </a>
-                </li>
-
-                <li class="nav-item">
                     <a href="<?= base_url('seller/pickup_location/manage_pickup_locations') ?>" class="nav-link">
                         <i class="nav-icon fas fa-warehouse text-success"></i>
                         <p>

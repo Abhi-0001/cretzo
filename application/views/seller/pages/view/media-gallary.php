@@ -117,8 +117,15 @@
         border-radius: 10px;
         background: #fafafa;
         min-height: 150px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
-    .media-gallery-page .dz-upload-zone .dz-message { margin: 2.5em 0; }
+    .media-gallery-page .dz-upload-zone .dz-message {
+        margin: 2.5em 0;
+        text-align: center;
+        width: 100%;
+    }
     .media-gallery-page .dz-upload-zone:hover { border-color: var(--color-orange); }
 
     .media-gallery-page .btn-primary-theme {
@@ -202,6 +209,10 @@
 var myDropzone = null;
 
 $(document).ready(function () {
+    if (typeof Dropzone === 'undefined') {
+        console.error('Dropzone library failed to load; media upload box cannot be initialized.');
+        return;
+    }
     Dropzone.autoDiscover = false;
 
     if (document.getElementById('dropzone')) {
@@ -222,6 +233,19 @@ $(document).ready(function () {
             uploadMultiple: true,
             dictDefaultMessage: '<p><button type="button" class="btn btn-primary-theme dz-browse">Select Files</button><br> or <br> Drag &amp; Drop Media Files Here</p>',
         });
+
+        // Dropzone only auto-inserts the dictDefaultMessage markup when the target
+        // element has the literal class "dropzone" - which we deliberately don't use
+        // here (adding it makes this element a target of Dropzone's own autoDiscover
+        // scan, which races ahead of this manual init and attaches a broken,
+        // no-URL instance first, causing "Dropzone already attached" on this line).
+        // So the message/button is built by hand instead.
+        if (!myDropzone.element.querySelector('.dz-message')) {
+            var dzMessage = document.createElement('div');
+            dzMessage.className = 'dz-message';
+            dzMessage.innerHTML = '<button type="button" class="btn btn-primary-theme dz-browse">Select Files</button><br> or <br> Drag &amp; Drop Media Files Here';
+            myDropzone.element.appendChild(dzMessage);
+        }
 
         myDropzone.on('sending', function (file, xhr, formData) {
             formData.append(csrfName, csrfHash);

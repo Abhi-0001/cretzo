@@ -815,6 +815,44 @@ class Sellers extends CI_Controller
         }
     }
 
+    // Kept deliberately separate from add_seller()'s huge legacy save flow - that method
+    // rewrites almost every seller_data column from a giant hidden-field/file-upload form
+    // that has no idea about the newer KYC schema. This just needs to persist the admin's
+    // review note against a specific seller without touching anything else.
+    public function save_verification_note()
+    {
+        if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
+            if (print_msg(!has_permissions('update', 'seller'), PERMISSION_ERROR_MSG, 'seller', false)) {
+                return false;
+            }
+
+            $this->form_validation->set_rules('user_id', 'Seller', 'trim|required|numeric|xss_clean');
+            $this->form_validation->set_rules('verification_note', 'Verification note', 'trim|required|xss_clean');
+
+            $this->response['csrfName'] = $this->security->get_csrf_token_name();
+            $this->response['csrfHash'] = $this->security->get_csrf_hash();
+
+            if (!$this->form_validation->run()) {
+                $this->response['error'] = true;
+                $this->response['message'] = validation_errors();
+                print_r(json_encode($this->response));
+                return;
+            }
+
+            $updated = update_details(
+                ['verification_note' => $this->input->post('verification_note', true)],
+                ['user_id' => $this->input->post('user_id', true)],
+                'seller_data'
+            );
+
+            $this->response['error'] = !$updated;
+            $this->response['message'] = $updated ? 'Verification note saved.' : 'Could not save the verification note.';
+            print_r(json_encode($this->response));
+        } else {
+            redirect('admin/login', 'refresh');
+        }
+    }
+
     public function get_seller_commission_data()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
