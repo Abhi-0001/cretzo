@@ -4,7 +4,6 @@
 
     var state = {
         otherImages: [],
-        categoryCache: {},
         isSubmitting: false
     };
 
@@ -120,71 +119,6 @@
         });
     }
 
-    /* ── Category dropdowns ───────────────────────────────────── */
-    function renderCategoryOptions($select, rows, placeholder) {
-        var options = '<option value="">' + placeholder + '</option>';
-        rows.forEach(function (row) {
-            options += '<option value="' + row.id + '">' + escapeHtml(row.name) + '</option>';
-        });
-        $select.html(options).prop('disabled', rows.length === 0);
-    }
-
-    function handleCategoryChange() {
-        var treeRaw = $('#category_tree_data').val() || '[]';
-        var topCategories = [];
-        try { topCategories = JSON.parse(treeRaw); } catch (e) { topCategories = []; }
-
-        renderCategoryOptions($('#category_level_1'), topCategories, 'Select Level 1');
-
-        function fetchSubcategories(parentId, cb) {
-            if (!parentId) return cb([]);
-            if (state.categoryCache[parentId]) return cb(state.categoryCache[parentId]);
-            $.getJSON(
-                $('#save-product').data('subcategory-url'),
-                { parent_id: parentId },
-                function (resp) {
-                    var rows = resp.rows || [];
-                    state.categoryCache[parentId] = rows;
-                    cb(rows);
-                }
-            ).fail(function () { cb([]); });
-        }
-
-        $('#category_level_1').on('change', function () {
-            var level1Id = $(this).val();
-            $('#selected_category_id').val(level1Id || '');
-            renderCategoryOptions($('#category_level_2'), [], 'Select Level 2');
-            renderCategoryOptions($('#category_level_3'), [], 'Select Level 3');
-            if (level1Id) {
-                fetchSubcategories(level1Id, function (rows) {
-                    renderCategoryOptions($('#category_level_2'), rows, 'Select Level 2');
-                });
-            }
-            validateForm();
-        });
-
-        $('#category_level_2').on('change', function () {
-            var level2Id = $(this).val();
-            $('#selected_category_id').val(level2Id || $('#category_level_1').val() || '');
-            renderCategoryOptions($('#category_level_3'), [], 'Select Level 3');
-            if (level2Id) {
-                fetchSubcategories(level2Id, function (rows) {
-                    renderCategoryOptions($('#category_level_3'), rows, 'Select Level 3');
-                });
-            }
-            validateForm();
-        });
-
-        $('#category_level_3').on('change', function () {
-            $('#selected_category_id').val(
-                $(this).val() ||
-                $('#category_level_2').val() ||
-                $('#category_level_1').val() || ''
-            );
-            validateForm();
-        });
-    }
-
     /* ── Product type toggle ──────────────────────────────────── */
     function handleProductTypeChange() {
         $('#product_type').on('change', function () {
@@ -234,14 +168,32 @@
         var hasPrice;
         if (type === 'variable_product') {
             // only look inside the visible variant block
-            hasPrice = $('#variable_pricing_block .variant-price')
+            hasPrice = $('#variants_process .variant-price')
                 .filter(function () { return $.trim($(this).val()) !== ''; })
                 .length > 0;
         } else {
             hasPrice = $.trim($('#simple_price').val()) !== '';
         }
 
-        var valid = hasName && hasCategory && hasImage && hasDesc && hasPrice;
+        // Conditionally-required fields that only exist once their trigger is on —
+        // mirrors the server-side rules in seller/Product.php::add_product().
+        var hasCancelableTill = !$('#is_cancelable').is(':checked') ||
+            $.trim($('#cancelable_till').val()) !== '';
+        var hasDeliverableZipcodes = $('#deliverable_zipcodes_wrap').hasClass('d-none') ||
+            $.trim($('#deliverable_zipcodes_text').val()) !== '';
+        var downloadOk = true;
+        if ($('#download_allowed').is(':checked')) {
+            var downloadType = $('#download_link_type').val();
+            // pro_input_zip has no id — the media-upload modal replaces this hidden
+            // input's markup wholesale on every upload (include-footer.php) and never
+            // gives it one, so `name` is the only selector that survives a re-upload.
+            downloadOk = downloadType === 'add_link' ? $.trim($('#download_link').val()) !== ''
+                : downloadType === 'self_hosted' ? $.trim($('input[name="pro_input_zip"]').val()) !== ''
+                : false;
+        }
+
+        var valid = hasName && hasCategory && hasImage && hasDesc && hasPrice &&
+            hasCancelableTill && hasDeliverableZipcodes && downloadOk;
         $('#submit_product_btn').prop('disabled', !valid || state.isSubmitting);
 
         // updateAlert=false skips touching #product-form-alert — used right after an
@@ -259,8 +211,11 @@
         if (!hasCategory) hints.push('Category');
         if (!hasImage)    hints.push('Main image');
         if (!hasPrice)    hints.push('Price');
+        if (!hasCancelableTill)       hints.push('Cancelable till');
+        if (!hasDeliverableZipcodes)  hints.push('Deliverable zipcodes');
+        if (!downloadOk)              hints.push('Download link/file');
 
-        if (hints.length && hints.length < 5) {
+        if (hints.length && hints.length < 8) {
             // show a soft hint (not an error) so the user knows what's left
             $('#product-form-alert')
                 .removeClass('d-none alert-danger alert-success text-white')
@@ -353,7 +308,6 @@
         handleMainImageUpload();
         handleOtherImagesUpload();
         handleVideoUpload();
-        handleCategoryChange();
         handleProductTypeChange();
         initFormSubmit();
         validateForm();         // set initial button & hint state
@@ -363,7 +317,6 @@
     window.handleMainImageUpload   = handleMainImageUpload;
     window.handleOtherImagesUpload = handleOtherImagesUpload;
     window.handleVideoUpload       = handleVideoUpload;
-    window.handleCategoryChange    = handleCategoryChange;
     window.handleProductTypeChange = handleProductTypeChange;
     window.validateForm            = validateForm;
 

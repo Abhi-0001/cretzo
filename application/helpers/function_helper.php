@@ -2009,7 +2009,7 @@ function get_subcategory_option_html($subcategories, $selected_vals)
 function get_cart_total($user_id, $product_variant_id = false, $is_saved_for_later = '0', $address_id = '', $is_cod = false)
 {
     $t = &get_instance();
-    $t->db->select('(select sum(c.qty)  from cart c join product_variants pv on c.product_variant_id=pv.id join products p on p.id=pv.product_id join seller_data sd on sd.user_id=p.seller_id  where c.user_id="' . $user_id . '" and qty >= 0  and  is_saved_for_later = "' . $is_saved_for_later . '" and p.status=1 AND pv.status=1 AND sd.status=1) as total_items,(select count(c.id) from cart c join product_variants pv on c.product_variant_id=pv.id join products p on p.id=pv.product_id join seller_data sd on sd.user_id=p.seller_id where c.user_id="' . $user_id . '" and qty>=0 and  is_saved_for_later = "' . $is_saved_for_later . '" and p.status=1 AND pv.status=1 AND sd.status=1) as cart_count,`c`.qty,c.is_saved_for_later,p.is_prices_inclusive_tax,p.cod_allowed,p.type,p.download_allowed,p.minimum_order_quantity,p.slug,p.quantity_step_size,p.total_allowed_quantity, p.name, p.image, p.stock as product_stock,p.is_attachment_required, p.availability as product_availability, p.short_description,p.pickup_location,p.is_prices_inclusive_tax, pv.weight,`c`.user_id,pv.*,tax.percentage as tax_percentage,tax.title as tax_title,sd.store_name as store_name');
+    $t->db->select('(select sum(c.qty)  from cart c join product_variants pv on c.product_variant_id=pv.id join products p on p.id=pv.product_id join seller_data sd on sd.user_id=p.seller_id  where c.user_id="' . $user_id . '" and qty >= 0  and  is_saved_for_later = "' . $is_saved_for_later . '" and p.status=1 AND pv.status=1 AND sd.status=1) as total_items,(select count(c.id) from cart c join product_variants pv on c.product_variant_id=pv.id join products p on p.id=pv.product_id join seller_data sd on sd.user_id=p.seller_id where c.user_id="' . $user_id . '" and qty>=0 and  is_saved_for_later = "' . $is_saved_for_later . '" and p.status=1 AND pv.status=1 AND sd.status=1) as cart_count,`c`.qty,c.is_saved_for_later,p.is_prices_inclusive_tax,p.cod_allowed,p.type,p.download_allowed,p.minimum_order_quantity,p.slug,p.quantity_step_size,p.total_allowed_quantity, p.name, p.image, p.stock as product_stock,p.is_attachment_required, p.availability as product_availability, p.short_description,p.pickup_location,p.is_prices_inclusive_tax,p.seller_id, pv.weight,`c`.user_id,pv.*,tax.percentage as tax_percentage,tax.title as tax_title,sd.store_name as store_name');
 
     if ($product_variant_id == true) {
         $t->db->where(['c.product_variant_id' => $product_variant_id, 'c.user_id' => $user_id, 'c.qty !=' => '0']);
@@ -2113,9 +2113,8 @@ function get_cart_total($user_id, $product_variant_id = false, $is_saved_for_lat
 
     $system_settings = get_settings('system_settings', true);
     $delivery_charge = $system_settings['delivery_charge'];
-    if (!empty($address_id)) {
-        $address = fetch_details('addresses', ['id' => $address_id], ['area_id', 'area', 'pincode']);
-        $zipcode_id = fetch_details('zipcodes', ['zipcode' => $address[0]['pincode']], 'id')[0];
+    if (!empty($address_id) && !empty($address = fetch_details('addresses', ['id' => $address_id], ['area_id', 'area', 'pincode']))) {
+        $zipcode_id = fetch_details('zipcodes', ['zipcode' => $address[0]['pincode']], 'id')[0] ?? array();
 
         $tmpRow['is_deliverable'] = (!empty($zipcode_id['id']) && $zipcode_id['id'] > 0) ?
             is_product_delivarable('zipcode', $zipcode_id['id'], $data[0]['product_id'])
@@ -4989,6 +4988,8 @@ function check_cart_products_delivarable($user_id, $area_id = 0, $zipcode = "", 
         $product_weight = 0;
         for ($i = 0; $i < $cart[0]['cart_count']; $i++) {
             /* check in local shipping first */
+            $tmpRow['is_deliverable'] = false;
+            $tmpRow['delivery_by'] = "";
 
             if (isset($settings['local_shipping_method']) && $settings['local_shipping_method'] == 1) {
                 $tmpRow['is_deliverable'] = (!empty($zipcode_id) && $zipcode_id > 0) ?
@@ -4999,7 +5000,7 @@ function check_cart_products_delivarable($user_id, $area_id = 0, $zipcode = "", 
 
             /* check in standard shipping then */
             if (isset($settings['shiprocket_shipping_method']) && $settings['shiprocket_shipping_method'] == 1) {
-                if (!$tmpRow['is_deliverable'] && $cart[$i]['pickup_location'] != "") {
+                if (!$tmpRow['is_deliverable'] && trim($cart[$i]['pickup_location']) != "") {
 
                     $t->load->library(['Shiprocket']);
                     $pickup_pincode = fetch_details('pickup_locations', ['pickup_location' => $cart[$i]['pickup_location']], 'pin_code');
@@ -5200,16 +5201,11 @@ function get_filtered_price_range($filter = NULL, $category_id = NULL, $seller_i
 
     // Effective (selling) price — MUST match the expression used by the price
     // WHERE filter in fetch_product() so the slider and the filter speak the
-    // same units. Used for the slider MIN (cheapest price a customer pays).
+    // same units. A customer filtering by price is filtering by what they'd
+    // actually pay, so both the MIN and MAX bounds are keyed off this — not
+    // the struck-through MRP shown alongside it on the card.
     $price_expr = 'IF( pv.special_price > 0 , pv.special_price , pv.price )';
-
-    // Slider MAX must cover the HIGHEST number a product card can display. Cards
-    // show the base price (MRP) alongside the discounted price, so for a product
-    // with price=8999 / special_price=7999 the card shows 8999 even though the
-    // effective price is 7999. Bounding the max on the effective price alone left
-    // the slider ceiling (~7999) below the visible 8999. GREATEST() keeps the
-    // ceiling at the largest displayable price so no product falls outside it.
-    $max_expr = 'GREATEST( pv.price , IF( pv.special_price > 0 , pv.special_price , pv.price ) )';
+    $max_expr = $price_expr;
 
     $t->db->select("MIN($price_expr) as min_price, MAX($max_expr) as max_price", false)
         ->join(" categories c", "p.category_id=c.id ", 'LEFT')
@@ -5516,15 +5512,19 @@ function label($label = "", $alt = "")
 function shiprocket_recomended_data($shiprocket_data)
 {
     $result = array();
+    $available_courier_companies = $shiprocket_data['data']['available_courier_companies'] ?? array();
+    if (empty($available_courier_companies)) {
+        return $result;
+    }
     if (isset($shiprocket_data['data']['recommended_courier_company_id'])) {
-        foreach ($shiprocket_data['data']['available_courier_companies'] as  $rd) {
+        foreach ($available_courier_companies as  $rd) {
             if ($shiprocket_data['data']['recommended_courier_company_id'] == $rd['courier_company_id']) {
                 $result = $rd;
                 break;
             }
         }
     } else {
-        foreach ($shiprocket_data['data']['available_courier_companies'] as  $rd) {
+        foreach ($available_courier_companies as  $rd) {
             if ($rd['courier_company_id']) {
                 $result = $rd;
                 break;
@@ -5602,19 +5602,20 @@ function check_parcels_deliveriblity($parcels, $user_pincode)
                 $shiprocket_data_with_cod = shiprocket_recomended_data($check_deliveribility_with_cod);
 
                 $data = [];
-               
+                $estimated_delivery_days = $shiprocket_data['estimated_delivery_days'] ?? 0;
+
                 $data[$seller_id][$pickup_location]['parcel_weight'] = $parcel_weight['weight'];
-                $data[$seller_id][$pickup_location]['pickup_availability'] = $shiprocket_data['pickup_availability'];
-                $data[$seller_id][$pickup_location]['courier_name'] = $shiprocket_data['courier_name'];
-                $data[$seller_id][$pickup_location]['delivery_charge_with_cod'] = $shiprocket_data_with_cod['rate'];
-                $data[$seller_id][$pickup_location]['delivery_charge_without_cod'] = $shiprocket_data['rate'];
-                $data[$seller_id][$pickup_location]['estimate_date'] = $shiprocket_data['etd'];
-                $data[$seller_id][$pickup_location]['estimate_days'] = $shiprocket_data['estimated_delivery_days'];
+                $data[$seller_id][$pickup_location]['pickup_availability'] = $shiprocket_data['pickup_availability'] ?? false;
+                $data[$seller_id][$pickup_location]['courier_name'] = $shiprocket_data['courier_name'] ?? '';
+                $data[$seller_id][$pickup_location]['delivery_charge_with_cod'] = $shiprocket_data_with_cod['rate'] ?? 0;
+                $data[$seller_id][$pickup_location]['delivery_charge_without_cod'] = $shiprocket_data['rate'] ?? 0;
+                $data[$seller_id][$pickup_location]['estimate_date'] = $shiprocket_data['etd'] ?? '';
+                $data[$seller_id][$pickup_location]['estimate_days'] = $estimated_delivery_days;
 
 
 
-                $min_days = (empty($min_days) || $shiprocket_data['estimated_delivery_days'] < $min_days) ? $shiprocket_data['estimated_delivery_days'] : $min_days;
-                $max_days = (empty($max_days) || $shiprocket_data['estimated_delivery_days'] > $max_days) ? $shiprocket_data['estimated_delivery_days'] : $max_days;
+                $min_days = (empty($min_days) || $estimated_delivery_days < $min_days) ? $estimated_delivery_days : $min_days;
+                $max_days = (empty($max_days) || $estimated_delivery_days > $max_days) ? $estimated_delivery_days : $max_days;
 
                 $delivery_charge_with_cod += $data[$seller_id][$pickup_location]['delivery_charge_with_cod'];
                 $delivery_charge_without_cod += $data[$seller_id][$pickup_location]['delivery_charge_without_cod'];
@@ -5626,7 +5627,7 @@ function check_parcels_deliveriblity($parcels, $user_pincode)
     $shipping_parcels = [
         'error' => false,
         'estimated_delivery_days' => $delivery_day,
-        'estimate_date' => $shiprocket_data['etd'],
+        'estimate_date' => $shiprocket_data['etd'] ?? '',
         'delivery_charge' => 0,
         'delivery_charge_with_cod' => round($delivery_charge_with_cod),
         'delivery_charge_without_cod' => round($delivery_charge_without_cod),

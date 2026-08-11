@@ -321,12 +321,9 @@ window.sendMsg = function (text, action) {
 
     pendingAction = "";
     appendMessage("user-msg", text || getPromptForAction(action));
-    sendChatRequest(text, action, "");
 
     if (action === "track_order") {
         pendingAction = "track_order";
-        appendMessage("bot-msg", getPromptForAction(action));
-        return;
     }
 
     sendChatRequest(text, action, "");

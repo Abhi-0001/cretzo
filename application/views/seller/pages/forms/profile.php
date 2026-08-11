@@ -141,7 +141,11 @@
   left: auto !important;
   transform: none !important;
   margin: 1rem auto !important;
-  height: calc(100vh - 65px) !important;
+  /* No forced height here - .form-step is position:absolute (form.css) so it
+     doesn't size this box on its own; syncStepHeight() below sets an explicit
+     height matching whichever step is actually visible. This min-height is
+     just a floor so the box doesn't look cramped before that JS runs. */
+  min-height: 400px !important;
 }
 .personal-photo-preview {
   border-radius: 50%;
@@ -812,6 +816,7 @@ function validateForm3() {
     if (ackField) ackField.style.display = nonGst ? '' : 'none';
 
     updateBusinessProofVisibility();
+    if (typeof syncStepHeight === 'function') syncStepHeight();
   }
 
   function updateBusinessProofVisibility() {
@@ -922,7 +927,29 @@ function openProfileSection(section) {
       line.classList.remove('active');
     }
   });
+
+  syncStepHeight();
 }
+
+// .form-container-main has no forced height (see the inline .form-container-main
+// rule above) because .form-step is position:absolute and never sizes it - a
+// short step (Personal Details, Admin Verification) left a large blank gap
+// below the fields otherwise. Instead, size .form-container to whichever step
+// is actually showing (style.left === '0'), so the box always matches its
+// visible content. Called after every section switch, and again shortly after
+// a Next/Back click since fields can toggle visibility mid-step (e.g. GST).
+function syncStepHeight() {
+  var container = document.querySelector('.form-container');
+  var activeStep = document.querySelector('.form-step[style*="left: 0"]') || document.querySelector('.form-step[style*="left:0"]');
+  if (!container || !activeStep) return;
+  container.style.height = activeStep.scrollHeight + 40 + 'px';
+}
+
+document.addEventListener('click', function (e) {
+  if (e.target.closest('.btn-next-1, .btn-next-2, .btn-next-3, .btn-back-1, .btn-back-2, .btn-back-3')) {
+    setTimeout(syncStepHeight, 50);
+  }
+});
 
 openProfileSection(initialSection);
 

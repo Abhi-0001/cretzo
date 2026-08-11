@@ -114,18 +114,6 @@ class Product extends CI_Controller
             $this->data['listing_quota'] = $this->Seller_subscription_model->check_listing_quota($seller_id, 1);
             $this->data['countries'] = fetch_details('countries', null, 'name,id');
             $this->data['brands'] = fetch_details('brands', null, 'name,id');
-            
-            array_map(function($row) {
-                return array_map(function($value) {
-                    return is_string($value) ? stripslashes($value) : $value;
-                }, $row);
-            }, $this->data['sellers'] = $this->db->select(' u.username as seller_name,u.id as seller_id,sd.category_ids,sd.id as seller_data_id  ')
-                ->join('users_groups ug', ' ug.user_id = u.id ')
-                ->join('seller_data sd', ' sd.user_id = u.id ')
-                ->where(['ug.group_id' => '4'])
-                ->get('users u')->result_array());
-
-            // $this->data['sellers'][0] = output_escaping($this->data['sellers'][0]);
 
             if (isset($_GET['edit_id']) && !empty($_GET['edit_id'])) {
                 $this->data['title'] = 'Update Product | ' . $settings['app_name'];
@@ -395,6 +383,14 @@ class Product extends CI_Controller
         $this->form_validation->set_rules('warranty_period', 'Warranty Period', 'trim|xss_clean');
         $this->form_validation->set_rules('guarantee_period', 'Guarantee Period', 'trim|xss_clean');
         $this->form_validation->set_rules('hsn_code', 'HSN Code', 'trim|xss_clean');
+        $this->form_validation->set_rules('indicator', 'Indicator', 'trim|xss_clean');
+        $this->form_validation->set_rules('weight', 'Weight', 'trim|xss_clean');
+        $this->form_validation->set_rules('height', 'Height', 'trim|xss_clean');
+        $this->form_validation->set_rules('breadth', 'Breadth', 'trim|xss_clean');
+        $this->form_validation->set_rules('length', 'Length', 'trim|xss_clean');
+        if (isset($_POST['is_attachment_required'])) {
+            $this->form_validation->set_rules('is_attachment_required', 'Attachment required', 'trim|xss_clean');
+        }
 
         // products.pickup_location is NOT NULL — submitting the form without one used
         // to fatal with "Column 'pickup_location' cannot be null" instead of a normal
@@ -447,13 +443,10 @@ class Product extends CI_Controller
         }
         }
     
-        // Cancelable validation
-        // Not `required` — the product form has no input for this field at all
-        // (only the is_cancelable checkbox exists), so a `required` rule here could
-        // never be satisfied and blocked every product submission where the seller
-        // checked "Is Cancelable?".
+        // Cancelable validation — required once checked, now that the form has a real
+        // "Cancelable till" select (it used to be checkbox-only with no matching input).
         if (isset($_POST['is_cancelable']) && $_POST['is_cancelable'] == '1') {
-            $this->form_validation->set_rules('cancelable_till', 'Cancelable till', 'trim|xss_clean');
+            $this->form_validation->set_rules('cancelable_till', 'Cancelable till', 'trim|required|xss_clean');
         }
     
         if (isset($_POST['cod_allowed'])) {
@@ -483,9 +476,12 @@ class Product extends CI_Controller
         } elseif ($product_type == 'variable_product') {
             if (isset($_POST['variant_stock_status']) && $_POST['variant_stock_status'] == '0') {
                 if (isset($_POST['variant_stock_level_type']) && $_POST['variant_stock_level_type'] == 'product_level') {
-                    $this->form_validation->set_rules('sku_pro_type', 'SKU', 'trim|xss_clean');
+                    // Product_model::add_product() reads $data['sku_variant_type'] (not
+                    // sku_pro_type) for this branch - this rule name previously didn't
+                    // match what the model actually consumes.
+                    $this->form_validation->set_rules('sku_variant_type', 'SKU', 'trim|xss_clean');
                     $this->form_validation->set_rules('total_stock_variant_type', 'Total Stock', 'trim|required|xss_clean');
-                    $this->form_validation->set_rules('variant_stock_status', 'Stock Status', 'trim|required|xss_clean');
+                    $this->form_validation->set_rules('variant_status', 'Stock Status', 'trim|required|xss_clean');
     
                     if (isset($_POST['variant_price']) && is_array($_POST['variant_price'])) {
                         foreach ($_POST['variant_price'] as $key => $value) {

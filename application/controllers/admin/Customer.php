@@ -79,6 +79,41 @@ class Customer extends CI_Controller
         }
     }
 
+    public function delete_customer()
+    {
+        if (print_msg(!has_permissions('delete', 'customers'), PERMISSION_ERROR_MSG, 'customers', false)) {
+            return false;
+        }
+
+        if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
+            $this->form_validation->set_rules('user_id', 'User ID', 'trim|required|xss_clean|numeric');
+
+            if (!$this->form_validation->run()) {
+                $this->response['error'] = true;
+                $this->response['message'] = validation_errors();
+            } else {
+                $user_id = (int) $this->input->post('user_id');
+                // Only allow removing accounts that are actually customers (group_id 2) -
+                // repurposing this endpoint against a seller/admin/delivery-boy id would
+                // silently wipe an unrelated account.
+                $is_customer = $this->db->where(['user_id' => $user_id, 'group_id' => 2])->get('users_groups')->row_array();
+                if (empty($is_customer)) {
+                    $this->response['error'] = true;
+                    $this->response['message'] = 'Customer not found.';
+                } else {
+                    $this->Customer_model->delete_customer($user_id);
+                    $this->response['error'] = false;
+                    $this->response['message'] = 'Customer deleted successfully.';
+                }
+            }
+            $this->response['csrfName'] = $this->security->get_csrf_token_name();
+            $this->response['csrfHash'] = $this->security->get_csrf_hash();
+            print_r(json_encode($this->response));
+        } else {
+            redirect('admin/login', 'refresh');
+        }
+    }
+
     public function search_user()
     {
         // The search term was pasted directly into a raw WHERE string - a real, live SQL

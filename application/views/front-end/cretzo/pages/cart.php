@@ -48,10 +48,6 @@ $logo = get_settings('web_logo');
 
             <a href="<?= base_url('products') ?>" class="cretzo small-btn text-decoration-none px-0 text-s btn-nav-prev"><i class="fa fa-arrow-left mr-1"></i>Find more products</a>
 
-            <div class="cart-left-one mt-2">
-                <p class="text-n">Check delivery time & services</p>
-            </div>
-
             <div class="cart-left-two">
                 <p class="text-n">Available Offers</p>
                 <p class="text-s">20% instant discount on Kotak Credit Card EMI transaction on min spend of ₹3,500.</p>
@@ -319,10 +315,15 @@ $logo = get_settings('web_logo');
                             // server side date (7-14 days)
                             $start = (new DateTime())->modify('+7 day')->format('j M Y');
                             $end = (new DateTime())->modify('+14 day')->format('j M Y');
+                            $not_deliverable = isset($delivery_availability[$row['product_id']]) && $delivery_availability[$row['product_id']]['is_deliverable'] == false;
                             ?>
-                            <li class="delivery-list-item" id="delivery-p-<?= $row['id'] ?>">
+                            <li class="delivery-list-item<?= $not_deliverable ? ' not-deliverable' : '' ?>" id="delivery-p-<?= $row['id'] ?>">
                                 <div><img class="delivery-list-item-img" src="<?= $img ?>"></div>
-                                <div><p class="text-n">Estimated delivery: <span class="fw-b"><?= $start ?> - <?= $end ?></span></p></div>
+                                <?php if ($not_deliverable) { ?>
+                                    <div><p class="text-n text-danger">Not deliverable to your address<?= !empty($delivery_availability[$row['product_id']]['message']) ? ' — ' . html_escape($delivery_availability[$row['product_id']]['message']) : '' ?></p></div>
+                                <?php } else { ?>
+                                    <div><p class="text-n">Estimated delivery: <span class="fw-b"><?= $start ?> - <?= $end ?></span></p></div>
+                                <?php } ?>
                             </li>
                         <?php
                         }

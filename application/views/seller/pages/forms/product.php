@@ -438,10 +438,10 @@
                     data-product-list-url="<?= base_url('seller/product/') ?>">
                     <input type="hidden" name="<?= $this->security->get_csrf_token_name(); ?>" value="<?= $this->security->get_csrf_hash(); ?>" id="csrf_token_input">
                     <input type="hidden" name="seller_id" value="<?= (int)($seller_id ?? $_SESSION['user_id']); ?>">
-                    <input type="hidden" name="deliverable_type" value="1">
                     <input type="hidden" name="attribute_values" value="">
                     <input type="hidden" name="category_id" id="selected_category_id" value="<?= isset($product_details[0]['category_id']) ? (int)$product_details[0]['category_id'] : '' ?>">
                     <input type="hidden" id="category_tree_data" value='<?= htmlspecialchars(json_encode($categories ?? []), ENT_QUOTES, "UTF-8") ?>'>
+                    <input type="hidden" id="existing_variants_data" value='<?= htmlspecialchars(json_encode(($product_details[0]['type'] ?? '') === 'variable_product' ? ($product_variants ?? []) : []), ENT_QUOTES, "UTF-8") ?>'>
                     <?php if (isset($product_details[0]['id'])): ?>
                         <input type="hidden" name="edit_product_id" value="<?= (int)$product_details[0]['id'] ?>">
                     <?php endif; ?>
@@ -587,13 +587,33 @@
                                         <select class="form-control" name="brand" id="brand">
                                             <option value="">Select Brand</option>
                                             <?php foreach (($brands ?? []) as $brand): ?>
-                                                <option value="<?= (int)$brand['id'] ?>" <?= !empty($product_details[0]['brand']) && (int)$product_details[0]['brand'] === (int)$brand['id'] ? 'selected' : '' ?>><?= output_escaping($brand['name']) ?></option>
+                                                <?php // products.brand is a plain string column matched by NAME everywhere
+                                                      // (storefront filtering, Brand_model) - the option value must be the
+                                                      // brand's name, not its id, or a seller-chosen brand never matches. ?>
+                                                <option value="<?= output_escaping($brand['name']) ?>" <?= !empty($product_details[0]['brand']) && $product_details[0]['brand'] === $brand['name'] ? 'selected' : '' ?>><?= output_escaping($brand['name']) ?></option>
                                             <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-3 form-group">
+                                        <label>Indicator</label>
+                                        <select class="form-control" name="indicator" id="indicator">
+                                            <?php $selected_indicator = $product_details[0]['indicator'] ?? '0'; ?>
+                                            <option value="0" <?= $selected_indicator === '0' ? 'selected' : '' ?>>None</option>
+                                            <option value="1" <?= $selected_indicator === '1' ? 'selected' : '' ?>>Veg</option>
+                                            <option value="2" <?= $selected_indicator === '2' ? 'selected' : '' ?>>Non-Veg</option>
                                         </select>
                                     </div>
                                     <div class="col-md-3 form-group">
                                         <label>HSN Code</label>
                                         <input type="text" class="form-control" name="hsn_code" id="hsn_code" value="<?= isset($product_details[0]['hsn_code']) ? output_escaping($product_details[0]['hsn_code']) : '' ?>">
+                                    </div>
+                                    <div class="col-md-3 form-group">
+                                        <label>Warranty Period</label>
+                                        <input type="text" class="form-control" name="warranty_period" placeholder="e.g. 1 Year" value="<?= isset($product_details[0]['warranty_period']) ? output_escaping($product_details[0]['warranty_period']) : '' ?>">
+                                    </div>
+                                    <div class="col-md-3 form-group">
+                                        <label>Guarantee Period</label>
+                                        <input type="text" class="form-control" name="guarantee_period" placeholder="e.g. 6 Months" value="<?= isset($product_details[0]['guarantee_period']) ? output_escaping($product_details[0]['guarantee_period']) : '' ?>">
                                     </div>
 
                                     <div class="col-md-4 form-group">
@@ -642,6 +662,27 @@
                                         <label>Quantity Step Size</label>
                                         <input type="number" min="1" class="form-control" name="quantity_step_size" value="<?= !empty($product_details[0]['quantity_step_size']) ? (int)$product_details[0]['quantity_step_size'] : 1 ?>">
                                     </div>
+
+                                    <?php
+                                    $selected_deliverable_type = isset($product_details[0]['deliverable_type']) ? (string) $product_details[0]['deliverable_type'] : ALL;
+                                    $existing_zipcodes = !empty($product_details[0]['deliverable_zipcodes']) ? str_replace(',', "\n", $product_details[0]['deliverable_zipcodes']) : '';
+                                    $zipcode_restricted = in_array($selected_deliverable_type, [INCLUDED, EXCLUDED], true);
+                                    ?>
+                                    <div class="col-md-4 form-group">
+                                        <label>Deliverable Areas</label>
+                                        <select class="form-control" name="deliverable_type" id="deliverable_type">
+                                            <option value="<?= NONE ?>" <?= $selected_deliverable_type === NONE ? 'selected' : '' ?>>Not Deliverable</option>
+                                            <option value="<?= ALL ?>" <?= $selected_deliverable_type === ALL ? 'selected' : '' ?>>All Areas</option>
+                                            <option value="<?= INCLUDED ?>" <?= $selected_deliverable_type === INCLUDED ? 'selected' : '' ?>>Only Selected Zipcodes</option>
+                                            <option value="<?= EXCLUDED ?>" <?= $selected_deliverable_type === EXCLUDED ? 'selected' : '' ?>>All Except Selected Zipcodes</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-8 form-group <?= $zipcode_restricted ? '' : 'd-none' ?>" id="deliverable_zipcodes_wrap">
+                                        <label>Zipcodes <span class="text-danger">*</span></label>
+                                        <textarea class="form-control" id="deliverable_zipcodes_text" rows="2" placeholder="One per line or comma-separated, e.g. 400001, 400002"><?= output_escaping($existing_zipcodes) ?></textarea>
+                                        <small class="text-muted">Used to restrict where this product can be delivered.</small>
+                                        <div id="deliverable_zipcodes_hidden"></div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -673,11 +714,27 @@
                                                     <label class="form-check-label" for="is_returnable">Is Returnable?</label>
                                                 </div>
                                             </div>
-                                            <div class="form-group mb-0">
+                                            <div class="form-group mb-2">
                                                 <div class="form-check">
                                                     <input class="form-check-input" type="checkbox" name="is_cancelable" id="is_cancelable" value="1"
                                                         <?= !empty($product_details[0]['is_cancelable']) ? 'checked' : '' ?>>
                                                     <label class="form-check-label" for="is_cancelable">Is Cancelable?</label>
+                                                </div>
+                                            </div>
+                                            <div class="form-group mb-2 <?= empty($product_details[0]['is_cancelable']) ? 'd-none' : '' ?>" id="cancelable_till_wrap">
+                                                <label for="cancelable_till" class="small mb-1">Cancelable till order is <span class="text-danger">*</span></label>
+                                                <select class="form-control" name="cancelable_till" id="cancelable_till">
+                                                    <?php $selected_cancelable_till = $product_details[0]['cancelable_till'] ?? 'received'; ?>
+                                                    <option value="received" <?= $selected_cancelable_till === 'received' ? 'selected' : '' ?>>Received</option>
+                                                    <option value="processed" <?= $selected_cancelable_till === 'processed' ? 'selected' : '' ?>>Processed</option>
+                                                    <option value="shipped" <?= $selected_cancelable_till === 'shipped' ? 'selected' : '' ?>>Shipped</option>
+                                                </select>
+                                            </div>
+                                            <div class="form-group mb-0">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" name="is_attachment_required" id="is_attachment_required" value="1"
+                                                        <?= !empty($product_details[0]['is_attachment_required']) ? 'checked' : '' ?>>
+                                                    <label class="form-check-label" for="is_attachment_required">Require attachment on return/cancel?</label>
                                                 </div>
                                             </div>
                                         </div>
@@ -685,12 +742,49 @@
                                 </div>
                             <div class="col-md-4">
                                 <div class="card card-light h-100">
-                                    <div class="card-body d-flex flex-column justify-content-between">
-                                        <div>
-                                            <h6><i class="fas fa-tags"></i> Attributes</h6>
-                                            <p class="text-muted">Manage reusable attributes from the attributes panel.</p>
+                                    <div class="card-body">
+                                        <h6><i class="fas fa-box"></i> Digital Download <small class="text-muted d-none" id="digital_download_hint"></small></h6>
+                                        <?php
+                                        $selected_download_link_type = $product_details[0]['download_type'] ?? '';
+                                        $existing_download_allowed = !empty($product_details[0]['download_allowed']);
+                                        ?>
+                                        <div class="form-group mb-2">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" name="download_allowed" id="download_allowed" value="on" <?= $existing_download_allowed ? 'checked' : '' ?>>
+                                                <label class="form-check-label" for="download_allowed">Downloadable file/link?</label>
+                                            </div>
                                         </div>
-                                        <a href="<?= base_url('seller/attributes') ?>" class="btn btn-outline-primary">Manage Attributes</a>
+                                        <div id="download_settings_wrap" class="<?= $existing_download_allowed ? '' : 'd-none' ?>">
+                                            <div class="form-group">
+                                                <label class="small mb-1">Download Type <span class="text-danger">*</span></label>
+                                                <select class="form-control" name="download_link_type" id="download_link_type">
+                                                    <option value="">Select</option>
+                                                    <option value="add_link" <?= $selected_download_link_type === 'add_link' ? 'selected' : '' ?>>External Link</option>
+                                                    <option value="self_hosted" <?= $selected_download_link_type === 'self_hosted' ? 'selected' : '' ?>>Upload File</option>
+                                                </select>
+                                            </div>
+                                            <div class="form-group mb-0 <?= $selected_download_link_type === 'add_link' ? '' : 'd-none' ?>" id="download_link_wrap">
+                                                <label class="small mb-1">Download URL <span class="text-danger">*</span></label>
+                                                <input type="url" class="form-control" name="download_link" id="download_link" value="<?= $selected_download_link_type === 'add_link' && !empty($product_details[0]['download_link']) ? output_escaping($product_details[0]['download_link']) : '' ?>">
+                                            </div>
+                                            <div class="form-group mb-0 <?= $selected_download_link_type === 'self_hosted' ? '' : 'd-none' ?>" id="download_file_wrap">
+                                                <label class="small mb-1">Download File <span class="text-danger">*</span></label>
+                                                <div id="download_file_upload_container">
+                                                    <a href="javascript:void(0)" class="uploadFile btn btn-outline-primary btn-sm" data-input="pro_input_zip" data-media_type="archive,document" data-isremovable="1" data-is-multiple-uploads-allowed="0" data-toggle="modal" data-target="#media-upload-modal">Upload File</a>
+                                                    <div class="image-upload-section mt-2">
+                                                        <?php if ($selected_download_link_type === 'self_hosted' && !empty($product_details[0]['download_link'])) : ?>
+                                                            <div class="image col-md-6 col-12 shadow p-2 mb-2 bg-white rounded text-center">
+                                                                <small class="d-block text-truncate"><?= output_escaping(basename($product_details[0]['download_link'])) ?></small>
+                                                                <input type="hidden" name="pro_input_zip" value="<?= output_escaping($product_details[0]['download_link']) ?>">
+                                                                <button type="button" class="remove-image btn btn-danger btn-xs mt-1">Remove</button>
+                                                            </div>
+                                                        <?php else : ?>
+                                                            <input type="hidden" name="pro_input_zip" value="">
+                                                        <?php endif; ?>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -709,28 +803,141 @@
                                                 <label>Price <span class="text-danger">*</span></label>
                                                 <input type="number" min="0" step="0.01" class="form-control" name="simple_price" id="simple_price" value="<?= $simple_variant['price'] ?? '' ?>">
                                             </div>
-                                            <div class="form-group mb-0">
+                                            <div class="form-group">
                                                 <label>Special Price</label>
                                                 <input type="number" min="0" step="0.01" class="form-control" name="simple_special_price" id="simple_special_price" value="<?= !empty($simple_variant['special_price']) ? $simple_variant['special_price'] : '' ?>">
                                             </div>
-                                        </div>
-                                        <div id="variable_pricing_block" class="d-none">
-                                            <div id="variant_rows">
-                                                <div class="variant-row border rounded p-2 mb-2">
-                                                    <input type="hidden" name="variants_ids[]" value="manual_variant">
-                                                    <div class="form-group mb-2">
-                                                        <label>Variant Price <span class="text-danger">*</span></label>
-                                                        <input type="number" class="form-control variant-price" name="variant_price[]" min="0" step="0.01">
-                                                    </div>
-                                                    <div class="form-group mb-2">
-                                                        <label>Variant Special Price</label>
-                                                        <input type="number" class="form-control" name="variant_special_price[]" min="0" step="0.01">
-                                                    </div>
+                                            <div class="form-row">
+                                                <div class="col-6 form-group">
+                                                    <label class="small mb-1">Weight (kg)</label>
+                                                    <input type="number" min="0" step="0.01" class="form-control" name="weight" value="<?= $simple_variant['weight'] ?? '' ?>">
+                                                </div>
+                                                <div class="col-6 form-group">
+                                                    <label class="small mb-1">Height (cm)</label>
+                                                    <input type="number" min="0" step="0.01" class="form-control" name="height" value="<?= $simple_variant['height'] ?? '' ?>">
+                                                </div>
+                                                <div class="col-6 form-group mb-0">
+                                                    <label class="small mb-1">Breadth (cm)</label>
+                                                    <input type="number" min="0" step="0.01" class="form-control" name="breadth" value="<?= $simple_variant['breadth'] ?? '' ?>">
+                                                </div>
+                                                <div class="col-6 form-group mb-0">
+                                                    <label class="small mb-1">Length (cm)</label>
+                                                    <input type="number" min="0" step="0.01" class="form-control" name="length" value="<?= $simple_variant['length'] ?? '' ?>">
+                                                </div>
+                                            </div>
+                                            <hr>
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input" type="checkbox" id="simple_stock_management_status" value="1" <?= isset($simple_variant['stock']) ? 'checked' : '' ?>>
+                                                <label class="form-check-label" for="simple_stock_management_status">Track stock for this product?</label>
+                                            </div>
+                                            <div id="simple_stock_fields" class="<?= isset($simple_variant['stock']) ? '' : 'd-none' ?>">
+                                                <div class="form-group">
+                                                    <label class="small mb-1">SKU</label>
+                                                    <input type="text" class="form-control" name="product_sku" value="<?= output_escaping($simple_variant['sku'] ?? '') ?>">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label class="small mb-1">Total Stock</label>
+                                                    <input type="number" min="0" class="form-control" name="product_total_stock" value="<?= $simple_variant['stock'] ?? '' ?>">
+                                                </div>
+                                                <div class="form-group mb-0">
+                                                    <label class="small mb-1">Stock Status</label>
+                                                    <select class="form-control" name="simple_product_stock_status">
+                                                        <option value="1" <?= (($simple_variant['availability'] ?? '1') === '1') ? 'selected' : '' ?>>In Stock</option>
+                                                        <option value="0" <?= (($simple_variant['availability'] ?? '1') === '0') ? 'selected' : '' ?>>Out Of Stock</option>
+                                                    </select>
                                                 </div>
                                             </div>
                                         </div>
+                                        <div id="variable_pricing_block" class="d-none">
+                                            <p class="text-muted small mb-0">Pick attribute values below and mark which ones define a variation - the variant matrix builds automatically underneath.</p>
+                                        </div>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+
+                        <?php
+                        $pre_selected_attr_value_ids = [];
+                        if (!empty($product_attributes[0]['attribute_value_ids'])) {
+                            $pre_selected_attr_value_ids = array_map('intval', array_filter(explode(',', $product_attributes[0]['attribute_value_ids']), 'strlen'));
+                        }
+                        $pre_variation_attr_names = [];
+                        if (!empty($product_variants[0]['attr_name'])) {
+                            $pre_variation_attr_names = array_map('trim', explode(',', $product_variants[0]['attr_name']));
+                        }
+                        ?>
+                        <div class="section-header"><i class="fas fa-tags"></i> Attributes</div>
+                        <div class="card card-light mb-4">
+                            <div class="card-body" id="attributes_section">
+                                <?php if (empty($attributes_refind)) : ?>
+                                    <p class="text-muted mb-0">No attributes have been set up yet. <a href="<?= base_url('seller/attributes') ?>">Manage Attributes</a></p>
+                                <?php else : ?>
+                                    <p class="text-muted small">Select the values that apply to this product. For a Variable Product, also tick "Use for variation" on the attributes that should generate priced variants (e.g. Size, Color).</p>
+                                    <?php foreach ($attributes_refind as $attr_set_name => $attrs) : ?>
+                                        <h6 class="text-muted mt-3"><?= output_escaping($attr_set_name) ?></h6>
+                                        <?php foreach ($attrs as $attr_name => $values) : ?>
+                                            <div class="attribute-row border rounded p-2 mb-2" data-attr-name="<?= output_escaping($attr_name) ?>">
+                                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                                    <strong><?= output_escaping($attr_name) ?></strong>
+                                                    <div class="form-check mb-0 variation-toggle-col d-none">
+                                                        <input type="checkbox" class="form-check-input is_attribute_checked" <?= in_array($attr_name, $pre_variation_attr_names, true) ? 'checked' : '' ?>>
+                                                        <label class="form-check-label small">Use for variation</label>
+                                                    </div>
+                                                </div>
+                                                <?php foreach ($values as $val) : ?>
+                                                    <div class="form-check form-check-inline">
+                                                        <input type="checkbox" class="form-check-input attribute-value-checkbox" value="<?= (int) $val['id'] ?>" id="attr_val_<?= (int) $val['id'] ?>" <?= in_array((int) $val['id'], $pre_selected_attr_value_ids, true) ? 'checked' : '' ?>>
+                                                        <label class="form-check-label" for="attr_val_<?= (int) $val['id'] ?>"><?= output_escaping($val['text']) ?></label>
+                                                    </div>
+                                                <?php endforeach; ?>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+
+                        <div class="section-header d-none" id="variations_section_header"><i class="fas fa-layer-group"></i> Variations</div>
+                        <div class="card card-light mb-4 d-none" id="variations_section">
+                            <div class="card-body">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" id="variant_stock_management_status">
+                                    <label class="form-check-label" for="variant_stock_management_status">Track stock for variants?</label>
+                                </div>
+                                <input type="hidden" name="variant_stock_status" id="variant_stock_status" value="1">
+                                <div id="variant_stock_level_wrap" class="d-none mb-3">
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="radio" name="variant_stock_level_type_ui" id="stock_level_product" value="product_level" checked>
+                                        <label class="form-check-label" for="stock_level_product">Same stock for all variants</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="radio" name="variant_stock_level_type_ui" id="stock_level_variant" value="variant_level">
+                                        <label class="form-check-label" for="stock_level_variant">Different stock per variant</label>
+                                    </div>
+                                    <input type="hidden" name="variant_stock_level_type" id="variant_stock_level_type" value="product_level">
+                                    <div class="form-row mt-2" id="product_level_stock_fields">
+                                        <div class="col-md-4 form-group">
+                                            <label class="small mb-1">SKU</label>
+                                            <input type="text" class="form-control" name="sku_variant_type" id="sku_variant_type">
+                                        </div>
+                                        <div class="col-md-4 form-group">
+                                            <label class="small mb-1">Total Stock</label>
+                                            <input type="number" min="0" class="form-control" name="total_stock_variant_type" id="total_stock_variant_type">
+                                        </div>
+                                        <div class="col-md-4 form-group">
+                                            <label class="small mb-1">Stock Status</label>
+                                            <select class="form-control" name="variant_status" id="variant_status">
+                                                <option value="1">In Stock</option>
+                                                <option value="0">Out Of Stock</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <p class="text-muted mb-0" id="no-variants-added">Select attribute values above (and tick "Use for variation") to generate the variant matrix.</p>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm d-none" id="reset_variants">Regenerate Variants</button>
+                                </div>
+                                <div id="variants_process"></div>
                             </div>
                         </div>
                     </div>
@@ -883,3 +1090,4 @@ $(document).on('click', function (e) {
 </script>
 
 <script src="<?= base_url('assets/seller/js/product.js') ?>"></script>
+<script src="<?= base_url('assets/seller/js/product-attributes.js') ?>"></script>

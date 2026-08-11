@@ -24,7 +24,7 @@ $config['system_modules'] = [
     'new_offer_images' => array('create', 'read', 'update', 'delete'),
     'promo_code' => array('create', 'read', 'update', 'delete'),
     'featured_section' => array('create', 'read', 'update', 'delete'),
-    'customers' => array('read', 'update'),
+    'customers' => array('read', 'update', 'delete'),
     'return_request' => array('read', 'update'),
     // Payment Request (seller/delivery-boy withdrawal payouts) was previously gated on the
     // unrelated 'return_request' module - any admin role granted Return Request access could

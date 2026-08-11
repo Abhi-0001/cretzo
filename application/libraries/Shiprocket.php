@@ -14,6 +14,7 @@ class Shiprocket
     private $email = "";
     private $password = "";
     private $url = "";
+    private $token = null;
 
     function __construct()
     {
@@ -39,7 +40,8 @@ class Shiprocket
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_ENCODING => '',
             CURLOPT_MAXREDIRS => 10,
-            CURLOPT_TIMEOUT => 0,
+            CURLOPT_TIMEOUT => 15,
+            CURLOPT_CONNECTTIMEOUT => 10,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
             CURLOPT_CUSTOMREQUEST => 'POST',
@@ -72,18 +74,22 @@ class Shiprocket
 
     public function curl($url, $method = 'GET', $data = [])
     {
-        $token = $this->generate_token();
+        if (empty($this->token)) {
+            $this->token = $this->generate_token();
+        }
 
         $ch = curl_init();
         $headers = array(
-            'Authorization: Bearer ' . $token,
+            'Authorization: Bearer ' . $this->token,
             'Content-Type: application/json'
         );
         $curl_options = array(
             CURLOPT_URL => $url,
             CURLOPT_RETURNTRANSFER => 1,
             CURLOPT_HEADER => 0,
-            CURLOPT_HTTPHEADER => $headers
+            CURLOPT_HTTPHEADER => $headers,
+            CURLOPT_TIMEOUT => 15,
+            CURLOPT_CONNECTTIMEOUT => 10,
         );
         if (strtolower($method) == 'post') {
             $curl_options[CURLOPT_POST] = 1;

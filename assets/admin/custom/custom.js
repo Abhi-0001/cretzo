@@ -3127,6 +3127,50 @@ $(document).on('click', '.update_active_status', function () {
     }
 
 });
+
+$(document).on('click', '.delete_customer', function () {
+    var user_id = $(this).data('id');
+    Swal.fire({
+        title: 'Are You Sure!',
+        text: "This will permanently delete the customer's account. You won't be able to revert this!",
+        type: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'Yes, delete it!',
+        showLoaderOnConfirm: true,
+        preConfirm: function () {
+            return new Promise((resolve, reject) => {
+                $.ajax({
+                    type: 'POST',
+                    url: base_url + 'admin/customer/delete_customer',
+                    data: {
+                        [csrfName]: csrfHash,
+                        user_id: user_id
+                    },
+                    dataType: 'json',
+                    success: function (result) {
+                        csrfName = result['csrfName'];
+                        csrfHash = result['csrfHash'];
+                        resolve(result);
+                    }
+                });
+            });
+        },
+        allowOutsideClick: false
+    }).then((result) => {
+        if (result.dismiss === Swal.DismissReason.cancel) {
+            Swal.fire('Cancelled!', 'Customer is safe :)', 'error');
+        } else if (result.value) {
+            if (result.value['error'] == false) {
+                Swal.fire('Deleted!', result.value['message'], 'success');
+                $('.table').bootstrapTable('refresh');
+            } else {
+                Swal.fire('Oops...', result.value['message'], 'error');
+            }
+        }
+    });
+});
 if (window.location.href.indexOf("seller/product") > -1) {
     var edit_id = $('#existing_category_id').val() || $('input[name="category_id"]').val();
     var seller_id = $('input[name="seller_id"]').val();
