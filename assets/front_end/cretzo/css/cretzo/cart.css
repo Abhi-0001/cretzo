@@ -225,6 +225,10 @@
 .delivery-list-item:last-child{
     border: none;
 }
+.delivery-list-item.not-deliverable{
+    background-color: var(--color-light-grey);
+    opacity: 0.8;
+}
 .delivery-list-item > div:nth-child(1){
     aspect-ratio: 1/1;
     height: 80px;

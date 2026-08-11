@@ -45,6 +45,24 @@ class Cart extends CI_Controller
 
             $this->data['save_for_later'] = get_cart_total($user_id, false, '1');
 
+            /* Show non-deliverable items against the user's default address right on the cart page,
+               instead of only surfacing it after they've moved to the checkout/address step. */
+            $this->data['delivery_availability'] = array();
+            if ($this->data['is_logged_in']) {
+                $default_address = $this->address_model->get_address($user_id, false, false, true);
+                if (!empty($default_address)) {
+                    $zipcode = $default_address[0]['pincode'];
+                    $zipcode_row = fetch_details('zipcodes', ['zipcode' => $zipcode], 'id');
+                    $zipcode_id = !empty($zipcode_row) ? $zipcode_row[0]['id'] : '';
+                    $availability = check_cart_products_delivarable($user_id, $default_address[0]['area_id'], $zipcode, $zipcode_id);
+                    if (!empty($availability)) {
+                        foreach ($availability as $row) {
+                            $this->data['delivery_availability'][$row['product_id']] = $row;
+                        }
+                    }
+                }
+            }
+
             // added for Cretzo theme (to hide header and footer on cart/checkout pages)
             $this->data['hide_header_footer'] = true;
 
@@ -1033,8 +1051,8 @@ class Cart extends CI_Controller
         if (isset($address_id) && !empty($address_id)) {
             $area_id = fetch_details('addresses', ['id' => $address_id], ['area_id', 'area', 'pincode']);
             $zipcode = $area_id[0]['pincode'];
-            $zipcode_id = fetch_details('zipcodes', ['zipcode' => $zipcode], 'id')[0];
-            $product_availability = check_cart_products_delivarable($this->data['user']->id, $area_id[0]['area_id'], $zipcode, $zipcode_id['id']);
+            $zipcode_id = fetch_details('zipcodes', ['zipcode' => $zipcode], 'id')[0] ?? array();
+            $product_availability = check_cart_products_delivarable($this->data['user']->id, $area_id[0]['area_id'], $zipcode, $zipcode_id['id'] ?? '');
 
             $product_not_delivarable = array_filter((array)$product_availability, function ($product) {
                 return ($product['is_deliverable'] == false);
@@ -1248,8 +1266,8 @@ class Cart extends CI_Controller
             $address_id = $this->input->post('address_id', true);
             $area_id = fetch_details('addresses', ['id' => $address_id], ['area_id', 'area', 'pincode']);
             $zipcode = $area_id[0]['pincode'];
-            $zipcode_id = fetch_details('zipcodes', ['zipcode' => $zipcode], 'id')[0];
-            $product_delivarable = check_cart_products_delivarable($this->data['user']->id, $area_id[0]['area_id'], $zipcode, $zipcode_id['id']);
+            $zipcode_id = fetch_details('zipcodes', ['zipcode' => $zipcode], 'id')[0] ?? array();
+            $product_delivarable = check_cart_products_delivarable($this->data['user']->id, $area_id[0]['area_id'], $zipcode, $zipcode_id['id'] ?? '');
             if (!empty($product_delivarable)) {
                 $product_not_delivarable = array_filter($product_delivarable, function ($var) {
                     return ($var['is_deliverable'] == false);
@@ -1273,6 +1291,7 @@ class Cart extends CI_Controller
             }
         }
     }
+
     public function wallet_refill()
     {
         $payment_settings = get_settings('payment_method', true);

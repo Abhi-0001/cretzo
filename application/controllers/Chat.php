@@ -15,6 +15,15 @@ class Chat extends CI_Controller {
 
     public function send() {
         $message = $this->sanitize_message($this->input->post('message', true));
+
+        if ($message === '') {
+            echo json_encode([
+                'reply' => 'Please enter a message.',
+                'messages' => []
+            ]);
+            return;
+        }
+
         $user_id = $this->get_chat_user_id();
         $session_id = session_id();
 
@@ -35,15 +44,6 @@ class Chat extends CI_Controller {
         }
         else {
             $reply = $this->get_bot_reply($message);
-        }
-
-       
-        if ($message === '') {
-            echo json_encode([
-                'reply' => 'Please enter a message.',
-                'messages' => []
-            ]);
-            return;
         }
 
         if (empty($reply)) {
@@ -116,6 +116,11 @@ class Chat extends CI_Controller {
             return 'We could not find an order with that ID. Please check and try again.';
         }
 
+        $user_id = $this->get_chat_user_id();
+        if ($user_id <= 0) {
+            return 'Please log in to your account to track this order.';
+        }
+
         $select = ['o.id'];
         foreach (['active_status', 'delivery_date', 'delivery_time', 'estimated_delivery_date', 'estimated_delivery_time', 'expected_delivery_date', 'expected_delivery_time'] as $field) {
             if ($this->db->field_exists($field, 'orders')) {
@@ -125,12 +130,13 @@ class Chat extends CI_Controller {
 
         $order = $this->db->select(implode(',', $select))
             ->where('o.id', (int) $order_id)
+            ->where('o.user_id', $user_id)
             ->limit(1)
             ->get('orders o')
             ->row_array();
 
         if (empty($order)) {
-            return 'We could not find an order with that ID. Please check and try again.';
+            return 'We could not find an order with that ID under your account. Please check and try again.';
         }
 
         $status = $this->get_order_status_from_database((int) $order_id, $order);

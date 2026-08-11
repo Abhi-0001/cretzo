@@ -336,7 +336,12 @@ class Orders extends CI_Controller
             // validate delivery boy when status is shipped
 
             if (isset($_POST['status']) && !empty($_POST['status']) && $_POST['status'] == 'shipped') {
-                if ((!isset($current_status[0]['delivery_boy_id']) || empty($current_status[0]['delivery_boy_id']) || $current_status[0]['delivery_boy_id'] == 0) && (empty($_POST['deliver_by']) || $_POST['deliver_by'] == '')) {
+                // Sellers fulfilling via Shiprocket have no internal delivery boy to assign -
+                // an order_tracking row with a live shiprocket_order_id means the shipment is
+                // already handed off to Shiprocket, so the internal delivery-boy requirement
+                // (meant for sellers who run their own delivery staff) doesn't apply here.
+                $shiprocket_shipment = fetch_details('order_tracking', ['order_id' => $_POST['order_id'], 'shiprocket_order_id !=' => '', 'is_canceled' => 0]);
+                if ((!isset($current_status[0]['delivery_boy_id']) || empty($current_status[0]['delivery_boy_id']) || $current_status[0]['delivery_boy_id'] == 0) && (empty($_POST['deliver_by']) || $_POST['deliver_by'] == '') && empty($shiprocket_shipment)) {
                     $this->response['error'] = true;
                     $this->response['message'] = "Please select delivery boy to mark this order as shipped.";
                     $this->response['csrfName'] = $this->security->get_csrf_token_name();

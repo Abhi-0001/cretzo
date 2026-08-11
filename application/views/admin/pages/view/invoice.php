@@ -196,16 +196,15 @@
                                                     <?php $j = 1;
                                                     $total = $quantity = $total_tax = $total_discount = $final_sub_total = 0;
                                                     foreach ($items as $row) {
-                                                       
+                                                        if (isset($row['is_prices_inclusive_tax']) && $row['is_prices_inclusive_tax'] == 1) {
+                                                            $tax_amount  = $row['price'] - ($row['price'] * (100 / (100 + $row['tax_percent'])));
+                                                        } else {
+                                                            $tax_amount = $row['price'] * ($row['tax_percent'] / 100);
+                                                        }
                                                         $total += floatval($row['price'] + $tax_amount) * floatval($row['quantity']);
                                                         if ($sellers[$i] == $row['seller_id']) {
                                                             $product_variants = get_variants_values_by_id($row['product_variant_id']);
                                                             $product_variants = isset($product_variants[0]['variant_values']) && !empty($product_variants[0]['variant_values']) ? str_replace(',', ' | ', $product_variants[0]['variant_values']) : '-';
-                                                            if (isset($row['is_prices_inclusive_tax']) && $row['is_prices_inclusive_tax'] == 1) {
-                                                                $tax_amount  = $row['price'] - ($row['price'] * (100 / (100 + $row['tax_percent'])));
-                                                            } else {
-                                                                $tax_amount = $row['price'] * ($row['tax_percent'] / 100);
-                                                            }
                                                             // $tax_amount = ($row['tax_amount']) ? $row['tax_amount'] : '0';
                                                             $hsn_code = ($row['hsn_code']) ? $row['hsn_code'] : '-';
                                                             $quantity += floatval($row['quantity']);

@@ -728,7 +728,12 @@ class Orders extends CI_Controller
             // validate delivery boy when status is shipped
 
             if (isset($_POST['status']) && !empty($_POST['status']) && $_POST['status'] == 'shipped') {
-                if (!isset($current_status[0]['delivery_boy_id']) || empty($current_status[0]['delivery_boy_id']) || $current_status[0]['delivery_boy_id'] == 0) {
+                // Sellers fulfilling via Shiprocket have no internal delivery boy to assign -
+                // an order_tracking row with a live shiprocket_order_id means the shipment is
+                // already handed off to Shiprocket, so the internal delivery-boy requirement
+                // (meant for sellers who run their own delivery staff) doesn't apply here.
+                $shiprocket_shipment = fetch_details('order_tracking', ['order_id' => $_POST['order_id'], 'shiprocket_order_id !=' => '', 'is_canceled' => 0]);
+                if ((!isset($current_status[0]['delivery_boy_id']) || empty($current_status[0]['delivery_boy_id']) || $current_status[0]['delivery_boy_id'] == 0) && empty($shiprocket_shipment)) {
                     $this->response['error'] = true;
                     $this->response['message'] = "Please select delivery boy to mark this order as shipped.";
                     $this->response['csrfName'] = $this->security->get_csrf_token_name();
@@ -971,32 +976,38 @@ class Orders extends CI_Controller
                     $type = ['type' => "customer_order_returned"];
                 }
                 $custom_notification = fetch_details('custom_notifications', $type, '');
-                $hashtag_cutomer_name = '< cutomer_name >';
-                $hashtag_order_id = '< order_item_id >';
-                $hashtag_application_name = '< application_name >';
-                $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
-                $hashtag = html_entity_decode($string);
-                $data = str_replace(array($hashtag_cutomer_name, $hashtag_order_id, $hashtag_application_name), array($user_res[0]['username'], $order_item_res[0]['id'], $app_name), $hashtag);
-                $message = output_escaping(trim($data, '"'));
-                $customer_msg = (!empty($custom_notification)) ? $message :  'Hello Dear ' . $user_res[0]['username'] . ' Order status updated to' . $_POST['val'] . ' for order ID #' .  $order_item_res[0]['id'] . ' please take note of it! Thank you. Regards ' . $app_name . '';
-                $fcm_ids = array();
-                if (!empty($user_res[0]['fcm_id'])) {
-                    $fcmMsg = array(
-                        'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : " Order status updated",
-                        'body' => $customer_msg,
-                        'type' => "order",
-                        'order_id' => $order_item_res[0]['order_id'],
-                    );
+                // POS walk-in orders have no real customer account behind them (user_id is
+                // null/not a real user row), so $user_res comes back empty here - accessing
+                // $user_res[0] unguarded threw "Undefined array key" notices that got mixed
+                // into the AJAX JSON response and broke the front-end's response parsing.
+                if (!empty($user_res)) {
+                    $hashtag_cutomer_name = '< cutomer_name >';
+                    $hashtag_order_id = '< order_item_id >';
+                    $hashtag_application_name = '< application_name >';
+                    $string = json_encode(isset($custom_notification[0]['message']) ? $custom_notification[0]['message'] : '', JSON_UNESCAPED_UNICODE);
+                    $hashtag = html_entity_decode($string);
+                    $data = str_replace(array($hashtag_cutomer_name, $hashtag_order_id, $hashtag_application_name), array($user_res[0]['username'], $order_item_res[0]['id'], $app_name), $hashtag);
+                    $message = output_escaping(trim($data, '"'));
+                    $customer_msg = (!empty($custom_notification)) ? $message :  'Hello Dear ' . $user_res[0]['username'] . ' Order status updated to' . $_POST['status'] . ' for order ID #' .  $order_item_res[0]['id'] . ' please take note of it! Thank you. Regards ' . $app_name . '';
+                    $fcm_ids = array();
+                    if (!empty($user_res[0]['fcm_id'])) {
+                        $fcmMsg = array(
+                            'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : " Order status updated",
+                            'body' => $customer_msg,
+                            'type' => "order",
+                            'order_id' => $order_item_res[0]['order_id'],
+                        );
 
-                    $fcm_ids[0][] = $user_res[0]['fcm_id'];
-                    send_notification($fcmMsg, $fcm_ids);
+                        $fcm_ids[0][] = $user_res[0]['fcm_id'];
+                        send_notification($fcmMsg, $fcm_ids);
+                    }
+                    notify_event(
+                        $type['type'],
+                        ["customer" => [$user_res[0]['email']]],
+                        ["customer" => [$user_res[0]['mobile']]],
+                        ["orders.id" => $order_item_res[0]['order_id']]
+                    );
                 }
-                notify_event(
-                    $type['type'],
-                    ["customer" => [$user_res[0]['email']]],
-                    ["customer" => [$user_res[0]['mobile']]],
-                    ["orders.id" => $order_item_res[0]['order_id']]
-                );
 
                 $seller_res = fetch_details('users', ['id' => $order_item_res[0]['seller_id']], 'username,fcm_id,mobile,email');
                 $fcm_ids = array();

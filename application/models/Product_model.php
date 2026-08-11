@@ -274,7 +274,7 @@ class Product_model extends CI_Model
                     $pro_variance_data['availability']  = $data['variant_status'];
                     $variant_price = $data['variant_price'];
                     $variant_special_price = (isset($data['variant_special_price']) && !empty($data['variant_special_price'])) ? $data['variant_special_price'] : '0';
-                    $variant_weight = $data['weight'];
+                    $variant_weight = (isset($data['weight'])) ? $data['weight'] : 0.0;
                     $variant_height = (isset($data['height'])) ? $data['height'] : 0.0;
                     $variant_breadth = (isset($data['breadth'])) ? $data['breadth'] : 0.0;
                     $variant_length = (isset($data['length'])) ? $data['length'] : 0.0;
@@ -285,7 +285,7 @@ class Product_model extends CI_Model
                     $variant_sku = $data['variant_sku'];
                     $variant_total_stock = $data['variant_total_stock'];
                     $variant_stock_status = $data['variant_level_stock_status'];
-                    $variant_weight = $data['weight'];
+                    $variant_weight = (isset($data['weight'])) ? $data['weight'] : 0.0;
                     $variant_height = (isset($data['height'])) ? $data['height'] : 0.0;
                     $variant_breadth = (isset($data['breadth'])) ? $data['breadth'] : 0.0;
                     $variant_length = (isset($data['length'])) ? $data['length'] : 0.0;
@@ -294,7 +294,7 @@ class Product_model extends CI_Model
 
                 $variant_price = $data['variant_price'];
                 $variant_special_price = (isset($data['variant_special_price']) && !empty($data['variant_special_price'])) ? $data['variant_special_price'] : '0';
-                $variant_weight = $data['weight'];
+                $variant_weight = (isset($data['weight'])) ? $data['weight'] : 0.0;
                 $variant_height = (isset($data['height'])) ? $data['height'] : 0.0;
                 $variant_breadth = (isset($data['breadth'])) ? $data['breadth'] : 0.0;
                 $variant_length = (isset($data['length'])) ? $data['length'] : 0.0;

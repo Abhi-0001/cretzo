@@ -335,6 +335,10 @@ function selectAddress(address) {
                 $('#bank_transfer').prop('required', true);
                 $('.payment-methods').show();
             } */
+        },
+        error: function () {
+            $('.go-to-payment-btn').html(t_01).removeAttr('disabled');
+            onAddressSelectedAndDetailsFetched(true, 'Could not check delivery availability. Please try again.');
         }
     });
     // $.ajax({

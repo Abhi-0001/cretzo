@@ -108,6 +108,9 @@ class Customer_model extends CI_Model
                 } else {
                     $operate .= '<a class="btn btn-secondary mr-1 mb-1 ml-1 btn-xs update_active_status action-btn" data-table="users" href="javascript:void(0)" title="Active" data-id="' . $row['id'] . '" data-status="' . $row['active'] . '" ><i class="fa fa-toggle-off"></i></a>';
                 }
+                if (has_permissions('delete', 'customers')) {
+                    $operate .= '<a href="javascript:void(0)" class="btn btn-danger btn-xs action-btn delete_customer mb-1 ml-1" title="Delete Customer" data-id="' . $row['id'] . '" ><i class="fa fa-trash"></i></a>';
+                }
             }
             $tempRow['id'] = $row['id'];
             // output_escaping() only strips backslash-escaping, it does not HTML-encode - a
@@ -137,6 +140,19 @@ class Customer_model extends CI_Model
         }
         $bulkData['rows'] = $rows;
         print_r(json_encode($bulkData));
+    }
+
+    public function delete_customer($user_id)
+    {
+        // Orders/transactions are kept for record-keeping (matches how the app already
+        // tolerates a user row disappearing independently of its dependent rows, see the
+        // orphaned-users_groups handling in get_customer_list()) - only the account itself
+        // and data that only makes sense tied to a logged-in customer is removed.
+        $this->db->where('user_id', $user_id)->delete('addresses');
+        $this->db->where('user_id', $user_id)->delete('cart');
+        $this->db->where('user_id', $user_id)->delete('favorites');
+        $this->db->where('user_id', $user_id)->delete('users_groups');
+        return $this->db->where('id', $user_id)->delete('users');
     }
 
     function update_balance($amount, $delivery_boy_id, $action)

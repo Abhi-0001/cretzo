@@ -103,33 +103,6 @@
     });
 
     /* ═══════════════════════════════════════════════
-       FIX 5: CART SHOW MORE
-    ═══════════════════════════════════════════════ */
-    $(document).on('click', '.show-more-text', function () {
-        var $section = $(this).closest('.cart-left-two');
-        var $hidden  = $section.find('.more-offers');
-        if ($hidden.length) {
-            $hidden.slideToggle(200);
-            var isOpen = $hidden.is(':visible');
-            $(this).html(isOpen
-                ? 'Show Less <img class="show-more-img" src="' + (typeof base_url !== 'undefined' ? base_url : '/') + 'assets/front_end/cretzo/img/new_cretzo/orange-arrow.png" style="transform:rotate(180deg);">'
-                : 'Show More <img class="show-more-img" src="' + (typeof base_url !== 'undefined' ? base_url : '/') + 'assets/front_end/cretzo/img/new_cretzo/orange-arrow.png">');
-        } else {
-            var extraOffers = [
-                '10% off on HDFC Bank Credit Cards. Min spend ₹1,500.',
-                '5% cashback on Paytm UPI transactions.',
-                'No cost EMI on orders above ₹4,999.'
-            ];
-            var html = '<div class="more-offers" style="display:none;">';
-            extraOffers.forEach(function(o) { html += '<p class="text-s" style="margin-top:6px;">' + o + '</p>'; });
-            html += '</div>';
-            $(this).before(html);
-            $section.find('.more-offers').slideDown(200);
-            $(this).html('Show Less <img class="show-more-img" src="' + (typeof base_url !== 'undefined' ? base_url : '/') + 'assets/front_end/cretzo/img/new_cretzo/orange-arrow.png" style="transform:rotate(180deg);">');
-        }
-    });
-
-    /* ═══════════════════════════════════════════════
        FIX 6: BANNERS — use each banner's own href
     ═══════════════════════════════════════════════ */
     $(document).ready(function () {
