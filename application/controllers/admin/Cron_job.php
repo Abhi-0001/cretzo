@@ -50,8 +50,18 @@ class Cron_job extends CI_Controller
     // (like every other method in this controller) since an external OS cron can't
     // hold an admin session - set application/config/cron.php's `secret` before
     // wiring this into an actual scheduled job.
-    public function expire_seller_subscriptions($token = null)
+    /**
+     * Shared gate for the token-protected cron endpoints. Returns TRUE when the caller
+     * presented the configured secret, otherwise emits the 401 body and returns FALSE.
+     * A logged-in admin is also allowed through so these can be triggered by hand from
+     * the browser while testing, without exposing the secret in a URL bar.
+     */
+    private function cron_authorized($token = null)
     {
+        if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
+            return true;
+        }
+
         $this->config->load('cron', true);
         $expected = $this->config->item('secret', 'cron');
         $token = $token !== null ? $token : $this->input->get('token');
@@ -63,16 +73,139 @@ class Cron_job extends CI_Controller
             return false;
         }
 
-        $affected = $this->db
+        return true;
+    }
+
+    public function expire_seller_subscriptions($token = null)
+    {
+        if (!$this->cron_authorized($token)) {
+            return false;
+        }
+
+        // Compare against today's DATE, not a full timestamp. end_date is a DATE column, so
+        // a subscription ending today reads as midnight today and `end_date < NOW()` was
+        // true from 00:00:01 onwards - this sweep therefore deactivated subscriptions on
+        // their final valid day, while get_active_subscription() (`end_date >= today`)
+        // still counted them as active. The two disagreed by a day, and because the sweep
+        // also clears is_active the cron's answer won: sellers lost their last day.
+        $this->db
             ->set('is_active', 0)
             ->where('is_active', 1)
             ->where('end_date IS NOT NULL', null, false)
-            ->where('end_date <', date('Y-m-d H:i:s'))
+            ->where('end_date <', date('Y-m-d'))
             ->update('seller_subscriptions');
 
         $this->response['error'] = false;
         $this->response['message'] = 'Expired subscriptions flagged.';
         $this->response['data'] = ['affected_rows' => $this->db->affected_rows()];
+        echo json_encode($this->response);
+        return false;
+    }
+
+    /**
+     * Emails sellers whose subscription is about to lapse (at the thresholds configured in
+     * config/cron.php) and once more on the day it lapses. Previously nothing warned a
+     * seller at all - the first they knew of an expiry was being refused when they tried
+     * to add a product.
+     *
+     * Idempotent: each (subscription period, threshold) pair is recorded in
+     * seller_subscription_reminders under a UNIQUE key, and the insert is attempted BEFORE
+     * the mail is sent, so a duplicate cron run (or two overlapping ones) cannot double-send.
+     */
+    public function subscription_expiry_reminders($token = null)
+    {
+        if (!$this->cron_authorized($token)) {
+            return false;
+        }
+
+        $this->config->load('cron', true);
+        $thresholds = $this->config->item('expiry_reminder_days', 'cron');
+        if (empty($thresholds) || !is_array($thresholds)) {
+            $thresholds = [7, 3, 1];
+        }
+        // 0 = the "expired today" notice, always included.
+        $thresholds[] = 0;
+        $thresholds = array_unique(array_map('intval', $thresholds));
+
+        $settings  = get_settings('system_settings', true);
+        $app_name  = isset($settings['app_name']) ? $settings['app_name'] : 'Your store';
+        $today     = date('Y-m-d');
+        $sent = 0;
+        $skipped = 0;
+        $failed = 0;
+
+        foreach ($thresholds as $days) {
+            $target_date = date('Y-m-d', strtotime('+' . (int) $days . ' days', strtotime($today)));
+
+            $rows = $this->db
+                ->select('ss.id AS sub_id, ss.seller_id, ss.end_date, s.name AS plan_name, u.email, u.username, sd.shop_name')
+                ->join('subscriptions s', 's.id = ss.subscription_id', 'left')
+                ->join('users u', 'u.id = ss.seller_id')
+                ->join('seller_data sd', 'sd.user_id = ss.seller_id', 'left')
+                ->where('ss.is_active', 1)
+                ->where('ss.end_date', $target_date)
+                ->get('seller_subscriptions ss')
+                ->result_array();
+
+            foreach ($rows as $row) {
+                if (empty($row['email']) || !filter_var($row['email'], FILTER_VALIDATE_EMAIL)) {
+                    $skipped++;
+                    continue;
+                }
+
+                // Claim the slot first. The UNIQUE key makes a second attempt fail, which is
+                // what makes this safe to re-run rather than a check-then-send race.
+                $this->db->db_debug = false;
+                $claimed = $this->db->insert('seller_subscription_reminders', [
+                    'seller_subscription_id' => $row['sub_id'],
+                    'seller_id'              => $row['seller_id'],
+                    'threshold_days'         => $days,
+                    'sent_at'                => date('Y-m-d H:i:s'),
+                ]);
+                $this->db->db_debug = true;
+
+                if (!$claimed) {
+                    $skipped++; // already sent for this period/threshold
+                    continue;
+                }
+
+                $name = !empty($row['shop_name']) ? $row['shop_name'] : $row['username'];
+                $plan = !empty($row['plan_name']) ? $row['plan_name'] : 'your plan';
+                $when = date('d M Y', strtotime($row['end_date']));
+
+                if ($days === 0) {
+                    $subject = 'Your ' . $app_name . ' subscription has expired';
+                    $body = 'Hi ' . $name . ",\n\n"
+                        . 'Your ' . $plan . ' subscription expired on ' . $when . ".\n\n"
+                        . "Your existing products remain live, but you cannot add new listings until you renew.\n\n"
+                        . 'Renew here: ' . base_url('seller/subscription') . "\n\n"
+                        . $app_name;
+                } else {
+                    $subject = 'Your ' . $app_name . ' subscription expires in ' . $days . ' day' . ($days === 1 ? '' : 's');
+                    $body = 'Hi ' . $name . ",\n\n"
+                        . 'Your ' . $plan . ' subscription expires on ' . $when . ' (' . $days . ' day' . ($days === 1 ? '' : 's') . " from now).\n\n"
+                        . "Renew before then to keep adding new listings without interruption.\n\n"
+                        . 'Renew here: ' . base_url('seller/subscription') . "\n\n"
+                        . $app_name;
+                }
+
+                $result = send_mail($row['email'], $subject, $body);
+                if (!empty($result['error'])) {
+                    // Release the claim so the next run can retry a genuinely failed send.
+                    $this->db->where('seller_subscription_id', $row['sub_id'])
+                             ->where('threshold_days', $days)
+                             ->delete('seller_subscription_reminders');
+                    $failed++;
+                    continue;
+                }
+
+                $sent++;
+            }
+        }
+
+        $this->response['error'] = false;
+        $this->response['message'] = 'Subscription expiry reminders processed.';
+        $this->response['data'] = ['sent' => $sent, 'skipped' => $skipped, 'failed' => $failed];
         echo json_encode($this->response);
         return false;
     }

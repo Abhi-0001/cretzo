@@ -1096,15 +1096,28 @@ Defined Methods:-
 
         $user = $this->_find_reset_seller($_POST['mobile_no']);
         if (empty($user)) {
+            $owner = classify_mobile_owner($_POST['mobile_no']);
             $this->response['error'] = true;
-            $this->response['message'] = 'User does not exists !';
+            $this->response['message'] = $owner['exists']
+                ? 'This number is registered as ' . reset_portal_for_role($owner['role'])['label'] . ', not a seller account.'
+                : 'You have not registered using this number.';
             echo json_encode($this->response);
             return false;
         }
 
-        send_password_reset_otp($_POST['mobile_no']);
+        // The return value used to be discarded, so the app was told "OTP sent
+        // successfully" even when no gateway existed and nothing was ever delivered.
+        $sent = send_password_reset_otp($_POST['mobile_no'], $user);
+        if (empty($sent) || !empty($sent['error'])) {
+            $this->response['error'] = true;
+            $this->response['message'] = !empty($sent['message']) ? $sent['message'] : 'Could not send the OTP. Please try again later.';
+            echo json_encode($this->response);
+            return false;
+        }
+
         $this->response['error'] = false;
-        $this->response['message'] = 'OTP sent successfully.';
+        $this->response['message'] = !empty($sent['message']) ? $sent['message'] : 'OTP sent successfully.';
+        $this->response['channel'] = !empty($sent['channel']) ? $sent['channel'] : '';
         echo json_encode($this->response);
         return false;
     }
@@ -1979,6 +1992,20 @@ Defined Methods:-
             $response['data'] = array();
             echo json_encode($response);
         } else {
+
+            // Subscription listing limits were enforced in the seller web panel (single add
+            // and bulk upload) but nowhere in the seller mobile API, which writes to the same
+            // products table - so a seller capped at 50 listings on the web could add an
+            // unlimited number through the app, and an expired plan blocked nothing at all.
+            $this->load->model('Seller_subscription_model');
+            $quota = $this->Seller_subscription_model->check_listing_quota($this->input->post('seller_id', true), 1);
+            if (!$quota['allowed']) {
+                $response['error'] = true;
+                $response['message'] = $this->Seller_subscription_model->quota_error_message($quota, 1);
+                $response['data'] = array();
+                echo json_encode($response);
+                return false;
+            }
 
             if (isset($_POST['product_type']) && strtolower($_POST['product_type']) == 'simple_product') {
                 $_POST['weight'] = (isset($_POST['weight']) && !empty($_POST['weight'])) ?  $_POST['weight'] : 0.0;

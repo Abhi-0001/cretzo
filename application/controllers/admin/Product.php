@@ -94,6 +94,13 @@ class Product extends CI_Controller
                 if (!empty($product_details)) {
                     $this->data['product_details'] = $product_details;
                     $this->data['product_variants'] = get_variants_values_by_pid($_GET['edit_id']);
+                    // A simple / digital product keeps its price, weight and dimensions on one
+                    // product_variants row. When that row was soft-removed (status 7) the default
+                    // status filter hid it and the edit form opened blank. Only widen the filter
+                    // for these types - a variable product must still list its live variants only.
+                    if (empty($this->data['product_variants']) && !empty($product_details[0]['type']) && $product_details[0]['type'] != 'variable_product') {
+                        $this->data['product_variants'] = get_variants_values_by_pid($_GET['edit_id'], [0, 1, 7]);
+                    }
                     $product_attributes = fetch_details('product_attributes', ['product_id' => $_GET['edit_id']]);
                     if (!empty($product_attributes) && !empty($product_details)) {
                         $this->data['product_attributes'] = $product_attributes;
@@ -373,6 +380,26 @@ class Product extends CI_Controller
             } else {
                 if (print_msg(!has_permissions('create', 'product'), PERMISSION_ERROR_MSG, 'product')) {
                     return false;
+                }
+
+                // A product added here is filed against a seller and counts towards that
+                // seller's listing usage, but the plan's limit was only ever checked in the
+                // seller's own panel - so this screen (and only this screen) could push a
+                // seller past a cap they would then be stuck over. Enforced here too, with a
+                // message pointing admin at the fix they actually have available.
+                $quota_seller_id = $this->input->post('seller_id', true);
+                if (!empty($quota_seller_id) && is_numeric($quota_seller_id)) {
+                    $this->load->model('Seller_subscription_model');
+                    $quota = $this->Seller_subscription_model->check_listing_quota($quota_seller_id, 1);
+                    if (!$quota['allowed']) {
+                        $this->response['error'] = true;
+                        $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                        $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                        $this->response['message'] = $this->Seller_subscription_model->quota_error_message($quota, 1, true)
+                            . ' You can change or extend their plan under Subscriptions > Seller Subscriptions.';
+                        print_r(json_encode($this->response));
+                        return false;
+                    }
                 }
             }
             $this->form_validation->set_rules('pro_input_name', 'Product Name', 'trim|required|xss_clean');

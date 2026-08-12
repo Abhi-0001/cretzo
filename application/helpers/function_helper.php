@@ -6148,23 +6148,239 @@ function generate_unique_placeholder_mobile()
 }
 
 /**
- * Generates and sends a fresh OTP to $mobile for password-reset verification,
- * reusing the same `otps` table + gateway already used for registration mobile
- * verification (set_user_otp() -> send_sms(), routed through whatever gateway
- * is configured in admin > SMS Gateway Settings).
+ * Which account (and which portal it belongs to) owns a mobile number.
+ *
+ * WHY THIS EXISTS: every "forgot password" screen used to answer with a flat
+ * "You have not registered using this number." whenever its own role lookup
+ * missed - it could not tell "no such account anywhere" apart from "that account
+ * exists, but on a different portal". That produced the exact contradiction
+ * reported on 9675916976: the number belongs to a SELLER account (users.id 55,
+ * users_groups.group_id 4), so the customer reset modal said "not registered"
+ * while customer signup - which checks users.mobile with no role filter - said
+ * "Mobile is already registered. Please try to login!". Both were "right" per
+ * their own logic and the user was left with no way forward.
+ *
+ * Returns the row plus the portal role so callers can send people somewhere useful.
+ *
+ * @return array ['exists'=>bool, 'user'=>array|null, 'role'=>'customer'|'seller'|'admin'|'delivery_boy']
  */
-function send_password_reset_otp($mobile)
+function classify_mobile_owner($mobile)
 {
-    // send_sms() (used by set_user_otp() below) lives in sms_helper, which isn't
-    // autoloaded app-wide and isn't loaded by every controller that needs password
-    // reset (only the generic Auth.php loaded it, for the registration-OTP flow).
-    // load->helper() is idempotent, safe to call regardless of what's already loaded.
-    get_instance()->load->helper('sms_helper');
+    $t = &get_instance();
+
+    $mobile = trim((string) $mobile);
+    if ($mobile === '') {
+        return ['exists' => false, 'user' => null, 'role' => ''];
+    }
+
+    $rows = $t->db->select('u.*, g.name AS group_name')
+        ->from('users u')
+        // LEFT join deliberately: a chunk of legacy accounts have no users_groups
+        // row at all, and an INNER join would report them as non-existent.
+        ->join('users_groups ug', 'ug.user_id = u.id', 'left')
+        ->join('groups g', 'g.id = ug.group_id', 'left')
+        ->where('u.mobile', $mobile)
+        ->get()
+        ->result_array();
+
+    if (empty($rows)) {
+        return ['exists' => false, 'user' => null, 'role' => ''];
+    }
+
+    $groups = [];
+    foreach ($rows as $row) {
+        if (!empty($row['group_name'])) {
+            $groups[] = strtolower($row['group_name']);
+        }
+    }
+
+    // Most-privileged wins when an account somehow sits in several groups, so we
+    // never point an admin at the customer portal.
+    $role = 'customer';
+    if (in_array('admin', $groups, true)) {
+        $role = 'admin';
+    } elseif (in_array('seller', $groups, true)) {
+        $role = 'seller';
+    } elseif (in_array('delivery_boy', $groups, true)) {
+        $role = 'delivery_boy';
+    }
+
+    unset($rows[0]['group_name']);
+    return ['exists' => true, 'user' => $rows[0], 'role' => $role];
+}
+
+/**
+ * Human label + reset URL for a role returned by classify_mobile_owner(), used to
+ * build "that number belongs to X, reset it over there" messages.
+ */
+function reset_portal_for_role($role)
+{
+    $map = [
+        'admin'        => ['label' => 'an admin account',       'url' => 'admin/login/forgot_password',        'login_url' => 'admin'],
+        'seller'       => ['label' => 'a seller account',       'url' => 'seller/login/forgot_password',       'login_url' => 'seller/home'],
+        'delivery_boy' => ['label' => 'a delivery boy account', 'url' => 'delivery_boy/login/forgot_password', 'login_url' => 'delivery_boy'],
+        'customer'     => ['label' => 'a customer account',     'url' => '',                                   'login_url' => ''],
+    ];
+    return isset($map[$role]) ? $map[$role] : $map['customer'];
+}
+
+/**
+ * Partially hides an email for display in a "we sent your OTP to ..." message, so
+ * the user can confirm which inbox to open without the address being disclosed to
+ * whoever typed the mobile number.
+ */
+function mask_email_for_display($email)
+{
+    $email = trim((string) $email);
+    $at = strrpos($email, '@');
+    if ($at === false || $at < 1) {
+        return $email;
+    }
+    $name   = substr($email, 0, $at);
+    $domain = substr($email, $at);
+    $keep   = ($name !== '') ? substr($name, 0, 1) : '';
+    return $keep . str_repeat('*', max(3, strlen($name) - 1)) . $domain;
+}
+
+/**
+ * True only when admin has actually saved an SMS gateway. Mirrors the guard inside
+ * send_sms() so callers can decide to use another channel BEFORE burning an attempt
+ * on a gateway that cannot possibly deliver.
+ */
+function password_reset_sms_available()
+{
+    $gateway = get_settings('sms_gateway_settings', true);
+    return !empty($gateway) && is_array($gateway) && !empty($gateway['base_url']);
+}
+
+/**
+ * Stores a fresh password-reset OTP against $mobile and returns it, WITHOUT
+ * sending anything. Split out from set_user_otp() (which stores *and* SMSes, and
+ * is still used by the registration flow) so the reset flow can choose a delivery
+ * channel after the code exists.
+ */
+function store_password_reset_otp($mobile)
+{
+    $t = &get_instance();
 
     if (!is_exist(['mobile' => $mobile], 'otps')) {
         insert_details(['mobile' => $mobile], 'otps');
     }
-    return set_user_otp($mobile, random_int(100000, 999999));
+    $otps = fetch_details('otps', ['mobile' => $mobile]);
+    if (empty($otps)) {
+        return ['error' => true, 'message' => 'Could not start the password reset. Please try again.'];
+    }
+
+    $otp = random_int(100000, 999999);
+    $t->db->where('id', $otps[0]['id']);
+    $t->db->update('otps', [
+        'otp'        => $otp,
+        'varified'   => 0,
+        'created_at' => strtotime(date('Y-m-d H:i:s')),
+    ]);
+
+    return ['error' => false, 'otp' => $otp];
+}
+
+/**
+ * Generates a password-reset OTP for $mobile and delivers it over whichever channel
+ * is actually configured, reporting which one was used.
+ *
+ * WHY THIS IS NOT JUST send_sms(): this used to be a one-liner into set_user_otp()
+ * -> send_sms(), i.e. the SMS gateway was the ONLY possible channel. On production
+ * `settings.sms_gateway_settings` is literally '{}' (no gateway ever configured),
+ * so every password reset on every portal died with "SMS gateway is not configured."
+ * - which is what the seller and admin screens were showing. Registration does not
+ * hit this at all: `authentication_settings` is {"authentication_method":"firebase"}
+ * so signup OTPs are minted client-side by Firebase phone auth, which is why signup
+ * worked while reset did not.
+ *
+ * Order of preference:
+ *   1. SMS gateway, if admin has configured one (unchanged behaviour when set up).
+ *   2. The account's registered email over the SMTP credentials already saved in
+ *      admin > Email Settings - configured and working on production today.
+ * If neither can deliver we say so explicitly rather than claiming success.
+ *
+ * @param string     $mobile
+ * @param array|null $user Row for the account being reset, used for its email.
+ */
+function send_password_reset_otp($mobile, $user = null)
+{
+    $t = &get_instance();
+
+    // send_sms() lives in sms_helper, which isn't autoloaded app-wide and isn't
+    // loaded by every controller that needs password reset. Idempotent.
+    $t->load->helper('sms_helper');
+
+    $stored = store_password_reset_otp($mobile);
+    if (!empty($stored['error'])) {
+        return $stored;
+    }
+    $otp = $stored['otp'];
+
+    $settings  = get_settings('system_settings', true);
+    $app_name  = (!empty($settings['app_name'])) ? $settings['app_name'] : 'Cretzo';
+    $sms_text  = 'Your ' . $app_name . ' password reset OTP is ' . $otp . '. It is valid for 10 minutes. Please do not share it with anyone.';
+
+    $failures = [];
+
+    // ---- Channel 1: SMS gateway ------------------------------------------------
+    if (password_reset_sms_available()) {
+        $sms = send_sms($mobile, $sms_text);
+        $code = isset($sms['http_code']) ? (int) $sms['http_code'] : 0;
+        if (empty($sms['error']) && $code >= 200 && $code < 300) {
+            return [
+                'error'   => false,
+                'channel' => 'sms',
+                'message' => 'OTP sent to your mobile number ending in ' . substr($mobile, -4) . '.',
+            ];
+        }
+        log_message('error', 'send_password_reset_otp: SMS channel failed for ' . $mobile . ' - ' . json_encode($sms));
+        $failures[] = 'sms';
+    }
+
+    // ---- Channel 2: the account's registered email -----------------------------
+    // Look the account up ourselves when the caller didn't hand us one, so this stays
+    // usable from the app APIs that only have a mobile number.
+    if (empty($user) || !is_array($user)) {
+        $owner = classify_mobile_owner($mobile);
+        $user  = $owner['user'];
+    }
+
+    $email = (!empty($user['email'])) ? trim($user['email']) : '';
+    // Social/email-less signups get a synthetic placeholder in `mobile`, and some rows
+    // carry a truncated copy of the email in `mobile`; only mail a real address.
+    if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $subject = $app_name . ' password reset OTP';
+        $body    = 'Your ' . $app_name . ' password reset OTP is <b>' . $otp . '</b>.<br><br>'
+            . 'It is valid for 10 minutes. If you did not request a password reset you can ignore this email.';
+
+        $mail = send_mail($email, $subject, $body);
+        if (empty($mail['error'])) {
+            return [
+                'error'   => false,
+                'channel' => 'email',
+                'message' => 'OTP sent to your registered email ' . mask_email_for_display($email) . '.',
+            ];
+        }
+        // NB: log only the flag/subject - send_mail() returns the raw SMTP config
+        // (including the mailbox password) in $mail['config'], which must never be
+        // logged or echoed back to the browser.
+        log_message('error', 'send_password_reset_otp: email channel failed for ' . $mobile);
+        $failures[] = 'email';
+    }
+
+    if (empty($failures)) {
+        return [
+            'error'   => true,
+            'message' => 'No OTP delivery method is available for this account. Please contact support.',
+        ];
+    }
+
+    return [
+        'error'   => true,
+        'message' => 'We could not deliver your OTP right now. Please try again in a few minutes, or contact support.',
+    ];
 }
 
 /**

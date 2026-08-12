@@ -242,16 +242,17 @@ class Area extends CI_Controller
 
             // Was checking 'area' permission for every non-'cities' table, including
             // 'pickup_locations' AND 'cities' itself - a role granted delete on City (or
-            // Pickup Location) but not on Area, or vice versa, got the wrong answer. 'subscriptions'
-            // intentionally stays on the 'area' check it already had - that module was never
-            // registered in eshop.php, and this whole feature has no real permission gating yet
-            // (flagged separately, not fixed, in an earlier pass) - switching it to a
-            // never-registered module here would newly deny every non-owner admin rather than
-            // just correct a mismatch.
+            // Pickup Location) but not on Area, or vice versa, got the wrong answer.
+            // 'subscriptions' now routes to its own module too: it is registered in
+            // eshop.php and admin/Subscription.php gates read/create/update on it, so
+            // leaving delete on the unrelated 'area' permission meant whoever could delete
+            // an area could delete a billing plan.
             if ($table === 'pickup_locations') {
                 $permission_module = 'pickup_location';
             } elseif ($table === 'cities') {
                 $permission_module = 'city';
+            } elseif ($table === 'subscriptions') {
+                $permission_module = 'subscription';
             } else {
                 $permission_module = 'area';
             }

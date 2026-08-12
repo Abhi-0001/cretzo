@@ -420,18 +420,23 @@
                                                         <div id='product-general-settings'>
                                                             <?php
                                                             if ($product_details[0]['type'] == "simple_product" || $product_details[0]['type'] == "digital_product") {
+                                                                // Price, weight and dimensions of a simple / digital product live on its single
+                                                                // product_variants row. That row can be missing (older imported products) or
+                                                                // soft-removed, which used to throw "Undefined array key 0" warnings all over
+                                                                // this block - fall back to blank fields instead.
+                                                                $simple_variant = isset($product_variants[0]) && is_array($product_variants[0]) ? $product_variants[0] : [];
                                                             ?>
                                                                 <div id="general_price_section">
                                                                     <div class="form-group">
                                                                         <label for="type" class="col-md-2">Price:</label>
                                                                         <div class="col-md-12">
-                                                                            <input type="number" name="simple_price" class="form-control stock-simple-mustfill-field price" value="<?= $product_variants[0]['price'] ?>" min='0' step="0.01">
+                                                                            <input type="number" name="simple_price" class="form-control stock-simple-mustfill-field price" value="<?= $simple_variant['price'] ?? '' ?>" min='0' step="0.01">
                                                                         </div>
                                                                     </div>
                                                                     <div class="form-group">
                                                                         <label for="type" class="col-md-2">Special Price:</label>
                                                                         <div class="col-md-12">
-                                                                            <input type="number" name="simple_special_price" class="form-control  discounted_price" value="<?= $product_variants[0]['special_price'] ?>" min='0' step="0.01">
+                                                                            <input type="number" name="simple_special_price" class="form-control  discounted_price" value="<?= !empty($simple_variant['special_price']) ? $simple_variant['special_price'] : '' ?>" min='0' step="0.01">
                                                                         </div>
                                                                     </div>
                                                                     <div class="form-group row mt-3 <?= $product_details[0]['type'] == "digital_product" ? 'd-none' : '' ?>" id="product-dimensions">
@@ -442,19 +447,19 @@
                                                                     <div class="form-group row  dimensions  <?= $product_details[0]['type'] == "digital_product" ? 'd-none' : '' ?>">
                                                                         <div class="col-3">
                                                                             <label for="weight" class="control-label col-md-12">Weight <small>(kg)</small> <span class='text-danger text-xs'>*</span></label>
-                                                                            <input type="number" class="form-control" name="weight" placeholder="Weight" id="weight" value="<?= $product_variants[0]['weight'] ?>" step="0.01">
+                                                                            <input type="number" class="form-control" name="weight" placeholder="Weight" id="weight" value="<?= $simple_variant['weight'] ?? '' ?>" step="0.01">
                                                                         </div>
                                                                         <div class="col-3">
                                                                             <label for="height" class="control-label col-md-12">Height <small>(cms)</small></label>
-                                                                            <input type="number" class="form-control" name="height" placeholder="Height" id="height" value="<?= $product_variants[0]['height'] ?>" step="0.01">
+                                                                            <input type="number" class="form-control" name="height" placeholder="Height" id="height" value="<?= $simple_variant['height'] ?? '' ?>" step="0.01">
                                                                         </div>
                                                                         <div class="col-3">
                                                                             <label for="breadth" class="control-label col-md-12">Breadth <small>(cms)</small> </label>
-                                                                            <input type="number" class="form-control" name="breadth" placeholder="Breadth" id="breadth" value="<?= $product_variants[0]['breadth'] ?>" step="0.01">
+                                                                            <input type="number" class="form-control" name="breadth" placeholder="Breadth" id="breadth" value="<?= $simple_variant['breadth'] ?? '' ?>" step="0.01">
                                                                         </div>
                                                                         <div class="col-3">
                                                                             <label for="length" class="control-label col-md-12">Length <small>(cms)</small> </label>
-                                                                            <input type="number" class="form-control" name="length" placeholder="Length" id="length" value="<?= $product_variants[0]['length'] ?>" step="0.01">
+                                                                            <input type="number" class="form-control" name="length" placeholder="Length" id="length" value="<?= $simple_variant['length'] ?? '' ?>" step="0.01">
                                                                         </div>
                                                                     </div>
 

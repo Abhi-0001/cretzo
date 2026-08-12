@@ -1806,19 +1806,35 @@ Defined Methods:-
         }
     }
 
-    // Looks up a customer (group 2) user row by mobile number, shared by
-    // send_otp()/reset_password() below.
+    // Looks up a storefront customer row by mobile number, shared by
+    // send_password_reset_otp()/reset_password() below.
+    //
+    // Identifies customers by EXCLUSION (not on a staff portal) rather than by
+    // requiring group_id == 2, matching the web flow in Home.php. The old positive
+    // test locked out every legacy account with no users_groups row at all, and it
+    // only ever looked at $group[0] so a multi-group account was judged on whichever
+    // row the DB happened to return first.
     private function _find_reset_customer($mobile)
     {
-        $res = fetch_details('users', ['mobile' => $mobile]);
-        if (empty($res)) {
+        $owner = classify_mobile_owner($mobile);
+        if (!$owner['exists'] || $owner['role'] !== 'customer') {
             return null;
         }
-        $group = fetch_details('users_groups', ['user_id' => $res[0]['id']]);
-        if (empty($group) || $group[0]['group_id'] != 2) {
-            return null;
+        return $owner['user'];
+    }
+
+    // Distinguishes "no such account" from "that account lives on another portal".
+    private function _reset_lookup_error($mobile)
+    {
+        $owner = classify_mobile_owner($mobile);
+        if (!$owner['exists']) {
+            return 'You have not registered using this number.';
         }
-        return $res[0];
+        if ($owner['role'] !== 'customer') {
+            $portal = reset_portal_for_role($owner['role']);
+            return 'This number is registered as ' . $portal['label'] . ', not a customer account.';
+        }
+        return null;
     }
 
     public function send_password_reset_otp()
@@ -1837,17 +1853,28 @@ Defined Methods:-
             return false;
         }
 
-        $user = $this->_find_reset_customer($_POST['mobile_no']);
-        if (empty($user)) {
+        $lookup_error = $this->_reset_lookup_error($_POST['mobile_no']);
+        if ($lookup_error !== null) {
             $this->response['error'] = true;
-            $this->response['message'] = 'User does not exists !';
+            $this->response['message'] = $lookup_error;
+            echo json_encode($this->response);
+            return false;
+        }
+        $user = $this->_find_reset_customer($_POST['mobile_no']);
+
+        // The return value used to be discarded, so the app was told "OTP sent
+        // successfully" even when no gateway existed and nothing was ever delivered.
+        $sent = send_password_reset_otp($_POST['mobile_no'], $user);
+        if (empty($sent) || !empty($sent['error'])) {
+            $this->response['error'] = true;
+            $this->response['message'] = !empty($sent['message']) ? $sent['message'] : 'Could not send the OTP. Please try again later.';
             echo json_encode($this->response);
             return false;
         }
 
-        send_password_reset_otp($_POST['mobile_no']);
         $this->response['error'] = false;
-        $this->response['message'] = 'OTP sent successfully.';
+        $this->response['message'] = !empty($sent['message']) ? $sent['message'] : 'OTP sent successfully.';
+        $this->response['channel'] = !empty($sent['channel']) ? $sent['channel'] : '';
         echo json_encode($this->response);
         return false;
     }

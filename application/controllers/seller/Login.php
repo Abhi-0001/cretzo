@@ -684,38 +684,39 @@ class Login extends CI_Controller
         $this->form_validation->set_rules('password', 'Password', 'trim|required|xss_clean');
         $res = $this->db->select('id')->where($identity_column, $identity)->get('users')->result_array();
         if ($this->form_validation->run()) {
-            if (!empty($res)) {
-                if ($this->ion_auth_model->in_group('seller', $res[0]['id'])) {
-                    $remember = (bool)$this->input->post('remember');
-                    if ($this->ion_auth->login($this->input->post('identity', true), $this->input->post('password', true), $remember)) {
-                        //if the login is successful
-                        $response['error'] = false;
-                        $response['csrfName'] = $this->security->get_csrf_token_name();
-                        $response['csrfHash'] = $this->security->get_csrf_hash();
-                        $response['message'] = $this->ion_auth->messages();
-                        echo json_encode($response);
-                    } else {
-                        // if the login was un-successful
-                        $response['error'] = true;
-                        $response['csrfName'] = $this->security->get_csrf_token_name();
-                        $response['csrfHash'] = $this->security->get_csrf_hash();
-                        $response['message'] = $this->ion_auth->errors();
-                        echo json_encode($response);
-                    }
-                } else {
-                    $response['error'] = true;
+            // ONE message for every way a login can fail. This used to answer three
+            // distinguishable ways - "<identity> field is not correct" when no such user
+            // existed, the same text when the user existed but wasn't a seller, and
+            // ion_auth's own "Incorrect login" when the account existed and only the
+            // password was wrong. Comparing the replies let anyone enumerate which emails
+            // or phone numbers hold a seller account, which is the useful half of a
+            // credential-stuffing run. Nothing legitimate needs the distinction: a real
+            // seller typing their own password correctly gets in either way.
+            $generic_failure = 'The ' . $identity_column . ' or password you entered is incorrect.';
+
+            if (!empty($res) && $this->ion_auth_model->in_group('seller', $res[0]['id'])) {
+                $remember = (bool)$this->input->post('remember');
+                if ($this->ion_auth->login($this->input->post('identity', true), $this->input->post('password', true), $remember)) {
+                    //if the login is successful
+                    $response['error'] = false;
                     $response['csrfName'] = $this->security->get_csrf_token_name();
                     $response['csrfHash'] = $this->security->get_csrf_hash();
-                    $response['message'] = ucfirst($identity_column) . ' field is not correct';
+                    $response['message'] = $this->ion_auth->messages();
                     echo json_encode($response);
+                    return;
                 }
             } else {
-                $response['error'] = true;
-                $response['csrfName'] = $this->security->get_csrf_token_name();
-                $response['csrfHash'] = $this->security->get_csrf_hash();
-                $response['message'] = '' . ucfirst($identity_column) . ' field is not correct';
-                echo json_encode($response);
+                // Spend the same work as a real password check even when there is no seller
+                // account to check against, so the reply time doesn't leak what the message
+                // no longer does.
+                password_verify((string) $this->input->post('password', true), '$2y$10$' . str_repeat('0', 53));
             }
+
+            $response['error'] = true;
+            $response['csrfName'] = $this->security->get_csrf_token_name();
+            $response['csrfHash'] = $this->security->get_csrf_hash();
+            $response['message'] = $generic_failure;
+            echo json_encode($response);
         } else {
             $response['error'] = true;
             $response['csrfName'] = $this->security->get_csrf_token_name();
@@ -754,6 +755,24 @@ class Login extends CI_Controller
         return $res[0];
     }
 
+    // Distinguishes "no such account" from "that account lives on another portal",
+    // instead of answering both with a flat "You have not registered using this number."
+    private function _reset_lookup_error($mobile)
+    {
+        $owner = classify_mobile_owner($mobile);
+        if (!$owner['exists']) {
+            return 'You have not registered using this number.';
+        }
+        if ($owner['role'] !== 'seller') {
+            $portal = reset_portal_for_role($owner['role']);
+            $where  = !empty($portal['url'])
+                ? 'Please reset your password here: ' . base_url($portal['url'])
+                : 'Please reset your password from the customer login on the main site.';
+            return 'This number is registered as ' . $portal['label'] . ', not a seller account. ' . $where;
+        }
+        return null;
+    }
+
     public function send_reset_otp()
     {
         $this->form_validation->set_rules('mobile_number', 'Mobile No', 'trim|numeric|required|xss_clean|max_length[16]');
@@ -764,15 +783,16 @@ class Login extends CI_Controller
             return false;
         }
 
-        $user = $this->_find_reset_seller($this->input->post('mobile_number'));
-        if (empty($user)) {
+        $lookup_error = $this->_reset_lookup_error($this->input->post('mobile_number'));
+        if ($lookup_error !== null) {
             $response['error'] = true;
-            $response['message'] = 'You have not registered using this number.';
+            $response['message'] = $lookup_error;
             echo json_encode($response);
             return false;
         }
+        $user = $this->_find_reset_seller($this->input->post('mobile_number'));
 
-        $sent = send_password_reset_otp($this->input->post('mobile_number'));
+        $sent = send_password_reset_otp($this->input->post('mobile_number'), $user);
         if (empty($sent) || !empty($sent['error'])) {
             $response['error'] = true;
             $response['message'] = !empty($sent['message']) ? $sent['message'] : 'Could not send the OTP. Please try again later.';
@@ -781,7 +801,9 @@ class Login extends CI_Controller
         }
 
         $response['error'] = false;
-        $response['message'] = 'OTP sent successfully.';
+        // Name the channel: with no SMS gateway configured the OTP is emailed.
+        $response['message'] = !empty($sent['message']) ? $sent['message'] : 'OTP sent successfully.';
+        $response['channel'] = !empty($sent['channel']) ? $sent['channel'] : '';
         echo json_encode($response);
         return false;
     }

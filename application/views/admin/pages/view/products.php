@@ -72,11 +72,14 @@
                                 if ($product_details[0]['type'] == 'simple_product') {
                             ?>
                                     <div class="product-price mt-3">
-                                        <?php if ($product_variants[0]['special_price'] != null && $product_variants[0]['special_price'] > 0) { ?>
+                                        <?php // Products imported without their variant row have no price to show.
+                                        if (empty($product_variants[0])) { ?>
+                                            <span class="text-muted">No price set</span>
+                                        <?php } elseif (!empty($product_variants[0]['special_price']) && $product_variants[0]['special_price'] > 0) { ?>
                                             <span class="price-current"><?= $currency . $product_variants[0]['special_price'] ?></span>
                                             <span class="price-strike"><?= $currency . $product_variants[0]['price'] ?></span>
                                         <?php } else { ?>
-                                            <span class="price-current"><?= $currency . $product_variants[0]['price'] ?></span>
+                                            <span class="price-current"><?= $currency . ($product_variants[0]['price'] ?? '-') ?></span>
                                         <?php } ?>
                                     </div>
                             <?php

@@ -60,6 +60,14 @@
 
     <!-- jQuery -->
     <script src="<?= add_ver(base_url('assets/admin/js/jquery.min.js')) ?>"></script>
+    <?php // CSRF: token for assets/csrf-guard.js, which stamps it onto every same-origin
+          // POST (raw forms, $.ajax, FormData uploads, fetch, XHR) so enabling
+          // csrf_protection doesn't require editing hundreds of existing call sites.
+          // Must load immediately after jQuery so its ajaxPrefilter is registered before
+          // any page script fires a request. ?>
+    <meta name="csrf-token-name" content="<?= $this->security->get_csrf_token_name() ?>">
+    <meta name="csrf-token-hash" content="<?= $this->security->get_csrf_hash() ?>">
+    <script src="<?= add_ver(base_url('assets/csrf-guard.js')) ?>"></script>
     <!-- Star rating js -->
     <script type="text/javascript" src="<?= add_ver(base_url('assets/admin/js/star-rating.js')) ?>"></script>
     <script type="text/javascript" src="<?= add_ver(base_url('assets/admin/js/theme.min.js')) ?>"></script> 

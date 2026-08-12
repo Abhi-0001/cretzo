@@ -260,7 +260,39 @@
                         <p class="subtitle">Choose a plan that fits your creative journey</p>
 
                         <?php if (!empty($current_plan)) : ?>
-                            <p><strong>Current Plan:</strong> <?= html_escape($current_plan['name']); ?></p>
+                            <?php
+                            // This page named the current plan but never showed its expiry, so a
+                            // seller had no way to find out when their subscription actually ran
+                            // out - or that it already had.
+                            $sub_row   = !empty($active_subscription) ? $active_subscription : $latest_subscription;
+                            $is_live   = !empty($active_subscription);
+                            $ends_on   = !empty($sub_row['end_date']) ? strtotime($sub_row['end_date']) : null;
+                            $days_left = $ends_on !== null ? (int) floor(($ends_on - strtotime(date('Y-m-d'))) / 86400) : null;
+                            ?>
+                            <p class="current-plan-line">
+                                <strong>Current Plan:</strong> <?= html_escape($current_plan['name']); ?>
+                                <?php if (!$is_live) : ?>
+                                    <span class="plan-chip plan-chip-expired">Expired<?= $ends_on ? ' on ' . date('d M Y', $ends_on) : '' ?></span>
+                                    <span class="plan-note">Renew below to start adding products again.</span>
+                                <?php elseif ($ends_on === null) : ?>
+                                    <span class="plan-chip plan-chip-ok">Active &mdash; no expiry</span>
+                                <?php else : ?>
+                                    <span class="plan-chip <?= $days_left <= 7 ? 'plan-chip-warn' : 'plan-chip-ok' ?>">
+                                        Valid till <?= date('d M Y', $ends_on) ?>
+                                        (<?= $days_left <= 0 ? 'expires today' : $days_left . ' day' . ($days_left === 1 ? '' : 's') . ' left' ?>)
+                                    </span>
+                                    <?php if ($days_left <= 7) : ?>
+                                        <span class="plan-note">Renew soon to avoid interruption.</span>
+                                    <?php endif; ?>
+                                <?php endif; ?>
+                            </p>
+                            <style>
+                                .current-plan-line .plan-chip { display:inline-block; margin-left:6px; padding:2px 10px; border-radius:12px; font-size:12px; font-weight:600; }
+                                .current-plan-line .plan-chip-ok { background:#e6f4ea; color:#1e7e34; }
+                                .current-plan-line .plan-chip-warn { background:#fff3e0; color:#b35309; }
+                                .current-plan-line .plan-chip-expired { background:#fdecea; color:#c0392b; }
+                                .current-plan-line .plan-note { display:inline-block; margin-left:6px; font-size:12px; color:#6c757d; }
+                            </style>
                         <?php endif; ?>
 
                         <?php if (!empty($plans)) : ?>

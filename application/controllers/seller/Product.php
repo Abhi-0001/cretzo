@@ -126,6 +126,11 @@ class Product extends CI_Controller
                     $countries = fetch_details('countries', ['name' => $product_details[0]['made_in']], 'name');
                     $this->data['product_details'] = $product_details;
                     $this->data['product_variants'] = get_variants_values_by_pid($_GET['edit_id']);
+                    // Same fallback as the admin form: a simple / digital product's price and
+                    // dimensions live on a single variant row that may have been soft-removed.
+                    if (empty($this->data['product_variants']) && !empty($product_details[0]['type']) && $product_details[0]['type'] != 'variable_product') {
+                        $this->data['product_variants'] = get_variants_values_by_pid($_GET['edit_id'], [0, 1, 7]);
+                    }
                     $product_attributes = fetch_details('product_attributes', ['product_id' => $_GET['edit_id']]);
                     if (!empty($product_attributes) && !empty($product_details)) {
                         $this->data['product_attributes'] = $product_attributes;
@@ -335,11 +340,10 @@ class Product extends CI_Controller
             $quota_seller_id = $this->session->userdata('user_id');
             $quota = $this->Seller_subscription_model->check_listing_quota($quota_seller_id, 1);
             if (!$quota['allowed']) {
-                $plan_label = $quota['plan_name'] !== '' ? ' on the ' . $quota['plan_name'] . ' plan' : '';
                 $this->response['error'] = true;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = 'You have reached your listing limit of ' . $quota['limit'] . ' products' . $plan_label . ' (currently used ' . $quota['used'] . '). Please upgrade your subscription plan to add more products.';
+                $this->response['message'] = $this->Seller_subscription_model->quota_error_message($quota, 1);
                 print_r(json_encode($this->response));
                 return;
             }
@@ -1032,11 +1036,10 @@ class Product extends CI_Controller
                     $rows_to_add = ($temp > 0) ? ($temp - 1) : 0;
                     $quota = $this->Seller_subscription_model->check_listing_quota($this->ion_auth->get_user_id(), $rows_to_add);
                     if (!$quota['allowed']) {
-                        $plan_label = $quota['plan_name'] !== '' ? ' on the ' . $quota['plan_name'] . ' plan' : '';
                         $this->response['error'] = true;
                         $this->response['csrfName'] = $this->security->get_csrf_token_name();
                         $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                        $this->response['message'] = 'This file has ' . $rows_to_add . ' products, but your listing limit is ' . $quota['limit'] . $plan_label . ' and you have already used ' . $quota['used'] . ' (' . $quota['remaining'] . ' left). Please upgrade your subscription or upload fewer products.';
+                        $this->response['message'] = $this->Seller_subscription_model->quota_error_message($quota, $rows_to_add);
                         print_r(json_encode($this->response));
                         return false;
                     }

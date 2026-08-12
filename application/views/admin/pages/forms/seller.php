@@ -1,3 +1,8 @@
+<?php
+// Add-Seller mode has no record to prefill from. Most fields already guard themselves, but
+// the ones passed into render_admin_doc_field() below need a real array to receive.
+$fetched_data = isset($fetched_data) && is_array($fetched_data) ? $fetched_data : [];
+?>
 <div class="content-wrapper">
     <!-- Content Header (Page header) -->
     <!-- Main content -->

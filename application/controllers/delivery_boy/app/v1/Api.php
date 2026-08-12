@@ -872,15 +872,28 @@ Defined Methods:-
 
         $res = fetch_details('users', ['mobile' => $_POST['mobile_no']]);
         if (empty($res) || !$this->ion_auth->in_group('delivery_boy', $res[0]['id'])) {
+            $owner = classify_mobile_owner($_POST['mobile_no']);
             $this->response['error'] = true;
-            $this->response['message'] = 'User does not exists !';
+            $this->response['message'] = $owner['exists']
+                ? 'This number is registered as ' . reset_portal_for_role($owner['role'])['label'] . ', not a delivery boy account.'
+                : 'You have not registered using this number.';
             echo json_encode($this->response);
             return false;
         }
 
-        send_password_reset_otp($_POST['mobile_no']);
+        // The return value used to be discarded, so the app was told "OTP sent
+        // successfully" even when no gateway existed and nothing was ever delivered.
+        $sent = send_password_reset_otp($_POST['mobile_no'], $res[0]);
+        if (empty($sent) || !empty($sent['error'])) {
+            $this->response['error'] = true;
+            $this->response['message'] = !empty($sent['message']) ? $sent['message'] : 'Could not send the OTP. Please try again later.';
+            echo json_encode($this->response);
+            return false;
+        }
+
         $this->response['error'] = false;
-        $this->response['message'] = 'OTP sent successfully.';
+        $this->response['message'] = !empty($sent['message']) ? $sent['message'] : 'OTP sent successfully.';
+        $this->response['channel'] = !empty($sent['channel']) ? $sent['channel'] : '';
         echo json_encode($this->response);
         return false;
     }

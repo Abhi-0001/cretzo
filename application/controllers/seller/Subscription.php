@@ -99,32 +99,38 @@ class Subscription extends CI_Controller
             return;
         }
 
-        // Upgrades and downgrades are both allowed: switching plans (either direction)
-        // takes effect immediately via assign_subscription() below, which deactivates
-        // the seller's prior subscription and starts a fresh validity period on the
-        // new plan - no proration/credit for time remaining on the old plan.
+        // Upgrades and downgrades are both allowed and take effect immediately. Switching
+        // to a DIFFERENT plan now credits the unused portion of the current paid plan
+        // against the new plan's price (see calculate_proration), so a mid-cycle upgrade no
+        // longer means paying twice for the overlapping days. Re-buying the SAME plan is a
+        // renewal instead, and carries the unused days forward.
+        $proration    = $this->Seller_subscription_model->calculate_proration($seller_id, $plan);
+        $full_price   = $proration['full_price'];
+        $amount_value = $proration['payable'];
 
-        // normalize plan amount (numeric only, treat non‑numeric / empty as 0 i.e. free)
-        $amount_value = 0;
-        if (!empty($plan['price'])) {
-            $clean_price = preg_replace('/[^\d\.]/', '', $plan['price']);
-            $amount_value = is_numeric($clean_price) ? (float) $clean_price : 0;
-        }
-
-        // If plan is free or has 0 price, activate subscription immediately (no payment)
+        // Free plan, or a switch fully covered by the credit: activate with no payment.
         if ($amount_value <= 0) {
             $success = $this->Seller_subscription_model->assign_subscription(
                 $seller_id,
                 $subscription_id,
-                isset($plan['validity']) ? $plan['validity'] : null
+                isset($plan['validity']) ? $plan['validity'] : null,
+                true
             );
+
+            if ($success && $proration['credit'] > 0) {
+                $message = 'Subscription activated. The ' . number_format($proration['credit'], 2)
+                    . ' credit for the ' . $proration['days_remaining'] . ' unused day(s) on your '
+                    . $proration['from_plan'] . ' plan covered the full cost.';
+            } else {
+                $message = 'Subscription activated successfully.';
+            }
 
             $response = [
                 'error' => !$success,
                 'requires_payment' => false,
                 'csrfName' => $this->security->get_csrf_token_name(),
                 'csrfHash' => $this->security->get_csrf_hash(),
-                'message' => $success ? 'Subscription activated successfully.' : 'Failed to activate subscription.',
+                'message' => $success ? $message : 'Failed to activate subscription.',
             ];
             echo json_encode($response);
             return;
@@ -188,7 +194,15 @@ class Subscription extends CI_Controller
             'seller_name' => isset($user->username) ? $user->username : '',
             'seller_email' => isset($user->email) ? $user->email : '',
             'seller_contact' => isset($user->mobile) ? $user->mobile : '',
-            'message' => 'Razorpay order created. Proceed to payment.',
+            // Surfaced so the checkout screen can explain why the charge is lower than the
+            // advertised plan price, instead of looking like a pricing bug.
+            'full_price' => $full_price,
+            'proration_credit' => $proration['credit'],
+            'proration_days' => $proration['days_remaining'],
+            'proration_from_plan' => $proration['from_plan'],
+            'message' => $proration['credit'] > 0
+                ? 'Razorpay order created. A credit of ' . number_format($proration['credit'], 2) . ' for ' . $proration['days_remaining'] . ' unused day(s) on your ' . $proration['from_plan'] . ' plan has been applied.'
+                : 'Razorpay order created. Proceed to payment.',
         ];
 
         echo json_encode($response);
@@ -285,10 +299,16 @@ class Subscription extends CI_Controller
             return;
         }
 
+        // The amount to check against is the one on the Razorpay ORDER we created in
+        // purchase(), not the plan's list price. Since proration can legitimately discount
+        // a mid-cycle switch, comparing against the list price would reject a correct,
+        // fully-paid prorated payment. The order is the authoritative record of what we
+        // asked for: it was created server-side, its receipt is already bound to this
+        // seller and plan (checked above), and Razorpay will not let a payment settle for
+        // less than the order it belongs to.
         $amount_value = 0;
-        if (!empty($plan['price'])) {
-            $clean_price = preg_replace('/[^\d\.]/', '', $plan['price']);
-            $amount_value = is_numeric($clean_price) ? (float) $clean_price : 0;
+        if (isset($order['amount']) && is_numeric($order['amount'])) {
+            $amount_value = ((float) $order['amount']) / 100; // paise -> rupees
         }
 
         if ($amount_value <= 0) {
@@ -344,10 +364,17 @@ class Subscription extends CI_Controller
             return;
         }
 
+        // Renewing the SAME plan before it lapses is a renewal, not a switch: the unused
+        // days are carried forward. Previously every purchase restarted the period from
+        // today, so a seller who renewed a 365-day plan with 200 days still on it paid for
+        // a year and silently lost those 200 days. (Carry-over applies only to the paid
+        // path - re-selecting a free plan still just restarts it, so a free plan can't be
+        // stacked into an ever-growing entitlement.)
         $success = $this->Seller_subscription_model->assign_subscription(
             $seller_id,
             $subscription_id,
-            isset($plan['validity']) ? $plan['validity'] : null
+            isset($plan['validity']) ? $plan['validity'] : null,
+            true
         );
 
         if ($success) {
