@@ -1148,12 +1148,28 @@ class Auth extends CI_Controller
             return;
         } else {
 
-            if (isset($_POST['mobile']) && is_exist(['mobile' => $_POST['mobile']], 'users')) {
-                $this->response['error'] = true;
-                $this->response['message'] = 'Mobile is already registered.Please try to login !';
-                $this->response['data'] = array();
-                print_r(json_encode($this->response));
-                return;
+            // Role-aware duplicate message. This used to be a flat "Mobile is already
+            // registered.Please try to login !" for ANY match, which is what made the
+            // reported contradiction so confusing: the customer reset modal said
+            // 9675916976 was not registered (it is a seller, so the customer lookup
+            // skipped it) while this line said it already existed. Both were true; the
+            // messages just never said which portal the account was actually on.
+            if (isset($_POST['mobile']) && trim($_POST['mobile']) !== '') {
+                $owner = classify_mobile_owner($_POST['mobile']);
+                if ($owner['exists']) {
+                    $this->response['error'] = true;
+                    if ($owner['role'] !== 'customer') {
+                        $portal = reset_portal_for_role($owner['role']);
+                        $this->response['message'] = 'This number is already registered as ' . $portal['label']
+                            . '. Please log in at ' . base_url($portal['login_url'])
+                            . ' (or reset that password at ' . base_url($portal['url']) . ').';
+                    } else {
+                        $this->response['message'] = 'Mobile is already registered.Please try to login !';
+                    }
+                    $this->response['data'] = array();
+                    print_r(json_encode($this->response));
+                    return;
+                }
             }
             if (isset($_POST['email']) && is_exist(['email' => $_POST['email']], 'users')) {
                 $this->response['error'] = true;

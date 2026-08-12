@@ -952,19 +952,32 @@ if (!empty($sections)) {
     // which also matches ion_auth's 'members' default_group.
     private function _find_reset_customer($mobile)
     {
-        $res = fetch_details('users', ['mobile' => $mobile]);
-        if (empty($res)) {
+        $owner = classify_mobile_owner($mobile);
+        if (!$owner['exists'] || $owner['role'] !== 'customer') {
             return null;
         }
-        $staff_groups = [
-            $this->config->item('admin_group', 'ion_auth'),
-            $this->config->item('seller_group', 'ion_auth'),
-            $this->config->item('delivery_boy_group', 'ion_auth'),
-        ];
-        if ($this->ion_auth->in_group($staff_groups, $res[0]['id'])) {
-            return null;
+        return $owner['user'];
+    }
+
+    // Turns a mobile number into the exact error the storefront should show, or null
+    // when the number is a resettable customer account.
+    //
+    // Replaces a flat "You have not registered using this number." that fired both
+    // when no account existed AND when the account existed on another portal - the
+    // reported contradiction where the customer modal called 9675916976 unregistered
+    // while signup called the same number already registered (it is a seller).
+    private function _reset_lookup_error($mobile)
+    {
+        $owner = classify_mobile_owner($mobile);
+        if (!$owner['exists']) {
+            return 'You have not registered using this number.';
         }
-        return $res[0];
+        if ($owner['role'] !== 'customer') {
+            $portal = reset_portal_for_role($owner['role']);
+            return 'This number is registered as ' . $portal['label'] . ', not a customer account. '
+                . 'Please reset your password here: ' . base_url($portal['url']);
+        }
+        return null;
     }
 
     public function send_reset_otp()
@@ -981,15 +994,16 @@ if (!empty($sections)) {
             return false;
         }
 
-        $user = $this->_find_reset_customer($this->input->post('mobile_number'));
-        if (empty($user)) {
+        $lookup_error = $this->_reset_lookup_error($this->input->post('mobile_number'));
+        if ($lookup_error !== null) {
             $this->response['error'] = true;
-            $this->response['message'] = 'You have not registered using this number.';
+            $this->response['message'] = $lookup_error;
             echo json_encode($this->response);
             return false;
         }
+        $user = $this->_find_reset_customer($this->input->post('mobile_number'));
 
-        $sent = send_password_reset_otp($this->input->post('mobile_number'));
+        $sent = send_password_reset_otp($this->input->post('mobile_number'), $user);
         if (empty($sent) || !empty($sent['error'])) {
             $this->response['error'] = true;
             $this->response['message'] = !empty($sent['message']) ? $sent['message'] : 'Could not send the OTP. Please try again later.';
@@ -998,7 +1012,11 @@ if (!empty($sections)) {
         }
 
         $this->response['error'] = false;
-        $this->response['message'] = 'OTP sent successfully.';
+        // Tell the user WHICH channel it went to - with no SMS gateway configured the
+        // OTP arrives by email, and a bare "OTP sent successfully" left people staring
+        // at their phone waiting for a text that was never going to come.
+        $this->response['message'] = !empty($sent['message']) ? $sent['message'] : 'OTP sent successfully.';
+        $this->response['channel'] = !empty($sent['channel']) ? $sent['channel'] : '';
         echo json_encode($this->response);
         return false;
     }

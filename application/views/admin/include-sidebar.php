@@ -267,7 +267,11 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
                                     </a>
                                 </li>
                             <?php } ?>
-                            <?php // subscription menu item added ?>
+                            <?php // Both screens are gated on the 'subscription' module in
+                                  // admin/Subscription.php, so hide the links from roles that
+                                  // don't hold it rather than showing a link that bounces
+                                  // straight back to the dashboard. ?>
+                            <?php if (has_permissions('read', 'subscription')) { ?>
                                 <li class="nav-item">
                                     <a href="<?= base_url('admin/subscription/manage_subscriptions') ?>" class="nav-link">
                                         <i class="fas fa-file-invoice-dollar nav-icon"></i>
@@ -284,6 +288,7 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
                                         </p>
                                     </a>
                                 </li>
+                            <?php } ?>
                         </ul>
                     </li>
                 <?php } ?>
@@ -479,7 +484,8 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
                         </a>
                     </li>
                 <?php } ?>
-                <?php if (has_permissions('read', 'delivery_boy') || has_permissions('read', 'fund_transfer')) { ?>
+                <?php /* Delivery Boys menu hidden for now — re-enable by removing the `false &&` below.
+                <?php if (false && (has_permissions('read', 'delivery_boy') || has_permissions('read', 'fund_transfer'))) { ?>
                     <li class="nav-item has-treeview">
                         <a href="#" class="nav-link">
                             <i class="nav-icon fas fa-id-card-alt text-info"></i>
@@ -516,6 +522,7 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
                         </ul>
                     </li>
                 <?php } ?>
+                */ ?>
 
                 <!-- I will permission for this module later. -->
                 <?php if (has_permissions('read', 'return_request')) { ?>

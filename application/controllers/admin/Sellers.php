@@ -39,6 +39,9 @@ class Sellers extends CI_Controller
             $this->data['title'] = 'Add Seller | ' . $settings['app_name'];
             $this->data['meta_description'] = 'Add Seller | ' . $settings['app_name'];
             $this->data['categories'] = $this->category_model->get_categories();
+            // Only populated when editing. On the "Add Seller" screen the view still reads it,
+            // so hand it an empty array instead of leaving the variable undefined.
+            $this->data['fetched_data'] = [];
 
             $this->data['all_categories'] = [];
             if ($this->db->table_exists('categories')) {

@@ -387,7 +387,11 @@ $config['sess_expiration'] = 7200;
 $config['sess_save_path'] = sys_get_temp_dir();
 $config['sess_match_ip'] = FALSE;
 $config['sess_time_to_update'] = 300;
-$config['sess_regenerate_destroy'] = FALSE;
+// Destroy the old session file when the ID is regenerated. With this FALSE, every
+// abandoned session ID stayed valid on disk until GC - including the pre-login ID that
+// ion_auth regenerates away from at login, which is exactly the ID a session-fixation
+// attempt plants. Regenerating without destroying leaves that planted ID working.
+$config['sess_regenerate_destroy'] = TRUE;
 
 /*
 |--------------------------------------------------------------------------
@@ -407,8 +411,18 @@ $config['sess_regenerate_destroy'] = FALSE;
 $config['cookie_prefix']    = '';
 $config['cookie_domain']    = '';
 $config['cookie_path']        = '/';
-$config['cookie_secure']    = FALSE;
-$config['cookie_httponly']     = FALSE;
+// Set only when the request actually arrived over HTTPS, so the session cookie is not
+// leaked over plain HTTP on the live site, while local/HTTP development still logs in.
+// Hardcoding TRUE would lock logins out of any non-HTTPS environment; hardcoding FALSE
+// (the previous value) meant the live site's admin/seller session cookie had no Secure
+// flag at all.
+$config['cookie_secure']    = (
+    (!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off')
+    || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https')
+);
+// Session cookie must not be readable from JavaScript - this is what stops any single
+// stored-XSS on the storefront from being escalated into a stolen admin/seller session.
+$config['cookie_httponly']     = TRUE;
 
 /*
 |--------------------------------------------------------------------------
@@ -453,11 +467,22 @@ $config['global_xss_filtering'] = FALSE;
 | 'csrf_exclude_uris' = Array of URIs which ignore CSRF checks
 */
 
-$config['csrf_protection'] = FALSE;
+// Was FALSE, so every state-changing POST in the app - admin settings, product and order
+// edits, seller subscription purchases, password changes - could be triggered by any other
+// site the victim happened to visit while logged in. assets/csrf-guard.js (loaded from
+// every layout head) stamps the token onto raw <form> posts, $.ajax, FormData uploads,
+// fetch and bare XHR, so turning this on does not require rewriting the ~36 hand-rolled
+// forms and dozens of AJAX call sites that never used form_open().
+$config['csrf_protection'] = TRUE;
 $config['csrf_token_name'] = 'ekart_security_token';
 $config['csrf_cookie_name'] = 'ekart_security_cookie';
 $config['csrf_expire'] = 7200;
-$config['csrf_regenerate'] = TRUE;
+// Deliberately FALSE. Rotating the token on every single request breaks any page that
+// fires two POSTs concurrently (the loser submits a token that was already spent), breaks
+// the back button, and breaks a second browser tab - all of which this app does routinely
+// via bootstrap-table refreshes and modal forms. A stable per-session token still blocks
+// cross-site forgery, which is the entire point of the check.
+$config['csrf_regenerate'] = FALSE;
 $config['csrf_exclude_uris'] = array('admin/product/process_bulk_upload', 'admin/product/get_subcategory','admin/themes/switch','admin/setting/set-default-theme','admin/updater/upload_update_file','admin/webhook/spr_webhook', 'cart/pre-payment-setup', 'cart/validate-promo-code', 'my-account/get-address', 'cart/place-order', 'payment/[a-z_-]+', 'admin/category/add_category', 'admin/orders/update_orders', 'admin/product/update_product_order', 'admin/orders/delete_orders', 'admin/product/delete_product', 'app/v1/api/[a-z_-]+', 'delivery_boy/app/v1/api/[a-z_-]+', 'admin/app/v1/api/[a-z_-]+', 'admin/home/fetch_sales', 'seller/app/v1/api/[a-z_-]+', 'admin/webhook/[a-z_-]+','admin/media/upload', 'admin/webhook/phonepe_webhook');
 
 /*

@@ -49,6 +49,23 @@ class Product_model extends CI_Model
                     return $query->result_array();
     }
 
+    /**
+     * The single product_variants row that holds a simple / digital product's price.
+     *
+     * Any status is accepted - a soft-removed row (status 7) still has to be reused on
+     * update, otherwise the edit would update nothing and the price would be lost.
+     */
+    private function get_simple_product_variant($product_id)
+    {
+        return $this->db->select('id')
+            ->where('product_id', $product_id)
+            ->order_by('status = 1', 'DESC', false)
+            ->order_by('id', 'ASC')
+            ->limit(1)
+            ->get('product_variants')
+            ->row_array();
+    }
+
     public function add_product($data)
     {
         $data = escape_array($data);
@@ -240,10 +257,14 @@ class Product_model extends CI_Model
             ];
 
             if (isset($data['edit_product_id'])) {
-                if (isset($_POST['reset_settings']) && trim($_POST['reset_settings']) == '1') {
+                $existing_variant = $this->get_simple_product_variant($data['edit_product_id']);
+                if ((isset($_POST['reset_settings']) && trim($_POST['reset_settings']) == '1') || empty($existing_variant)) {
                     $this->db->insert('product_variants', $pro_variance_data);
                 } else {
-                    $this->db->where('product_id', $data['edit_product_id'])->update('product_variants', $pro_variance_data);
+                    // Target the row by id and revive it: products whose variant row had been
+                    // soft-removed (status 7) used to swallow the new price silently.
+                    $pro_variance_data['status'] = 1;
+                    $this->db->where('id', $existing_variant['id'])->update('product_variants', $pro_variance_data);
                 }
             } else {
                 $this->db->insert('product_variants', $pro_variance_data);
@@ -256,10 +277,12 @@ class Product_model extends CI_Model
             ];
 
             if (isset($data['edit_product_id'])) {
-                if (isset($_POST['reset_settings']) && trim($_POST['reset_settings']) == '1') {
+                $existing_variant = $this->get_simple_product_variant($data['edit_product_id']);
+                if ((isset($_POST['reset_settings']) && trim($_POST['reset_settings']) == '1') || empty($existing_variant)) {
                     $this->db->insert('product_variants', $pro_variance_data);
                 } else {
-                    $this->db->where('product_id', $data['edit_product_id'])->update('product_variants', $pro_variance_data);
+                    $pro_variance_data['status'] = 1;
+                    $this->db->where('id', $existing_variant['id'])->update('product_variants', $pro_variance_data);
                 }
             } else {
                 $this->db->insert('product_variants', $pro_variance_data);

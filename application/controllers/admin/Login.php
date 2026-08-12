@@ -150,6 +150,24 @@ class Login extends CI_Controller
         return $res[0];
     }
 
+    // Distinguishes "no such account" from "that account lives on another portal",
+    // instead of answering both with a flat "You have not registered using this number."
+    private function _reset_lookup_error($mobile)
+    {
+        $owner = classify_mobile_owner($mobile);
+        if (!$owner['exists']) {
+            return 'You have not registered using this number.';
+        }
+        if ($owner['role'] !== 'admin') {
+            $portal = reset_portal_for_role($owner['role']);
+            $where  = !empty($portal['url'])
+                ? 'Please reset your password here: ' . base_url($portal['url'])
+                : 'Please reset your password from the customer login on the main site.';
+            return 'This number is registered as ' . $portal['label'] . ', not an admin account. ' . $where;
+        }
+        return null;
+    }
+
     public function send_reset_otp()
     {
         $this->form_validation->set_rules('mobile_number', 'Mobile No', 'trim|numeric|required|xss_clean|max_length[16]');
@@ -160,15 +178,16 @@ class Login extends CI_Controller
             return false;
         }
 
-        $user = $this->_find_reset_admin($this->input->post('mobile_number'));
-        if (empty($user)) {
+        $lookup_error = $this->_reset_lookup_error($this->input->post('mobile_number'));
+        if ($lookup_error !== null) {
             $response['error'] = true;
-            $response['message'] = 'You have not registered using this number.';
+            $response['message'] = $lookup_error;
             echo json_encode($response);
             return false;
         }
+        $user = $this->_find_reset_admin($this->input->post('mobile_number'));
 
-        $sent = send_password_reset_otp($this->input->post('mobile_number'));
+        $sent = send_password_reset_otp($this->input->post('mobile_number'), $user);
         if (empty($sent) || !empty($sent['error'])) {
             $response['error'] = true;
             $response['message'] = !empty($sent['message']) ? $sent['message'] : 'Could not send the OTP. Please try again later.';
@@ -177,7 +196,9 @@ class Login extends CI_Controller
         }
 
         $response['error'] = false;
-        $response['message'] = 'OTP sent successfully.';
+        // Name the channel: with no SMS gateway configured the OTP is emailed.
+        $response['message'] = !empty($sent['message']) ? $sent['message'] : 'OTP sent successfully.';
+        $response['channel'] = !empty($sent['channel']) ? $sent['channel'] : '';
         echo json_encode($response);
         return false;
     }

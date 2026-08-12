@@ -73,6 +73,10 @@ $path = ($is_rtl == 1) ? 'rtl/' : "";
 
 <!-- Jquery -->
 <script src="<?= add_ver(THEME_ASSETS_URL . 'js/jquery.min.js') ?>"></script>
+<?php // See admin/include-head.php - stamps the CSRF token onto every same-origin POST. ?>
+<meta name="csrf-token-name" content="<?= $this->security->get_csrf_token_name() ?>">
+<meta name="csrf-token-hash" content="<?= $this->security->get_csrf_hash() ?>">
+<script src="<?= add_ver(base_url('assets/csrf-guard.js')) ?>"></script>
 <!-- Date Range Picker -->
 <script src="<?= add_ver(THEME_ASSETS_URL . 'js/moment.min.js') ?>"></script>
 <script src="<?= add_ver(THEME_ASSETS_URL . 'js/daterangepicker.js') ?>"></script>

@@ -412,7 +412,23 @@
         </div>
     </section>
 
-    <?php if (empty($product_details[0]['id']) && !empty($listing_quota) && $listing_quota['limit'] !== null) :
+    <?php
+    // An expired subscription now blocks new listings, so it needs its own message - the
+    // usage banner alone would read "0 remaining, you've reached your plan limit", which
+    // points the seller at an upgrade when what they actually need is a renewal.
+    $lq_expired = (!empty($listing_quota) && isset($listing_quota['status']) && $listing_quota['status'] === 'expired');
+    ?>
+    <?php if (empty($product_details[0]['id']) && $lq_expired) : ?>
+        <section class="content pb-0">
+            <div class="container-fluid">
+                <div style="border-left:4px solid #dc3545; background:#fff8ef; border-radius:8px; padding:12px 16px; margin-bottom:6px; font-size:14px;">
+                    <strong style="color:#dc3545;">Your subscription<?= $listing_quota['plan_name'] !== '' ? ' (' . html_escape($listing_quota['plan_name']) . ')' : '' ?> has expired.</strong>
+                    Your existing <?= (int) $listing_quota['used'] ?> products stay live, but you can't add new ones until you renew.
+                    <a href="<?= base_url('seller/subscription') ?>">Renew your plan</a> to continue listing.
+                </div>
+            </div>
+        </section>
+    <?php elseif (empty($product_details[0]['id']) && !empty($listing_quota) && $listing_quota['limit'] !== null) :
         $lq_remaining = (int) $listing_quota['remaining'];
         $lq_color = $lq_remaining <= 0 ? '#dc3545' : ($lq_remaining <= 5 ? '#F2822E' : '#2e7d32');
     ?>

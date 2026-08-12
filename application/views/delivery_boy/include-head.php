@@ -51,6 +51,10 @@
 
     <!-- jQuery -->
     <script src="<?= base_url('assets/admin/js/jquery.min.js') ?>"></script>
+    <?php // See admin/include-head.php - stamps the CSRF token onto every same-origin POST. ?>
+    <meta name="csrf-token-name" content="<?= $this->security->get_csrf_token_name() ?>">
+    <meta name="csrf-token-hash" content="<?= $this->security->get_csrf_hash() ?>">
+    <script src="<?= base_url('assets/csrf-guard.js') ?>"></script>
     <!-- Star rating js -->
     <script type="text/javascript" src="<?= base_url('assets/admin/js/star-rating.js') ?>"></script>
     <script type="text/javascript" src="<?= base_url('assets/admin/js/theme.min.js') ?>"></script>

@@ -65,8 +65,19 @@
                         <?php if (!empty($current_subscription_plan['validity'])) : ?>
                             <span class="ml-2 badge badge-light"><?= html_escape($current_subscription_plan['validity']); ?></span>
                         <?php endif; ?>
-                        <?php if (!empty($active_subscription['end_date'])) : ?>
-                            <span class="ml-2 text-sm text-muted">(Valid till <?= date('d M Y', strtotime($active_subscription['end_date'])); ?>)</span>
+                        <?php if (!empty($active_subscription['end_date'])) :
+                            // Countdown, not just a date: the seller needs to notice the plan is
+                            // about to lapse while they can still act on it. A plan with no
+                            // end_date is genuinely unlimited and says so, rather than rendering
+                            // nothing at all like it used to.
+                            $days_left = (int) floor((strtotime($active_subscription['end_date']) - strtotime(date('Y-m-d'))) / 86400);
+                        ?>
+                            <span class="ml-2 text-sm <?= $days_left <= 7 ? 'text-danger font-weight-bold' : 'text-muted' ?>">
+                                (Valid till <?= date('d M Y', strtotime($active_subscription['end_date'])); ?>
+                                &mdash; <?= $days_left <= 0 ? 'expires today' : $days_left . ' day' . ($days_left === 1 ? '' : 's') . ' left' ?>)
+                            </span>
+                        <?php else : ?>
+                            <span class="ml-2 text-sm text-muted">(No expiry)</span>
                         <?php endif; ?>
                     </div>
                     <a href="<?= base_url('seller/subscription/manage_subscriptions'); ?>" class="btn btn-sm btn-primary-theme">Manage / Upgrade Plan</a>

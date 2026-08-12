@@ -34,6 +34,7 @@ class Subscription extends CI_Controller
             $this->data['title'] = 'Seller Subscriptions | ' . $settings['app_name'];
             $this->data['meta_description'] = 'Seller Subscriptions | ' . $settings['app_name'];
             $this->data['plans'] = $this->Subscription_model->get_plans();
+            $this->data['launch_offer'] = $this->Seller_subscription_model->get_launch_offer_stats();
             $this->load->view('admin/template', $this->data);
         } else {
             redirect('admin/login', 'refresh');
@@ -49,13 +50,82 @@ class Subscription extends CI_Controller
             return false;
         }
 
+        $status_filter = $this->input->get('status_filter', true);
+
         $rows = $this->Seller_subscription_model->get_all_seller_subscription_status();
-        foreach ($rows as &$row) {
+        $result = [];
+        foreach ($rows as $row) {
+            if (!empty($status_filter) && strcasecmp($row['status'], $status_filter) !== 0) {
+                continue;
+            }
+
             $row['shop_name'] = html_escape($row['shop_name']);
+            $row['email']     = html_escape($row['email']);
+            $row['mobile']    = html_escape($row['mobile']);
+            $row['plan_name'] = html_escape($row['plan_name']);
+
+            $badge = $row['status'] === 'Active' ? 'success' : ($row['status'] === 'Expired' ? 'danger' : 'secondary');
+            $row['status'] = '<span class="badge badge-' . $badge . '">' . $row['status'] . '</span>';
+
+            $row['plan_type'] = '<span class="badge badge-' . ($row['plan_type'] === 'Paid' ? 'info' : 'light') . '">' . $row['plan_type'] . '</span>';
+
+            // Usage reads as "12 / 50", flagged red once the seller is over the cap they
+            // are currently entitled to (possible after an admin-side downgrade).
+            $usage = $row['used'] . ' / ' . $row['limit'];
+            $row['usage'] = $row['over_limit'] ? '<span class="text-danger font-weight-bold">' . $usage . '</span>' : $usage;
+
+            $row['last_payment'] = ($row['last_payment'] === '' || $row['last_payment'] === null)
+                ? '<span class="text-muted">-</span>'
+                : html_escape($row['last_payment']) . '<br><small class="text-muted">' . html_escape((string) $row['last_paid_on']) . '</small>';
+
             $row['operate'] = '<button type="button" class="btn btn-primary-theme btn-xs manage-subscription-btn" data-seller-id="' . $row['seller_id'] . '" data-shop-name="' . $row['shop_name'] . '"><i class="fa fa-cog"></i> Manage</button>';
+
+            $result[] = $row;
         }
 
-        echo json_encode(['total' => count($rows), 'rows' => $rows]);
+        echo json_encode(['total' => count($result), 'rows' => $result]);
+    }
+
+    /**
+     * Per-seller subscription history + payment history, for the Manage modal. Admin
+     * previously had no record of what a seller had been on before, or of what they had
+     * actually paid - only their current plan.
+     */
+    public function seller_subscription_history()
+    {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {
+            redirect('admin/login', 'refresh');
+        }
+        if (print_msg(!has_permissions('read', 'subscription'), PERMISSION_ERROR_MSG, 'subscription')) {
+            return false;
+        }
+
+        $seller_id = $this->input->get('seller_id', true);
+        if (empty($seller_id) || !is_numeric($seller_id)) {
+            echo json_encode(['error' => true, 'message' => 'Invalid seller.']);
+            return;
+        }
+
+        $history = $this->Seller_subscription_model->get_subscription_history((int) $seller_id);
+        $payments = $this->Seller_subscription_model->get_subscription_payments((int) $seller_id, 20);
+        $quota = $this->Seller_subscription_model->check_listing_quota((int) $seller_id, 0);
+
+        foreach ($history as &$h) {
+            $h['plan_name'] = html_escape((string) $h['plan_name']);
+        }
+        unset($h);
+        foreach ($payments as &$p) {
+            $p['txn_id'] = html_escape((string) $p['txn_id']);
+            $p['type']   = html_escape((string) $p['type']);
+        }
+        unset($p);
+
+        echo json_encode([
+            'error'    => false,
+            'history'  => $history,
+            'payments' => $payments,
+            'quota'    => $quota,
+        ]);
     }
 
     public function assign_seller_subscription()
@@ -82,8 +152,39 @@ class Subscription extends CI_Controller
             return;
         }
 
-        $success = $this->Seller_subscription_model->assign_subscription($seller_id, $subscription_id, isset($plan['validity']) ? $plan['validity'] : null);
-        echo json_encode(['error' => !$success, 'message' => $success ? 'Plan assigned successfully.' : 'Failed to assign plan.']);
+        // The 100-vendor cap on the launch promotion was only enforced on the two paths a
+        // seller can reach (sign-up auto-grant, and seller/Subscription::purchase(), which
+        // refuses it outright). Assigning from this dropdown went straight through, so the
+        // promo could be handed out to vendor 101+ and quietly inflate the count that
+        // is_launch_offer_active() uses to decide whether to keep showing the banner.
+        if (isset($plan['name']) && strcasecmp(trim($plan['name']), 'Launch Offer') === 0) {
+            $stats = $this->Seller_subscription_model->get_launch_offer_stats();
+            $already_on_plan = !empty($this->db->where('seller_id', $seller_id)->where('subscription_id', $subscription_id)->get('seller_subscriptions')->row_array());
+            if (!$stats['active'] && !$already_on_plan) {
+                echo json_encode(['error' => true, 'message' => 'The Launch Offer is limited to the first ' . $stats['cap'] . ' vendors and all slots have been claimed (' . $stats['claimed'] . '/' . $stats['cap'] . ').']);
+                return;
+            }
+        }
+
+        // Re-assigning the plan the seller is already actively on is a renewal, not a
+        // switch: carry their unused days forward instead of discarding them.
+        $success = $this->Seller_subscription_model->assign_subscription($seller_id, $subscription_id, isset($plan['validity']) ? $plan['validity'] : null, true);
+
+        if (!$success) {
+            echo json_encode(['error' => true, 'message' => 'Failed to assign plan.']);
+            return;
+        }
+
+        // A downgrade does not delete products, so flag it rather than failing silently:
+        // the seller keeps more live listings than their new plan allows and simply cannot
+        // add any more until they are back under the cap.
+        $quota = $this->Seller_subscription_model->check_listing_quota($seller_id, 0);
+        $message = 'Plan assigned successfully.';
+        if ($quota['limit'] !== null && $quota['used'] > $quota['limit']) {
+            $message .= ' Note: this seller already has ' . $quota['used'] . ' live listings, which is over the new plan\'s limit of ' . $quota['limit'] . '. Existing products stay live, but no new ones can be added until they are under the limit.';
+        }
+
+        echo json_encode(['error' => false, 'message' => $message]);
     }
 
     public function extend_seller_subscription()
@@ -133,8 +234,14 @@ class Subscription extends CI_Controller
     public function manage_subscriptions()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
-            // optional permission check
-            // if (!has_permissions('read', 'subscription')) { ... }
+            // is_admin() is group 1, which every system-user role (admin/editor/supporter)
+            // belongs to - it gates nothing on its own. Plan CRUD sets the prices, listing
+            // limits and commission rates the whole marketplace bills on, so it needs the
+            // same 'subscription' module check the seller-subscription screens already use.
+            if (!has_permissions('read', 'subscription')) {
+                $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
+                redirect('admin/home', 'refresh');
+            }
 
             $this->data['main_page'] = TABLES . 'manage-subscriptions';
             $settings = get_settings('system_settings', true);
@@ -152,6 +259,9 @@ class Subscription extends CI_Controller
     public function view_subscription()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
+            if (print_msg(!has_permissions('read', 'subscription'), PERMISSION_ERROR_MSG, 'subscription')) {
+                return false;
+            }
             return $this->Subscription_model->get_list('subscriptions');
         } else {
             redirect('admin/login', 'refresh');
@@ -161,6 +271,11 @@ class Subscription extends CI_Controller
     public function add_subscription()
 {
     if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
+
+        $is_edit = (bool) $this->input->post('edit_subscription');
+        if (print_msg(!has_permissions($is_edit ? 'update' : 'create', 'subscription'), PERMISSION_ERROR_MSG, 'subscription')) {
+            return false;
+        }
 
         $this->form_validation->set_rules('name', 'Plan Name', 'trim|required|xss_clean');
         // price/validity only had 'xss_clean' - not even 'numeric' - so a plan could be saved
