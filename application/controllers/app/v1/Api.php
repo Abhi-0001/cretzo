@@ -715,16 +715,42 @@ Defined Methods:-
         If Wallet Balance Is Used
         ------------------------------
         */
-        $product_variant_id = explode(',', $_POST['product_variant_id']);
-        $product_variant = $this->db->select('p.type,p.download_allowed')
-            ->join('products p ', 'pv.product_id=p.id', 'left')
-            ->where_in('pv.id', $product_variant_id)->order_by('FIELD(pv.id,' . $_POST['product_variant_id'] . ')')->get('product_variants pv')->result_array();
+        // product_variant_id has a 'required' rule set above, but form_validation->run()
+        // is not called until further down - so this block executed BEFORE the required
+        // check, and read $_POST['product_variant_id'] unguarded. A request without it
+        // emitted two "Undefined array key" warnings (which, with display_errors on, are
+        // printed into the response body and make the JSON unparseable for the app) and
+        // then built a query from an empty value. Guarded; run() below still rejects it
+        // with the proper validation message.
+        $product_variant = [];
+        if (isset($_POST['product_variant_id']) && trim((string) $_POST['product_variant_id']) !== '') {
+            $posted_variant_ids = $this->input->post('product_variant_id', true);
+            $product_variant_id = explode(',', $posted_variant_ids);
+            // FIELD() previously interpolated raw POST directly into the ORDER BY. Rebuild
+            // it from the exploded, integer-cast ids instead.
+            $order_ids = array_filter(array_map('intval', $product_variant_id));
+            $query = $this->db->select('p.type,p.download_allowed')
+                ->join('products p ', 'pv.product_id=p.id', 'left')
+                ->where_in('pv.id', $product_variant_id);
+            if (!empty($order_ids)) {
+                $query->order_by('FIELD(pv.id,' . implode(',', $order_ids) . ')', '', false);
+            }
+            $product_variant = $query->get('product_variants pv')->result_array();
+        }
+        // Both were only assigned inside the !empty() branch but then used
+        // unconditionally below, so any request whose product_variant_id resolved to no
+        // rows (missing, or ids that do not exist) died with
+        // "Undefined variable $download_allowed" / "$product_type" - a fatal, not a clean
+        // validation error. Default them so the checks below are safe and the request
+        // falls through to normal validation.
+        $product_type = [];
+        $download_allowed = [];
         if (!empty($product_variant)) {
             $product_type = array_values(array_unique(array_column($product_variant, "type")));
             $download_allowed = array_values(array_unique(array_column($product_variant, "download_allowed")));
         }
 
-        if (in_array(0, $download_allowed) && $product_type[0] == "digital_product") {
+        if (in_array(0, $download_allowed) && isset($product_type[0]) && $product_type[0] == "digital_product") {
             $this->form_validation->set_rules('email', 'Email ID', 'required|valid_email|trim|xss_clean');
         }
 
@@ -737,14 +763,14 @@ Defined Methods:-
         $this->form_validation->set_rules('payment_method', 'Payment Method', 'trim|required|xss_clean');
         $this->form_validation->set_rules('delivery_date', 'Delivery Date', 'trim|xss_clean');
         $this->form_validation->set_rules('delivery_time', 'Delivery time', 'trim|xss_clean');
-        if ($product_type[0] == "variable_product" || $product_type[0] == "simple_product") {
+        if (isset($product_type[0]) && ($product_type[0] == "variable_product" || $product_type[0] == "simple_product")) {
             $this->form_validation->set_rules('address_id', 'Address id', 'trim|required|numeric|xss_clean');
         }
 
         $settings = get_settings('system_settings', true);
         $currency = isset($settings['currency']) && !empty($settings['currency']) ? $settings['currency'] : '';
         if (isset($settings['minimum_cart_amt']) && !empty($settings['minimum_cart_amt'])) {
-            $this->form_validation->set_rules('total', 'Total', 'trim|xss_clean|greater_than_equal_to[' . $settings['minimum_cart_amt'] . ']', array('greater_than_equal_to' => 'Total amount should be greater or equal to ' . $currency . $settings['minimum_cart_amt'] . ' total is ' . $currency . $_POST['total'] . ''));
+            $this->form_validation->set_rules('total', 'Total', 'trim|xss_clean|greater_than_equal_to[' . $settings['minimum_cart_amt'] . ']', array('greater_than_equal_to' => 'Total amount should be greater or equal to ' . $currency . $settings['minimum_cart_amt'] . ' total is ' . $currency . (isset($_POST['total']) ? $_POST['total'] : '') . ''));
         }
         if (!$this->form_validation->run()) {
             $this->response['error'] = true;
@@ -5252,7 +5278,11 @@ Defined Methods:-
         }
 
         // validate event do all at once to avoid timing attack
-        if ($_SERVER['HTTP_X_PAYSTACK_SIGNATURE'] !== hash_hmac('sha512', $request_body, $secret_key)) {
+        // The signature header was read unguarded: a request without it emitted an
+        // "Undefined array key" warning into the response before the comparison.
+        // A missing header must simply fail the check.
+        $paystack_signature = isset($_SERVER['HTTP_X_PAYSTACK_SIGNATURE']) ? $_SERVER['HTTP_X_PAYSTACK_SIGNATURE'] : '';
+        if (!hash_equals(hash_hmac('sha512', $request_body, $secret_key), (string) $paystack_signature)) {
             log_message('error', 'Paystack Webhook - Invalid Signature - JSON DATA --> ' . var_export($event, true));
             log_message('error', 'Paystack Server Variable invalid --> ' . var_export($_SERVER, true));
             exit();
@@ -5451,6 +5481,16 @@ Defined Methods:-
 
         $request_body = file_get_contents('php://input');
         $event = json_decode($request_body, FALSE);
+
+        // json_decode returns NULL for an empty or malformed body, and every $event->...
+        // read below then warned with "Attempt to read property on null" - printed into the
+        // response body. Bail out cleanly instead.
+        if (!is_object($event)) {
+            $this->response['error'] = true;
+            $this->response['message'] = 'Invalid webhook payload.';
+            echo json_encode($this->response);
+            return false;
+        }
 
         log_message('error', 'Flutterwave Webhook --> ' . var_export($event, true));
         log_message('error', 'Flutterwave Webhook SERVER Variable --> ' . var_export($_SERVER, true));
@@ -5757,8 +5797,15 @@ Defined Methods:-
         }
         $this->form_validation->set_rules('order_id', 'Order id', 'trim|required|xss_clean');
         $this->form_validation->set_rules('amount', 'Amount', 'trim|required|xss_clean');
-        $order_id = $_POST['order_id'];
-        $amount = $_POST['amount'];
+        // Read unguarded, so a call without them warned into the response body.
+        $order_id = isset($_POST['order_id']) ? $_POST['order_id'] : '';
+        $amount = isset($_POST['amount']) ? $_POST['amount'] : '';
+        if ($order_id === '' || $amount === '') {
+            $this->response['error'] = true;
+            $this->response['message'] = 'order_id and amount are required.';
+            echo json_encode($this->response);
+            return false;
+        }
         if (!$this->form_validation->run()) {
             $this->response['error'] = true;
             $this->response['message'] = strip_tags(validation_errors());
@@ -6643,15 +6690,27 @@ Defined Methods:-
 
     public function phonepe_webview()
     {
-        // $this->form_validation->set_rules('user_id', 'User ID', 'trim|required|numeric|xss_clean');
-        // $this->form_validation->set_rules('amount', 'Amount', 'trim|numeric|xss_clean');
+        // Both the rules AND the run() call below were commented out, so nothing here was
+        // ever validated: a call without amount/user_id produced a cascade of "Undefined
+        // array key" and "Attempt to read property on null" warnings printed into the JSON
+        // body. Restored together - run() with zero rules registered always returns FALSE,
+        // so the rules have to come back too or every call fails with a blank message.
+        //
+        // NOTE: this endpoint additionally reads $this->data['user']->id / ->mobile, but
+        // $this->data is never populated anywhere in this controller (9 reads, 0
+        // assignments), so the PhonePe flow cannot currently complete even with valid
+        // input. Left as-is rather than rewritten: this install uses Razorpay, PhonePe
+        // credentials are not configured, and there is no way to verify a rewrite here.
+        // It now fails cleanly with a real validation message instead of leaking warnings.
+        $this->form_validation->set_rules('user_id', 'User ID', 'trim|required|numeric|xss_clean');
+        $this->form_validation->set_rules('amount', 'Amount', 'trim|required|numeric|xss_clean');
 
-        // if (!$this->form_validation->run()) {
-        //     $this->response['error'] = true;
-        //     $this->response['message'] = strip_tags(validation_errors());
-        //     print_r(json_encode($this->response));
-        //     return false;
-        // } 
+        if (!$this->form_validation->run()) {
+            $this->response['error'] = true;
+            $this->response['message'] = strip_tags(validation_errors());
+            print_r(json_encode($this->response));
+            return false;
+        }
         $this->load->library('phonepe');
         $overall_amount = $_POST['amount'];
         $amount = $overall_amount;
@@ -6697,7 +6756,16 @@ Defined Methods:-
         $this->form_validation->set_rules('amount', 'Amount', 'trim|numeric|xss_clean');
         $this->load->library('phonepe');
 
-        if ($_POST['type'] == 'wallet') {
+        // Rules were set above but run() was never called, so $_POST['type'] and
+        // everything after it was read unvalidated - a cascade of warnings in the body.
+        if (!$this->form_validation->run()) {
+            $this->response['error'] = true;
+            $this->response['message'] = strip_tags(validation_errors());
+            print_r(json_encode($this->response));
+            return false;
+        }
+
+        if (isset($_POST['type']) && $_POST['type'] == 'wallet') {
 
             $overall_amount = $_POST['amount'];
             $amount = $overall_amount;
@@ -6785,10 +6853,8 @@ Defined Methods:-
         }
     }
 
-    public function test()
-    {
-        $this->load->library('My_fatoorah');
-        $data = $this->my_fatoorah->InitiatePayment();
-        print_R($data);
-    }
+    // test() was REMOVED: an unauthenticated debug endpoint (no verify_token()) that
+    // called My_fatoorah->InitiatePayment() and print_r()'d the raw gateway response to
+    // the browser - leaking payment-gateway details and returning non-JSON. Unreferenced
+    // by any view, JS or route.
 }

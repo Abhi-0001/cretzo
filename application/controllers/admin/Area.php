@@ -11,7 +11,13 @@ class Area extends CI_Controller
         $this->load->helper(['url', 'language', 'timezone_helper', 'file']);
         $this->load->model(['Area_model', 'Setting_model']);
 
-        if (!has_permissions('read', 'area') || !has_permissions('read', 'city') || !has_permissions('read', 'zipcodes')) {
+        // Was `!area || !city || !zipcodes`, i.e. it demanded ALL THREE modules to enter
+        // the controller - so an admin granted only 'area' (or only 'city') was redirected
+        // straight back out of the Areas page they had been given access to. This
+        // controller serves areas, cities and zipcodes as separate pages, each with its
+        // own per-action has_permissions() check further down, so entry only needs read
+        // on at least one of them.
+        if (!has_permissions('read', 'area') && !has_permissions('read', 'city') && !has_permissions('read', 'zipcodes')) {
             $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
             redirect('admin/home', 'refresh');
         } else {
@@ -1168,7 +1174,10 @@ class Area extends CI_Controller
         $this->dbforge->add_column('zipcodes', $fields);
     }
 
-    public function process_chunk($chunk)
+    // private: an internal bulk-import helper called only as $this->process_chunk().
+    // As a public method it was routable as /admin/area/process_chunk and performs
+    // update_details() on the zipcodes table.
+    private function process_chunk($chunk)
     {
         foreach ($chunk as $row) {
             $existing_record = $this->db->get_where('zipcodes', array('zipcode' => $row['zipcode']))->row_array();

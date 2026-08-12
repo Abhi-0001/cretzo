@@ -657,8 +657,17 @@ Defined Methods:-
 
         $this->form_validation->set_rules('user_id', 'Id', 'required|xss_clean|numeric|trim');
         $this->form_validation->set_rules('username', 'Username', 'xss_clean|trim');
-        $delivery_boy_data = fetch_details('users', ['id' => $_POST['user_id']], 'driving_license');
-        $driving_license = explode(',', $delivery_boy_data[0]['driving_license']);
+        // Ran before form_validation->run(), so 'user_id' was not guaranteed to exist:
+        // an absent one emitted "Undefined array key \"user_id\"", then "Undefined array
+        // key 0" and "Trying to access array offset on value of type null" on the next
+        // line when the lookup returned nothing - three warnings printed into the response
+        // body, breaking JSON parsing for the delivery-boy app. The 'required' rule above
+        // still rejects the request properly once run() is reached.
+        $posted_user_id = $this->input->post('user_id', true);
+        $delivery_boy_data = (!empty($posted_user_id)) ? fetch_details('users', ['id' => $posted_user_id], 'driving_license') : [];
+        $driving_license = (!empty($delivery_boy_data) && isset($delivery_boy_data[0]['driving_license']))
+            ? explode(',', (string) $delivery_boy_data[0]['driving_license'])
+            : [];
         if (isset($_POST['user_id'])) {
             if (isset($_FILES) && !empty($_FILES) && !empty($_FILES['driving_license']['name'][0]) && count($_FILES['driving_license']['name']) < 2) {
                 $this->form_validation->set_rules('driving_license', 'driving_license', 'trim|required|xss_clean', array('required' => 'Please add front and back image of Driving license'));

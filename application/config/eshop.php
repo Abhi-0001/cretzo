@@ -39,6 +39,22 @@ $config['system_modules'] = [
     'send_notification' => array('create', 'read', 'delete'),
     'notification_setting' => array('read', 'update'),
     'sms-gateway-settings' => array('read', 'update'),
+    // These four were called by has_permissions() in live code but were never
+    // registered here. Because an unregistered module is denied outright for every
+    // non-super-admin role, these pages were permanently inaccessible to admin/editor/
+    // supporter roles no matter what was granted to them:
+    //   authentication_settings - admin/Authentication_settings.php (read + update)
+    //   custom_sms              - admin/Custom_sms.php (create/update/delete)
+    //   manage_stock            - the Manage Stock sidebar link (views/admin/include-sidebar.php),
+    //                             which therefore never rendered for sub-admins even though
+    //                             admin/Manage_stock.php itself was reachable by URL
+    //   subscription            - admin/Subscription.php, so the seller-subscription
+    //                             management endpoints can be granted independently
+    // Same class of bug as the blogs/contact_us/custom_notifications entries below.
+    'authentication_settings' => array('read', 'update'),
+    'custom_sms' => array('create', 'read', 'update', 'delete'),
+    'manage_stock' => array('read', 'update'),
+    'subscription' => array('create', 'read', 'update', 'delete'),
     'client_api_keys' => array('create', 'read', 'update', 'delete'),
     'area' => array('create', 'read', 'update', 'delete'),
     'city' => array('create', 'read', 'update', 'delete'),

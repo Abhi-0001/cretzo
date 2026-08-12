@@ -84,7 +84,20 @@
 
 <script src="<?= add_ver(THEME_ASSETS_URL . 'js/' . $path . THEME . '/' . $path . 'header-footer.js') ?>"></script>
 <script src="<?= add_ver(THEME_ASSETS_URL . 'js/' . $path . THEME . '/' . $path . 'navbar.js') ?>"></script>
-<script src="<?= add_ver(THEME_ASSETS_URL . 'js/' . $path . THEME . '/' . $path . $main_page . '.js') ?>"></script>
+<?php
+/*
+ * Per-page script, named after $main_page. This was emitted unconditionally, but only
+ * 12 of the theme's pages actually have a matching file - and because this app sets
+ * $route['404_override'] = 'error_404', a missing .js does NOT 404: Apache/CI answer with
+ * the themed "Page Not Found" HTML page at HTTP 200 and content-type text/html. The
+ * browser then tries to parse that HTML as JavaScript and throws
+ * "Uncaught SyntaxError: Unexpected token '<'" on every such page (e.g. the floating-chat
+ * iframe, whose $main_page is 'floating_chat'). Emit the tag only when the file exists.
+ */
+$page_script_rel = 'assets/front_end/' . THEME . '/js/' . $path . THEME . '/' . $path . $main_page . '.js';
+if (is_file(FCPATH . $page_script_rel)) { ?>
+    <script src="<?= add_ver(THEME_ASSETS_URL . 'js/' . $path . THEME . '/' . $path . $main_page . '.js') ?>"></script>
+<?php } ?>
 <script src="<?= add_ver(base_url('assets/front_end/cretzo/js/cretzo-fixes.js')) ?>"></script>
 <!-- <script src="<?//= add_ver(base_url('assets/front_end/classic/js/custom.js')) ?>"></script> -->
 <?php if ($this->session->flashdata('message')) { ?>

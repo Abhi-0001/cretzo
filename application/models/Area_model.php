@@ -524,17 +524,35 @@ class Area_model extends CI_Model
         return $data;
     }
 
-    function get_cities($sort = "c.name", $order = "ASC", $search = "", $limit = '', $offset = '')
+    // The cities table's real columns are city_id / city_name - it has no `id` or
+    // `name` column at all. Every reference here used c.id / c.name, so this query
+    // failed outright with "Unknown column 'c.id' in 'on clause'". That made
+    // app/v1/api/get_cities, seller/app/v1/api/get_cities and admin/app/v1/api/get_cities
+    // return a Database Error page instead of JSON - an HTTP 200 whose body was
+    // unparseable to the mobile app. Also fixed the `'`c.name`'` search key, which was
+    // quoted as one identifier (so it could never match a column) rather than c.name.
+    function get_cities($sort = "c.city_name", $order = "ASC", $search = "", $limit = '', $offset = '')
     {
         $multipleWhere = '';
         $where = array();
         if (!empty($search)) {
             $multipleWhere = [
-                '`c.name`' => $search
+                'c.city_name' => $search
             ];
         }
 
-        $search_res = $this->db->select('c.*')->join('areas a', 'c.id=a.city_id', "left");
+        // Guard against a caller passing the old c.name / c.id sort values.
+        $allowed_sort = ['c.city_name', 'c.city_id', 'c.district_id'];
+        $sort_map = ['c.name' => 'c.city_name', 'c.id' => 'c.city_id', 'name' => 'c.city_name', 'id' => 'c.city_id'];
+        if (isset($sort_map[$sort])) {
+            $sort = $sort_map[$sort];
+        }
+        if (!in_array($sort, $allowed_sort, true)) {
+            $sort = 'c.city_name';
+        }
+        $order = (strtolower((string) $order) === 'desc') ? 'DESC' : 'ASC';
+
+        $search_res = $this->db->select('c.*')->join('areas a', 'c.city_id=a.city_id', "left");
 
         if (isset($multipleWhere) && !empty($multipleWhere)) {
             $search_res->group_start();
@@ -544,7 +562,16 @@ class Area_model extends CI_Model
         if (isset($where) && !empty($where)) {
             $search_res->where($where);
         }
-        $cities = $search_res->group_by('c.id')->order_by($sort, $order, $search)->limit($limit, $offset)->get('cities c')->result_array();
+        // Second, independent bug here: callers that omit $limit (e.g.
+        // seller/app/v1/api/get_cities, which passes only sort/order/search) fell through to
+        // the '' default, and CI casts that to (int) 0 -> "LIMIT 0" -> zero rows. That
+        // endpoint therefore always answered {"error":true,"data":[]} even with cities in
+        // the table. Only apply a limit when one was actually requested.
+        $search_res->group_by('c.city_id')->order_by($sort, $order);
+        if (is_numeric($limit) && (int) $limit > 0) {
+            $search_res->limit((int) $limit, (is_numeric($offset) && $offset >= 0) ? (int) $offset : 0);
+        }
+        $cities = $search_res->get('cities c')->result_array();
         $bulkData = array();
         $bulkData['error'] = (empty($cities)) ? true : false;
         if (!empty($cities)) {

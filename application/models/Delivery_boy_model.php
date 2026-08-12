@@ -159,7 +159,7 @@ class Delivery_boy_model extends CI_Model
             $where['u.id'] = $id;
         }
 
-        $count_res = $this->db->select(' COUNT(u.id) as `total` ,a.name as area_name,c.name as city_name')->join('cities c', 'u.city=c.id', 'left')->join('areas a', 'u.area=a.id', 'left');
+        $count_res = $this->db->select(' COUNT(u.id) as `total` ,a.name as area_name,c.city_name as city_name')->join('cities c', 'u.city=c.city_id', 'left')->join('areas a', 'u.area=a.id', 'left');
 
         if (isset($multipleWhere) && !empty($multipleWhere)) {
             $count_res->group_start();
@@ -177,7 +177,7 @@ class Delivery_boy_model extends CI_Model
             $total = $row['total'];
         }
 
-        $search_res = $this->db->select(' u.*,a.name as area_name,c.name as city_name')->join('cities c', 'u.city=c.id', 'left')->join('areas a', 'u.area=a.id', 'left');;
+        $search_res = $this->db->select(' u.*,a.name as area_name,c.city_name as city_name')->join('cities c', 'u.city=c.city_id', 'left')->join('areas a', 'u.area=a.id', 'left');;
         if (isset($multipleWhere) && !empty($multipleWhere)) {
             $search_res->group_start();
             $search_res->or_like($multipleWhere);

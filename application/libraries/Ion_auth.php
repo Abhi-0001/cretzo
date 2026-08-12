@@ -397,14 +397,95 @@ class Ion_auth
 
 		return $this->ion_auth_model->in_group($seller_group, $id);
 	}
+	/**
+	 * Raw seller approval status as set by admin, straight from seller_data.status.
+	 * Returns NULL when the seller has no seller_data row at all (a legacy account
+	 * created before the KYC flow existed).
+	 *
+	 * Values, per the radio buttons in views/admin/pages/forms/seller.php and the
+	 * dashboard counters in Home_model: 0 = Deactive, 1 = Approved,
+	 * 2 = Not-Approved (the default for a brand-new signup, pending admin review),
+	 * 7 = Removed (set by the Remove Seller action on admin/sellers).
+	 */
+	public function seller_raw_status($id = FALSE)
+	{
+		$id = ($id == FALSE) ? $this->session->userdata('user_id') : $id;
+		if (empty($id)) {
+			return NULL;
+		}
+		$row = fetch_details('seller_data', ['user_id' => $id], 'status');
+		return !empty($row) ? $row[0]['status'] : NULL;
+	}
+
+	/**
+	 * Whether this seller may enter the seller panel at all.
+	 *
+	 * Approved and Not-Approved sellers may enter: a brand-new signup starts at
+	 * Not-Approved and MUST be able to reach seller/home/profile to submit the KYC
+	 * details admin reviews, otherwise onboarding deadlocks. Selling itself is gated
+	 * separately and more strictly by seller/Product.php::is_seller_admin_verified(),
+	 * which requires Approved. Deactive and Removed are refused outright.
+	 */
+	public function can_access_seller_panel($id = FALSE)
+	{
+		$status = $this->seller_raw_status($id);
+		// No seller_data row: a pre-KYC legacy account. Allowed, so this fix does not
+		// retroactively lock out sellers who were operating before the KYC flow existed.
+		if ($status === NULL || $status === '') {
+			return TRUE;
+		}
+		return in_array((string) $status, ['1', '2'], TRUE);
+	}
+
+	/** Whether admin has actually approved this seller (status 1). */
+	public function is_seller_approved($id = FALSE)
+	{
+		return (string) $this->seller_raw_status($id) === '1';
+	}
+
+	/**
+	 * Panel-access code for this seller. NOTE: this deliberately does NOT return the
+	 * raw seller_data.status value - use seller_raw_status() for that. It returns a
+	 * normalised code matching what the ~90 existing call sites already test for:
+	 *
+	 *     returns 1 or 0  =>  may use the seller panel
+	 *     returns 2 or 7  =>  must be refused / logged out
+	 *
+	 * Mapping: Approved(1)->1, Not-Approved(2)->0, no seller_data row->0,
+	 *          Deactive(0)->2, Removed(7)->7, anything unrecognised->2 (fail closed).
+	 *
+	 * This previously read users.status, which admin code NEVER writes - admin's
+	 * Approve/Not-Approved/Deactive setting is persisted to seller_data.status
+	 * (admin/Sellers.php). users.status sits at 0 for essentially every seller, and 0
+	 * is on the allow list, so every gate in the seller panel passed unconditionally:
+	 * marking a seller Not-Approved, Deactive or Removed did not actually restrict them
+	 * anywhere. Reading the correct column and normalising here fixes all of those call
+	 * sites at once rather than editing ~90 duplicated conditionals.
+	 */
 	public function seller_status($id = FALSE)
 	{
 		$id = ($id == FALSE) ? $this->session->userdata('user_id') : $id;
-		if (!empty($id) && $id != FALSE) {
-			$status = fetch_details('users', ['id' => $id], 'status');
-			return $status[0]['status'];
-		} else {
+		if (empty($id)) {
 			return false;
+		}
+
+		$status = $this->seller_raw_status($id);
+
+		if ($status === NULL || $status === '') {
+			return 0; // legacy account with no KYC row - allowed
+		}
+
+		switch ((string) $status) {
+			case '1': // Approved
+				return 1;
+			case '2': // Not-Approved / pending review - allowed in, cannot sell
+				return 0;
+			case '0': // Deactive - admin switched this seller off
+				return 2;
+			case '7': // Removed
+				return 7;
+			default:
+				return 2; // unrecognised - fail closed
 		}
 	}
 

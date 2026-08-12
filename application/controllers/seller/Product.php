@@ -171,7 +171,7 @@ class Product extends CI_Controller
 
     public function get_variants_by_id()
     {
-        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller()) {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller() || !$this->ion_auth->can_access_seller_panel()) {
             redirect('seller/login', 'refresh');
             return;
         }
@@ -198,7 +198,7 @@ class Product extends CI_Controller
 
     public function fetch_attributes_by_id()
     {
-        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller()) {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller() || !$this->ion_auth->can_access_seller_panel()) {
             redirect('seller/login', 'refresh');
             return;
         }
@@ -222,7 +222,7 @@ class Product extends CI_Controller
 
     public function fetch_attribute_values_by_id($id = NULL)
     {
-        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller()) {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller() || !$this->ion_auth->can_access_seller_panel()) {
             redirect('seller/login', 'refresh');
             return;
         }
@@ -237,7 +237,7 @@ class Product extends CI_Controller
 
     public function fetch_variants_values_by_pid()
     {
-        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller()) {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller() || !$this->ion_auth->can_access_seller_panel()) {
             redirect('seller/login', 'refresh');
             return;
         }
@@ -573,14 +573,12 @@ class Product extends CI_Controller
         ];
         print_r(json_encode($response));
     }
-    public function process_category()
-{
-    $input = $this->input->post('selected_category_id', true);
-    return $this->resolve_selected_category_id($input);
-    
-}
-
-  
+    // process_category() was REMOVED: an ungated `public` wrapper that did nothing but
+    // forward POST input to the private resolve_selected_category_id() helper and
+    // return its value. Because it was public it was routable as
+    // /seller/product/process_category by anyone, while every other method in this
+    // controller is gated - and since it only returned (never echoed), it produced a
+    // blank response and served no purpose. Unreferenced by any view, JS or route.
 
     public function get_product_data()
     {
@@ -1577,7 +1575,7 @@ class Product extends CI_Controller
 
     public function get_countries_data()
     {
-        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller()) {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller() || !$this->ion_auth->can_access_seller_panel()) {
             redirect('seller/login', 'refresh');
             return;
         }
@@ -1588,7 +1586,7 @@ class Product extends CI_Controller
 
     public function get_brands_data()
     {
-        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller()) {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller() || !$this->ion_auth->can_access_seller_panel()) {
             redirect('seller/login', 'refresh');
             return;
         }
@@ -1614,7 +1612,7 @@ class Product extends CI_Controller
 
     public function edit_product_faqs()
     {
-        if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller()) {
+        if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && $this->ion_auth->can_access_seller_panel()) {
             $this->form_validation->set_rules('answer', 'Answer', 'trim|required|xss_clean');
             if (!$this->form_validation->run()) {
                 $this->response['error'] = true;
@@ -1668,7 +1666,7 @@ class Product extends CI_Controller
     public function get_faqs_list()
     {
 
-        if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller()) {
+        if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && $this->ion_auth->can_access_seller_panel()) {
 
             return $this->product_model->get_faqs($this->ion_auth->get_user_id());
         } else {
@@ -1677,7 +1675,7 @@ class Product extends CI_Controller
     }
     public function delete_product_faq()
     {
-        if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller()) {
+        if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && $this->ion_auth->can_access_seller_panel()) {
             if (empty($this->fetch_owned_faq($_GET['id'], $this->ion_auth->get_user_id()))) {
                 $this->response['error'] = true;
                 $this->response['message'] = 'FAQ not found';

@@ -28,7 +28,9 @@ class Updater extends CI_Controller
         }
     }
 
-    public function is_dir_empty($dir)
+    // private: only ever called as $this->is_dir_empty() from within this controller.
+    // As a public method it was also routable as /admin/updater/is_dir_empty/<segment>.
+    private function is_dir_empty($dir)
     {
         if (!is_readable($dir)) return NULL;
         return (count(scandir($dir)) == 2);

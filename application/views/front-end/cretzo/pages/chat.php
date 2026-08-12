@@ -1,6 +1,15 @@
 <div class="overview-side-container">
     <h1 class="heading-b">Account</h1>
-    <p class="text-n"><?= $users->username ?></p>
+    <?php
+    /*
+     * Every other my-account page sets $users to the logged-in user OBJECT
+     * ($this->ion_auth->user()->row()), but My_account::chat() sets it to an ARRAY of chat
+     * contacts - so `$users->username` here threw "Attempt to read property username on
+     * array". The logged-in user is already available as $user (set in the controller's
+     * constructor); use that instead. Guarded because it is [] when not logged in.
+     */
+    ?>
+    <p class="text-n"><?= (is_object($user) && isset($user->username)) ? $user->username : '' ?></p>
     <div class="overview-container">
 
         <?php $this->load->view('front-end/' . THEME . '/partials/my-account-sidebar', ['active_menu' => $main_page]); ?>

@@ -74,7 +74,7 @@ class Chat extends CI_Controller
 
     public function make_me_online()
     {
-        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller()) {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller() || !$this->ion_auth->can_access_seller_panel()) {
             redirect('auth', 'refresh');
         } else {
 
@@ -99,7 +99,7 @@ class Chat extends CI_Controller
     }
     public function get_system_settings()
     {
-        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller()) {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller() || !$this->ion_auth->can_access_seller_panel()) {
             redirect('auth', 'refresh');
         } else {
             $response = get_settings('firebase_settings');
@@ -109,7 +109,7 @@ class Chat extends CI_Controller
 
     public function get_online_members()
     {
-        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller()) {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller() || !$this->ion_auth->can_access_seller_panel()) {
             redirect('auth', 'refresh');
         } else {
             $user_id = $this->session->userdata('user_id');
@@ -311,7 +311,7 @@ class Chat extends CI_Controller
 
     public function update_web_fcm()
     {
-        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller()) {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller() || !$this->ion_auth->can_access_seller_panel()) {
             redirect('auth', 'refresh');
         } else {
             $fcm = $this->input->post('web_fcm');
@@ -352,7 +352,7 @@ class Chat extends CI_Controller
     public function send_msg()
     {
 
-        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller()) {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller() || !$this->ion_auth->can_access_seller_panel()) {
             redirect('auth', 'refresh');
         } else {
             $user_id = $this->session->userdata('user_id');
@@ -654,7 +654,7 @@ class Chat extends CI_Controller
 
     public function mark_msg_read()
     {
-        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller()) {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller() || !$this->ion_auth->can_access_seller_panel()) {
             redirect('auth', 'refresh');
         } else {
 
@@ -697,7 +697,7 @@ class Chat extends CI_Controller
 
     public function delete_msg()
     {
-        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller()) {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller() || !$this->ion_auth->can_access_seller_panel()) {
             redirect('auth', 'refresh');
         } else {
 
@@ -725,7 +725,7 @@ class Chat extends CI_Controller
 
     public function load_chat()
     {
-        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller()) {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller() || !$this->ion_auth->can_access_seller_panel()) {
             redirect('auth', 'refresh');
         } else {
             $user_id = $this->session->userdata('user_id');
@@ -773,7 +773,7 @@ class Chat extends CI_Controller
 
     public function switch_chat()
     {
-        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller()) {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller() || !$this->ion_auth->can_access_seller_panel()) {
             redirect('auth', 'refresh');
         } else {
             $type = $this->input->post('type');
@@ -808,7 +808,7 @@ class Chat extends CI_Controller
 
     public function send_fcm()
     {
-        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller()) {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller() || !$this->ion_auth->can_access_seller_panel()) {
             redirect('auth', 'refresh');
         } else {
 
@@ -917,7 +917,7 @@ class Chat extends CI_Controller
 
     public function search_user()
     {
-        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller()) {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller() || !$this->ion_auth->can_access_seller_panel()) {
             redirect('seller/login', 'refresh');
             return;
         }

@@ -820,9 +820,63 @@ class Cart extends CI_Controller
                 }
                 $_POST['final_total'] = $cart['overall_amount'] - $_POST['wallet_balance_used'] - $promo_discount;
                 if ($_POST['payment_method'] == "Razorpay") {
-                    if (!verify_payment_transaction($_POST['razorpay_payment_id'], 'razorpay')) {
+                    // verify_payment_transaction() returns an ARRAY, e.g.
+                    // ['error'=>true,'message'=>'Payment not found by the transaction ID!'].
+                    // A non-empty array is always truthy, so `!verify_payment_transaction(...)`
+                    // was ALWAYS false and this entire error branch was dead code: a
+                    // made-up/failed/refunded razorpay_payment_id still marked the order
+                    // "success" below. The result must be inspected via ['error'].
+                    $rzp_payment_id = $_POST['razorpay_payment_id'];
+                    $rzp_order_id = isset($_POST['razorpay_order_id']) ? $_POST['razorpay_order_id'] : '';
+                    $rzp_signature = isset($_POST['razorpay_signature']) ? $_POST['razorpay_signature'] : '';
+
+                    // Replay guard: the same payment id must not be able to pay for more
+                    // than one order.
+                    $rzp_already_used = fetch_details('transactions', ['txn_id' => $rzp_payment_id, 'status' => 'success'], 'id');
+                    if (!empty($rzp_already_used)) {
                         $this->response['error'] = true;
-                        $this->response['message'] = "Invalid Razorpay Payment Transaction.";
+                        $this->response['message'] = "This payment has already been processed.";
+                        $this->response['data'] = array();
+                        print_r(json_encode($this->response));
+                        return false;
+                    }
+
+                    // razorpay_order_id / razorpay_signature were required by
+                    // form_validation above and then never used - the HMAC that actually
+                    // proves the payment is genuine was never checked here.
+                    $this->load->library('razorpay');
+                    if (!$this->razorpay->verify_payment($rzp_order_id, $rzp_payment_id, $rzp_signature)) {
+                        $this->response['error'] = true;
+                        $this->response['message'] = "Payment signature verification failed.";
+                        $this->response['data'] = array();
+                        print_r(json_encode($this->response));
+                        return false;
+                    }
+
+                    $rzp_verification = verify_payment_transaction($rzp_payment_id, 'razorpay');
+                    if (!isset($rzp_verification['error']) || $rzp_verification['error'] === true) {
+                        $this->response['error'] = true;
+                        $this->response['message'] = isset($rzp_verification['message']) ? $rzp_verification['message'] : "Invalid Razorpay Payment Transaction.";
+                        $this->response['data'] = array();
+                        print_r(json_encode($this->response));
+                        return false;
+                    }
+
+                    // The payment must reference the order the signature was verified
+                    // against, and must actually cover the order total.
+                    $rzp_payment_order_id = isset($rzp_verification['data']['order_id']) ? $rzp_verification['data']['order_id'] : null;
+                    if (empty($rzp_payment_order_id) || !hash_equals((string) $rzp_order_id, (string) $rzp_payment_order_id)) {
+                        $this->response['error'] = true;
+                        $this->response['message'] = "This payment does not belong to the selected order.";
+                        $this->response['data'] = array();
+                        print_r(json_encode($this->response));
+                        return false;
+                    }
+
+                    $rzp_paid_amount = isset($rzp_verification['amount']) ? (float) $rzp_verification['amount'] : 0.0;
+                    if ($rzp_paid_amount + 0.01 < (float) $_POST['final_total']) {
+                        $this->response['error'] = true;
+                        $this->response['message'] = "Paid amount does not match the order total.";
                         $this->response['data'] = array();
                         print_r(json_encode($this->response));
                         return false;

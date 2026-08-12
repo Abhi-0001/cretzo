@@ -13,7 +13,13 @@ class Blogs extends CI_Controller
         $this->load->helper(['url', 'language', 'file']);
         $this->load->model(['blog_model', 'category_model']);
 
-        if (!has_permissions('read', 'categories')) {
+        // Was gated on 'categories' - the PRODUCT-category module, unrelated to blogs.
+        // That meant a sub-admin granted product-category read got the entire blog
+        // admin, while one granted blog/blog-category read but not product categories
+        // was locked out of it. This controller serves both blog categories and blogs,
+        // so entry requires read on either; the per-action checks further down
+        // (blogs / blog_categories) then narrow create/update/delete correctly.
+        if (!has_permissions('read', 'blogs') && !has_permissions('read', 'blog_categories')) {
             $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
             redirect('admin/home', 'refresh');
         }

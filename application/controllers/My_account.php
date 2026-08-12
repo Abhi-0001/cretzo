@@ -1051,7 +1051,11 @@ class My_account extends CI_Controller
 
                 $user[$i] = $row;
                 $user[$i]['unread_msg'] = $unread_meg;
-                $user[$i]['picture']  = $row['username'];
+                // Chat_model::get_chat_history() selects the other party's name as
+                // `opponent_username` (u.username AS opponent_username) - there is no plain
+                // `username` key in these rows, so this warned "Undefined array key
+                // username" on every visit to the chat pages and assigned null.
+                $user[$i]['picture'] = isset($row['opponent_username']) ? $row['opponent_username'] : '';
 
                 $date = strtotime('now');
                 if ($to_id == $row['id']) {
@@ -1779,7 +1783,11 @@ class My_account extends CI_Controller
 
                 $user[$i] = $row;
                 $user[$i]['unread_msg'] = $unread_meg;
-                $user[$i]['picture']  = $row['username'];
+                // Chat_model::get_chat_history() selects the other party's name as
+                // `opponent_username` (u.username AS opponent_username) - there is no plain
+                // `username` key in these rows, so this warned "Undefined array key
+                // username" on every visit to the chat pages and assigned null.
+                $user[$i]['picture'] = isset($row['opponent_username']) ? $row['opponent_username'] : '';
 
                 $date = strtotime('now');
                 if ($to_id == $row['id']) {
@@ -1858,7 +1866,11 @@ class My_account extends CI_Controller
 
                 $user[$i] = $row;
                 $user[$i]['unread_msg'] = $unread_meg;
-                $user[$i]['picture']  = $row['username'];
+                // Chat_model::get_chat_history() selects the other party's name as
+                // `opponent_username` (u.username AS opponent_username) - there is no plain
+                // `username` key in these rows, so this warned "Undefined array key
+                // username" on every visit to the chat pages and assigned null.
+                $user[$i]['picture'] = isset($row['opponent_username']) ? $row['opponent_username'] : '';
 
                 $date = strtotime('now');
                 if ($to_id == $row['id']) {

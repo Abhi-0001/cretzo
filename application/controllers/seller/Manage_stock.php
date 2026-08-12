@@ -14,7 +14,7 @@ class Manage_stock extends CI_Controller
 
     public function index()
     {
-        if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller()) {
+        if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && $this->ion_auth->can_access_seller_panel()) {
             $this->data['main_page'] = TABLES . 'manage_stock';
             $settings = get_settings('system_settings', true);
             $this->data['title'] = 'Stock Management| ' . $settings['app_name'];
@@ -47,7 +47,7 @@ class Manage_stock extends CI_Controller
 
     public function get_stock_list()
     {
-        if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller()) {
+        if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && $this->ion_auth->can_access_seller_panel()) {
 
             return $this->product_model->get_seller_stock_details();
         } else {
@@ -58,7 +58,7 @@ class Manage_stock extends CI_Controller
 
     public function update_stock()
     {
-        if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller())) {
+        if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && $this->ion_auth->can_access_seller_panel())) {
             redirect('seller/login', 'refresh');
             return;
         }

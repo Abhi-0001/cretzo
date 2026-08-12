@@ -543,7 +543,9 @@ class Webhook extends CI_Controller
     }
 
 
-    public function validateSignature($body, $secret, $MyFatoorah_Signature)
+    // private: a signature-checking helper called only as $this->validateSignature().
+    // Being public made a security primitive itself a routable endpoint.
+    private function validateSignature($body, $secret, $MyFatoorah_Signature)
     {
 
         if ($body['Event'] == 'RefundStatusChanged') {
