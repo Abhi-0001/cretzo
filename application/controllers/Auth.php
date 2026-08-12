@@ -1158,13 +1158,18 @@ class Auth extends CI_Controller
                 $owner = classify_mobile_owner($_POST['mobile']);
                 if ($owner['exists']) {
                     $this->response['error'] = true;
-                    if ($owner['role'] !== 'customer') {
+                    // Sellers now hold the buyer role on the same account, so there is
+                    // nothing for them to "sign up" for - they can already shop with the
+                    // login they have. Only send someone to another portal when their
+                    // account genuinely cannot buy (e.g. a delivery boy).
+                    if (user_has_role($owner['user']['id'], 'customer')) {
+                        $this->response['message'] = 'This number already has an account here. Please log in - '
+                            . 'you can shop with the same account you use to sell.';
+                    } else {
                         $portal = reset_portal_for_role($owner['role']);
                         $this->response['message'] = 'This number is already registered as ' . $portal['label']
                             . '. Please log in at ' . base_url($portal['login_url'])
                             . ' (or reset that password at ' . base_url($portal['url']) . ').';
-                    } else {
-                        $this->response['message'] = 'Mobile is already registered.Please try to login !';
                     }
                     $this->response['data'] = array();
                     print_r(json_encode($this->response));

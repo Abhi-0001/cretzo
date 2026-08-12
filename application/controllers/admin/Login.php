@@ -213,7 +213,8 @@ class Login extends CI_Controller
         if (!$owner['exists']) {
             return 'You have not registered using this number.';
         }
-        if ($owner['role'] !== 'admin') {
+        // Membership, not "primary role" - see Home.php::_reset_lookup_error().
+        if (!user_has_role($owner['user']['id'], 'admin')) {
             $portal = reset_portal_for_role($owner['role']);
             $where  = !empty($portal['url'])
                 ? 'Please reset your password here: ' . base_url($portal['url'])

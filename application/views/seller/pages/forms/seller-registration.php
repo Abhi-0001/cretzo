@@ -6,6 +6,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cretzo - Seller Signup</title>
 
+    <?php // This page builds its own <head> rather than including the shared one, so the
+          // CSRF token has to be emitted here too. The signup form carries a hidden token
+          // field of its own, but the page's other AJAX calls (send_otp/verify_otp) do not -
+          // csrf-guard.js stamps those. ?>
+    <meta name="csrf-token-name" content="<?= $this->security->get_csrf_token_name() ?>">
+    <meta name="csrf-token-hash" content="<?= $this->security->get_csrf_hash() ?>">
+    <script src="<?= base_url('assets/csrf-guard.js') ?>"></script>
+
     <link
         href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=Poppins:wght@300;400&display=swap"
         rel="stylesheet">
@@ -74,6 +82,8 @@
 
                     <input type="hidden" name="phone_verified" id="phone_verified" value="0">
                     <input type="hidden" name="firebase_uid" id="firebase_uid" value="">
+                    <?php // Server-verifiable proof of phone ownership - see _owns_existing_account(). ?>
+                    <input type="hidden" name="firebase_id_token" id="firebase_id_token" value="">
                     <input type="hidden" name="firebase_phone" id="firebase_phone" value="">
                     <div id="recaptcha-registration"></div>
                 <button type="button" class="btn" id="verify_otp" style="margin-top: 15px;">Next</button>
@@ -314,7 +324,16 @@ $(document).ready(function () {
             $("#phone_verified").val('1');
             $("#firebase_uid").val(user.uid || '');
             $("#firebase_phone").val(user.phoneNumber || $('#mobile').val());
-            
+
+            // Carry the signed ID token through to the server. phone_verified/firebase_uid
+            // above are plain hidden fields the server cannot trust; this token is verified
+            // server-side and is what lets an existing buyer add selling to their account
+            // without re-entering their old password.
+            user.getIdToken().then(function (idToken) {
+                $("#firebase_id_token").val(idToken);
+            }).catch(function () { /* password fallback still applies */ });
+
+
             $(".step1").removeClass("active");
             $(".step2").addClass("active");
             $("#verify_otp").prop('disabled', false).text('Next');
