@@ -149,9 +149,18 @@ function send_sms($phone, $msg, $country_code = "+91")
 {
     $data = get_settings('sms_gateway_settings', true);
 
+    // Every key below used to be accessed directly (`$data["body_key"]`) with no
+    // isset() guard - when no SMS gateway is configured in admin yet (or only
+    // partially), each missing key emitted a PHP warning that got printed
+    // straight into the HTTP response body, corrupting any endpoint that calls
+    // send_sms() and returns JSON (jQuery's `dataType:'json'` then fails to
+    // parse the response and silently falls into the error handler).
+    if (empty($data) || empty($data["base_url"])) {
+        return ['body' => null, 'http_code' => 0, 'error' => 'SMS gateway is not configured.'];
+    }
 
     $data["body"] = [];
-    if ($data["body_key"] != null) {
+    if (!empty($data["body_key"])) {
         for ($i = 0; $i < count($data["body_key"]); $i++) {
             $key = $data["body_key"][$i];
             $value = parse_sms($data["body_value"][$i], $phone, $msg, $country_code);
@@ -160,7 +169,7 @@ function send_sms($phone, $msg, $country_code = "+91")
         }
     }
     $data["header"] = [];
-    if ($data["header_key"] != null) {
+    if (!empty($data["header_key"])) {
 
         for ($i = 0; $i < count($data["header_key"]); $i++) {
             $key = $data["header_key"][$i];
@@ -170,7 +179,7 @@ function send_sms($phone, $msg, $country_code = "+91")
         }
     }
     $data["params"] = [];
-    if ($data["params_key"] != null) {
+    if (!empty($data["params_key"])) {
         for ($i = 0; $i < count($data["params_key"]); $i++) {
             $key = $data["params_key"][$i];
             $value = parse_sms($data["params_value"][$i], $phone, $msg, $country_code);
@@ -178,8 +187,7 @@ function send_sms($phone, $msg, $country_code = "+91")
             $data["params"][$key] = $value;
         }
     }
-    // print_r(curl_sms($data["base_url"], $data["sms_gateway_method"], $data["body"], $data["header"]));
-    return curl_sms($data["base_url"], $data["sms_gateway_method"], $data["body"], $data["header"]);
+    return curl_sms($data["base_url"], isset($data["sms_gateway_method"]) ? $data["sms_gateway_method"] : 'GET', $data["body"], $data["header"]);
 }
 
 function curl_sms($url, $method = 'GET', $data = [], $headers = [])
