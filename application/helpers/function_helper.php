@@ -2334,24 +2334,50 @@ function has_permissions($role, $module)
     $t->load->config('eshop');
     $general_system_permissions  = $t->config->item('system_modules');
     $userData = get_user_permissions($id);
-    if (!empty($userData)) {
 
-        if (intval($userData[0]['role']) > 0) {
-            $permissions = !empty($userData[0]['permissions']) ? json_decode($userData[0]['permissions'], 1) : [];
-            if (array_key_exists($module, $general_system_permissions) && array_key_exists($module, $permissions)) {
-                if (array_key_exists($module, $permissions)) {
-                    if (in_array($role, $general_system_permissions[$module])) {
-                        if (!array_key_exists($role, $permissions[$module])) {
-                            return false; //User has no permission
-                        }
-                    }
-                }
-            } else {
-                return false; //User has no permission
-            }
-        }
-        return true; //User has permission
+    // No user_permissions row at all: guests, customers, sellers, delivery boys, and
+    // any admin whose permissions row was deleted. This used to fall off the end of the
+    // function and return NULL implicitly - falsy, so the usual `!has_permissions(...)`
+    // callers happened to deny, but the function had no boolean contract: any caller
+    // written as `has_permissions(...) === false` would have silently granted access.
+    // Deny explicitly.
+    if (empty($userData)) {
+        return false;
     }
+
+    // role 0 is the super admin: holds every permission implicitly and has no
+    // permissions JSON stored at all (System_users_model forces it to NULL for role 0).
+    if (intval($userData[0]['role']) <= 0) {
+        return true;
+    }
+
+    $permissions = !empty($userData[0]['permissions']) ? json_decode($userData[0]['permissions'], 1) : [];
+    if (!is_array($permissions)) {
+        return false;
+    }
+
+    // The module must be a real, registered module AND be present in this user's
+    // granted set.
+    if (!array_key_exists($module, $general_system_permissions) || !array_key_exists($module, $permissions)) {
+        return false; //User has no permission
+    }
+
+    // The requested action must be a registered action for this module. Previously an
+    // action that was NOT registered in system_modules for this module skipped the
+    // grant check entirely and fell through to `return true` - so any sub-admin holding
+    // any single permission on a module was granted every action name that happened not
+    // to be registered for it (this is the bug the eshop.php comments describe hitting
+    // via 'new_offer_images'). Verified before tightening: no has_permissions() call
+    // site in this codebase currently depends on that fallthrough.
+    if (!in_array($role, $general_system_permissions[$module], true)) {
+        return false;
+    }
+
+    if (!is_array($permissions[$module]) || !array_key_exists($role, $permissions[$module])) {
+        return false; //User has no permission
+    }
+
+    return true; //User has permission
 }
 
 function print_msg($error, $message, $module = false, $is_csrf_enabled = true)
@@ -5908,35 +5934,44 @@ function set_user_otp($mobile, $otp)
 {
     $t = &get_instance();
     $otp = random_int(100000, 999999);
-    $dateString = date('Y-m-d H:i:s');
-    $time = strtotime($dateString);
-    // print_r($dateString);
-    // print_r($time);
-    // die;
-    $identity_column = $t->config->item('identity', 'ion_auth');
-    // $mobile = "7284938224";
+    $time = strtotime(date('Y-m-d H:i:s'));
 
     $otps = fetch_details('otps', ['mobile' => $mobile]);
-    $data['otp'] = $otp;
-    $data['created_at'] = $time;
-
-    foreach ($otps as $user) {
-
-        if (isset($user['mobile']) && !empty($user['mobile'])) {
-            send_sms($mobile, "please don't share with anyone $otp");
-            $t->db->where('id', $user['id']);
-            $t->db->update('otps', $data);
-            return [
-                "error" => false,
-                "message" => "OTP send successfully.",
-                "data" => $data
-            ];
-        }
+    if (empty($otps)) {
         return [
             "error" => true,
             "message" => "Something went wrong."
         ];
     }
+
+    $data['otp'] = $otp;
+    $data['created_at'] = $time;
+
+    // Persist BEFORE sending: the stored OTP is what verify_password_reset_otp()
+    // compares against, so writing it first keeps the row consistent with
+    // whatever the gateway ends up delivering.
+    $t->db->where('id', $otps[0]['id']);
+    $t->db->update('otps', $data);
+
+    // send_sms() returns ['body'=>..,'http_code'=>..] and, when the gateway is
+    // unconfigured or curl fails, an 'error' key. This return value used to be
+    // discarded entirely, so every caller reported "OTP sent successfully" even
+    // when nothing was ever handed to a gateway - the exact reason password
+    // reset "worked" in the response but no SMS ever arrived.
+    $sms = send_sms($mobile, "please don't share with anyone $otp");
+    if (!empty($sms['error']) || empty($sms['http_code']) || $sms['http_code'] < 200 || $sms['http_code'] >= 300) {
+        log_message('error', 'set_user_otp: SMS send failed for ' . $mobile . ' - ' . json_encode($sms));
+        return [
+            "error" => true,
+            "message" => !empty($sms['error']) ? $sms['error'] : "Could not send the OTP SMS. Please try again later."
+        ];
+    }
+
+    return [
+        "error" => false,
+        "message" => "OTP send successfully.",
+        "data" => $data
+    ];
 }
 
 
@@ -5962,6 +5997,131 @@ function checkOTPExpiration($otpTime)
             "message" => "Error: Session has expired."
         ];
     }
+}
+
+/**
+ * Verify a Firebase ID token server-side and return its trusted claims.
+ *
+ * WHY THIS EXISTS: the social-login endpoint used to trust the uid/email/name POSTed by
+ * the browser ("already verified on client via OAuth"). That is not a verification at all -
+ * anyone could POST an existing customer's email straight to the endpoint and be logged in
+ * as them, with no password and no Facebook involvement. Confirmed exploitable before this
+ * was added.
+ *
+ * A Firebase ID token is an RS256-signed JWT. It is only trustworthy once the signature is
+ * checked against Google's rotating public certificates AND the audience/issuer/expiry are
+ * checked against our own Firebase project. Everything the caller sends is then ignored in
+ * favour of the claims inside the verified token.
+ *
+ * @return array ['error'=>bool, 'message'=>string, 'uid'=>string, 'email'=>string,
+ *                'name'=>string, 'provider'=>string]
+ */
+function verify_firebase_id_token($id_token)
+{
+    $t = &get_instance();
+    $fail = function ($msg) {
+        return ['error' => true, 'message' => $msg, 'uid' => '', 'email' => '', 'name' => '', 'provider' => ''];
+    };
+
+    $id_token = trim((string) $id_token);
+    if ($id_token === '') {
+        return $fail('Missing sign-in token.');
+    }
+
+    $firebase_settings = get_settings('firebase_settings', true);
+    $project_id = is_array($firebase_settings) && !empty($firebase_settings['projectId'])
+        ? trim($firebase_settings['projectId'])
+        : '';
+    if ($project_id === '') {
+        return $fail('Firebase is not configured on the server.');
+    }
+
+    // Google's public signing certs, keyed by the token header's "kid". Cached briefly so
+    // a normal login does not make an outbound HTTPS call every time; Google rotates these
+    // roughly daily and always publishes the new key before using it.
+    $cache_file = rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'cretzo_firebase_certs.json';
+    $certs = null;
+    if (is_file($cache_file) && (time() - filemtime($cache_file)) < 3600) {
+        $certs = json_decode((string) file_get_contents($cache_file), true);
+    }
+    if (empty($certs) || !is_array($certs)) {
+        $url = 'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com';
+        $raw = false;
+        if (function_exists('curl_init')) {
+            $ch = curl_init();
+            curl_setopt_array($ch, [
+                CURLOPT_URL => $url,
+                CURLOPT_RETURNTRANSFER => 1,
+                CURLOPT_TIMEOUT => 10,
+            ]);
+            $raw = curl_exec($ch);
+            curl_close($ch);
+        }
+        if ($raw === false || $raw === '') {
+            $raw = @file_get_contents($url);
+        }
+        $certs = ($raw !== false) ? json_decode((string) $raw, true) : null;
+        if (empty($certs) || !is_array($certs)) {
+            return $fail('Could not verify sign-in right now. Please try again.');
+        }
+        @file_put_contents($cache_file, json_encode($certs));
+    }
+
+    $t->load->library(['jwt', 'Key']);
+
+    // Key construction must be inside the try as well: Key::__construct() throws on
+    // anything it can't use as key material, and a malformed/empty entry in the cert
+    // response would otherwise escape as an uncaught exception - crashing the endpoint
+    // with an HTML error page instead of returning clean JSON. Unparseable certs are
+    // skipped rather than fatal.
+    try {
+        $keys = [];
+        foreach ($certs as $kid => $pem) {
+            if (!is_string($pem) || trim($pem) === '') {
+                continue;
+            }
+            $keys[$kid] = new Key($pem, 'RS256');
+        }
+        if (empty($keys)) {
+            return $fail('Could not verify sign-in right now. Please try again.');
+        }
+
+        Jwt::$leeway = 60; // tolerate small clock skew
+        $payload = $t->jwt->decode($id_token, $keys);
+    } catch (Exception $e) {
+        return $fail('Sign-in could not be verified. Please try again.');
+    } catch (Throwable $e) {
+        // php-jwt/openssl can also raise Error (not Exception) on bad key material.
+        return $fail('Sign-in could not be verified. Please try again.');
+    }
+
+    // Audience must be OUR project, and the issuer must be Google's token service for it -
+    // otherwise a valid token minted for some other Firebase project would be accepted.
+    $aud = isset($payload->aud) ? $payload->aud : '';
+    $iss = isset($payload->iss) ? $payload->iss : '';
+    if ($aud !== $project_id || $iss !== 'https://securetoken.google.com/' . $project_id) {
+        return $fail('Sign-in token was not issued for this site.');
+    }
+    if (empty($payload->sub)) {
+        return $fail('Sign-in token is missing its subject.');
+    }
+    if (isset($payload->exp) && (int) $payload->exp < (time() - 60)) {
+        return $fail('Sign-in token has expired. Please try again.');
+    }
+
+    $provider = '';
+    if (isset($payload->firebase->sign_in_provider)) {
+        $provider = (string) $payload->firebase->sign_in_provider; // e.g. facebook.com
+    }
+
+    return [
+        'error'    => false,
+        'message'  => 'verified',
+        'uid'      => (string) $payload->sub,
+        'email'    => isset($payload->email) ? strtolower(trim((string) $payload->email)) : '',
+        'name'     => isset($payload->name) ? (string) $payload->name : '',
+        'provider' => $provider,
+    ];
 }
 
 /**

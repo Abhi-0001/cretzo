@@ -69,14 +69,30 @@ class Razorpay
         return $res;
     }
 
+    /**
+     * Fetch an order Razorpay created for us. Needed so a callback can bind the
+     * payment back to the order WE created (and to the receipt we put on it),
+     * rather than trusting the order id the browser posts.
+     */
+    public function fetch_order($order_id = '')
+    {
+        if (empty(trim($order_id))) {
+            return [];
+        }
+        $response = $this->curl($this->url . 'orders/' . $order_id, 'GET');
+        $res = json_decode($response['body'], true);
+        return is_array($res) ? $res : [];
+    }
+
     public function verify_payment($order_id, $razorpay_payment_id, $razorpay_signature)
     {
-        $generated_signature = hash_hmac('sha256', $order_id . "|" . $razorpay_payment_id, $this->secret_key);
-        if ($generated_signature == $razorpay_signature) {
-            return true;
-        } else {
+        if (empty($this->secret_key) || empty($order_id) || empty($razorpay_payment_id) || empty($razorpay_signature)) {
             return false;
         }
+        $generated_signature = hash_hmac('sha256', $order_id . "|" . $razorpay_payment_id, $this->secret_key);
+        // Was `==`: a loose comparison, and not timing-safe. hash_equals() is the
+        // correct primitive for comparing a secret-derived digest.
+        return hash_equals($generated_signature, (string) $razorpay_signature);
     }
     public function refund_payment($txn_id, $amount)
     {

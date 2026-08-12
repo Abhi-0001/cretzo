@@ -39,7 +39,7 @@ class Subscription extends CI_Controller
 
     public function details($id = null)
     {
-        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller()) {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller() || !$this->ion_auth->can_access_seller_panel()) {
             redirect('seller/login', 'refresh');
         }
 
@@ -219,6 +219,59 @@ class Subscription extends CI_Controller
         $seller_id = $this->session->userdata('user_id');
         $subscription_id = $this->input->post('subscription_id', true);
         $razorpay_payment_id = $this->input->post('razorpay_payment_id', true);
+        $razorpay_order_id = $this->input->post('razorpay_order_id', true);
+        $razorpay_signature = $this->input->post('razorpay_signature', true);
+
+        $this->load->library('razorpay');
+
+        // 1. REPLAY GUARD. Nothing previously stopped the same razorpay_payment_id being
+        //    POSTed here repeatedly, each time granting a fresh validity period from one
+        //    single payment. (The wallet top-up path in app/v1/Api.php already had this
+        //    check; the subscription and checkout paths did not.)
+        $already_used = fetch_details('transactions', ['txn_id' => $razorpay_payment_id, 'status' => 'success'], 'id');
+        if (!empty($already_used)) {
+            $response = [
+                'error' => true,
+                'csrfName' => $this->security->get_csrf_token_name(),
+                'csrfHash' => $this->security->get_csrf_hash(),
+                'message' => 'This payment has already been processed.',
+            ];
+            echo json_encode($response);
+            return;
+        }
+
+        // 2. SIGNATURE. razorpay_signature was previously declared required and then never
+        //    read - any non-empty string passed. This is the HMAC that actually proves the
+        //    (order_id, payment_id) pair came from Razorpay and was not forged client-side.
+        if (!$this->razorpay->verify_payment($razorpay_order_id, $razorpay_payment_id, $razorpay_signature)) {
+            $response = [
+                'error' => true,
+                'csrfName' => $this->security->get_csrf_token_name(),
+                'csrfHash' => $this->security->get_csrf_hash(),
+                'message' => 'Payment signature verification failed.',
+            ];
+            echo json_encode($response);
+            return;
+        }
+
+        // 3. ORDER BINDING. purchase() stamps each order's receipt with
+        //    seller_sub_{seller_id}_{subscription_id}_{time}. Re-reading it from Razorpay
+        //    ties this payment to the seller and plan the order was actually created for,
+        //    so a genuine payment for one (cheap) plan can't be replayed against a
+        //    different, more expensive plan by editing the posted subscription_id.
+        $order = $this->razorpay->fetch_order($razorpay_order_id);
+        $receipt = isset($order['receipt']) ? (string) $order['receipt'] : '';
+        $expected_receipt_prefix = 'seller_sub_' . $seller_id . '_' . $subscription_id . '_';
+        if ($receipt === '' || strpos($receipt, $expected_receipt_prefix) !== 0) {
+            $response = [
+                'error' => true,
+                'csrfName' => $this->security->get_csrf_token_name(),
+                'csrfHash' => $this->security->get_csrf_hash(),
+                'message' => 'This payment does not belong to the selected plan.',
+            ];
+            echo json_encode($response);
+            return;
+        }
 
         $plan = $this->db->where('id', $subscription_id)->get('subscriptions')->row_array();
         if (empty($plan)) {
@@ -258,6 +311,22 @@ class Subscription extends CI_Controller
                 'csrfName' => $this->security->get_csrf_token_name(),
                 'csrfHash' => $this->security->get_csrf_hash(),
                 'message' => $msg,
+            ];
+            echo json_encode($response);
+            return;
+        }
+
+        // 4. The payment Razorpay actually holds must reference the same order we just
+        //    validated. Belt-and-braces alongside the HMAC above: it catches a payment id
+        //    from a different order (another plan, a storefront order, a wallet top-up)
+        //    being presented here.
+        $payment_order_id = isset($verification['data']['order_id']) ? $verification['data']['order_id'] : null;
+        if (empty($payment_order_id) || !hash_equals((string) $razorpay_order_id, (string) $payment_order_id)) {
+            $response = [
+                'error' => true,
+                'csrfName' => $this->security->get_csrf_token_name(),
+                'csrfHash' => $this->security->get_csrf_hash(),
+                'message' => 'This payment does not belong to the selected order.',
             ];
             echo json_encode($response);
             return;
@@ -308,7 +377,7 @@ class Subscription extends CI_Controller
 
     public function payment_success()
     {
-        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller()) {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller() || !$this->ion_auth->can_access_seller_panel()) {
             redirect('seller/login', 'refresh');
         }
 

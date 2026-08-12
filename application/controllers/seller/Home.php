@@ -414,7 +414,7 @@ class Home extends CI_Controller
     }
     public function get_districts_by_state()
     {
-        if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller())) {
+        if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && $this->ion_auth->can_access_seller_panel())) {
             echo json_encode([]);
             return;
         }
@@ -438,7 +438,7 @@ class Home extends CI_Controller
 
     public function get_cities_by_district()
     {
-        if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller())) {
+        if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && $this->ion_auth->can_access_seller_panel())) {
             echo json_encode([]);
             return;
         }

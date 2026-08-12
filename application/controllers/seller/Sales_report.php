@@ -16,7 +16,7 @@ class Sales_report extends CI_Controller
 
     public function index()
     {
-        if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller()) {
+        if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && $this->ion_auth->can_access_seller_panel()) {
             $this->data['main_page'] = TABLES . 'sales-report';
             $settings = get_settings('system_settings', true);
             $this->data['title'] = 'Sales Report |' . $settings['app_name'];
@@ -29,7 +29,7 @@ class Sales_report extends CI_Controller
 
     public function get_seller_sales_report_list()
     {
-        if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller()) {
+        if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && $this->ion_auth->can_access_seller_panel()) {
             return $this->Sales_report_model->get_seller_sales_list($this->ion_auth->get_user_id());
         } else {
             redirect('seller/login', 'refresh');

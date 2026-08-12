@@ -49,6 +49,66 @@ class Seller_subscription_model extends CI_Model
         return $query->row_array();
     }
 
+    /**
+     * Resolve a plan's `validity` column into a number of days.
+     *
+     * The admin form labels this field "Validity no of days" and now validates it as
+     * numeric, but it is a free-text VARCHAR and the live plans were saved with prose
+     * ("1 month", "Valid up to one year"). The previous ctype_digit() test rejected
+     * every one of those, so $end stayed NULL and NO paid subscription ever expired -
+     * which in turn made renewal, the expiry cron and admin's "extend" action all
+     * no-ops. Parsing the common prose forms as well means such rows still behave
+     * sensibly instead of silently becoming lifetime plans.
+     *
+     * @return int|null Days, or NULL for genuinely unlimited / unparseable values.
+     */
+    public function parse_validity_days($validity)
+    {
+        $raw = strtolower(trim((string) $validity));
+        if ($raw === '') {
+            return null;
+        }
+
+        // Explicitly unlimited.
+        if (preg_match('/unlimited|lifetime|forever|no expiry|never/', $raw)) {
+            return null;
+        }
+
+        // The documented format: a bare number of days.
+        if (ctype_digit($raw)) {
+            return ((int) $raw) > 0 ? (int) $raw : null;
+        }
+
+        // Prose forms: "1 month", "one year", "12 months", "2 weeks", "monthly"...
+        $units = [
+            'year'  => 365,
+            'annual' => 365,
+            'month' => 30,
+            'week'  => 7,
+            'day'   => 1,
+        ];
+        foreach ($units as $unit => $days_per_unit) {
+            if (strpos($raw, $unit) === false) {
+                continue;
+            }
+            // Leading count, if any: "12 months" -> 12. Word forms map to 1.
+            if (preg_match('/(\d+)\s*' . preg_quote($unit, '/') . '/', $raw, $m)) {
+                $count = (int) $m[1];
+            } elseif (preg_match('/\b(a|an|one)\b/', $raw)) {
+                $count = 1;
+            } else {
+                $count = 1; // "monthly", "valid up to one year" etc.
+            }
+            return $count > 0 ? $count * $days_per_unit : null;
+        }
+
+        // A number with no recognisable time unit (e.g. the "100 extra listings" that had
+        // been typed into this field) is deliberately NOT treated as days - guessing would
+        // silently invent an expiry date. Left unlimited; admin-side numeric validation
+        // now prevents new values like this being saved.
+        return null;
+    }
+
     public function assign_subscription($seller_id, $subscription_id, $validity = null)
     {
         if (empty($seller_id) || empty($subscription_id)) {
@@ -61,9 +121,9 @@ class Seller_subscription_model extends CI_Model
         $start = date('Y-m-d H:i:s');
         $end   = null;
 
-        // basic validity handling: treat numeric value as days, anything else as unlimited
-        if (!empty($validity) && ctype_digit((string) $validity)) {
-            $end = date('Y-m-d H:i:s', strtotime('+' . (int) $validity . ' days', strtotime($start)));
+        $days = $this->parse_validity_days($validity);
+        if ($days !== null) {
+            $end = date('Y-m-d H:i:s', strtotime('+' . $days . ' days', strtotime($start)));
         }
 
         $data = [

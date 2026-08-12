@@ -20,6 +20,15 @@ class Subscription extends CI_Controller
     public function seller_subscriptions()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
+            // is_admin() is true for EVERY system-user role (super_admin/admin/editor/
+            // supporter are all in group 1), so it alone does not restrict anything.
+            // These endpoints assign, extend and cancel real paid subscriptions, so they
+            // need a granular permission too - 'subscription' is now a registered module
+            // in config/eshop.php.
+            if (!has_permissions('read', 'subscription')) {
+                $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
+                redirect('admin/home', 'refresh');
+            }
             $this->data['main_page'] = TABLES . 'seller-subscriptions';
             $settings = get_settings('system_settings', true);
             $this->data['title'] = 'Seller Subscriptions | ' . $settings['app_name'];
@@ -36,6 +45,9 @@ class Subscription extends CI_Controller
         if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {
             redirect('admin/login', 'refresh');
         }
+        if (print_msg(!has_permissions('read', 'subscription'), PERMISSION_ERROR_MSG, 'subscription')) {
+            return false;
+        }
 
         $rows = $this->Seller_subscription_model->get_all_seller_subscription_status();
         foreach ($rows as &$row) {
@@ -50,6 +62,9 @@ class Subscription extends CI_Controller
     {
         if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {
             redirect('admin/login', 'refresh');
+        }
+        if (print_msg(!has_permissions('update', 'subscription'), PERMISSION_ERROR_MSG, 'subscription')) {
+            return false;
         }
 
         $this->form_validation->set_rules('seller_id', 'Seller', 'trim|required|integer|xss_clean');
@@ -76,6 +91,9 @@ class Subscription extends CI_Controller
         if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {
             redirect('admin/login', 'refresh');
         }
+        if (print_msg(!has_permissions('update', 'subscription'), PERMISSION_ERROR_MSG, 'subscription')) {
+            return false;
+        }
 
         $this->form_validation->set_rules('seller_id', 'Seller', 'trim|required|integer|xss_clean');
         $this->form_validation->set_rules('days', 'Days', 'trim|required|integer|greater_than[0]|xss_clean');
@@ -92,6 +110,9 @@ class Subscription extends CI_Controller
     {
         if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {
             redirect('admin/login', 'refresh');
+        }
+        if (print_msg(!has_permissions('delete', 'subscription'), PERMISSION_ERROR_MSG, 'subscription')) {
+            return false;
         }
 
         $this->form_validation->set_rules('seller_id', 'Seller', 'trim|required|integer|xss_clean');

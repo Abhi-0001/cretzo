@@ -36,10 +36,17 @@ class Auth extends CI_Controller
             $this->data['identity_column'] = $identity_column;
             $this->data['launch_offer_active'] = $this->Seller_subscription_model->is_launch_offer_active();
             $this->load->view('seller/login', $this->data);
-        } else if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller()) {
+        } else if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && $this->ion_auth->can_access_seller_panel()) {
             redirect('seller/home', 'refresh');
         } else if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
             redirect('admin/home', 'refresh');
+        } else {
+            // Reached by a logged-in seller who is Deactive/Removed (or any other
+            // logged-in principal): every branch above fails, and without this the
+            // method fell off the end and rendered a blank page. seller/Login::index()
+            // is the canonical seller entry point and force-logs-out a
+            // deactivated/removed seller before showing the form again.
+            redirect('seller/login', 'refresh');
         }
     }
 
@@ -984,6 +991,20 @@ class Auth extends CI_Controller
 
     public function update_user()
     {
+        // This had NO auth gate at all. It resolves the target account purely from
+        // the caller's own session identity and then updates username/email and
+        // (optionally) the password on it - so any logged-in NON-seller (e.g. a plain
+        // customer) could call this seller-panel endpoint and mutate their own
+        // credentials through it, and a guest hit a fatal on $user->id below rather
+        // than a clean rejection.
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller() || !$this->ion_auth->can_access_seller_panel()) {
+            $response['error'] = true;
+            $response['csrfName'] = $this->security->get_csrf_token_name();
+            $response['csrfHash'] = $this->security->get_csrf_hash();
+            $response['message'] = 'Unauthorized';
+            echo json_encode($response);
+            return false;
+        }
 
         $identity_column = $this->config->item('identity', 'ion_auth');
         $identity = $this->session->userdata('identity');

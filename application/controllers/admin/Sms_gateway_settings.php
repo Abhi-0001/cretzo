@@ -12,23 +12,16 @@ class Sms_gateway_settings extends CI_Controller
         $this->load->model(['Setting_model', 'notification_model', 'category_model', 'custom_sms_model']);
     }
 
-    function  test()
-    {
-        echo "Test<pre>";
-        $fcm_id = "eYvDKNC58-A4WI5tpaK1Ns:APA91bGhM_YwxM4CKtSqQ_NMrvVy3PKXyQ7BdwpCfwNGgjPp555DLripOQmxVKE6W_M4wE0VdaIAN0TWKAhhV-Hlw-23pwVa0YIOknalYzwpjoHl8pSlUJ2tYYOHG9ROeD7xjiEInEeC";
-        $fcmMsg = array(
-            'title' => 'test',
-            'body' => "Sample message",
-            // 'type' => "typing",
-            // "from_id" => "1",
-            // "to_id" => "1255",
-            // "chat_type" => "person"
-        );
-
-        $response = send_notification($fcmMsg, [$fcm_id]);
-        print_r($_SESSION);
-        print_r($response);
-    }
+    // test() and test_sms() were REMOVED from this controller. Both were
+    // unauthenticated (this controller has no constructor gate, and every real
+    // method gates itself with logged_in()+is_admin()+has_permissions), both were
+    // unreferenced debug leftovers from the upstream vendor, and both contained
+    // that vendor's developers' hardcoded personal contact details:
+    //   - test() dumped $_SESSION to the browser and fired an FCM push to a
+    //     hardcoded device token.
+    //   - test_sms() called set_user_otp(), sending a real SMS through the
+    //     configured gateway and writing OTP state, with hardcoded email
+    //     addresses and phone numbers. Anonymous, repeatable, and billable.
     public function index()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
@@ -136,18 +129,4 @@ class Sms_gateway_settings extends CI_Controller
         }
     }
 
-    function test_sms()
-    {
-        echo "<pre>";
-        $emails = ["customer" => ['infinitie.roshni@gmail.com'], "admin" => ['infinitie.jay@gmail.com']];
-        $phone = ["customer" => ['7284938224'], "delivery_boy" => ['9898528257']];
-        //   notify_event(
-        //                 "place_order",
-        //                 ["customer" => ['infinitie.roshni@gmail.com']],
-        //                 ["customer" => ['7284938224']],
-        //                 ["orders.id" => "2"]
-        //             );
-        $res = set_user_otp(random_int(100000, 999999), date('Y-m-d H:i:s'));
-        print_r($res);
-    }
 }

@@ -762,13 +762,37 @@ if (!empty($sections)) {
     public function social_login()
     {
         $type = $this->input->post('type', true);
-        $uid = $this->input->post('uid', true);
-        $name = $this->input->post('name', true);
-        $email = trim((string) $this->input->post('email', true));
 
-        if (empty($uid) || !in_array($type, ['facebook', 'google'], true)) {
+        // SECURITY: everything identifying the user must come from a Firebase ID token
+        // verified server-side, never from POST. Trusting the POSTed uid/email (the
+        // previous behaviour, inherited from the old Home::login() social branch and its
+        // "already verified on client via OAuth" comment) meant anyone could POST an
+        // existing customer's email to this endpoint and be logged in as them - no
+        // password, no Facebook, no Firebase. Confirmed exploitable before this change.
+        $verified = verify_firebase_id_token($this->input->post('id_token', true));
+        if ($verified['error']) {
             $this->response['error'] = true;
-            $this->response['message'] = 'Invalid social login request.';
+            $this->response['message'] = $verified['message'];
+            echo json_encode($this->response);
+            return false;
+        }
+
+        $uid = $verified['uid'];
+        $name = $verified['name'];
+        $email = $verified['email'];
+
+        // The provider is taken from the token's own sign_in_provider claim
+        // (e.g. "facebook.com") and must actually BE one of the social providers this
+        // endpoint is for. Falling back to the POSTed type would let any other valid token
+        // for this Firebase project (an anonymous or email/password sign-in, which anyone
+        // can mint with the public web API key) be presented here as a social login.
+        if (strpos($verified['provider'], 'facebook') !== false) {
+            $type = 'facebook';
+        } elseif (strpos($verified['provider'], 'google') !== false) {
+            $type = 'google';
+        } else {
+            $this->response['error'] = true;
+            $this->response['message'] = 'Unsupported sign-in provider.';
             echo json_encode($this->response);
             return false;
         }
@@ -915,16 +939,29 @@ if (!empty($sections)) {
         }
     }
 
-    // Looks up a customer (group 2) user row by mobile number, shared by
+    // Looks up a storefront customer row by mobile number, shared by
     // send_reset_otp()/reset_password() below.
+    //
+    // Deliberately identifies customers by EXCLUSION (not in a staff group)
+    // rather than by requiring group_id == 2. A chunk of the legacy accounts
+    // have no users_groups row at all - they predate consistent group
+    // assignment - and a positive "must be in group 2" test locked every one of
+    // them out of password reset with "You have not registered using this
+    // number." while signup simultaneously rejected the same number as already
+    // taken. Anything not positively a staff account is treated as a customer,
+    // which also matches ion_auth's 'members' default_group.
     private function _find_reset_customer($mobile)
     {
         $res = fetch_details('users', ['mobile' => $mobile]);
         if (empty($res)) {
             return null;
         }
-        $group = fetch_details('users_groups', ['user_id' => $res[0]['id']]);
-        if (empty($group) || $group[0]['group_id'] != 2) {
+        $staff_groups = [
+            $this->config->item('admin_group', 'ion_auth'),
+            $this->config->item('seller_group', 'ion_auth'),
+            $this->config->item('delivery_boy_group', 'ion_auth'),
+        ];
+        if ($this->ion_auth->in_group($staff_groups, $res[0]['id'])) {
             return null;
         }
         return $res[0];
@@ -952,7 +989,14 @@ if (!empty($sections)) {
             return false;
         }
 
-        send_password_reset_otp($this->input->post('mobile_number'));
+        $sent = send_password_reset_otp($this->input->post('mobile_number'));
+        if (empty($sent) || !empty($sent['error'])) {
+            $this->response['error'] = true;
+            $this->response['message'] = !empty($sent['message']) ? $sent['message'] : 'Could not send the OTP. Please try again later.';
+            echo json_encode($this->response);
+            return false;
+        }
+
         $this->response['error'] = false;
         $this->response['message'] = 'OTP sent successfully.';
         echo json_encode($this->response);

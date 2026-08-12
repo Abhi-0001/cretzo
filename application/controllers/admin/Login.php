@@ -168,7 +168,14 @@ class Login extends CI_Controller
             return false;
         }
 
-        send_password_reset_otp($this->input->post('mobile_number'));
+        $sent = send_password_reset_otp($this->input->post('mobile_number'));
+        if (empty($sent) || !empty($sent['error'])) {
+            $response['error'] = true;
+            $response['message'] = !empty($sent['message']) ? $sent['message'] : 'Could not send the OTP. Please try again later.';
+            echo json_encode($response);
+            return false;
+        }
+
         $response['error'] = false;
         $response['message'] = 'OTP sent successfully.';
         echo json_encode($response);

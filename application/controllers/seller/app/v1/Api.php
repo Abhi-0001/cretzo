@@ -493,7 +493,14 @@ Defined Methods:-
             return false;
         }
 
-        if ($_POST['status'] == 'cancelled' || $_POST['status'] == 'returned') {
+        // This runs BEFORE form_validation->run() below, so 'status' is not guaranteed to
+        // exist yet - reading it unguarded emitted "Undefined array key" warnings into the
+        // response body, which breaks JSON parsing in the seller app even though the
+        // validation further down would have rejected the request cleanly. (The later
+        // reads of $_POST['status'] in this method are all after run(), where the
+        // 'required' rule guarantees it.)
+        $posted_status = isset($_POST['status']) ? $_POST['status'] : '';
+        if ($posted_status == 'cancelled' || $posted_status == 'returned') {
             $this->form_validation->set_rules('order_item_id', 'Order Item ID', 'trim|required|xss_clean', array('required' => "order item ID is required for order cancelation or return."));
         }
         if (empty($_POST['seller_id']) || !isset($_POST['seller_id'])) {
@@ -1850,7 +1857,11 @@ Defined Methods:-
         $this->form_validation->set_rules('guarantee_period', 'Guarantee Period', 'trim|xss_clean');
         $this->form_validation->set_rules('video', 'Video', 'trim|xss_clean');
         $this->form_validation->set_rules('video_type', 'Video Type', 'trim|xss_clean');
-        if (isset($_POST['product_type']) && $_POST['product_type'] == 'simple_product' || $_POST['product_type'] == 'variable_product') {
+        // Operator precedence bug: && binds tighter than ||, so this read as
+        // (isset(..) && ..=='simple_product') || (..=='variable_product') - the isset() guard only
+        // covered the FIRST comparison, leaving the second to read the key unguarded
+        // (the "Undefined array key" warning that corrupted this JSON response).
+        if (isset($_POST['product_type']) && in_array($_POST['product_type'], ['simple_product', 'variable_product'], true)) {
             $this->form_validation->set_rules('deliverable_type', 'Deliverable Type', 'required|trim|xss_clean');
         }
         $this->form_validation->set_rules('pro_input_image', 'Product Image', 'required|trim|xss_clean');
@@ -1894,12 +1905,17 @@ Defined Methods:-
         if (isset($_POST['is_prices_inclusive_tax'])) {
             $this->form_validation->set_rules('is_prices_inclusive_tax', 'Tax included in prices', 'trim|xss_clean');
         }
-        if ($_POST['deliverable_type'] == INCLUDED || $_POST['deliverable_type'] == EXCLUDED) {
+        // Read with no isset() guard, before validation had run.
+        if (isset($_POST['deliverable_type']) && in_array($_POST['deliverable_type'], [INCLUDED, EXCLUDED])) {
             $this->form_validation->set_rules('deliverable_zipcodes[]', 'Deliverable Zipcodes', 'trim|required|xss_clean');
         }
 
         // If product type is simple or digital	 		
-        if (isset($_POST['product_type']) && $_POST['product_type'] == 'simple_product' || $_POST['product_type'] == 'digital_product') {
+        // Operator precedence bug: && binds tighter than ||, so this read as
+        // (isset(..) && ..=='simple_product') || (..=='digital_product') - the isset() guard only
+        // covered the FIRST comparison, leaving the second to read the key unguarded
+        // (the "Undefined array key" warning that corrupted this JSON response).
+        if (isset($_POST['product_type']) && in_array($_POST['product_type'], ['simple_product', 'digital_product'], true)) {
 
             $this->form_validation->set_rules('simple_price', 'Price', 'trim|required|numeric|greater_than_equal_to[' . $this->input->post('simple_special_price') . ']|xss_clean');
             $this->form_validation->set_rules('simple_special_price', 'Special Price', 'trim|numeric|less_than_equal_to[' . $this->input->post('simple_price') . ']|xss_clean');
@@ -2690,7 +2706,11 @@ Defined Methods:-
         $this->form_validation->set_rules('guarantee_period', 'Guarantee Period', 'trim|xss_clean');
         $this->form_validation->set_rules('video', 'Video', 'trim|xss_clean');
         $this->form_validation->set_rules('video_type', 'Video Type', 'trim|xss_clean');
-        if (isset($_POST['product_type']) && $_POST['product_type'] == 'simple_product' || $_POST['product_type'] == 'variable_product') {
+        // Operator precedence bug: && binds tighter than ||, so this read as
+        // (isset(..) && ..=='simple_product') || (..=='variable_product') - the isset() guard only
+        // covered the FIRST comparison, leaving the second to read the key unguarded
+        // (the "Undefined array key" warning that corrupted this JSON response).
+        if (isset($_POST['product_type']) && in_array($_POST['product_type'], ['simple_product', 'variable_product'], true)) {
             $this->form_validation->set_rules('deliverable_type', 'Deliverable Type', 'required|trim|xss_clean');
         }
 
@@ -2720,8 +2740,12 @@ Defined Methods:-
         $_POST['other_images'] = (isset($_POST['other_images']) && !empty($_POST['other_images'])) ? explode(",", $this->input->post('other_images', true)) : [];
         $_POST['variant_images'] = (isset($_POST['variant_images']) && !empty($_POST['variant_images'])) ? json_decode($_POST['variant_images'], true) : [];
         $_POST['edit_variant_id'] = (isset($_POST['edit_variant_id']) && !empty($_POST['edit_variant_id'])) ? explode(",", $this->input->post('edit_variant_id', true)) : [];
-        $edit_status = fetch_details('products', ['id' => $_POST['edit_product_id']], 'status');
-        $require_products_approval = $edit_status[0]['status'];
+        // edit_product_id was read before validation ran, and the [0] index was then
+        // taken from a possibly-empty lookup ("Trying to access array offset on value of
+        // type null"). Both warnings printed into the JSON response body.
+        $posted_edit_product_id = $this->input->post('edit_product_id', true);
+        $edit_status = (!empty($posted_edit_product_id)) ? fetch_details('products', ['id' => $posted_edit_product_id], 'status') : [];
+        $require_products_approval = (!empty($edit_status) && isset($edit_status[0]['status'])) ? $edit_status[0]['status'] : null;
         $_POST['status'] = (isset($_POST['status']) && ($_POST['status'] != '')) ? $this->input->post('status', true) : $require_products_approval;
 
 
@@ -2735,7 +2759,8 @@ Defined Methods:-
         if (isset($_POST['is_prices_inclusive_tax'])) {
             $this->form_validation->set_rules('is_prices_inclusive_tax', 'Tax included in prices', 'trim|xss_clean');
         }
-        if ($_POST['deliverable_type'] == INCLUDED || $_POST['deliverable_type'] == EXCLUDED) {
+        // Read with no isset() guard, before validation had run.
+        if (isset($_POST['deliverable_type']) && in_array($_POST['deliverable_type'], [INCLUDED, EXCLUDED])) {
             $this->form_validation->set_rules('deliverable_zipcodes[]', 'Deliverable Zipcodes', 'trim|required|xss_clean');
         }
 

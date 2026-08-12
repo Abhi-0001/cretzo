@@ -3577,101 +3577,63 @@ $(document).ready(function () {
     });
 
     function handleSocialLogin(user, providerName) {
-        // Single round trip: home/social_login finds-or-creates the account and
-        // logs in, server-side, in one call - previously this chained 3 separate
-        // AJAX calls (verifyUser -> auth/register_user -> home/login), each
-        // enforcing a hard "must have an email" rule that blocked any Facebook
-        // account which didn't return one.
-        var type = providerName;
-        var name = user.displayName;
-        var email = '';
-        if (user.email != null && user.email != '') {
-            email = user.email;
-        } else if (user.providerData && user.providerData[0] && user.providerData[0].email != null && user.providerData[0].email != '') {
-            email = user.providerData[0].email;
+        // One round trip. We send ONLY the Firebase ID token; the server verifies its
+        // signature against Google's public keys and reads the uid/email/name out of the
+        // verified token itself. Nothing identifying the user is taken from this request,
+        // because a POSTed email could simply be forged.
+        //
+        // (This previously chained 3 AJAX calls - verifyUser -> auth/register_user ->
+        // home/login - each enforcing a hard "must have an email" rule that blocked any
+        // Facebook account which didn't return one.)
+        function fail(msg) {
+            setSocialButtonLoading(providerName, false);
+            toggleAuthLoading(false);
+            Toast.fire({ icon: 'error', title: msg || 'Something went wrong signing you in. Please try again.' });
         }
-        var uid = user.uid;
 
-        $.ajax({
-            type: 'POST',
-            url: base_url + 'home/social_login',
-            data: {
-                uid: uid,
-                type: type,
-                name: name,
-                email: email,
-                [csrfName]: csrfHash
-            },
-            dataType: 'json',
-            success: function (result) {
-                if (result.csrfName) { csrfName = result.csrfName; }
-                if (result.csrfHash) { csrfHash = result.csrfHash; }
+        user.getIdToken().then(function (idToken) {
+            $.ajax({
+                type: 'POST',
+                url: base_url + 'home/social_login',
+                data: {
+                    id_token: idToken,
+                    type: providerName,
+                    [csrfName]: csrfHash
+                },
+                dataType: 'json',
+                success: function (result) {
+                    if (result.csrfName) { csrfName = result.csrfName; }
+                    if (result.csrfHash) { csrfHash = result.csrfHash; }
 
-                if (result.error == false) {
-                    closeLoginPopupFast();
-                    setTimeout(function () {
-                        location.reload();
-                    }, 120);
-                } else {
-                    setSocialButtonLoading(providerName, false);
-                    toggleAuthLoading(false);
-                    Toast.fire({
-                        icon: 'error',
-                        title: result.message || 'Something went wrong signing you in. Please try again.'
-                    });
-                }
-            },
-            error: function () {
-                setSocialButtonLoading(providerName, false);
-                toggleAuthLoading(false);
-                Toast.fire({
-                    icon: 'error',
-                    title: 'Something went wrong signing you in. Please try again.'
-                });
-            }
+                    if (result.error == false) {
+                        closeLoginPopupFast();
+                        setTimeout(function () { location.reload(); }, 120);
+                    } else {
+                        fail(result.message);
+                    }
+                },
+                error: function () { fail(); }
+            });
+        }).catch(function () {
+            fail();
         });
     }
-    var pendingLinkCredential = null;
-    var pendingLinkAttemptedProvider = null;
-
+    // The previous "account conflict" flow made a user who hit
+    // auth/account-exists-with-different-credential click the OTHER provider first, wait
+    // for a toast, then click again - two sign-ins and a lot of explaining. It is no longer
+    // needed: that error only means Firebase already has this verified email under a
+    // different provider, and the server-side flow matches an existing account by the email
+    // inside the verified token, so a normal sign-in with either provider lands on the same
+    // local account. We simply tell the user which provider to use and let them do it in
+    // one click.
     function handleAccountConflict(error, attemptedProvider) {
-        var pendingCredential = error.credential;
-
         setSocialButtonLoading(attemptedProvider, false);
         toggleAuthLoading(false);
-
-        if (!pendingCredential) {
-            Toast.fire({
-                icon: 'error',
-                title: 'This email is already registered using a different sign-in method. Please log in with that method instead.',
-                timer: 8000
-            });
-            return;
-        }
-
-        pendingLinkCredential = pendingCredential;
-        pendingLinkAttemptedProvider = attemptedProvider;
-        var attemptedLabel = attemptedProvider === 'facebook' ? 'Facebook' : 'Google';
-        var otherLabel = attemptedProvider === 'facebook' ? 'Google' : 'Facebook';
-
+        var other = attemptedProvider === 'facebook' ? 'Google' : 'Facebook';
         Toast.fire({
-            icon: 'warning',
-            title: 'An account already exists for this email. Click "Sign in with ' + otherLabel + '" below first — once you\'re signed in, your ' + attemptedLabel + ' login will be linked automatically.',
-            timer: 8000
-        });
-    }
-    function completeLinkedLogin(user, signedInProvider) {
-        var credential = pendingLinkCredential;
-        var originalProvider = pendingLinkAttemptedProvider;
-        pendingLinkCredential = null;
-        pendingLinkAttemptedProvider = null;
-
-        user.linkWithCredential(credential).then(function (linkResult) {
-            toggleAuthLoading(true, 'Account linked. Signing in...');
-            handleSocialLogin(linkResult.user, originalProvider);
-        }).catch(function (linkError) {
-            console.error(linkError);
-             handleSocialLogin(user, signedInProvider);
+            icon: 'info',
+            title: 'This email is already registered with ' + other + '. Please continue with ' + other + '.',
+            timer: 6000
         });
     }
 
@@ -3682,11 +3644,7 @@ $(document).ready(function () {
         provider.addScope('email');
         firebase.auth().signInWithPopup(provider).then(function (result) {
             toggleAuthLoading(true, 'Signing in with Google...');
-            if (pendingLinkCredential && pendingLinkAttemptedProvider === 'facebook') {
-                completeLinkedLogin(result.user, 'google');
-            } else {
-                handleSocialLogin(result.user, 'google');
-            }
+            handleSocialLogin(result.user, 'google');
         }).catch(function (error) {
             if (error && error.code === 'auth/account-exists-with-different-credential') {
                 handleAccountConflict(error, 'google');
@@ -3709,11 +3667,7 @@ $(document).ready(function () {
         provider.addScope('email');
         firebase.auth().signInWithPopup(provider).then(function (result) {
             toggleAuthLoading(true, 'Signing in with Facebook...');
-            if (pendingLinkCredential && pendingLinkAttemptedProvider === 'google') {
-                completeLinkedLogin(result.user, 'facebook');
-            } else {
-                handleSocialLogin(result.user, 'facebook');
-            }
+            handleSocialLogin(result.user, 'facebook');
         }).catch(function (error) {
             if (error && error.code === 'auth/account-exists-with-different-credential') {
                 handleAccountConflict(error, 'facebook');

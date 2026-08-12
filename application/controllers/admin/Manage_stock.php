@@ -66,6 +66,20 @@ class Manage_stock extends CI_Controller
 
     public function update_stock()
     {
+        // This controller has no constructor gate, and index()/get_stock_list()/
+        // get_product_data() each gate themselves - this write endpoint was the only
+        // one that didn't, so stock on any variant_id could be added to or subtracted
+        // from with no session at all.
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {
+            $this->response['error'] = true;
+            $this->response['message'] = 'Unauthorized';
+            echo json_encode($this->response);
+            return false;
+        }
+        if (print_msg(!has_permissions('update', 'product'), PERMISSION_ERROR_MSG, 'product')) {
+            return false;
+        }
+
         $this->form_validation->set_rules('product_name', 'Product Name', 'trim|required|xss_clean');
         $this->form_validation->set_rules('current_stock', 'Current Stock', 'trim|required|xss_clean|numeric');
         // Only checked 'required' before - a negative quantity on type=add subtracted from

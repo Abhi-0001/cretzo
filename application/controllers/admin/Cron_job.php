@@ -89,51 +89,20 @@ class Cron_job extends CI_Controller
         return $this->Promo_code_model->settle_cashback_discount();
     }
 
-    public function reset_system_data()
-    {
-        $mysqli = new mysqli('localhost', 'root', '', 'eshop_vendor');
-        if (mysqli_connect_errno())
-            return false;
-        $query = file_get_contents(base_url('eshop_vendor.sql'));
-        if ($mysqli->multi_query($query)) {
-            delete_files(FCPATH . 'uploads/media', true);
-            $zip = new ZipArchive;
-            $res = $zip->open('uploads/media.zip');
-            if ($res === TRUE) {
-                // Unzip path
-                $extractpath = 'uploads/media';
-
-                // Extract file
-                $zip->extractTo($extractpath);
-                $zip->close();
-                // unlink('uploads/media');
-            } else {
-                $this->response['error'] = true;
-                $this->response['message'] = $this->upload->display_errors();
-            }
-            echo "Success";
-        } else {
-            echo  mysqli_error($mysqli);
-        }
-        // $mysqli->multi_query($query);
-        // $mysqli->close();
-    }
-    public function reset_system_media()
-    {
-        delete_files(FCPATH . 'uploads/media', true);
-        $zip = new ZipArchive;
-        $res = $zip->open('uploads/media.zip');
-        if ($res === TRUE) {
-            // Unzip path
-            $extractpath = 'uploads/media';
-
-            // Extract file
-            $zip->extractTo($extractpath);
-            $zip->close();
-            // unlink('uploads/media');
-        } else {
-            $this->response['error'] = true;
-            $this->response['message'] = $this->upload->display_errors();
-        }
-    }
+    // reset_system_data() and reset_system_media() were REMOVED here. They were
+    // demo-reset scaffolding inherited from the upstream eShop vendor package, and
+    // both were reachable with NO authentication at all (unlike every other method
+    // in this controller):
+    //   - reset_system_data() opened a hardcoded mysqli('localhost','root','','eshop_vendor')
+    //     connection and multi_query()'d an eshop_vendor.sql fetched over HTTP - i.e. a
+    //     full database wipe/reimport, pointed at a database this install does not use.
+    //   - reset_system_media() ran delete_files(FCPATH.'uploads/media', true) - deleting
+    //     EVERY uploaded product/seller image - and then tried to restore them from an
+    //     uploads/media.zip that does not exist in this repo, so the deletion was
+    //     unrecoverable.
+    // Neither was referenced by any controller, view, JS file or route (verified by
+    // grep across application/ and assets/), and neither's required file
+    // (eshop_vendor.sql, uploads/media.zip) exists here. Deleting them outright is
+    // safer than adding an auth gate, because even an authenticated call would
+    // irreversibly destroy all media on this install.
 }

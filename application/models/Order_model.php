@@ -2118,31 +2118,61 @@ class Order_model extends CI_Model
         print_r(json_encode($bulkData));
     }
 
-    public function get_order_tracking($limit = "", $offset = '', $sort = 'id', $order = 'DESC', $search = NULL)
+    /**
+     * This function had four separate defects, all of which surfaced as an HTTP 200 with
+     * a broken/wrong body:
+     *   1. It read $_POST['seller_id'] directly - the admin endpoint
+     *      (admin/app/v1/Api::get_order_tracking) neither requires nor sends seller_id, so
+     *      every admin call emitted "Undefined array key" warnings and then filtered on an
+     *      empty value. seller_id is now an explicit optional parameter, and the filter is
+     *      only applied when one is supplied (admin legitimately wants all sellers).
+     *   2. That value was concatenated straight into where('oi.seller_id=' . $_POST[...]) -
+     *      an unescaped SQL injection. Now bound via where($col, $val).
+     *   3. $count_res was the RESULT ARRAY of ->get()->result_array(), and the code then
+     *      called ->or_like()/->where() ON THAT ARRAY - a guaranteed fatal
+     *      "Call to a member function on array" as soon as a search term was passed. The
+     *      search filter was therefore never applied to either query.
+     *   4. $sort/$order went unvalidated into order_by() - another injection route.
+     * ($where was only ever isset()-checked and never assigned; removed as dead.)
+     */
+    public function get_order_tracking($limit = "", $offset = '', $sort = 'id', $order = 'DESC', $search = NULL, $seller_id = NULL)
     {
-        $multipleWhere = '';
+        // Backwards compatibility: callers that still rely on the POSTed seller_id
+        // (the seller app filters by its own id) keep working.
+        if ($seller_id === NULL && isset($_POST['seller_id']) && $_POST['seller_id'] !== '') {
+            $seller_id = $_POST['seller_id'];
+        }
 
-        if (isset($search) and $search != '') {
-            $multipleWhere = ['id' => $search, 'order_id' => $search, 'tracking_id' => $search, 'courier_agency' => $search, 'order_item_id' => $search, 'url' => $search];
-        }
-        $count_res = $this->db->select(' COUNT(oi.id) as `total` ')
-            ->from('order_tracking  ot')
-            ->join('order_items oi', 'ot.order_item_id = oi.id', 'left')
-            ->where('oi.seller_id=' . $_POST['seller_id'])
-            ->get()->result_array();
-        if (isset($multipleWhere) && !empty($multipleWhere)) {
-            $count_res->or_like($multipleWhere);
-        }
-        if (isset($where) && !empty($where)) {
-            $count_res->where($where);
-        }
-        foreach ($count_res as $row) {
-            $total = $row['total'];
-        }
-        $city_search_res =  $this->db->select('ot.*,oi.seller_id')
-            ->from('order_tracking  ot')
-            ->join('order_items oi', 'ot.order_item_id = oi.id', 'left')
-            ->where('oi.seller_id=' . $_POST['seller_id'])
+        $allowed_sort = ['id', 'order_id', 'order_item_id', 'tracking_id', 'courier_agency', 'date_created'];
+        $sort = in_array($sort, $allowed_sort, true) ? $sort : 'id';
+        $order = (strtolower((string) $order) === 'asc') ? 'ASC' : 'DESC';
+        $limit = (is_numeric($limit) && $limit > 0) ? (int) $limit : 25;
+        $offset = (is_numeric($offset) && $offset >= 0) ? (int) $offset : 0;
+
+        $searchable = ['ot.id', 'ot.order_id', 'ot.tracking_id', 'ot.courier_agency', 'ot.order_item_id', 'ot.url'];
+
+        // Applies the shared filters to whichever query builder is passed in, so the count
+        // and the data query can never drift apart again.
+        $apply_filters = function ($builder) use ($seller_id, $search, $searchable) {
+            $builder->from('order_tracking ot')
+                ->join('order_items oi', 'ot.order_item_id = oi.id', 'left');
+            if ($seller_id !== NULL && $seller_id !== '' && is_numeric($seller_id)) {
+                $builder->where('oi.seller_id', (int) $seller_id);
+            }
+            if (isset($search) && $search !== '' && $search !== NULL) {
+                $builder->group_start();
+                foreach ($searchable as $i => $col) {
+                    $i === 0 ? $builder->like($col, $search) : $builder->or_like($col, $search);
+                }
+                $builder->group_end();
+            }
+            return $builder;
+        };
+
+        $count_row = $apply_filters($this->db->select('COUNT(oi.id) as `total`'))->get()->result_array();
+        $total = !empty($count_row) ? $count_row[0]['total'] : 0;
+
+        $city_search_res = $apply_filters($this->db->select('ot.*,oi.seller_id'))
             ->order_by($sort, $order)->limit($limit, $offset)
             ->get()->result_array();
         $bulkData = array();

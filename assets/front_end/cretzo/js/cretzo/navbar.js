@@ -69,18 +69,27 @@ function isHover(element) {
 }); */
 
 var megamenuCloseTimeout;
-/* Add event listener for mouseleave on the navbar */
-document.querySelector('.navbar-container').addEventListener('mouseleave', function() {
-    // Set a timeout to close all mega menus after 0.25 seconds
-    megamenuCloseTimeout = setTimeout(function() {
-        closeAllMegaMenus();
-    }, 250);
-});
-/* Add event listener for mouseenter on the navbar */
-document.querySelector('.navbar-container').addEventListener('mouseenter', function() {
-    // Clear the timeout to prevent closing mega menus
-    clearTimeout(megamenuCloseTimeout);
-});
+/* Add mega-menu hover handlers to the navbar.
+   These previously called .addEventListener() directly on querySelector('.navbar-container'),
+   which is null on any page that doesn't render that container (the floating-chat iframe,
+   for instance). That threw "Cannot read properties of null (reading 'addEventListener')"
+   and, because it is a top-level statement, aborted the REST of this file - so the
+   .nav-btn hover handlers and everything below never got attached on those pages. */
+var navbarContainer = document.querySelector('.navbar-container');
+if (navbarContainer) {
+    /* Add event listener for mouseleave on the navbar */
+    navbarContainer.addEventListener('mouseleave', function() {
+        // Set a timeout to close all mega menus after 0.25 seconds
+        megamenuCloseTimeout = setTimeout(function() {
+            closeAllMegaMenus();
+        }, 250);
+    });
+    /* Add event listener for mouseenter on the navbar */
+    navbarContainer.addEventListener('mouseenter', function() {
+        // Clear the timeout to prevent closing mega menus
+        clearTimeout(megamenuCloseTimeout);
+    });
+}
 
 /* Add event listeners for mouse hover on buttons */
 document.querySelectorAll('.nav-btn').forEach(function(btn) {

@@ -659,7 +659,16 @@ Defined Methods:-
             $offset = (isset($_POST['offset']) && is_numeric($_POST['offset']) && !empty(trim($_POST['offset']))) ? $this->input->post('offset', true) : 0;
             $order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $_POST['order'] : 'DESC';
             $sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $_POST['sort'] : 'id';
-            $res = $this->transaction_model->get_transactions($id, $user_id, $transaction_type, $type, $search, $offset, $limit, $sort, $order);
+            // Transaction_model::get_transactions() takes 8 args
+            // ($id, $user_id, $transaction_type, $search, $offset, $limit, $sort, $order)
+            // - it has no $type parameter (that filter is commented out inside the model).
+            // Passing $type as a 4th argument shifted everything after it by one, so $sort
+            // received the limit value and the query died with
+            // "Unknown column '25' in 'order clause'", returning a Database Error page
+            // with HTTP 200 instead of JSON. $type remains accepted and validated above
+            // but is not a supported filter in the model; left out rather than silently
+            // shifting the arguments again.
+            $res = $this->transaction_model->get_transactions($id, $user_id, $transaction_type, $search, $offset, $limit, $sort, $order);
             $this->response['error'] = !empty($res['data']) ? false : true;
             $this->response['message'] = !empty($res['data']) ? 'Transactions Retrieved Successfully' : 'Transactions does not exists';
             $this->response['total'] = !empty($res['data']) ? $res['total'] : 0;
@@ -1509,10 +1518,15 @@ Defined Methods:-
 
             $limit = (isset($_POST['limit']) && is_numeric($_POST['limit']) && !empty(trim($_POST['limit']))) ? $this->input->post('limit', true) : 25;
             $offset = (isset($_POST['offset']) && is_numeric($_POST['offset']) && !empty(trim($_POST['offset']))) ? $this->input->post('offset', true) : 0;
-            $this->db->select('c.id as id,c.name');
+            // The cities table's columns are city_id / city_name - it has no id or name
+            // column, so this query failed with "Unknown column 'c.id'" and the endpoint
+            // returned a Database Error page (or, with db_debug off in production, an empty
+            // result reported as "Cities does not exist") instead of the city list.
+            // Aliased back to id/name so the response shape the app expects is unchanged.
+            $this->db->select('c.city_id as id, c.city_name as name');
             $this->db->limit($limit, $offset);
-            $this->db->join('areas a', 'c.id=a.city_id');
-            $this->db->group_by('c.id');
+            $this->db->join('areas a', 'c.city_id=a.city_id');
+            $this->db->group_by('c.city_id');
             $cities = $this->db->get('cities c')->result_array();
             if (!empty($cities)) {
                 for ($i = 0; $i < count($cities); $i++) {
@@ -1613,7 +1627,12 @@ Defined Methods:-
             $order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $_POST['order'] : 'DESC';
             $sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $_POST['sort'] : 'u.id';
 
-            $this->Seller_model->get_sellers($limit, $offset, $sort, $order, $search);
+            // Seller_model::get_sellers() takes ($zipcode_id, $limit, $offset, $sort,
+            // $order, $search, $filter) - the leading $zipcode_id was never passed, so
+            // every argument landed one position early: $sort received 'DESC' and the
+            // query died with "Unknown column 'DESC' in 'order clause'". This endpoint
+            // returned an HTTP 200 whose body was a Database Error page, not JSON.
+            $this->Seller_model->get_sellers("", $limit, $offset, $sort, $order, $search);
         }
     }
 

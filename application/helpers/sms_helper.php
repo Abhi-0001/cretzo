@@ -217,9 +217,22 @@ function curl_sms($url, $method = 'GET', $data = [], $headers = [])
     curl_setopt_array($ch, $curl_options);
     // print_r($curl_options);
 
+    $raw = curl_exec($ch);
     $result = array(
-        'body' => json_decode(curl_exec($ch), true),
+        'body' => json_decode($raw, true),
+        'raw_body' => $raw,
         'http_code' => curl_getinfo($ch, CURLINFO_HTTP_CODE),
     );
+
+    // Transport-level failures (DNS, TLS, timeout) leave http_code at 0 and were
+    // previously indistinguishable from success to every caller.
+    if (curl_errno($ch)) {
+        $result['error'] = 'SMS gateway request failed: ' . curl_error($ch);
+    }
+    curl_close($ch);
+
+    if (!empty($result['error'])) {
+        log_message('error', 'curl_sms: ' . $result['error'] . ' (url: ' . $url . ')');
+    }
     return $result;
 }

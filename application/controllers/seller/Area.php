@@ -184,7 +184,7 @@ class Area extends CI_Controller
 
     public function manage_countries()
     {
-        if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller()) {
+        if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && $this->ion_auth->can_access_seller_panel()) {
             $this->data['main_page'] = TABLES . 'manage-countries';
             $settings = get_settings('system_settings', true);
             $this->data['title'] = 'Countries Management | ' . $settings['app_name'];
@@ -198,7 +198,7 @@ class Area extends CI_Controller
     }
     public function country_list()
     {
-        if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller()) {
+        if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && $this->ion_auth->can_access_seller_panel()) {
             return $this->Area_model->get_countries_list();
         } else {
             redirect('seller/login', 'refresh');
