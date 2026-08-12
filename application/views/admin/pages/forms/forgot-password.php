@@ -21,9 +21,6 @@
         <label for="forgot_password_number">Mobile Number</label>
         <input type="text" class="form-control form-input" name="mobile_number" id="forgot_password_number" placeholder="Enter Mobile number" value="">
       </div>
-      <div class="cz-field d-flex justify-content-center">
-        <div id="recaptcha-container-2"></div>
-      </div>
       <button type="submit" id="forgot_password_send_otp_btn" class="btn btn-block btn-signin"><?= !empty($this->lang->line('send_otp')) ? $this->lang->line('send_otp') : 'Send OTP' ?></button>
 
       <p class="cz-back-login">
@@ -48,3 +45,51 @@
   </div>
 </div>
 <!-- /.login-box -->
+<script>
+    $(document).on("submit", "#send_forgot_password_otp_form", function(e) {
+        e.preventDefault();
+        var btn = $("#forgot_password_send_otp_btn"), t = btn.html();
+        btn.html("Please Wait...").attr("disabled", true);
+        $.ajax({
+            type: "POST",
+            url: "<?= base_url('admin/login/send_reset_otp') ?>",
+            data: $(this).serialize(),
+            dataType: "json",
+            success: function(res) {
+                btn.html(t).attr("disabled", false);
+                $("#forgot_pass_error_box").text(res.message);
+                if (!res.error) {
+                    $("#verify_forgot_password_otp_form").removeClass("d-none");
+                    $("#send_forgot_password_otp_form").hide();
+                }
+            },
+            error: function() {
+                btn.html(t).attr("disabled", false);
+                $("#forgot_pass_error_box").text("Something went wrong. Please try again.");
+            }
+        });
+    });
+    $(document).on("submit", "#verify_forgot_password_otp_form", function(e) {
+        e.preventDefault();
+        var btn = $("#reset_password_submit_btn"), t = btn.html();
+        var data = $(this).serialize() + "&mobile_number=" + encodeURIComponent($("#forgot_password_number").val());
+        btn.html("Please Wait...").attr("disabled", true);
+        $.ajax({
+            type: "POST",
+            url: "<?= base_url('admin/login/reset_password') ?>",
+            data: data,
+            dataType: "json",
+            success: function(res) {
+                btn.html(t).attr("disabled", false);
+                $("#set_password_error_box").text(res.message);
+                if (!res.error) {
+                    setTimeout(function() { window.location.href = "<?= base_url('admin/login') ?>"; }, 2000);
+                }
+            },
+            error: function() {
+                btn.html(t).attr("disabled", false);
+                $("#set_password_error_box").text("Something went wrong. Please try again.");
+            }
+        });
+    });
+</script>

@@ -12,8 +12,11 @@ class My_account extends CI_Controller
         $this->load->helper(['url', 'language']);
         $this->load->model(['chat_model', 'media_model', 'cart_model', 'category_model', 'address_model', 'order_model', 'Transaction_model', 'Promo_code_model', 'Customer_model', 'Area_model']);
         $this->lang->load('auth');
-        $this->data['is_logged_in'] = ($this->ion_auth->logged_in()) ? 1 : 0;
-        $this->data['user'] = ($this->ion_auth->logged_in()) ? $this->ion_auth->user()->row() : array();
+        // Unlike the seller/admin/delivery_boy dashboards, this only checked "is
+        // logged in" - a seller or admin account viewing /my-account would be let
+        // in as if they were a customer. Restricted to group 2 (customer).
+        $this->data['is_logged_in'] = ($this->ion_auth->logged_in() && $this->ion_auth_model->in_group(2, $this->session->userdata('user_id'))) ? 1 : 0;
+        $this->data['user'] = ($this->data['is_logged_in']) ? $this->ion_auth->user()->row() : array();
         $this->data['settings'] = get_settings('system_settings', true);
         $this->data['web_settings'] = get_settings('web_settings', true);
         $this->response['csrfName'] = $this->security->get_csrf_token_name();

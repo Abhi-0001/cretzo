@@ -42,6 +42,41 @@ class Cron_job extends CI_Controller
             return $this->Seller_model->settle_seller_commission($is_date);
         }
     }
+    // Expiry is otherwise only evaluated lazily at read time (get_active_subscription()
+    // checks end_date on every read, so nothing depends on is_active being accurate
+    // between reads) - this endpoint exists only so `is_active` itself doesn't go
+    // stale indefinitely, and so a future report/notification pass has an accurate
+    // "expired today" signal to work from. Token-protected rather than login-gated
+    // (like every other method in this controller) since an external OS cron can't
+    // hold an admin session - set application/config/cron.php's `secret` before
+    // wiring this into an actual scheduled job.
+    public function expire_seller_subscriptions($token = null)
+    {
+        $this->config->load('cron', true);
+        $expected = $this->config->item('secret', 'cron');
+        $token = $token !== null ? $token : $this->input->get('token');
+
+        if (empty($expected) || $expected === 'change-me-before-use' || empty($token) || !hash_equals((string) $expected, (string) $token)) {
+            $this->response['error'] = true;
+            $this->response['message'] = 'Unauthorized';
+            echo json_encode($this->response);
+            return false;
+        }
+
+        $affected = $this->db
+            ->set('is_active', 0)
+            ->where('is_active', 1)
+            ->where('end_date IS NOT NULL', null, false)
+            ->where('end_date <', date('Y-m-d H:i:s'))
+            ->update('seller_subscriptions');
+
+        $this->response['error'] = false;
+        $this->response['message'] = 'Expired subscriptions flagged.';
+        $this->response['data'] = ['affected_rows' => $this->db->affected_rows()];
+        echo json_encode($this->response);
+        return false;
+    }
+
     public function settle_cashback_discount()
     {
         if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {

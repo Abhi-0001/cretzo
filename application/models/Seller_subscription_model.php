@@ -101,9 +101,25 @@ class Seller_subscription_model extends CI_Model
 
         $launch_plan = $this->ensure_launch_offer_plan();
 
-        if (!empty($launch_plan['id']) && $this->count_plan_holders($launch_plan['id']) < self::LAUNCH_OFFER_SELLER_CAP) {
-            // Within the first 100 vendors -> grant the launch promotion.
-            return $this->assign_subscription($seller_id, $launch_plan['id'], $launch_plan['validity']);
+        if (!empty($launch_plan['id'])) {
+            // count_plan_holders() + assign_subscription() used to be a plain
+            // check-then-act with no lock: two concurrent registrations near vendor
+            // #100 could both pass the count check and both get granted the offer.
+            // FOR UPDATE inside a transaction locks the counted rows so a second,
+            // concurrent registration blocks until the first one commits.
+            $this->db->trans_start();
+            $count_row = $this->db
+                ->query('SELECT COUNT(DISTINCT seller_id) AS cnt FROM seller_subscriptions WHERE subscription_id = ? FOR UPDATE', [$launch_plan['id']])
+                ->row_array();
+            $count = isset($count_row['cnt']) ? (int) $count_row['cnt'] : 0;
+
+            if ($count < self::LAUNCH_OFFER_SELLER_CAP) {
+                // Within the first 100 vendors -> grant the launch promotion.
+                $this->assign_subscription($seller_id, $launch_plan['id'], $launch_plan['validity']);
+                $this->db->trans_complete();
+                return $this->db->trans_status();
+            }
+            $this->db->trans_complete();
         }
 
         // Everyone after -> the admin's default free plan (values from admin panel).
@@ -285,6 +301,70 @@ class Seller_subscription_model extends CI_Model
         }
 
         return (int) $this->db->where('seller_id', $seller_id)->count_all_results('products');
+    }
+
+    /**
+     * Admin action: deactivate the seller's current active subscription (if any).
+     * Leaves the row in place (history preserved), just flips is_active to 0.
+     */
+    public function deactivate_subscription($seller_id)
+    {
+        if (empty($seller_id)) {
+            return false;
+        }
+
+        return $this->db->set('is_active', 0)->where('seller_id', $seller_id)->where('is_active', 1)->update('seller_subscriptions');
+    }
+
+    /**
+     * Admin action: extend the seller's current active subscription's end_date
+     * by $days. A null end_date (unlimited plan) has nothing to extend.
+     */
+    public function extend_subscription($seller_id, $days)
+    {
+        $sub = $this->get_active_subscription($seller_id);
+        if (empty($sub) || empty($sub['end_date'])) {
+            return false;
+        }
+
+        $new_end = date('Y-m-d H:i:s', strtotime('+' . (int) $days . ' days', strtotime($sub['end_date'])));
+        return $this->db->set('end_date', $new_end)->where('id', $sub['id'])->update('seller_subscriptions');
+    }
+
+    /**
+     * Admin dashboard listing: every seller's current plan/status/usage/expiry
+     * in one pass, for the seller-subscriptions management table.
+     */
+    public function get_all_seller_subscription_status()
+    {
+        $sellers = $this->db
+            ->select('u.id as seller_id, u.username, sd.shop_name')
+            ->join('users_groups ug', 'ug.user_id = u.id')
+            ->join('seller_data sd', 'sd.user_id = u.id', 'left')
+            ->where('ug.group_id', 4)
+            ->order_by('u.id', 'ASC')
+            ->get('users u')
+            ->result_array();
+
+        $rows = [];
+        foreach ($sellers as $seller) {
+            $seller_id = $seller['seller_id'];
+            $plan = $this->get_current_plan($seller_id);
+            $active_sub = $this->get_active_subscription($seller_id);
+            $quota = $this->check_listing_quota($seller_id, 0);
+
+            $rows[] = [
+                'seller_id'   => $seller_id,
+                'shop_name'   => !empty($seller['shop_name']) ? $seller['shop_name'] : $seller['username'],
+                'plan_name'   => !empty($plan['name']) ? $plan['name'] : 'None',
+                'status'      => !empty($active_sub) ? 'Active' : (!empty($plan) ? 'Expired' : 'None'),
+                'expiry'      => !empty($active_sub['end_date']) ? $active_sub['end_date'] : (!empty($active_sub) ? 'Never' : ''),
+                'used'        => $quota['used'],
+                'limit'       => $quota['limit'] === null ? 'Unlimited' : $quota['limit'],
+            ];
+        }
+
+        return $rows;
     }
 
     /**

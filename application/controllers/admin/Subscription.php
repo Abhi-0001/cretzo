@@ -8,9 +8,100 @@ class Subscription extends CI_Controller
         parent::__construct();
         $this->load->database();
         $this->load->helper(['url', 'language', 'timezone_helper', 'file']);
-        $this->load->model(['Subscription_model', 'Setting_model']);
+        $this->load->model(['Subscription_model', 'Setting_model', 'Seller_subscription_model']);
 
         // permission checks can be added here later if necessary
+    }
+
+    // Admin visibility into per-seller subscriptions (plan, status, listing usage,
+    // expiry) - previously admin had no way to see any of this outside opening the
+    // seller-facing dashboard as that seller, and no way to assign/extend/cancel a
+    // seller's subscription at all.
+    public function seller_subscriptions()
+    {
+        if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
+            $this->data['main_page'] = TABLES . 'seller-subscriptions';
+            $settings = get_settings('system_settings', true);
+            $this->data['title'] = 'Seller Subscriptions | ' . $settings['app_name'];
+            $this->data['meta_description'] = 'Seller Subscriptions | ' . $settings['app_name'];
+            $this->data['plans'] = $this->Subscription_model->get_plans();
+            $this->load->view('admin/template', $this->data);
+        } else {
+            redirect('admin/login', 'refresh');
+        }
+    }
+
+    public function view_seller_subscriptions()
+    {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {
+            redirect('admin/login', 'refresh');
+        }
+
+        $rows = $this->Seller_subscription_model->get_all_seller_subscription_status();
+        foreach ($rows as &$row) {
+            $row['shop_name'] = html_escape($row['shop_name']);
+            $row['operate'] = '<button type="button" class="btn btn-primary-theme btn-xs manage-subscription-btn" data-seller-id="' . $row['seller_id'] . '" data-shop-name="' . $row['shop_name'] . '"><i class="fa fa-cog"></i> Manage</button>';
+        }
+
+        echo json_encode(['total' => count($rows), 'rows' => $rows]);
+    }
+
+    public function assign_seller_subscription()
+    {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {
+            redirect('admin/login', 'refresh');
+        }
+
+        $this->form_validation->set_rules('seller_id', 'Seller', 'trim|required|integer|xss_clean');
+        $this->form_validation->set_rules('subscription_id', 'Plan', 'trim|required|integer|xss_clean');
+        if (!$this->form_validation->run()) {
+            echo json_encode(['error' => true, 'message' => validation_errors()]);
+            return;
+        }
+
+        $seller_id = $this->input->post('seller_id', true);
+        $subscription_id = $this->input->post('subscription_id', true);
+        $plan = $this->db->where('id', $subscription_id)->get('subscriptions')->row_array();
+        if (empty($plan)) {
+            echo json_encode(['error' => true, 'message' => 'Plan not found.']);
+            return;
+        }
+
+        $success = $this->Seller_subscription_model->assign_subscription($seller_id, $subscription_id, isset($plan['validity']) ? $plan['validity'] : null);
+        echo json_encode(['error' => !$success, 'message' => $success ? 'Plan assigned successfully.' : 'Failed to assign plan.']);
+    }
+
+    public function extend_seller_subscription()
+    {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {
+            redirect('admin/login', 'refresh');
+        }
+
+        $this->form_validation->set_rules('seller_id', 'Seller', 'trim|required|integer|xss_clean');
+        $this->form_validation->set_rules('days', 'Days', 'trim|required|integer|greater_than[0]|xss_clean');
+        if (!$this->form_validation->run()) {
+            echo json_encode(['error' => true, 'message' => validation_errors()]);
+            return;
+        }
+
+        $success = $this->Seller_subscription_model->extend_subscription($this->input->post('seller_id', true), $this->input->post('days', true));
+        echo json_encode(['error' => !$success, 'message' => $success ? 'Subscription extended successfully.' : 'No active, time-limited subscription to extend.']);
+    }
+
+    public function cancel_seller_subscription()
+    {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {
+            redirect('admin/login', 'refresh');
+        }
+
+        $this->form_validation->set_rules('seller_id', 'Seller', 'trim|required|integer|xss_clean');
+        if (!$this->form_validation->run()) {
+            echo json_encode(['error' => true, 'message' => validation_errors()]);
+            return;
+        }
+
+        $success = $this->Seller_subscription_model->deactivate_subscription($this->input->post('seller_id', true));
+        echo json_encode(['error' => !$success, 'message' => $success ? 'Subscription cancelled successfully.' : 'No active subscription to cancel.']);
     }
 
     public function index()

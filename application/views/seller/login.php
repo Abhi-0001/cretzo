@@ -77,9 +77,6 @@ $is_forgot_password = (isset($main_page) && strpos($main_page, 'forgot-password'
                         <input type="text" name="mobile_number" id="forgot_password_number" placeholder="Enter Mobile number" required>
                         <span class="error-message error_forgot_mobile"></span>
                     </div>
-                    <div class="input-group d-flex justify-content-center pb-4 mt-3" style="display: flex; justify-content: center;">
-                        <div id="recaptcha-container-2"></div>
-                    </div>
                     <button type="submit" id="forgot_password_send_otp_btn" class="btn-login"><?= !empty($this->lang->line('send_otp')) ? $this->lang->line('send_otp') : 'Send OTP' ?></button>
                     
                     <div class="signup-prompt">
@@ -166,6 +163,54 @@ $is_forgot_password = (isset($main_page) && strpos($main_page, 'forgot-password'
 <?php if ($is_forgot_password) { ?>
     <!-- Load base scripts needed for forgot password page -->
     <?php $this->load->view('admin/include-script.php'); ?>
+    <script>
+        $(document).on("submit", "#send_forgot_password_otp_form", function(e) {
+            e.preventDefault();
+            var btn = $("#forgot_password_send_otp_btn"), t = btn.html();
+            btn.html("Please Wait...").attr("disabled", true);
+            $.ajax({
+                type: "POST",
+                url: "<?= base_url('seller/login/send_reset_otp') ?>",
+                data: $(this).serialize(),
+                dataType: "json",
+                success: function(res) {
+                    btn.html(t).attr("disabled", false);
+                    $("#forgot_pass_error_box").text(res.message);
+                    if (!res.error) {
+                        $("#verify_forgot_password_otp_form").removeClass("d-none");
+                        $("#send_forgot_password_otp_form").hide();
+                    }
+                },
+                error: function() {
+                    btn.html(t).attr("disabled", false);
+                    $("#forgot_pass_error_box").text("Something went wrong. Please try again.");
+                }
+            });
+        });
+        $(document).on("submit", "#verify_forgot_password_otp_form", function(e) {
+            e.preventDefault();
+            var btn = $("#reset_password_submit_btn"), t = btn.html();
+            var data = $(this).serialize() + "&mobile_number=" + encodeURIComponent($("#forgot_password_number").val());
+            btn.html("Please Wait...").attr("disabled", true);
+            $.ajax({
+                type: "POST",
+                url: "<?= base_url('seller/login/reset_password') ?>",
+                data: data,
+                dataType: "json",
+                success: function(res) {
+                    btn.html(t).attr("disabled", false);
+                    $("#set_password_error_box").text(res.message);
+                    if (!res.error) {
+                        setTimeout(function() { window.location.href = "<?= base_url('seller/home/') ?>"; }, 2000);
+                    }
+                },
+                error: function() {
+                    btn.html(t).attr("disabled", false);
+                    $("#set_password_error_box").text("Something went wrong. Please try again.");
+                }
+            });
+        });
+    </script>
 <?php } else { ?>
 <script>
     function signupPage() {

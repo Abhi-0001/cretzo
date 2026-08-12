@@ -47,6 +47,17 @@ class Login extends CI_Controller
             $login = $this->ion_auth->login($this->input->post('mobile'), $this->input->post('password'));
             if ($login) {
                 $data = fetch_details('users', ['mobile' => $this->input->post('mobile', true)]);
+                // Unlike Home::login(), this AJAX login-check endpoint performed no group
+                // filtering at all - any active user (including a seller/admin account)
+                // whose mobile+password matched would be logged in here. Matches the
+                // group-2 (customer) restriction Home::login() already enforces.
+                if (!$this->ion_auth_model->in_group(2, $data[0]['id'])) {
+                    $this->ion_auth->logout();
+                    $this->response['error'] = true;
+                    $this->response['message'] = 'Invalid user';
+                    echo json_encode($this->response);
+                    return false;
+                }
                 $username = $this->session->set_userdata('username', $data[0]['username']);
                 $this->response['error'] = false;
                 $this->response['message'] = 'Login Succesfully';

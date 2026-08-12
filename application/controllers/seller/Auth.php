@@ -70,32 +70,30 @@ class Auth extends CI_Controller
         }
 
         // Generate OTP
-        $otp = 123456; //rand(100000, 999999);
+        $otp = random_int(100000, 999999);
 
         // Store OTP & mobile in session for 10 minutes
         $this->session->set_tempdata('otp', $otp, 10 * 60);
-        
 
-        // Twilio credentials
-        $token  = "27acec586b41c090c0f71690425e1341";
-        $sid  = "AC98662e8c1491ef426a93b295856918dc";
-        $twilio_number = "+18573424919";
+        $this->config->load('twilio', true);
+        $sid = $this->config->item('sid', 'twilio');
+        $token = $this->config->item('token', 'twilio');
+        $twilio_number = $this->config->item('from_number', 'twilio');
 
         try {
-            // require_once(APPPATH.'third_party/twilio/vendor/autoload.php');
-            // $client = new TwilioClient($sid, $token);
-            // $otp_response = $client->messages->create(
-            //     "+91".$mobile,
-            //     [
-            //         "from" => $twilio_number,
-            //         "body" => "Your OTP is: ".$otp
-            //     ]
-            // );
+            $client = new TwilioClient($sid, $token);
+            $client->messages->create(
+                "+91".$mobile,
+                [
+                    "from" => $twilio_number,
+                    "body" => "Your OTP is: ".$otp
+                ]
+            );
 
-            // print_r(json_encode($otp_response));
             echo json_encode(['status' => 'success', 'message' => 'OTP sent successfully']);
         } catch (Exception $e) {
-            echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+            log_message('error', 'Twilio OTP send failed: ' . $e->getMessage());
+            echo json_encode(['status' => 'error', 'message' => 'Failed to send OTP. Please try again.']);
         }
     }
 
@@ -398,7 +396,12 @@ class Auth extends CI_Controller
                 'address' => $this->input->post('address1') . ', ' . $this->input->post('address2') . ', ' . $this->input->post('district')
             ];
 
-            $user_id = $this->ion_auth->register($seler_register['mobile'], '123456', $seler_register['first_name'], ['phone' => $seler_register['mobile']], [4]);
+            // This endpoint doesn't collect a password field from the caller (see the
+            // validation rules above - only first_name/phone/email are required), so a
+            // random one is generated rather than reusing a fixed value across every
+            // account created this way. The seller can set their own via forgot-password.
+            $temp_password = bin2hex(random_bytes(8));
+            $user_id = $this->ion_auth->register($seler_register['mobile'], $temp_password, $seler_register['first_name'], ['phone' => $seler_register['mobile']], [4]);
 
             if (!$user_id) {
                 $response['error'] = true;
@@ -510,7 +513,7 @@ class Auth extends CI_Controller
                 $this->Seller_subscription_model->assign_registration_offer($user_id);
             }
 
-            $this->ion_auth->login($this->input->post('phone'), '123456', true);
+            $this->ion_auth->login($this->input->post('phone'), $temp_password, true);
 
 
 

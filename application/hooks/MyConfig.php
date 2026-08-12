@@ -315,11 +315,11 @@ class MyConfig
     }
     public function allow_modification()
     {
-        $t = &get_instance();
-        //if user is superadmin then allow modifications
-        if($t->session->userdata('mobile') == '9638527410'){
-            return define('ALLOW_MODIFICATION',1);
-        }
-        return define('ALLOW_MODIFICATION',IS_ALLOWED_MODIFICATION);
+        // Demo-mode write restriction is controlled solely by IS_ALLOWED_MODIFICATION
+        // (a build-time constant), not by which account is logged in. A prior version
+        // of this hook granted an unconditional bypass to one specific hardcoded
+        // mobile number, on every request - removed as a real, unrelated-to-role
+        // security hole.
+        return define('ALLOW_MODIFICATION', IS_ALLOWED_MODIFICATION);
     }
 }

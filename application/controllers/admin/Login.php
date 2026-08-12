@@ -139,8 +139,88 @@ class Login extends CI_Controller
     }
 
 
+    // Looks up an admin user row by mobile number, shared by
+    // send_reset_otp()/reset_password() below.
+    private function _find_reset_admin($mobile)
+    {
+        $res = fetch_details('users', ['mobile' => $mobile]);
+        if (empty($res) || !$this->ion_auth->is_admin($res[0]['id'])) {
+            return null;
+        }
+        return $res[0];
+    }
+
+    public function send_reset_otp()
+    {
+        $this->form_validation->set_rules('mobile_number', 'Mobile No', 'trim|numeric|required|xss_clean|max_length[16]');
+        if (!$this->form_validation->run()) {
+            $response['error'] = true;
+            $response['message'] = strip_tags(validation_errors());
+            echo json_encode($response);
+            return false;
+        }
+
+        $user = $this->_find_reset_admin($this->input->post('mobile_number'));
+        if (empty($user)) {
+            $response['error'] = true;
+            $response['message'] = 'You have not registered using this number.';
+            echo json_encode($response);
+            return false;
+        }
+
+        send_password_reset_otp($this->input->post('mobile_number'));
+        $response['error'] = false;
+        $response['message'] = 'OTP sent successfully.';
+        echo json_encode($response);
+        return false;
+    }
+
+    // $code is only used by the legacy email-token link (never actually issued
+    // anywhere in this app today - forgot_password() only renders a view, it
+    // never calls ion_auth->forgotten_password() to generate/email one). The
+    // mobile+OTP form now posts here directly instead.
     public function reset_password($code = NULL)
     {
+        if ($this->input->post('otp')) {
+            $this->form_validation->set_rules('mobile_number', 'Mobile No', 'trim|numeric|required|xss_clean|max_length[16]');
+            $this->form_validation->set_rules('otp', 'OTP', 'trim|required|xss_clean');
+            $this->form_validation->set_rules('new_password', 'New Password', 'trim|required|xss_clean');
+            if (!$this->form_validation->run()) {
+                $response['error'] = true;
+                $response['message'] = strip_tags(validation_errors());
+                echo json_encode($response);
+                return false;
+            }
+
+            $identity_column = $this->config->item('identity', 'ion_auth');
+            $user = $this->_find_reset_admin($this->input->post('mobile_number'));
+            if (empty($user)) {
+                $response['error'] = true;
+                $response['message'] = 'User does not exists !';
+                echo json_encode($response);
+                return false;
+            }
+
+            $otp_check = verify_password_reset_otp($this->input->post('mobile_number'), $this->input->post('otp'));
+            if ($otp_check['error']) {
+                $response['error'] = true;
+                $response['message'] = $otp_check['message'];
+                echo json_encode($response);
+                return false;
+            }
+
+            $identity = ($identity_column == 'email') ? $user['email'] : $user['mobile'];
+            if (!$this->ion_auth->reset_password($identity, $this->input->post('new_password'))) {
+                $response['error'] = true;
+                $response['message'] = $this->ion_auth->messages();
+            } else {
+                $response['error'] = false;
+                $response['message'] = 'Reset Password Successfully';
+            }
+            echo json_encode($response);
+            return false;
+        }
+
         if (!$code) {
             redirect(base_url());
         }
@@ -156,5 +236,5 @@ class Login extends CI_Controller
             redirect(base_url('admin/login/forgot_password'), 'refresh');
         }
     }
-    
+
 }

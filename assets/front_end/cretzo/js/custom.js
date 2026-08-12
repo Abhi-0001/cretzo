@@ -2751,11 +2751,7 @@ function customer_wallet_query_paramss(e) {
         })
     }),
     $(document).on("click", "#forgot_password_link", function (e) {
-        e.preventDefault(), $(".auth-modal").find("header a").removeClass("active"), $("#forgot_password_div").removeClass("d-none").siblings("section").addClass("d-none"), $("#recaptcha-container-2").html(""), window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier("recaptcha-container-2"), window.recaptchaVerifier.render().then(function (e) {
-            if (typeof grecaptcha !== 'undefined' && typeof grecaptcha.reset === 'function') {
-                try { grecaptcha.reset(e); } catch (ex) { }
-            }
-        }),
+        e.preventDefault(), $(".auth-modal").find("header a").removeClass("active"), $("#forgot_password_div").removeClass("d-none").siblings("section").addClass("d-none"),
             $("#forgot_password_number").intlTelInput({
                 allowExtensions: !0,
                 formatOnDisplay: !0,
@@ -2780,46 +2776,55 @@ function customer_wallet_query_paramss(e) {
             })
     }), $(document).on("submit", "#send_forgot_password_otp_form", function (e) {
         e.preventDefault();
-        var t = $("#forgot_password_send_otp_btn").html();
+        var t = $("#forgot_password_send_otp_btn").html(),
+            mobile = $("#forgot_password_number").val();
         $("#forgot_password_send_otp_btn").html("Please Wait...").attr("disabled", !0);
-        var a = $(".selected-dial-code").html() + $("#forgot_password_number").val(),
-            r = is_user_exist($("#forgot_password_number").val());
-        if (0 == r.error) $("#forgot_pass_error_box").html("You have not registered using this number."), $("#forgot_password_send_otp_btn").html(t).attr("disabled", !1);
-        else {
-            var s = window.recaptchaVerifier;
-            firebase.auth().signInWithPhoneNumber(a, s).then(function (e) {
-                resetRecaptcha(), $("#verify_forgot_password_otp_form").removeClass("d-none"), $("#send_forgot_password_otp_form").hide(), $("#forgot_pass_error_box").html(r.message), $("#forgot_password_send_otp_btn").html(t).attr("disabled", !1), $(document).on("submit", "#verify_forgot_password_otp_form", function (t) {
-                    t.preventDefault();
-                    var a = $("#reset_password_submit_btn").html(),
-                        r = $("#forgot_password_otp").val(),
-                        s = new FormData(this),
-                        i = base_url + "home/reset-password";
-                    $("#reset_password_submit_btn").html("Please Wait...").attr("disabled", !0), e.confirm(r).then(function (e) {
-                        s.append(csrfName, csrfHash), s.append("mobile", $("#forgot_password_number").val()), $.ajax({
-                            type: "POST",
-                            url: i,
-                            data: s,
-                            processData: !1,
-                            contentType: !1,
-                            cache: !1,
-                            dataType: "json",
-                            beforeSend: function () {
-                                $("#reset_password_submit_btn").html("Please Wait...").attr("disabled", !0)
-                            },
-                            success: function (e) {
-                                csrfName = e.csrfName, csrfHash = e.csrfHash, $("#reset_password_submit_btn").html(a).attr("disabled", !1), $("#set_password_error_box").html(e.message).show(), 0 == e.error && setTimeout(function () {
-                                    window.location.reload()
-                                }, 2e3)
-                            }
-                        })
-                    }).catch(function (e) {
-                        $("#reset_password_submit_btn").html(a).attr("disabled", !1), $("#set_password_error_box").html("Invalid OTP. Please Enter Valid OTP").show()
-                    })
-                })
-            }).catch(function (e) {
-                $("#forgot_pass_error_box").html(e.message).show(), $("#forgot_password_send_otp_btn").html(t).attr("disabled", !1), resetRecaptcha()
-            })
-        }
+        $.ajax({
+            type: "POST",
+            url: base_url + "home/send_reset_otp",
+            data: { mobile_number: mobile, [csrfName]: csrfHash },
+            dataType: "json",
+            success: function (res) {
+                $("#forgot_password_send_otp_btn").html(t).attr("disabled", !1);
+                $("#forgot_pass_error_box").html(res.message);
+                if (!res.error) {
+                    $("#verify_forgot_password_otp_form").removeClass("d-none");
+                    $("#send_forgot_password_otp_form").hide();
+                }
+            },
+            error: function () {
+                $("#forgot_password_send_otp_btn").html(t).attr("disabled", !1);
+                $("#forgot_pass_error_box").html("Something went wrong. Please try again.");
+            }
+        })
+    }), $(document).on("submit", "#verify_forgot_password_otp_form", function (e) {
+        e.preventDefault();
+        var t = $("#reset_password_submit_btn").html(),
+            s = new FormData(this),
+            mobile = $("#forgot_password_number").val();
+        s.append(csrfName, csrfHash), s.append("mobile", mobile);
+        $("#reset_password_submit_btn").html("Please Wait...").attr("disabled", !0);
+        $.ajax({
+            type: "POST",
+            url: base_url + "home/reset-password",
+            data: s,
+            processData: !1,
+            contentType: !1,
+            cache: !1,
+            dataType: "json",
+            success: function (res) {
+                csrfName = res.csrfName || csrfName, csrfHash = res.csrfHash || csrfHash;
+                $("#reset_password_submit_btn").html(t).attr("disabled", !1);
+                $("#set_password_error_box").html(res.message).show();
+                0 == res.error && setTimeout(function () {
+                    window.location.reload()
+                }, 2e3)
+            },
+            error: function () {
+                $("#reset_password_submit_btn").html(t).attr("disabled", !1);
+                $("#set_password_error_box").html("Something went wrong. Please try again.").show();
+            }
+        })
     }), $("#contact-us-form").on("submit", function (e) {
         e.preventDefault();
         var t = $("#contact-us-submit-btn").html(),
@@ -3572,6 +3577,11 @@ $(document).ready(function () {
     });
 
     function handleSocialLogin(user, providerName) {
+        // Single round trip: home/social_login finds-or-creates the account and
+        // logs in, server-side, in one call - previously this chained 3 separate
+        // AJAX calls (verifyUser -> auth/register_user -> home/login), each
+        // enforcing a hard "must have an email" rule that blocked any Facebook
+        // account which didn't return one.
         var type = providerName;
         var name = user.displayName;
         var email = '';
@@ -3579,86 +3589,45 @@ $(document).ready(function () {
             email = user.email;
         } else if (user.providerData && user.providerData[0] && user.providerData[0].email != null && user.providerData[0].email != '') {
             email = user.providerData[0].email;
-        } else if (user.email == null && user.providerData && user.providerData[0]) {
-            email = user.email || '';
         }
-        var password = user.uid;
-        
+        var uid = user.uid;
+
         $.ajax({
             type: 'POST',
-            url: base_url + 'home/verifyUser',
+            url: base_url + 'home/social_login',
             data: {
-                email: email,
+                uid: uid,
                 type: type,
+                name: name,
+                email: email,
                 [csrfName]: csrfHash
             },
             dataType: 'json',
             success: function (result) {
-                csrfName = result['csrfName'];
-                csrfHash = result['csrfHash'];
+                if (result.csrfName) { csrfName = result.csrfName; }
+                if (result.csrfHash) { csrfHash = result.csrfHash; }
 
-                if (result.error == true) {
-                    $.ajax({
-                        type: 'POST',
-                        url: base_url + 'auth/register_user',
-                        data: {
-                            type: type,
-                            name: name,
-                            email: email,
-                            password: password,
-                            [csrfName]: csrfHash
-                        },
-                        dataType: 'json',
-                        success: function (result) {
-                            csrfName = result['csrfName'];
-                            csrfHash = result['csrfHash'];
-                            if (result.error == false) {
-                                $.ajax({
-                                    type: 'POST',
-                                    url: base_url + 'home/login',
-                                    data: {
-                                        identity: email,
-                                        type: type,
-                                        password: password,
-                                        [csrfName]: csrfHash
-                                    },
-                                    dataType: 'json',
-                                    success: function (result) {
-                                        closeLoginPopupFast();
-                                        setTimeout(function () {
-                                            location.reload();
-                                        }, 120);
-                                    }
-                                });
-                            } else {
-                                setSocialButtonLoading(providerName, false);
-                                toggleAuthLoading(false);
-                                Toast.fire({
-                                    icon: 'error',
-                                    title: result.message || 'Email already exists. Please login with your existing account.'
-                                });
-                            }
-                        }
-                    });
+                if (result.error == false) {
+                    closeLoginPopupFast();
+                    setTimeout(function () {
+                        location.reload();
+                    }, 120);
                 } else {
-                    $.ajax({
-                        type: 'POST',
-                        url: base_url + 'home/login',
-                        data: {
-                            identity: email,
-                            type: type,
-                            password: password,
-                            [csrfName]: csrfHash
-                        },
-                        dataType: 'json',
-                        success: function (result) {
-                            closeLoginPopupFast();
-                            setTimeout(function () {
-                                location.reload();
-                            }, 120);
-                        }
+                    setSocialButtonLoading(providerName, false);
+                    toggleAuthLoading(false);
+                    Toast.fire({
+                        icon: 'error',
+                        title: result.message || 'Something went wrong signing you in. Please try again.'
                     });
                 }
+            },
+            error: function () {
+                setSocialButtonLoading(providerName, false);
+                toggleAuthLoading(false);
+                Toast.fire({
+                    icon: 'error',
+                    title: 'Something went wrong signing you in. Please try again.'
+                });
             }
         });
     }

@@ -99,39 +99,10 @@ class Subscription extends CI_Controller
             return;
         }
 
-        // prevent downgrades: only allow same or higher priced plans
-        $current_subscription = $this->Seller_subscription_model->get_active_subscription($seller_id);
-        if (empty($current_subscription)) {
-            $current_subscription = $this->Seller_subscription_model->get_latest_subscription($seller_id);
-        }
-
-        if (!empty($current_subscription)) {
-            $current_plan = $this->db->where('id', $current_subscription['subscription_id'])->get('subscriptions')->row_array();
-
-            $current_price = 0;
-            $new_price = 0;
-
-            if (!empty($current_plan['price'])) {
-                $current_price_clean = preg_replace('/[^\d\.]/', '', $current_plan['price']);
-                $current_price = is_numeric($current_price_clean) ? (float) $current_price_clean : 0;
-            }
-
-            if (!empty($plan['price'])) {
-                $new_price_clean = preg_replace('/[^\d\.]/', '', $plan['price']);
-                $new_price = is_numeric($new_price_clean) ? (float) $new_price_clean : 0;
-            }
-
-            if ($current_price > 0 && $new_price > 0 && $new_price < $current_price) {
-                $response = [
-                    'error' => true,
-                    'csrfName' => $this->security->get_csrf_token_name(),
-                    'csrfHash' => $this->security->get_csrf_hash(),
-                    'message' => 'You cannot downgrade to a lower plan. Please choose the same or a higher plan.',
-                ];
-                echo json_encode($response);
-                return;
-            }
-        }
+        // Upgrades and downgrades are both allowed: switching plans (either direction)
+        // takes effect immediately via assign_subscription() below, which deactivates
+        // the seller's prior subscription and starts a fresh validity period on the
+        // new plan - no proration/credit for time remaining on the old plan.
 
         // normalize plan amount (numeric only, treat non‑numeric / empty as 0 i.e. free)
         $amount_value = 0;
