@@ -27,6 +27,8 @@
         <a href="<?= base_url('admin/login') ?>">&larr; Back to Login</a>
       </p>
       <div class="cz-error" id="forgot_pass_error_box"></div>
+      <?php // Firebase phone auth renders its invisible reCAPTCHA here. ?>
+      <div id="recaptcha-password-reset"></div>
     </form>
 
     <form id="verify_forgot_password_otp_form" class="d-none" method="post" action="#">
@@ -45,6 +47,30 @@
   </div>
 </div>
 <!-- /.login-box -->
+
+<?php
+// This site's authentication_method is "firebase" and no SMS gateway is configured, so the
+// OTP text is sent and confirmed by Firebase in the browser. The legacy server-side-OTP
+// handlers below still load and still work if an SMS gateway is ever configured -
+// firebase-password-reset.js suppresses them via stopImmediatePropagation() when it is active.
+$fb_use = (!empty($authentication_method) && $authentication_method === 'firebase' && !empty($firebase_settings['apiKey']));
+if ($fb_use) :
+?>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+  <script src="<?= base_url() ?>firebase-config.js"></script>
+  <script>
+      window.FIREBASE_RESET_CONFIG = {
+          checkUrl: "<?= base_url('admin/login/check_reset_account') ?>",
+          resetUrl: "<?= base_url('admin/login/reset_password_firebase') ?>",
+          redirectUrl: "<?= base_url('admin/login') ?>",
+          recaptchaId: "recaptcha-password-reset",
+          defaultDialCode: "+91"
+      };
+  </script>
+  <script src="<?= base_url('assets/firebase-password-reset.js') ?>"></script>
+<?php endif; ?>
+
 <script>
     $(document).on("submit", "#send_forgot_password_otp_form", function(e) {
         e.preventDefault();

@@ -980,6 +980,65 @@ if (!empty($sections)) {
         return null;
     }
 
+    /**
+     * Confirms a mobile number belongs to a customer account, without sending anything.
+     *
+     * Used by the Firebase reset flow before it asks Firebase to send an SMS: Firebase
+     * OTPs are metered and rate-limited per number, so there is no sense burning one on an
+     * unregistered number - and it preserves the "that's a seller/admin account, reset it
+     * over there" guidance that would otherwise be lost now that the browser drives the send.
+     */
+    public function check_reset_account()
+    {
+        $this->form_validation->set_rules('mobile_number', 'Mobile No', 'trim|numeric|required|xss_clean|max_length[16]');
+        if (!$this->form_validation->run()) {
+            echo json_encode(['error' => true, 'message' => strip_tags(validation_errors())]);
+            return false;
+        }
+
+        $lookup_error = $this->_reset_lookup_error($this->input->post('mobile_number'));
+        if ($lookup_error !== null) {
+            echo json_encode(['error' => true, 'message' => $lookup_error]);
+            return false;
+        }
+
+        echo json_encode(['error' => false, 'message' => 'Account found.']);
+        return false;
+    }
+
+    /**
+     * Customer password reset verified by Firebase phone auth - the channel this site is
+     * actually configured for (authentication_method = "firebase", no SMS gateway). The
+     * server-side OTP path below still applies when an SMS gateway IS configured.
+     */
+    public function reset_password_firebase()
+    {
+        $this->form_validation->set_rules('mobile_number', 'Mobile No', 'trim|numeric|required|xss_clean|max_length[16]');
+        $this->form_validation->set_rules('id_token', 'Verification token', 'trim|required|xss_clean');
+        $this->form_validation->set_rules('new_password', 'New Password', 'trim|required|min_length[6]|xss_clean');
+        if (!$this->form_validation->run()) {
+            echo json_encode([
+                'error' => true,
+                'csrfName' => $this->security->get_csrf_token_name(),
+                'csrfHash' => $this->security->get_csrf_hash(),
+                'message' => strip_tags(validation_errors()),
+            ]);
+            return false;
+        }
+
+        $result = firebase_phone_reset(
+            $this->input->post('id_token', false),
+            $this->input->post('mobile_number', true),
+            $this->input->post('new_password'),
+            'customer'
+        );
+        $result['csrfName'] = $this->security->get_csrf_token_name();
+        $result['csrfHash'] = $this->security->get_csrf_hash();
+
+        echo json_encode($result);
+        return false;
+    }
+
     public function send_reset_otp()
     {
         /* Parameters to be passed

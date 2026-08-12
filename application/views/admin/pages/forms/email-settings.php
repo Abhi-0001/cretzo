@@ -107,6 +107,52 @@
                                 </div>
                             </div>
                         </form>
+
+                        <?php // Sits OUTSIDE the settings form on purpose: it must not submit
+                              // or re-validate the settings, only exercise what is saved. ?>
+                        <div class="card-body border-top">
+                            <h6 class="mb-1">Test these settings</h6>
+                            <p class="text-muted small">
+                                Sends a real email using the saved SMTP settings and shows exactly what the mail
+                                server replied. Save your changes first &mdash; this tests what is stored, not what
+                                is typed above.
+                            </p>
+                            <div class="form-row align-items-start">
+                                <div class="col-md-5">
+                                    <input type="email" class="form-control" id="test_email" placeholder="Send test email to...">
+                                </div>
+                                <div class="col-auto">
+                                    <button type="button" class="btn btn-info" id="send_test_email_btn">Send Test Email</button>
+                                </div>
+                            </div>
+                            <div id="test_email_result" class="mt-2 small"></div>
+                        </div>
+
+                        <script>
+                        $(document).ready(function () {
+                            $('#send_test_email_btn').on('click', function () {
+                                var $btn = $(this);
+                                var email = $.trim($('#test_email').val());
+                                if (!email) {
+                                    $('#test_email_result').html('<span class="text-danger">Enter an email address to send the test to.</span>');
+                                    return;
+                                }
+                                $btn.prop('disabled', true).text('Sending...');
+                                $('#test_email_result').html('<span class="text-muted">Contacting the mail server...</span>');
+                                $.post('<?= base_url('admin/email_settings/send_test_email') ?>', { test_email: email }, function (res) {
+                                    if (res.error) {
+                                        $('#test_email_result').html('<span class="text-danger"><strong>Failed.</strong> ' + $('<div>').text(res.message).html() + '</span>');
+                                    } else {
+                                        $('#test_email_result').html('<span class="text-success">' + $('<div>').text(res.message).html() + '</span>');
+                                    }
+                                }, 'json').fail(function () {
+                                    $('#test_email_result').html('<span class="text-danger">Request failed. Check the server log.</span>');
+                                }).always(function () {
+                                    $btn.prop('disabled', false).text('Send Test Email');
+                                });
+                            });
+                        });
+                        </script>
                     </div>
                     <!--/.card-->
                 </div>

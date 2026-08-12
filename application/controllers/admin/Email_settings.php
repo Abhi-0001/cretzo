@@ -32,6 +32,67 @@ class Email_settings extends CI_Controller
     }
 
 
+    /**
+     * Sends a real email through the saved SMTP settings and reports back what the mail
+     * server actually said.
+     *
+     * There was previously no way to tell whether these settings worked - they were only
+     * exercised indirectly by things like the password-reset OTP, which reports a generic
+     * "we could not deliver your OTP" to the end user and buries the real cause in the
+     * log. A failure here returns the redacted server response (e.g. Gmail's
+     * "534-5.7.9 Application-specific password required"), so the fix is obvious.
+     */
+    public function send_test_email()
+    {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {
+            redirect('admin/login', 'refresh');
+        }
+        if (print_msg(!has_permissions('update', 'email_settings'), PERMISSION_ERROR_MSG, 'email_settings')) {
+            return false;
+        }
+
+        $this->form_validation->set_rules('test_email', 'Recipient', 'trim|required|valid_email|xss_clean');
+        if (!$this->form_validation->run()) {
+            echo json_encode([
+                'error' => true,
+                'csrfName' => $this->security->get_csrf_token_name(),
+                'csrfHash' => $this->security->get_csrf_hash(),
+                'message' => strip_tags(validation_errors()),
+            ]);
+            return false;
+        }
+
+        $to = $this->input->post('test_email', true);
+        $settings = get_settings('system_settings', true);
+        $app_name = !empty($settings['app_name']) ? $settings['app_name'] : 'Cretzo';
+
+        $result = send_mail(
+            $to,
+            $app_name . ' test email',
+            'This is a test email from ' . $app_name . '. If you received it, your SMTP settings are working.'
+        );
+
+        if (!empty($result['error'])) {
+            // $result['config'] holds the SMTP password - never echo it. 'reason' is the
+            // redacted server response produced by send_mail().
+            echo json_encode([
+                'error' => true,
+                'csrfName' => $this->security->get_csrf_token_name(),
+                'csrfHash' => $this->security->get_csrf_hash(),
+                'message' => 'Test email failed: ' . (!empty($result['reason']) ? $result['reason'] : $result['message']),
+            ]);
+            return false;
+        }
+
+        echo json_encode([
+            'error' => false,
+            'csrfName' => $this->security->get_csrf_token_name(),
+            'csrfHash' => $this->security->get_csrf_hash(),
+            'message' => 'Test email sent to ' . $to . '. Check the inbox (and spam folder).',
+        ]);
+        return false;
+    }
+
     public function set_email_settings()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
