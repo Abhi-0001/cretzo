@@ -406,9 +406,6 @@ class Ion_auth
 		} else {
 			return false;
 		}
-		
-		$seller_group = $this->config->item('seller_group', 'ion_auth');
-		return $this->ion_auth_model->in_group($seller_group, $id);
 	}
 
 	public function is_delivery_boy($id = FALSE)

@@ -3315,9 +3315,10 @@ function get_seller_invoice_html($order_id, $seller_id)
 
 function is_modification_allowed($module)
 {
-    $allow_modification = (get_instance()->session->userdata('mobile') == '9638527410') ? 1 : IS_ALLOWED_MODIFICATION;
-
-    $allow_modification = ($allow_modification == 0) ? 0 : 1;
+    // Demo-mode write restriction is controlled solely by IS_ALLOWED_MODIFICATION,
+    // not by which account is logged in (see MyConfig::allow_modification() for the
+    // matching fix - this was the same hardcoded-mobile-number bypass duplicated here).
+    $allow_modification = (IS_ALLOWED_MODIFICATION == 0) ? 0 : 1;
     $excluded_modules = ['orders'];
     if (isset($allow_modification) && $allow_modification == 0) {
         if (!in_array(strtolower($module), $excluded_modules)) {
@@ -5946,8 +5947,11 @@ function checkOTPExpiration($otpTime)
     $currentTime = strtotime($time);
     $timeDifference = $currentTime - $otpTime;
 
-
-    if ($timeDifference <= 30) {
+    // Was "<= 30" (30 seconds) - too short for anyone to receive and type an
+    // SMS OTP, effectively making every OTP appear expired immediately. 10
+    // minutes matches the window already used elsewhere in the app (e.g.
+    // seller/Auth.php's tempdata OTP).
+    if ($timeDifference <= 600) {
         return [
             "error" => false,
             "message" => "Success: OTP is valid."
@@ -5958,6 +5962,69 @@ function checkOTPExpiration($otpTime)
             "message" => "Error: Session has expired."
         ];
     }
+}
+
+/**
+ * `users.mobile` is NOT NULL + UNIQUE with no default, but social/email-only
+ * signups (Facebook/Google login, and any other passwordless path) have no
+ * real phone number to store. Those callers used to pass a literal '' for
+ * every such account - fine for the first one, but the UNIQUE index then
+ * rejected every second account with a raw duplicate-key DB error (not a
+ * friendly validation message), effectively blocking any social signup after
+ * the very first. This generates a placeholder that's checked for uniqueness
+ * before being used.
+ */
+function generate_unique_placeholder_mobile()
+{
+    for ($i = 0; $i < 20; $i++) {
+        $candidate = '9' . str_pad((string) random_int(0, 999999999), 9, '0', STR_PAD_LEFT);
+        if (!is_exist(['mobile' => $candidate], 'users')) {
+            return $candidate;
+        }
+    }
+    // Practically unreachable given the loop above, but never return a blank/
+    // colliding value.
+    return '9' . substr((string) (time() . random_int(0, 999)), -9);
+}
+
+/**
+ * Generates and sends a fresh OTP to $mobile for password-reset verification,
+ * reusing the same `otps` table + gateway already used for registration mobile
+ * verification (set_user_otp() -> send_sms(), routed through whatever gateway
+ * is configured in admin > SMS Gateway Settings).
+ */
+function send_password_reset_otp($mobile)
+{
+    // send_sms() (used by set_user_otp() below) lives in sms_helper, which isn't
+    // autoloaded app-wide and isn't loaded by every controller that needs password
+    // reset (only the generic Auth.php loaded it, for the registration-OTP flow).
+    // load->helper() is idempotent, safe to call regardless of what's already loaded.
+    get_instance()->load->helper('sms_helper');
+
+    if (!is_exist(['mobile' => $mobile], 'otps')) {
+        insert_details(['mobile' => $mobile], 'otps');
+    }
+    return set_user_otp($mobile, random_int(100000, 999999));
+}
+
+/**
+ * Verifies $otp against the pending otps row for $mobile (checking expiry too),
+ * then invalidates it so it can't be replayed.
+ */
+function verify_password_reset_otp($mobile, $otp)
+{
+    $otps = fetch_details('otps', ['mobile' => $mobile]);
+    if (empty($otps)) {
+        return ['error' => true, 'message' => 'Please request a new OTP.'];
+    }
+    if (checkOTPExpiration($otps[0]['created_at'])['error']) {
+        return ['error' => true, 'message' => 'OTP has expired. Please request a new OTP.'];
+    }
+    if ((string) $otps[0]['otp'] !== (string) $otp) {
+        return ['error' => true, 'message' => 'Invalid OTP.'];
+    }
+    update_details(['otp' => ''], ['mobile' => $mobile], 'otps');
+    return ['error' => false, 'message' => 'OTP verified.'];
 }
 
 function get_statistics($product_varient_id)

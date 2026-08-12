@@ -276,6 +276,14 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
                                         </p>
                                     </a>
                                 </li>
+                                <li class="nav-item">
+                                    <a href="<?= base_url('admin/subscription/seller_subscriptions') ?>" class="nav-link">
+                                        <i class="fas fa-user-tag nav-icon"></i>
+                                        <p>
+                                            Seller Subscriptions
+                                        </p>
+                                    </a>
+                                </li>
                         </ul>
                     </li>
                 <?php } ?>

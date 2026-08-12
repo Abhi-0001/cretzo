@@ -1060,11 +1060,54 @@ Defined Methods:-
         }
     }
 
+    // Looks up a seller user row by mobile number, shared by
+    // send_password_reset_otp()/forgot_password() below.
+    private function _find_reset_seller($mobile)
+    {
+        $res = fetch_details('users', ['mobile' => $mobile]);
+        if (empty($res) || !$this->ion_auth->is_seller($res[0]['id'])) {
+            return null;
+        }
+        return $res[0];
+    }
+
+    public function send_password_reset_otp()
+    {
+        /* Parameters to be passed
+            mobile_no:7894561235
+        */
+        if (!$this->verify_token()) {
+            return false;
+        }
+        $this->form_validation->set_rules('mobile_no', 'Mobile No', 'trim|numeric|required|xss_clean|max_length[16]');
+        if (!$this->form_validation->run()) {
+            $this->response['error'] = true;
+            $this->response['message'] = strip_tags(validation_errors());
+            print_r(json_encode($this->response));
+            return false;
+        }
+
+        $user = $this->_find_reset_seller($_POST['mobile_no']);
+        if (empty($user)) {
+            $this->response['error'] = true;
+            $this->response['message'] = 'User does not exists !';
+            echo json_encode($this->response);
+            return false;
+        }
+
+        send_password_reset_otp($_POST['mobile_no']);
+        $this->response['error'] = false;
+        $this->response['message'] = 'OTP sent successfully.';
+        echo json_encode($this->response);
+        return false;
+    }
+
     //10. forgot_password
     public function forgot_password()
     {
         /* Parameters to be passed
-            mobile_no:7894561235            
+            mobile_no:7894561235
+            otp:123456
             new: pass@123
         */
 
@@ -1079,6 +1122,7 @@ Defined Methods:-
             exit();
         }
         $this->form_validation->set_rules('mobile_no', 'Mobile No', 'trim|numeric|required|xss_clean|max_length[16]');
+        $this->form_validation->set_rules('otp', 'OTP', 'trim|required|xss_clean');
         $this->form_validation->set_rules('new', 'New Password', 'trim|required|xss_clean');
 
         if (!$this->form_validation->run()) {
@@ -1089,25 +1133,34 @@ Defined Methods:-
         }
 
         $identity_column = $this->config->item('identity', 'ion_auth');
-        $res = fetch_details('users', ['mobile' => $_POST['mobile_no']]);
-        if (!empty($res)) {
-            $identity = ($identity_column  == 'email') ? $res[0]['email'] : $res[0]['mobile'];
-            if (!$this->ion_auth->reset_password($identity, $_POST['new'])) {
-                $response['error'] = true;
-                $response['message'] = strip_tags($this->ion_auth->messages());;
-                $response['data'] = array();
-                echo json_encode($response);
-                return false;
-            } else {
-                $response['error'] = false;
-                $response['message'] = 'Reset Password Successfully';
-                $response['data'] = array();
-                echo json_encode($response);
-                return false;
-            }
-        } else {
+        $user = $this->_find_reset_seller($_POST['mobile_no']);
+        if (empty($user)) {
             $response['error'] = true;
             $response['message'] = 'User does not exists !';
+            $response['data'] = array();
+            echo json_encode($response);
+            return false;
+        }
+
+        $otp_check = verify_password_reset_otp($_POST['mobile_no'], $_POST['otp']);
+        if ($otp_check['error']) {
+            $response['error'] = true;
+            $response['message'] = $otp_check['message'];
+            $response['data'] = array();
+            echo json_encode($response);
+            return false;
+        }
+
+        $identity = ($identity_column  == 'email') ? $user['email'] : $user['mobile'];
+        if (!$this->ion_auth->reset_password($identity, $_POST['new'])) {
+            $response['error'] = true;
+            $response['message'] = strip_tags($this->ion_auth->messages());;
+            $response['data'] = array();
+            echo json_encode($response);
+            return false;
+        } else {
+            $response['error'] = false;
+            $response['message'] = 'Reset Password Successfully';
             $response['data'] = array();
             echo json_encode($response);
             return false;

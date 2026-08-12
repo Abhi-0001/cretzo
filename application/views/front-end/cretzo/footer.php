@@ -316,9 +316,6 @@ $system_settings = get_settings('system_settings', true); ?>
                                 <p class="text-n ta-c op-6">Enter your registered mobile number to receive an OTP.</p>
                                 <div class="field-container">
                                     <input type="text" class="form-control input ta-c" name="mobile_number" id="forgot_password_number" placeholder="Mobile Number" value="">
-                                    <div class="d-flex justify-content-center mt-3">
-                                        <div id="recaptcha-container-2"></div>
-                                    </div>
                                 </div>
                                 <div class="form-group ta-c" id="forgot_pass_error_box"></div>
                                 <div class="ta-c btn-container">

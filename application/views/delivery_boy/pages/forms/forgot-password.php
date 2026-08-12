@@ -12,9 +12,6 @@
           <div class="col-md-12">
             <input type="text" class="form-control" name="mobile_number" id="forgot_password_number" placeholder="Mobile number" value="">
           </div>
-          <div class="col-md-12 d-flex justify-content-center pb-4 mt-3">
-            <div id="recaptcha-container-2"></div>
-          </div>
           <footer>
             <button type="submit" id="forgot_password_send_otp_btn" class="submit_btn  btn btn-primary btn-block"><?= !empty($this->lang->line('send_otp')) ? $this->lang->line('send_otp') : 'Send OTP' ?></button>
           </footer>
@@ -46,3 +43,51 @@
       <!-- /.login-card-body -->
     </div>
   </div>
+  <script>
+      $(document).on("submit", "#send_forgot_password_otp_form", function(e) {
+          e.preventDefault();
+          var btn = $("#forgot_password_send_otp_btn"), t = btn.html();
+          btn.html("Please Wait...").attr("disabled", true);
+          $.ajax({
+              type: "POST",
+              url: "<?= base_url('delivery_boy/login/send_reset_otp') ?>",
+              data: $(this).serialize(),
+              dataType: "json",
+              success: function(res) {
+                  btn.html(t).attr("disabled", false);
+                  $("#forgot_pass_error_box").text(res.message);
+                  if (!res.error) {
+                      $("#verify_forgot_password_otp_form").removeClass("d-none");
+                      $("#send_forgot_password_otp_form").hide();
+                  }
+              },
+              error: function() {
+                  btn.html(t).attr("disabled", false);
+                  $("#forgot_pass_error_box").text("Something went wrong. Please try again.");
+              }
+          });
+      });
+      $(document).on("submit", "#verify_forgot_password_otp_form", function(e) {
+          e.preventDefault();
+          var btn = $("#reset_password_submit_btn"), t = btn.html();
+          var data = $(this).serialize() + "&mobile_number=" + encodeURIComponent($("#forgot_password_number").val());
+          btn.html("Please Wait...").attr("disabled", true);
+          $.ajax({
+              type: "POST",
+              url: "<?= base_url('delivery_boy/login/reset_password') ?>",
+              data: data,
+              dataType: "json",
+              success: function(res) {
+                  btn.html(t).attr("disabled", false);
+                  $("#set_password_error_box").text(res.message);
+                  if (!res.error) {
+                      setTimeout(function() { window.location.href = "<?= base_url('delivery_boy') ?>"; }, 2000);
+                  }
+              },
+              error: function() {
+                  btn.html(t).attr("disabled", false);
+                  $("#set_password_error_box").text("Something went wrong. Please try again.");
+              }
+          });
+      });
+  </script>

@@ -1258,7 +1258,11 @@ class Auth extends CI_Controller
 
             $additional_data = [
                 'username' => $this->input->post('name'),
-                'mobile' => (isset($_POST['mobile']) && !empty($_POST['mobile'])) ? $this->input->post('mobile') : '',
+                // 'mobile' is NOT NULL + UNIQUE with no default - a literal '' collided
+                // (raw duplicate-key DB error) on every signup after the first one with
+                // no phone number (social/email-only signups). Placeholder is generated
+                // and checked unique instead.
+                'mobile' => (isset($_POST['mobile']) && !empty($_POST['mobile'])) ? $this->input->post('mobile') : generate_unique_placeholder_mobile(),
                 'dob' => $this->input->post('dob'),
                 'city' => $this->input->post('city'),
                 'area' => $this->input->post('area'),
@@ -1273,8 +1277,15 @@ class Auth extends CI_Controller
                 'type' => $this->input->post('type'),
             ];
 
+            // This OTP check was gated only on the site-wide authentication_method
+            // setting, not on $_POST['type'] == 'phone' (unlike the mobile/country_code
+            // validation rules just above, which ARE correctly scoped to phone signups
+            // only) - so a social (Facebook/Google) or email signup would incorrectly
+            // require OTP verification against an empty mobile whenever the site's
+            // method was set to 'sms', always failing since no OTP was ever sent for
+            // that (non-existent) mobile.
             $auth_settings = get_settings('authentication_settings', true);
-            if ($auth_settings['authentication_method'] == "sms") {
+            if ($auth_settings['authentication_method'] == "sms" && isset($_POST['type']) && $_POST['type'] == 'phone') {
                 $otps = fetch_details('otps', ['mobile' => $mobile]);
                 $time = $otps[0]['created_at'];
                 $time_expire = checkOTPExpiration($time);

@@ -545,7 +545,7 @@ if (!empty($sections)) {
         }
 
         // validate form input
-        if ($_POST['type'] == 'phone') {
+        if (isset($_POST['type']) && $_POST['type'] == 'phone') {
             if (preg_match($regex, $_POST['identity'])) {
                 $this->form_validation->set_rules('identity', ucfirst($identity_column), 'trim|required|valid_email');
             } else {
@@ -751,6 +751,121 @@ if (!empty($sections)) {
         }
     }
 
+    // Consolidated social login: finds-or-creates the account and establishes
+    // the session in a single round trip. Previously this required 3 sequential
+    // AJAX calls (verifyUser -> auth/register_user -> login), each enforcing a
+    // hard required|valid_email rule - so any Facebook account that didn't
+    // return an email (declined permission, phone-only account, etc.) was
+    // blocked outright, and a second passwordless signup hit a raw duplicate-
+    // key DB error on the NOT NULL+UNIQUE `mobile` column (see
+    // generate_unique_placeholder_mobile() in function_helper.php).
+    public function social_login()
+    {
+        $type = $this->input->post('type', true);
+        $uid = $this->input->post('uid', true);
+        $name = $this->input->post('name', true);
+        $email = trim((string) $this->input->post('email', true));
+
+        if (empty($uid) || !in_array($type, ['facebook', 'google'], true)) {
+            $this->response['error'] = true;
+            $this->response['message'] = 'Invalid social login request.';
+            echo json_encode($this->response);
+            return false;
+        }
+
+        // Synthesize a stable, unique-per-uid placeholder when the provider gave
+        // no usable email, so the same social account always resolves back to
+        // the same local account on repeat logins.
+        $regex = '/^[_a-z0-9-]+(\.[_a-z0-9-]+)*@[a-z0-9-]+(\.[a-z0-9-]+)*(\.[a-z]{2,3})$/';
+        if (empty($email) || !preg_match($regex, $email)) {
+            $email = $type . '_' . substr(md5($uid), 0, 20) . '@social.cretzo.local';
+        }
+        $email = strtolower($email);
+
+        $tables = $this->config->item('tables', 'ion_auth');
+        $user_data = fetch_details('users', ['email' => $email]);
+
+        if (empty($user_data)) {
+            $additional_data = [
+                'username'     => !empty($name) ? $name : 'Member',
+                'mobile'       => generate_unique_placeholder_mobile(),
+                'country_code' => 0,
+                'active'       => 1,
+                'type'         => $type,
+            ];
+            $user_id = $this->ion_auth->register($email, $uid, $email, $additional_data, ['2']);
+            if (!$user_id) {
+                $this->response['error'] = true;
+                $this->response['message'] = strip_tags($this->ion_auth->errors()) ?: 'Could not create your account. Please try again.';
+                echo json_encode($this->response);
+                return false;
+            }
+            update_details(['active' => 1], ['id' => $user_id], 'users');
+            $user_data = fetch_details('users', ['id' => $user_id]);
+        }
+
+        $user_row = $user_data[0];
+
+        if (isset($user_row['active']) && $user_row['active'] == 7) {
+            $this->response['error'] = true;
+            $this->response['message'] = 'User Not Found';
+            echo json_encode($this->response);
+            return false;
+        }
+        if (isset($user_row['active']) && $user_row['active'] == 0) {
+            $this->response['error'] = true;
+            $this->response['message'] = 'You are not allowed to login your account is inactive.';
+            echo json_encode($this->response);
+            return false;
+        }
+        if ($group = fetch_details('users_groups', ['user_id' => $user_row['id']])) {
+            if ($group[0]['group_id'] != 2) {
+                $this->response['error'] = true;
+                $this->response['message'] = 'Invalid user';
+                echo json_encode($this->response);
+                return false;
+            }
+        }
+
+        $user = $this->db->where('id', $user_row['id'])->get($tables['login_users'])->row();
+        if (!$user) {
+            $this->response['error'] = true;
+            $this->response['message'] = 'Something went wrong. Please try again.';
+            echo json_encode($this->response);
+            return false;
+        }
+
+        // Skip password verification - identity is already verified client-side via
+        // Firebase OAuth (same trust model the old code path used).
+        $this->ion_auth_model->set_session($user);
+        $this->ion_auth_model->update_last_login($user->id);
+        $this->ion_auth_model->clear_login_attempts($email);
+        $this->ion_auth_model->clear_forgotten_password_code($email);
+        $this->session->sess_regenerate(FALSE);
+
+        $this->db->where('user_id', $user->id)->where('group_id', 2);
+        if ($this->db->get('users_groups')->num_rows() == 0) {
+            $this->db->insert('users_groups', ['user_id' => $user->id, 'group_id' => 2]);
+        }
+
+        $provider_col = $type . '_id';
+        $update_fields = [];
+        if ($this->db->field_exists($provider_col, $tables['login_users']) && empty($user->{$provider_col})) {
+            $update_fields[$provider_col] = $uid;
+        }
+        if ($user->type != $type) {
+            $update_fields['type'] = $type;
+        }
+        if (!empty($update_fields)) {
+            $this->db->where('id', $user->id)->update($tables['login_users'], $update_fields);
+        }
+
+        $this->response['error'] = false;
+        $this->response['message'] = 'Logged in successfully.';
+        echo json_encode($this->response);
+        return true;
+    }
+
     public function verifyUser()
     {
         $this->form_validation->set_data($this->input->post());
@@ -800,13 +915,59 @@ if (!empty($sections)) {
         }
     }
 
+    // Looks up a customer (group 2) user row by mobile number, shared by
+    // send_reset_otp()/reset_password() below.
+    private function _find_reset_customer($mobile)
+    {
+        $res = fetch_details('users', ['mobile' => $mobile]);
+        if (empty($res)) {
+            return null;
+        }
+        $group = fetch_details('users_groups', ['user_id' => $res[0]['id']]);
+        if (empty($group) || $group[0]['group_id'] != 2) {
+            return null;
+        }
+        return $res[0];
+    }
+
+    public function send_reset_otp()
+    {
+        /* Parameters to be passed
+            mobile_number:7894561235
+        */
+        $this->form_validation->set_rules('mobile_number', 'Mobile No', 'trim|numeric|required|xss_clean|max_length[16]');
+
+        if (!$this->form_validation->run()) {
+            $this->response['error'] = true;
+            $this->response['message'] = strip_tags(validation_errors());
+            echo json_encode($this->response);
+            return false;
+        }
+
+        $user = $this->_find_reset_customer($this->input->post('mobile_number'));
+        if (empty($user)) {
+            $this->response['error'] = true;
+            $this->response['message'] = 'You have not registered using this number.';
+            echo json_encode($this->response);
+            return false;
+        }
+
+        send_password_reset_otp($this->input->post('mobile_number'));
+        $this->response['error'] = false;
+        $this->response['message'] = 'OTP sent successfully.';
+        echo json_encode($this->response);
+        return false;
+    }
+
     public function reset_password()
     {
         /* Parameters to be passed
-            mobile_no:7894561235            
-            new: pass@123
+            mobile:7894561235
+            otp:123456
+            new_password: pass@123
         */
         $this->form_validation->set_rules('mobile', 'Mobile No', 'trim|numeric|required|xss_clean|max_length[16]');
+        $this->form_validation->set_rules('otp', 'OTP', 'trim|required|xss_clean');
         $this->form_validation->set_rules('new_password', 'New Password', 'trim|required|xss_clean');
 
         if (!$this->form_validation->run()) {
@@ -817,25 +978,34 @@ if (!empty($sections)) {
         }
 
         $identity_column = $this->config->item('identity', 'ion_auth');
-        $res = fetch_details('users', ['mobile' => $_POST['mobile']]);
-        if (!empty($res)) {
-            $identity = ($identity_column  == 'email') ? $res[0]['email'] : $res[0]['mobile'];
-            if (!$this->ion_auth->reset_password($identity, $_POST['new_password'])) {
-                $this->response['error'] = true;
-                $this->response['message'] = $this->ion_auth->messages();
-                $this->response['data'] = array();
-                echo json_encode($this->response);
-                return false;
-            } else {
-                $this->response['error'] = false;
-                $this->response['message'] = 'Reset Password Successfully';
-                $this->response['data'] = array();
-                echo json_encode($this->response);
-                return false;
-            }
-        } else {
+        $user = $this->_find_reset_customer($this->input->post('mobile'));
+        if (empty($user)) {
             $this->response['error'] = true;
             $this->response['message'] = 'User does not exists !';
+            $this->response['data'] = array();
+            echo json_encode($this->response);
+            return false;
+        }
+
+        $otp_check = verify_password_reset_otp($this->input->post('mobile'), $this->input->post('otp'));
+        if ($otp_check['error']) {
+            $this->response['error'] = true;
+            $this->response['message'] = $otp_check['message'];
+            $this->response['data'] = array();
+            echo json_encode($this->response);
+            return false;
+        }
+
+        $identity = ($identity_column  == 'email') ? $user['email'] : $user['mobile'];
+        if (!$this->ion_auth->reset_password($identity, $this->input->post('new_password'))) {
+            $this->response['error'] = true;
+            $this->response['message'] = $this->ion_auth->messages();
+            $this->response['data'] = array();
+            echo json_encode($this->response);
+            return false;
+        } else {
+            $this->response['error'] = false;
+            $this->response['message'] = 'Reset Password Successfully';
             $this->response['data'] = array();
             echo json_encode($this->response);
             return false;
