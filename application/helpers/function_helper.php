@@ -6280,6 +6280,39 @@ function classify_mobile_owner($mobile)
 }
 
 /**
+ * Whether an account holds a given role.
+ *
+ * One mobile number = one account, but that account can hold SEVERAL roles - a buyer who
+ * later signs up to sell keeps their buyer role and gains the seller one. Anything that
+ * asks "is this a seller?" therefore has to test group MEMBERSHIP; asking
+ * classify_mobile_owner() for a single primary role answers "seller" for such a person and
+ * would wrongly lock them out of buyer-side flows.
+ *
+ * @param int    $user_id
+ * @param string $role 'admin' | 'customer' | 'seller' | 'delivery_boy'
+ */
+function user_has_role($user_id, $role)
+{
+    $t = &get_instance();
+
+    if (empty($user_id) || empty($role)) {
+        return false;
+    }
+
+    // 'customer' is stored as the 'members' group.
+    $group_name = ($role === 'customer') ? 'members' : $role;
+
+    $count = $t->db
+        ->from('users_groups ug')
+        ->join('groups g', 'g.id = ug.group_id')
+        ->where('ug.user_id', (int) $user_id)
+        ->where('g.name', $group_name)
+        ->count_all_results();
+
+    return $count > 0;
+}
+
+/**
  * Completes a password reset that was verified by Firebase phone auth.
  *
  * Shared by all three portals (customer, seller, admin) so the security checks cannot
@@ -6327,7 +6360,9 @@ function firebase_phone_reset($id_token, $mobile, $new_password, $expected_role)
         return ['error' => true, 'message' => 'You have not registered using this number.'];
     }
 
-    if ($owner['role'] !== $expected_role) {
+    // Membership, not "primary role": a buyer who also sells holds both roles on one
+    // account, and must be able to reset that single password from either portal.
+    if (!user_has_role($owner['user']['id'], $expected_role)) {
         $portal = reset_portal_for_role($owner['role']);
         $where  = !empty($portal['url'])
             ? 'Please reset your password here: ' . base_url($portal['url'])

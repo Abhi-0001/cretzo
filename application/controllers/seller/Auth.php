@@ -135,6 +135,83 @@ class Auth extends CI_Controller
         $this->output->set_content_type('application/json')->set_output(json_encode($response));
     }
 
+    /**
+     * Proves the person signing up actually owns the pre-existing account on this mobile,
+     * before we attach a seller profile to it.
+     *
+     * Two accepted proofs:
+     *   1. A Firebase phone ID token we verify ourselves (signature, audience, expiry,
+     *      provider really 'phone', and its phone claim matching the account). The signup
+     *      page already runs Firebase phone auth, so this is the normal path.
+     *   2. The account's CURRENT password. Covers the case where the browser lost the
+     *      token, and is the same proof a login would demand.
+     *
+     * Deliberately does NOT trust $_POST['phone_verified'] - that is a hidden field the
+     * page sets to '1' in JavaScript and anyone can post it.
+     */
+    private function _owns_existing_account($user, $submitted_password)
+    {
+        $id_token = $this->input->post('firebase_id_token', false);
+        if (!empty($id_token)) {
+            $verified = verify_firebase_id_token($id_token);
+            if (empty($verified['error'])
+                && $verified['provider'] === 'phone'
+                && !empty($verified['phone'])
+                && phone_digits_match($verified['phone'], $user['mobile'])) {
+                return true;
+            }
+        }
+
+        // Fall back to the existing password. ion_auth's own login() is used so the hash
+        // comparison and any rehashing stay consistent with normal sign-in.
+        if (!empty($submitted_password)) {
+            $identity_column = $this->config->item('identity', 'ion_auth');
+            $identity = ($identity_column == 'email') ? $user['email'] : $user['mobile'];
+            if ($this->ion_auth->login($identity, $submitted_password)) {
+                // Don't leave them half-logged-in from a signup POST; the flow asks them to
+                // log in properly afterwards.
+                $this->ion_auth->logout();
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Adds the seller role to an existing account, keeping every role it already has, and
+     * creates the seller profile + registration subscription it needs.
+     */
+    private function _grant_seller_role($user_id, $name, $email, $mobile)
+    {
+        $this->load->model(['Seller_model', 'Seller_subscription_model']);
+
+        if (!user_has_role($user_id, 'seller')) {
+            $this->ion_auth->add_to_group(4, $user_id);
+        }
+        // Keep the buyer role too, so enabling selling never costs them their storefront
+        // access or order history.
+        if (!user_has_role($user_id, 'customer')) {
+            $this->ion_auth->add_to_group(2, $user_id);
+        }
+
+        // Only create the seller profile if one doesn't already exist, so re-running this
+        // can't produce a duplicate seller_data row.
+        if (empty(fetch_details('seller_data', ['user_id' => $user_id], 'id'))) {
+            $this->Seller_model->seller_cereate_user([
+                'user_id' => $user_id,
+                'status'  => 2, // Not-Approved: pending admin review, same as every other path
+                'shop_name' => $name,
+                'email'   => $email,
+                'phone'   => $mobile,
+                'authorized_signature' => '',
+            ]);
+        }
+
+        // assign_registration_offer() no-ops when a subscription already exists.
+        $this->Seller_subscription_model->assign_registration_offer($user_id);
+    }
+
     public function ajax_signup(){
         try {
             // Get form data
@@ -187,16 +264,46 @@ class Auth extends CI_Controller
                 return;
             }
 
-            // Check if mobile already exists
+            // One mobile number = one account (users.mobile is UNIQUE and is ion_auth's
+            // identity column), but that account may hold SEVERAL roles. An existing buyer
+            // who now wants to sell used to be turned away with "Mobile number already
+            // registered", which forced anyone with a single phone number to choose between
+            // buying and selling. Instead we add the seller role to the account they
+            // already have.
             $existing_user = fetch_details('users', ['mobile' => $mobile]);
             if (!empty($existing_user)) {
-                $response['message'] = 'Mobile number already registered';
+                $existing_id = $existing_user[0]['id'];
+
+                if (user_has_role($existing_id, 'seller')) {
+                    $response['message'] = 'This mobile number is already registered as a seller. Please log in instead.';
+                    $this->output->set_content_type('application/json')->set_output(json_encode($response));
+                    return;
+                }
+
+                // Adding a seller profile to somebody else's account would be a takeover, so
+                // ownership has to be proven. phone_verified is just a hidden field the page
+                // sets to '1' in JS - it proves nothing on its own. Accept either a Firebase
+                // phone token we verify ourselves, or the account's current password.
+                if (!$this->_owns_existing_account($existing_user[0], $password)) {
+                    $response['message'] = 'This mobile number already has an account. '
+                        . 'Enter that account\'s existing password to add selling to it, or reset your password first.';
+                    $this->output->set_content_type('application/json')->set_output(json_encode($response));
+                    return;
+                }
+
+                $this->_grant_seller_role($existing_id, $name, $email, $mobile);
+
+                $response['status'] = 'success';
+                $response['message'] = 'Selling has been enabled on your existing account. '
+                    . 'Please log in with your usual password. Your seller profile is pending admin approval.';
                 $this->output->set_content_type('application/json')->set_output(json_encode($response));
                 return;
             }
 
-            // Register user
-            $user_id = $this->ion_auth->register($mobile, $password, $email, ['name' => $name], [4]); // 4 is seller group
+            // Register user. Group 2 ("members") as well as 4 ("seller") so a seller can
+            // also shop on the storefront - the storefront login refuses anyone who is not
+            // in group 2, so seller-only accounts previously could not buy anything.
+            $user_id = $this->ion_auth->register($mobile, $password, $email, ['name' => $name], [2, 4]);
 
             if (!$user_id) {
                 $response['message'] = 'Registration failed. ' . $this->ion_auth->messages();
@@ -408,7 +515,9 @@ class Auth extends CI_Controller
             // random one is generated rather than reusing a fixed value across every
             // account created this way. The seller can set their own via forgot-password.
             $temp_password = bin2hex(random_bytes(8));
-            $user_id = $this->ion_auth->register($seler_register['mobile'], $temp_password, $seler_register['first_name'], ['phone' => $seler_register['mobile']], [4]);
+            // Groups 2 + 4: a seller also holds the buyer role so they can shop on the
+            // storefront, which refuses anyone not in group 2.
+            $user_id = $this->ion_auth->register($seler_register['mobile'], $temp_password, $seler_register['first_name'], ['phone' => $seler_register['mobile']], [2, 4]);
 
             if (!$user_id) {
                 $response['error'] = true;
@@ -866,9 +975,41 @@ class Auth extends CI_Controller
                 }
             } else {
 
-                if (!$this->form_validation->is_unique($_POST['mobile'], 'users.mobile') || !$this->form_validation->is_unique($_POST['email'], 'users.email')) {
+                // An existing account on this mobile is no longer a dead end: if it isn't
+                // already a seller, the seller role is added to it (ownership proven by the
+                // Firebase phone token or the account's current password), so a buyer with
+                // one phone number can start selling. See ajax_signup() for the same logic.
+                $existing_user = fetch_details('users', ['mobile' => $_POST['mobile']]);
+                if (!empty($existing_user)) {
+                    $existing_id = $existing_user[0]['id'];
+
+                    if (user_has_role($existing_id, 'seller')) {
+                        $response["error"] = true;
+                        $response["message"] = "This mobile number is already registered as a seller. Please log in instead.";
+                    } elseif (!$this->_owns_existing_account($existing_user[0], $this->input->post('password'))) {
+                        $response["error"] = true;
+                        $response["message"] = "This mobile number already has an account. Enter that account's existing password to add selling to it.";
+                    } else {
+                        $this->_grant_seller_role(
+                            $existing_id,
+                            $this->input->post('name', true),
+                            strtolower($this->input->post('email')),
+                            $this->input->post('mobile')
+                        );
+                        $response["error"] = false;
+                        $response["message"] = "Selling has been enabled on your existing account. Wait for approval of admin.";
+                    }
+
+                    $response['csrfName'] = $this->security->get_csrf_token_name();
+                    $response['csrfHash'] = $this->security->get_csrf_hash();
+                    $response["data"] = array();
+                    echo json_encode($response);
+                    return false;
+                }
+
+                if (!$this->form_validation->is_unique($_POST['email'], 'users.email')) {
                     $response["error"]   = true;
-                    $response["message"] = "Email or mobile already exists !";
+                    $response["message"] = "Email already exists !";
                     $response['csrfName'] = $this->security->get_csrf_token_name();
                     $response['csrfHash'] = $this->security->get_csrf_hash();
                     $response["data"] = array();
@@ -887,7 +1028,9 @@ class Auth extends CI_Controller
                     'address' => $this->input->post('address', true),
                     'type' => 'phone',
                 ];
-                $this->ion_auth->register($identity, $password, $email, $additional_data, ['4']);
+                // Groups 2 + 4 - see the note in ajax_signup(): a seller also needs the
+                // buyer role or the storefront login will refuse them.
+                $this->ion_auth->register($identity, $password, $email, $additional_data, ['2', '4']);
                 if (update_details(['active' => 1], [$identity_column => $identity], 'users')) {
                     $user_id = fetch_details('users', ['mobile' => $mobile], 'id');
 

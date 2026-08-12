@@ -972,7 +972,12 @@ if (!empty($sections)) {
         if (!$owner['exists']) {
             return 'You have not registered using this number.';
         }
-        if ($owner['role'] !== 'customer') {
+        // Membership, not "primary role". One account can be both a buyer and a seller, and
+        // classify_mobile_owner() reports the most-privileged role - so a seller who also
+        // shops was being turned away from the storefront's own reset form even though the
+        // account is a perfectly valid buyer account (and it is the same single password
+        // either way).
+        if (!user_has_role($owner['user']['id'], 'customer')) {
             $portal = reset_portal_for_role($owner['role']);
             return 'This number is registered as ' . $portal['label'] . ', not a customer account. '
                 . 'Please reset your password here: ' . base_url($portal['url']);

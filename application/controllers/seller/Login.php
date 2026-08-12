@@ -771,7 +771,9 @@ class Login extends CI_Controller
         if (!$owner['exists']) {
             return 'You have not registered using this number.';
         }
-        if ($owner['role'] !== 'seller') {
+        // Membership, not "primary role" - one account can hold both the buyer and seller
+        // roles. See Home.php::_reset_lookup_error().
+        if (!user_has_role($owner['user']['id'], 'seller')) {
             $portal = reset_portal_for_role($owner['role']);
             $where  = !empty($portal['url'])
                 ? 'Please reset your password here: ' . base_url($portal['url'])
