@@ -85,7 +85,12 @@ $is_forgot_password = (isset($main_page) && strpos($main_page, 'forgot-password'
                         <span class="error-message error_forgot_mobile"></span>
                     </div>
                     <button type="submit" id="forgot_password_send_otp_btn" class="btn-login"><?= !empty($this->lang->line('send_otp')) ? $this->lang->line('send_otp') : 'Send OTP' ?></button>
-                    
+
+                    <?php // Firebase phone auth needs a reCAPTCHA host element to render into. ?>
+                    <?php if (($authentication_method ?? '') === 'firebase') { ?>
+                        <div id="recaptcha-forgot-password" class="mt-2"></div>
+                    <?php } ?>
+
                     <div class="signup-prompt">
                         <p>Remembered password?</p>
                         <button onclick="window.location.href='<?= base_url('seller/home/') ?>'" class="btn-create" type="button">Back to Login</button>
@@ -170,7 +175,36 @@ $is_forgot_password = (isset($main_page) && strpos($main_page, 'forgot-password'
 <?php if ($is_forgot_password) { ?>
     <!-- Load base scripts needed for forgot password page -->
     <?php $this->load->view('admin/include-script.php'); ?>
+
+    <?php $use_firebase = (($authentication_method ?? '') === 'firebase' && !empty($firebase_settings['apiKey'])); ?>
+    <?php if ($use_firebase) { ?>
+        <?php // Same SDK + config the seller REGISTRATION page already uses to send phone
+              // OTPs. This site has no SMS gateway (sms_gateway_settings is '{}'), so
+              // Firebase is how an SMS actually reaches the handset. The shared script
+              // suppresses the legacy server-side handlers below via
+              // stopImmediatePropagation(), so both can coexist and the server-side path
+              // still works if an SMS gateway is ever configured. ?>
+        <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+        <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+        <script src="<?= base_url() ?>firebase-config.js"></script>
+        <script>
+            window.FIREBASE_RESET_CONFIG = {
+                checkUrl: "<?= base_url('seller/login/check_reset_account') ?>",
+                resetUrl: "<?= base_url('seller/login/reset_password_firebase') ?>",
+                redirectUrl: "<?= base_url('seller/login') ?>",
+                recaptchaId: "recaptcha-forgot-password",
+                defaultDialCode: "+91"
+            };
+        </script>
+        <script src="<?= base_url('assets/firebase-password-reset.js') ?>"></script>
+    <?php } ?>
+
     <script>
+    $(document).ready(function () {
+
+        /* ------------------------------------------------------------------
+         * Server-side OTP reset (used when an SMS gateway IS configured).
+         * ------------------------------------------------------------------ */
         $(document).on("submit", "#send_forgot_password_otp_form", function(e) {
             e.preventDefault();
             var btn = $("#forgot_password_send_otp_btn"), t = btn.html();
@@ -217,6 +251,7 @@ $is_forgot_password = (isset($main_page) && strpos($main_page, 'forgot-password'
                 }
             });
         });
+    });
     </script>
 <?php } else { ?>
 <script>

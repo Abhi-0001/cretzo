@@ -2437,12 +2437,55 @@ function get_system_update_info()
     return $data;
 }
 
+/**
+ * Strip anything credential-shaped out of an SMTP debug dump so the reason a send failed
+ * can safely be written to the log.
+ *
+ * CI's print_debugger() replays the whole SMTP conversation, which includes the
+ * base64-encoded username and password sent during AUTH LOGIN. Those lines - and any
+ * literal copy of the configured password - are removed here.
+ */
+function redact_smtp_debug($debug, $config = [])
+{
+    $text = strip_tags((string) $debug);
+
+    // The two bare base64 lines that follow "AUTH LOGIN" are the username and password.
+    $text = preg_replace('/^\s*[A-Za-z0-9+\/]{16,}={0,2}\s*$/m', '[redacted]', $text);
+    $text = preg_replace('/(AUTH\s+LOGIN)[^\r\n]*/i', '$1 [redacted]', $text);
+
+    if (!empty($config['smtp_pass'])) {
+        $text = str_replace(
+            [$config['smtp_pass'], base64_encode($config['smtp_pass'])],
+            '[redacted]',
+            $text
+        );
+    }
+
+    // Keep it to the useful part - the server's refusal - not the whole transcript.
+    $text = preg_replace('/\s+/', ' ', $text);
+    return trim(mb_substr($text, 0, 500));
+}
+
 function send_mail($to, $subject, $message)
 {
     $t = &get_instance();
     $settings = get_settings('system_settings', true);
     $t->load->library('email');
     $config = $t->config->item('email_config');
+
+    // email_config is assembled at runtime by the MyConfig::get_email_settings hook from
+    // the settings table. If that row is missing or malformed the array is empty, and
+    // reading $config['smtp_user'] below raised an undefined-index warning that printed
+    // into the response body and corrupted the JSON callers were trying to parse.
+    if (empty($config) || !is_array($config) || empty($config['smtp_user'])) {
+        log_message('error', 'send_mail: email settings are not configured (admin > Email Settings).');
+        return [
+            'error'   => true,
+            'config'  => [],
+            'message' => 'Email is not configured. Set it up under Admin > Email Settings.',
+        ];
+    }
+
     $t->email->initialize($config);
     $t->email->set_newline("\r\n");
 
@@ -2458,6 +2501,11 @@ function send_mail($to, $subject, $message)
         $response['error'] = true;
         $response['config'] = $config;
         $response['message'] = $t->email->print_debugger();
+        // Without this the log said only "email channel failed" with no reason, so a
+        // failure like Gmail's "534-5.7.9 Application-specific password required" was
+        // invisible to whoever had to fix it.
+        $response['reason'] = redact_smtp_debug($response['message'], $config);
+        log_message('error', 'send_mail: delivery to ' . $to . ' failed - ' . $response['reason']);
     }
 
     return $response;
@@ -6120,8 +6168,30 @@ function verify_firebase_id_token($id_token)
         'uid'      => (string) $payload->sub,
         'email'    => isset($payload->email) ? strtolower(trim((string) $payload->email)) : '',
         'name'     => isset($payload->name) ? (string) $payload->name : '',
+        // Phone-auth tokens carry the number Firebase actually delivered the SMS to and
+        // saw confirmed. It is the only trustworthy statement that the caller controls
+        // that handset, so password reset binds to this rather than to a posted field.
+        'phone'    => isset($payload->phone_number) ? (string) $payload->phone_number : '',
         'provider' => $provider,
     ];
+}
+
+/**
+ * Reduce a phone number to comparable digits, dropping the +91/0 prefixes that differ
+ * between what Firebase returns (+919876543210) and what is stored in users.mobile
+ * (9876543210). Compares the last 10 digits, which is what the app stores.
+ */
+function phone_digits_match($a, $b)
+{
+    $norm = function ($v) {
+        $digits = preg_replace('/\D+/', '', (string) $v);
+        return strlen($digits) > 10 ? substr($digits, -10) : $digits;
+    };
+
+    $a = $norm($a);
+    $b = $norm($b);
+
+    return $a !== '' && $a === $b;
 }
 
 /**
@@ -6207,6 +6277,79 @@ function classify_mobile_owner($mobile)
 
     unset($rows[0]['group_name']);
     return ['exists' => true, 'user' => $rows[0], 'role' => $role];
+}
+
+/**
+ * Completes a password reset that was verified by Firebase phone auth.
+ *
+ * Shared by all three portals (customer, seller, admin) so the security checks cannot
+ * drift apart between them. This site has NO SMS gateway configured
+ * (settings.sms_gateway_settings is '{}') - `authentication_method` is "firebase", so the
+ * OTP SMS is sent and confirmed by Firebase in the browser. Everything the browser then
+ * claims is re-verified here.
+ *
+ * The checks, in order, and why each one matters:
+ *   1. The ID token's RS256 signature, audience, issuer and expiry are validated against
+ *      our own Firebase project.
+ *   2. The sign-in provider must literally be 'phone'. A Google/Facebook/email token is
+ *      also a perfectly valid token for this project, and without this check one could be
+ *      replayed here to reset an account whose phone the holder does not control.
+ *   3. The phone number is taken from the VERIFIED token, never from the request body,
+ *      and must match the account being reset.
+ *   4. The account must actually belong to the portal doing the reset, so a customer
+ *      cannot be reset through the admin endpoint or vice versa.
+ *
+ * @param string $id_token      Firebase ID token from the client.
+ * @param string $mobile        Number the caller says it is resetting.
+ * @param string $new_password  Replacement password.
+ * @param string $expected_role 'customer' | 'seller' | 'admin' | 'delivery_boy'
+ * @return array ['error' => bool, 'message' => string]
+ */
+function firebase_phone_reset($id_token, $mobile, $new_password, $expected_role)
+{
+    $t = &get_instance();
+
+    $verified = verify_firebase_id_token($id_token);
+    if (!empty($verified['error'])) {
+        return ['error' => true, 'message' => $verified['message']];
+    }
+
+    if ($verified['provider'] !== 'phone' || empty($verified['phone'])) {
+        return ['error' => true, 'message' => 'Please verify your mobile number to reset your password.'];
+    }
+
+    if (!phone_digits_match($verified['phone'], $mobile)) {
+        return ['error' => true, 'message' => 'The verified mobile number does not match the account you are resetting.'];
+    }
+
+    $owner = classify_mobile_owner($mobile);
+    if (empty($owner['exists'])) {
+        return ['error' => true, 'message' => 'You have not registered using this number.'];
+    }
+
+    if ($owner['role'] !== $expected_role) {
+        $portal = reset_portal_for_role($owner['role']);
+        $where  = !empty($portal['url'])
+            ? 'Please reset your password here: ' . base_url($portal['url'])
+            : 'Please reset your password from the customer login on the main site.';
+        return ['error' => true, 'message' => 'This number is registered as ' . $portal['label'] . '. ' . $where];
+    }
+
+    $user = $owner['user'];
+    $identity_column = $t->config->item('identity', 'ion_auth');
+    $identity = ($identity_column == 'email') ? $user['email'] : $user['mobile'];
+
+    if (!$t->ion_auth->reset_password($identity, $new_password)) {
+        return ['error' => true, 'message' => strip_tags((string) $t->ion_auth->errors())];
+    }
+
+    // Burn any pending server-side OTP for this number so an older code cannot be
+    // replayed against the account afterwards.
+    if (is_exist(['mobile' => $mobile], 'otps')) {
+        update_details(['otp' => null, 'varified' => 0], ['mobile' => $mobile], 'otps');
+    }
+
+    return ['error' => false, 'message' => 'Reset Password Successfully'];
 }
 
 /**
@@ -6363,10 +6506,11 @@ function send_password_reset_otp($mobile, $user = null)
                 'message' => 'OTP sent to your registered email ' . mask_email_for_display($email) . '.',
             ];
         }
-        // NB: log only the flag/subject - send_mail() returns the raw SMTP config
-        // (including the mailbox password) in $mail['config'], which must never be
-        // logged or echoed back to the browser.
-        log_message('error', 'send_password_reset_otp: email channel failed for ' . $mobile);
+        // NB: never log $mail['config'] - it holds the raw SMTP settings including the
+        // mailbox password. $mail['reason'] is the redacted server response, which is the
+        // part that actually says WHY (bad credentials, blocked port, quota, ...).
+        log_message('error', 'send_password_reset_otp: email channel failed for ' . $mobile
+            . ' - ' . (!empty($mail['reason']) ? $mail['reason'] : 'no reason reported'));
         $failures[] = 'email';
     }
 

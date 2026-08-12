@@ -77,6 +77,31 @@ $path = ($is_rtl == 1) ? 'rtl/' : "";
 <meta name="csrf-token-name" content="<?= $this->security->get_csrf_token_name() ?>">
 <meta name="csrf-token-hash" content="<?= $this->security->get_csrf_hash() ?>">
 <script src="<?= add_ver(base_url('assets/csrf-guard.js')) ?>"></script>
+
+<?php
+// Firebase phone-OTP password reset. This site has no SMS gateway configured, so the
+// storefront's "Forgot Password" modal could never deliver an OTP through the old
+// server-side path. Loaded HERE, in the head, on purpose: it must bind its submit
+// handlers before the theme bundle binds the legacy ones, so its
+// stopImmediatePropagation() can suppress them.
+$fb_auth = get_settings('authentication_settings', true);
+$fb_conf = get_settings('firebase_settings', true);
+if (!empty($fb_auth['authentication_method']) && $fb_auth['authentication_method'] === 'firebase' && !empty($fb_conf['apiKey'])) :
+?>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="<?= base_url() ?>firebase-config.js"></script>
+    <script>
+        window.FIREBASE_RESET_CONFIG = {
+            checkUrl: "<?= base_url('home/check_reset_account') ?>",
+            resetUrl: "<?= base_url('home/reset_password_firebase') ?>",
+            redirectUrl: "",
+            recaptchaId: "recaptcha-password-reset",
+            defaultDialCode: "+91"
+        };
+    </script>
+    <script src="<?= add_ver(base_url('assets/firebase-password-reset.js')) ?>"></script>
+<?php endif; ?>
 <!-- Date Range Picker -->
 <script src="<?= add_ver(THEME_ASSETS_URL . 'js/moment.min.js') ?>"></script>
 <script src="<?= add_ver(THEME_ASSETS_URL . 'js/daterangepicker.js') ?>"></script>

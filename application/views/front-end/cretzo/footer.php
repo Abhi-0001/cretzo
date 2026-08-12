@@ -318,6 +318,8 @@ $system_settings = get_settings('system_settings', true); ?>
                                     <input type="text" class="form-control input ta-c" name="mobile_number" id="forgot_password_number" placeholder="Mobile Number" value="">
                                 </div>
                                 <div class="form-group ta-c" id="forgot_pass_error_box"></div>
+                                <?php // Firebase phone auth renders its invisible reCAPTCHA here. ?>
+                                <div id="recaptcha-password-reset"></div>
                                 <div class="ta-c btn-container">
                                     <button type="submit" id="forgot_password_send_otp_btn" class="submit_btn cretzo btn btn-dark"><?= !empty($this->lang->line('send_otp')) ? $this->lang->line('send_otp') : 'Send OTP' ?></button>
                                 </div>

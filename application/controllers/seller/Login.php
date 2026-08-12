@@ -741,6 +741,14 @@ class Login extends CI_Controller
         $this->data['title'] = 'Forgot Password | ' . $settings['app_name'];
         $this->data['meta_description'] = 'Forget Password | ' . $settings['app_name'];
         $this->data['logo'] = get_settings('logo');
+        // Which OTP channel this site actually uses. With 'firebase' the OTP SMS is sent
+        // and confirmed by Firebase in the browser (same as seller registration); the
+        // server-side send_sms() path only applies when an SMS gateway is configured.
+        $auth_settings = get_settings('authentication_settings', true);
+        $this->data['authentication_method'] = !empty($auth_settings['authentication_method'])
+            ? $auth_settings['authentication_method']
+            : 'sms';
+        $this->data['firebase_settings'] = get_settings('firebase_settings', true);
         $this->load->view('seller/login', $this->data);
     }
 
@@ -771,6 +779,33 @@ class Login extends CI_Controller
             return 'This number is registered as ' . $portal['label'] . ', not a seller account. ' . $where;
         }
         return null;
+    }
+
+    /**
+     * Confirms a mobile number belongs to a seller account, without sending anything.
+     *
+     * Used by the Firebase reset flow before it asks Firebase to send an SMS: Firebase
+     * OTPs are metered and rate-limited per number, so there is no sense burning one on a
+     * number that isn't registered - and it keeps the existing "this is a customer
+     * account, reset it here instead" guidance, which would otherwise be lost now that the
+     * server no longer drives the send.
+     */
+    public function check_reset_account()
+    {
+        $this->form_validation->set_rules('mobile_number', 'Mobile No', 'trim|numeric|required|xss_clean|max_length[16]');
+        if (!$this->form_validation->run()) {
+            echo json_encode(['error' => true, 'message' => strip_tags(validation_errors())]);
+            return false;
+        }
+
+        $lookup_error = $this->_reset_lookup_error($this->input->post('mobile_number'));
+        if ($lookup_error !== null) {
+            echo json_encode(['error' => true, 'message' => $lookup_error]);
+            return false;
+        }
+
+        echo json_encode(['error' => false, 'message' => 'Account found.']);
+        return false;
     }
 
     public function send_reset_otp()
@@ -846,6 +881,47 @@ class Login extends CI_Controller
             $response['message'] = 'Reset Password Successfully';
         }
         echo json_encode($response);
+        return false;
+    }
+
+    /**
+     * Password reset for sites whose authentication_method is "firebase".
+     *
+     * This site has NO SMS gateway configured (settings.sms_gateway_settings is '{}') and
+     * never has - phone OTPs are minted client-side by Firebase phone auth, which is what
+     * seller REGISTRATION already uses. Password reset, however, only ever knew about the
+     * server-side send_sms() path plus an email fallback, so on this configuration it had
+     * no way to deliver anything to a mobile number and always ended in "We could not
+     * deliver your OTP right now".
+     *
+     * Here the OTP is sent and confirmed by Firebase on the client; the browser then posts
+     * the resulting ID token, which we verify server-side. Nothing the client claims is
+     * trusted: the phone number is read out of the *verified* token, the sign-in provider
+     * must actually be 'phone' (so an email/Facebook token cannot be replayed here), and
+     * the reset only proceeds for the seller who owns that number.
+     */
+    public function reset_password_firebase()
+    {
+        $this->form_validation->set_rules('mobile_number', 'Mobile No', 'trim|numeric|required|xss_clean|max_length[16]');
+        $this->form_validation->set_rules('id_token', 'Verification token', 'trim|required|xss_clean');
+        $this->form_validation->set_rules('new_password', 'New Password', 'trim|required|min_length[6]|xss_clean');
+        if (!$this->form_validation->run()) {
+            $response['error'] = true;
+            $response['message'] = strip_tags(validation_errors());
+            echo json_encode($response);
+            return false;
+        }
+
+        // All the verification lives in firebase_phone_reset() so the seller, customer and
+        // admin portals cannot drift apart on it.
+        $result = firebase_phone_reset(
+            $this->input->post('id_token', false),
+            $this->input->post('mobile_number', true),
+            $this->input->post('new_password'),
+            'seller'
+        );
+
+        echo json_encode($result);
         return false;
     }
 }

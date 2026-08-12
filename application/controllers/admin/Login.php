@@ -50,7 +50,62 @@ class Login extends CI_Controller
         $this->data['title'] = 'Forgot Password | ' . $settings['app_name'];
         $this->data['meta_description'] = 'Forget Password | ' . $settings['app_name'];
         $this->data['logo'] = get_settings('logo');
+        // Which OTP channel this site actually uses. With 'firebase' the OTP SMS is sent
+        // and confirmed by Firebase in the browser; the server-side send_sms() path only
+        // applies when an SMS gateway is configured.
+        $auth_settings = get_settings('authentication_settings', true);
+        $this->data['authentication_method'] = !empty($auth_settings['authentication_method'])
+            ? $auth_settings['authentication_method']
+            : 'sms';
+        $this->data['firebase_settings'] = get_settings('firebase_settings', true);
         $this->load->view('admin/login', $this->data);
+    }
+
+    /**
+     * Confirms a mobile number belongs to an admin account, without sending anything.
+     * See seller/Login.php::check_reset_account() for why this exists.
+     */
+    public function check_reset_account()
+    {
+        $this->form_validation->set_rules('mobile_number', 'Mobile No', 'trim|numeric|required|xss_clean|max_length[16]');
+        if (!$this->form_validation->run()) {
+            echo json_encode(['error' => true, 'message' => strip_tags(validation_errors())]);
+            return false;
+        }
+
+        $lookup_error = $this->_reset_lookup_error($this->input->post('mobile_number'));
+        if ($lookup_error !== null) {
+            echo json_encode(['error' => true, 'message' => $lookup_error]);
+            return false;
+        }
+
+        echo json_encode(['error' => false, 'message' => 'Account found.']);
+        return false;
+    }
+
+    /**
+     * Admin password reset verified by Firebase phone auth - the channel this site is
+     * actually configured for (authentication_method = "firebase", no SMS gateway).
+     */
+    public function reset_password_firebase()
+    {
+        $this->form_validation->set_rules('mobile_number', 'Mobile No', 'trim|numeric|required|xss_clean|max_length[16]');
+        $this->form_validation->set_rules('id_token', 'Verification token', 'trim|required|xss_clean');
+        $this->form_validation->set_rules('new_password', 'New Password', 'trim|required|min_length[6]|xss_clean');
+        if (!$this->form_validation->run()) {
+            echo json_encode(['error' => true, 'message' => strip_tags(validation_errors())]);
+            return false;
+        }
+
+        $result = firebase_phone_reset(
+            $this->input->post('id_token', false),
+            $this->input->post('mobile_number', true),
+            $this->input->post('new_password'),
+            'admin'
+        );
+
+        echo json_encode($result);
+        return false;
     }
 
     public function update_user()
