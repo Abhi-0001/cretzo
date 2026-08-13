@@ -353,10 +353,9 @@ class Product extends CI_Controller
             }
             $product_id = (int) $_GET['id'];
 
-            if (delete_details(['product_id' => $product_id], 'product_variants')) {
-
-                delete_details(['id' => $product_id], 'products');
-                delete_details(['product_id' => $product_id], 'product_attributes');
+            // Also clears cart/favorites/faqs/ratings - see delete_product_cascade().
+            $this->load->model('product_model');
+            if ($this->product_model->delete_product_cascade($product_id)) {
                 $response['error'] = false;
                 $response['message'] = 'Deleted Successfully';
             } else {

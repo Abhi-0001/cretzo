@@ -293,10 +293,9 @@ class Product extends CI_Controller
                 print_r(json_encode($response));
                 return false;
             }
-            if (delete_details(['product_id' => $_GET['id']], 'product_variants')) {
-
-                delete_details(['id' => $_GET['id'], 'seller_id' => $seller_id], 'products');
-                delete_details(['product_id' => $_GET['id']], 'product_attributes');
+            // Also clears cart/favorites/faqs/ratings, which the old three-table delete left
+            // orphaned - see Product_model::delete_product_cascade().
+            if ($this->product_model->delete_product_cascade($_GET['id'], $seller_id)) {
                 $response['error'] = false;
                 $response['message'] = 'Deleted Succesfully';
             } else {
@@ -469,8 +468,17 @@ class Product extends CI_Controller
         // Product type specific validation
     
         if ($product_type == 'simple_product' || $product_type == 'digital_product') {
-            $this->form_validation->set_rules('simple_price', 'Price', 'trim|required|numeric|xss_clean');
-            $this->form_validation->set_rules('simple_special_price', 'Special Price', 'trim|numeric|xss_clean');
+            // Prices were validated as 'numeric' only - which accepts a NEGATIVE price, and
+            // allows a special ("offer") price ABOVE the regular price, i.e. a discount that
+            // is really an increase. The seller API already enforced both of these bounds;
+            // the web panel did not, so the same product was constrained differently
+            // depending on where it was created.
+            $this->form_validation->set_rules('simple_price', 'Price', 'trim|required|numeric|greater_than_equal_to[0]|xss_clean');
+            $this->form_validation->set_rules(
+                'simple_special_price',
+                'Special Price',
+                'trim|numeric|greater_than_equal_to[0]|less_than_equal_to[' . (float) $this->input->post('simple_price') . ']|xss_clean'
+            );
     
             if (isset($_POST['simple_product_stock_status']) && in_array($_POST['simple_product_stock_status'], ['0', '1'])) {
                 $this->form_validation->set_rules('product_sku', 'SKU', 'trim|xss_clean');
@@ -489,15 +497,15 @@ class Product extends CI_Controller
     
                     if (isset($_POST['variant_price']) && is_array($_POST['variant_price'])) {
                         foreach ($_POST['variant_price'] as $key => $value) {
-                            $this->form_validation->set_rules('variant_price[' . $key . ']', 'Price', 'trim|required|numeric|xss_clean');
-                            $this->form_validation->set_rules('variant_special_price[' . $key . ']', 'Special Price', 'trim|numeric|xss_clean');
+                            $this->form_validation->set_rules('variant_price[' . $key . ']', 'Price', 'trim|required|numeric|greater_than_equal_to[0]|xss_clean');
+                            $this->form_validation->set_rules('variant_special_price[' . $key . ']', 'Special Price', 'trim|numeric|greater_than_equal_to[0]|less_than_equal_to[' . (float) $this->input->post('variant_price[' . $key . ']') . ']|xss_clean');
                         }
                     }
                 } else {
                     if (isset($_POST['variant_price']) && is_array($_POST['variant_price'])) {
                         foreach ($_POST['variant_price'] as $key => $value) {
-                            $this->form_validation->set_rules('variant_price[' . $key . ']', 'Price', 'trim|required|numeric|xss_clean');
-                            $this->form_validation->set_rules('variant_special_price[' . $key . ']', 'Special Price', 'trim|numeric|xss_clean');
+                            $this->form_validation->set_rules('variant_price[' . $key . ']', 'Price', 'trim|required|numeric|greater_than_equal_to[0]|xss_clean');
+                            $this->form_validation->set_rules('variant_special_price[' . $key . ']', 'Special Price', 'trim|numeric|greater_than_equal_to[0]|less_than_equal_to[' . (float) $this->input->post('variant_price[' . $key . ']') . ']|xss_clean');
                             $this->form_validation->set_rules('variant_sku[' . $key . ']', 'SKU', 'trim|xss_clean');
                             $this->form_validation->set_rules('variant_total_stock[' . $key . ']', 'Total Stock', 'trim|required|numeric|xss_clean');
                             $this->form_validation->set_rules('variant_level_stock_status[' . $key . ']', 'Stock Status', 'trim|required|numeric|xss_clean');
@@ -507,8 +515,8 @@ class Product extends CI_Controller
             } else {
                 if (isset($_POST['variant_price']) && is_array($_POST['variant_price'])) {
                     foreach ($_POST['variant_price'] as $key => $value) {
-                        $this->form_validation->set_rules('variant_price[' . $key . ']', 'Price', 'trim|required|numeric|xss_clean');
-                        $this->form_validation->set_rules('variant_special_price[' . $key . ']', 'Special Price', 'trim|numeric|xss_clean');
+                        $this->form_validation->set_rules('variant_price[' . $key . ']', 'Price', 'trim|required|numeric|greater_than_equal_to[0]|xss_clean');
+                        $this->form_validation->set_rules('variant_special_price[' . $key . ']', 'Special Price', 'trim|numeric|greater_than_equal_to[0]|less_than_equal_to[' . (float) $this->input->post('variant_price[' . $key . ']') . ']|xss_clean');
                     }
                 }
             }
@@ -532,10 +540,35 @@ class Product extends CI_Controller
              $_POST['zipcodes'] = NULL;
          }
      
+         // A seller must never dictate their own product's approval status. $_POST is handed
+         // to add_product() wholesale, and the model treats a supplied `status` as
+         // authoritative when editing - so a seller whose account is set to
+         // "Require Product's Approval" could simply POST status=1 alongside an edit and
+         // publish their own product without review. The model already falls back to the
+         // row's existing status (new products) or the admin-configured approval rule, which
+         // is what should decide this.
+         unset($_POST['status']);
+
          // Save product
-         $this->product_model->add_product($_POST);
+         $new_product_id = $this->product_model->add_product($_POST);
 
          $message = isset($_POST['edit_product_id']) ? 'Product Updated Successfully' : 'Product Added Successfully';
+
+         // Say so when the product is NOT live yet. Unless admin has ticked "Require
+         // Product's Approval = off" for this seller, a new product is saved at status 2
+         // and the storefront (which requires status 1) never shows it. The seller was told
+         // only "Product Added Successfully" and then had no way to understand why their
+         // product never appeared - most sellers have no permissions row at all, so this is
+         // the default path, not an edge case.
+         $check_id = isset($_POST['edit_product_id']) && !empty($_POST['edit_product_id'])
+             ? $_POST['edit_product_id']
+             : $new_product_id;
+         if (!empty($check_id)) {
+             $saved = fetch_details('products', ['id' => $check_id], 'status');
+             if (!empty($saved) && (string) $saved[0]['status'] === '2') {
+                 $message .= '. It is pending admin approval and will appear in the store once approved.';
+             }
+         }
 
         // Add this line to store the message in the session
         $this->session->set_flashdata('message', $message);

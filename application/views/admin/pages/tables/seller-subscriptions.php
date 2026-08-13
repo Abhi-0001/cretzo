@@ -58,6 +58,30 @@
                 </div>
             </div>
 
+            <?php if (!empty($attention['no_plan']) || !empty($attention['missing_expiry'])) : ?>
+                <div class="alert alert-warning mss-attention mb-3">
+                    <h6 class="mb-2"><i class="fas fa-triangle-exclamation mr-2"></i>Some sellers need attention</h6>
+                    <ul class="mb-2 pl-3 small">
+                        <?php if (!empty($attention['no_plan'])) : ?>
+                            <li>
+                                <strong><?= (int) $attention['no_plan'] ?></strong> seller(s) have <strong>no plan assigned</strong>.
+                                Nothing caps their listings &mdash; that is why they show &ldquo;No plan&rdquo; rather than a limit.
+                                Put them on a plan with <em>Manage &rarr; Assign</em>.
+                            </li>
+                        <?php endif; ?>
+                        <?php if (!empty($attention['missing_expiry'])) : ?>
+                            <li>
+                                <strong><?= (int) $attention['missing_expiry'] ?></strong> subscription(s) are on a plan that
+                                <strong>has a validity period but no saved expiry date</strong> (shown as &ldquo;Not set&rdquo;).
+                                These never expire today. Run <code>admin/migrate</code> once to backfill them,
+                                or re-assign the plan from <em>Manage</em>.
+                            </li>
+                        <?php endif; ?>
+                    </ul>
+                    <button type="button" class="btn btn-sm btn-outline-dark" id="mss-show-attention">Show only these sellers</button>
+                </div>
+            <?php endif; ?>
+
             <div class="row">
                 <div class="col-md-12">
                     <div class="card attribute-card">
@@ -71,6 +95,7 @@
                                     <option value="Active">Active</option>
                                     <option value="Expired">Expired</option>
                                     <option value="None">No subscription</option>
+                                    <option value="needs_attention">Needs attention</option>
                                 </select>
                             </div>
                         </div>
@@ -233,6 +258,12 @@ $(document).ready(function () {
     }
 
     $('#mss-status-filter').on('change', mssRefreshTable);
+
+    $('#mss-show-attention').on('click', function () {
+        $('#mss-status-filter').val('needs_attention');
+        mssRefreshTable();
+        $('html, body').animate({ scrollTop: $('#mss-table').offset().top - 80 }, 300);
+    });
 
     $(document).on('click', '.manage-subscription-btn', function () {
         var sellerId = $(this).data('seller-id');

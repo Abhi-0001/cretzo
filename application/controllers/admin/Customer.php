@@ -100,6 +100,13 @@ class Customer extends CI_Controller
                 if (empty($is_customer)) {
                     $this->response['error'] = true;
                     $this->response['message'] = 'Customer not found.';
+                } elseif (user_has_role($user_id, 'seller') || user_has_role($user_id, 'admin')) {
+                    // Sellers and admins now also hold the buyer role on the same account
+                    // (one mobile = one account, several roles), so "is in group 2" alone no
+                    // longer proves this is *only* a customer - without this check, deleting
+                    // a "customer" here would destroy a seller's or admin's whole account.
+                    $this->response['error'] = true;
+                    $this->response['message'] = 'This account is also a seller or admin account. Delete it from the Sellers / System Users screen instead.';
                 } else {
                     $this->Customer_model->delete_customer($user_id);
                     $this->response['error'] = false;

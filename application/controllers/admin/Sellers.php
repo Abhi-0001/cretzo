@@ -187,10 +187,21 @@ class Sellers extends CI_Controller
             $seller_media = fetch_details('seller_data', ['user_id' => $id], 'id,logo,authorized_signature,national_identity_card,address_proof');
 
             if (!empty($seller_media)) {
-                unlink(FCPATH . $seller_media[0]['logo']);
-                unlink(FCPATH . $seller_media[0]['national_identity_card']);
-                unlink(FCPATH . $seller_media[0]['address_proof']);
-                unlink(FCPATH . $seller_media[0]['authorized_signature']);
+                // Every one of these columns is optional, and most sellers have at least one
+                // empty. FCPATH . '' resolves to the application root, so unlink() was being
+                // called on a DIRECTORY and emitted four warnings that printed straight into
+                // the response body - which broke the JSON the admin UI parses, so a delete
+                // that actually succeeded still reported an error in the browser.
+                foreach (['logo', 'national_identity_card', 'address_proof', 'authorized_signature'] as $media_field) {
+                    $path = isset($seller_media[0][$media_field]) ? trim((string) $seller_media[0][$media_field]) : '';
+                    if ($path === '') {
+                        continue;
+                    }
+                    $full = FCPATH . $path;
+                    if (is_file($full)) {
+                        @unlink($full);
+                    }
+                }
             }
 
             if (update_details(['seller_id' => 0], ['seller_id' => $id], 'media')) {
@@ -206,7 +217,12 @@ class Sellers extends CI_Controller
                 return;
                 exit();
             }
+            // fetch_details() returns NULL (not []) when the seller has no products, so the
+            // foreach below raised "foreach() argument must be of type array|object, null
+            // given" for every seller without a catalogue - another warning printed into the
+            // JSON body.
             $pr_ids = fetch_details("products", ['seller_id' => $id], "id");
+            $pr_ids = !empty($pr_ids) ? $pr_ids : [];
             if (delete_details(['seller_id' => $id], 'products')) {
                 $delete['products'] = 1;
             }
@@ -259,13 +275,40 @@ class Sellers extends CI_Controller
                 $delete['seller_data'] = 1;
             }
 
+            // This used to only flip users_groups from 4 (seller) to 2 (customer) and leave
+            // the `users` row in place. The seller vanished from the admin list, so it read
+            // as a deletion - but the account still existed, so its mobile number stayed
+            // taken and signing up again with it was refused as "already registered". That
+            // mismatch is exactly what admins were hitting.
+            //
+            // "Remove Seller" (remove_sellers(), status 7) is the reversible action; this
+            // one is labelled Delete, so it now really deletes the account and frees the
+            // number - unless the account is also an admin, which must never be destroyed
+            // through the seller screen.
+            if (user_has_role($id, 'admin')) {
+                $this->response['error'] = true;
+                $this->response['message'] = 'This account also has admin access, so it cannot be deleted from here. Remove the admin role first.';
+                print_r(json_encode($this->response));
+                return;
+            }
+
             $deleted = FALSE;
             if (isset($delete['seller_data']) && !empty($delete['seller_data']) && isset($delete['seller_commission']) && !empty($delete['seller_commission'])) {
                 $deleted = TRUE;
             }
-            if (update_details(['group_id' => '2'], ['user_id' => $id, 'group_id' => 4], 'users_groups') == TRUE && $deleted == TRUE) {
+
+            // Rows keyed on the seller that would otherwise be left pointing at a user id
+            // that no longer exists. seller_subscriptions is the one that actually bit us:
+            // an orphan there still counted towards the 100-vendor launch-offer cap.
+            delete_details(['seller_id' => $id], 'seller_subscriptions');
+            delete_details(['user_id' => $id], 'addresses');
+            delete_details(['user_id' => $id], 'cart');
+            delete_details(['user_id' => $id], 'favorites');
+            delete_details(['user_id' => $id], 'users_groups');
+
+            if (delete_details(['id' => $id], 'users')) {
                 $this->response['error'] = false;
-                $this->response['message'] = 'Seller deleted from seller succesfully';
+                $this->response['message'] = 'Seller deleted successfully. This mobile number is now free to register again.';
                 print_r(json_encode($this->response));
             } else {
                 $this->response['error'] = true;

@@ -2773,7 +2773,11 @@ Defined Methods:-
         $posted_edit_product_id = $this->input->post('edit_product_id', true);
         $edit_status = (!empty($posted_edit_product_id)) ? fetch_details('products', ['id' => $posted_edit_product_id], 'status') : [];
         $require_products_approval = (!empty($edit_status) && isset($edit_status[0]['status'])) ? $edit_status[0]['status'] : null;
-        $_POST['status'] = (isset($_POST['status']) && ($_POST['status'] != '')) ? $this->input->post('status', true) : $require_products_approval;
+        // The product's status is NOT the seller's to set. This previously preferred a
+        // posted `status` over the row's real one, so a seller whose account requires
+        // product approval could publish their own edit by posting status=1. Always keep
+        // whatever the row already has; admin approval is the only thing that changes it.
+        $_POST['status'] = $require_products_approval;
 
 
         if (isset($_POST['is_cancelable']) && $_POST['is_cancelable'] == '1') {
@@ -3646,7 +3650,12 @@ Defined Methods:-
         }
 
         $this->form_validation->set_rules('product_id', 'Product ID', 'trim|required|numeric|xss_clean');
-        $this->form_validation->set_rules('status', 'Status', 'trim|required|numeric|xss_clean');
+        // Whitelisted to the two values this endpoint documents (1 active / 0 de-active).
+        // 'numeric' alone let a seller post ANY status - including 1 on a product that was
+        // sitting at 2 awaiting admin approval, i.e. approving their own listing, and
+        // arbitrary values like 7 (the soft-removed marker) that nothing else expects.
+        $this->form_validation->set_rules('status', 'Status', 'trim|required|in_list[0,1]|xss_clean');
+        $this->form_validation->set_rules('seller_id', 'Seller ID', 'trim|required|numeric|xss_clean');
         if (!$this->form_validation->run()) {
             $this->response['error'] = true;
             $this->response['message'] = strip_tags(validation_errors());
@@ -3656,7 +3665,31 @@ Defined Methods:-
         } else {
             $status = $this->input->post("status", true);
             $product_id = $this->input->post("product_id", true);
-            if (update_details(['status' => $status], ['id' => $product_id], "products")) {
+            $seller_id = $this->input->post("seller_id", true);
+
+            // OWNERSHIP. There was no check at all here: the product id was taken straight
+            // from the request, so one seller could de-activate (or re-activate) any other
+            // seller's products - their entire catalogue - just by iterating ids.
+            $owned = fetch_details('products', ['id' => $product_id, 'seller_id' => $seller_id], 'id,status');
+            if (empty($owned)) {
+                $this->response['error'] = true;
+                $this->response['message'] = "Product not found";
+                $this->response['data'] = array();
+                echo json_encode($this->response);
+                return;
+            }
+
+            // A product still pending admin approval (status 2) must not be flipped live
+            // from the seller side; only admin moves it out of that state.
+            if ((string) $owned[0]['status'] === '2') {
+                $this->response['error'] = true;
+                $this->response['message'] = "This product is awaiting admin approval and cannot be activated yet.";
+                $this->response['data'] = array();
+                echo json_encode($this->response);
+                return;
+            }
+
+            if (update_details(['status' => $status], ['id' => $product_id, 'seller_id' => $seller_id], "products")) {
                 $this->response['error'] = false;
                 $this->response['message'] = "Status Updated Successfully";
                 $this->response['data'] = [];

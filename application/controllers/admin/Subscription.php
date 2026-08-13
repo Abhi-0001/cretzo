@@ -35,6 +35,27 @@ class Subscription extends CI_Controller
             $this->data['meta_description'] = 'Seller Subscriptions | ' . $settings['app_name'];
             $this->data['plans'] = $this->Subscription_model->get_plans();
             $this->data['launch_offer'] = $this->Seller_subscription_model->get_launch_offer_stats();
+
+            // Counters for the "needs attention" strip, so the two silent data problems
+            // (no plan assigned / term-limited plan with no expiry saved) are visible
+            // without the admin having to read every row.
+            $all_rows = $this->Seller_subscription_model->get_all_seller_subscription_status();
+            $no_plan = 0;
+            $missing_expiry = 0;
+            foreach ($all_rows as $r) {
+                if (!empty($r['no_plan'])) {
+                    $no_plan++;
+                }
+                if (!empty($r['missing_expiry'])) {
+                    $missing_expiry++;
+                }
+            }
+            $this->data['attention'] = [
+                'no_plan'        => $no_plan,
+                'missing_expiry' => $missing_expiry,
+                'total'          => count($all_rows),
+            ];
+
             $this->load->view('admin/template', $this->data);
         } else {
             redirect('admin/login', 'refresh');
@@ -55,7 +76,13 @@ class Subscription extends CI_Controller
         $rows = $this->Seller_subscription_model->get_all_seller_subscription_status();
         $result = [];
         foreach ($rows as $row) {
-            if (!empty($status_filter) && strcasecmp($row['status'], $status_filter) !== 0) {
+            if ($status_filter === 'needs_attention') {
+                // Rows an admin actually has to do something about: no plan assigned, or a
+                // term-limited plan with no expiry recorded.
+                if (empty($row['no_plan']) && empty($row['missing_expiry'])) {
+                    continue;
+                }
+            } elseif (!empty($status_filter) && strcasecmp($row['status'], $status_filter) !== 0) {
                 continue;
             }
 
@@ -69,10 +96,27 @@ class Subscription extends CI_Controller
 
             $row['plan_type'] = '<span class="badge badge-' . ($row['plan_type'] === 'Paid' ? 'info' : 'light') . '">' . $row['plan_type'] . '</span>';
 
+            // "Not set" means the plan has a term but no end_date was ever written - a data
+            // gap, not a lifetime subscription. Flag it so it reads as something to fix
+            // rather than as a normal state.
+            if ($row['expiry'] === 'Not set') {
+                $row['expiry'] = '<span class="badge badge-warning" title="This plan has a validity period but no expiry date was saved. Run admin/migrate to backfill, or use Manage > Assign to restart the plan.">Not set</span>';
+                $row['days_left'] = '<span class="text-warning font-weight-bold">Not set</span>';
+            } elseif ($row['expiry'] === 'Never') {
+                $row['expiry'] = '<span class="text-muted" title="This plan has no validity period configured, so it does not expire.">Never</span>';
+            }
+
             // Usage reads as "12 / 50", flagged red once the seller is over the cap they
-            // are currently entitled to (possible after an admin-side downgrade).
+            // are currently entitled to (possible after an admin-side downgrade), and amber
+            // when there is no plan at all - uncapped by omission rather than by design.
             $usage = $row['used'] . ' / ' . $row['limit'];
-            $row['usage'] = $row['over_limit'] ? '<span class="text-danger font-weight-bold">' . $usage . '</span>' : $usage;
+            if ($row['over_limit']) {
+                $row['usage'] = '<span class="text-danger font-weight-bold">' . $usage . '</span>';
+            } elseif (!empty($row['no_plan'])) {
+                $row['usage'] = '<span class="text-warning" title="No subscription assigned, so nothing caps this seller\'s listings. Use Manage > Assign to put them on a plan.">' . $usage . '</span>';
+            } else {
+                $row['usage'] = $usage;
+            }
 
             $row['last_payment'] = ($row['last_payment'] === '' || $row['last_payment'] === null)
                 ? '<span class="text-muted">-</span>'
