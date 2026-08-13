@@ -52,7 +52,12 @@ class Migration_subscriptions extends CI_Migration
         ]);
 
         $this->dbforge->add_key('id', TRUE);
-        $this->dbforge->create_table('subscriptions');
+        // TRUE = "IF NOT EXISTS". Without it this migration dies with
+        // "Error Number: 1050 Table 'subscriptions' already exists" on any install where
+        // the table was created outside the migration runner (a restored dump, or a manual
+        // CREATE) - which leaves the whole migration run stuck at 016 and blocks every
+        // later migration from ever being applied. Matches 017/024, which already do this.
+        $this->dbforge->create_table('subscriptions', TRUE);
     }
 
     public function down()

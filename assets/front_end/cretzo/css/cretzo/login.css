@@ -92,11 +92,28 @@
 #forgot_password_div .field-container .intl-tel-input {
     width: 100%;
 }
-#forgot_password_div .field-container .selected-flag {
-    width: 96px;
-}
+
+/*
+ * The country flag is drawn as an absolutely-positioned sprite at the left edge of
+ * .selected-flag, and intlTelInput.css reserves room for it by giving
+ * .selected-dial-code `padding-left: 28px`. This file used to override that to 8px,
+ * which pulled the dial code left ON TOP of the flag - so the flag looked washed out
+ * and the country code looked like it was overlapping it.
+ *
+ * The companion `.selected-flag { width: 96px }` override is gone too: the library sets
+ * that width itself per dial-code length (.iti-sdc-2/3/4 -> 70/93/86px) and pairs it with
+ * a matching padding-left on the input. Hardcoding one side of that pair put the two out
+ * of step, so the typed number could sit under the dial code for some countries.
+ */
 #forgot_password_div .field-container .selected-dial-code {
-    padding-left: 8px;
+    padding-left: 28px;
+}
+
+/* The markup gives this input .ta-c (text-align:center). With a separate dial code the
+   centred number drifts toward the dial code on narrow widths; left-aligning keeps a
+   clean gap between the two. */
+#forgot_password_div .field-container input#forgot_password_number {
+    text-align: left;
 }
 
 

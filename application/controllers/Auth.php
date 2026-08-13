@@ -1148,29 +1148,19 @@ class Auth extends CI_Controller
             return;
         } else {
 
-            // Role-aware duplicate message. This used to be a flat "Mobile is already
-            // registered.Please try to login !" for ANY match, which is what made the
-            // reported contradiction so confusing: the customer reset modal said
-            // 9675916976 was not registered (it is a seller, so the customer lookup
-            // skipped it) while this line said it already existed. Both were true; the
-            // messages just never said which portal the account was actually on.
             if (isset($_POST['mobile']) && trim($_POST['mobile']) !== '') {
                 $owner = classify_mobile_owner($_POST['mobile']);
                 if ($owner['exists']) {
                     $this->response['error'] = true;
-                    // Sellers now hold the buyer role on the same account, so there is
-                    // nothing for them to "sign up" for - they can already shop with the
-                    // login they have. Only send someone to another portal when their
-                    // account genuinely cannot buy (e.g. a delivery boy).
                     if (user_has_role($owner['user']['id'], 'customer')) {
                         $this->response['message'] = 'This number already has an account here. Please log in - '
-                            . 'you can shop with the same account you use to sell.';
+                            . 'the same account works for buying, selling and admin.';
                     } else {
-                        $portal = reset_portal_for_role($owner['role']);
-                        $this->response['message'] = 'This number is already registered as ' . $portal['label']
-                            . '. Please log in at ' . base_url($portal['login_url'])
-                            . ' (or reset that password at ' . base_url($portal['url']) . ').';
+                        $this->ion_auth->add_to_group(2, $owner['user']['id']);
+                        $this->response['message'] = 'Shopping has been enabled on your existing account for this number. '
+                            . 'Please log in with your current password - it has not been changed.';
                     }
+
                     $this->response['data'] = array();
                     print_r(json_encode($this->response));
                     return;

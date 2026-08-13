@@ -56,9 +56,12 @@
 $fb_use = (!empty($authentication_method) && $authentication_method === 'firebase' && !empty($firebase_settings['apiKey']));
 if ($fb_use) :
 ?>
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
-  <script src="<?= base_url() ?>firebase-config.js"></script>
+  <?php // NO Firebase SDK tags here on purpose. admin/include-head.php already loads
+        // firebase-app 7.20.0 and admin/include-script.php loads the matching auth bundle
+        // (@firebase/auth 0.15.1) plus firebase-config.js. Loading 8.10.0 on top of that put
+        // TWO major SDK versions on the page and ran firebase.initializeApp() twice, which
+        // is what produced "Recaptcha verification failed - MALFORMED": the RecaptchaVerifier
+        // ended up bound to a different app instance than the auth call that consumed it. ?>
   <script>
       window.FIREBASE_RESET_CONFIG = {
           checkUrl: "<?= base_url('admin/login/check_reset_account') ?>",

@@ -9,8 +9,14 @@ var config = {
     measurementId: "G-FZ09D33LC4",
 };
 
-firebase.initializeApp(config);
+if (typeof firebase !== 'undefined') {
+    if (!firebase.apps || !firebase.apps.length) {
+        firebase.initializeApp(config);
+    }
 
-if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    firebase.auth().settings.appVerificationDisabledForTesting = true;
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        try {
+            firebase.auth().settings.appVerificationDisabledForTesting = true;
+        } catch (e) { /* auth SDK not present on this page */ }
+    }
 }

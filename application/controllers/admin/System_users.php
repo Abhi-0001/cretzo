@@ -154,15 +154,26 @@ class System_users extends CI_Controller
                         print_r(json_encode($this->response));
                         return;
                     }
-                } else {
-                    if (is_exist(['mobile' => $_POST['mobile']], 'users')) {
-                        $this->response['error'] = true;
-                        $this->response['message'] = 'Mobile is already registered.  Please Provide Unique Number !';
-                        $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                        $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                        $this->response['data'] = array();
-                        print_r(json_encode($this->response));
-                        return;
+                }
+
+                // An existing number is no longer a dead end. update_user() attaches the
+                // admin role to that account instead of creating a second one - a single
+                // mobile can be buyer, seller AND admin on one login.
+                $already_admin = false;
+                $existing_user = null;
+                if (empty($edit_id)) {
+                    $existing_user = $this->db->select('id')->where('mobile', $_POST['mobile'])->get('users')->row_array();
+                    if (!empty($existing_user)) {
+                        $already_admin = user_has_role($existing_user['id'], 'admin');
+                        if ($already_admin) {
+                            $this->response['error'] = true;
+                            $this->response['message'] = 'This number already has an admin account. Edit that user instead of adding a new one.';
+                            $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                            $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                            $this->response['data'] = array();
+                            print_r(json_encode($this->response));
+                            return;
+                        }
                     }
                 }
 
@@ -170,7 +181,14 @@ class System_users extends CI_Controller
                 $this->response['error'] = false;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = (isset($edit_id)) ? ' Data Updated Successfully' : 'Data Added Successfully';
+                if (!empty($existing_user)) {
+                    // Say plainly that no new account was made and the password field was
+                    // ignored - they keep signing in with the credentials they already have.
+                    $this->response['message'] = 'Admin access has been added to the existing account on this mobile number. '
+                        . 'They sign in with their current password - it has not been changed.';
+                } else {
+                    $this->response['message'] = (isset($edit_id)) ? ' Data Updated Successfully' : 'Data Added Successfully';
+                }
 
                 print_r(json_encode($this->response));
             }

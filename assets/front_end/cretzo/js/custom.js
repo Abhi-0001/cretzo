@@ -1416,13 +1416,14 @@ search_products.on("select2:select", function (e) {
                     preferredCountries: ["in", "ae", "qa", "om", "bh", "kw", "ma"],
                     preventInvalidNumbers: !0,
                     separateDialCode: !0,
-                    initialCountry: "auto",
-                    geoIpLookup: function (e) {
-                        $.get("https://ipinfo.io", function () { }, "jsonp").always(function (t) {
-                            var a = t && t.country ? t.country : "";
-                            e(a)
-                        })
-                    },
+                    initialCountry: "in",
+                    /* Was initialCountry:"auto" + a JSONP geoIpLookup to ipinfo.io using the
+                       placeholder token "yolo". When that call is rate-limited, blocked or slow it
+                       returns an empty country, and the widget then renders NO flag at all - which
+                       is the blank/grey box in the country selector. The storefront prices in INR
+                       and already declared defaultCountry:"in", so start on India directly: the flag
+                       always renders, and one third-party request per modal open is removed.
+                       Users can still pick any other country from the dropdown. */
                     utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/11.0.9/js/utils.js"
                 });
                 var r = function () {
@@ -2765,13 +2766,14 @@ function customer_wallet_query_paramss(e) {
                 preferredCountries: ["in", "ae", "qa", "om", "bh", "kw", "ma"],
                 preventInvalidNumbers: !0,
                 separateDialCode: !0,
-                initialCountry: "auto",
-                geoIpLookup: function (e) {
-                    $.get("https://ipinfo.io", function () { }, "jsonp").always(function (t) {
-                        var a = t && t.country ? t.country : "";
-                        e(a)
-                    })
-                },
+                initialCountry: "in",
+                /* Was initialCountry:"auto" + a JSONP geoIpLookup to ipinfo.io using the
+                   placeholder token "yolo". When that call is rate-limited, blocked or slow it
+                   returns an empty country, and the widget then renders NO flag at all - which
+                   is the blank/grey box in the country selector. The storefront prices in INR
+                   and already declared defaultCountry:"in", so start on India directly: the flag
+                   always renders, and one third-party request per modal open is removed.
+                   Users can still pick any other country from the dropdown. */
                 utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/11.0.9/js/utils.js"
             })
     }), $(document).on("submit", "#send_forgot_password_otp_form", function (e) {
