@@ -511,7 +511,13 @@ class Seller_subscription_model extends CI_Model
             return false;
         }
 
-        return $this->db->set('is_active', 0)->where('seller_id', $seller_id)->where('is_active', 1)->update('seller_subscriptions');
+        $this->db->set('is_active', 0)->where('seller_id', $seller_id)->where('is_active', 1)->update('seller_subscriptions');
+
+        // update() returns TRUE whenever the QUERY succeeded, including when it matched no
+        // rows - so cancelling a seller who had nothing active reported "Subscription
+        // cancelled successfully" and told admin they had just done something they hadn't.
+        // affected_rows() is what actually distinguishes the two.
+        return $this->db->affected_rows() > 0;
     }
 
     /**
@@ -624,6 +630,10 @@ class Seller_subscription_model extends CI_Model
             $limit = $plan ? $this->parse_listing_limit($plan['listings_limit']) : null;
             $price = $plan ? $this->price_to_number($plan['price']) : 0.0;
 
+            // Does the PLAN itself define a finite term? This is what separates a genuinely
+            // open-ended subscription from one whose end_date simply never got written.
+            $validity_days = $plan ? $this->parse_validity_days($plan['validity']) : null;
+
             // Days left on the current period; null for unlimited / no plan.
             $days_left = null;
             if ($is_active && !empty($sub['end_date'])) {
@@ -633,11 +643,53 @@ class Seller_subscription_model extends CI_Model
                 }
             }
 
+            // Expiry / days-left had one bucket for two very different situations, and
+            // reported both as "Never" / "Unlimited":
+            //   (a) the plan really is open-ended  -> Never is correct;
+            //   (b) the plan has a term (e.g. Basic = 30 days) but end_date was never
+            //       written, because these rows predate parse_validity_days() being able to
+            //       read the validity column. Calling that "Never" told admin a 30-day plan
+            //       lasts forever, and it silently never expires anywhere else either.
+            // (b) is a data gap, so it is now labelled as one and the row is flagged.
+            $missing_expiry = ($is_active && empty($sub['end_date']) && $validity_days !== null);
+
+            if (empty($sub)) {
+                $expiry_text = '';
+                $days_text   = '-';
+            } elseif (!empty($sub['end_date'])) {
+                $expiry_text = $sub['end_date'];
+                $days_text   = $days_left === null ? '-' : $days_left;
+            } elseif ($missing_expiry) {
+                $expiry_text = 'Not set';
+                $days_text   = 'Not set';
+            } else {
+                $expiry_text = 'Never';
+                $days_text   = $is_active ? 'Unlimited' : '-';
+            }
+
+            // A seller with NO plan is uncapped only because nothing has been assigned to
+            // them - reporting that as "Unlimited" made it indistinguishable from a genuine
+            // unlimited plan, which is exactly the row an admin most needs to notice.
+            if (!$plan) {
+                $limit_text     = 'No plan';
+                $remaining_text = 'No plan';
+            } elseif ($limit === null) {
+                $limit_text     = 'Unlimited';
+                $remaining_text = 'Unlimited';
+            } else {
+                $limit_text     = $limit;
+                $remaining_text = max(0, $limit - $used);
+            }
+
             $payment = isset($payments[$seller_id]) ? $payments[$seller_id] : null;
 
             $rows[] = [
                 'seller_id'      => $seller_id,
-                'shop_name'      => !empty($seller['shop_name']) ? $seller['shop_name'] : $seller['username'],
+                'shop_name'      => !empty($seller['shop_name'])
+                    ? $seller['shop_name']
+                    // Fall back to the mobile so a seller with neither shop name nor
+                    // username doesn't render as a bare "-" that identifies nobody.
+                    : (!empty($seller['username']) ? $seller['username'] : ('#' . $seller_id . ' · ' . $seller['mobile'])),
                 'email'          => (string) $seller['email'],
                 'mobile'         => (string) $seller['mobile'],
                 'plan_name'      => $plan ? $plan['name'] : 'None',
@@ -645,12 +697,14 @@ class Seller_subscription_model extends CI_Model
                 'price'          => $plan ? $price : 0,
                 'status'         => $status,
                 'start_date'     => !empty($sub['start_date']) ? $sub['start_date'] : '',
-                'expiry'         => !empty($sub['end_date']) ? $sub['end_date'] : (!empty($sub) ? 'Never' : ''),
-                'days_left'      => $days_left === null ? ($is_active ? 'Unlimited' : '-') : $days_left,
+                'expiry'         => $expiry_text,
+                'days_left'      => $days_text,
                 'used'           => $used,
-                'limit'          => $limit === null ? 'Unlimited' : $limit,
-                'remaining'      => $limit === null ? 'Unlimited' : max(0, $limit - $used),
+                'limit'          => $limit_text,
+                'remaining'      => $remaining_text,
                 'over_limit'     => ($limit !== null && $used > $limit),
+                'no_plan'        => empty($plan),
+                'missing_expiry' => $missing_expiry,
                 'launch_offer'   => ($plan && strcasecmp(trim($plan['name']), self::LAUNCH_OFFER_PLAN_NAME) === 0) ? 'Yes' : 'No',
                 'last_payment'   => $payment ? $payment['amount'] : '',
                 'last_paid_on'   => $payment ? $payment['date_created'] : '',

@@ -370,8 +370,72 @@ class Product_model extends CI_Model
                 }
             }
         }
+
+        // Return the product id. This function saved the product and then returned nothing,
+        // so callers had no handle on what they had just created - which is why the seller
+        // panel could not tell the seller whether the product had gone live or landed in
+        // the approval queue.
+        return $p_id;
     }
 
+
+    /**
+     * Delete a product and everything that hangs off it.
+     *
+     * Both delete paths (seller panel and admin) previously removed only product_variants,
+     * products and product_attributes. Everything else keyed on the product or its variants
+     * was left behind:
+     *   - `cart` rows pointing at a variant that no longer exists. This is the damaging one:
+     *     the cart still counts the line, but the joins that price it find nothing, so
+     *     checkout misbehaves for a shopper who did nothing wrong.
+     *   - `favorites`, `product_faqs`, `product_rating` - dead rows that keep appearing in
+     *     wishlists and rating aggregates for a product that is gone.
+     * The live database already contains orphans of exactly these kinds from past deletes.
+     *
+     * `order_items` and `return_requests` are deliberately NOT touched - they are financial
+     * history, and order_items denormalises product_name/variant_name/price so past orders
+     * still render correctly after the product is gone.
+     *
+     * @return bool True when the product row itself was removed.
+     */
+    public function delete_product_cascade($product_id, $seller_id = null)
+    {
+        $product_id = (int) $product_id;
+        if ($product_id <= 0) {
+            return false;
+        }
+
+        // Scope to the owner when one is given, so a seller can only ever delete their own.
+        $owner_where = ['id' => $product_id];
+        if ($seller_id !== null) {
+            $owner_where['seller_id'] = (int) $seller_id;
+        }
+        if (empty(fetch_details('products', $owner_where, 'id'))) {
+            return false;
+        }
+
+        $variant_ids = array_column(
+            $this->db->select('id')->where('product_id', $product_id)->get('product_variants')->result_array(),
+            'id'
+        );
+
+        $this->db->trans_start();
+
+        if (!empty($variant_ids)) {
+            $this->db->where_in('product_variant_id', $variant_ids)->delete('cart');
+        }
+
+        $this->db->where('product_id', $product_id)->delete('product_variants');
+        $this->db->where('product_id', $product_id)->delete('product_attributes');
+        $this->db->where('product_id', $product_id)->delete('favorites');
+        $this->db->where('product_id', $product_id)->delete('product_faqs');
+        $this->db->where('product_id', $product_id)->delete('product_rating');
+        $this->db->where($owner_where)->delete('products');
+
+        $this->db->trans_complete();
+
+        return $this->db->trans_status();
+    }
 
     public function get_product_details($flag = NULL, $seller_id = NULL, $p_status = NULL)
     {
@@ -663,8 +727,10 @@ class Product_model extends CI_Model
         if (isset($where) && !empty($where)) {
             $count_res->where($where);
         }
+        // Was hardcoded to 1 instead of honouring $p_status, so filtering the digital
+        // products list by any other status counted the status-1 rows regardless.
         if (isset($p_status) && $p_status != "") {
-            $count_res->where("p.status", 1);
+            $count_res->where("p.status", $p_status);
         }
         $product_count = $count_res->get('products p')->result_array();
         foreach ($product_count as $row) {
@@ -683,6 +749,13 @@ class Product_model extends CI_Model
 
         if (isset($where) && !empty($where)) {
             $search_res->where($where);
+        }
+
+        // The status filter was applied to the COUNT query but never to the row query, so
+        // the digital products table reported one total and then listed a different set -
+        // e.g. "1 record" in the pager while every status was still rendered below it.
+        if (isset($p_status) && $p_status != "") {
+            $search_res->where("p.status", $p_status);
         }
 
         $pro_search_res = $search_res->group_by('pid')->order_by($sort, "DESC")->limit($limit, $offset)->get('products p')->result_array();
