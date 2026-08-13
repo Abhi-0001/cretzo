@@ -248,7 +248,9 @@ class Orders extends CI_Controller
             }
             if (isset($_POST['deliver_by']) && !empty($_POST['deliver_by']) && isset($_POST['orderid']) && !empty($_POST['orderid'])) {
                 $where = "id = " . $_POST['orderid'] . "";
-                $current_delivery_boy = fetch_details('orders', $where, 'delivery_boy_id');
+                // orders has no delivery_boy_id column - the assignment is per order item.
+                // Reading it off `orders` was an "Unknown column" error every time.
+                $current_delivery_boy = fetch_details('order_items', ['order_id' => $_POST['orderid']], 'delivery_boy_id');
                 $settings = get_settings('system_settings', true);
                 $app_name = isset($settings['app_name']) && !empty($settings['app_name']) ? $settings['app_name'] : '';
                 $user_res = fetch_details('users', ['id' => $_POST['deliver_by']], 'fcm_id,username,mobile,email');
@@ -317,10 +319,13 @@ class Orders extends CI_Controller
                     $fcm_ids[0][] = $user_res[0]['fcm_id'];
                     send_notification($fcmMsg, $fcm_ids);
                 }
+                // update_order() defaults to the order_items table, so this was matching
+                // `order_items.id = <ORDER id>` - it assigned the delivery boy to whichever
+                // unrelated order item happened to share that number, and never to the order
+                // being edited. Scope on order_id, which is what was meant.
                 $where = [
-                    'id' => $_POST['orderid']
+                    'order_id' => $_POST['orderid']
                 ];
-
 
                 if ($this->Order_model->update_order(['delivery_boy_id' => $_POST['deliver_by']], $where)) {
                     $delivery_error = false;
@@ -369,70 +374,62 @@ class Orders extends CI_Controller
             if (isset($_POST['orderid']) && isset($_POST['field']) && isset($_POST['val'])) {
                 if ($_POST['field'] == 'status' && $update_status == 1) {
 
-                    $current_orders_status = fetch_details('orders', $where_id, 'user_id,active_status');
-                    $user_id = $current_orders_status[0]['user_id'];
-                    $current_orders_status = $current_orders_status[0]['active_status'];
+                    // Status lives on order_items in this app - the orders table has no
+                    // `status` and no `active_status` column at all. This used to read
+                    // orders.active_status (instant "Unknown column" DB error) and then write
+                    // the status to `orders` twice, via update_order() calls that also
+                    // defaulted to the order_items table while passing an ORDER id in an
+                    // `id = ...` clause - so they would have hit the wrong rows even if the
+                    // columns had existed. The order's overall status is now derived from its
+                    // items: the least-advanced item is how far the order as a whole has got.
+                    $order_row = fetch_details('orders', ['id' => $_POST['orderid']], 'user_id');
+                    if (empty($order_row)) {
+                        $this->response['error'] = true;
+                        $this->response['message'] = 'Order not found';
+                        $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                        $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                        print_r(json_encode($this->response));
+                        return false;
+                    }
+                    $user_id = $order_row[0]['user_id'];
+
+                    $current_orders_status = null;
+                    foreach ($order_items_details as $item_row) {
+                        $item_status = $item_row['active_status'];
+                        if (!isset($priority_status[$item_status])) {
+                            continue;
+                        }
+                        if ($current_orders_status === null || $priority_status[$item_status] < $priority_status[$current_orders_status]) {
+                            $current_orders_status = $item_status;
+                        }
+                    }
+                    if ($current_orders_status === null) {
+                        $current_orders_status = 'received';
+                    }
 
                     if ($priority_status[$_POST['val']] > $priority_status[$current_orders_status]) {
                         $set = [
                             $_POST['field'] => $_POST['val'] // status => 'proceesed'
                         ];
 
-                        // Update Active Status of Order Table
-                        if ($this->Order_model->update_order($set, $where_id, $_POST['json'])) {
-                            if ($this->Order_model->update_order(['active_status' => $_POST['val']], $where_id)) {
-                                if ($this->Order_model->update_order($set, $where_order_id, $_POST['json'], 'order_items')) {
-                                    if ($this->Order_model->update_order(['active_status' => $_POST['val']], $where_order_id, false, 'order_items')) {
-                                        $error = false;
-                                    }
-                                }
+                        // Update every item on the order - that IS the order's status here.
+                        if ($this->Order_model->update_order($set, $where_order_id, $_POST['json'], 'order_items')) {
+                            if ($this->Order_model->update_order(['active_status' => $_POST['val']], $where_order_id, false, 'order_items')) {
+                                $error = false;
                             }
                         }
 
                         if ($error == false) {
                             //custom message
-                            $settings = get_settings('system_settings', true);
-                            $app_name = isset($settings['app_name']) && !empty($settings['app_name']) ? $settings['app_name'] : '';
-                            if ($_POST['status'] == 'received') {
-                                $type = ['type' => "customer_order_received"];
-                            } elseif ($_POST['status'] == 'processed') {
-                                $type = ['type' => "customer_order_processed"];
-                            } elseif ($_POST['status'] == 'shipped') {
-                                $type = ['type' => "customer_order_shipped"];
-                            } elseif ($_POST['status'] == 'delivered') {
-                                $type = ['type' => "customer_order_delivered"];
-                            } elseif ($_POST['status'] == 'cancelled') {
-                                $type = ['type' => "customer_order_cancelled"];
-                            } elseif ($_POST['status'] == 'returned') {
-                                $type = ['type' => "customer_order_returned"];
-                            }
-                            $custom_notification = fetch_details('custom_notifications', $type, '');
-                            $hashtag_cutomer_name = '< cutomer_name >';
-                            $hashtag_order_id = '< order_item_id >';
-                            $hashtag_application_name = '< application_name >';
-                            $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
-                            $hashtag = html_entity_decode($string);
-                            $data = str_replace(array($hashtag_cutomer_name, $hashtag_order_id, $hashtag_application_name), array($user_res[0]['username'], $_POST['orderid'], $app_name), $hashtag);
-                            $message = output_escaping(trim($data, '"'));
-                            $customer_msg = (!empty($custom_notification)) ? $message :  'Hello Dear ' . $user_res[0]['username'] . ' Order status updated to' . $_POST['val'] . ' for order ID #' . $_POST['orderid'] . ' please take note of it! Thank you. Regards ' . $app_name . '';
-                            $user_res = fetch_details('users', ['id' => $user_id], 'username,fcm_id,mobile,email');
-                            $fcm_ids = array();
-                            if (!empty($user_res[0]['fcm_id'])) {
-                                $fcmMsg = array(
-                                    'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : " Order status updated",
-                                    'body' => $customer_msg,
-                                    'type' => "order"
-                                );
-
-                                $fcm_ids[0][] = $user_res[0]['fcm_id'];
-                                send_notification($fcmMsg, $fcm_ids);
-                            }
-                            notify_event(
-                                $type['type'],
-                                ["customer" => [$user_res[0]['email']]],
-                                ["customer" => [$user_res[0]['mobile']]],
-                                ["orders.id" => $_POST['order_id']]
-                            );
+                            // Replaces a hand-rolled copy of this notification block that
+                            // built the customer's message from $user_res BEFORE $user_res was
+                            // loaded on the next line - so it addressed the customer by the
+                            // DELIVERY BOY's name (that being what $user_res still held from
+                            // the assignment step above), or by nothing at all when no
+                            // delivery boy was posted. It also keyed notify_event on
+                            // $_POST['order_id'], which this endpoint never receives; the
+                            // field is called 'orderid' here.
+                            notify_customer_order_status($_POST['orderid'], $_POST['val']);
                             /* Process refer and earn bonus */
                             process_refund($_POST['orderid'], $_POST['val'], 'orders');
                             if (trim($_POST['val'] == 'cancelled')) {
@@ -1379,12 +1376,32 @@ class Orders extends CI_Controller
                 $order_items =  $_POST['order_items'];
                 $items = [];
                 $subtotal = 0;
-                $order_id = 0;
+                // Was 0 and then appended to with .=, wedging a stray 0 into every
+                // Shiprocket order reference ("28" . "0-48" . "-4171").
+                $order_id = '';
 
                 $pickup_location_pincode = fetch_details('pickup_locations', ['pickup_location' => $_POST['pickup_location']], 'pin_code');
-                $user_data = fetch_details('users', ['id' => $_POST['user_id']], 'username,email');
                 $order_data = fetch_details('orders', ['id' => $_POST['order_id']], 'date_added,address_id,mobile,payment_method,delivery_charge');
+                if (empty($pickup_location_pincode) || empty($order_data)) {
+                    $this->response['error'] = true;
+                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                    $this->response['message'] = empty($order_data) ? 'Order not found.' : 'Pickup location not found.';
+                    $this->response['data'] = array();
+                    print_r(json_encode($this->response));
+                    return false;
+                }
+                $user_data = fetch_details('users', ['id' => $_POST['user_id']], 'username,email');
                 $address_data = fetch_details('addresses', ['id' => $order_data[0]['address_id']], 'address,city_id,pincode,state,country');
+                if (empty($address_data)) {
+                    $this->response['error'] = true;
+                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                    $this->response['message'] = 'Delivery address not found for this order.';
+                    $this->response['data'] = array();
+                    print_r(json_encode($this->response));
+                    return false;
+                }
                 $city_data = fetch_details('cities', ['id' => $address_data[0]['city_id']], 'name');
 
                 $availibility_data = [
@@ -1397,6 +1414,10 @@ class Orders extends CI_Controller
                 $check_deliveribility = $this->shiprocket->check_serviceability($availibility_data);
                 $get_currier_id = shiprocket_recomended_data($check_deliveribility);
 
+                // Initialised so "nothing matched" doesn't reach implode() with an undefined
+                // variable, which is a fatal TypeError on PHP 8 (the AJAX caller then gets an
+                // HTML error page instead of JSON).
+                $order_item_id = [];
                 foreach ($order_items as $row) {
                     if ($row['pickup_location'] == $_POST['pickup_location'] && $row['seller_id'] == $_POST['shiprocket_seller_id']) {
                         $order_item_id[] = $row['id'];
@@ -1417,6 +1438,16 @@ class Orders extends CI_Controller
                         $temp['tax'] = $row['tax_amount'];
                         array_push($items, $temp);
                     }
+                }
+
+                if (empty($order_item_id)) {
+                    $this->response['error'] = true;
+                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                    $this->response['message'] = 'No items were found for this pickup location. Please reload the order and try again.';
+                    $this->response['data'] = array();
+                    print_r(json_encode($this->response));
+                    return false;
                 }
 
                 $order_item_ids = implode(",", $order_item_id);
@@ -1448,7 +1479,10 @@ class Orders extends CI_Controller
                 $response = $this->shiprocket->create_order($create_order);
 
                 if (isset($response['status_code']) && $response['status_code'] == 1) {
-                    $courier_company_id = $get_currier_id['courier_company_id'];
+                    // shiprocket_recomended_data() returns [] when serviceability came back
+                    // empty; courier_company_id is INT NOT NULL, so default explicitly to 0
+                    // ("no preference") rather than inserting null.
+                    $courier_company_id = isset($get_currier_id['courier_company_id']) ? $get_currier_id['courier_company_id'] : 0;
                     $order_tracking_data = [
                         'order_id' => $_POST['order_id'],
                         'order_item_id' => $order_item_ids,
@@ -1497,7 +1531,11 @@ class Orders extends CI_Controller
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
 
             $res = generate_awb($_POST['shipment_id']);
-            if (!empty($res) && $res['status_code'] != 400) {
+            // Success is "an AWB actually came back", not "status_code isn't 400": on a
+            // timeout or error response status_code is absent entirely, and the old
+            // `$res['status_code'] != 400` read a missing key (null != 400) and so reported
+            // "AWB generated successfully" for a shipment that never got one.
+            if (!empty($res) && !empty($res['response']['data']['awb_code'])) {
                 $this->response['error'] = false;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
@@ -1507,7 +1545,9 @@ class Orders extends CI_Controller
                 $this->response['error'] = true;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = 'AWB not generated';
+                $this->response['message'] = (!empty($res) && !empty($res['message']))
+                    ? $res['message']
+                    : 'AWB not generated. Please check the shipment on Shiprocket and try again.';
                 $this->response['data'] = array();
             }
             print_r(json_encode($this->response));
@@ -1595,7 +1635,7 @@ class Orders extends CI_Controller
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
 
             $res = cancel_shiprocket_order($_POST['shiprocket_order_id']);
-            if (!empty($res) && $res['status'] == 200) {
+            if (!empty($res) && isset($res['status']) && $res['status'] == 200) {
                 $this->response['error'] = false;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();

@@ -363,7 +363,12 @@ class Sellers extends CI_Controller
             $this->form_validation->set_rules('ifsc', 'IFSC Code', 'trim|required|xss_clean');
             $this->form_validation->set_rules('branch', 'Branch Name', 'trim|required|xss_clean');
             $this->form_validation->set_rules('bank_name', 'Bank Name', 'trim|required|xss_clean');
-            $this->form_validation->set_rules('status', 'Status', 'trim|required|xss_clean');
+            // Constrained to the four statuses the app actually understands
+            // (0 Deactive, 1 Approved, 2 Not-Approved, 7 Removed). It was previously only
+            // "required", so any value at all could be written into seller_data.status -
+            // and Ion_auth::seller_status() maps anything unrecognised to "refuse", which
+            // would have locked the seller out with no way to tell why from the UI.
+            $this->form_validation->set_rules('status', 'Status', 'trim|required|xss_clean|in_list[0,1,2,7]');
 
             if (!$is_edit) {
                 $this->form_validation->set_rules('phone', 'Phone', 'trim|required|numeric|xss_clean|min_length[5]|edit_unique[users.mobile.' . $user->id . ']');
@@ -630,6 +635,12 @@ class Sellers extends CI_Controller
 
                 if ($current_status['status'] != $this->input->post('status', true)) {
                     $system_settings = get_settings('system_settings', true);
+                    // Defaults so a status this block has no copy for (7 = Removed) still
+                    // produces a valid notification instead of an undefined-variable warning
+                    // and a push with a null title.
+                    $title = 'Update on Your Seller Account';
+                    $fcm_admin_msg = 'There has been an update to your seller account on ' . $system_settings['app_name'] . '. Please sign in to review it.';
+                    $mail_admin_msg = $fcm_admin_msg;
                     if ($this->input->post('status', true) == 0 || $this->input->post('status', true) == '0') {
                         $title = 'Account Deactivation Notice';
                         $fcm_admin_msg = 'We hope this message finds you well. We are writing to inform you about the deactivation of your seller account on our platform.';
@@ -646,25 +657,33 @@ class Sellers extends CI_Controller
                         $mail_admin_msg = 'We hope this message finds you well. We wanted to take a moment to inform you about the status of your recent seller account application with ' . $system_settings['app_name'] . 'We appreciate your interest in becoming a seller on our platform and thank you for taking the time to submit your application. We understand that starting your journey as a seller requires dedication and effort, and we value your commitment to becoming part of our growing community.';
                     }
                     $seller_fcm = fetch_details('users', ['id' => $target_user_id], 'fcm_id,email,username');
-                    $seller_fcm_id[0] = $seller_fcm[0]['fcm_id'];
 
-                    $registrationIDs_chunks = array_chunk($seller_fcm_id, 1000);
-
-                    if (!empty($seller_fcm_id)) {
+                    // Guarded: the push used to be built from $seller_fcm[0] unconditionally,
+                    // and a seller with no fcm_id produced an array holding a single null,
+                    // which is not empty - so send_notification() was called with nothing to
+                    // send to.
+                    if (!empty($seller_fcm) && !empty($seller_fcm[0]['fcm_id'])) {
                         $fcmMsg = array(
                             'title' => $title,
                             'body' => $fcm_admin_msg,
                             'type' => "seller_account_update",
                             'content_available' => true
                         );
-                        send_notification($fcmMsg, $registrationIDs_chunks);
+                        send_notification($fcmMsg, array_chunk([$seller_fcm[0]['fcm_id']], 1000));
                     }
-                    $email_message = array(
-                        'username' => 'Hello, Dear <b>' . ucfirst($seller_fcm[0]['username']) . '</b>, ',
-                        'subject' => $title,
-                        'message' => $mail_admin_msg
-                    );
-                    // send_mail($seller_fcm[0]['email'],  $title, $this->load->view('admin/pages/view/contact-email-template', $email_message, TRUE));
+
+                    // Re-enabled: this was commented out, so approving, rejecting or
+                    // deactivating a seller notified them ONLY by push - and only if they had
+                    // ever opened the app and registered an fcm_id. In practice most sellers
+                    // were told nothing at all when their application was decided.
+                    if (!empty($seller_fcm) && !empty($seller_fcm[0]['email'])) {
+                        $email_message = array(
+                            'username' => 'Hello, Dear <b>' . ucfirst($seller_fcm[0]['username']) . '</b>, ',
+                            'subject' => $title,
+                            'message' => $mail_admin_msg
+                        );
+                        send_mail($seller_fcm[0]['email'], $title, $this->load->view('admin/pages/view/contact-email-template', $email_message, TRUE));
+                    }
                 }
 
                 $seller_data = array_merge($shared_seller_data, [

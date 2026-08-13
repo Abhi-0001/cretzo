@@ -23,6 +23,22 @@ class Seller_model extends CI_Model
             $this->db->where('user_id', $data['user_id'])
                     ->update('seller_data', $data);
         } else {
+            // New seller profiles were created with permissions = NULL, and
+            // get_seller_permission() returns null for every key of a null blob - which every
+            // caller treats as "not permitted". So a freshly registered seller silently had
+            // NOTHING switched on: they could not see the order OTP (which gates marking an
+            // item delivered) and their customers' contact details stayed masked, until an
+            // admin happened to open and re-save their profile. These defaults match what the
+            // admin seller form writes when it is saved with nothing ticked, except that
+            // view_order_otp is on so a new seller can actually complete an order.
+            if (!isset($data['permissions'])) {
+                $data['permissions'] = json_encode([
+                    'require_products_approval' => 1,
+                    'customer_privacy'          => 0,
+                    'view_order_otp'            => 1,
+                    'assign_delivery_boy'       => 0,
+                ]);
+            }
             $this->db->insert('seller_data', $data);
         }
 

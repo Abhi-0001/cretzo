@@ -372,13 +372,20 @@ class Auth extends CI_Controller
                 return;
             }
 
-            // Check user group
-            if ($group = fetch_details('users_groups', ['user_id' => $user_data[0]['id']])) {
-                if ($group[0]['group_id'] != 4) { // 4 is seller group
-                    redirect('seller/login?error=true');
-                    return;
-                }
-            } else {
+            // Check user group.
+            //
+            // This used to read ONLY the first row returned for the user
+            // ($group[0]['group_id'] != 4) out of an unordered query. Every seller also
+            // carries the customer group (2) now that one account can both sell and buy,
+            // and MySQL returns those rows in index order on (user_id, group_id) - so the
+            // customer row, group 2, comes back first for every dual-role seller. The
+            // check therefore rejected EVERY seller who could also shop, which since the
+            // buyer+seller change is every seller registered through this app. Verified
+            // directly against this database: the first row is group 2 for all of them.
+            //
+            // in_group() asks the right question - does this account hold the seller role
+            // at all - regardless of row order or how many roles it has.
+            if (!$this->ion_auth_model->in_group('seller', $user_data[0]['id'])) {
                 redirect('seller/login?error=true');
                 return;
             }

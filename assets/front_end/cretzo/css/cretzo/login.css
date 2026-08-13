@@ -81,7 +81,8 @@
     margin-top: 20px;
 }
 
-#login_div .password-container{
+#login_div .password-container,
+#forgot_password_div .password-container{
     display: block;
     position: relative;
     width: 100%;
@@ -167,12 +168,17 @@ body.modal-open{
 #login_div .password-container #loginPassword {
     width: 100%;
 }
-#login_div .password-container .password-toggle{
+#forgot_password_div .password-container #forgot_password_new_password {
+    width: 100%;
+}
+#login_div .password-container .password-toggle,
+#forgot_password_div .password-container .password-toggle{
     position: absolute;
     top: 50%;
     right: 0.75rem;
     transform: translateY(-50%);
     margin-top: 3px;
+    cursor: pointer;
 }
 #login_div .cretzo.btn,
 #forgot_password_div .cretzo.btn{

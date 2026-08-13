@@ -4114,8 +4114,16 @@ function process_refund($id, $status, $type = 'order_items')
         //check for order active status 
         $active_status = json_decode($order_item_details[0]['status'], true);
 
+        // An order that went straight from "awaiting" (payment never completed) to
+        // "cancelled" has nothing to refund. Indexes are checked before use because the
+        // history can legitimately hold a single entry, and reading [1][0] off that
+        // raised warnings and then compared null - which happened to be harmless here,
+        // but only by luck.
         if (trim(strtolower($payment_method)) != 'wallet') {
-            if ($active_status[1][0] == 'cancelled' && $active_status[0][0] == 'awaiting') {
+            if (is_array($active_status)
+                && isset($active_status[0][0], $active_status[1][0])
+                && $active_status[1][0] == 'cancelled'
+                && $active_status[0][0] == 'awaiting') {
                 $response['error'] = true;
                 $response['message'] = 'Refund cannot be processed.';
                 $response['data'] = array();
@@ -4162,6 +4170,12 @@ function process_refund($id, $status, $type = 'order_items')
         /* find returnable_amount, new_wallet_balance
         condition : 1
         */
+        // Defaults: neither condition 1 nor condition 2 below matches a Bank Transfer
+        // order whose receipt sits in any state other than 0/1/2 (e.g. a rejected
+        // receipt), which left both of these undefined and then used them for
+        // notifications, wallet credits and order totals.
+        $returnable_amount = 0;
+        $new_wallet_balance = $wallet_balance;
         if (trim(strtolower($payment_method)) == 'cod' || $payment_method == 'Bank Transfer') {
             /* when payment method is COD or Bank Transfer and payment is not yet done */
             if (trim(strtolower($payment_method)) == 'cod' || ($payment_method == 'Bank Transfer' && (empty($bank_receipt_status) || $bank_receipt_status == "0" || $bank_receipt_status == "1"))) {
@@ -4205,13 +4219,20 @@ function process_refund($id, $status, $type = 'order_items')
         }
 
         //custom message
+        // Guarded: there is no guarantee a "wallet_transaction" custom_notifications row
+        // exists (it doesn't on a default install), and reading [0]['message'] off an
+        // empty result raised two warnings on every single refund. The template is
+        // already treated as optional five lines below - treat it as optional here too.
         $custom_notification = fetch_details('custom_notifications', ['type' => "wallet_transaction"], '');
         $hashtag_currency = '< currency >';
         $hashtag_returnable_amount = '< returnable_amount >';
-        $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
-        $hashtag = html_entity_decode($string);
-        $data = str_replace(array($hashtag_currency, $hashtag_returnable_amount), array($currency, $returnable_amount), $hashtag);
-        $message = output_escaping(trim($data, '"'));
+        $message = '';
+        if (!empty($custom_notification) && isset($custom_notification[0]['message'])) {
+            $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
+            $hashtag = html_entity_decode($string);
+            $data = str_replace(array($hashtag_currency, $hashtag_returnable_amount), array($currency, $returnable_amount), $hashtag);
+            $message = output_escaping(trim($data, '"'));
+        }
 
         if ($returnable_amount > 0) {
 
@@ -4242,6 +4263,11 @@ function process_refund($id, $status, $type = 'order_items')
 
         if (isset($order_delivery_charge) && !empty($order_delivery_charge)) {
             $parcel_total = floatval($order_total) - floatval($order_item_total);
+            // Initialised so that the $parcel_total == 0 case (this seller's parcel is now
+            // empty - every item of theirs on the order has been cancelled/returned) doesn't
+            // fall through to an undefined variable. Zero is also the correct share: an
+            // empty parcel carries none of the promo discount and none of the delivery charge.
+            $seller_promocode_discount_percentage = 0;
             if ($parcel_total != 0) {
                 if ($new_total != 0) {
                     $seller_promocode_discount_percentage = ($parcel_total * 100) / $new_total;
@@ -5059,7 +5085,11 @@ function check_cart_products_delivarable($user_id, $area_id = 0, $zipcode = "", 
     $cart = get_cart_total($user_id);
 
     $settings = get_settings('shipping_method', true);
-    if (!empty($cart)) {
+    // get_cart_total() always returns its summary keys (sub_total, total_arr, ...), so
+    // !empty($cart) is true even for an EMPTY cart - but the numeric row $cart[0] only
+    // exists when there is at least one item. Viewing the cart with nothing in it
+    // therefore read cart_count off a missing row. Check the row itself.
+    if (!empty($cart) && isset($cart[0]['cart_count'])) {
         $product_weight = 0;
         for ($i = 0; $i < $cart[0]['cart_count']; $i++) {
             /* check in local shipping first */
@@ -5722,24 +5752,27 @@ function generate_awb($shipment_id)
 {
     $t = &get_instance();
     $order_tracking = fetch_details('order_tracking', ['shipment_id' => $shipment_id], 'courier_company_id');
-    $courier_company_id = $order_tracking[0]['courier_company_id'];
+    // This was read and then never used: the courier the platform selected and quoted
+    // from was dropped on the floor and Shiprocket assigned whatever its own default
+    // was. Pass it through so the AWB is raised against the intended courier.
+    $courier_company_id = (!empty($order_tracking) && !empty($order_tracking[0]['courier_company_id']))
+        ? $order_tracking[0]['courier_company_id']
+        : null;
 
     $t->load->library(['Shiprocket']);
-    $res = $t->shiprocket->generate_awb($shipment_id);
+    $res = $t->shiprocket->generate_awb($shipment_id, $courier_company_id);
 
-    if (isset($res['awb_assign_status']) && $res['awb_assign_status'] == 1) {
-        $order_tracking_data = [
-            'awb_code' => $res['response']['data']['awb_code'],
-        ];
-        $res_shippment_data = $t->shiprocket->get_order($shipment_id);
-        $t->db->set($order_tracking_data)->where('shipment_id', $shipment_id)->update('order_tracking');
+    // Only persist an AWB we actually got back. The old else-branch fired a SECOND
+    // identical request on failure and then read $res['response']['data']['awb_code']
+    // unconditionally - on a genuine failure that key doesn't exist, so it wrote NULL
+    // over awb_code. Since the Shiprocket webhook finds orders BY awb_code, that also
+    // permanently severed the tracking link for the shipment.
+    $awb_code = isset($res['response']['data']['awb_code']) ? $res['response']['data']['awb_code'] : null;
+
+    if (!empty($awb_code)) {
+        $t->db->set(['awb_code' => $awb_code])->where('shipment_id', $shipment_id)->update('order_tracking');
     } else {
-        $res = $t->shiprocket->generate_awb($shipment_id);
-        $order_tracking_data = [
-            'awb_code' => $res['response']['data']['awb_code'],
-        ];
-        $res_shippment_data = $t->shiprocket->get_order($shipment_id);
-        $t->db->set($order_tracking_data)->where('shipment_id', $shipment_id)->update('order_tracking');
+        log_message('error', 'Shiprocket AWB assignment returned no awb_code for shipment ' . $shipment_id . ' --> ' . var_export($res, true));
     }
 
     return $res;
@@ -5799,11 +5832,251 @@ function cancel_shiprocket_order($shiprocket_order_id)
     $t = &get_instance();
     $t->load->library(['Shiprocket']);
     $res = $t->shiprocket->cancel_order($shiprocket_order_id);
-    $is_canceled = [
-        'is_canceled' => 1,
-    ];
-    $t->db->set($is_canceled)->where('shiprocket_order_id', $shiprocket_order_id)->update('order_tracking');
+
+    // Only mark the shipment cancelled once Shiprocket has actually accepted the
+    // cancellation. This used to be set unconditionally, so a rejected or failed
+    // cancel call still flipped is_canceled to 1 locally - the shipment stayed live
+    // at Shiprocket while every screen here showed it as cancelled, and the cancel
+    // button was then hidden so nobody could retry.
+    if (!empty($res) && isset($res['status']) && $res['status'] == 200) {
+        $t->db->set(['is_canceled' => 1])->where('shiprocket_order_id', $shiprocket_order_id)->update('order_tracking');
+    }
     return $res;
+}
+
+/**
+ * Maps a Shiprocket shipment status onto this app's internal order-item status.
+ *
+ * Returns NULL for any Shiprocket status that has no internal equivalent (NEW,
+ * INVOICED, PICKUP ERROR, ...) so callers can skip it rather than guess.
+ */
+function shiprocket_status_to_order_status($shiprocket_status)
+{
+    $shiprocket_status = strtoupper(trim((string) $shiprocket_status));
+    if ($shiprocket_status === '') {
+        return null;
+    }
+
+    $map = [
+        'READY TO SHIP'      => 'processed',
+        'PICKUP SCHEDULED'   => 'shipped',
+        'PICKUP GENERATED'   => 'shipped',
+        'PICKUP QUEUED'      => 'shipped',
+        'PICKED UP'          => 'shipped',
+        'SHIPPED'            => 'shipped',
+        'IN TRANSIT'         => 'shipped',
+        'OUT FOR DELIVERY'   => 'shipped',
+        'REACHED DESTINATION HUB' => 'shipped',
+        'DELIVERED'          => 'delivered',
+        'CANCELED'           => 'cancelled',
+        'CANCELLED'          => 'cancelled',
+        'RTO INITIATED'      => 'returned',
+        'RTO IN TRANSIT'     => 'returned',
+        'RTO DELIVERED'      => 'returned',
+        'RTO ACKNOWLEDGED'   => 'returned',
+        'RETURN DELIVERED'   => 'returned',
+    ];
+
+    return isset($map[$shiprocket_status]) ? $map[$shiprocket_status] : null;
+}
+
+/**
+ * Applies a Shiprocket shipment status to the order items covered by an
+ * order_tracking row.
+ *
+ * This is the single place that turns "Shiprocket says X" into a status change
+ * here, shared by the webhook and by any manual/polled refresh.
+ *
+ * Why it exists: the webhook used to write orders.active_status / orders.status
+ * directly. Neither column exists - this app tracks status per order_item - so
+ * every delivery and cancellation callback died with "Unknown column
+ * 'active_status'", Shiprocket got a 500, and nothing ever synced. Statuses only
+ * advanced when a seller happened to open the order page (which does its own
+ * inline sync). Writing to order_items here is what actually makes the sync work,
+ * and it goes through Order_model::update_order() so the status-history JSON,
+ * the forward-only status ladder, refunds and stock all behave exactly as they do
+ * when a seller or admin changes the status by hand.
+ *
+ * @return array ['error' => bool, 'message' => string, 'updated' => int]
+ */
+function sync_shiprocket_shipment_status($tracking, $shiprocket_status, $raw_payload = null)
+{
+    $t = &get_instance();
+    $t->load->model('Order_model');
+
+    if (empty($tracking) || empty($tracking['order_id'])) {
+        return ['error' => true, 'message' => 'Shipment not found', 'updated' => 0];
+    }
+
+    $internal_status = shiprocket_status_to_order_status($shiprocket_status);
+
+    // Always record what Shiprocket last told us, even for statuses with no
+    // internal equivalent - otherwise intermediate tracking states (IN TRANSIT,
+    // OUT FOR DELIVERY, ...) were simply discarded and the tracking row kept
+    // whatever it was created with.
+    $tracking_update = ['others' => substr((string) $shiprocket_status, 0, 255)];
+    if ($internal_status === 'cancelled') {
+        $tracking_update['is_canceled'] = 1;
+    }
+    $t->db->set($tracking_update)->where('id', $tracking['id'])->update('order_tracking');
+
+    if ($internal_status === null) {
+        return ['error' => false, 'message' => 'Status recorded, no internal status change required', 'updated' => 0];
+    }
+
+    // order_item_id on this table is a comma-separated list (it is widened to
+    // MEDIUMTEXT by migration 011 for exactly that reason). Fall back to every
+    // item on the order if the list is empty, so a tracking row written before
+    // that column was populated still syncs.
+    $order_item_ids = array_filter(array_map('intval', explode(',', (string) $tracking['order_item_id'])));
+    if (empty($order_item_ids)) {
+        $order_item_ids = array_column(
+            fetch_details('order_items', ['order_id' => $tracking['order_id']], 'id'),
+            'id'
+        );
+    }
+    if (empty($order_item_ids)) {
+        return ['error' => true, 'message' => 'No order items found for this shipment', 'updated' => 0];
+    }
+
+    $updated = 0;
+    foreach ($order_item_ids as $order_item_id) {
+        $current = fetch_details('order_items', ['id' => $order_item_id], 'active_status,product_variant_id,quantity');
+        if (empty($current)) {
+            continue;
+        }
+        if ($current[0]['active_status'] === $internal_status) {
+            continue; // already there - keeps repeated webhook deliveries idempotent
+        }
+        // Never walk a finished item backwards, and never resurrect one that a
+        // customer/seller already cancelled or returned here.
+        if (in_array($current[0]['active_status'], ['cancelled', 'returned'], true)) {
+            continue;
+        }
+
+        $t->Order_model->update_order(['status' => $internal_status], ['id' => $order_item_id], true, 'order_items');
+        $t->Order_model->update_order(['active_status' => $internal_status], ['id' => $order_item_id], false, 'order_items');
+
+        if ($internal_status === 'cancelled' || $internal_status === 'returned') {
+            process_refund($order_item_id, $internal_status, 'order_items');
+            update_stock($current[0]['product_variant_id'], $current[0]['quantity'], 'plus');
+        }
+        $updated++;
+    }
+
+    if ($updated > 0) {
+        notify_customer_order_status($tracking['order_id'], $internal_status, $order_item_ids);
+    }
+
+    return [
+        'error'   => false,
+        'message' => 'Order updated successfully',
+        'updated' => $updated,
+    ];
+}
+
+/**
+ * Sends the standard "order status changed" push + notify_event for an order, to
+ * the customer who placed it and to the seller(s) whose items moved. Mirrors the
+ * notification block the seller and admin status-update screens already use.
+ *
+ * @param int|string  $order_id
+ * @param string      $status         internal status (received/processed/...)
+ * @param array|null  $order_item_ids limits the seller recipients to the sellers
+ *                                    behind these items; all sellers on the order
+ *                                    when omitted.
+ */
+function notify_customer_order_status($order_id, $status, $order_item_ids = null)
+{
+    $t = &get_instance();
+
+    $types = [
+        'received'  => 'customer_order_received',
+        'processed' => 'customer_order_processed',
+        'shipped'   => 'customer_order_shipped',
+        'delivered' => 'customer_order_delivered',
+        'cancelled' => 'customer_order_cancelled',
+        'returned'  => 'customer_order_returned',
+    ];
+    if (!isset($types[$status])) {
+        return;
+    }
+    $type = $types[$status];
+
+    $order = fetch_details('orders', ['id' => $order_id], 'user_id');
+    if (empty($order)) {
+        return;
+    }
+    $user_res = fetch_details('users', ['id' => $order[0]['user_id']], 'username,fcm_id,mobile,email');
+    if (empty($user_res)) {
+        return;
+    }
+
+    $settings = get_settings('system_settings', true);
+    $app_name = isset($settings['app_name']) && !empty($settings['app_name']) ? $settings['app_name'] : '';
+    $custom_notification = fetch_details('custom_notifications', ['type' => $type], '');
+
+    $message = 'Hello Dear ' . $user_res[0]['username'] . ', order status updated to ' . $status
+        . ' for order ID #' . $order_id . ' please take note of it! Thank you. Regards ' . $app_name;
+    if (!empty($custom_notification)) {
+        $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
+        $hashtag = html_entity_decode($string);
+        $parsed = str_replace(
+            ['< cutomer_name >', '< order_item_id >', '< application_name >'],
+            [$user_res[0]['username'], $order_id, $app_name],
+            $hashtag
+        );
+        $message = output_escaping(trim($parsed, '"'));
+    }
+
+    $title = (!empty($custom_notification)) ? $custom_notification[0]['title'] : 'Order status updated';
+
+    if (!empty($user_res[0]['fcm_id'])) {
+        send_notification([
+            'title'    => $title,
+            'body'     => $message,
+            'type'     => 'order',
+            'order_id' => $order_id,
+        ], [[$user_res[0]['fcm_id']]]);
+    }
+
+    // The seller whose items just moved needs to know too - the admin order screen
+    // already notified sellers alongside customers, so keep that behaviour when the
+    // status change arrives from the Shiprocket webhook instead of from a person.
+    $seller_where = ['order_id' => $order_id];
+    $seller_rows = (!empty($order_item_ids))
+        ? fetch_details('order_items', $seller_where, 'seller_id', '', '', '', '', 'id', $order_item_ids)
+        : fetch_details('order_items', $seller_where, 'seller_id');
+    $seller_ids = array_unique(array_filter(array_column($seller_rows, 'seller_id')));
+
+    $seller_emails = $seller_mobiles = [];
+    foreach ($seller_ids as $seller_id) {
+        $seller = fetch_details('users', ['id' => $seller_id], 'fcm_id,email,mobile,username');
+        if (empty($seller)) {
+            continue;
+        }
+        if (!empty($seller[0]['fcm_id'])) {
+            send_notification([
+                'title'    => $title,
+                'body'     => 'Order status updated to ' . $status . ' for order ID #' . $order_id . '.',
+                'type'     => 'order',
+                'order_id' => $order_id,
+            ], [[$seller[0]['fcm_id']]]);
+        }
+        if (!empty($seller[0]['email'])) {
+            $seller_emails[] = $seller[0]['email'];
+        }
+        if (!empty($seller[0]['mobile'])) {
+            $seller_mobiles[] = $seller[0]['mobile'];
+        }
+    }
+
+    notify_event(
+        $type,
+        ["customer" => [$user_res[0]['email']], "seller" => $seller_emails],
+        ["customer" => [$user_res[0]['mobile']], "seller" => $seller_mobiles],
+        ["orders.id" => $order_id]
+    );
 }
 // function parse_sms(string $string = "", string $mobile = "", string $sms = "", string $country_code = "")
 // {

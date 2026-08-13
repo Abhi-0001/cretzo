@@ -139,12 +139,19 @@ class Shiprocket
         return $result;
     }
 
-    public function generate_awb($shipment_id)
+    public function generate_awb($shipment_id, $courier_id = null)
     {
         $url = $this->url . 'courier/assign/awb';
         $data = array(
             'shipment_id' => $shipment_id,
         );
+        // Ask Shiprocket for the courier this shipment was actually rated and picked
+        // with. Without it Shiprocket falls back to its own default courier, so the
+        // courier the platform recommended (and quoted the delivery charge from) was
+        // never the one that carried the parcel.
+        if (!empty($courier_id)) {
+            $data['courier_id'] = $courier_id;
+        }
         $result = $this->curl($url, "POST", json_encode($data));
 
         return $result;
