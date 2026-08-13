@@ -274,7 +274,14 @@
                                     </tr>
                                 <?php } ?>
 
-                                <?php $sellers = array_values(array_unique(array_column($order_detls, "seller_id"))); ?>
+                                <?php $sellers = array_values(array_unique(array_column($order_detls, "seller_id")));
+                                // Initialised out here as well as inside the per-seller block:
+                                // the order-summary row near the bottom of this page prints
+                                // $tax_amount unconditionally, but the block that sets it only
+                                // runs for sellers that have a matching pickup location, so an
+                                // order without one printed an undefined variable.
+                                $total = 0;
+                                $tax_amount = 0; ?>
                                 <tr>
                                     <td colspan="2">
 
@@ -434,80 +441,14 @@
                                                                 }
                                                                 $shiprocket_status = isset($shiprocket_order['data']['status']) ? $shiprocket_order['data']['status'] : '';
                                                                 $shiprocket_status_code = isset($shiprocket_order['data']['status_code']) ? $shiprocket_order['data']['status_code'] : null;
-                                                                foreach ($order_item_ids as $id) {
-                                                                    $active_status_rows = fetch_details('order_items', ['id' => $id, 'seller_id' => $sellers[$i]], 'active_status');
-                                                                    $active_status = !empty($active_status_rows[0]['active_status']) ? $active_status_rows[0]['active_status'] : '';
-
-                                                                    if ($shiprocket_status == 'PICKUP SCHEDULED' &&  $active_status != 'shipped') {
-                                                                        $this->Order_model->update_order(['active_status' => 'shipped'], ['id' => $id, 'seller_id' => $sellers[$i]], false, 'order_items');
-                                                                        $this->Order_model->update_order(['status' => 'shipped'], ['id' => $id, 'seller_id' => $sellers[$i]], true, 'order_items');
-                                                                        $type = ['type' => "customer_order_shipped"];
-                                                                        $order_status = 'shipped';
-                                                                    }
-                                                                    if (($shiprocket_status == 'CANCELED' || $shiprocket_status == 'CANCELLATION REQUESTED') &&  $active_status != 'cancelled') {
-                                                                        $this->Order_model->update_order(['active_status' => 'cancelled'], ['id' => $id, 'seller_id' => $sellers[$i]], false, 'order_items');
-                                                                        $this->Order_model->update_order(['status' => 'cancelled'], ['id' => $id, 'seller_id' => $sellers[$i]], true, 'order_items');
-                                                                        $type = ['type' => "customer_order_cancelled"];
-                                                                        $order_status = 'cancelled';
-                                                                    }
-                                                                    if (strtolower($shiprocket_status) == 'delivered' &&  $active_status != 'delivered') {
-                                                                        $this->Order_model->update_order(['active_status' => 'delivered'], ['id' => $id, 'seller_id' => $sellers[$i]], false, 'order_items');
-                                                                        $this->Order_model->update_order(['status' => 'delivered'], ['id' => $id, 'seller_id' => $sellers[$i]], true, 'order_items');
-                                                                        $type = ['type' => "customer_order_delivered"];
-                                                                        $order_status = 'delivered';
-                                                                    }
-                                                                    if ($shiprocket_status == 'READY TO SHIP' &&  $active_status != 'processed') {
-                                                                        $this->Order_model->update_order(['active_status' => 'processed'], ['id' => $id, 'seller_id' => $sellers[$i]], false, 'order_items');
-                                                                        $this->Order_model->update_order(['status' => 'processed'], ['id' => $id, 'seller_id' => $sellers[$i]], true, 'order_items');
-                                                                        $type = ['type' => "customer_order_processed"];
-                                                                        $order_status = 'processed';
-                                                                    }
-
-                                                                    //send notification while shiprocket order status changed
-                                                                    if (isset($type) && !empty($type)) {
-                                                                        $settings = get_settings('system_settings', true);
-                                                                        $app_name = isset($settings['app_name']) && !empty($settings['app_name']) ? $settings['app_name'] : '';
-                                                                        $custom_notification = fetch_details('custom_notifications', $type, '');
-                                                                        $hashtag_cutomer_name = '< cutomer_name >';
-                                                                        $hashtag_order_id = '< order_item_id >';
-                                                                        $hashtag_application_name = '< application_name >';
-                                                                        $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
-                                                                        $hashtag = html_entity_decode($string);
-                                                                        $data = str_replace(array($hashtag_cutomer_name, $hashtag_order_id, $hashtag_application_name), array($order_detls[0]['uname'], $order_detls[0]['id'], $app_name), $hashtag);
-                                                                        $message = output_escaping(trim($data, '"'));
-                                                                        $customer_msg = (!empty($custom_notification)) ? $message :  'Hello Dear ' . $order_detls[0]['uname'] . ' Order status updated to' . $order_status . ' for order ID #' . $order_detls[0]['id'] . ' please take note of it! Thank you. Regards ' . $app_name . '';
-                                                                        $seller_msg = (!empty($custom_notification)) ? $message :  'Hello Dear ' . $seller_data[0]['username'] . ' Order status updated to' . $order_status . ' for order ID #' . $order_detls[0]['id'] . ' please take note of it! Thank you. Regards ' . $app_name . '';
-                                                                        $fcmMsg = array(
-                                                                            'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Order status updated",
-                                                                            'body' =>  $customer_msg,
-                                                                            'type' => "order",
-                                                                        );
-                                                                        $seller_fcmMsg = array(
-                                                                            'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Order status updated",
-                                                                            'body' =>  $seller_msg,
-                                                                            'type' => "order",
-                                                                        );
-                                                                        $user_res = fetch_details('users', ['id' => $order_detls[0]['user_id']], 'fcm_id');
-                                                                        $fcm_ids = $seller_fcm_ids =  array();
-
-                                                                        //send notification to customer
-                                                                        if (!empty($user_res[0]['fcm_id'])) {
-                                                                            $fcm_ids[0][] = $user_res[0]['fcm_id'];
-                                                                            send_notification($fcmMsg, $fcm_ids);
-                                                                        }
-                                                                        (notify_event(
-                                                                            $type['type'],
-                                                                            ["customer" => [$order_detls[0]['email']], "seller" => [$seller_data[0]['email']]],
-                                                                            ["customer" => [$order_detls[0]['mobile']],  "seller" => [$seller_data[0]['mobile']]],
-                                                                            ["orders.id" => $order_detls[0]['id']]
-                                                                        ));
-
-                                                                        //send notification to seller
-                                                                        if (!empty($seller_data[0]['fcm_id'])) {
-                                                                            $seller_fcm_ids[0][] = $seller_data[0]['fcm_id'];
-                                                                            send_notification($seller_fcmMsg, $seller_fcm_ids);
-                                                                        }
-                                                                    }
+                                                                // Status changes go through the same shared helper the Shiprocket
+                                                                // webhook uses instead of being reimplemented here. The old inline
+                                                                // version knew only four Shiprocket statuses, and it set $type inside
+                                                                // the item loop without ever resetting it - so once one item changed
+                                                                // status, every remaining item in the loop re-sent that same
+                                                                // customer/seller notification even though nothing about it changed.
+                                                                if (!empty($order_tracking_data) && !empty($order_tracking_data[0]['shiprocket_order_id'])) {
+                                                                    sync_shiprocket_shipment_status($order_tracking_data[0], $shiprocket_status);
                                                                 }
                                                             ?>
                                                                 <?php if ($shipping_method['shiprocket_shipping_method'] == 1 && isset($pickup_location[$j]) && !empty($pickup_location[$j]) && $pickup_location[$j] != 'NULL') { ?>

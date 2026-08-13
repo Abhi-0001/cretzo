@@ -552,7 +552,9 @@ if (!empty($sections)) {
                 $this->form_validation->set_rules('identity', ucfirst($identity_column), 'required|numeric');
             }
         }
-        $this->form_validation->set_rules('password', str_replace(':', '', $this->lang->line('login_password_label')), 'required');
+        // 'trim' matches the trim applied when the password was set (signup and both reset
+        // paths), so a stray leading/trailing space no longer makes a correct password fail.
+        $this->form_validation->set_rules('password', str_replace(':', '', $this->lang->line('login_password_label')), 'trim|required');
 
         if ($this->form_validation->run() === TRUE) {
             $tables = $this->config->item('tables', 'ion_auth');
@@ -648,13 +650,17 @@ if (!empty($sections)) {
                 }
             }
 
-            if($group = fetch_details('users_groups', ['user_id' => $user_data[0]['id']] )){
-                if($group[0]['group_id'] !=2){
-                    $response['error'] = true;
-                        $response['message'] = 'Invalid user';
-                        echo json_encode($response);
-                        return false;
-                }
+            // Membership, not "whatever the first users_groups row happens to be". Sellers now
+            // also hold the buyer role on the same account (migration 028), and $group[0] was
+            // simply the row inserted first - so a seller who also shops was rejected here as
+            // an "Invalid user" even though the account is a perfectly valid buyer account.
+            // Guarded on $user_data because an unregistered identity has no user row at all;
+            // that case falls through to the generic "incorrect credentials" reply below.
+            if (!empty($user_data) && !user_has_role($user_data[0]['id'], 'customer')) {
+                $this->response['error'] = true;
+                $this->response['message'] = 'Invalid user';
+                echo json_encode($this->response);
+                return false;
             }
             
             
@@ -681,7 +687,17 @@ if (!empty($sections)) {
                 $remember = (bool)$this->input->post('remember');
                 
 
-                if ($this->ion_auth->login($this->input->post('identity'), $this->input->post('password'), $remember, $this->input->post('type'))) {
+                // Deliberately NOT passing $_POST['type'] as ion_auth's 4th "type" argument.
+                // That made the credential check `WHERE mobile = ? AND users.type = 'phone'`
+                // (the login form hard-codes type=phone), but users.type records how the
+                // account was CREATED, not how it is logging in - and social_login() rewrites
+                // it to 'google'/'facebook' on every social sign-in. So anyone who had ever
+                // used "Sign in with Google" could never log in with a password again: the row
+                // simply did not match, and the failure was reported as "Incorrect Number or
+                // password" even straight after a successful password reset. Verified locally -
+                // same correct password, type='google' rejected vs type='phone' accepted.
+                // Every other ion_auth->login() call site in the app already omits this arg.
+                if ($this->ion_auth->login($this->input->post('identity'), $this->input->post('password'), $remember)) {
                     //if the login is successful
                     
                     // Check if user already has group_id = 2, if not insert
@@ -953,7 +969,12 @@ if (!empty($sections)) {
     private function _find_reset_customer($mobile)
     {
         $owner = classify_mobile_owner($mobile);
-        if (!$owner['exists'] || $owner['role'] !== 'customer') {
+        // Membership, not "primary role" - matching _reset_lookup_error() and
+        // firebase_phone_reset(). classify_mobile_owner() reports the most-privileged role, so
+        // a seller/admin who also shops came back as 'seller'/'admin' here and this returned
+        // null: send_reset_otp() then passed a null user on, and reset_password() answered
+        // "User does not exists !" for an account its own pre-flight check had just approved.
+        if (!$owner['exists'] || !user_has_role($owner['user']['id'], 'customer')) {
             return null;
         }
         return $owner['user'];
@@ -1020,7 +1041,13 @@ if (!empty($sections)) {
     {
         $this->form_validation->set_rules('mobile_number', 'Mobile No', 'trim|numeric|required|xss_clean|max_length[16]');
         $this->form_validation->set_rules('id_token', 'Verification token', 'trim|required|xss_clean');
-        $this->form_validation->set_rules('new_password', 'New Password', 'trim|required|min_length[6]|xss_clean');
+        // NOT xss_clean: CI's form validation writes the filtered value back into $_POST, so the
+        // password that got HASHED was the xss_clean'd one while login() verifies what the user
+        // actually typed. Any password containing &, <, ", ' or "<?" was silently mangled, so the
+        // reset reported "Reset Password Successfully" and the new password then failed at login
+        // with "Incorrect Number or password". Verified locally with 'Pa&ss<x1'. A password is
+        // hashed and never rendered anywhere, so XSS-filtering it is meaningless by definition.
+        $this->form_validation->set_rules('new_password', 'New Password', 'trim|required|min_length[6]');
         if (!$this->form_validation->run()) {
             echo json_encode([
                 'error' => true,
@@ -1094,7 +1121,9 @@ if (!empty($sections)) {
         */
         $this->form_validation->set_rules('mobile', 'Mobile No', 'trim|numeric|required|xss_clean|max_length[16]');
         $this->form_validation->set_rules('otp', 'OTP', 'trim|required|xss_clean');
-        $this->form_validation->set_rules('new_password', 'New Password', 'trim|required|xss_clean');
+        // Not xss_clean - see reset_password_firebase() above: filtering a value that is about to
+        // be hashed corrupts it and locks the user out of the password they just chose.
+        $this->form_validation->set_rules('new_password', 'New Password', 'trim|required');
 
         if (!$this->form_validation->run()) {
             $this->response['error'] = true;

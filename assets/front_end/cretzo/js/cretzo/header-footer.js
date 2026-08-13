@@ -56,6 +56,14 @@ $(document).ready(function() {
         let passInputs = passwordField.querySelectorAll('.form-control');
         let passToggle = passwordField.querySelector('.password-toggle > i');
 
+        // A .password-container without a toggle icon used to throw here on
+        // addEventListener, and because this runs inside the shared ready handler the
+        // TypeError killed every statement after it - including the #modal-signin reset
+        // below. Skip such a container instead of taking the whole file down with it.
+        if (!passToggle || !passInputs.length) {
+            return;
+        }
+
         passToggle.addEventListener('click', () => {
             let isPassword = passInputs[0].type === "password"; // Check the type of the first input
 

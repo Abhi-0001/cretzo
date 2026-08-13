@@ -113,11 +113,21 @@ class Orders extends CI_Controller
                 $items = [];
                 foreach ($res as $row) {
 
-                    $multipleWhere = ['seller_id' => $row['seller_id'], 'order_id' => $row['id']];
+                    // 'order_id' is the explicit `o.id as order_id` alias. Plain 'id' does NOT
+                    // hold the order id here: get_order_details() selects oi.*, p.* and o.*
+                    // together, so the bare `id` key is whichever of those collapsed last -
+                    // never reliably the order. The lookup therefore matched nothing and every
+                    // $order_charge_data[0][...] read below raised "Undefined array key 0"
+                    // (verified live: an order WITH an order_charges row still found none).
+                    $multipleWhere = ['seller_id' => $row['seller_id'], 'order_id' => $row['order_id']];
                     $order_charge_data = $this->db->where($multipleWhere)->get('order_charges')->result_array();
+                    $order_charge_row = !empty($order_charge_data) ? $order_charge_data[0] : ['otp' => 0, 'delivery_charge' => 0, 'promo_discount' => 0];
 
-                    $updated_username = fetch_details('users', 'id =' . $row['updated_by'], 'username');
-                    $deliver_by = fetch_details('users', 'id =' . $row['delivery_boy_id'], 'username');
+                    // Both columns are 0/NULL on an order nobody has updated and with no
+                    // delivery boy assigned, which built the malformed SQL fragment "id =" and
+                    // sent it to the database.
+                    $updated_username = !empty($row['updated_by']) ? fetch_details('users', ['id' => $row['updated_by']], 'username') : [];
+                    $deliver_by = !empty($row['delivery_boy_id']) ? fetch_details('users', ['id' => $row['delivery_boy_id']], 'username') : [];
                     $temp['id'] = $row['order_item_id'];
                     $temp['product_id'] = $row['product_id'];
                     $temp['item_otp'] = $row['item_otp'];
@@ -133,16 +143,20 @@ class Orders extends CI_Controller
                     $temp['tax_amount'] = $row['tax_amount'];
                     $temp['discounted_price'] = $row['discounted_price'];
                     $temp['price'] = $row['price'];
-                    $temp['row_price'] = $row['row_price'];
+                    // get_order_details() has no row_price column - this key never existed and
+                    // the view only uses it as a fallback. Fall back to the line total.
+                    $temp['row_price'] = isset($row['row_price']) ? $row['row_price'] : (isset($row['sub_total']) ? $row['sub_total'] : $row['price']);
                     $temp['active_status'] = $row['oi_active_status'];
-                    $temp['updated_by'] = $updated_username[0]['username'];
-                    $temp['deliver_by'] = $deliver_by[0]['username'];
+                    // A deleted staff account, or an order nobody has touched yet, leaves these
+                    // lookups empty - they were indexed straight into regardless.
+                    $temp['updated_by'] = !empty($updated_username) ? $updated_username[0]['username'] : '';
+                    $temp['deliver_by'] = !empty($deliver_by) ? $deliver_by[0]['username'] : '';
                     $temp['product_image'] = $row['product_image'];
                     $temp['product_variants'] = get_variants_values_by_id($row['product_variant_id']);
                     $temp['product_type'] = $row['type'];
-                    $temp['seller_otp'] = $order_charge_data[0]['otp'];
-                    $temp['seller_delivery_charge'] = $order_charge_data[0]['delivery_charge'];
-                    $temp['seller_promo_discount'] = $order_charge_data[0]['promo_discount'];
+                    $temp['seller_otp'] = $order_charge_row['otp'];
+                    $temp['seller_delivery_charge'] = $order_charge_row['delivery_charge'];
+                    $temp['seller_promo_discount'] = $order_charge_row['promo_discount'];
                     $temp['download_allowed'] = $row['download_allowed'];
                     $temp['is_sent'] = $row['is_sent'];
                     $temp['seller_id'] = $row['seller_id'];
@@ -350,6 +364,20 @@ class Orders extends CI_Controller
                     print_r(json_encode($this->response));
                     return false;
                 }
+            }
+
+            // The view hides the delivery-boy selector when this permission is off, but
+            // hiding a control is not enforcement - the endpoint accepted deliver_by from
+            // anyone and assigned it. The app API already checks this same permission
+            // before assigning (seller/app/v1/Api.php); the web endpoint did not.
+            if (!empty($delivery_boy_id) && !get_seller_permission($seller_id, 'assign_delivery_boy')) {
+                $this->response['error'] = true;
+                $this->response['message'] = 'You are not allowed to assign a delivery boy.';
+                $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                $this->response['data'] = array();
+                print_r(json_encode($this->response));
+                return false;
             }
 
             if (!empty($delivery_boy_id)) {
@@ -788,7 +816,10 @@ class Orders extends CI_Controller
                 $order_items =  $_POST['order_items'];
                 $items = [];
                 $subtotal = 0;
-                $order_id = 0;
+                // Was initialised to 0 and then appended to with .=, so the Shiprocket order
+                // reference came out as "28" . "0-48" . "-4171" - a stray 0 wedged into every
+                // reference. Start empty so it reads "28-48-4171".
+                $order_id = '';
 
                 // seller_id must always come from the authenticated session — the submitted
                 // order_items JSON (including each row's own seller_id) is entirely
@@ -797,10 +828,42 @@ class Orders extends CI_Controller
                 $seller_id = $this->ion_auth->get_user_id();
                 $_POST['shiprocket_seller_id'] = $seller_id;
 
-                $pickup_location_pincode = fetch_details('pickup_locations', ['pickup_location' => $_POST['pickup_location']], 'pin_code');
-                $user_data = fetch_details('users', ['id' => $_POST['user_id']], 'username,email');
+                // Scoped to this seller: pickup_location is a client-supplied string, and
+                // without the seller_id filter a seller could dispatch their parcel from
+                // another seller's registered pickup address.
+                $pickup_location_pincode = fetch_details('pickup_locations', ['pickup_location' => $_POST['pickup_location'], 'seller_id' => $seller_id], 'pin_code');
+                if (empty($pickup_location_pincode)) {
+                    $this->response['error'] = true;
+                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                    $this->response['message'] = 'Pickup location not found for your account.';
+                    $this->response['data'] = array();
+                    print_r(json_encode($this->response));
+                    return false;
+                }
+
                 $order_data = fetch_details('orders', ['id' => $_POST['order_id']], 'date_added,address_id,mobile,payment_method,delivery_charge');
+                if (empty($order_data)) {
+                    $this->response['error'] = true;
+                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                    $this->response['message'] = 'Order not found.';
+                    $this->response['data'] = array();
+                    print_r(json_encode($this->response));
+                    return false;
+                }
+
+                $user_data = fetch_details('users', ['id' => $_POST['user_id']], 'username,email');
                 $address_data = fetch_details('addresses', ['id' => $order_data[0]['address_id']], 'address,city_id,pincode,state,country');
+                if (empty($address_data)) {
+                    $this->response['error'] = true;
+                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                    $this->response['message'] = 'Delivery address not found for this order.';
+                    $this->response['data'] = array();
+                    print_r(json_encode($this->response));
+                    return false;
+                }
                 $city_data = fetch_details('cities', ['id' => $address_data[0]['city_id']], 'name');
 
                 $availibility_data = [
@@ -813,6 +876,11 @@ class Orders extends CI_Controller
                 $check_deliveribility = $this->shiprocket->check_serviceability($availibility_data);
                 $get_currier_id = shiprocket_recomended_data($check_deliveribility);
 
+                // Initialised so that "no submitted item belonged to this seller / this
+                // pickup location" doesn't reach implode() with an undefined variable, which
+                // is a fatal TypeError on PHP 8 - the AJAX caller got an HTML error page
+                // instead of JSON.
+                $order_item_id = [];
                 foreach ($order_items as $row) {
                     if ($row['pickup_location'] == $_POST['pickup_location'] && $row['seller_id'] == $_POST['shiprocket_seller_id']) {
                         // Verify this order item id is real and actually belongs to this
@@ -840,6 +908,16 @@ class Orders extends CI_Controller
                         $temp['tax'] = $row['tax_amount'];
                         array_push($items, $temp);
                     }
+                }
+
+                if (empty($order_item_id)) {
+                    $this->response['error'] = true;
+                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                    $this->response['message'] = 'No items of yours were found for this pickup location. Please reload the order and try again.';
+                    $this->response['data'] = array();
+                    print_r(json_encode($this->response));
+                    return false;
                 }
 
                 $order_item_ids = implode(",", $order_item_id);
@@ -871,7 +949,13 @@ class Orders extends CI_Controller
                 $response = $this->shiprocket->create_order($create_order);
 
                 if (isset($response['status_code']) && $response['status_code'] == 1) {
-                    $courier_company_id = $get_currier_id['courier_company_id'];
+                    // shiprocket_recomended_data() returns [] when serviceability came back
+                    // empty (unserviceable pincode, API error, overweight parcel), so this key
+                    // is not guaranteed. courier_company_id is INT NOT NULL, so a null here
+                    // would be rejected outright under strict SQL mode and silently become 0
+                    // otherwise. Default to 0 explicitly - generate_awb() treats 0 as "no
+                    // preference" and lets Shiprocket choose.
+                    $courier_company_id = isset($get_currier_id['courier_company_id']) ? $get_currier_id['courier_company_id'] : 0;
                     $order_tracking_data = [
                         'order_id' => $_POST['order_id'],
                         'order_item_id' => $order_item_ids,
@@ -930,7 +1014,10 @@ class Orders extends CI_Controller
 
             $res = generate_awb($_POST['shipment_id']);
 
-            if (!empty($res) && $res['status_code'] == 200) {
+            // Success is "an AWB actually came back". A timed-out or errored Shiprocket
+            // call returns null/an error array with no 'status_code' and no 'message', so
+            // reading those keys raised warnings that corrupted this JSON response.
+            if (!empty($res) && !empty($res['response']['data']['awb_code'])) {
                 $this->response['error'] = false;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
@@ -940,7 +1027,9 @@ class Orders extends CI_Controller
                 $this->response['error'] = true;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] =  $res['message'];
+                $this->response['message'] = (!empty($res) && isset($res['message']) && !empty($res['message']))
+                    ? $res['message']
+                    : 'AWB could not be generated. Please check the shipment on Shiprocket and try again.';
                 $this->response['data'] = array();
             }
             print_r(json_encode($this->response));
@@ -1062,7 +1151,7 @@ class Orders extends CI_Controller
             }
 
             $res = cancel_shiprocket_order($_POST['shiprocket_order_id']);
-            if (!empty($res) && $res['status'] == 200) {
+            if (!empty($res) && isset($res['status']) && $res['status'] == 200) {
                 $this->response['error'] = false;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();

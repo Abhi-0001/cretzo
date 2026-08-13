@@ -337,7 +337,10 @@ $system_settings = get_settings('system_settings', true); ?>
                                 <p class="text-n ta-c op-6">Enter the OTP and set a new password.</p>
                                 <div class="field-container">
                                     <input type="text" id="forgot_password_otp" class="form-control input ta-c" name="otp" placeholder="OTP" value="" autocomplete="off" required>
-                                    <input type="password" class="form-control input ta-c" name="new_password" placeholder="New Password" value="" required>
+                                    <div class="password-container">
+                                        <input type="password" id="forgot_password_new_password" class="form-control input ta-c" name="new_password" placeholder="New Password" value="" required>
+                                        <span class="password-toggle"><i class="uil uil-eye"></i></span>
+                                    </div>
                                 </div>
                                 <div class="form-group ta-c" id="set_password_error_box"></div>
                                 <div class="ta-c btn-container">

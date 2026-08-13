@@ -405,6 +405,8 @@ class Auth extends CI_Controller
         $additional_data = [
             'first_name' => $first_name,
             'last_name' => $last_name,
+            'mobile' => generate_unique_placeholder_mobile(),
+            'type' => $provider,
         ];
 
         $register = $this->ion_auth->register($identity, $password, $email, $additional_data);
@@ -1234,7 +1236,10 @@ class Auth extends CI_Controller
         $this->form_validation->set_rules('friends_code', 'Friends code', 'trim|xss_clean');
         $this->form_validation->set_rules('latitude', 'Latitude', 'trim|xss_clean');
         $this->form_validation->set_rules('longitude', 'Longitude', 'trim|xss_clean');
-        $this->form_validation->set_rules('password', 'Password', 'trim|required|xss_clean');
+        // Not xss_clean - the filtered value is what gets hashed (CI writes it back into $_POST),
+        // so signing up with a password containing &, <, " or ' stored a hash of a mangled string
+        // and the account could never be logged into with the password the user chose.
+        $this->form_validation->set_rules('password', 'Password', 'trim|required');
 
         $this->response['csrfName'] = $this->security->get_csrf_token_name();
         $this->response['csrfHash'] = $this->security->get_csrf_hash();

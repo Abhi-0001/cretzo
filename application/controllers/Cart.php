@@ -783,8 +783,33 @@ class Cart extends CI_Controller
                     $_POST['is_delivery_charge_returnable'] = intval($_POST['delivery_charge']) != 0 ? 1 : 0;
                 }
                 $wallet_balance = fetch_details('users', 'id=' . $_POST['user_id'], 'balance');
-                $final_total = $cart['overall_amount'];
                 $wallet_balance = $wallet_balance[0]['balance'];
+
+                // The promo discount MUST be resolved before the wallet deduction is sized.
+                // It used to run the other way round: the wallet was sized against the full
+                // pre-discount total and the promo discount was then subtracted again on top.
+                // With a 1000 cart, a 100 promo and a funded wallet that produced
+                // wallet_balance_used = 1000 against a real total of 900 - Order_model then
+                // rejected the whole order with "Wallet Balance should not exceed the total
+                // amount", so paying entirely by wallet WITH a promo code was impossible.
+                $promo_discount = 0;
+                if (isset($_POST['promo_code']) && !empty($_POST['promo_code'])) {
+                    $validate = validate_promo_code($_POST['promo_code'], $this->data['user']->id, $cart['total_arr']);
+                    if ($validate['error']) {
+                        $this->response['error'] = true;
+                        $this->response['message'] = $validate['message'];
+                        print_r(json_encode($this->response));
+                        return false;
+                    } else {
+                        $promo_discount = $validate['data'][0]['final_discount'];
+                    }
+                }
+
+                // What the customer actually owes, and therefore the most the wallet can
+                // ever be charged. Order_model recomputes the same figure independently and
+                // refuses anything above it, so these two have to agree.
+                $final_total = $cart['overall_amount'] - $promo_discount;
+                $final_total = ($final_total < 0) ? 0 : round($final_total, 2);
 
                 $_POST['wallet_balance_used'] = 0;
                 if (isset($_POST['wallet_used']) && $_POST['wallet_used'] == 1) {
@@ -806,18 +831,6 @@ class Cart extends CI_Controller
                     }
                 }
 
-                $promo_discount = 0;
-                if (isset($_POST['promo_code']) && !empty($_POST['promo_code'])) {
-                    $validate = validate_promo_code($_POST['promo_code'], $this->data['user']->id, $cart['total_arr']);
-                    if ($validate['error']) {
-                        $this->response['error'] = true;
-                        $this->response['message'] = $validate['message'];
-                        print_r(json_encode($this->response));
-                        return false;
-                    } else {
-                        $promo_discount = $validate['data'][0]['final_discount'];
-                    }
-                }
                 $_POST['final_total'] = $cart['overall_amount'] - $_POST['wallet_balance_used'] - $promo_discount;
                 if ($_POST['payment_method'] == "Razorpay") {
                     // verify_payment_transaction() returns an ARRAY, e.g.
@@ -830,10 +843,30 @@ class Cart extends CI_Controller
                     $rzp_order_id = isset($_POST['razorpay_order_id']) ? $_POST['razorpay_order_id'] : '';
                     $rzp_signature = isset($_POST['razorpay_signature']) ? $_POST['razorpay_signature'] : '';
 
+                    // Every rejection below is recorded as a "failed" transaction before
+                    // returning. Previously a transaction row was only ever written AFTER a
+                    // payment had been fully verified, so a rejected payment left no trace at
+                    // all: support had nothing to look at, and a wave of failures (bad keys,
+                    // gateway outage, someone probing with forged payment ids) was invisible.
+                    // The order does not exist yet at this point, hence a null order_id.
+                    $record_failed_payment = function ($reason) use ($rzp_payment_id) {
+                        $this->transaction_model->add_transaction([
+                            'transaction_type' => 'transaction',
+                            'user_id'  => $_POST['user_id'],
+                            'order_id' => null,
+                            'type'     => 'razorpay',
+                            'txn_id'   => $rzp_payment_id,
+                            'amount'   => isset($_POST['final_total']) ? $_POST['final_total'] : 0,
+                            'status'   => 'failed',
+                            'message'  => substr($reason, 0, 128),
+                        ]);
+                    };
+
                     // Replay guard: the same payment id must not be able to pay for more
                     // than one order.
                     $rzp_already_used = fetch_details('transactions', ['txn_id' => $rzp_payment_id, 'status' => 'success'], 'id');
                     if (!empty($rzp_already_used)) {
+                        $record_failed_payment('Replayed payment id - already used on another order');
                         $this->response['error'] = true;
                         $this->response['message'] = "This payment has already been processed.";
                         $this->response['data'] = array();
@@ -846,6 +879,7 @@ class Cart extends CI_Controller
                     // proves the payment is genuine was never checked here.
                     $this->load->library('razorpay');
                     if (!$this->razorpay->verify_payment($rzp_order_id, $rzp_payment_id, $rzp_signature)) {
+                        $record_failed_payment('Signature verification failed');
                         $this->response['error'] = true;
                         $this->response['message'] = "Payment signature verification failed.";
                         $this->response['data'] = array();
@@ -855,6 +889,7 @@ class Cart extends CI_Controller
 
                     $rzp_verification = verify_payment_transaction($rzp_payment_id, 'razorpay');
                     if (!isset($rzp_verification['error']) || $rzp_verification['error'] === true) {
+                        $record_failed_payment(isset($rzp_verification['message']) ? $rzp_verification['message'] : 'Gateway verification failed');
                         $this->response['error'] = true;
                         $this->response['message'] = isset($rzp_verification['message']) ? $rzp_verification['message'] : "Invalid Razorpay Payment Transaction.";
                         $this->response['data'] = array();
@@ -866,6 +901,7 @@ class Cart extends CI_Controller
                     // against, and must actually cover the order total.
                     $rzp_payment_order_id = isset($rzp_verification['data']['order_id']) ? $rzp_verification['data']['order_id'] : null;
                     if (empty($rzp_payment_order_id) || !hash_equals((string) $rzp_order_id, (string) $rzp_payment_order_id)) {
+                        $record_failed_payment('Payment does not belong to the submitted razorpay order id');
                         $this->response['error'] = true;
                         $this->response['message'] = "This payment does not belong to the selected order.";
                         $this->response['data'] = array();
@@ -875,6 +911,7 @@ class Cart extends CI_Controller
 
                     $rzp_paid_amount = isset($rzp_verification['amount']) ? (float) $rzp_verification['amount'] : 0.0;
                     if ($rzp_paid_amount + 0.01 < (float) $_POST['final_total']) {
+                        $record_failed_payment('Paid ' . $rzp_paid_amount . ' against a total of ' . $_POST['final_total']);
                         $this->response['error'] = true;
                         $this->response['message'] = "Paid amount does not match the order total.";
                         $this->response['data'] = array();
@@ -887,6 +924,12 @@ class Cart extends CI_Controller
                     $data['message'] = "Order Placed Successfully";
                 } elseif ($_POST['payment_method'] == "COD") {
                     $_POST['active_status'] = "received";
+                    // COD is excluded from add_transaction() below, but these three keys were
+                    // still read back unconditionally further down, raising "Undefined array
+                    // key" on every single COD order.
+                    $data['status'] = "success";
+                    $data['txn_id'] = null;
+                    $data['message'] = "Order Placed Successfully";
                 } elseif ($_POST['payment_method'] == "wallet") {
                     $_POST['active_status'] = $_POST['wallet_balance_used'] == $final_total ? 'received' : 'awaiting';
                     $data['status'] = "success";
@@ -917,9 +960,12 @@ class Cart extends CI_Controller
                 }
                 $order = fetch_details('orders', ['id' => $res['order_id']], 'final_total');
 
-                $data['status'] = $data['status'];
-                $data['txn_id'] = $data['txn_id'];
-                $data['message'] = $data['message'];
+                // Defaulted rather than self-assigned ($data['status'] = $data['status'] did
+                // nothing except read a key that may never have been set) so an unrecognised
+                // payment method can't reach add_transaction() with undefined values.
+                $data['status'] = isset($data['status']) ? $data['status'] : 'awaiting';
+                $data['txn_id'] = isset($data['txn_id']) ? $data['txn_id'] : null;
+                $data['message'] = isset($data['message']) ? $data['message'] : null;
                 $data['order_id'] = $res['order_id'];
                 $data['user_id'] = $_POST['user_id'];
                 $data['type'] = $_POST['payment_method'];

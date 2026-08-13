@@ -374,77 +374,44 @@
                                                     }
                                                 }
                                                 $order_item_ids = explode(',', trim($ids, ','));
+
+                                                // get_shipment_id() returns FALSE when this pickup location has no
+                                                // shipment yet. That was read as $order_tracking_data[0][...] regardless,
+                                                // which then called Shiprocket with an empty order id - two live API
+                                                // calls (auth + fetch) on every render of this page for an order that
+                                                // has no shipment at all. Only ask Shiprocket about shipments that exist.
                                                 $order_tracking_data = get_shipment_id($order_item_ids[0], $order_detls[0]['order_id']);
-                                                $shiprocket_order = get_shiprocket_order($order_tracking_data[0]['shiprocket_order_id']);
-                                                foreach ($order_item_ids as $id) {
-                                                    $active_status = fetch_details('order_items', ['id' => $id, 'seller_id' => $this->session->userdata('user_id')], 'active_status')[0]['active_status'];
+                                                $order_tracking_data = (!empty($order_tracking_data)) ? $order_tracking_data : [];
 
-                                                    if ($shiprocket_order['data']['status'] == 'PICKUP SCHEDULED' &&  $active_status != 'shipped') {
-                                                        $this->Order_model->update_order(['active_status' => 'shipped'], ['id' => $id, 'seller_id' => $this->session->userdata('user_id')], false, 'order_items');
-                                                        $this->Order_model->update_order(['status' => 'shipped'], ['id' => $id, 'seller_id' => $this->session->userdata('user_id')], true, 'order_items');
-                                                        $type = ['type' => "customer_order_shipped"];
-                                                        $order_status = 'shipped';
-                                                    }
-                                                    if ($shiprocket_order['data']['status'] == 'CANCELED' &&  $active_status != 'cancelled') {
-                                                        $this->Order_model->update_order(['active_status' => 'cancelled'], ['id' => $id, 'seller_id' => $this->session->userdata('user_id')], false, 'order_items');
-                                                        $this->Order_model->update_order(['status' => 'cancelled'], ['id' => $id, 'seller_id' => $this->session->userdata('user_id')], true, 'order_items');
-                                                        $type = ['type' => "customer_order_cancelled"];
-                                                        $order_status = 'cancelled';
-                                                    }
-                                                    if (strtolower($shiprocket_order['data']['status']) == 'delivered' &&  $active_status != 'delivered') {
-                                                        $this->Order_model->update_order(['active_status' => 'delivered'], ['id' => $id, 'seller_id' => $this->session->userdata('user_id')], false, 'order_items');
-                                                        $this->Order_model->update_order(['status' => 'delivered'], ['id' => $id, 'seller_id' => $this->session->userdata('user_id')], true, 'order_items');
-                                                        $type = ['type' => "customer_order_delivered"];
-                                                        $order_status = 'delivered';
-                                                    }
-                                                    if ($shiprocket_order['data']['status'] == 'READY TO SHIP' &&  $active_status != 'processed') {
-                                                        $this->Order_model->update_order(['active_status' => 'processed'], ['id' => $id, 'seller_id' => $this->session->userdata('user_id')], false, 'order_items');
-                                                        $this->Order_model->update_order(['status' => 'processed'], ['id' => $id, 'seller_id' => $this->session->userdata('user_id')], true, 'order_items');
-                                                        $type = ['type' => "customer_order_processed"];
-                                                        $order_status = 'processed';
+                                                // Default shape so the ~10 $shiprocket_order['data']['status'] reads
+                                                // further down this page stay warning-free when there is no shipment
+                                                // or when the Shiprocket call fails/times out.
+                                                $shiprocket_order = ['data' => ['status' => '', 'status_code' => 0]];
+                                                if (!empty($order_tracking_data[0]['shiprocket_order_id'])) {
+                                                    $fetched_shiprocket_order = get_shiprocket_order($order_tracking_data[0]['shiprocket_order_id']);
+                                                    if (!empty($fetched_shiprocket_order['data'])) {
+                                                        $shiprocket_order = $fetched_shiprocket_order;
+                                                        $shiprocket_order['data'] += ['status' => '', 'status_code' => 0];
                                                     }
 
-                                                    //send notification while shiprocket order status changed
-                                                    if (isset($type) && !empty($type)) {
-                                                        $settings = get_settings('system_settings', true);
-                                                        $app_name = isset($settings['app_name']) && !empty($settings['app_name']) ? $settings['app_name'] : '';
-                                                        $custom_notification = fetch_details('custom_notifications', $type, '');
-                                                        $hashtag_cutomer_name = '< cutomer_name >';
-                                                        $hashtag_order_id = '< order_item_id >';
-                                                        $hashtag_application_name = '< application_name >';
-                                                        $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
-                                                        $hashtag = html_entity_decode($string);
-                                                        $data = str_replace(array($hashtag_cutomer_name, $hashtag_order_id, $hashtag_application_name), array($order_detls[0]['uname'], $order_detls[0]['id'], $app_name), $hashtag);
-                                                        $message = output_escaping(trim($data, '"'));
-                                                        $customer_msg = (!empty($custom_notification)) ? $message :  'Hello Dear ' . $order_detls[0]['uname'] . ' Order status updated to' . $order_status . ' for order ID #' . $order_detls[0]['id'] . ' please take note of it! Thank you. Regards ' . $app_name . '';
-                                                        $fcmMsg = array(
-                                                            'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Order status updated",
-                                                            'body' =>  $customer_msg,
-                                                            'type' => "order",
-                                                        );
-
-                                                        $user_res = fetch_details('users', ['id' => $order_detls[0]['user_id']], 'fcm_id,mobile,email');
-                                                        $fcm_ids  =  array();
-
-                                                        //send notification to customer
-                                                        if (!empty($user_res[0]['fcm_id'])) {
-                                                            $fcm_ids[0][] = $user_res[0]['fcm_id'];
-                                                            send_notification($fcmMsg, $fcm_ids);
-                                                        }
-                                                        (notify_event(
-                                                            $type['type'],
-                                                            ["customer" => [$user_res[0]['email']]],
-                                                            ["customer" => [$user_res[0]['mobile']]],
-                                                            ["orders.id" => $order_detls[0]['id']]
-                                                        ));
-                                                    }
+                                                    // Status changes now go through the same shared helper the Shiprocket
+                                                    // webhook uses, instead of being reimplemented here. The old inline
+                                                    // version only knew four Shiprocket statuses, and it set $type inside
+                                                    // the item loop without ever resetting it - so once one item changed
+                                                    // status, every later item in the loop re-sent the same customer
+                                                    // notification even though nothing about it had changed.
+                                                    sync_shiprocket_shipment_status($order_tracking_data[0], $shiprocket_order['data']['status']);
                                                 }
 
                                             ?>
                                                 <?php if ($shipping_method['shiprocket_shipping_method'] == 1 && isset($pickup_location[$j]) && !empty($pickup_location[$j]) && $pickup_location[$j] != 'NULL') { ?>
                                                     <div class="row">
                                                         <div class="col-sm-0 ml-4 m-2 text-left mt-3">
-                                                            <?php if ($item['product_type'] != 'digital_product' && empty($order_tracking_data[0]['shipment_id'])) { ?>
+                                                            <?php // $item belongs to the item loop further down this page and is not in
+                                                            // scope yet - undefined on the first pickup location, and a stale leftover
+                                                            // from the previous one after that. The order's product type is what is
+                                                            // actually meant here.
+                                                            if (isset($items[0]['product_type']) && $items[0]['product_type'] != 'digital_product' && empty($order_tracking_data[0]['shipment_id'])) { ?>
                                                                 <input type="radio" name="pickup_location" class="check_create_order" data-id="<?= $this->session->userdata('user_id') ?>" id="<?php print_r($pickup_location[$j]); ?>" />
                                                             <?php } ?>
                                                         </div>
@@ -463,7 +430,8 @@
                                                                 <span class="badge bg-success ml-1">Order created</span>
                                                             </div>
                                                         <?php } ?>
-                                                        <?php if (isset($items[0]['product_type']) && ($item['product_type'] != 'digital_product')) {  ?>
+                                                        <?php // Same as above - $item is not in scope here. */ ?>
+                                                        <?php if (isset($items[0]['product_type']) && ($items[0]['product_type'] != 'digital_product')) {  ?>
                                                             <?php if (!isset($order_tracking_data[0]['shipment_id']) && empty($order_tracking_data[0]['shipment_id'])) { ?>
                                                                 <div class="col-md-1">
                                                                     <span class="badge bg-primary ml-1">Order not created</span>
@@ -524,7 +492,10 @@
                                                 ?>
                                                         <div class="  card col-md-3 col-sm-12 p-3 mb-2 bg-white rounded m-1 grow">
                                                             <div class="mb-2">
-                                                                <input type="checkbox" id="<?= $sellers[$i] ?>" name="order_item_id" value=' <?= $item['id'] ?> '>
+                                                                <?php // $sellers/$i exist only in the admin copy of this page, where the
+                                                                // outer loop walks every seller on the order. In the seller panel there
+                                                                // is exactly one seller - the logged-in one. ?>
+                                                                <input type="checkbox" id="<?= $seller_id ?>" name="order_item_id" value=' <?= $item['id'] ?> '>
                                                             </div>
                                                             <div class="order-product-image">
                                                                 <a href='<?= base_url() . $item['product_image'] ?>' data-toggle='lightbox' data-gallery='order-images'> <img src='<?= base_url() . $item['product_image'] ?>' class='h-75'></a>

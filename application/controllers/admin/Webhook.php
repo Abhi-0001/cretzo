@@ -613,81 +613,48 @@ class Webhook extends CI_Controller
         $request = json_decode($request, true);
         log_message('error', 'Shiprocket webhook--> ' . var_export($request, true));
 
-        if (isset($_SERVER['HTTP_X_API_KEY']) && !empty($_SERVER['HTTP_X_API_KEY'])) {
-            if ($token == $_SERVER['HTTP_X_API_KEY']) {
-                if (isset($request['awb']) && !empty($request['awb'])) {
-
-                    if (strtolower($request['current_status']) == "delivered") {
-                        $order_details = fetch_details('order_tracking', ['awb_code' => $request['awb']], 'order_id');
-                        if (!empty($order_details)) {
-                            $order_id = $order_details[0]['order_id'];
-                            // print_R($order_id);
-                            log_message('error', 'Shiprocket webhook order id --> ' . var_export($order_id, true));
-                            if (!empty($order_id)) {
-                                $status = json_encode(array(array('delivered', date("d-m-Y h:i:sa"))));
-                                update_details(['active_status' => 'delivered'], ['id' => $order_id], 'orders');
-                                update_details(['status' => $status], ['id' => $order_id], 'orders', false);
-                                $res['error'] = false;
-                                $res['message'] = "order Updated successfully";
-                                echo json_encode($res);
-                                return false;
-                            } else {
-                                $res['error'] = true;
-                                $res['message'] = "order not updated";
-                                echo json_encode($res);
-                                return false;
-                            }
-                        } else {
-                            $res['error'] = true;
-                            $res['message'] = "order not found";
-                            echo json_encode($res);
-                            return false;
-                        }
-                    } else if (strtolower($request['current_status']) == "canceled") {
-                        $order_details = fetch_details('order_tracking', ['awb_code' => $request['awb']], 'order_id');
-                        if (!empty($order_details)) {
-                            $order_id = $order_details[0]['order_id'];
-                            log_message('error', 'Shiprocket webhook order id --> ' . var_export($order_id, true));
-                            // print_R($order_id);
-                            if (!empty($order_id)) {
-                                $status = json_encode(array(array('cancelled', date("d-m-Y h:i:sa"))));
-                                update_details(['active_status' => 'cancelled'], ['id' => $order_id], 'orders');
-                                update_details(['status' => $status], ['id' => $order_id], 'orders', false);
-                                $res['error'] = false;
-                                $res['message'] = "order Updated successfully";
-                                echo json_encode($res);
-                                return false;
-                            } else {
-                                $res['error'] = true;
-                                $res['message'] = "order not updated";
-                                echo json_encode($res);
-                                return false;
-                            }
-                        } else {
-                            $res['error'] = true;
-                            $res['message'] = "order not found";
-                            echo json_encode($res);
-                            return false;
-                        }
-                    }
-                } else {
-                    $res['error'] = true;
-                    $res['message'] = "awb not found";
-                    echo json_encode($res);
-                    return false;
-                }
-            } else {
-                $res['error'] = true;
-                $res['message'] = "token is  not veified";
-                echo json_encode($res);
-                return false;
-            }
-        } else {
+        if (!isset($_SERVER['HTTP_X_API_KEY']) || empty($_SERVER['HTTP_X_API_KEY'])) {
             $res['error'] = true;
             $res['message'] = "token is required";
             echo json_encode($res);
             return false;
         }
+        // hash_equals so the comparison isn't timing-dependent, and so a token
+        // configured as a number can't be loosely matched by a different string.
+        if (!hash_equals((string) $token, (string) $_SERVER['HTTP_X_API_KEY'])) {
+            $res['error'] = true;
+            $res['message'] = "token is  not veified";
+            echo json_encode($res);
+            return false;
+        }
+        if (!isset($request['awb']) || empty($request['awb'])) {
+            $res['error'] = true;
+            $res['message'] = "awb not found";
+            echo json_encode($res);
+            return false;
+        }
+
+        $tracking = fetch_details('order_tracking', ['awb_code' => $request['awb']], 'id,order_id,order_item_id');
+        if (empty($tracking)) {
+            $res['error'] = true;
+            $res['message'] = "order not found";
+            echo json_encode($res);
+            return false;
+        }
+
+        log_message('error', 'Shiprocket webhook order id --> ' . var_export($tracking[0]['order_id'], true));
+
+        // Every status Shiprocket sends is handled here, not just delivered/canceled:
+        // sync_shiprocket_shipment_status() maps it onto an internal order-item status
+        // (and records the raw status on the tracking row either way), so intermediate
+        // states like IN TRANSIT / OUT FOR DELIVERY are no longer silently dropped.
+        $current_status = isset($request['current_status']) ? $request['current_status'] : '';
+        $sync = sync_shiprocket_shipment_status($tracking[0], $current_status, $request);
+
+        $res['error'] = $sync['error'];
+        $res['message'] = $sync['message'];
+        echo json_encode($res);
+        return false;
     }
 
     // ------------------------------------------------ Instamojo PAYMENT GATEWAY ------------------------------------------
@@ -958,10 +925,10 @@ class Webhook extends CI_Controller
                         update_details(['active_status' => 'received'], ['order_id' => $order_id], 'order_items');
                         $order_status = json_encode(array(array('received', date("d-m-Y h:i:sa"))));
                         update_details(['status' => $order_status], ['order_id' => $order_id], 'order_items', false);
-                        
-                        update_details(['active_status' => 'received'], ['id' => $order_id], 'orders');
-                        $order_status = json_encode(array(array('received', date("d-m-Y h:i:sa"))));
-                        update_details(['status' => $order_status], ['id' => $order_id], 'orders', false);
+                        // The two `orders` writes that used to follow targeted active_status
+                        // and status columns that do not exist on that table, so they raised
+                        // "Unknown column" errors and aborted this handler part-way through.
+                        // The order_items writes above are the real status update.
                     }
                     $this->transaction_model->update_transaction($data, $txn_id);
                 } elseif ($status == "BAD_REQUEST"  || $status == "AUTHORIZATION_FAILED" || $status == "PAYMENT_ERROR" || $status == "TRANSACTION_NOT_FOUND" || $status == "PAYMENT_DECLINED" || $status == "TIMED_OUT") {
@@ -975,10 +942,8 @@ class Webhook extends CI_Controller
                         update_details(['active_status' => 'cancelled'], ['order_id' => $order_id], 'order_items');
                         $order_status = json_encode(array(array('cancelled', date("d-m-Y h:i:sa"))));
                         update_details(['status' => $order_status], ['order_id' => $order_id], 'order_items', false);
-
-                        update_details(['active_status' => 'cancelled'], ['id' => $order_id], 'orders');
-                        $order_status = json_encode(array(array('cancelled', date("d-m-Y h:i:sa"))));
-                        update_details(['status' => $order_status], ['id' => $order_id], 'orders', false);
+                        // Same as above - the `orders` writes here targeted columns that
+                        // don't exist on that table and errored out.
                         $data['message'] = "Payment couldn't be processed!";
                     }
                     $this->transaction_model->update_transaction($data, $txn_id);

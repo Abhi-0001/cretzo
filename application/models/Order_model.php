@@ -389,22 +389,33 @@ class Order_model extends CI_Model
 
             /* Calculating Wallet Balance */
             $total_payable = $final_total;
-            if ($data['is_wallet_used'] == '1' && $data['wallet_balance_used'] <= $final_total) {
+            if ($data['is_wallet_used'] == '1') {
 
-                $wallet_balance = update_wallet_balance('debit', $data['user_id'], $data['wallet_balance_used'], "Used against Order Placement");
-                if ($wallet_balance['error'] == false) {
-                    $total_payable -= $data['wallet_balance_used'];
-                    $Wallet_used = true;
-                } else {
-                    $response['error'] = true;
-                    $response['message'] = $wallet_balance['message'];
-                    return $response;
-                }
-            } else {
-                if ($data['is_wallet_used'] == 1) {
-                    $response['error'] = true;
-                    $response['message'] = 'Wallet Balance should not exceed the total amount';
-                    return $response;
+                // Clamp rather than reject. $final_total here is the authoritative figure -
+                // it is recomputed from the cart rows, the promo code and the delivery charge
+                // in THIS method - and callers necessarily arrive with their own estimate of
+                // it. The web checkout derives its wallet figure from the cart's own
+                // delivery charge while this method uses the posted one, so the two can
+                // differ by a rupee or by the whole delivery charge, and any excess used to
+                // abort the order outright with "Wallet Balance should not exceed the total
+                // amount". Paying entirely from wallet WITH a promo code hit this every
+                // time. Charging the wallet only what is actually owed is both correct and
+                // safe: the customer can never be debited more than the order total, and no
+                // legitimate order is refused over an arithmetic disagreement.
+                $wallet_balance_used = min((float) $data['wallet_balance_used'], (float) $final_total);
+                $wallet_balance_used = ($wallet_balance_used < 0) ? 0 : round($wallet_balance_used, 2);
+                $data['wallet_balance_used'] = $wallet_balance_used;
+
+                if ($wallet_balance_used > 0) {
+                    $wallet_balance = update_wallet_balance('debit', $data['user_id'], $wallet_balance_used, "Used against Order Placement");
+                    if ($wallet_balance['error'] == false) {
+                        $total_payable -= $wallet_balance_used;
+                        $Wallet_used = true;
+                    } else {
+                        $response['error'] = true;
+                        $response['message'] = $wallet_balance['message'];
+                        return $response;
+                    }
                 }
             }
             //upload attachments
