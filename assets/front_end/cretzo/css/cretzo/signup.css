@@ -115,11 +115,13 @@
 #register_div .field-container .intl-tel-input { 
     width: 100%; 
 }
-#register_div .field-container .selected-flag {
-    width: 96px;
-}
+/* Same fix as #forgot_password_div in login.css: intlTelInput.css reserves 28px on the
+   left of .selected-dial-code for the absolutely-positioned flag sprite. Overriding that
+   to 8px drew the country code on top of the flag, and hardcoding .selected-flag's width
+   broke the pairing the library maintains between that width and the input's padding-left
+   (.iti-sdc-2/3/4). Both overrides removed so the widget sizes itself. */
 #register_div .field-container .selected-dial-code {
-    padding-left: 8px;
+    padding-left: 28px;
 }
 #register_div .password-toggle{
     position: relative;

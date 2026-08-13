@@ -1877,19 +1877,21 @@ $(function () {
 
             separateDialCode: true,
 
-            initialCountry: "auto",
+            initialCountry: "in",
 
-            geoIpLookup: function (callback) {
+            /* Was initialCountry:"auto" + a JSONP geoIpLookup to ipinfo.io using the
 
-                $.get("https://ipinfo.io", function () { }, "jsonp").always(function (resp) {
+               placeholder token "yolo". When that call is rate-limited, blocked or slow it
 
-                    var countryCode = (resp && resp.country) ? resp.country : "";
+               returns an empty country, and the widget then renders NO flag at all - which
 
-                    callback(countryCode);
+               is the blank/grey box in the country selector. The storefront prices in INR
 
-                });
+               and already declared defaultCountry:"in", so start on India directly: the flag
 
-            },
+               always renders, and one third-party request per modal open is removed.
+
+               Users can still pick any other country from the dropdown. */
 
             utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/11.0.9/js/utils.js"
 
@@ -5996,19 +5998,21 @@ $(document).on('click', "#forgot_password_link", function (e) {
 
         separateDialCode: true,
 
-        initialCountry: "auto",
+        initialCountry: "in",
 
-        geoIpLookup: function (callback) {
+        /* Was initialCountry:"auto" + a JSONP geoIpLookup to ipinfo.io using the
 
-            $.get("https://ipinfo.io", function () { }, "jsonp").always(function (resp) {
+           placeholder token "yolo". When that call is rate-limited, blocked or slow it
 
-                var countryCode = (resp && resp.country) ? resp.country : "";
+           returns an empty country, and the widget then renders NO flag at all - which
 
-                callback(countryCode);
+           is the blank/grey box in the country selector. The storefront prices in INR
 
-            });
+           and already declared defaultCountry:"in", so start on India directly: the flag
 
-        },
+           always renders, and one third-party request per modal open is removed.
+
+           Users can still pick any other country from the dropdown. */
 
         utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/11.0.9/js/utils.js"
 

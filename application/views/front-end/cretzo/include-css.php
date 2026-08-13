@@ -88,9 +88,10 @@ $fb_auth = get_settings('authentication_settings', true);
 $fb_conf = get_settings('firebase_settings', true);
 if (!empty($fb_auth['authentication_method']) && $fb_auth['authentication_method'] === 'firebase' && !empty($fb_conf['apiKey'])) :
 ?>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
-    <script src="<?= base_url() ?>firebase-config.js"></script>
+    <?php // NO Firebase SDK tags here - the theme's include-script.php already loads its
+          // auth bundle (@firebase/auth 0.15.1) and firebase-config.js, and firebase-app is
+          // now loaded alongside them there. Adding 8.10.0 here put two major SDK versions
+          // on the page and ran initializeApp() twice, which breaks the reCAPTCHA token. ?>
     <script>
         window.FIREBASE_RESET_CONFIG = {
             checkUrl: "<?= base_url('home/check_reset_account') ?>",

@@ -62,11 +62,44 @@ class System_users_model extends CI_Model
                 $permission_data['permissions'] = NULL;
             }
 
+            // One mobile number = one account (users.mobile is UNIQUE and is ion_auth's
+            // identity column) that may hold SEVERAL roles. If this number already belongs
+            // to a buyer or seller, grant admin access ON that account instead of refusing
+            // it - otherwise anyone who runs the marketplace and also shops or sells on it
+            // needs a second phone number just to hold an admin login.
+            $existing = $this->db->select('id')->where('mobile', $data['mobile'])->get('users')->row_array();
+
+            if (!empty($existing)) {
+                $last_id = (int) $existing['id'];
+
+                // Deliberately does NOT touch the existing password, username or email:
+                // this is "add the admin role to an account that already exists", not
+                // "overwrite that account". The person keeps signing in with what they
+                // already use.
+                if (empty($this->db->where(['user_id' => $last_id, 'group_id' => 1])->get('users_groups')->row_array())) {
+                    $this->db->insert('users_groups', ['user_id' => $last_id, 'group_id' => '1']);
+                }
+
+                $permission_data['user_id'] = $last_id;
+                if (!empty($this->db->where('user_id', $last_id)->get('user_permissions')->row_array())) {
+                    $this->db->set($permission_data)->where('user_id', $last_id)->update('user_permissions');
+                } else {
+                    $this->db->insert('user_permissions', $permission_data);
+                }
+
+                return $last_id;
+            }
+
             $this->db->insert('users', $user_data);
             $last_id = $this->db->insert_id();
             $this->db->insert('users_groups', ['user_id' => $last_id, 'group_id' => '1']);
+            // Every account can shop; admins are no exception. Without the buyer group the
+            // storefront login refuses them, which is the same trap sellers used to hit.
+            $this->db->insert('users_groups', ['user_id' => $last_id, 'group_id' => '2']);
             $permission_data['user_id'] = $last_id;
             $this->db->insert('user_permissions', $permission_data);
+
+            return $last_id;
         }
     }
 

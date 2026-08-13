@@ -184,9 +184,11 @@ $is_forgot_password = (isset($main_page) && strpos($main_page, 'forgot-password'
               // suppresses the legacy server-side handlers below via
               // stopImmediatePropagation(), so both can coexist and the server-side path
               // still works if an SMS gateway is ever configured. ?>
-        <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-        <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
-        <script src="<?= base_url() ?>firebase-config.js"></script>
+        <?php // NO Firebase SDK tags here - see the note in admin/pages/forms/forgot-password.php.
+              // This page pulls in admin/include-head.php + admin/include-script.php, which
+              // already provide firebase-app 7.20.0, the matching auth bundle and
+              // firebase-config.js. Adding 8.10.0 on top double-initialised Firebase and
+              // broke the reCAPTCHA token ("MALFORMED"). ?>
         <script>
             window.FIREBASE_RESET_CONFIG = {
                 checkUrl: "<?= base_url('seller/login/check_reset_account') ?>",
