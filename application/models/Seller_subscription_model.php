@@ -173,7 +173,17 @@ class Seller_subscription_model extends CI_Model
             'is_active'       => 1,
         ];
 
-        return $this->db->insert('seller_subscriptions', $data);
+        $inserted = $this->db->insert('seller_subscriptions', $data);
+
+        // The new plan's listing limit applies to the shop straight away: a downgrade
+        // hides everything that no longer has a slot, an upgrade gives those slots back.
+        // Doing it here covers every route onto a plan - purchase, upgrade, downgrade,
+        // renewal, admin assignment and the free-tier fallback - from one place.
+        if ($inserted) {
+            $this->enforce_listing_visibility($seller_id);
+        }
+
+        return $inserted;
     }
 
     /**
@@ -308,6 +318,103 @@ class Seller_subscription_model extends CI_Model
         $data['id'] = $this->db->insert_id();
 
         return $data;
+    }
+
+    /**
+     * Drop a seller whose plan has run out onto the free tier, instead of leaving them
+     * with no active subscription at all.
+     *
+     * Expiry used to be a dead end: once the end date passed, the seller had no active
+     * subscription and check_listing_quota() refused every new listing until they paid
+     * again. Landing on the free tier is the intended floor - they keep listing within
+     * the free allowance, and everything above it is what a paid plan buys.
+     *
+     * Deliberately narrow about when it fires:
+     *   - only when the seller's most recent subscription actually LAPSED BY DATE. An
+     *     admin who cancels a plan early (is_active = 0 while the end date is still in
+     *     the future, or absent) is making a decision this must not quietly undo.
+     *   - only when the default plan is genuinely free. get_default_signup_plan() returns
+     *     the cheapest plan, which on a site with no free plan configured is a paid one -
+     *     auto-subscribing anybody to that would be granting a plan nobody bought.
+     *   - never for a seller with no subscription history at all: those are legacy
+     *     vendors who predate the module, and check_listing_quota() intentionally leaves
+     *     them uncapped rather than retroactively fencing in their existing catalogue.
+     *
+     * The row it writes has no end date - the free tier is the floor a seller rests on,
+     * not a term that lapses into another fallback every 30 days.
+     *
+     * @return array|null The free plan the seller was moved to, or null if nothing changed.
+     */
+    public function ensure_free_tier_fallback($seller_id)
+    {
+        if (empty($seller_id)) {
+            return null;
+        }
+
+        // Already covered - including by a previous run of this method.
+        if (!empty($this->get_active_subscription($seller_id))) {
+            return null;
+        }
+
+        $latest = $this->get_latest_subscription($seller_id);
+        if (empty($latest)) {
+            return null;
+        }
+
+        $lapsed_by_date = !empty($latest['end_date']) && strtotime($latest['end_date']) < strtotime(date('Y-m-d'));
+        if (!$lapsed_by_date) {
+            return null;
+        }
+
+        $free_plan = $this->get_default_signup_plan();
+        if (empty($free_plan['id']) || $this->price_to_number(isset($free_plan['price']) ? $free_plan['price'] : 0) > 0) {
+            return null;
+        }
+
+        // Same plan, already the one that lapsed: still re-assign, so the seller ends up
+        // on an active (and now non-expiring) free row rather than a spent one.
+        if (!$this->assign_subscription($seller_id, $free_plan['id'], null)) {
+            return null;
+        }
+
+        return $free_plan;
+    }
+
+    /**
+     * The plan a seller was on immediately before ensure_free_tier_fallback() put them on
+     * the free tier, so the subscription page can say why their plan name changed.
+     *
+     * Returns null unless the seller is currently on the free tier AND the subscription
+     * right before it was a different plan that lapsed by date.
+     *
+     * @return array|null {name, end_date}
+     */
+    public function get_lapsed_plan_before_free_tier($seller_id)
+    {
+        if (empty($seller_id)) {
+            return null;
+        }
+
+        $active = $this->get_active_subscription($seller_id);
+        $free_plan = $this->get_default_signup_plan();
+        if (empty($active) || empty($free_plan['id']) || (int) $active['subscription_id'] !== (int) $free_plan['id']) {
+            return null;
+        }
+
+        $previous = $this->db
+            ->select('ss.end_date, s.name')
+            ->join('subscriptions s', 's.id = ss.subscription_id', 'left')
+            ->where('ss.seller_id', $seller_id)
+            ->where('ss.id <', $active['id'])
+            ->where('ss.subscription_id !=', $free_plan['id'])
+            ->where('ss.end_date IS NOT NULL', null, false)
+            ->where('ss.end_date <', date('Y-m-d'))
+            ->order_by('ss.id', 'DESC')
+            ->limit(1)
+            ->get('seller_subscriptions ss')
+            ->row_array();
+
+        return !empty($previous) ? $previous : null;
     }
 
     /**
@@ -499,6 +606,194 @@ class Seller_subscription_model extends CI_Model
         }
 
         return (int) $this->db->where('seller_id', $seller_id)->count_all_results('products');
+    }
+
+    /* ---------------------------------------------------------------------------
+     | Storefront listing visibility
+     |
+     | A plan's listings_limit used to gate only the act of ADDING a product, which
+     | meant the cap could be escaped simply by listing on a big plan and then moving
+     | to a smaller one: a seller who published 5,000 products on an unlimited plan
+     | and later dropped to a 100-listing plan still had all 5,000 live in the shop.
+     | The limit now also governs how many of a seller's products buyers can see.
+     |
+     | products.listing_visibility carries it: 1 visible, 2 hidden because the plan
+     | has no slot, 0 hidden on purpose by the seller or admin. The distinction
+     | between 2 and 0 is what lets slots be reclaimed automatically without ever
+     | re-publishing something somebody deliberately took down.
+     --------------------------------------------------------------------------- */
+
+    const LISTING_VISIBLE       = 1;
+    const LISTING_HIDDEN_MANUAL = 0;
+    const LISTING_HIDDEN_QUOTA  = 2;
+
+    /**
+     * Bring a seller's visible product count in line with their plan's listing limit.
+     *
+     * Over the cap  -> hides the excess (newest first are kept; the oldest listings are
+     *                  the ones that lose their slot) as LISTING_HIDDEN_QUOTA.
+     * Under the cap -> reclaims slots by restoring the most recent quota-hidden products,
+     *                  so an upgrade (or deleting a product) brings listings back by itself.
+     *
+     * Only ever touches quota-hidden rows when restoring, so anything the seller or admin
+     * hid by hand stays hidden. Products still awaiting approval are counted as occupying
+     * a slot - they are listings the seller has made, and letting them queue up outside the
+     * cap would just move the overflow problem to the moment they are approved.
+     *
+     * @return array {limit, visible, hidden_by_quota, changed}
+     */
+    public function enforce_listing_visibility($seller_id)
+    {
+        $result = ['limit' => null, 'visible' => 0, 'hidden_by_quota' => 0, 'changed' => 0];
+        if (empty($seller_id)) {
+            return $result;
+        }
+
+        $limit = $this->get_listing_limit($seller_id);
+        $result['limit'] = $limit;
+
+        // Unlimited plan: nothing is kept back by the cap, so release everything it hid.
+        if ($limit === null) {
+            $this->db->set('listing_visibility', self::LISTING_VISIBLE)
+                ->where('seller_id', $seller_id)
+                ->where('listing_visibility', self::LISTING_HIDDEN_QUOTA)
+                ->update('products');
+            $result['changed'] = $this->db->affected_rows();
+            $result['visible'] = $this->count_listings($seller_id, self::LISTING_VISIBLE);
+            return $result;
+        }
+
+        $visible = $this->count_listings($seller_id, self::LISTING_VISIBLE);
+
+        if ($visible > $limit) {
+            // Which listings lose their slot: the ones a buyer could not have bought
+            // anyway go first (a product still awaiting approval, or deactivated, is not
+            // in the shop regardless), then oldest before newest. Ranking purely by age
+            // would let an unapproved product hold a slot while a live one is pulled.
+            $to_hide = $this->db->select('id')
+                ->where('seller_id', $seller_id)
+                ->where('listing_visibility', self::LISTING_VISIBLE)
+                ->order_by('(status = 1)', 'ASC', false)
+                ->order_by('id', 'ASC')
+                ->limit($visible - $limit)
+                ->get('products')->result_array();
+
+            if (!empty($to_hide)) {
+                $this->db->set('listing_visibility', self::LISTING_HIDDEN_QUOTA)
+                    ->where_in('id', array_column($to_hide, 'id'))
+                    ->update('products');
+                $result['changed'] = $this->db->affected_rows();
+            }
+        } elseif ($visible < $limit) {
+            // Free slots go back in the reverse of the order they were taken away:
+            // approved listings first, then newest.
+            $to_show = $this->db->select('id')
+                ->where('seller_id', $seller_id)
+                ->where('listing_visibility', self::LISTING_HIDDEN_QUOTA)
+                ->order_by('(status = 1)', 'DESC', false)
+                ->order_by('id', 'DESC')
+                ->limit($limit - $visible)
+                ->get('products')->result_array();
+
+            if (!empty($to_show)) {
+                $this->db->set('listing_visibility', self::LISTING_VISIBLE)
+                    ->where_in('id', array_column($to_show, 'id'))
+                    ->update('products');
+                $result['changed'] = $this->db->affected_rows();
+            }
+        }
+
+        $result['visible'] = $this->count_listings($seller_id, self::LISTING_VISIBLE);
+        $result['hidden_by_quota'] = $this->count_listings($seller_id, self::LISTING_HIDDEN_QUOTA);
+
+        return $result;
+    }
+
+    public function count_listings($seller_id, $visibility = null)
+    {
+        $this->db->where('seller_id', $seller_id);
+        if ($visibility !== null) {
+            $this->db->where('listing_visibility', $visibility);
+        }
+        return (int) $this->db->count_all_results('products');
+    }
+
+    /**
+     * Replace a seller's visible set with exactly $visible_ids — the seller (or admin)
+     * choosing which listings occupy the plan's slots.
+     *
+     * Refuses to save more than the plan allows rather than silently trimming, so nobody
+     * is left guessing which of their picks was dropped. Ids that don't belong to this
+     * seller are ignored outright.
+     *
+     * Products left out of the selection are marked hidden-by-quota when the seller is at
+     * or above their cap (the plan is why they can't be shown), and hidden-by-seller when
+     * there was room for them (a deliberate choice, which enforce_listing_visibility()
+     * then leaves alone).
+     *
+     * @return array {saved: bool, message: string, limit, visible}
+     */
+    public function set_visible_listings($seller_id, array $visible_ids)
+    {
+        if (empty($seller_id)) {
+            return ['saved' => false, 'message' => 'Unknown seller.', 'limit' => null, 'visible' => 0];
+        }
+
+        $limit = $this->get_listing_limit($seller_id);
+        $visible_ids = array_values(array_unique(array_filter(array_map('intval', $visible_ids))));
+
+        if ($limit !== null && count($visible_ids) > $limit) {
+            return [
+                'saved'   => false,
+                'message' => 'Your plan allows ' . $limit . ' visible ' . ($limit === 1 ? 'product' : 'products')
+                    . ', but ' . count($visible_ids) . ' are selected. Unselect '
+                    . (count($visible_ids) - $limit) . ' to continue.',
+                'limit'   => $limit,
+                'visible' => $this->count_listings($seller_id, self::LISTING_VISIBLE),
+            ];
+        }
+
+        // Scope to this seller's own products before writing anything.
+        $owned = [];
+        if (!empty($visible_ids)) {
+            $owned = array_column(
+                $this->db->select('id')->where('seller_id', $seller_id)->where_in('id', $visible_ids)->get('products')->result_array(),
+                'id'
+            );
+        }
+
+        $total = $this->count_listings($seller_id);
+        $hidden_state = ($limit !== null && count($owned) >= $limit && $total > $limit)
+            ? self::LISTING_HIDDEN_QUOTA
+            : self::LISTING_HIDDEN_MANUAL;
+
+        $this->db->trans_start();
+
+        $this->db->set('listing_visibility', $hidden_state)->where('seller_id', $seller_id);
+        if (!empty($owned)) {
+            $this->db->where_not_in('id', $owned);
+        }
+        $this->db->update('products');
+
+        if (!empty($owned)) {
+            $this->db->set('listing_visibility', self::LISTING_VISIBLE)
+                ->where('seller_id', $seller_id)
+                ->where_in('id', $owned)
+                ->update('products');
+        }
+
+        $this->db->trans_complete();
+
+        if ($this->db->trans_status() === false) {
+            return ['saved' => false, 'message' => 'Could not save your selection. Please try again.', 'limit' => $limit, 'visible' => $this->count_listings($seller_id, self::LISTING_VISIBLE)];
+        }
+
+        return [
+            'saved'   => true,
+            'message' => 'Visible listings updated.',
+            'limit'   => $limit,
+            'visible' => count($owned),
+        ];
     }
 
     /**
@@ -811,6 +1106,13 @@ class Seller_subscription_model extends CI_Model
         if (empty($latest)) {
             return ['allowed' => true, 'limit' => null, 'used' => $used, 'remaining' => null, 'plan_name' => '', 'status' => 'none'];
         }
+
+        // A lapsed plan drops to the free tier here rather than blocking outright. Expiry
+        // is evaluated lazily throughout this module (nothing guarantees the cron runs),
+        // so this - the point every listing decision funnels through - is where the
+        // fallback has to be applied for it to mean anything. The fallback re-runs
+        // listing visibility through assign_subscription(), so the shop follows too.
+        $this->ensure_free_tier_fallback($seller_id);
 
         $active = $this->get_active_subscription($seller_id);
         $plan   = $this->get_current_plan($seller_id);

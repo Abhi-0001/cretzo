@@ -65,6 +65,9 @@ class Home extends CI_Controller
             $this->data['status_counts'] = $orders_count;
 
              // subscription status for seller
+            // Settle a lapsed plan onto the free tier first, so the dashboard doesn't report
+            // "expired" for a seller who is, by then, listing on the free plan.
+            $this->Seller_subscription_model->ensure_free_tier_fallback($user_id);
             $active_subscription = $this->Seller_subscription_model->get_active_subscription($user_id);
             $latest_subscription = $this->Seller_subscription_model->get_latest_subscription($user_id);
 
@@ -584,6 +587,64 @@ class Home extends CI_Controller
         } else {
             redirect('seller/login', 'refresh');
         }
+    }
+
+    /**
+     * Removes one image from a product / variant the seller owns.
+     *
+     * The admin counterpart (admin/Home::delete_image) takes the table, column and row id
+     * straight from the request, which is fine behind an admin check but would be a way for
+     * any seller to blank any column of any row here. This one accepts only the two
+     * (table, field) pairs the product form actually renders a delete button for, and
+     * resolves ownership of the row before touching it.
+     */
+    public function delete_image()
+    {
+        if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && $this->ion_auth->can_access_seller_panel())) {
+            $this->response['error'] = true;
+            $this->response['is_deleted'] = false;
+            $this->response['message'] = 'Unauthorized';
+            echo json_encode($this->response);
+            return false;
+        }
+
+        $allowed = ['products' => 'other_images', 'product_variants' => 'images'];
+        $table = $this->input->post('table_name', true);
+        $field = $this->input->post('field', true);
+        $id = (int) $this->input->post('id', true);
+        $img_name = $this->input->post('img_name', true);
+
+        if (!isset($allowed[$table]) || $allowed[$table] !== $field || $id <= 0 || $img_name === null || $img_name === '') {
+            $this->response['error'] = true;
+            $this->response['is_deleted'] = false;
+            $this->response['message'] = 'This image cannot be deleted from here.';
+            echo json_encode($this->response);
+            return false;
+        }
+
+        $seller_id = $this->session->userdata('user_id');
+        if ($table === 'products') {
+            $owned = fetch_details('products', ['id' => $id, 'seller_id' => $seller_id], 'id');
+        } else {
+            $owned = $this->db->select('pv.id')
+                ->join('products p', 'p.id = pv.product_id')
+                ->where(['pv.id' => $id, 'p.seller_id' => $seller_id])
+                ->get('product_variants pv')->result_array();
+        }
+
+        if (empty($owned)) {
+            $this->response['error'] = true;
+            $this->response['is_deleted'] = false;
+            $this->response['message'] = 'Product not found';
+            echo json_encode($this->response);
+            return false;
+        }
+
+        $this->response['error'] = false;
+        $this->response['is_deleted'] = delete_image($id, $this->input->post('path', true), $field, $img_name, $table, true);
+        $this->response['csrfName'] = $this->security->get_csrf_token_name();
+        $this->response['csrfHash'] = $this->security->get_csrf_hash();
+        echo json_encode($this->response);
     }
 
     public function logout()

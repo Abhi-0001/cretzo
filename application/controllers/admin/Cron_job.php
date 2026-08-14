@@ -88,6 +88,16 @@ class Cron_job extends CI_Controller
         // their final valid day, while get_active_subscription() (`end_date >= today`)
         // still counted them as active. The two disagreed by a day, and because the sweep
         // also clears is_active the cron's answer won: sellers lost their last day.
+        // Whose plans are about to be flagged - read before the update, since afterwards
+        // they are indistinguishable from every other inactive row.
+        $lapsed = $this->db
+            ->select('DISTINCT seller_id', false)
+            ->where('is_active', 1)
+            ->where('end_date IS NOT NULL', null, false)
+            ->where('end_date <', date('Y-m-d'))
+            ->get('seller_subscriptions')
+            ->result_array();
+
         $this->db
             ->set('is_active', 0)
             ->where('is_active', 1)
@@ -95,9 +105,28 @@ class Cron_job extends CI_Controller
             ->where('end_date <', date('Y-m-d'))
             ->update('seller_subscriptions');
 
+        $affected = $this->db->affected_rows();
+
+        // Expiry drops a seller to the free tier rather than leaving them with no plan.
+        // The seller panel applies this lazily too, so this only brings the data forward
+        // for sellers who haven't logged in - admin reports and the API then see the same
+        // free-tier state the seller would.
+        $this->load->model('Seller_subscription_model');
+        $moved = 0;
+        $hidden = 0;
+        foreach ($lapsed as $row) {
+            if (!empty($this->Seller_subscription_model->ensure_free_tier_fallback($row['seller_id']))) {
+                $moved++;
+            }
+            // Whether or not the plan changed, the shop has to respect the current cap:
+            // anything the seller listed beyond it stops being visible to buyers here.
+            $visibility = $this->Seller_subscription_model->enforce_listing_visibility($row['seller_id']);
+            $hidden += (int) $visibility['changed'];
+        }
+
         $this->response['error'] = false;
         $this->response['message'] = 'Expired subscriptions flagged.';
-        $this->response['data'] = ['affected_rows' => $this->db->affected_rows()];
+        $this->response['data'] = ['affected_rows' => $affected, 'moved_to_free_tier' => $moved, 'listings_visibility_changed' => $hidden];
         echo json_encode($this->response);
         return false;
     }

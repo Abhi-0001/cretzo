@@ -200,7 +200,7 @@
             <!-- <p class="text-b op-6"><?= ucfirst($product['product'][0]['category_name']) ?></p> -->
             
             <p class="text-b op-6">
-                <a target="_BLANK" href="<?= base_url('sellers/seller_details/' . $seller_slug[0]['slug']) ?>" class="store-seller-detail text-decoration-none">
+                <a target="_BLANK" href="<?= seller_profile_url($seller_slug[0]['slug'] ?? '', $product['product'][0]['seller_id']) ?>" class="store-seller-detail text-decoration-none">
                     <?= ucfirst($product['product'][0]['store_name']) . ' by ' . ucfirst($product['product'][0]['seller_name']) ?>
                 </a>
             </p>
@@ -893,7 +893,7 @@
     <p class="text-s op-8 container-des">Check out more products from this seller.</p>
     <p class="text-n op-8 container-des" style="color: var(--color-orange);">
         <!-- <a target="_BLANK" href="<?= base_url('products?seller=' . $seller_slug[0]['slug']) ?>" class="hover text-decoration-none">View Seller Profile</a> -->
-        <a target="_BLANK" href="<?= base_url('sellers/seller_details/' . $seller_slug[0]['slug']) ?>" class="hover text-decoration-none">View Seller Profile</a>
+        <a target="_BLANK" href="<?= seller_profile_url($seller_slug[0]['slug'] ?? '', $product['product'][0]['seller_id']) ?>" class="hover text-decoration-none">View Seller Profile</a>
     </p>
     <!-- <p class="ta-c"><img class="container-img" src="<?= base_url('assets/front_end/cretzo/img/arrow.png') ?>"></p> -->
     <div class="card-container-more-seller">

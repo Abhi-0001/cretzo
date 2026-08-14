@@ -350,7 +350,7 @@ class Seller_model extends CI_Model
     public function get_sellers($zipcode_id = "", $limit = NULL, $offset = '', $sort = 'u.id', $order = 'DESC', $search = NULL, $filter = [])
     {
         $multipleWhere = '';
-        $where = ['u.active' => 1, 'sd.status' => 1, ' p.status' => 1];
+        $where = ['u.active' => 1, 'sd.status' => 1, ' p.status' => 1, 'p.listing_visibility' => 1];
         if (isset($filter) && !empty($filter['slug']) && $filter['slug'] != "") {
             $where['sd.slug'] = $filter['slug'];
         }
@@ -411,7 +411,7 @@ class Seller_model extends CI_Model
 
         foreach ($offer_search_res as $row) {
             $row = output_escaping($row);
-            $where = ['p.seller_id' =>  $row['seller_id'], 'p.status' => '1', 'pv.status' => 1];
+            $where = ['p.seller_id' =>  $row['seller_id'], 'p.status' => '1', 'pv.status' => 1, 'p.listing_visibility' => 1];
             $this->db->group_Start();
             $this->db->or_where('c.status', '1');
             $this->db->or_where('c.status', '0');

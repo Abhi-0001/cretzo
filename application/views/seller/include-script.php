@@ -2,9 +2,7 @@
     <!-- Control sidebar content goes here -->
 </aside>
 <!-- Bootstrap 4 -->
-<!-- google translate library -->
-<script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
-
+<?php // Google Translate loader removed with its mount point — see include-navbar.php. ?>
 <script src="<?= base_url('assets/admin/js/bootstrap.bundle.min.js') ?>"></script>
 <!-- jQuery UI 1.11.4 -->
 <script src="<?= base_url('assets/admin/jquery-ui/jquery-ui.min.js') ?>"></script>
@@ -84,6 +82,17 @@
 <!-- Custom -->
  
 <script src="<?= add_ver(base_url('assets/admin/custom/pos.js')) ?>"></script>
+<?php
+// The product form is a port of the admin one and is driven by the same script.
+// custom.js decides which panel's endpoints to call from the URL ("seller/" in the
+// path => seller/product/..., seller/category/..., seller/area/...), so it needs no
+// changes to run here - but it must load AFTER the plugin bundle above, since it
+// calls select2/sortable at parse time. It is scoped to this one page deliberately:
+// every other seller page has its own hand-written equivalents of these handlers and
+// would end up with two of each.
+if (isset($main_page) && $main_page === FORMS . 'product') { ?>
+    <script src="<?= add_ver(base_url('assets/admin/custom/custom.js')) ?>"></script>
+<?php } ?>
 <!-- Demo -->
 <script src="<?= base_url('assets/admin/dist/js/demo.js') ?>"></script>
 

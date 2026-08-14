@@ -172,6 +172,89 @@ class Subscription extends CI_Controller
         ]);
     }
 
+    /**
+     * Admin view of one seller's visible listings, and the ability to change the selection.
+     *
+     * A plan's listings_limit caps how many of a seller's products the shop will show. When
+     * a seller is over that cap the overflow is hidden from buyers, and normally the seller
+     * chooses which listings keep the slots - this is the same screen for admin, for
+     * supporting a seller (or overriding what they picked).
+     */
+    public function seller_listing_visibility()
+    {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {
+            redirect('admin/login', 'refresh');
+        }
+        if (print_msg(!has_permissions('read', 'subscription'), PERMISSION_ERROR_MSG, 'subscription')) {
+            return false;
+        }
+
+        $seller_id = (int) $this->input->get('seller_id', true);
+        $seller = $this->db->select('u.id, u.username, sd.store_name')
+            ->join('seller_data sd', 'sd.user_id = u.id', 'left')
+            ->where('u.id', $seller_id)
+            ->get('users u')->row_array();
+
+        if (empty($seller)) {
+            $this->session->set_flashdata('error', 'Seller not found.');
+            redirect('admin/subscription/seller_subscriptions', 'refresh');
+            return;
+        }
+
+        $settings = get_settings('system_settings', true);
+
+        // Same order of operations as the seller's own page: settle any lapsed plan, then
+        // re-apply the cap, so admin is looking at the state buyers are actually served.
+        $this->Seller_subscription_model->ensure_free_tier_fallback($seller_id);
+        $state = $this->Seller_subscription_model->enforce_listing_visibility($seller_id);
+
+        $this->data['main_page'] = TABLES . 'seller-listing-visibility';
+        $this->data['title'] = 'Visible Listings | ' . $settings['app_name'];
+        $this->data['meta_description'] = 'Visible Listings | ' . $settings['app_name'];
+        $this->data['seller'] = $seller;
+        $this->data['listing_state'] = $state;
+        $this->data['current_plan'] = $this->Seller_subscription_model->get_current_plan($seller_id);
+        $this->data['products'] = $this->db
+            ->select('id, name, image, status, listing_visibility')
+            ->where('seller_id', $seller_id)
+            ->order_by('listing_visibility', 'ASC')
+            ->order_by('id', 'DESC')
+            ->get('products')->result_array();
+
+        $this->load->view('admin/template', $this->data);
+    }
+
+    public function save_seller_listing_visibility()
+    {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {
+            redirect('admin/login', 'refresh');
+        }
+        if (print_msg(!has_permissions('update', 'subscription'), PERMISSION_ERROR_MSG, 'subscription')) {
+            return false;
+        }
+        if (print_msg(!is_modification_allowed('update'), DEMO_VERSION_MSG, 'subscription', false)) {
+            return false;
+        }
+
+        $seller_id = (int) $this->input->post('seller_id', true);
+        if ($seller_id <= 0) {
+            echo json_encode(['error' => true, 'message' => 'Invalid seller.']);
+            return;
+        }
+
+        $visible_ids = $this->input->post('visible_ids');
+        $visible_ids = is_array($visible_ids) ? $visible_ids : [];
+
+        $result = $this->Seller_subscription_model->set_visible_listings($seller_id, $visible_ids);
+
+        echo json_encode([
+            'error'    => !$result['saved'],
+            'message'  => $result['message'],
+            'csrfName' => $this->security->get_csrf_token_name(),
+            'csrfHash' => $this->security->get_csrf_hash(),
+        ]);
+    }
+
     public function assign_seller_subscription()
     {
         if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {

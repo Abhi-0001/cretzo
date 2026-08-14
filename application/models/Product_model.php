@@ -40,6 +40,7 @@ class Product_model extends CI_Model
                     }
                 
                     $this->db->where('products.status', 1);
+                    $this->db->where('products.listing_visibility', 1);
                     $this->db->where('categories.status', 1);
                 
                     $this->db->order_by('products.name', 'ASC');
@@ -169,7 +170,12 @@ class Product_model extends CI_Model
             }
         }
 
-        if ((isset($data['variant_stock_status']) ||  $data['variant_stock_status'] == '' || empty($data['variant_stock_status']) || $data['variant_stock_status'] == ' ') && $data['product_type'] == 'variable_product') {
+        // Was written as a chain of variant_stock_status checks OR'd together, every
+        // branch of which is true whenever the key exists - and when it doesn't, the
+        // second test read the missing key (a warning on every save that omits it) and
+        // came out true anyway. So the whole thing only ever meant "variable product",
+        // which is all it says now. The stock level below still overrides this default.
+        if ($data['product_type'] == 'variable_product') {
             $pro_data['stock_type'] = NULL;
         }
         if (isset($data['variant_stock_level_type']) && !empty($data['variant_stock_level_type']) && $data['product_type'] != 'digital_product') {
@@ -234,7 +240,10 @@ class Product_model extends CI_Model
         $pro_variance_data['product_id'] = $p_id;
         $pro_attr_data = [
             'product_id' => $p_id,
-            'attribute_value_ids' => strval($data['attribute_values']),
+            // Both product forms send this field, but a caller that omits it (the API,
+            // bulk upload) hit an undefined-key warning here rather than just saving no
+            // attributes, which is the sensible reading of "not supplied".
+            'attribute_value_ids' => isset($data['attribute_values']) ? strval($data['attribute_values']) : '',
         ];
         // print_r($pro_attr_data);
 
@@ -410,9 +419,12 @@ class Product_model extends CI_Model
         if ($seller_id !== null) {
             $owner_where['seller_id'] = (int) $seller_id;
         }
-        if (empty(fetch_details('products', $owner_where, 'id'))) {
+        $owner_row = fetch_details('products', $owner_where, 'id,seller_id,listing_visibility');
+        if (empty($owner_row)) {
             return false;
         }
+        $owner_id = $owner_row[0]['seller_id'];
+        $freed_a_slot = ((int) $owner_row[0]['listing_visibility'] === 1);
 
         $variant_ids = array_column(
             $this->db->select('id')->where('product_id', $product_id)->get('product_variants')->result_array(),
@@ -434,7 +446,16 @@ class Product_model extends CI_Model
 
         $this->db->trans_complete();
 
-        return $this->db->trans_status();
+        $deleted = $this->db->trans_status();
+
+        // Deleting a visible product frees one of the plan's slots — hand it to whichever
+        // listing the cap was holding back, instead of leaving the seller below their limit.
+        if ($deleted && $freed_a_slot && !empty($owner_id)) {
+            $this->load->model('Seller_subscription_model');
+            $this->Seller_subscription_model->enforce_listing_visibility($owner_id);
+        }
+
+        return $deleted;
     }
 
     public function get_product_details($flag = NULL, $seller_id = NULL, $p_status = NULL)

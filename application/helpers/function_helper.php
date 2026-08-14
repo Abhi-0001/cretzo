@@ -97,6 +97,28 @@ function create_unique_slug($string, $table, $field = 'slug', $key = NULL, $valu
     return $slug;
 }
 
+/**
+ * Storefront URL for one seller.
+ *
+ * Every "View Seller Profile" / seller-card link used to be built by concatenating
+ * seller_data.slug straight into the URL, so a seller whose slug was never filled in
+ * produced ".../sellers/seller_details/" - which Sellers::seller_details() can only
+ * answer by redirecting to the whole seller listing, i.e. exactly the wrong seller.
+ * Falling back to the numeric user id keeps the link pointing at the right storefront;
+ * seller_details() accepts either form and redirects an id to the slug once it exists.
+ */
+function seller_profile_url($slug = '', $user_id = '')
+{
+    $slug = is_string($slug) ? trim($slug) : '';
+    if ($slug !== '') {
+        return base_url('sellers/seller_details/' . rawurlencode($slug));
+    }
+    if (!empty($user_id)) {
+        return base_url('sellers/seller_details/' . (int) $user_id);
+    }
+    return base_url('sellers');
+}
+
 function get_settings($type = 'system_settings', $is_json = false)
 {
     $t = &get_instance();
@@ -323,7 +345,12 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
     if (isset($filter['show_only_active_products']) && $filter['show_only_active_products'] == 0) {
         $where = [];
     } else {
-        $where = ['p.status' => '1', 'pv.status' => 1, 'sd.status' => 1];
+        // listing_visibility keeps a seller inside their plan's listing limit in the shop
+        // itself, not just when adding products - see Seller_subscription_model's
+        // "Storefront listing visibility" section. This is the main storefront read, so
+        // it covers listings, product detail, search results, related products, sections
+        // and a seller's own store page in one place.
+        $where = ['p.status' => '1', 'pv.status' => 1, 'sd.status' => 1, 'p.listing_visibility' => 1];
     }
 
     $discount_filter_data = (isset($filter['discount']) && !empty($filter['discount'])) ? ' pv.*,( if(pv.special_price > 0,( (pv.price-pv.special_price)/pv.price)*100,0)) as cal_discount_percentage, ' : '';
@@ -700,7 +727,7 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
             $product[$i]['download_type'] = isset($product[$i]['download_type']) && !empty($product[$i]['download_type']) ? $product[$i]['download_type'] : '';
             $product[$i]['download_link'] = isset($product[$i]['download_link']) && !empty($product[$i]['download_link']) ? $product[$i]['download_link'] : '';
             $product[$i]['status'] = isset($product[$i]['status']) && !empty($product[$i]['status']) ? $product[$i]['status'] : '';
-            $total_product = $t->db->query("select count(id) as total  from products where products.seller_id=" . $product[$i]['seller_id'] . " AND products.status='1'")->result_array();
+            $total_product = $t->db->query("select count(id) as total  from products where products.seller_id=" . $product[$i]['seller_id'] . " AND products.status='1' AND products.listing_visibility=1")->result_array();
 
             /* outputing escaped data */
             $product[$i]['name'] = output_escaping($product[$i]['name']);
@@ -5319,8 +5346,8 @@ function get_filtered_price_range($filter = NULL, $category_id = NULL, $seller_i
         ->join('`product_variants` pv', 'p.id = pv.product_id', 'LEFT')
         ->join('`product_attributes` pa', ' pa.product_id = p.id ', 'LEFT');
 
-    // Base active-status conditions — mirror fetch_product().
-    $where = ['p.status' => '1', 'pv.status' => 1, 'sd.status' => 1];
+    // Base active-status conditions — mirror fetch_product(), listing cap included.
+    $where = ['p.status' => '1', 'pv.status' => 1, 'sd.status' => 1, 'p.listing_visibility' => 1];
 
     /* --- mirror the listing filters, EXCLUDING min_price / max_price --- */
     if (isset($filter) && !empty($filter['search'])) {

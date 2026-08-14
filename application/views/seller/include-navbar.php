@@ -19,10 +19,16 @@
                 </a>
             </li>
         <?php } ?>
-        <!-- google translate  -->
-        <div id="google_translate_element"></div>
-
-       
+        <?php
+        // The Google Translate mount point and its loader script used to sit here and in
+        // include-script.php, but the callback that fills them (googleTranslateElementInit)
+        // only ever existed in the admin-only custom.js - so on seller pages this div stayed
+        // empty and the third-party script was loaded for nothing. It first appeared as a
+        // real dropdown when the product form started loading custom.js, and only on that
+        // one page. Removed rather than left inert, so the seller panel looks the same on
+        // every page. (To give sellers translation properly, put both back and load the
+        // init on all seller pages, not just this one.)
+        ?>
         <li class="nav-item dropdown">
             <a class="nav-link" data-toggle="dropdown" href="#">
                 <i class="fa fa-user fa-2x"></i>

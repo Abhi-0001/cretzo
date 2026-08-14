@@ -92,6 +92,7 @@ class Search extends CI_Controller
             ->join('categories c', 'c.id = p.category_id', 'left')
             ->like('p.name', $search_term)
             ->where('p.status', 1)
+            ->where('p.listing_visibility', 1)
             ->where('c.status', 1)
             ->order_by('p.name', 'ASC')
             ->limit($limit)

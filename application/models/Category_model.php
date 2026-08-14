@@ -38,7 +38,7 @@ class Category_model extends CI_Model
             $this->db->group_End();
         }
         if ($ignore_categories_with_no_products == 'true') {
-            $this->db->join('products p', 'p.category_id = c1.id AND p.status = 1', 'left');
+            $this->db->join('products p', 'p.category_id = c1.id AND p.status = 1 AND p.listing_visibility = 1', 'left');
             $this->db->having('COUNT(p.id) > 0');
         }
         $count_row = $this->db->get('categories c1')->row_array();
@@ -65,7 +65,7 @@ class Category_model extends CI_Model
         }
 
         if ($ignore_categories_with_no_products == 'true') {
-            $this->db->join('products p', 'p.category_id = c1.id AND p.status = 1', 'left');
+            $this->db->join('products p', 'p.category_id = c1.id AND p.status = 1 AND p.listing_visibility = 1', 'left');
             $this->db->group_by('c1.id');
             $this->db->having('COUNT(p.id) > 0');
         }

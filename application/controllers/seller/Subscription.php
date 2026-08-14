@@ -27,8 +27,14 @@ class Subscription extends CI_Controller
             $this->data['title'] = 'Subscription Plans | ' . $settings['app_name'];
             $this->data['meta_description'] = 'Subscription Plans | ' . $settings['app_name'];
             $this->data['plans'] = $this->Subscription_model->get_plans();
+            // Settle a lapsed plan onto the free tier before reading anything back, so this
+            // page names the plan the seller is actually on rather than the one that ran out.
+            $this->Seller_subscription_model->ensure_free_tier_fallback($user_id);
             $this->data['active_subscription'] = $this->Seller_subscription_model->get_active_subscription($user_id);
             $this->data['latest_subscription'] = $this->Seller_subscription_model->get_latest_subscription($user_id);
+            // The plan that ran out, if the seller is only on the free tier because of it -
+            // otherwise the page would swap their plan name out with no explanation.
+            $this->data['lapsed_subscription'] = $this->Seller_subscription_model->get_lapsed_plan_before_free_tier($user_id);
             $this->data['launch_offer_active'] = $this->Seller_subscription_model->is_launch_offer_active();
 
             $this->load->view('seller/template', $this->data);
