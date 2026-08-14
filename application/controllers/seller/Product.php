@@ -141,9 +141,12 @@ class Product extends CI_Controller
             }
 
 
+            // Same status filter as admin/Product::create_product() - a de-activated
+            // attribute or attribute set must not be offered on either form.
             $attributes = $this->db->select('attr_val.id,attr.name as attr_name ,attr_set.name as attr_set_name,attr_val.value')
                 ->join('attributes attr', 'attr.id=attr_val.attribute_id')
                 ->join('attribute_set attr_set', 'attr_set.id=attr.attribute_set_id')
+                ->where(['attr.status' => 1, 'attr_set.status' => 1])
                 ->get('attribute_values attr_val')->result_array();
 
             $attributes_refind = array();
@@ -275,6 +278,67 @@ class Product extends CI_Controller
         }
     }
 
+    /**
+     * "Visible Listings": which of the seller's products the shop is allowed to show.
+     *
+     * A plan's listings_limit caps how many products a seller can have live at once. When
+     * they have more than that (they downgraded, or their plan lapsed to the free tier),
+     * the overflow is hidden from buyers rather than the whole catalogue staying up - and
+     * this is where the seller decides WHICH ones keep the slots.
+     */
+    public function listing_visibility()
+    {
+        if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0))) {
+            redirect('seller/login', 'refresh');
+            return;
+        }
+
+        $seller_id = $this->session->userdata('user_id');
+        $settings = get_settings('system_settings', true);
+
+        // Re-run the cap first: the plan may have changed (or lapsed) since the last visit.
+        $this->Seller_subscription_model->ensure_free_tier_fallback($seller_id);
+        $state = $this->Seller_subscription_model->enforce_listing_visibility($seller_id);
+
+        $this->data['main_page'] = FORMS . 'listing-visibility';
+        $this->data['title'] = 'Visible Listings | ' . $settings['app_name'];
+        $this->data['meta_description'] = 'Visible Listings | ' . $settings['app_name'];
+        $this->data['listing_state'] = $state;
+        $this->data['current_plan'] = $this->Seller_subscription_model->get_current_plan($seller_id);
+        $this->data['products'] = $this->db
+            ->select('id, name, image, status, listing_visibility, date_added')
+            ->where('seller_id', $seller_id)
+            ->order_by('listing_visibility', 'ASC')
+            ->order_by('id', 'DESC')
+            ->get('products')->result_array();
+
+        $this->load->view('seller/template', $this->data);
+    }
+
+    public function save_listing_visibility()
+    {
+        if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0))) {
+            redirect('seller/login', 'refresh');
+            return;
+        }
+
+        if (print_msg(!is_modification_allowed('update'), DEMO_VERSION_MSG, 'product', false)) {
+            return false;
+        }
+
+        $seller_id = $this->session->userdata('user_id');
+        $visible_ids = $this->input->post('visible_ids');
+        $visible_ids = is_array($visible_ids) ? $visible_ids : [];
+
+        $result = $this->Seller_subscription_model->set_visible_listings($seller_id, $visible_ids);
+
+        $this->response['error'] = !$result['saved'];
+        $this->response['message'] = $result['message'];
+        $this->response['csrfName'] = $this->security->get_csrf_token_name();
+        $this->response['csrfHash'] = $this->security->get_csrf_hash();
+        print_r(json_encode($this->response));
+    }
+
     public function delete_product()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
@@ -387,10 +451,18 @@ class Product extends CI_Controller
         $this->form_validation->set_rules('guarantee_period', 'Guarantee Period', 'trim|xss_clean');
         $this->form_validation->set_rules('hsn_code', 'HSN Code', 'trim|xss_clean');
         $this->form_validation->set_rules('indicator', 'Indicator', 'trim|xss_clean');
-        $this->form_validation->set_rules('weight', 'Weight', 'trim|xss_clean');
-        $this->form_validation->set_rules('height', 'Height', 'trim|xss_clean');
-        $this->form_validation->set_rules('breadth', 'Breadth', 'trim|xss_clean');
-        $this->form_validation->set_rules('length', 'Length', 'trim|xss_clean');
+        // Only a simple / digital product posts these as single values. A variable
+        // product posts one per variant (weight[], height[], ...) and CI's validation
+        // flattens an array field declared under its scalar name, so these four rules
+        // were silently reducing every variant's parcel dimensions to one mangled
+        // value - which is why per-variant weight/dimensions always came back 0.
+        // Admin's controller sets no rule on them at all for the same reason.
+        if ($product_type !== 'variable_product') {
+            $this->form_validation->set_rules('weight', 'Weight', 'trim|xss_clean');
+            $this->form_validation->set_rules('height', 'Height', 'trim|xss_clean');
+            $this->form_validation->set_rules('breadth', 'Breadth', 'trim|xss_clean');
+            $this->form_validation->set_rules('length', 'Length', 'trim|xss_clean');
+        }
         if (isset($_POST['is_attachment_required'])) {
             $this->form_validation->set_rules('is_attachment_required', 'Attachment required', 'trim|xss_clean');
         }

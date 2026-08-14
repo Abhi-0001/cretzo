@@ -264,20 +264,35 @@ class Area extends CI_Controller
             redirect('seller/login', 'refresh');
         }
     }
+    /**
+     * Zipcode search behind the product form's "Deliverable Zipcodes" select2.
+     *
+     * Reworked for that control, which is what actually calls this: it pages with select2's
+     * `page` param (the old `limit`/`offset` pair was read with input->post() while being
+     * tested against $_GET, so both were always the defaults and every page after the first
+     * repeated page one), and it needs `total` back to know whether to keep scrolling.
+     * Also applies the same GST state restriction as get_deliverable_zipcodes() - a seller
+     * enrolled in one state must not be able to attach zipcodes outside it.
+     */
     public function get_zipcodes()
     {
-        if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
-
-            $limit = (isset($_GET['limit'])) ? $this->input->post('limit', true) : 25;
-            $offset = (isset($_GET['offset'])) ? $this->input->post('offset', true) : 0;
-            $search =  (isset($_GET['search'])) ? $_GET['search'] : null;
-            $zipcodes = $this->Area_model->get_zipcodes($search, $limit, $offset);
-            $this->response['data'] = $zipcodes['data'];
-            $this->response['csrfName'] = $this->security->get_csrf_token_name();
-            $this->response['csrfHash'] = $this->security->get_csrf_hash();
-            print_r(json_encode($this->response));
-        } else {
+        if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0))) {
             redirect('seller/login', 'refresh');
+            return;
         }
+
+        $limit = 30;
+        $offset = (isset($_GET['page']) ? max(0, (int) $_GET['page'] - 1) : 0) * $limit;
+        $search = (isset($_GET['search'])) ? $_GET['search'] : null;
+
+        $restriction = $this->get_seller_gst_restriction();
+        $state_id = $restriction['restricted'] ? $restriction['state_id'] : null;
+
+        $zipcodes = $this->Area_model->get_zipcodes($search, $limit, $offset, $state_id);
+        $this->response['data'] = $zipcodes['data'];
+        $this->response['total'] = $zipcodes['total'];
+        $this->response['csrfName'] = $this->security->get_csrf_token_name();
+        $this->response['csrfHash'] = $this->security->get_csrf_hash();
+        print_r(json_encode($this->response));
     }
 }

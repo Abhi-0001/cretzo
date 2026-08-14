@@ -1812,7 +1812,7 @@ var edit_product_id = $('input[name=edit_product_id]').val();
 
 if (edit_product_id) {
 
-    create_fetched_attributes_html('seller').done(function () {
+    create_fetched_attributes_html(from).done(function () {
         $('.no-attributes-added').hide();
         $('#save_attributes').removeClass('d-none');
         $('.no-variants-added').hide();
@@ -2173,7 +2173,12 @@ $(document).on('submit', '#save-product', function (e) {
 
                                     $('input[name="product_type"]').val($('#product-type').val());
                                     $('input[name="variant_stock_level_type"]').val($('#stock_level_type').val());
-                                    $('input[name="varaint_stock_status"]').val("0");
+                                    // Was "varaint_stock_status" - a name no input on the page has, so
+                                    // this line set nothing. The model only writes product-level stock
+                                    // when variant_stock_status arrives as '0', which left submitting
+                                    // without first clicking "Save Settings" (where it is also set, and
+                                    // spelled correctly) silently dropping the stock figure.
+                                    $('input[name="variant_stock_status"]').val("0");
                                     $('#product-type').prop('disabled', true);
                                     $('#stock_level_type').prop('disabled', true);
                                     $(this).removeClass('save-variant-general-settings');
@@ -6687,7 +6692,7 @@ $(document).on('keyup', '.discount', function () {
 // select 2 js select countries
 $(".country_list").select2({
     ajax: {
-        url: base_url + 'admin/product/get_countries_data',
+        url: base_url + from + '/product/get_countries_data',
         type: "GET",
         dataType: 'json',
         delay: 250,
@@ -6755,28 +6760,10 @@ $("#zipcode_list").select2({
     placeholder: 'Search for cities',
 })
 
-$(".country_list").select2({
-    ajax: {
-        url: base_url + 'seller/product/get_countries_data',
-        type: "GET",
-        dataType: 'json',
-        delay: 250,
-        data: function (params) {
-            return {
-                search: params.term, // search term
-            };
-        },
-        processResults: function (response) {
-            return {
-                results: response
-            };
-        },
-        cache: true
-    },
-    minimumInputLength: 1,
-    theme: 'bootstrap4',
-    placeholder: 'Search for countries',
-});
+// A second .country_list initialiser stood here, identical to the one above except that
+// it pointed at the seller endpoint - two select2 instances competing for the same
+// element, with whichever ran last deciding which panel's URL was actually used. The one
+// above now derives the panel from `from`, which is what this copy was trying to achieve.
 
 //bonus_type
 $(document).on('change', '.bonus_type', function (e, data) {
@@ -7601,7 +7588,7 @@ $(document).ready(function () {
 // select 2 js select brands
 $(".admin_brand_list").select2({
     ajax: {
-        url: base_url + 'admin/product/get_brands_data',
+        url: base_url + from + '/product/get_brands_data',
         type: "GET",
         dataType: 'json',
         delay: 250,

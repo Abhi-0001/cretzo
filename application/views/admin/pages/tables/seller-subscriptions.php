@@ -185,6 +185,16 @@
                             <small class="form-text text-muted">Only applies to an active plan that has an expiry date.</small>
                         </div>
 
+                        <div class="form-group">
+                            <a href="#" class="btn btn-outline-primary btn-block" id="mss-visibility-btn" target="_blank">
+                                <i class="fas fa-eye mr-1"></i> Manage Visible Listings
+                            </a>
+                            <small class="form-text text-muted">
+                                A plan's listing limit also caps how many of this seller's products the shop shows.
+                                Use this to see what is hidden, and to change which listings keep the slots.
+                            </small>
+                        </div>
+
                         <div class="form-group mb-0">
                             <button type="button" class="btn btn-danger btn-block" id="mss-cancel-btn">Cancel Current Subscription</button>
                             <small class="form-text text-muted">Keeps the history, but the seller can no longer add new listings.</small>
@@ -270,6 +280,8 @@ $(document).ready(function () {
 
         $('#mss-seller-id').val(sellerId);
         $('#mss-shop-name').text($(this).data('shop-name'));
+        $('#mss-visibility-btn').attr('href',
+            '<?= base_url('admin/subscription/seller_listing_visibility') ?>?seller_id=' + encodeURIComponent(sellerId));
         $('#mss-extend-days').val('');
         $('#mss-error-box').text('');
         $('#mss-current-summary').html('<span class="text-muted">Loading...</span>');

@@ -1,411 +1,20 @@
-
-<style>
-        /* ═══════════════════════════════════════════════════════════════
-   Product form — media upload areas (fixed-size)
-   Replace or merge with your existing <style> block on the page.
-   ═══════════════════════════════════════════════════════════════ */
-
-/* ── Top two-column layout ──────────────────────────────────── */
-.create-product-page .top-layout {
-    display: flex;
-    align-items: stretch;
-    gap: 1rem;
-    min-height: 520px;
-}
-.create-product-page .top-column {
-    flex: 1;
-    border: 1px solid #e5e7eb;
-    border-radius: .5rem;
-    background: #fff;
-    padding: 1rem;
-    display: flex;
-    flex-direction: column;
-}
-.create-product-page .inner-scroll {
-    overflow-y: auto;
-    flex: 1;
-    padding-right: .5rem;
-}
-.create-product-page .block-title {
-    margin-bottom: 1rem;
-    padding-bottom: .5rem;
-    border-bottom: 1px solid #f1f3f5;
-    font-weight: 600;
-}
-
-/* ── Section header ─────────────────────────────────────────── */
-.create-product-page .section-header {
-    font-weight: 700;
-    border-bottom: 1px solid #e5e7eb;
-    padding-bottom: .5rem;
-    margin-bottom: 1rem;
-}
-
-/* ── Media groups ───────────────────────────────────────────── */
-.create-product-page .media-group {
-    margin-bottom: 1.25rem;
-}
-.create-product-page .media-group h6 {
-    font-size: .875rem;
-    font-weight: 600;
-    margin-bottom: .5rem;
-    color: #374151;
-}
-
-/* ─────────────────────────────────────────────────────────────
-   MAIN IMAGE — fixed 200×200 upload zone
-   ───────────────────────────────────────────────────────────── */
-.create-product-page #main_image_preview {
-    width: 150px;
-    height: 150px;
-    border: 2px dashed #d1d5db;
-    border-radius: 8px;
-    background: #f9fafb;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-    position: relative;
-    margin-top: .5rem;
-    transition: border-color .2s;
-}
-.create-product-page #main_image_preview:empty::after {
-    content: 'No image yet';
-    font-size: .75rem;
-    color: #9ca3af;
-}
-/* The thumb wrapper inside the preview fills the container */
-.create-product-page #main_image_preview .thumb-wrapper {
-    width: 100%;
-    height: 100%;
-    display: block;
-    border: none;
-    padding: 0;
-    border-radius: 0;
-}
-.create-product-page #main_image_preview img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-    cursor: zoom-in;
-}
-
-/* ─────────────────────────────────────────────────────────────
-   OTHER IMAGES — fixed-height scroll zone with uniform tiles
-   ───────────────────────────────────────────────────────────── */
-.create-product-page #other_images_preview {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
-    gap: .5rem;
-    min-height: 100px;      /* always shows even when empty       */
-    max-height: 220px;      /* scrolls if many images added       */
-    overflow-y: auto;
-    padding: .25rem;
-    border: 1px solid #e5e7eb;
-    border-radius: 6px;
-    background: #f9fafb;
-    margin-top: .5rem;
-}
-.create-product-page #other_images_preview:empty::after {
-    content: 'No images yet';
-    font-size: .75rem;
-    color: #9ca3af;
-    grid-column: 1 / -1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 80px;
-}
-/* Each tile is a fixed square */
-.create-product-page .thumb-wrapper {
-    position: relative;
-    border: 1px solid #e5e7eb;
-    border-radius: 4px;
-    overflow: hidden;
-    background: #fff;
-}
-.create-product-page #other_images_preview .thumb-wrapper {
-    width: 90px;
-    height: 90px;
-    flex-shrink: 0;
-}
-.create-product-page #other_images_preview img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-}
-/* Remove button */
-.create-product-page .remove-thumb {
-    position: absolute;
-    top: 3px;
-    right: 3px;
-    border: none;
-    background: rgba(220, 53, 69, .85);
-    color: #fff;
-    border-radius: 50%;
-    width: 20px;
-    height: 20px;
-    line-height: 18px;
-    text-align: center;
-    font-size: 13px;
-    cursor: pointer;
-    z-index: 2;
-    padding: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-.create-product-page .remove-thumb:hover { background: #dc3545; }
-
-/* ─────────────────────────────────────────────────────────────
-   VIDEO UPLOAD — fixed-height container
-   ───────────────────────────────────────────────────────────── */
-.create-product-page #video_file_container,
-.create-product-page #video_url_container {
-    min-height: 44px;
-}
-
-/* ─────────────────────────────────────────────────────────────
-   Alert hint box (shows what's still missing)
-   ───────────────────────────────────────────────────────────── */
-#product-form-alert.alert-info {
-    background: #eff6ff;
-    color: #1e40af;
-    border-color: #bfdbfe;
-}
-
-/* ── Responsive ─────────────────────────────────────────────── */
-@media (max-width: 767px) {
-    .create-product-page .top-layout {
-        flex-direction: column;
-    }
-    .create-product-page #main_image_preview {
-        width: 100%;
-        height: 180px;
-    }
-}
-        .seller-product-top-grid {
-            display: grid;
-            grid-template-columns: 1.3fr 1fr;
-            gap: 1.25rem;
-        }
-        .seller-product-media-card {
-            background: #fff;
-            border: 1px solid #e9ecef;
-            border-radius: 12px;
-            padding: 1rem;
-            box-shadow: 0 4px 14px rgba(28, 37, 54, 0.06);
-        }
-        .seller-product-media-card .section-title {
-            font-size: 1rem;
-            font-weight: 600;
-            margin-bottom: .75rem;
-            
-        }
-        .seller-product-media-card .image-upload-section {
-            min-height: 90px;
-        }
-
-        .seller-product-media-card .image-upload-div {
-            width: 180px;
-            height: 180px;
-            margin: 0 auto;
-            border-radius: 8px;
-            overflow: hidden;
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
-        }
-
-        .seller-product-media-card .image-upload-div img{
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            cursor: zoom-in;
-            display: block;
-        }
-            
-        @media (max-width: 991.98px) {
-            .seller-product-top-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-        #save-product .field-col {
-            margin-bottom: 14px;
-        }
-
-        #save-product .field-col .col-form-label {
-            display: block;
-            min-height: 24px;
-            margin-bottom: 6px;
-        }
-
-        #save-product .category-select-wrap .form-control {
-            min-height: 38px;
-        }
-
-        /* ── Theme pass: simple, attractive, on-brand ──────────────── */
-        .create-product-page .section-header {
-            display: flex;
-            align-items: center;
-            gap: .5rem;
-            font-size: 1rem;
-            color: #2b2f33;
-            border-bottom: 2px solid var(--color-secondary);
-        }
-        .create-product-page .section-header i {
-            color: var(--color-orange);
-        }
-        .create-product-page .top-column {
-            border-radius: 10px;
-            box-shadow: 0 1px 6px rgba(0,0,0,0.05);
-        }
-        .create-product-page .block-title {
-            font-size: .95rem;
-            color: #495057;
-        }
-        .create-product-page .card-light {
-            border: none;
-            border-radius: 10px;
-            box-shadow: 0 1px 6px rgba(0,0,0,0.05);
-        }
-        .create-product-page .card-light h6 {
-            display: flex;
-            align-items: center;
-            gap: .4rem;
-            font-weight: 600;
-            margin-bottom: .9rem;
-        }
-        .create-product-page .card-light h6 i {
-            color: var(--color-orange);
-        }
-        .create-product-page .card-info {
-            border: none;
-            border-radius: 12px;
-        }
-        .create-product-page .form-control:focus {
-            border-color: var(--color-orange);
-            box-shadow: 0 0 0 .15rem var(--color-orange-light);
-        }
-        .create-product-page #main_image_input,
-        .create-product-page #other_images_input,
-        .create-product-page #video_file_input {
-            border: 1px dashed #d1d5db;
-            border-radius: 6px;
-            padding: .35rem .5rem;
-            font-size: .8rem;
-        }
-        .create-product-page #main_image_preview:hover,
-        .create-product-page #other_images_preview {
-            border-color: var(--color-orange-light);
-        }
-        .create-product-page .btn-outline-primary {
-            color: var(--color-orange-dark);
-            border-color: var(--color-orange);
-        }
-        .create-product-page .btn-outline-primary:hover {
-            background: var(--color-orange);
-            border-color: var(--color-orange);
-            color: #fff;
-        }
-        .create-product-page .card-footer {
-            background: #fff;
-            border-top: 1px solid #f1f3f5;
-            border-radius: 0 0 12px 12px;
-        }
-        .create-product-page #submit_product_btn {
-            background: var(--color-orange);
-            border-color: var(--color-orange);
-            padding: .5rem 1.5rem;
-            border-radius: 6px;
-            font-weight: 600;
-        }
-        .create-product-page #submit_product_btn:hover:not(:disabled) {
-            background: var(--color-orange-dark);
-            border-color: var(--color-orange-dark);
-        }
-        .create-product-page .category-search-box {
-            position: relative;
-        }
-        .create-product-page .category-search-icon {
-            position: absolute;
-            left: 12px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #9ca3af;
-            font-size: .85rem;
-            pointer-events: none;
-        }
-        .create-product-page .category-search-input {
-            padding-left: 34px;
-            padding-right: 30px;
-        }
-        .create-product-page .category-search-clear {
-            display: none;
-            position: absolute;
-            right: 6px;
-            top: 50%;
-            transform: translateY(-50%);
-            border: none;
-            background: transparent;
-            color: #9ca3af;
-            font-size: 1.15rem;
-            line-height: 1;
-            cursor: pointer;
-            padding: 2px 6px;
-        }
-        .create-product-page .category-search-clear:hover {
-            color: #4b5563;
-        }
-        .create-product-page #category_dropdown {
-            display: none;
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            background: #fff;
-            border: 1px solid #ced4da;
-            border-top: none;
-            border-radius: 0 0 .375rem .375rem;
-            max-height: 320px;
-            overflow-y: auto;
-            z-index: 9999;
-            box-shadow: 0 8px 16px rgba(0, 0, 0, .08);
-        }
-        .create-product-page .category-result-item {
-            padding: 8px 14px;
-            cursor: pointer;
-            border-bottom: 1px solid #f3f4f6;
-        }
-        .create-product-page .category-result-item:last-child {
-            border-bottom: none;
-        }
-        .create-product-page .category-result-item:hover {
-            background: var(--color-orange-light);
-        }
-        .create-product-page .category-result-name {
-            font-weight: 600;
-            color: #1f2937;
-            font-size: .9rem;
-        }
-        .create-product-page .category-result-path {
-            font-size: .75rem;
-            color: #9ca3af;
-            margin-top: 2px;
-        }
-    </style>
-    <div class="content-wrapper create-product-page">
+<div class="content-wrapper seller-create-product-page">
     <section class="content-header">
         <div class="container-fluid">
-            <div class="row mb-2">
+            <div class="row mb-2 align-items-center">
                 <div class="col-sm-6">
-                    <h4><?= isset($product_details[0]['id']) ? 'Update' : 'Add' ?> Product</h4>
+                    <h4 class="mb-0">
+                        <i class="fas fa-box-open mr-2 text-primary-theme"></i><?= isset($product_details[0]['id']) ? 'Update' : 'Add' ?> Product
+                    </h4>
+                    <p class="text-muted mb-0 small">
+                        <?= isset($product_details[0]['id']) ? 'Edit this product\'s details, pricing and stock.' : 'Create a new product for your store.' ?>
+                    </p>
                 </div>
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">
                         <li class="breadcrumb-item"><a href="<?= base_url('seller/home') ?>">Home</a></li>
-                        <li class="breadcrumb-item active">Products</li>
+                        <li class="breadcrumb-item"><a href="<?= base_url('seller/product') ?>">Products</a></li>
+                        <li class="breadcrumb-item active"><?= isset($product_details[0]['id']) ? 'Update' : 'Add' ?></li>
                     </ol>
                 </div>
             </div>
@@ -413,9 +22,9 @@
     </section>
 
     <?php
-    // An expired subscription now blocks new listings, so it needs its own message - the
-    // usage banner alone would read "0 remaining, you've reached your plan limit", which
-    // points the seller at an upgrade when what they actually need is a renewal.
+    // Seller-only: listing quota. An expired subscription blocks new listings, so it needs
+    // its own message - the usage banner alone would read "0 remaining, you've reached your
+    // plan limit", pointing the seller at an upgrade when they actually need a renewal.
     $lq_expired = (!empty($listing_quota) && isset($listing_quota['status']) && $listing_quota['status'] === 'expired');
     ?>
     <?php if (empty($product_details[0]['id']) && $lq_expired) : ?>
@@ -447,663 +56,1100 @@
 
     <section class="content">
         <div class="container-fluid">
-        <div class="card card-info shadow-sm">
-                <form action="<?= base_url('seller/product/add_product'); ?>" method="POST" id="save-product" novalidate
-                    data-subcategory-url="<?= base_url('seller/product/get_subcategories') ?>"
-                    data-media-upload-url="<?= base_url('seller/media/upload') ?>"
-                    data-product-list-url="<?= base_url('seller/product/') ?>">
-                    <input type="hidden" name="<?= $this->security->get_csrf_token_name(); ?>" value="<?= $this->security->get_csrf_hash(); ?>" id="csrf_token_input">
-                    <input type="hidden" name="seller_id" value="<?= (int)($seller_id ?? $_SESSION['user_id']); ?>">
-                    <input type="hidden" name="attribute_values" value="">
-                    <input type="hidden" name="category_id" id="selected_category_id" value="<?= isset($product_details[0]['category_id']) ? (int)$product_details[0]['category_id'] : '' ?>">
-                    <input type="hidden" id="category_tree_data" value='<?= htmlspecialchars(json_encode($categories ?? []), ENT_QUOTES, "UTF-8") ?>'>
-                    <input type="hidden" id="existing_variants_data" value='<?= htmlspecialchars(json_encode(($product_details[0]['type'] ?? '') === 'variable_product' ? ($product_variants ?? []) : []), ENT_QUOTES, "UTF-8") ?>'>
-                    <?php if (isset($product_details[0]['id'])): ?>
-                        <input type="hidden" name="edit_product_id" value="<?= (int)$product_details[0]['id'] ?>">
-                    <?php endif; ?>
-
-                    <div class="card-body">
-                        <div id="product-form-alert" class="alert d-none" role="alert"></div>
-
-                        <div class="section-header"><i class="fas fa-box-open"></i> Basic Information &amp; Media</div>
-                        <div class="top-layout">
-                            <div class="top-column">
-                                <h5 class="block-title">Product Information</h5>
-                                <div class="inner-scroll">
-                                    <div class="form-group">
-                                        <label for="pro_input_text">Product Name <span class="text-danger">*</span></label>
-                                        <input type="text" class="form-control" id="pro_input_text" name="pro_input_name" value="<?= isset($product_details[0]['name']) ? output_escaping($product_details[0]['name']) : '' ?>" required>
-                                    </div>
-
-                                    <div class="form-group">
-                                        <label for="product_type">Product Type</label>
-                                        <select class="form-control" name="product_type" id="product_type">
-                                            <?php $selectedType = $product_details[0]['type'] ?? 'simple_product'; ?>
-                                            <option value="simple_product" <?= $selectedType === 'simple_product' ? 'selected' : '' ?>>Simple Product</option>
-                                            <option value="variable_product" <?= $selectedType === 'variable_product' ? 'selected' : '' ?>>Variable Product</option>
-                                            <option value="digital_product" <?= $selectedType === 'digital_product' ? 'selected' : '' ?>>Digital Product</option>
-                                        </select>
-                                    </div>
-                               
-                                    <div class="form-group">
-                                        <label for="short_description">Short Description <span class="text-danger">*</span></label>
-                                        <textarea class="form-control" id="short_description" name="short_description" rows="3"><?= isset($product_details[0]['short_description']) ? output_escaping($product_details[0]['short_description']) : '' ?></textarea>
-                                    </div>
-
-                                    <div class="form-group">
-                                        <label for="pro_input_description">Additional Info</label>
-                                        <textarea class="form-control" id="pro_input_description" name="pro_input_description" rows="4"><?= isset($product_details[0]['description']) ? output_escaping($product_details[0]['description']) : '' ?></textarea>
-                                    </div>
-
-                                    <div class="form-group">
-                                        <label for="extra_input_description">Extra Notes</label>
-                                        <textarea class="form-control" id="extra_input_description" name="extra_input_description" rows="2"><?= isset($product_details[0]['extra_description']) ? output_escaping($product_details[0]['extra_description']) : '' ?></textarea>
-                                    </div>
-
-                                    <div class="form-group mb-0">
-                                        <label for="tags">Tags</label>
-                                        <input type="text" class="form-control" id="tags" name="tags" placeholder="ac, cooler, smartphone" value="<?= isset($product_details[0]['tags']) ? output_escaping($product_details[0]['tags']) : '' ?>">    
-                                </div>
-                                </div>
-                            </div>
-
-                            <div class="top-column">
-                                <h5 class="block-title">Product Media</h5>
-                                <div class="inner-scroll">
-                                    <div class="media-group">
-                                        <h6>Main Image <span class="text-danger">*</span></h6>
-                                        <input type="file" class="form-control-file" id="main_image_input" accept="image/*">
-                                        <input type="hidden" name="pro_input_image" id="pro_input_image" value="<?= isset($product_details[0]['image']) ? output_escaping($product_details[0]['image']) : '' ?>">
-                                        <div id="main_image_preview" class="preview-single">
-                                            <?php if (!empty($product_details[0]['image'])) : ?>
-                                                <div class="thumb-wrapper d-inline-block">
-                                                    <button type="button" class="remove-thumb" data-role="remove-main">&times;</button>
-                                                    <img src="<?= get_image_url($product_details[0]['image'], 'thumb', 'md') ?>" alt="Main">
-                                                </div>
-                                            <?php endif; ?>
-                                        </div>
-                                    </div>
-
-                                    <div class="media-group">
-                                        <h6>Other Images</h6>
-                                        <input type="file" class="form-control-file" id="other_images_input" accept="image/*" multiple>
-                                        <div id="other_images_preview" class="preview-grid">
-                                            <?php
-                                            $existing_other_images = [];
-                                            if (!empty($product_details[0]['other_images'])) {
-                                                $decoded = json_decode($product_details[0]['other_images'], true);
-                                                if (is_array($decoded)) {
-                                                    $existing_other_images = $decoded;
-                                                }
-                                            }
-                                            ?>
-                                            <?php foreach ($existing_other_images as $other_image_path) : ?>
-                                                <?php if (empty($other_image_path)) continue; ?>
-                                                <div class="thumb-wrapper" data-path="<?= output_escaping($other_image_path) ?>">
-                                                    <button type="button" class="remove-thumb" data-role="remove-other">&times;</button>
-                                                    <img src="<?= get_image_url($other_image_path, 'thumb', 'md') ?>" alt="Other">
-                                                    <input type="hidden" name="other_images[]" value="<?= output_escaping($other_image_path) ?>">
-                                                </div>
-                                            <?php endforeach; ?>
-                                        </div>
-                                    </div>
-                                    <div class="media-group">
-                                        <h6>Video Upload</h6>
-                                        <?php $existing_video_type = $product_details[0]['video_type'] ?? ''; ?>
-                                        <div class="form-row">
-                                            <div class="form-group col-md-4">
-                                                <select name="video_type" id="video_type" class="form-control">
-                                                    <option value="" <?= $existing_video_type === '' ? 'selected' : '' ?>>None</option>
-                                                    <option value="youtube" <?= $existing_video_type === 'youtube' ? 'selected' : '' ?>>YouTube URL</option>
-                                                    <option value="vimeo" <?= $existing_video_type === 'vimeo' ? 'selected' : '' ?>>Vimeo URL</option>
-                                                    <option value="self_hosted" <?= $existing_video_type === 'self_hosted' ? 'selected' : '' ?>>Upload Video File</option>
-                                                </select>
-                                            </div>
-
-                                            <div class="form-group col-md-8" id="video_url_container">
-                                                <label for="video">Video URL <span class="text-danger">*</span></label>
-                                                <input type="url" class="form-control" name="video" id="video" placeholder="https://..." value="<?= ($existing_video_type === 'youtube' || $existing_video_type === 'vimeo') && !empty($product_details[0]['video']) ? output_escaping($product_details[0]['video']) : '' ?>">
-                                            </div>
-                                        </div>
-                                        <div id="video_file_container" class="d-none">
-                                            <label for="video_file_input">Video File <span class="text-danger">*</span></label>
-                                            <input type="file" class="form-control-file" id="video_file_input" accept="video/*">
-                                            <input type="hidden" name="pro_input_video" id="pro_input_video" value="<?= $existing_video_type === 'self_hosted' && !empty($product_details[0]['video']) ? output_escaping($product_details[0]['video']) : '' ?>">
-                                            <small id="video_file_name" class="text-muted"><?= $existing_video_type === 'self_hosted' && !empty($product_details[0]['video']) ? 'Current: ' . output_escaping(basename($product_details[0]['video'])) : '' ?></small>
-                                        </div>
-                                    </div>
-                                    </div>
-                            </div>
-                        </div>
-
-                        <div class="section-header mt-4"><i class="fas fa-tags"></i> Product Details</div>
-                        <div class="card card-light mb-4">
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="card attribute-card">
+                        <!-- form start -->
+                        <form class="form-horizontal" action="<?= base_url('seller/product/add_product'); ?>" method="POST" enctype="multipart/form-data" id="save-product">
+                            <?php if (isset($product_details[0]['id'])) {
+                            ?>
+                                <input type="hidden" name="edit_product_id" value="<?= (isset($product_details[0]['id'])) ? $product_details[0]['id'] : "" ?>">
+                                <?php // The seller_id was also emitted here as a hidden input while the Seller
+                                      // dropdown below carries the same name, so the form submitted the field
+                                      // twice and relied on document order to decide which value won. ?>
+                                <input type="hidden" id="subcategory_id_js" value="<?= (isset($product_details[0]['subcategory_id'])) ? $product_details[0]['subcategory_id'] : "" ?>">
+                            <?php } ?>
+                            <?php
+                            // Single source of truth for the chosen category, in both create and edit mode.
+                            // Previously this input existed only when editing, so on the create screen the
+                            // category lived solely inside the tree widget.
+                            ?>
+                            <input type="hidden" name="category_id" id="product_category_id" value="<?= isset($product_details[0]['category_id']) ? (int) $product_details[0]['category_id'] : '' ?>">
                             <div class="card-body">
-                                <div class="row">
-                                    <div class="col-md-3 form-group">
-                                        <label>Tax</label>
-                                        <select class="form-control" name="pro_input_tax" id="pro_input_tax">
-                                            <option value="0">No Tax</option>
-                                            <?php foreach (($taxes ?? []) as $tax): ?>
-                                                <option value="<?= (int)$tax['id'] ?>" <?= isset($product_details[0]['tax']) && (int)$product_details[0]['tax'] === (int)$tax['id'] ? 'selected' : '' ?>><?= output_escaping($tax['title']) ?></option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-3 form-group">
-                                        <label>Made In</label>
-                                        <select class="form-control" name="made_in" id="made_in">
-                                            <option value="">Select Country</option>
-                                            <?php foreach (($countries ?? []) as $country): ?>
-                                                <option value="<?= output_escaping($country['name']) ?>" <?= isset($product_details[0]['made_in']) && $product_details[0]['made_in'] === $country['name'] ? 'selected' : '' ?>><?= output_escaping($country['name']) ?></option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-3 form-group">
-                                        <label>Brand</label>
-                                        <select class="form-control" name="brand" id="brand">
-                                            <option value="">Select Brand</option>
-                                            <?php foreach (($brands ?? []) as $brand): ?>
-                                                <?php // products.brand is a plain string column matched by NAME everywhere
-                                                      // (storefront filtering, Brand_model) - the option value must be the
-                                                      // brand's name, not its id, or a seller-chosen brand never matches. ?>
-                                                <option value="<?= output_escaping($brand['name']) ?>" <?= !empty($product_details[0]['brand']) && $product_details[0]['brand'] === $brand['name'] ? 'selected' : '' ?>><?= output_escaping($brand['name']) ?></option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-3 form-group">
-                                        <label>Indicator</label>
-                                        <select class="form-control" name="indicator" id="indicator">
-                                            <?php $selected_indicator = $product_details[0]['indicator'] ?? '0'; ?>
-                                            <option value="0" <?= $selected_indicator === '0' ? 'selected' : '' ?>>None</option>
-                                            <option value="1" <?= $selected_indicator === '1' ? 'selected' : '' ?>>Veg</option>
-                                            <option value="2" <?= $selected_indicator === '2' ? 'selected' : '' ?>>Non-Veg</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-3 form-group">
-                                        <label>HSN Code</label>
-                                        <input type="text" class="form-control" name="hsn_code" id="hsn_code" value="<?= isset($product_details[0]['hsn_code']) ? output_escaping($product_details[0]['hsn_code']) : '' ?>">
-                                    </div>
-                                    <div class="col-md-3 form-group">
-                                        <label>Warranty Period</label>
-                                        <input type="text" class="form-control" name="warranty_period" placeholder="e.g. 1 Year" value="<?= isset($product_details[0]['warranty_period']) ? output_escaping($product_details[0]['warranty_period']) : '' ?>">
-                                    </div>
-                                    <div class="col-md-3 form-group">
-                                        <label>Guarantee Period</label>
-                                        <input type="text" class="form-control" name="guarantee_period" placeholder="e.g. 6 Months" value="<?= isset($product_details[0]['guarantee_period']) ? output_escaping($product_details[0]['guarantee_period']) : '' ?>">
-                                    </div>
 
-                                    <div class="col-md-4 form-group">
-                                        <?php if (!empty($pickup_locations)) : ?>
-                                            <label for="pickup_location">Pickup Location <span class="text-danger">*</span></label>
-                                            <select class="form-control" name="pickup_location" id="pickup_location">
-                                                <option value="">Select Pickup Location</option>
-                                                <?php foreach ($pickup_locations as $loc) : ?>
-                                                    <option value="<?= output_escaping($loc['pickup_location']) ?>" <?= isset($product_details[0]['pickup_location']) && $product_details[0]['pickup_location'] === $loc['pickup_location'] ? 'selected' : '' ?>><?= output_escaping($loc['pickup_location']) ?></option>
-                                                <?php endforeach; ?>
-                                            </select>
-                                        <?php else : ?>
-                                            <label>Pickup Location</label>
-                                            <div class="alert alert-warning py-2 px-3 mb-0" style="font-size: 13px;">
-                                                You haven't added a pickup location yet. <a href="<?= base_url('seller/pickup_location/manage_pickup_locations') ?>">Add one</a> so this product can be shipped.
-                                            </div>
-                                        <?php endif; ?>
-                                    </div>
+                                <div class="section-header"><i class="fas fa-info-circle"></i> Basic Details</div>
 
-                                    <div class="col-md-4 form-group">
-    <label>Category  <span class="text-danger">*</span></label>
-    <div class="category-combo" style="position:relative;">
-        <div class="category-search-box">
-            <i class="fas fa-search category-search-icon"></i>
-            <input type="text"
-                   class="form-control category-search-input"
-                   id="category_level_1_input"
-                   placeholder="Search category..."
-                   autocomplete="off">
-            <button type="button" class="category-search-clear" id="category_search_clear" aria-label="Clear">&times;</button>
-        </div>
-        <div id="category_dropdown"></div>
-    </div>
-    <small class="text-muted">Search and select an existing category</small>
-</div>
-
-                                    <div class="col-md-4 form-group">
-                                        <label>Total Allowed Quantity</label>
-                                        <input type="number" min="1" class="form-control" name="total_allowed_quantity" value="<?= !empty($product_details[0]['total_allowed_quantity']) ? (int)$product_details[0]['total_allowed_quantity'] : 1 ?>">
-                                    </div>
-                                    <div class="col-md-4 form-group">
-                                        <label>Minimum Order Quantity</label>
-                                        <input type="number" min="1" class="form-control" name="minimum_order_quantity" value="<?= !empty($product_details[0]['minimum_order_quantity']) ? (int)$product_details[0]['minimum_order_quantity'] : 1 ?>">
-                                    </div>
-                                    <div class="col-md-4 form-group">
-                                        <label>Quantity Step Size</label>
-                                        <input type="number" min="1" class="form-control" name="quantity_step_size" value="<?= !empty($product_details[0]['quantity_step_size']) ? (int)$product_details[0]['quantity_step_size'] : 1 ?>">
-                                    </div>
-
+                                <div class="form-group col-md-12">
+                                    <label for="pro_input_text" class="col-form-label">Name <span class='text-danger text-sm'>*</span> </label>
+                                    <input type="text" class="form-control" id="pro_input_text" placeholder="Product Name" name="pro_input_name" value="<?= (isset($product_details[0]['name'])) ? output_escaping(str_replace('\r\n', '&#13;&#10;', $product_details[0]['name'])) : "" ?>">
+                                </div>
+                                <div class="row col-md-12">
                                     <?php
-                                    $selected_deliverable_type = isset($product_details[0]['deliverable_type']) ? (string) $product_details[0]['deliverable_type'] : ALL;
-                                    $existing_zipcodes = !empty($product_details[0]['deliverable_zipcodes']) ? str_replace(',', "\n", $product_details[0]['deliverable_zipcodes']) : '';
-                                    $zipcode_restricted = in_array($selected_deliverable_type, [INCLUDED, EXCLUDED], true);
+                                    // The admin form picks a seller here; on this panel the seller is
+                                    // always the logged-in one, so it travels as a hidden field. The
+                                    // controller overwrites $_POST['seller_id'] with the session user
+                                    // regardless, so this is for the model's benefit, not a trust
+                                    // boundary.
                                     ?>
-                                    <div class="col-md-4 form-group">
-                                        <label>Deliverable Areas</label>
-                                        <select class="form-control" name="deliverable_type" id="deliverable_type">
-                                            <option value="<?= NONE ?>" <?= $selected_deliverable_type === NONE ? 'selected' : '' ?>>Not Deliverable</option>
-                                            <option value="<?= ALL ?>" <?= $selected_deliverable_type === ALL ? 'selected' : '' ?>>All Areas</option>
-                                            <option value="<?= INCLUDED ?>" <?= $selected_deliverable_type === INCLUDED ? 'selected' : '' ?>>Only Selected Zipcodes</option>
-                                            <option value="<?= EXCLUDED ?>" <?= $selected_deliverable_type === EXCLUDED ? 'selected' : '' ?>>All Except Selected Zipcodes</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-8 form-group <?= $zipcode_restricted ? '' : 'd-none' ?>" id="deliverable_zipcodes_wrap">
-                                        <label>Zipcodes <span class="text-danger">*</span></label>
-                                        <textarea class="form-control" id="deliverable_zipcodes_text" rows="2" placeholder="One per line or comma-separated, e.g. 400001, 400002"><?= output_escaping($existing_zipcodes) ?></textarea>
-                                        <small class="text-muted">Used to restrict where this product can be delivered.</small>
-                                        <div id="deliverable_zipcodes_hidden"></div>
-                                    </div>
+                                    <input type="hidden" name="seller_id" id="seller_id" value="<?= (int) ($seller_id ?? $this->session->userdata('user_id')) ?>">
+                                    <?php if (empty($product_details[0]['id'])) { ?>
+                                        <div class="form-group col-md-6">
+                                            <label for="seller" class="col-form-label">Product Type </label>
+                                            <select class='form-control' name='product_type_menu' id="product_type_menu">
+                                                <option value="physical_product"> Physical Product </option>
+                                                <option value="digital_product"> Digital Product </option>
+                                            </select>
+                                        </div>
+                                    <?php } ?>
                                 </div>
-                            </div>
-                        </div>
 
-                        <div class="section-header"><i class="fas fa-sliders-h"></i> Additional Settings</div>
-                            <div class="row">
-                                <div class="col-md-4">
-                                    <div class="card card-light h-100">
-                                        <div class="card-body">
-                                            <h6><i class="fas fa-toggle-on"></i> Additional Info</h6>
-                                            <div class="form-group mb-2">
-                                                <div class="form-check">
-                                                    <input class="form-check-input" type="checkbox" name="is_prices_inclusive_tax" id="is_prices_inclusive_tax" value="1"
-                                                        <?= !empty($product_details[0]['is_prices_inclusive_tax']) ? 'checked' : '' ?>>
-                                                    <label class="form-check-label" for="is_prices_inclusive_tax">Tax included in prices?</label>
-                                                </div>
-                                            </div>
-                                            <div class="form-group mb-2">
-                                                <div class="form-check">
-                                                    <input class="form-check-input" type="checkbox" name="cod_allowed" id="cod_allowed" value="1"
-                                                        <?= ($product_details[0]['cod_allowed'] ?? 1) ? 'checked' : '' ?>>
-                                                    <label class="form-check-label" for="cod_allowed">Is COD allowed?</label>
-                                                </div>
-                                            </div>
-                                            <div class="form-group mb-2">
-                                                <div class="form-check">
-                                                    <input class="form-check-input" type="checkbox" name="is_returnable" id="is_returnable" value="1"
-                                                        <?= !empty($product_details[0]['is_returnable']) ? 'checked' : '' ?>>
-                                                    <label class="form-check-label" for="is_returnable">Is Returnable?</label>
-                                                </div>
-                                            </div>
-                                            <div class="form-group mb-2">
-                                                <div class="form-check">
-                                                    <input class="form-check-input" type="checkbox" name="is_cancelable" id="is_cancelable" value="1"
-                                                        <?= !empty($product_details[0]['is_cancelable']) ? 'checked' : '' ?>>
-                                                    <label class="form-check-label" for="is_cancelable">Is Cancelable?</label>
-                                                </div>
-                                            </div>
-                                            <div class="form-group mb-2 <?= empty($product_details[0]['is_cancelable']) ? 'd-none' : '' ?>" id="cancelable_till_wrap">
-                                                <label for="cancelable_till" class="small mb-1">Cancelable till order is <span class="text-danger">*</span></label>
-                                                <select class="form-control" name="cancelable_till" id="cancelable_till">
-                                                    <?php $selected_cancelable_till = $product_details[0]['cancelable_till'] ?? 'received'; ?>
-                                                    <option value="received" <?= $selected_cancelable_till === 'received' ? 'selected' : '' ?>>Received</option>
-                                                    <option value="processed" <?= $selected_cancelable_till === 'processed' ? 'selected' : '' ?>>Processed</option>
-                                                    <option value="shipped" <?= $selected_cancelable_till === 'shipped' ? 'selected' : '' ?>>Shipped</option>
-                                                </select>
-                                            </div>
-                                            <div class="form-group mb-0">
-                                                <div class="form-check">
-                                                    <input class="form-check-input" type="checkbox" name="is_attachment_required" id="is_attachment_required" value="1"
-                                                        <?= !empty($product_details[0]['is_attachment_required']) ? 'checked' : '' ?>>
-                                                    <label class="form-check-label" for="is_attachment_required">Require attachment on return/cancel?</label>
-                                                </div>
-                                            </div>
-                                        </div>
+                                <div class="form-group col-md-12">
+                                    <label for="pro_short_description" class="col-form-label">Short Description <span class='text-danger text-sm'>*</span></label>
+                                    <textarea type="text" class="form-control" id="short_description" placeholder="Product Short Description" name="short_description"><?= isset($product_details[0]['short_description']) ? output_escaping(str_replace('\r\n', '&#13;&#10;', $product_details[0]['short_description'])) : ""; ?></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <div class="col-md-12">
+                                        <label for="tags">Tags <small>( These tags help you in search result )</small></label>
+                                        <input name='tags' class='' id='tags' placeholder="AC, Cooler,Smartphones,etc" value="<?= (isset($product_details[0]['tags']) && !empty($product_details[0]['tags'])) ? $product_details[0]['tags'] : "" ?>" />
                                     </div>
                                 </div>
-                            <div class="col-md-4">
-                                <div class="card card-light h-100">
-                                    <div class="card-body">
-                                        <h6><i class="fas fa-box"></i> Digital Download <small class="text-muted d-none" id="digital_download_hint"></small></h6>
-                                        <?php
-                                        $selected_download_link_type = $product_details[0]['download_type'] ?? '';
-                                        $existing_download_allowed = !empty($product_details[0]['download_allowed']);
-                                        ?>
-                                        <div class="form-group mb-2">
-                                            <div class="form-check">
-                                                <input class="form-check-input" type="checkbox" name="download_allowed" id="download_allowed" value="on" <?= $existing_download_allowed ? 'checked' : '' ?>>
-                                                <label class="form-check-label" for="download_allowed">Downloadable file/link?</label>
+                                <div class="form-group row">
+                                    <div class="col-md-8">
+                                        <div class="row col mt-3">
+                                            <div class="col-md-4">
+                                                <label for="pro_input_tax" class="col-form-label">Tax</label>
+                                                <select class="col-md-12 form-control" name="pro_input_tax">
+                                                    <?php if (empty($taxes)) { ?>
+                                                        <option value="0" selected> No Taxes Are Added </option>
+                                                    <?php } ?>
+                                                    <?php foreach ($taxes as $row) {
+                                                        if (isset($product_details[0]['tax']) && $product_details[0]['tax'] == $row['id']) {
+                                                            $selected = 'selected';
+                                                        } else {
+                                                            $selected = '';
+                                                        }
+                                                    ?>
+                                                        <option value="<?= $row['id'] ?>" <?= $selected ?>><?= $row['title'] ?><?php echo "(" . $row['percentage'] . "%)" ?></option>
+                                                    <?php
+                                                    } ?>
+                                                </select>
+
                                             </div>
-                                        </div>
-                                        <div id="download_settings_wrap" class="<?= $existing_download_allowed ? '' : 'd-none' ?>">
-                                            <div class="form-group">
-                                                <label class="small mb-1">Download Type <span class="text-danger">*</span></label>
-                                                <select class="form-control" name="download_link_type" id="download_link_type">
-                                                    <option value="">Select</option>
-                                                    <option value="add_link" <?= $selected_download_link_type === 'add_link' ? 'selected' : '' ?>>External Link</option>
-                                                    <option value="self_hosted" <?= $selected_download_link_type === 'self_hosted' ? 'selected' : '' ?>>Upload File</option>
+                                            <div class="col-md-4 indicator <?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
+                                                <label for="indicator" class="col-form-label">Indicator</label>
+                                                <select class='form-control' name='indicator'>
+                                                    <option value='0' <?= (isset($product_details[0]['indicator']) &&  $product_details[0]['indicator'] == '0') ? 'selected' : ''; ?>>None</option>
+                                                    <option value='1' <?= (isset($product_details[0]['indicator']) &&  $product_details[0]['indicator'] == '1') ? 'selected' : ''; ?>>Veg</option>
+                                                    <option value='2' <?= (isset($product_details[0]['indicator']) &&  $product_details[0]['indicator'] == '2') ? 'selected' : ''; ?>>Non-Veg</option>
                                                 </select>
                                             </div>
-                                            <div class="form-group mb-0 <?= $selected_download_link_type === 'add_link' ? '' : 'd-none' ?>" id="download_link_wrap">
-                                                <label class="small mb-1">Download URL <span class="text-danger">*</span></label>
-                                                <input type="url" class="form-control" name="download_link" id="download_link" value="<?= $selected_download_link_type === 'add_link' && !empty($product_details[0]['download_link']) ? output_escaping($product_details[0]['download_link']) : '' ?>">
+                                            <div class="col-md-4 made-in-select">
+                                                <label for="made_in" class="col-form-label">Made In</label>
+                                                <select class="col-md-12 form-control country_list" id="country_list" name="made_in">
+                                                    <?php if (isset($product_details[0]['made_in']) && ($product_details[0]['made_in']) != '') {
+                                                        // The option was marked selected only when the product's country
+                                                        // happened to equal $countries[0] - the first row of the whole
+                                                        // countries table - so the saved country was usually rendered as
+                                                        // an unselected option and the field looked empty when editing.
+                                                    ?>
+                                                        <option value="<?= html_escape($product_details[0]['made_in']) ?>" selected><?= html_escape($product_details[0]['made_in']) ?></option>
+                                                    <?php } ?>
+                                                    <!-- countries display here  -->
+                                                </select>
                                             </div>
-                                            <div class="form-group mb-0 <?= $selected_download_link_type === 'self_hosted' ? '' : 'd-none' ?>" id="download_file_wrap">
-                                                <label class="small mb-1">Download File <span class="text-danger">*</span></label>
-                                                <div id="download_file_upload_container">
-                                                    <a href="javascript:void(0)" class="uploadFile btn btn-outline-primary btn-sm" data-input="pro_input_zip" data-media_type="archive,document" data-isremovable="1" data-is-multiple-uploads-allowed="0" data-toggle="modal" data-target="#media-upload-modal">Upload File</a>
-                                                    <div class="image-upload-section mt-2">
-                                                        <?php if ($selected_download_link_type === 'self_hosted' && !empty($product_details[0]['download_link'])) : ?>
-                                                            <div class="image col-md-6 col-12 shadow p-2 mb-2 bg-white rounded text-center">
-                                                                <small class="d-block text-truncate"><?= output_escaping(basename($product_details[0]['download_link'])) ?></small>
-                                                                <input type="hidden" name="pro_input_zip" value="<?= output_escaping($product_details[0]['download_link']) ?>">
-                                                                <button type="button" class="remove-image btn btn-danger btn-xs mt-1">Remove</button>
-                                                            </div>
-                                                        <?php else : ?>
-                                                            <input type="hidden" name="pro_input_zip" value="">
-                                                        <?php endif; ?>
-                                                    </div>
-                                                </div>
+                                            <div class="col-md-4">
+                                                <label for="brand" class="col-form-label">Brand</label>
+                                                <select class=" col-md-12  form-control admin_brand_list" id="admin_brand_list" name="brand">
+                                                    <?php
+                                                    // Same defect as Made In: selected only when the product's brand
+                                                    // matched the first row of the brands table.
+                                                    if (isset($product_details[0]['brand']) && $product_details[0]['brand'] != '') {
+                                                    ?>
+                                                        <option value="<?= html_escape($product_details[0]['brand']) ?>" selected><?= html_escape($product_details[0]['brand']) ?></option>
+                                                    <?php } ?>
+                                                    <!-- brands display here  -->
+                                                </select>
                                             </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="card card-light h-100">
-                                    <div class="card-body">
-                                        <h6><i class="fas fa-rupee-sign"></i> Pricing</h6>
-                                        <?php
-                                        // For simple/digital products the price lives on their single
-                                        // product_variants row, not on the products row itself.
-                                        $simple_variant = (($product_details[0]['type'] ?? 'simple_product') !== 'variable_product') && !empty($product_variants[0])
-                                            ? $product_variants[0] : null;
-                                        ?>
-                                        <div id="simple_pricing_block">
-                                            <div class="form-group">
-                                                <label>Price <span class="text-danger">*</span></label>
-                                                <input type="number" min="0" step="0.01" class="form-control" name="simple_price" id="simple_price" value="<?= $simple_variant['price'] ?? '' ?>">
+                                            <div class="col-md-4 total_allowed_quantity <?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
+                                                <label for="total_allowed_quantity" class="col-form-label">Total Allowed Quantity</label>
+                                                <input type="number" class="col-md-12 form-control" name="total_allowed_quantity" value="<?= (isset($product_details[0]['total_allowed_quantity'])) ? $product_details[0]['total_allowed_quantity'] : ''; ?>" placeholder='Total Allowed Quantity'>
                                             </div>
-                                            <div class="form-group">
-                                                <label>Special Price</label>
-                                                <input type="number" min="0" step="0.01" class="form-control" name="simple_special_price" id="simple_special_price" value="<?= !empty($simple_variant['special_price']) ? $simple_variant['special_price'] : '' ?>">
+                                            <div class="col-md-4 minimum_order_quantity <?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
+                                                <label for="minimum_order_quantity" class="col-form-label">Minimum Order Quantity</label>
+                                                <input type="number" class="col-md-12 form-control" name="minimum_order_quantity" min="1" value="<?= (isset($product_details[0]['minimum_order_quantity'])) ? $product_details[0]['minimum_order_quantity'] : 1; ?>" placeholder='Minimum Order Quantity'>
                                             </div>
-                                            <div class="form-row">
-                                                <div class="col-6 form-group">
-                                                    <label class="small mb-1">Weight (kg)</label>
-                                                    <input type="number" min="0" step="0.01" class="form-control" name="weight" value="<?= $simple_variant['weight'] ?? '' ?>">
-                                                </div>
-                                                <div class="col-6 form-group">
-                                                    <label class="small mb-1">Height (cm)</label>
-                                                    <input type="number" min="0" step="0.01" class="form-control" name="height" value="<?= $simple_variant['height'] ?? '' ?>">
-                                                </div>
-                                                <div class="col-6 form-group mb-0">
-                                                    <label class="small mb-1">Breadth (cm)</label>
-                                                    <input type="number" min="0" step="0.01" class="form-control" name="breadth" value="<?= $simple_variant['breadth'] ?? '' ?>">
-                                                </div>
-                                                <div class="col-6 form-group mb-0">
-                                                    <label class="small mb-1">Length (cm)</label>
-                                                    <input type="number" min="0" step="0.01" class="form-control" name="length" value="<?= $simple_variant['length'] ?? '' ?>">
-                                                </div>
+                                            <div class="col-md-4 quantity_step_size <?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
+                                                <label for="quantity_step_size" class="col-form-label">Quantity Step Size</label>
+                                                <input type="number" class="col-md-12 form-control" name="quantity_step_size" min="1" value="<?= (isset($product_details[0]['quantity_step_size'])) ? $product_details[0]['quantity_step_size'] : 1; ?>" placeholder='Quantity Step Size'>
                                             </div>
-                                            <hr>
-                                            <div class="form-check mb-2">
-                                                <input class="form-check-input" type="checkbox" id="simple_stock_management_status" value="1" <?= isset($simple_variant['stock']) ? 'checked' : '' ?>>
-                                                <label class="form-check-label" for="simple_stock_management_status">Track stock for this product?</label>
+                                            <div class="col-md-4 warranty_period <?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
+                                                <label for="warranty_period" class="col-form-label">Warranty Period</label>
+                                                <input type="text" class="col-md-12 form-control" name="warranty_period" value="<?= (isset($product_details[0]['warranty_period'])) ? $product_details[0]['warranty_period'] : "" ?>" placeholder='Warranty Period if any'>
                                             </div>
-                                            <div id="simple_stock_fields" class="<?= isset($simple_variant['stock']) ? '' : 'd-none' ?>">
-                                                <div class="form-group">
-                                                    <label class="small mb-1">SKU</label>
-                                                    <input type="text" class="form-control" name="product_sku" value="<?= output_escaping($simple_variant['sku'] ?? '') ?>">
+                                            <div class="col-md-4 guarantee_period <?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
+                                                <label for="guarantee_period" class="col-form-label">Guarantee Period</label>
+                                                <input type="text" class="col-md-12 form-control" name="guarantee_period" value="<?= (isset($product_details[0]['guarantee_period'])) ? $product_details[0]['guarantee_period'] : "" ?>" placeholder='Guarantee Period if any'>
+                                            </div>
+                                            <div class="row col mt-3 deliverable_type <?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
+                                                <div class="col-md-6">
+                                                    <label for="zipcode" class="col-form-label">Deliverable Type</label>
+                                                    <select class='form-control' name='deliverable_type' id="deliverable_type">
+                                                        <option value=<?= NONE ?> <?= (isset($product_details[0]['deliverable_type']) &&  $product_details[0]['deliverable_type'] == NONE) ? 'selected' : ''; ?>>None</option>
+                                                        <?php if (!isset($product_details)) { ?>
+                                                            <option value=<?= ALL ?> selected>All</option>
+                                                        <?php } else { ?>
+                                                            <option value=<?= ALL ?> <?= (isset($product_details[0]['deliverable_type']) &&  $product_details[0]['deliverable_type'] == ALL) ? 'selected' : ''; ?>>All</option>
+                                                        <?php } ?>
+                                                        <option value=<?= INCLUDED ?> <?= (isset($product_details[0]['deliverable_type']) &&  $product_details[0]['deliverable_type'] == INCLUDED) ? 'selected' : ''; ?>>Included</option>
+                                                        <option value=<?= EXCLUDED ?> <?= (isset($product_details[0]['deliverable_type']) &&  $product_details[0]['deliverable_type'] == EXCLUDED) ? 'selected' : ''; ?>>Excluded</option>
+                                                    </select>
                                                 </div>
-                                                <div class="form-group">
-                                                    <label class="small mb-1">Total Stock</label>
-                                                    <input type="number" min="0" class="form-control" name="product_total_stock" value="<?= $simple_variant['stock'] ?? '' ?>">
-                                                </div>
-                                                <div class="form-group mb-0">
-                                                    <label class="small mb-1">Stock Status</label>
-                                                    <select class="form-control" name="simple_product_stock_status">
-                                                        <option value="1" <?= (($simple_variant['availability'] ?? '1') === '1') ? 'selected' : '' ?>>In Stock</option>
-                                                        <option value="0" <?= (($simple_variant['availability'] ?? '1') === '0') ? 'selected' : '' ?>>Out Of Stock</option>
+                                                <?php
+                                                $zipcodes = (isset($product_details[0]['deliverable_zipcodes']) &&  $product_details[0]['deliverable_zipcodes'] != NULL) ? explode(",", $product_details[0]['deliverable_zipcodes']) : "";
+                                                ?>
+                                                <div class="col-md-6">
+                                                    <label for="zipcodes" class="col-form-label">Deliverable Zipcodes</label>
+                                                    <select name="deliverable_zipcodes[]" class="search_zipcode form-control w-100" multiple onload="multiselect()" id="deliverable_zipcodes" <?= (isset($product_details[0]['deliverable_type']) &&  ($product_details[0]['deliverable_type'] == INCLUDED || $product_details[0]['deliverable_type'] == EXCLUDED))  ? "" : "disabled" ?>>
+                                                        <?php if (isset($product_details[0]['deliverable_type']) &&  ($product_details[0]['deliverable_type'] == INCLUDED || $product_details[0]['deliverable_type'] == EXCLUDED)) {
+                                                            $zipcodes_name =  fetch_details('zipcodes', "",  'zipcode,id', "", "", "", "", "id", $zipcodes);
+                                                            foreach ($zipcodes_name as $row) {
+                                                        ?>
+                                                                <option value=<?= $row['id'] ?> <?= (in_array($row['id'], $zipcodes)) ? 'selected' : ''; ?>> <?= $row['zipcode'] ?></option>
+                                                        <?php }
+                                                        } ?>
                                                     </select>
                                                 </div>
                                             </div>
-                                        </div>
-                                        <div id="variable_pricing_block" class="d-none">
-                                            <p class="text-muted small mb-0">Pick attribute values below and mark which ones define a variation - the variant matrix builds automatically underneath.</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
 
-                        <?php
-                        $pre_selected_attr_value_ids = [];
-                        if (!empty($product_attributes[0]['attribute_value_ids'])) {
-                            $pre_selected_attr_value_ids = array_map('intval', array_filter(explode(',', $product_attributes[0]['attribute_value_ids']), 'strlen'));
-                        }
-                        $pre_variation_attr_names = [];
-                        if (!empty($product_variants[0]['attr_name'])) {
-                            $pre_variation_attr_names = array_map('trim', explode(',', $product_variants[0]['attr_name']));
-                        }
-                        ?>
-                        <div class="section-header"><i class="fas fa-tags"></i> Attributes</div>
-                        <div class="card card-light mb-4">
-                            <div class="card-body" id="attributes_section">
-                                <?php if (empty($attributes_refind)) : ?>
-                                    <p class="text-muted mb-0">No attributes have been set up yet. <a href="<?= base_url('seller/attributes') ?>">Manage Attributes</a></p>
-                                <?php else : ?>
-                                    <p class="text-muted small">Select the values that apply to this product. For a Variable Product, also tick "Use for variation" on the attributes that should generate priced variants (e.g. Size, Color).</p>
-                                    <?php foreach ($attributes_refind as $attr_set_name => $attrs) : ?>
-                                        <h6 class="text-muted mt-3"><?= output_escaping($attr_set_name) ?></h6>
-                                        <?php foreach ($attrs as $attr_name => $values) : ?>
-                                            <div class="attribute-row border rounded p-2 mb-2" data-attr-name="<?= output_escaping($attr_name) ?>">
-                                                <div class="d-flex justify-content-between align-items-center mb-1">
-                                                    <strong><?= output_escaping($attr_name) ?></strong>
-                                                    <div class="form-check mb-0 variation-toggle-col d-none">
-                                                        <input type="checkbox" class="form-check-input is_attribute_checked" <?= in_array($attr_name, $pre_variation_attr_names, true) ? 'checked' : '' ?>>
-                                                        <label class="form-check-label small">Use for variation</label>
+
+                                            <!-- HSN Code -->
+                                            <div class="col-md-4 col-sm-12 mt-3 hsn_code <?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
+                                                <label for="zipcodes" class="col-form-label">HSN Code</label>
+                                                <input type="text" class="col-md-12 form-control" name="hsn_code" value="<?= (isset($product_details[0]['hsn_code'])) ? $product_details[0]['hsn_code'] : "" ?>" placeholder='HSN Code'>
+                                            </div>
+                                        </div>
+                                        <div class="row col mt-3 pickup_locations <?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
+                                            <div class="col-md-8 standdard_shipping">
+                                                <label for="pickup_location" class="col-form-label">Pickup Location <small>(for standard shipping)</small> <span class='text-danger text-sm'>*</span></label>
+                                                <?php
+                                                // Admin loads this list over ajax because its seller can change
+                                                // mid-form. Here the seller is fixed, so the controller's own
+                                                // active pickup locations are rendered straight in.
+                                                $current_pickup = (isset($product_details[0]['pickup_location']) && !empty($product_details[0]['pickup_location'])) ? $product_details[0]['pickup_location'] : "";
+                                                $seller_pickup_rows = (array) ($pickup_locations ?? []);
+                                                ?>
+                                                <select class='form-control shiprocket_type' name="pickup_location" id="pickup_location"
+                                                    data-selected="<?= html_escape($current_pickup) ?>">
+                                                    <option value="">Select Pickup Location</option>
+                                                    <?php foreach ($seller_pickup_rows as $row) { ?>
+                                                        <option <?= ($row['pickup_location'] == $current_pickup) ? 'selected' : '' ?> value="<?= html_escape($row['pickup_location']); ?>"><?= html_escape($row['pickup_location']); ?></option>
+                                                    <?php } ?>
+                                                </select>
+                                                <small class="text-muted d-block mt-1" id="pickup_hint">
+                                                    <?= empty($seller_pickup_rows) ? 'You have no active pickup location yet — add one under Pickup Locations to ship this product.' : '' ?>
+                                                </small>
+                                            </div>
+                                        </div>
+                                        <div class="row col mt-3">
+                                            <div class="col-md-3 col-xs-6">
+                                                <label for="is_prices_inclusive_tax" class="col-form-label">Tax included in prices?</label>
+                                                <input type="checkbox" name="is_prices_inclusive_tax" <?= (isset($product_details[0]['is_prices_inclusive_tax']) && $product_details[0]['is_prices_inclusive_tax'] == '1') ? 'checked' : '' ?> data-bootstrap-switch data-off-color="danger" data-on-color="success" data-on-text="Yes" data-off-text="No">
+                                            </div>
+                                            <div class="col-md-2 col-xs-6 cod_allowed <?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
+                                                <label for="is_cod_allowed" class="col-form-label">Is COD allowed?</label>
+                                                <input type="checkbox" name="cod_allowed" <?= (isset($product_details[0]['cod_allowed']) && $product_details[0]['cod_allowed'] == '1') ? 'Checked' : '' ?> data-bootstrap-switch data-off-color="danger" data-on-color="success" data-on-text="Yes" data-off-text="No">
+                                            </div>
+                                            <div class="col-md-2 col-xs-6 is_returnable <?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
+                                                <label for="is_returnable" class="col-form-label">IS Returnable ?</label>
+                                                <input type="checkbox" name="is_returnable" <?= (isset($product_details[0]['is_returnable']) && $product_details[0]['is_returnable'] == '1') ? 'Checked' : '' ?> data-bootstrap-switch data-off-color="danger" data-on-color="success" data-on-text="Yes" data-off-text="No">
+                                            </div>
+                                            <div class="col-md-2 col-xs-6 is_cancelable <?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
+                                                <label for="is_cancelable" class="col-form-label">Is cancelable ? </label>
+                                                <input type="checkbox" name="is_cancelable" id="is_cancelable" class="switch" <?= (isset($product_details[0]['is_cancelable']) && $product_details[0]['is_cancelable'] == '1') ? 'Checked' : ''; ?> data-bootstrap-switch data-off-color="danger" data-on-color="success" data-on-text="Yes" data-off-text="No">
+                                            </div>
+                                            <div class="col-md-3 col-xs-6 <?= (isset($product_details[0]['is_cancelable']) && $product_details[0]['is_cancelable'] == 1) ? '' : 'collapse' ?>" id='cancelable_till'>
+                                                <label for="cancelable_till" class="col-form-label">Till which status ? <span class='text-danger text-sm'>*</span></label>
+                                                <select class='form-control' name="cancelable_till">
+                                                    <option value='received' <?= (isset($product_details[0]['cancelable_till']) && $product_details[0]['cancelable_till'] == 'received') ? 'selected' : '' ?>>Received</option>
+                                                    <option value='processed' <?= (isset($product_details[0]['cancelable_till']) && $product_details[0]['cancelable_till'] == 'processed') ? 'selected' : '' ?>>Processed</option>
+                                                    <option value='shipped' <?= (isset($product_details[0]['cancelable_till']) && $product_details[0]['cancelable_till'] == 'shipped') ? 'selected' : '' ?>>Shipped</option>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div class="row col mt-3">
+                                            <div class="col-md-4  is_attachment_required d-flex justify-content-between<?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
+                                                <label for="is_attachment_required" class="col-form-label is_attachment_required">Is Attachment Required ?</label>
+                                                <a class=" form-switch  mr-1 mb-1" title="Deactivate" href="javascript:void(0)"> <input type="checkbox" class="form-check-input " role="switch" name="is_attachment_required" <?= (isset($product_details[0]['is_attachment_required']) && $product_details[0]['is_attachment_required'] == '1') ? 'Checked' : '' ?> data-bootstrap-switch data-off-color="danger" data-on-color="success" /></a>
+                                            </div>
+                                        </div>
+
+                                        <div class="row col mt-3">
+
+                                            <div class="col pt-4 pb-4">
+                                                <div class="section-header"><i class="fas fa-images"></i> Media</div>
+                                                <div class="form-group col-sm-12">
+                                                    <label for="image">Main Image <span class='text-danger text-sm'>*</span><small>(Recommended Size : 180 x 180 pixels)</small></label>
+                                                    <div class='col-md-12'><a class="uploadFile img btn btn-primary text-white btn-sm" data-input='pro_input_image' data-isremovable='0' data-is-multiple-uploads-allowed='0' data-toggle="modal" data-target="#media-upload-modal" value="Upload Photo"><i class='fa fa-upload'></i> Upload</a></div>
+                                                    <?php
+                                                    if (isset($product_details[0]['id']) && !empty($product_details[0]['id'])) {
+                                                    ?>
+                                                        <label class="text-danger mt-3">*Only Choose When Update is necessary</label>
+                                                        <div class="container-fluid row image-upload-section">
+                                                            <div class="col-md-3 col-sm-12 shadow p-3 mb-5 bg-white rounded m-4 text-center grow image ">
+                                                                <div class="image-upload-div"><img class="img-fluid mb-2" src="<?= BASE_URL() . $product_details[0]['image'] ?>" alt="Image Not Found"></div>
+                                                                <input type="hidden" name="pro_input_image" value='<?= $product_details[0]['image'] ?>'>
+                                                            </div>
+                                                        </div>
+                                                    <?php
+                                                    } else { ?>
+                                                        <div class="container-fluid row image-upload-section">
+                                                            <div class="col-md-3 col-sm-12 shadow p-3 mb-5 bg-white rounded m-4 text-center grow image d-none">
+                                                            </div>
+                                                        </div>
+                                                    <?php } ?>
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="other_images">Other Images <small>(Recommended Size : 180 x 180 pixels)</small></label>
+                                                    <div class="col-sm-12">
+                                                        <div class='col-md-3'><a class="uploadFile img btn btn-primary text-white btn-sm" data-input='other_images[]' data-isremovable='1' data-is-multiple-uploads-allowed='1' data-toggle="modal" data-target="#media-upload-modal" value="Upload Photo"><i class='fa fa-upload'></i> Upload</a></div>
+                                                        <?php
+                                                        if (isset($product_details[0]['id']) && !empty($product_details[0]['id'])) {
+                                                        ?>
+                                                            <div class="container-fluid row image-upload-section">
+                                                                <?php
+                                                                $other_images = json_decode($product_details[0]['other_images']);
+                                                                if (!empty($other_images)) {
+                                                                    foreach ($other_images as $row) {
+                                                                ?>
+                                                                        <div class="col-md-3 col-sm-12 shadow bg-white rounded m-3 p-3 text-center grow">
+                                                                            <div class='image-upload-div'><img src="<?= BASE_URL()  . $row ?>" alt="Image Not Found"></div>
+                                                                            <a href="javascript:void(0)" class="delete-img-seller m-3" data-id="<?= $product_details[0]['id'] ?>" data-field="other_images" data-img="<?= $row ?>" data-table="products" data-path="<?= $row ?>" data-isjson="true">
+                                                                                <span class="btn btn-block bg-gradient-danger btn-xs"><i class="far fa-trash-alt "></i> Delete</span></a>
+                                                                            <input type="hidden" name="other_images[]" value='<?= $row ?>'>
+                                                                        </div>
+                                                                <?php
+                                                                    }
+                                                                }
+                                                                ?>
+                                                            </div>
+                                                        <?php
+                                                        } else { ?>
+                                                            <div class="container-fluid row image-upload-section">
+                                                            </div>
+                                                        <?php } ?>
                                                     </div>
                                                 </div>
-                                                <?php foreach ($values as $val) : ?>
-                                                    <div class="form-check form-check-inline">
-                                                        <input type="checkbox" class="form-check-input attribute-value-checkbox" value="<?= (int) $val['id'] ?>" id="attr_val_<?= (int) $val['id'] ?>" <?= in_array((int) $val['id'], $pre_selected_attr_value_ids, true) ? 'checked' : '' ?>>
-                                                        <label class="form-check-label" for="attr_val_<?= (int) $val['id'] ?>"><?= output_escaping($val['text']) ?></label>
+                                                <div class="form-group d-flex">
+                                                    <div class="form-group col-md-6">
+                                                        <label for="video_type" class="col-form-label">Video Type</label>
+                                                        <select class='form-control' name='video_type' id='video_type'>
+                                                            <option value='' <?= (isset($product_details[0]['video_type']) && ($product_details[0]['video_type'] == '' || $product_details[0]['video_type'] == NULL)) ? 'selected' : ''; ?>>None</option>
+                                                            <option value='self_hosted' <?= (isset($product_details[0]['video_type']) &&  $product_details[0]['video_type'] == 'self_hosted') ? 'selected' : ''; ?>>Self Hosted</option>
+                                                            <option value='youtube' <?= (isset($product_details[0]['video_type']) &&  $product_details[0]['video_type'] == 'youtube') ? 'selected' : ''; ?>>Youtube</option>
+                                                            <option value='vimeo' <?= (isset($product_details[0]['video_type']) &&  $product_details[0]['video_type'] == 'vimeo') ? 'selected' : ''; ?>>Vimeo</option>
+                                                        </select>
                                                     </div>
-                                                <?php endforeach; ?>
-                                            </div>
-                                        <?php endforeach; ?>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </div>
-                        </div>
+                                                    <div class="col-md-6 <?= (isset($product_details[0]['video_type']) && ($product_details[0]['video_type'] == 'youtube' ||  $product_details[0]['video_type'] == 'vimeo')) ? '' : 'd-none'; ?>" id="video_link_container">
+                                                        <label for="video" class="col-form-label">Video Link <span class='text-danger text-sm'>*</span></label>
+                                                        <input type="text" class='form-control' name='video' id='video' value="<?= (isset($product_details[0]['video_type']) && ($product_details[0]['video_type'] == 'youtube' || $product_details[0]['video_type'] == 'vimeo')) ? $product_details[0]['video'] : ''; ?>" placeholder="Paste Youtube / Vimeo Video link or URL here">
+                                                    </div>
+                                                    <div class="col-md-6 mt-2 <?= (isset($product_details[0]['video_type']) && ($product_details[0]['video_type'] == 'self_hosted')) ? '' : 'd-none'; ?>" id="video_media_container">
+                                                        <label for="image" class="ml-2">Video <span class='text-danger text-sm'>*</span></label>
+                                                        <div class='col-md-3'><a class="uploadFile img btn btn-primary text-white btn-sm" data-input='pro_input_video' data-isremovable='1' data-media_type='video' data-is-multiple-uploads-allowed='0' data-toggle="modal" data-target="#media-upload-modal" value="Upload Photo"><i class='fa fa-upload'></i> Upload</a></div>
+                                                        <?php if (isset($product_details[0]['id']) && !empty($product_details[0]['id']) && isset($product_details[0]['video_type']) &&  $product_details[0]['video_type'] == 'self_hosted') { ?>
+                                                            <label class="text-danger mt-3">*Only Choose When Update is necessary</label>
+                                                            <div class="container-fluid row image-upload-section ">
+                                                                <div class="col-md-3 col-sm-12 shadow p-3 mb-5 bg-white rounded m-4 text-center grow image">
+                                                                    <div class='image-upload-div'><img class="img-fluid mb-2" src="<?= base_url('assets/admin/images/video-file.png') ?>" alt="Product Video" title="Product Video"></div>
+                                                                    <input type="hidden" name="pro_input_video" value='<?= $product_details[0]['video'] ?>'>
+                                                                </div>
+                                                            </div>
+                                                        <?php } else { ?>
+                                                            <div class="container-fluid row image-upload-section">
+                                                                <div class="col-md-3 col-sm-12 shadow p-3 mb-5 bg-white rounded m-4 text-center grow image d-none">
+                                                                </div>
+                                                            </div>
+                                                        <?php } ?>
 
-                        <div class="section-header d-none" id="variations_section_header"><i class="fas fa-layer-group"></i> Variations</div>
-                        <div class="card card-light mb-4 d-none" id="variations_section">
-                            <div class="card-body">
-                                <div class="form-check mb-2">
-                                    <input class="form-check-input" type="checkbox" id="variant_stock_management_status">
-                                    <label class="form-check-label" for="variant_stock_management_status">Track stock for variants?</label>
-                                </div>
-                                <input type="hidden" name="variant_stock_status" id="variant_stock_status" value="1">
-                                <div id="variant_stock_level_wrap" class="d-none mb-3">
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="radio" name="variant_stock_level_type_ui" id="stock_level_product" value="product_level" checked>
-                                        <label class="form-check-label" for="stock_level_product">Same stock for all variants</label>
-                                    </div>
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="radio" name="variant_stock_level_type_ui" id="stock_level_variant" value="variant_level">
-                                        <label class="form-check-label" for="stock_level_variant">Different stock per variant</label>
-                                    </div>
-                                    <input type="hidden" name="variant_stock_level_type" id="variant_stock_level_type" value="product_level">
-                                    <div class="form-row mt-2" id="product_level_stock_fields">
-                                        <div class="col-md-4 form-group">
-                                            <label class="small mb-1">SKU</label>
-                                            <input type="text" class="form-control" name="sku_variant_type" id="sku_variant_type">
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div class="col-md-4 form-group">
-                                            <label class="small mb-1">Total Stock</label>
-                                            <input type="number" min="0" class="form-control" name="total_stock_variant_type" id="total_stock_variant_type">
-                                        </div>
-                                        <div class="col-md-4 form-group">
-                                            <label class="small mb-1">Stock Status</label>
-                                            <select class="form-control" name="variant_status" id="variant_status">
-                                                <option value="1">In Stock</option>
-                                                <option value="0">Out Of Stock</option>
+                                        <div id="attributes_values_json_data" class="d-none">
+                                            <select class="select_single" data-placeholder=" Type to search and select attributes">
+                                                <option value=""></option>
+                                                <?php
+                                                foreach ($attributes_refind as $key => $value) {
+                                                ?>
+                                                    <optgroup label="<?= $key ?>"><?= $key ?>
+                                                        <?php foreach ($value as $key => $value) {  ?>
+                                                            <option name='<?= $key ?>' value='<?= $key ?>' data-values='<?= json_encode($value, 1) ?>'><?= $key ?></option>
+                                                        <?php } ?>
+                                                    </optgroup>
+                                                <?php
+                                                }
+                                                ?>
                                             </select>
                                         </div>
                                     </div>
-                                </div>
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <p class="text-muted mb-0" id="no-variants-added">Select attribute values above (and tick "Use for variation") to generate the variant matrix.</p>
-                                    <button type="button" class="btn btn-outline-secondary btn-sm d-none" id="reset_variants">Regenerate Variants</button>
-                                </div>
-                                <div id="variants_process"></div>
-                            </div>
-                        </div>
-                    </div>
+                                    <div class="col-md-4 mt-3">
+                                        <label class="col-form-label">Select Category <span class='text-danger text-sm'>*</span></label>
+                                        <?php
+                                        // Same searchable selector as the admin form. Sellers may list in any
+                                        // active category (the categories on their profile are data-collection
+                                        // only), so the full tree the controller loaded is used as-is - there is
+                                        // no seller to switch between here, and so no ajax reload.
+                                        ?>
+                                        <div class="category-combo">
+                                            <div class="category-search-box">
+                                                <i class="fas fa-search category-search-icon"></i>
+                                                <input type="text" class="form-control category-search-input"
+                                                    id="category_search_input" placeholder="Search category..." autocomplete="off">
+                                                <button type="button" class="category-search-clear" id="category_search_clear" aria-label="Clear">&times;</button>
+                                            </div>
+                                            <div id="category_dropdown"></div>
+                                        </div>
+                                        <small class="text-muted d-block mt-1" id="category_hint">Search and select a category</small>
+                                        <input type="hidden" id="category_tree_data" value='<?= htmlspecialchars(json_encode($categories ?? []), ENT_QUOTES, "UTF-8") ?>'>
+                                    </div>
+                                    <div class="form-group  col-md-12 mb-3">
+                                        <div class="section-header"><i class="fas fa-sliders-h"></i> Pricing, Stock &amp; Variations</div>
 
-                    <div class="card-footer d-flex justify-content-end align-items-center">
-                        <div id="submit_spinner" class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-                        <button type="submit" class="btn btn-primary" id="submit_product_btn" disabled>
-                            <?= isset($product_details[0]['id']) ? 'Update Product' : 'Create Product' ?>
-                        </button>
+                                        <?php
+                                        if (isset($product_details)) {
+                                            $HideStatus = ((isset($product_details[0]['id']) && $product_details[0]['stock_type'] == NULL) ||  $product_details[0]['type'] == "digital_product") ? 'collapse' : '';
+                                        ?>
+                                            <div class="col-md-12 row additional-info existing-additional-settings">
+                                                <div class="row mt-4 col-md-12 ">
+                                                    <nav class="w-100">
+                                                        <div class="nav nav-tabs" id="product-tab" role="tablist">
+                                                            <a class="nav-item nav-link active" id="tab-for-general-price" data-toggle="tab" href="#general-settings" role="tab" aria-controls="general-price" aria-selected="true">General</a>
+                                                            <a class="nav-item nav-link edit-product-attributes" id="tab-for-attributes" data-toggle="tab" href="#product-attributes" role="tab" aria-controls="product-attributes" aria-selected="false">Attributes</a>
+                                                            <a class="nav-item nav-link <?= ($product_details[0]['type'] == 'simple_product') ? 'disabled d-none' : 'edit-variants'; ?>" id=" tab-for-variations" data-toggle="tab" href="#product-variants" role="tab" aria-controls="product-variants" aria-selected="false">Variations</a>
+                                                        </div>
+                                                    </nav>
+                                                </div>
+
+                                                <div class="tab-content p-3 col-md-12" id="nav-tabContent">
+                                                    <div class="tab-pane fade active show" id="general-settings" role="tabpanel" aria-labelledby="general-settings-tab">
+                                                        <div class="form-group">
+                                                            <label for="type" class="col-md-12">Type Of Product :</label>
+                                                            <div class="col-md-12">
+                                                                <?php @$variant_stock_level = !empty($product_details[0]['stock_type']) && $product_details[0]['stock_type'] == '1' ? 'product_level' : 'variant_level' ?>
+                                                                <input type="hidden" name="product_type" value="<?= isset($product_details[0]['type']) ? $product_details[0]['type'] : '' ?>">
+                                                                <input type="hidden" name="simple_product_stock_status" <?= isset($product_details[0]['stock_type']) && !empty($product_details[0]['stock_type']) && $product_details[0]['type'] == 'simple_product' ? 'value="' . $product_details[0]['stock_type'] . '"'  : '' ?>>
+                                                                <input type="hidden" name="variant_stock_level_type" <?= isset($product_details[0]['stock_type']) && !empty($product_details[0]['stock_type']) && $product_details[0]['type'] == 'variable_product' ? 'value="' . $variant_stock_level . '"'  : '' ?>>
+                                                                <input type="hidden" name="variant_stock_status" <?= isset($product_details[0]['stock_type']) && !empty($product_details[0]['stock_type']) && $product_details[0]['type'] == 'variable_product' ? 'value="0"'  : '' ?>>
+                                                                <select name="type" id="product-type" class="form-control" data-placeholder=" Type to search and select type" <?= isset($product_details[0]['id']) ? 'disabled' : '' ?>>
+                                                                    <option value=" ">Select Type</option>
+                                                                    <option value="simple_product" <?= ($product_details[0]['type'] == "simple_product") ? 'selected' : '' ?>>Simple Product</option>
+                                                                    <option value="variable_product" <?= ($product_details[0]['type'] == "variable_product") ? 'selected' : '' ?>>Variable Product</option>
+                                                                    <option value="digital_product" <?= ($product_details[0]['type'] == "digital_product") ? 'selected' : '' ?>>Digital Product</option>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                        <div id='product-general-settings'>
+                                                            <?php
+                                                            if ($product_details[0]['type'] == "simple_product" || $product_details[0]['type'] == "digital_product") {
+                                                                // Price, weight and dimensions of a simple / digital product live on its single
+                                                                // product_variants row. That row can be missing (older imported products) or
+                                                                // soft-removed, which used to throw "Undefined array key 0" warnings all over
+                                                                // this block - fall back to blank fields instead.
+                                                                $simple_variant = isset($product_variants[0]) && is_array($product_variants[0]) ? $product_variants[0] : [];
+                                                            ?>
+                                                                <div id="general_price_section">
+                                                                    <div class="form-group">
+                                                                        <label for="type" class="col-md-2">Price:</label>
+                                                                        <div class="col-md-12">
+                                                                            <input type="number" name="simple_price" class="form-control stock-simple-mustfill-field price" value="<?= $simple_variant['price'] ?? '' ?>" min='0' step="0.01">
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="form-group">
+                                                                        <label for="type" class="col-md-2">Special Price:</label>
+                                                                        <div class="col-md-12">
+                                                                            <input type="number" name="simple_special_price" class="form-control  discounted_price" value="<?= !empty($simple_variant['special_price']) ? $simple_variant['special_price'] : '' ?>" min='0' step="0.01">
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="form-group row mt-3 <?= $product_details[0]['type'] == "digital_product" ? 'd-none' : '' ?>" id="product-dimensions">
+                                                                        <div class="col-md-6">
+                                                                            <label for="weight" class="control-label col-md-12"><small>(These are the product parcel's dimentions.)</small></label>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="form-group row  dimensions  <?= $product_details[0]['type'] == "digital_product" ? 'd-none' : '' ?>">
+                                                                        <div class="col-3">
+                                                                            <label for="weight" class="control-label col-md-12">Weight <small>(kg)</small> <span class='text-danger text-xs'>*</span></label>
+                                                                            <input type="number" class="form-control" name="weight" placeholder="Weight" id="weight" value="<?= $simple_variant['weight'] ?? '' ?>" step="0.01">
+                                                                        </div>
+                                                                        <div class="col-3">
+                                                                            <label for="height" class="control-label col-md-12">Height <small>(cms)</small></label>
+                                                                            <input type="number" class="form-control" name="height" placeholder="Height" id="height" value="<?= $simple_variant['height'] ?? '' ?>" step="0.01">
+                                                                        </div>
+                                                                        <div class="col-3">
+                                                                            <label for="breadth" class="control-label col-md-12">Breadth <small>(cms)</small> </label>
+                                                                            <input type="number" class="form-control" name="breadth" placeholder="Breadth" id="breadth" value="<?= $simple_variant['breadth'] ?? '' ?>" step="0.01">
+                                                                        </div>
+                                                                        <div class="col-3">
+                                                                            <label for="length" class="control-label col-md-12">Length <small>(cms)</small> </label>
+                                                                            <input type="number" class="form-control" name="length" placeholder="Length" id="length" value="<?= $simple_variant['length'] ?? '' ?>" step="0.01">
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div class="form-group <?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
+                                                                        <div class="col">
+                                                                            <input type="checkbox" name="simple_stock_management_status" class="align-middle simple_stock_management_status" <?= (isset($product_details[0]['id']) && $product_details[0]['stock_type'] != NULL) ? 'checked' : '' ?>> <span class="align-middle">Enable Stock Management</span>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                                <div class="form-group simple-product-level-stock-management <?= $HideStatus ?>">
+                                                                    <div class="col col-xs-12">
+                                                                        <label class="control-label">SKU :</label>
+                                                                        <input type="text" name="product_sku" class="col form-control simple-pro-sku" value="<?= (isset($product_details[0]['id']) && $product_details[0]['stock_type'] != NULL) ? $product_details[0]['sku'] : '' ?>">
+                                                                    </div>
+                                                                    <div class="col col-xs-12">
+                                                                        <label class="control-label">Total Stock :</label>
+                                                                        <input type="number" min="1" name="product_total_stock" class="col form-control stock-simple-mustfill-field" <?= (isset($product_details[0]['id']) && $product_details[0]['stock_type'] != NULL) ? ' value="' . $product_details[0]['stock'] . '" ' : '' ?>>
+                                                                    </div>
+                                                                    <div class="col col-xs-12">
+                                                                        <label class="control-label">Stock Status :</label>
+                                                                        <select type="text" class="col form-control stock-simple-mustfill-field" id="simple_product_stock_status">
+                                                                            <option value="1" <?= (isset($product_details[0]['stock_type']) &&
+                                                                                                    $product_details[0]['stock_type'] != NULL && $product_details[0]['availability'] == "1") ? 'selected' : '' ?>>In Stock</option>
+                                                                            <option value="0" <?= (isset($product_details[0]['stock_type']) &&
+                                                                                                    $product_details[0]['stock_type'] != NULL && $product_details[0]['availability'] == "0") ? 'selected' : '' ?>>Out Of Stock</option>
+                                                                        </select>
+                                                                    </div>
+                                                                </div>
+                                                                <?php if (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') { ?>
+                                                                    <div id="digital_product_setting">
+                                                                        <div class="row form-group">
+                                                                            <div class="col-md-2 col-xs-6 ml-2">
+                                                                                <label for="is_cod_allowed" class="col-form-label">Is Download allowed?</label>
+                                                                                <input type="checkbox" name="download_allowed" id="download_allowed" class="switch" <?= (isset($product_details[0]['download_allowed']) && $product_details[0]['download_allowed'] == '1') ? 'Checked' : ''; ?> data-bootstrap-switch data-off-color="danger" data-on-color="success">
+                                                                            </div>
+                                                                            <div class="col-md-3 col-xs-6 <?= (isset($product_details[0]['download_type'])) ? '' : 'collapse' ?>" id='download_type'>
+                                                                                <label for="download_allowed" class="col-form-label">Download Link Type <span class='text-danger text-sm'>*</span></label>
+                                                                                <select class='form-control' name="download_link_type" id="download_link_type">
+                                                                                    <option value=''>None</option>
+                                                                                    <option value='self_hosted' <?= (isset($product_details[0]['download_type']) && $product_details[0]['download_type'] == 'self_hosted') ? 'selected' : '' ?>>Self Hosted</option>
+                                                                                    <option value='add_link' <?= (isset($product_details[0]['download_type']) && $product_details[0]['download_type'] == 'add_link') ? 'selected' : '' ?>>Add Link</option>
+                                                                                </select>
+                                                                            </div>
+                                                                            <div class="col-md-6 <?= (isset($product_details[0]['download_type']) && ($product_details[0]['download_type'] == 'add_link')) ? '' : 'd-none'; ?>" id="digital_link_container">
+                                                                                <label for="video" class="col-form-label ml-1">Digital Product Link <span class='text-danger text-sm'>*</span></label>
+                                                                                <input type="url" class='form-control' name='download_link' id='download_link' value="<?= (isset($product_details[0]['download_type']) && ($product_details[0]['download_type'] == 'add_link')) ? $product_details[0]['download_link'] : ''; ?>" placeholder="Paste digital product link or URL here">
+                                                                            </div>
+                                                                            <div class="col-md-6 mt-2 <?= (isset($product_details[0]['download_type']) && ($product_details[0]['download_type'] == 'self_hosted')) ? '' : 'd-none'; ?>" id="digital_media_container">
+                                                                                <label for="image" class="ml-2">File <span class='text-danger text-sm'>*</span></label>
+                                                                                <div class='col-md-3'><a class="uploadFile img btn btn-primary text-white btn-sm" data-input='pro_input_zip' data-isremovable='1' data-media_type='archive,document' data-is-multiple-uploads-allowed='0' data-toggle="modal" data-target="#media-upload-modal" value="Upload Photo"><i class='fa fa-upload'></i> Upload</a></div>
+                                                                                <?php if (isset($product_details[0]['id']) && !empty($product_details[0]['id']) && isset($product_details[0]['download_type']) &&  $product_details[0]['download_type'] == 'self_hosted') { ?>
+                                                                                    <label class="text-danger mt-3">*Only Choose When Update is necessary</label>
+                                                                                    <div class="container-fluid row image-upload-section">
+                                                                                        <div class="col-md-3 col-sm-12 shadow p-3 mb-5 bg-white rounded m-4 text-center grow image">
+                                                                                            <div class='image-upload-div'><img class="img-fluid mb-2" src="<?= base_url('assets/admin/images/archive-file.png') ?>" alt="Image Not Found"></div>
+                                                                                            <input type="hidden" name="pro_input_zip" value='<?= $product_details[0]['download_link'] ?>'>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                <?php } else { ?>
+                                                                                    <div class="container-fluid row image-upload-section">
+                                                                                        <div class="col-md-3 col-sm-12 shadow p-3 mb-5 bg-white rounded m-4 text-center grow image d-none">
+                                                                                        </div>
+                                                                                    </div>
+                                                                                <?php } ?>
+
+                                                                            </div>
+                                                                        </div>
+
+                                                                    </div>
+                                                                <?php } ?>
+                                                                <div class="form-group simple-product-save">
+                                                                    <div class="col">
+                                                                        <a href="javascript:void(0);" class="btn btn-primary save-settings">Save Settings</a>
+                                                                        <a href="javascript:void(0);" class="btn btn-warning reset-settings">Reset Settings</a>
+                                                                    </div>
+                                                                </div>
+                                                            <?php } else { ?>
+                                                                <div id="variant_stock_level">
+                                                                    <div class="form-group">
+                                                                        <div class="col">
+                                                                            <input type="checkbox" name="variant_stock_management_status" class="align-middle variant_stock_status" <?= (isset($product_details[0]['id']) && $product_details[0]['stock_type'] != NULL) ? 'checked' : '' ?>> <span class="align-middle"> Enable Stock Management</span>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="form-group <?= (intval($product_details[0]['stock_type']) > 0) ? '' : 'collapse' ?>" id='stock_level'>
+                                                                        <label for="type" class="col-md-2">Choose Stock Management Type:</label>
+                                                                        <div class="col-md-12">
+                                                                            <select id="stock_level_type" class="form-control variant-stock-level-type" data-placeholder=" Type to search and select type">
+                                                                                <option value=" ">Select Stock Type</option>
+                                                                                <option value="product_level" <?= (isset($product_details[0]['id']) && $product_details[0]['stock_type'] == '1') ? 'Selected' : '' ?>> Product Level ( Stock Will Be Managed Generally )</option>
+                                                                                <option value="variable_level" <?= (isset($product_details[0]['id']) && $product_details[0]['stock_type'] == '2') ? 'Selected' : '' ?>>Variable Level ( Stock Will Be Managed Variant Wise )</option>
+                                                                            </select>
+                                                                            <div class="form-group variant-product-level-stock-management <?= (intval($product_details[0]['stock_type']) == 1) ? '' : 'collapse' ?>">
+                                                                                <div class="col col-xs-12">
+                                                                                    <label class="control-label">SKU :</label>
+                                                                                    <input type="text" name="sku_variant_type" class="col form-control" value="<?= (intval($product_details[0]['stock_type']) == 1 && isset($product_variants[0]['id']) && !empty($product_variants[0]['sku'])) ? $product_variants[0]['sku'] : '' ?>">
+                                                                                </div>
+                                                                                <div class="col col-xs-12">
+                                                                                    <label class="control-label">Total Stock :</label>
+                                                                                    <input type="number" min="1" name="total_stock_variant_type" class="col form-control variant-stock-mustfill-field" value="<?= (intval($product_details[0]['stock_type']) == 1 && isset($product_variants[0]['id']) && !empty($product_variants[0]['stock'])) ? $product_variants[0]['stock'] : '' ?>">
+                                                                                </div>
+                                                                                <div class="col col-xs-12">
+                                                                                    <label class="control-label">Stock Status :</label>
+                                                                                    <select type="text" id="stock_status_variant_type" name="variant_status" class="col form-control variant-stock-mustfill-field">
+                                                                                        <option value="1" <?= (intval($product_details[0]['stock_type']) == 1 && isset($product_variants[0]['id']) && $product_variants[0]['availability'] == '1') ? 'Selected' : '' ?>>In Stock</option>
+                                                                                        <option value="0" <?= (intval($product_details[0]['stock_type']) == 1 && isset($product_variants[0]['id']) && $product_variants[0]['availability'] == '0') ? 'Selected' : '' ?>>Out Of Stock</option>
+                                                                                    </select>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="form-group">
+                                                                        <div class="col">
+                                                                            <a href="javascript:void(0);" class="btn btn-primary save-variant-general-settings">Save Settings</a>
+                                                                            <a href="javascript:void(0);" class="btn btn-warning reset-settings">Reset Settings</a>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+
+                                                            <?php } ?>
+                                                        </div>
+                                                    </div>
+                                                    <div class="tab-pane fade" id="product-attributes" role="tabpanel" aria-labelledby="product-attributes-tab">
+                                                        <div class="info col-12 p-3 d-none" id="note">
+                                                            <div class=" col-12 d-flex align-center">
+                                                                <strong>Note : </strong>
+                                                                <input type="checkbox" checked="" class="ml-3 my-auto custom-checkbox" disabled>
+                                                                <span class="ml-3">check if the attribute is to be used for variation </span>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-12">
+                                                            <a href="javascript:void(0);" id="add_attributes" class="btn btn-block btn-outline-primary col-md-2 float-right m-2 btn-sm">Add Attributes</a>
+                                                            <a href="javascript:void(0);" id="save_attributes" class="btn btn-block btn-outline-primary col-md-2 float-right m-2 btn-sm d-none">Save Attributes</a>
+                                                        </div>
+                                                        <div class="clearfix"></div>
+
+                                                        <div id="attributes_process">
+                                                            <div class="form-group text-center row my-auto p-2 border rounded bg-gray-light col-md-12 no-attributes-added">
+                                                                <div class="col-md-12 text-center">No Product attributes Are Added ! </div>
+                                                            </div>
+                                                        </div>
+
+                                                    </div>
+                                                    <div class="tab-pane fade" id="product-variants" role="tabpanel" aria-labelledby="product-variants-tab">
+                                                        <div class="col-md-12">
+                                                            <a href="javascript:void(0);" id="reset_variants" class="btn btn-block btn-outline-primary col-md-2 float-right m-2 btn-sm collapse">Reset Variants</a>
+                                                        </div>
+                                                        <div>
+                                                            <a class="btn btn-outline-primary btn-sm mb-3" href="javascript:void(0)" id="expand_all">Expand All</a>
+                                                            <a class="btn btn-outline-primary btn-sm mb-3 ml-4" href="javascript:void(0)" id="collapse_all">Collapse All</a>
+                                                        </div>
+                                                        <div class="clearfix"></div>
+                                                        <div class="form-group text-center row my-auto p-2 border rounded bg-gray-light col-md-12 no-variants-added">
+                                                            <div class="col-md-12 text-center"> No Product Variations Are Added ! </div>
+                                                        </div>
+                                                        <div id="variants_process" class="ui-sortable">
+
+                                                            <div class="form-group move row my-auto p-2 border rounded bg-gray-light product-variant-selectbox">
+                                                                <div class="col-1 text-center my-auto">
+                                                                    <i class="fas fa-sort"></i>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                <?php
+                                            } else {
+
+                                                ?>
+                                                    <div class="col-12 row additional-info existing-additional-settings">
+                                                        <div class="row mt-4 col-md-12 ">
+                                                            <nav class="w-100">
+                                                                <div class="nav nav-tabs" id="product-tab" role="tablist"> <a class="nav-item nav-link active" id="tab-for-general-price" data-toggle="tab" href="#general-settings" role="tab" aria-controls="general-price" aria-selected="true">General</a> <a class="nav-item nav-link disabled product-attributes" id="tab-for-attributes" data-toggle="tab" href="#product-attributes" role="tab" aria-controls="product-attributes" aria-selected="false">Attributes</a> <a class="nav-item nav-link disabled product-variants d-none" id="tab-for-variations" data-toggle="tab" href="#product-variants" role="tab" aria-controls="product-variants" aria-selected="false">Variations</a>
+                                                                </div>
+                                                            </nav>
+                                                            <div class="tab-content p-3 col-md-12" id="nav-tabContent">
+                                                                <div class="tab-pane fade active show" id="general-settings" role="tabpanel" aria-labelledby="general-settings-tab">
+                                                                    <div class="form-group">
+                                                                        <label for="type" class="col-md-12">Type Of Product :</label>
+                                                                        <div class="col-md-12">
+                                                                            <input type="hidden" name="product_type">
+                                                                            <input type="hidden" name="simple_product_stock_status">
+                                                                            <input type="hidden" name="variant_stock_level_type">
+                                                                            <input type="hidden" name="variant_stock_status">
+                                                                            <select name="type" id="product-type" class="form-control product-type" data-placeholder=" Type to search and select type">
+                                                                                <option value=" ">Select Type</option>
+                                                                                <option value="simple_product">Simple Product</option>
+                                                                                <option value="variable_product">Variable Product</option>
+                                                                            </select>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div id="product-general-settings">
+                                                                        <div id="general_price_section" class="collapse">
+                                                                            <div class="form-group">
+                                                                                <label for="type" class="col-md-2">Price:</label>
+                                                                                <div class="col-md-12">
+                                                                                    <input type="number" name="simple_price" class="form-control stock-simple-mustfill-field price" min='0' step="0.01">
+                                                                                </div>
+                                                                            </div>
+                                                                            <div class="form-group">
+                                                                                <label for="type" class="col-md-2">Special Price:</label>
+                                                                                <div class="col-md-12">
+                                                                                    <input type="number" name="simple_special_price" class="form-control discounted_price" min='0' step="0.01">
+                                                                                </div>
+                                                                            </div>
+                                                                            <div class="form-group row mt-3" id="product-dimensions">
+                                                                                <div class="col-md-6">
+                                                                                    <label for="weight" class="control-label col-md-12"><small>(These are the product parcel's dimentions.)</small></label>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div class="form-group row" id="product-dimensions">
+                                                                                <div class="col-3">
+                                                                                    <label for="weight" class="control-label col-md-12">Weight <small>(kg)</small> <span class='text-danger text-xs'>*</span></label>
+                                                                                    <input type="number" class="form-control" name="weight" placeholder="Weight" id="weight" value="" step="0.01">
+                                                                                </div>
+                                                                                <div class="col-3">
+                                                                                    <label for="height" class="control-label col-md-12">Height <small>(cms)</small></label>
+                                                                                    <input type="number" class="form-control" name="height" placeholder="Height" id="height" value="" step="0.01">
+                                                                                </div>
+                                                                                <div class="col-3">
+                                                                                    <label for="breadth" class="control-label col-md-12">Breadth <small>(cms)</small></label>
+                                                                                    <input type="number" class="form-control" name="breadth" placeholder="Breadth" id="breadth" value="" step="0.01">
+                                                                                </div>
+                                                                                <div class="col-3">
+                                                                                    <label for="length" class="control-label col-md-12">Length <small>(cms)</small></label>
+                                                                                    <input type="number" class="form-control" name="length" placeholder="Length" id="length" value="" step="0.01">
+                                                                                </div>
+                                                                            </div>
+
+                                                                            <div class="form-group  simple_stock_management">
+                                                                                <div class="col">
+                                                                                    <input type="checkbox" name="simple_stock_management_status" class="align-middle simple_stock_management_status"> <span class="align-middle">Enable Stock Management</span>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div class="form-group simple-product-level-stock-management collapse">
+                                                                            <div class="col col-xs-12">
+                                                                                <label class="control-label">SKU :</label>
+                                                                                <input type="text" name="product_sku" class="col form-control simple-pro-sku">
+                                                                            </div>
+                                                                            <div class="col col-xs-12">
+                                                                                <label class="control-label">Total Stock :</label>
+                                                                                <input type="number" min="1" name="product_total_stock" class="col form-control stock-simple-mustfill-field">
+                                                                            </div>
+                                                                            <div class="col col-xs-12">
+                                                                                <label class="control-label">Stock Status :</label>
+                                                                                <select type="text" class="col form-control stock-simple-mustfill-field" id="simple_product_stock_status">
+                                                                                    <option value="1">In Stock</option>
+                                                                                    <option value="0">Out Of Stock</option>
+                                                                                </select>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div class="form-group collapse simple-product-save">
+                                                                            <div class="col"> <a href="javascript:void(0);" class="btn btn-primary save-settings">Save Settings</a>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div id="variant_stock_level" class="collapse">
+                                                                        <div class="form-group">
+                                                                            <div class="col">
+                                                                                <input type="checkbox" name="variant_stock_management_status" class="align-middle variant_stock_status"> <span class="align-middle"> Enable Stock Management</span>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div class="form-group collapse" id="stock_level">
+                                                                            <label for="type" class="col-md-2">Choose Stock Management Type:</label>
+                                                                            <div class="col-md-12">
+                                                                                <select id="stock_level_type" class="form-control variant-stock-level-type" data-placeholder=" Type to search and select type">
+                                                                                    <option value=" ">Select Stock Type</option>
+                                                                                    <option value="product_level">Product Level ( Stock Will Be Managed Generally )</option>
+                                                                                    <option value="variable_level">Variable Level ( Stock Will Be Managed Variant Wise )</option>
+                                                                                </select>
+                                                                                <div class="form-group row variant-product-level-stock-management collapse">
+                                                                                    <div class="col col-xs-12">
+                                                                                        <label class="control-label">SKU :</label>
+                                                                                        <input type="text" name="sku_variant_type" class="col form-control">
+                                                                                    </div>
+                                                                                    <div class="col col-xs-12">
+                                                                                        <label class="control-label">Total Stock :</label>
+                                                                                        <input type="number" min="1" name="total_stock_variant_type" class="col form-control variant-stock-mustfill-field">
+                                                                                    </div>
+                                                                                    <div class="col col-xs-12">
+                                                                                        <label class="control-label">Stock Status :</label>
+                                                                                        <select type="text" id="stock_status_variant_type" name="variant_status" class="col form-control variant-stock-mustfill-field">
+                                                                                            <option value="1">In Stock</option>
+                                                                                            <option value="0">Out Of Stock</option>
+                                                                                        </select>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div class="form-group">
+                                                                            <div class="col"> <a href="javascript:void(0);" class="btn btn-primary save-variant-general-settings">Save Settings</a>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div id="digital_product_setting" class="collapse">
+                                                                        <div class="row form-group">
+                                                                            <div class="col-md-2 col-xs-6 ml-2">
+                                                                                <label for="is_cod_allowed" class="col-form-label">Is Download allowed?</label>
+                                                                                <input type="checkbox" name="download_allowed" id="download_allowed" class="switch" <?= (isset($product_details[0]['download_allowed']) && $product_details[0]['download_allowed'] == '1') ? 'Checked' : ''; ?> data-bootstrap-switch data-off-color="danger" data-on-color="success">
+                                                                            </div>
+                                                                            <div class="col-md-3 col-xs-6 collapse" id='download_type'>
+                                                                                <label for="download_allowed" class="col-form-label">Download Link Type <span class='text-danger text-sm'>*</span></label>
+                                                                                <select class='form-control' name="download_link_type" id="download_link_type">
+                                                                                    <option value=''>None</option>
+                                                                                    <option value='self_hosted'>Self Hosted</option>
+                                                                                    <option value='add_link'>Add Link</option>
+                                                                                </select>
+                                                                            </div>
+                                                                            <div class="col-md-6 d-none" id="digital_link_container">
+                                                                                <label for="video" class="col-form-label ml-1">Digital Product Link <span class='text-danger text-sm'>*</span></label>
+                                                                                <input type="url" class='form-control' name='download_link' id='download_link' value="" placeholder="Paste digital product link or URL here">
+                                                                            </div>
+                                                                            <div class="col-md-6 mt-2 d-none" id="digital_media_container">
+                                                                                <label for="image" class="ml-2">File <span class='text-danger text-sm'>*</span></label>
+                                                                                <div class='col-md-3'><a class="uploadFile img btn btn-primary text-white btn-sm" data-input='pro_input_zip' data-isremovable='1' data-media_type='archive,document' data-is-multiple-uploads-allowed='0' data-toggle="modal" data-target="#media-upload-modal" value="Upload Photo"><i class='fa fa-upload'></i> Upload</a></div>
+                                                                                <div class="container-fluid row image-upload-section">
+                                                                                    <div class="col-md-3 col-sm-12 shadow p-3 mb-5 bg-white rounded m-4 text-center grow image d-none">
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div class="row">
+                                                                            <div class="form-group mt-3 ml-2">
+                                                                                <div class="col"> <a href="javascript:void(0);" class="btn btn-primary save-digital-product-settings">Save Settings</a></div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+
+                                                                </div>
+                                                                <div class="tab-pane fade" id="product-attributes" role="tabpanel" aria-labelledby="product-attributes-tab">
+                                                                    <div class="info col-12 p-3 d-none" id="note">
+                                                                        <div class=" col-12 d-flex align-center"> <strong>Note : </strong>
+                                                                            <input type="checkbox" checked="checked" class="ml-3 my-auto custom-checkbox" disabled> <span class="ml-3">check if the attribute is to be used for variation </span>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="col-md-12"> 
+                                                                        <a href="javascript:void(0);" id="add_attributes" class="btn btn-block btn-outline-primary col-md-2 float-right m-2 btn-sm">Add Attributes</a> 
+                                                                        <a href="javascript:void(0);" id="save_attributes" class="btn btn-block btn-outline-primary col-md-2 float-right m-2 btn-sm d-none">Save Attributes</a>
+                                                                    </div>
+                                                                    <div class="clearfix"></div>
+                                                                    <div id="attributes_process">
+                                                                        <div class="form-group text-center row my-auto p-2 border rounded bg-gray-light col-md-12 no-attributes-added">
+                                                                            <div class="col-md-12 text-center">No Product Attribures Are Added !</div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                                <div class="tab-pane fade" id="product-variants" role="tabpanel" aria-labelledby="product-variants-tab">
+                                                                    <div class="clearfix"></div>
+                                                                    <div class="form-group text-center row my-auto p-2 border rounded bg-gray-light col-md-12 no-variants-added">
+                                                                        <div class="col-md-12 text-center">No Product Variations Are Added !</div>
+                                                                    </div>
+                                                                    <div id="variants_process" class="ui-sortable"></div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                <?php
+                                            }
+                                                ?>
+                                                </div>
+                                            </div>
+                                    </div>
+                                    <div class="card-body pad">
+                                        <div class="section-header"><i class="fas fa-align-left"></i> Description</div>
+                                        <div class="form-group col-md-12">
+                                            <label for="pro_input_description">Description </label>
+                                            <div class="mb-3">
+                                                <textarea name="pro_input_description" class="textarea addr_editor" placeholder="Place some text here"><?= (isset($product_details[0]['id'])) ? output_escaping(str_replace('\r\n', '&#13;&#10;', $product_details[0]['description'])) : ''; ?></textarea>
+                                            </div>
+                                            <label for="pro_input_description">Extra Description </label>
+                                            <div class="mb-3">
+                                                <textarea name="extra_input_description" class="textarea addr_editor" placeholder="Place some text here"><?= (isset($product_details[0]['id'])) ? output_escaping(str_replace('\r\n', '&#13;&#10;', $product_details[0]['extra_description'])) : ''; ?></textarea>
+                                            </div>
+                                            <div class="d-flex justify-content-center">
+                                                <div class="form-group" id="error_box">
+                                                </div>
+                                            </div>
+                                            <div class="form-group">
+                                                <button type="reset" class="btn btn-warning">Reset</button>
+                                                <button type="submit" class="btn btn-success" id="submit_btn"><?= (isset($product_details[0]['id'])) ? 'Update Product' : 'Add Product' ?></button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </form>
                     </div>
-                </form>
+                    <!--/.card-->
+                </div>
+                <!--/.col-md-12-->
             </div>
-        </div>
+            <!-- /.row -->
+        </div><!-- /.container-fluid -->
     </section>
+    <!-- /.content -->
 </div>
 
 <style>
-.create-product-page .section-header {font-weight: 700;border-bottom: 1px solid #e5e7eb;padding-bottom: .5rem;margin-bottom: 1rem;}
-.create-product-page .top-layout {display: flex;align-items: stretch;gap: 1rem;min-height: 520px;}
-.create-product-page .top-column {flex: 1;border: 1px solid #e5e7eb;border-radius: .5rem;background: #fff;padding: 1rem;display:flex;flex-direction:column;}
-.create-product-page .inner-scroll {overflow-y: auto;flex:1;padding-right: .5rem;}
-.create-product-page .block-title {margin-bottom: 1rem;padding-bottom: .5rem;border-bottom: 1px solid #f1f3f5;}
-.create-product-page .preview-single img, .create-product-page .preview-grid img {width: 84px;height: 84px;object-fit: cover;border-radius: .25rem;}
-.create-product-page .preview-grid {display:grid;grid-template-columns: repeat(auto-fill, minmax(100px,1fr));gap: .5rem;}
-.create-product-page .thumb-wrapper {position: relative;border:1px solid #e5e7eb;padding: .25rem;border-radius: .25rem;}
-.create-product-page .remove-thumb {position:absolute;top:2px;right:2px;border:none;background:#dc3545;color:#fff;border-radius:50%;width:20px;height:20px;line-height:16px;}
+    .seller-create-product-page .text-primary-theme { color: var(--color-orange); }
+
+    .seller-create-product-page .attribute-card { border: none; border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,0.06); }
+
+    .seller-create-product-page .section-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .4px;
+        color: var(--color-orange-dark);
+        border-bottom: 2px solid var(--color-orange-light);
+        padding-bottom: 8px;
+        margin: 26px 0 18px;
+        width: 100%;
+    }
+    .seller-create-product-page .card-body > .section-header:first-child { margin-top: 0; }
+    .seller-create-product-page .section-header i { color: var(--color-orange); }
+
+    .seller-create-product-page label.col-form-label,
+    .seller-create-product-page label.control-label { font-weight: 600; font-size: 14px; }
+    .seller-create-product-page .form-control:focus {
+        border-color: var(--color-orange);
+        box-shadow: 0 0 0 .15rem rgba(242,130,46,.18);
+    }
+    .seller-create-product-page .nav-tabs .nav-link.active {
+        color: var(--color-orange-dark);
+        border-bottom: 2px solid var(--color-orange);
+        font-weight: 600;
+    }
+    .seller-create-product-page .btn-success {
+        background: var(--color-orange);
+        border-color: var(--color-orange);
+        font-weight: 600;
+    }
+    .seller-create-product-page .btn-success:hover:not(:disabled) { background: var(--color-orange-dark); border-color: var(--color-orange-dark); }
+
+    /* ---- searchable category selector ---- */
+    .seller-create-product-page .category-combo { position: relative; }
+    .seller-create-product-page .category-search-box { position: relative; }
+    .seller-create-product-page .category-search-icon {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--color-grey);
+        font-size: 13px;
+        pointer-events: none;
+    }
+    .seller-create-product-page .category-search-input { padding-left: 32px; padding-right: 30px; }
+    .seller-create-product-page .category-search-clear {
+        display: none;
+        position: absolute;
+        right: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+        border: none;
+        background: transparent;
+        font-size: 20px;
+        line-height: 1;
+        color: var(--color-grey);
+        cursor: pointer;
+        padding: 0 4px;
+    }
+    .seller-create-product-page .category-search-clear:hover { color: var(--color-theme-red); }
+    .seller-create-product-page #category_dropdown {
+        display: none;
+        position: absolute;
+        z-index: 1050;
+        left: 0;
+        right: 0;
+        max-height: 260px;
+        overflow-y: auto;
+        background: #fff;
+        border: 1px solid rgba(0,0,0,0.12);
+        border-radius: 8px;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+        margin-top: 4px;
+    }
+    .seller-create-product-page .category-result-item {
+        padding: 8px 12px;
+        cursor: pointer;
+        border-bottom: 1px solid rgba(0,0,0,0.05);
+    }
+    .seller-create-product-page .category-result-item:last-child { border-bottom: none; }
+    .seller-create-product-page .category-result-item:hover { background: var(--color-orange-light); }
+    .seller-create-product-page .category-result-name { font-weight: 600; font-size: 14px; }
+    .seller-create-product-page .category-result-path { font-size: 12px; color: var(--color-grey); }
+    .seller-create-product-page .category-empty { padding: 10px 12px; color: var(--color-grey); font-size: 13px; }
 </style>
-<script> 
-    $(document).ready(function () {
 
-// Parse categories from the hidden input your form already has and flatten the
-// whole tree (every level, however deep) into one list. Each entry keeps its
-// own leaf name, its top-level ancestor name (for the "in <Top Level>" line),
-// and its full breadcrumb path (for the muted line underneath).
-//
-// A seller's category tree can list the same category twice — once nested
-// under its real parent, and once again as its own "root" (the seller's
-// assigned category_ids aren't always just top-level ids) — so we key by id
-// and keep whichever occurrence has the deepest/most informative path.
-var categoryById = {};
-(function flattenCategoryTree(nodes, pathParts) {
-    (nodes || []).forEach(function (cat) {
-        var parts = pathParts.concat([cat.name]);
-        var existing = categoryById[cat.id];
-        if (!existing || parts.length > existing.depth) {
-            categoryById[cat.id] = {
-                id: cat.id,
-                name: cat.name,
-                fullPath: parts.join(' > '),
-                depth: parts.length
-            };
-        }
-        if (cat.children && cat.children.length) {
-            flattenCategoryTree(cat.children, parts);
-        }
-    });
-})((function () {
-    try {
-        return JSON.parse($('#category_tree_data').val() || '[]');
-    } catch (e) {
-        return [];
+<script>
+$(document).ready(function () {
+    // ------------------------------------------------------------------
+    // Searchable category selector.
+    //
+    // Identical to the admin form's control, minus its per-seller reload: this panel
+    // only ever lists categories for the logged-in seller.
+    // ------------------------------------------------------------------
+    var $input    = $('#category_search_input');
+    var $dropdown = $('#category_dropdown');
+    var $clearBtn = $('#category_search_clear');
+    var $selected = $('#product_category_id');
+    var $hint     = $('#category_hint');
+
+    var allCategories = [];
+
+    // Flattens the category tree (to any depth) into one searchable list, keeping
+    // each entry's own name plus its full breadcrumb path.
+    function flatten(nodes, pathParts, into) {
+        (nodes || []).forEach(function (cat) {
+            var parts = pathParts.concat([cat.name]);
+            var existing = into[cat.id];
+            if (!existing || parts.length > existing.depth) {
+                into[cat.id] = { id: cat.id, name: cat.name, fullPath: parts.join(' > '), depth: parts.length };
+            }
+            if (cat.children && cat.children.length) {
+                flatten(cat.children, parts, into);
+            }
+        });
+        return into;
     }
-})(), []);
-var allCategories = Object.keys(categoryById).map(function (id) { return categoryById[id]; });
 
-var $input     = $('#category_level_1_input');
-var $dropdown  = $('#category_dropdown');
-var $clearBtn  = $('#category_search_clear');
+    function setCategories(tree) {
+        var byId = flatten(tree, [], {});
+        allCategories = Object.keys(byId).map(function (id) { return byId[id]; });
 
-// Pre-fill the visible input with the current category's full path on edit.
-(function () {
-    var currentId = $('#selected_category_id').val();
-    if (!currentId) return;
-    var current = allCategories.filter(function (c) { return String(c.id) === String(currentId); })[0];
-    if (current) {
-        $input.val(current.fullPath);
-        $clearBtn.show();
-    }
-})();
-
-function renderDropdown(term) {
-    $dropdown.empty();
-    var term_lower = term.toLowerCase();
-
-    var filtered = allCategories.filter(function (c) {
-        return c.fullPath.toLowerCase().indexOf(term_lower) > -1;
-    });
-
-    filtered.forEach(function (cat) {
-        var $item = $('<div>').addClass('category-result-item')
-            .append($('<div>').addClass('category-result-name').text(cat.name));
-
-        // Only show the path line when it adds information beyond the name
-        // above it — a top-level category's path is just its own name again.
-        if (cat.fullPath !== cat.name) {
-            $item.append($('<div>').addClass('category-result-path').text(cat.fullPath));
+        // Keep the saved selection only if that category still exists.
+        var currentId = $selected.val();
+        if (currentId) {
+            var match = allCategories.filter(function (c) { return String(c.id) === String(currentId); })[0];
+            if (match) {
+                $input.val(match.fullPath);
+                $clearBtn.show();
+            } else {
+                $selected.val('');
+                $input.val('');
+                $clearBtn.hide();
+            }
         }
 
-        $item.on('mousedown', function (e) {
-            e.preventDefault();
-            $input.val(cat.fullPath);
-            $('#selected_category_id').val(cat.id);
-            $clearBtn.show();
-            $dropdown.hide();
+        if (!allCategories.length) {
+            $hint.text('No categories are available yet.');
+        } else {
+            $hint.text('Search and select a category (' + allCategories.length + ' available)');
+        }
+    }
+
+    function renderDropdown(term) {
+        $dropdown.empty();
+        var lower = (term || '').toLowerCase();
+        var filtered = allCategories.filter(function (c) {
+            return c.fullPath.toLowerCase().indexOf(lower) > -1;
         });
 
-        $dropdown.append($item);
+        if (!filtered.length) {
+            $dropdown.append($('<div>').addClass('category-empty').text(
+                allCategories.length ? 'No category matches that search' : 'No categories available'
+            )).show();
+            return;
+        }
+
+        filtered.slice(0, 200).forEach(function (cat) {
+            var $item = $('<div>').addClass('category-result-item')
+                .append($('<div>').addClass('category-result-name').text(cat.name));
+            if (cat.fullPath !== cat.name) {
+                $item.append($('<div>').addClass('category-result-path').text(cat.fullPath));
+            }
+            $item.on('mousedown', function (e) {
+                e.preventDefault();
+                $input.val(cat.fullPath);
+                $selected.val(cat.id);
+                $clearBtn.show();
+                $dropdown.hide();
+            });
+            $dropdown.append($item);
+        });
+        $dropdown.show();
+    }
+
+    $input.on('focus', function () { renderDropdown($(this).val()); });
+    $input.on('input', function () {
+        // Typing invalidates the previous pick, so the hidden id is cleared until
+        // something is chosen from the list again.
+        $selected.val('');
+        $clearBtn.toggle($(this).val().length > 0);
+        renderDropdown($(this).val());
+    });
+    $clearBtn.on('mousedown', function (e) {
+        e.preventDefault();
+        $input.val('').trigger('focus');
+        $selected.val('');
+        $clearBtn.hide();
+    });
+    $input.on('blur', function () { setTimeout(function () { $dropdown.hide(); }, 150); });
+    $(document).on('click', function (e) {
+        if (!$(e.target).closest('.category-combo').length) { $dropdown.hide(); }
     });
 
-    if ($dropdown.children().length > 0) {
-        $dropdown.show();
-    } else {
-        $dropdown.hide();
-    }
-}
+    // The seller is fixed on this panel, so the tree the controller rendered is the
+    // whole list - no per-seller reload, which is the only part of the admin version
+    // that does not apply here.
+    var seed = [];
+    try { seed = JSON.parse($('#category_tree_data').val() || '[]'); } catch (e) { seed = []; }
+    setCategories(seed);
 
-// Show all on focus
-$input.on('focus', function () {
-    renderDropdown($(this).val());
-});
+    // ------------------------------------------------------------------
+    // Deleting a saved image.
+    //
+    // custom.js binds '.delete-img' to admin/home/delete_image, an endpoint a seller
+    // is not authorized for - hence the distinct class on this page's markup, handled
+    // against the seller's own endpoint. Behaviour is otherwise identical.
+    // ------------------------------------------------------------------
+    $(document).on('click', '.delete-img-seller', function () {
+        var $trigger = $(this);
+        Swal.fire({
+            title: 'Are You Sure!',
+            text: "You won't be able to revert this!",
+            type: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Yes, delete it!',
+            showLoaderOnConfirm: true,
+            preConfirm: function () {
+                return $.ajax({
+                    type: 'POST',
+                    url: "<?= base_url('seller/home/delete_image') ?>",
+                    data: {
+                        id: $trigger.data('id'),
+                        path: $trigger.data('path'),
+                        field: $trigger.data('field'),
+                        img_name: $trigger.data('img'),
+                        table_name: $trigger.data('table'),
+                        isjson: $trigger.data('isjson'),
+                        [csrfName]: csrfHash
+                    },
+                    dataType: 'json'
+                }).then(function (result) {
+                    csrfName = result['csrfName'];
+                    csrfHash = result['csrfHash'];
+                    if (result['is_deleted'] == true) {
+                        $trigger.closest('div').remove();
+                        Swal.fire('Success', 'Media Deleted !', 'success');
+                    } else {
+                        Swal.fire('Oops...', result['message'] || 'Something went wrong!', 'error');
+                    }
+                });
+            },
+            allowOutsideClick: false
+        });
+    });
 
-// Filter as user types
-$input.on('input', function () {
-    $('#selected_category_id').val('');
-    $clearBtn.toggle($(this).val().length > 0);
-    renderDropdown($(this).val());
-});
-
-$clearBtn.on('mousedown', function (e) {
-    e.preventDefault();
-    $input.val('').trigger('focus');
-    $('#selected_category_id').val('');
-    $clearBtn.hide();
-    $dropdown.empty().hide();
-});
-
-// Hide on blur
-$input.on('blur', function () {
-    setTimeout(function () { $dropdown.hide(); }, 150);
-});
-
-// Close on outside click
-$(document).on('click', function (e) {
-    if (!$(e.target).closest('.category-combo').length) {
-        $dropdown.hide();
-    }
-});
-
+    // custom.js binds the media modal's Upload button directly to the element, and
+    // seller/include-footer.php binds its own delegated handler for the same button.
+    // Both would fire and each picked file would be inserted twice; the footer's is the
+    // one written against this panel's modal markup, so custom.js's copy is dropped.
+    // This runs on ready, after custom.js has bound at parse time.
+    $('#upload-media').off('click');
 });
 </script>
-
-<script src="<?= base_url('assets/seller/js/product.js') ?>"></script>
-<script src="<?= base_url('assets/seller/js/product-attributes.js') ?>"></script>

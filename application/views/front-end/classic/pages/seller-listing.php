@@ -79,7 +79,7 @@
                                             <div class="product-grid">
                                                 <div class="product-image">
                                                     <div class="product-image-container">
-                                                        <a href="<?= base_url('sellers/seller_details/' . $row['slug']) ?>">
+                                                        <a href="<?= seller_profile_url($row['slug'] ?? '', $row['seller_id'] ?? '') ?>">
                                                             <img class="pic-1 lazy" data-src="<?= $row['seller_profile'] ?>">
                                                             <?php $row['seller_profile']; ?>
                                                         </a>
@@ -89,7 +89,7 @@
                                         </div>
                                         <div class="col-md-9">
                                             <div class="product-content">
-                                                <h3 class="list-product-title title"><a href="<?= base_url('sellers/seller_details/' . $row['slug']) ?>"><?= $row['seller_name'] ?></a></h3>
+                                                <h3 class="list-product-title title"><a href="<?= seller_profile_url($row['slug'] ?? '', $row['seller_id'] ?? '') ?>"><?= $row['seller_name'] ?></a></h3>
                                                 <div class="rating">
                                                     <input type="text" class="kv-fa rating-loading" value="<?= number_format($row['seller_rating'], 1) ?>" data-size="sm" title="" readonly>
                                                 </div>
@@ -116,7 +116,7 @@
                                         <div class="product-grid">
                                             <div class="product-image">
                                                 <div class="product-image-container">
-                                                    <a href="<?= base_url('sellers/seller_details/' . $row['slug']) ?>">
+                                                    <a href="<?= seller_profile_url($row['slug'] ?? '', $row['seller_id'] ?? '') ?>">
                                                         <img class="pic-1 lazy" data-src="<?= $row['seller_profile'] ?>">
                                                     </a>
                                                 </div>
@@ -125,7 +125,7 @@
                                                 <input type="text" class="kv-fa rating-loading" value="<?= number_format($row['seller_rating'], 1) ?>" data-size="sm" title="" readonly>
                                             </div>
                                             <div class="product-content">
-                                                <h3 class="title"><a href="<?= base_url('sellers/seller_details/' . $row['slug']) ?>"><?= $row['seller_name'] ?></a></h3>
+                                                <h3 class="title"><a href="<?= seller_profile_url($row['slug'] ?? '', $row['seller_id'] ?? '') ?>"><?= $row['seller_name'] ?></a></h3>
                                                 <div class="price mb-2">
                                                     <?= $row['store_name'] ?>
                                                 </div>

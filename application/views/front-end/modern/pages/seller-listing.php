@@ -87,7 +87,7 @@
                                                     <div class="">
                                                         <div class="product-image">
                                                             <div class="product-image-container">
-                                                                <a href="<?= base_url('sellers/seller_details/' . $row['slug']) ?>">
+                                                                <a href="<?= seller_profile_url($row['slug'] ?? '', $row['seller_id'] ?? '') ?>">
                                                                     <img class="pic-1 lazy blog-img" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= $row['seller_profile'] ?>">
                                                                     <?php $row['seller_profile']; ?>
                                                                 </a>
@@ -97,7 +97,7 @@
                                                 </div>
                                                 <div class="col-md-9">
                                                     <div class="product-content">
-                                                        <h3 class="list-product-title title" title="<?= $row['seller_name'] ?>"><a href="<?= base_url('sellers/seller_details/' . $row['slug']) ?>"><?= $row['seller_name'] ?></a></h3>
+                                                        <h3 class="list-product-title title" title="<?= $row['seller_name'] ?>"><a href="<?= seller_profile_url($row['slug'] ?? '', $row['seller_id'] ?? '') ?>"><?= $row['seller_name'] ?></a></h3>
                                                         <div class="rating">
                                                             <input id="input" name="rating" class="rating rating-loading d-none" data-size="xs" value="<?= number_format($row['seller_rating'], 1) ?>" data-show-clear="false" data-show-caption="false" readonly>
                                                         </div>
@@ -124,7 +124,7 @@
                                         <div class=" card text-center">
                                             <!-- <div class="product-image"> -->
                                                 <div class="seller-image-container">
-                                                    <a href="<?= base_url('sellers/seller_details/' . $row['slug']) ?>">
+                                                    <a href="<?= seller_profile_url($row['slug'] ?? '', $row['seller_id'] ?? '') ?>">
                                                         <img class="pic-1 lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= $row['seller_profile'] ?>">
                                                     </a>
                                                 </div>
@@ -133,7 +133,7 @@
                                                 <input id="input" name="rating" class="rating rating-loading d-none" data-size="xs" value="<?= number_format($row['seller_rating'], 1) ?>" data-show-clear="false" data-show-caption="false" readonly>
                                             </div>
                                             <div class="product-content mb-5">
-                                                <h4 class="title m-0" title="<?= $row['seller_name'] ?>"><a class="text-decoration-none text-dark" href="<?= base_url('sellers/seller_details/' . $row['slug']) ?>"><?= $row['seller_name'] ?></a></h4>
+                                                <h4 class="title m-0" title="<?= $row['seller_name'] ?>"><a class="text-decoration-none text-dark" href="<?= seller_profile_url($row['slug'] ?? '', $row['seller_id'] ?? '') ?>"><?= $row['seller_name'] ?></a></h4>
                                                 <p class="price">
                                                     <?= $row['store_name'] ?>
                                                 </p>

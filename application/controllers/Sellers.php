@@ -132,6 +132,33 @@ class Sellers extends CI_Controller
         }
         $seller_slug = urldecode($seller_slug);
         $seller_data = fetch_details('seller_data', ['slug' => $seller_slug, 'status' => 1]);
+
+        // A seller whose slug was never filled in can only be linked to by user id, and
+        // older links may still carry an id. Resolve those here instead of bouncing the
+        // visitor to the full seller listing, and mint the missing slug on the way so the
+        // storefront settles on one canonical URL.
+        if (empty($seller_data) && ctype_digit((string) $seller_slug) && (int) $seller_slug > 0) {
+            $seller_data = fetch_details('seller_data', ['user_id' => (int) $seller_slug, 'status' => 1]);
+            if (!empty($seller_data)) {
+                $existing_slug = isset($seller_data[0]['slug']) ? trim((string) $seller_data[0]['slug']) : '';
+                if ($existing_slug === '') {
+                    $source = '';
+                    foreach (['store_name', 'shop_name'] as $field) {
+                        if (!empty($seller_data[0][$field]) && trim($seller_data[0][$field]) !== '') {
+                            $source = $seller_data[0][$field];
+                            break;
+                        }
+                    }
+                    $existing_slug = ($source !== '') ? create_unique_slug($source, 'seller_data', 'slug', 'id', $seller_data[0]['id']) : '';
+                    if ($existing_slug === '') {
+                        $existing_slug = create_unique_slug('seller-' . $seller_data[0]['user_id'], 'seller_data', 'slug', 'id', $seller_data[0]['id']);
+                    }
+                    update_details(['slug' => $existing_slug], ['id' => $seller_data[0]['id']], 'seller_data');
+                }
+                redirect(base_url('sellers/seller_details/' . rawurlencode($existing_slug)));
+            }
+        }
+
         if (empty($seller_data)) {
             redirect(base_url('sellers'));
         }

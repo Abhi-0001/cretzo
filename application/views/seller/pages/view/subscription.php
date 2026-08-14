@@ -274,6 +274,15 @@
                                 <?php if (!$is_live) : ?>
                                     <span class="plan-chip plan-chip-expired">Expired<?= $ends_on ? ' on ' . date('d M Y', $ends_on) : '' ?></span>
                                     <span class="plan-note">Renew below to start adding products again.</span>
+                                <?php elseif (!empty($lapsed_subscription)) : ?>
+                                    <?php // On the free tier only because a paid plan ran out - say so, or the
+                                          // plan name simply changes on them with no explanation. ?>
+                                    <span class="plan-chip plan-chip-ok">Free plan</span>
+                                    <span class="plan-note">
+                                        Your <?= html_escape($lapsed_subscription['name'] ?: 'previous') ?> plan expired
+                                        <?= !empty($lapsed_subscription['end_date']) ? 'on ' . date('d M Y', strtotime($lapsed_subscription['end_date'])) : '' ?>,
+                                        so you're on the free plan. Your products stay live &mdash; upgrade below for a bigger listing allowance.
+                                    </span>
                                 <?php elseif ($ends_on === null) : ?>
                                     <span class="plan-chip plan-chip-ok">Active &mdash; no expiry</span>
                                 <?php else : ?>

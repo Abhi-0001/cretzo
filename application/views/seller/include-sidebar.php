@@ -77,6 +77,12 @@
                             </a>
                         </li>
                         <li class="nav-item">
+                            <a href="<?= base_url('seller/product/listing_visibility') ?>" class="nav-link">
+                                <i class="fas fa-eye nav-icon"></i>
+                                <p>Visible Listings</p>
+                            </a>
+                        </li>
+                        <li class="nav-item">
                             <a href="<?= base_url('seller/product_faqs/') ?>" class="nav-link">
                                 <i class="fas fa-question-circle nav-icon"></i>
                                 <p>Product FAQs</p>
