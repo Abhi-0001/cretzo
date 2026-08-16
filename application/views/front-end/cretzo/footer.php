@@ -239,7 +239,10 @@ $system_settings = get_settings('system_settings', true); ?>
                                     <!-- <br> -->
                                     <!-- <input class="input ta-c" type="password" placeholder="Enter your Password"> -->
 
-                                    <div class="password-container">
+                                    <?php /* password-field is what theme.js passVisibility() binds the eye
+                                             icon to; password-container only carries the existing login.css
+                                             styling. Without the former the toggle rendered but did nothing. */ ?>
+                                    <div class="password-container password-field">
                                         <input class="form-control input ta-c" type="password" name="password" placeholder="Password" id="loginPassword" value="<?= (ALLOW_MODIFICATION == 0) ? '12345678' : '' ?>">
                                         <span class="password-toggle"><i class="uil uil-eye"></i></span>
                                         <!-- <label for="loginPassword">Password</label> -->
@@ -337,7 +340,10 @@ $system_settings = get_settings('system_settings', true); ?>
                                 <p class="text-n ta-c op-6">Enter the OTP and set a new password.</p>
                                 <div class="field-container">
                                     <input type="text" id="forgot_password_otp" class="form-control input ta-c" name="otp" placeholder="OTP" value="" autocomplete="off" required>
-                                    <div class="password-container">
+                                    <?php /* password-field is what theme.js passVisibility() binds the eye
+                                             icon to; password-container only carries the existing login.css
+                                             styling. Without the former the toggle rendered but did nothing. */ ?>
+                                    <div class="password-container password-field">
                                         <input type="password" id="forgot_password_new_password" class="form-control input ta-c" name="new_password" placeholder="New Password" value="" required>
                                         <span class="password-toggle"><i class="uil uil-eye"></i></span>
                                     </div>
@@ -367,7 +373,9 @@ $system_settings = get_settings('system_settings', true); ?>
 
 
 <div class="modal fade" id="modal-signup" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered modal-sm">
+    <?php /* modal-lg, not modal-sm: .login is 800px wide, so a 300px modal-sm dialog
+             left it overflowing its own centred container and rendering off-centre. */ ?>
+    <div class="modal-dialog modal-dialog-centered modal-lg signup-dialog">
         <!-- <div class="modal-content text-center"> -->
 
             <!-- <div class="modal-body"> -->
@@ -382,9 +390,12 @@ $system_settings = get_settings('system_settings', true); ?>
                         <!-- signup 1 -->
                         <div id="signupone" class="login rounded-1">
 
-                            <div style="position: absolute; width: 100%; height: 100%; pointer-events: none;">
-                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                            </div>
+                            <?php /* Placed directly inside .login (which is position:relative) and
+                                     pinned top-right by CSS - the same pattern the login modal uses.
+                                     The old full-size pointer-events:none wrapper left the button in
+                                     the top-LEFT corner, since align-self only applies in a flex
+                                     container and that wrapper was a plain block. */ ?>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 
                             <div class="login-left pb-4">
                                 <h1 class="heading-n ta-c">Sign Up</h1>
@@ -415,12 +426,13 @@ $system_settings = get_settings('system_settings', true); ?>
                                 <p class="text-n mb-0 ta-c mt-3">Already have an account? <a class="text-decoration-none text-blue hover text-underline c-p fw-bold" href="#" data-bs-target="#modal-signin" data-bs-toggle="modal" data-bs-dismiss="modal" class="hover" style="color: var(--color-orange) !important;">Sign In</a></p>
 
                                 <?php if ((true || !empty($system_settings['google_login']) && $system_settings['google_login'] == 1) || (!empty($system_settings['facebook_login']) && $system_settings['facebook_login'] == 1)) { ?>
-                                    <div class="login-with-container mt-3">
+                                    <div class="or-divider"><span>or</span></div>
+                                    <div class="login-with-container">
                                         <?php if (true || !empty($system_settings['google_login']) && ($system_settings['google_login'] == 1 || $system_settings['google_login'] == '1')) { ?>
                                             <a href="#" class="text-decoration-none social-auth-link" data-auth-provider="google">
                                                 <div class="media-container">
                                                     <img class="media-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/google-icon.jpg') ?>">
-                                                    <p class="text-s">Signup in with Google</p>
+                                                    <p class="text-s mb-0">Sign up with Google</p>
                                                 </div>
                                             </a>
                                         <?php } ?>
@@ -428,7 +440,7 @@ $system_settings = get_settings('system_settings', true); ?>
                                             <a href="#" class="text-decoration-none social-auth-link" data-auth-provider="facebook">
                                                 <div class="media-container">
                                                     <img class="media-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/facebook-icon.jpg') ?>">
-                                                    <p class="text-s">Signup with Facebook</p>
+                                                    <p class="text-s mb-0">Sign up with Facebook</p>
                                                 </div>
                                             </a>
                                         <?php } ?>
@@ -450,9 +462,12 @@ $system_settings = get_settings('system_settings', true); ?>
                         <!-- signup 2 -->
                         <div id="signuptwo" class="login rounded-1">
 
-                            <div style="position: absolute; width: 100%; height: 100%; pointer-events: none;">
-                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                            </div>
+                            <?php /* Placed directly inside .login (which is position:relative) and
+                                     pinned top-right by CSS - the same pattern the login modal uses.
+                                     The old full-size pointer-events:none wrapper left the button in
+                                     the top-LEFT corner, since align-self only applies in a flex
+                                     container and that wrapper was a plain block. */ ?>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 
                             <div class="login-left pb-4">
                                 <h1 class="heading-n ta-c">Sign Up</h1>
@@ -461,36 +476,41 @@ $system_settings = get_settings('system_settings', true); ?>
                                 <input type="hidden" class='form-input form-control' id="type" name="type" value="phone" autocomplete="off">
 
                                 <div class="field-container">
-                                    <input type="text" class='form-input form-control input ta-c' placeholder="Enter OTP" id="otp" name="otp" autocomplete="off">
-                                    <!-- <br> -->
-                                    <input type="text" class='form-input form-control input ta-c' placeholder="Enter Username" id="name" name="name">
-                                    <!-- <br> -->
-                                    <input type="email" class='form-input form-control input ta-c' placeholder="Enter your Email" id="email" name="email">
-                                    <!-- <br> -->
-                                    <div class="password-container">
-                                        <input type="password" class='form-input form-control input ta-c' placeholder="Enter Password" id="password" name="password">
-                                        <input class="form-input form-control input ta-c" type="password" placeholder="Re-enter Password" id="confirm-password">
-                                        <!-- <span class="password-toggle d-flex"><i class="uil uil-eye mb-4 mr-2"></i></span> -->
+                                    <input type="text" class='form-input form-control input' placeholder="Enter OTP" id="otp" name="otp" autocomplete="one-time-code" inputmode="numeric">
+                                    <input type="text" class='form-input form-control input' placeholder="Enter Username" id="name" name="name" autocomplete="username">
+                                    <?php /* Email is optional: accounts are keyed on mobile (the ion_auth
+                                             identity), and Auth::register_user() no longer requires it. */ ?>
+                                    <input type="email" class='form-input form-control input' placeholder="Email (optional)" id="email" name="email" autocomplete="email">
+
+                                    <?php /* Each password gets its own .password-field wrapper and its own
+                                             toggle. theme.js passVisibility() binds per .password-field, so
+                                             the previous single shared .password-toggle inside
+                                             .password-container was never bound at all. */ ?>
+                                    <div class="password-field">
+                                        <input type="password" class='form-input form-control input' placeholder="Enter Password" id="password" name="password" autocomplete="new-password">
+                                        <span class="password-toggle"><i class="uil uil-eye"></i></span>
+                                    </div>
+                                    <div class="password-field">
+                                        <input type="password" class="form-input form-control input" placeholder="Re-enter Password" id="confirm-password" autocomplete="new-password">
                                         <span class="password-toggle"><i class="uil uil-eye"></i></span>
                                     </div>
 
-                                    <!-- <div class="col-12 d-flex justify-content-center pb-4">
-                                        <div id='registration-error' class='text-center p-3 text-danger'></div>
-                                    </div> -->
-                                    <div id='registration-error' class='text-center p-3 text-danger'></div>
-                                    
-                                    <div>
-                                        <div>
-                                            <input class="checkbox" type="checkbox">
-                                            <label class="label text-n">Remember Me</label>
+                                    <div id='registration-error' class='text-center text-danger reg-error'></div>
+
+                                    <div class="signup-checks">
+                                        <div class="form-check-row">
+                                            <input class="checkbox" type="checkbox" id="signup-remember-me">
+                                            <label class="label text-n" for="signup-remember-me">Remember Me</label>
                                         </div>
-                                        <div>
-                                            <input class="checkbox" type="checkbox">
-                                            <label class="label text-n">Terms & Conditions</label>
+                                        <div class="form-check-row">
+                                            <input class="checkbox" type="checkbox" id="signup-terms">
+                                            <label class="label text-n" for="signup-terms">I agree to the
+                                                <a href="<?= base_url('terms-and-conditions') ?>" target="_blank" rel="noopener" class="terms-link">Terms &amp; Conditions</a>
+                                            </label>
                                         </div>
                                     </div>
                                 </div>
-                                
+
                                 <div class="ta-c btn-container">
                                     <button type="submit" id='register_submit_btn' class="cretzo btn btn-dark">Register Now</button>
                                 </div>

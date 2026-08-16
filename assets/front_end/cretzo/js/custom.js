@@ -86,80 +86,151 @@ var currency = $('#currency').val();
 var auth_settings = $('#auth_settings').val();
 console.log(auth_settings);
 
+/* ---------------------------------------------------------------------------
+ * Shared signup-modal helpers.
+ *
+ * Both the "firebase" and "sms" branches below drive the same two-step markup
+ * (#send-otp-form -> #verify-otp-form), so step switching, button reset and
+ * step-2 validation live here once instead of being copy-pasted (and drifting)
+ * between the two branches.
+ * ------------------------------------------------------------------------- */
+
+// Step 1 was hidden with .hide() but step 2 was revealed by dropping .d-none.
+// The modal's show.bs.modal reset only re-showed step 1 and never re-added
+// .d-none, so re-opening the modal after a completed/abandoned attempt painted
+// BOTH steps stacked in one dialog. Toggling both directions here fixes that.
+function showSignupStep(step) {
+    if (step === 2) {
+        $("#send-otp-form").hide();
+        $("#otp_div").show();
+        $("#verify-otp-form").removeClass("d-none").show();
+    } else {
+        $("#verify-otp-form").addClass("d-none").hide();
+        $("#send-otp-form").show();
+    }
+}
+
+function resetRegisterButton() {
+    $("#register_submit_btn").html("Register Now").attr("disabled", !1);
+}
+
+// Returns an error message, or "" when the step-2 fields are good to submit.
+function validateSignupFields() {
+    if (!$.trim($("#otp").val())) return "Please enter the OTP sent to your phone.";
+    if (!$.trim($("#name").val())) return "Please enter a username.";
+    if (!$("#password").val()) return "Please enter a password.";
+    // .val() on both sides - the sms branch used to compare the jQuery objects
+    // themselves, which are never === equal, so it rejected every single signup
+    // with "Passwords do not match !" no matter what was typed.
+    if ($("#confirm-password").val() !== $("#password").val()) return "Passwords do not match !";
+    if (!$("#signup-terms").is(":checked")) return "Please accept the Terms & Conditions to continue.";
+    return "";
+}
+
+function showRegistrationError(message) {
+    $("#registration-error").html(message).show();
+    resetRegisterButton();
+}
+
+// Shared success path for both branches.
+function onRegistrationSuccess(e) {
+    Toast.fire({ icon: "success", title: e.message });
+    resetRegisterButton();
+    $("#registration-error").html("");
+    $("#modal-signup").hide();
+    $('#modal-signup').addClass('d-none');
+    $("#modal-signin").show();
+    $('#modal-signin').addClass('d-block show');
+}
+
 if (auth_settings == "firebase") {
+
+    // Firebase's confirmationResult, held at module scope. It used to be captured
+    // by a $(document).on("submit", "#verify-otp-form", ...) handler registered
+    // INSIDE the signInWithPhoneNumber callback - so every "Send OTP" click bound
+    // one more delegated handler to the document, and the Nth attempt fired N
+    // parallel registrations for a single click of Register Now.
+    window.otpConfirmationResult = null;
 
     function onSignInSubmit(e) {
         if (e.preventDefault(), isPhoneNumberValid()) {
             $("#send-otp-button").html("Please Wait...");
             var t = is_user_exist();
-            console.log(t);
             if (updateSignInButtonUI(), 1 == t.error) $("#is-user-exist-error").html(t.message), $("#send-otp-button").html("Send OTP");
             else {
                 window.signingIn = !0;
                 var a = getPhoneNumberFromUserInput(),
                     r = window.recaptchaVerifier;
                 firebase.auth().signInWithPhoneNumber(a, r).then(function (e) {
-                    $("#send-otp-button").html("Send OTP"), $(".send-otp-form").unblock(), window.signingIn = !1, updateSignInButtonUI(), resetRecaptcha(),
-                        $("#send-otp-form").hide(),
-                        $("#otp_div").show(),
-                        $("#verify-otp-form").removeClass("d-none"),
-                        $(document).on("submit", "#verify-otp-form", function (t) {
-                            t.preventDefault(), $("#registration-error").html("");
-
-                            if($("#confirm-password").val() !== $("#password").val()){
-                                $("#registration-error").html("Passwords do not match !").show();
-                                return;
-                            }
-
-                            var a = $("#otp").val(),
-                                r = new FormData(this),
-                                s = $(this).attr("action");
-                            $("#register_submit_btn").html("Please Wait...").attr("disabled", !0), e.confirm(a).then(function (e) {
-                                r.append(csrfName, csrfHash), r.append("mobile", $("#phone-number").val()), r.append("country_code", $(".selected-dial-code").text()), $.ajax({
-                                    type: "POST",
-                                    url: s,
-                                    data: r,
-                                    processData: !1,
-                                    contentType: !1,
-                                    cache: !1,
-                                    dataType: "json",
-                                    beforeSend: function () {
-                                        $("#register_submit_btn").html("Please Wait...").attr("disabled", !0)
-                                    },
-                                    success: function (e) {
-                                        csrfName = e.csrfName,
-                                            csrfHash = e.csrfHash;
-                                        if (e.error == true) {
-                                            $("#register_submit_btn").html("Submit").attr("disabled", !1),
-                                                Toast.fire({
-                                                    icon: "error",
-                                                    title: e.message
-                                                });
-                                        } else {
-                                            Toast.fire({
-                                                icon: "success",
-                                                title: e.message
-                                            });
-                                            $("#register_submit_btn").html("Submit").attr("disabled", !1), $("#registration-error").html(e.message).show();
-                                            $("#modal-signup").hide();
-                                            $('#modal-signup').addClass('d-none');
-                                            // $('#login').addClass('active');
-                                            // $('#register').removeClass('active');
-                                            $("#modal-signin").show();
-                                            $('#modal-signin').addClass('d-block show');
-                                        }
-                                    }
-                                })
-                            }).catch(function (e) {
-                                $("#register_submit_btn").html("Please Wait...").attr("disabled", !0), $("#registration-error").html("Invalid OTP. Please Enter Valid OTP").show()
-                            })
-                        })
+                    window.otpConfirmationResult = e;
+                    $("#send-otp-button").html("Send OTP"), $(".send-otp-form").unblock(), window.signingIn = !1, updateSignInButtonUI(), resetRecaptcha();
+                    resetRegisterButton();
+                    $("#registration-error").html("");
+                    showSignupStep(2);
                 }).catch(function (e) {
                     window.signingIn = !1, $("#is-user-exist-error").html(e.message).show(), $("#send-otp-button").html("Send OTP"), updateSignInButtonUI(), resetRecaptcha()
                 })
             }
         }
     }
+
+    // Bound once, at load, outside any callback.
+    $(document).on("submit", "#verify-otp-form", function (t) {
+        t.preventDefault();
+        $("#registration-error").html("");
+
+        var problem = validateSignupFields();
+        if (problem) {
+            showRegistrationError(problem);
+            return;
+        }
+        if (!window.otpConfirmationResult) {
+            showRegistrationError("Your OTP session expired. Please request a new OTP.");
+            return;
+        }
+
+        var otp = $("#otp").val(),
+            formData = new FormData(this),
+            action = $(this).attr("action");
+
+        $("#register_submit_btn").html("Please Wait...").attr("disabled", !0);
+
+        window.otpConfirmationResult.confirm(otp).then(function () {
+            formData.append(csrfName, csrfHash);
+            formData.append("mobile", $("#phone-number").val());
+            formData.append("country_code", $(".selected-dial-code").text());
+            $.ajax({
+                type: "POST",
+                url: action,
+                data: formData,
+                processData: !1,
+                contentType: !1,
+                cache: !1,
+                dataType: "json",
+                success: function (e) {
+                    csrfName = e.csrfName;
+                    csrfHash = e.csrfHash;
+                    if (e.error == true) {
+                        resetRegisterButton();
+                        Toast.fire({ icon: "error", title: e.message });
+                        $("#registration-error").html(e.message).show();
+                    } else {
+                        onRegistrationSuccess(e);
+                    }
+                },
+                error: function () {
+                    // Without this the button stayed on "Please Wait..." forever
+                    // whenever the request itself failed.
+                    showRegistrationError("Something went wrong. Please try again.");
+                }
+            })
+        }).catch(function () {
+            // Was setting "Please Wait..." + disabled here, which is what left the
+            // button permanently dead after a wrong OTP - the user could see the
+            // error but had no way to retry without reloading the page.
+            showRegistrationError("Invalid OTP. Please Enter Valid OTP");
+        })
+    });
 
     window.onload = function () {
         document.getElementById("send-otp-form").addEventListener("submit", onSignInSubmit),
@@ -202,73 +273,55 @@ if (auth_settings == "sms") {
             },
             dataType: "json",
             success: function (e) {
-                console.log(e);
                 csrfName = e.csrfName,
                     csrfHash = e.csrfHash,
-                    resetRecaptcha(),
-                    $("#send-otp-form").hide(),
-                    $("#otp_div").show(),
-                    $("#verify-otp-form").removeClass("d-none");
+                    resetRecaptcha();
+                resetRegisterButton();
+                $("#registration-error").html("");
+                showSignupStep(2);
             }
         })
     });
 
     $(document).on("submit", "#verify-otp-form", function (t) {
-        t.preventDefault(),
-            console.log("in otp form ");
+        t.preventDefault();
         $("#registration-error").html("");
 
-        if($("#confirm-password") !== $("#password")){
-            $("#registration-error").html("Passwords do not match !").show();
+        var problem = validateSignupFields();
+        if (problem) {
+            showRegistrationError(problem);
             return;
         }
 
-        var a = $("#otp").val(),
-            r = new FormData(this),
-            s = $(this).attr("action");
+        var formData = new FormData(this),
+            action = $(this).attr("action");
         $("#register_submit_btn").html("Please Wait...").attr("disabled", !0);
-        // e.confirm(a).then(function (e) {
-        r.append(csrfName, csrfHash),
-            r.append("mobile", $("#phone-number").val()),
-            r.append("country_code", $(".selected-dial-code").text()),
-            $.ajax({
-                type: "POST",
-                url: s,
-                data: r,
-                processData: !1,
-                contentType: !1,
-                cache: !1,
-                dataType: "json",
-                beforeSend: function () {
-                    $("#register_submit_btn").html("Please Wait...").attr("disabled", !0)
-                },
-                success: function (e) {
-                    console.log(e);
-                    csrfName = e.csrfName;
-                    csrfHash = e.csrfHash;
-                    if (e.error == true) {
-                        $("#register_submit_btn").html("Submit").attr("disabled", !1),
-                            Toast.fire({
-                                icon: "error",
-                                title: e.message
-                            });
-                    } else {
-                        Toast.fire({
-                            icon: "success",
-                            title: e.message
-                        });
-                        $("#register_submit_btn").html("Submit").attr("disabled", !1),
-                            $("#registration-error").html(e.message).show();
-                        $("#modal-signup").hide();
-                        $('#modal-signup').addClass('d-none');
-                        // $('#login').addClass('active');
-                        // $('#register').removeClass('active');
-                        $("#modal-signin").show();
-                        $('#modal-signin').addClass('d-block show');
-                    }
+        formData.append(csrfName, csrfHash);
+        formData.append("mobile", $("#phone-number").val());
+        formData.append("country_code", $(".selected-dial-code").text());
+        $.ajax({
+            type: "POST",
+            url: action,
+            data: formData,
+            processData: !1,
+            contentType: !1,
+            cache: !1,
+            dataType: "json",
+            success: function (e) {
+                csrfName = e.csrfName;
+                csrfHash = e.csrfHash;
+                if (e.error == true) {
+                    resetRegisterButton();
+                    Toast.fire({ icon: "error", title: e.message });
+                    $("#registration-error").html(e.message).show();
+                } else {
+                    onRegistrationSuccess(e);
                 }
-            })
-        // })
+            },
+            error: function () {
+                showRegistrationError("Something went wrong. Please try again.");
+            }
+        })
     })
 
     function resetRecaptcha() {
@@ -1390,10 +1443,19 @@ search_products.on("select2:select", function (e) {
         const listnerElement = document.getElementById("modal-signup")
         if (listnerElement != null) {
             document.getElementById("modal-signup").addEventListener("show.bs.modal", () => {
-                console.log("show instance method called!"),
-                    //  closeNav(), 
+                    //  closeNav(),
                     $(".send-otp-form")[0].reset(),
-                    $(".send-otp-form").show(), $(".sign-up-form")[0].reset(), $(".sign-up-form").hide(),
+                    $(".sign-up-form")[0].reset(), $(".sign-up-form").hide(),
+
+                    // Reset to step 1 properly. This used to only .show() step 1 and
+                    // never re-add .d-none to #verify-otp-form, so once step 2 had been
+                    // reached the modal reopened with both steps rendered on top of
+                    // each other.
+                    showSignupStep(1),
+                    $("#verify-otp-form")[0].reset(),
+                    window.otpConfirmationResult = null,
+                    resetRegisterButton(),
+                    $("#registration-error").html(""),
 
                     $("#is-user-exist-error").html(""), $("#sign-up-error").html(""), $("#recaptcha-container").html(""), window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier("recaptcha-container"), window.recaptchaVerifier.render().then(function (e) {
                         if (typeof grecaptcha !== 'undefined' && typeof grecaptcha.reset === 'function') {

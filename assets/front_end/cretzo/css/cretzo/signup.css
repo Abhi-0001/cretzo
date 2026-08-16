@@ -13,27 +13,43 @@
 #register_div > form{
     width: 100%;
 }
+/* Width now comes from the .modal-lg dialog rather than 60vw, so the panel can no
+   longer be wider than the container Bootstrap centres. */
 #register_div .login{
-    width: 60vw;
-    max-width: 800px;
+    width: 100%;
     min-height: 300px;
     background-color: white;
-    /* border: 1px solid rgba(0, 0, 0, 0.1); */
-    border-radius: 30px;
-    /* box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1); */
+    border-radius: 20px;
     display: flex;
     overflow: hidden;
     position: relative;
 }
+/* 58/42 split, matching #login_div in login.css so both modals line up. */
 #register_div .login-left{
-    width: 70%;
-    padding: 40px 40px 60px 40px;
+    width: 58%;
+    padding: 36px 40px 28px 40px;
 }
 #register_div .input{
-    margin-bottom: 10px;
+    margin-bottom: 12px;
+    height: 46px;
+    border: 1px solid rgba(0, 0, 0, 0.14);
+    border-radius: 10px;
+    font-size: 0.95rem;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+/* #phone-number is excluded: intlTelInput sets its padding-left itself (via the
+   .iti-sdc-N classes) to clear the flag/dial-code, and a blanket padding here
+   overwrote that and drew the country code on top of the text. */
+#register_div .input:not(#phone-number){
+    padding: 0 14px;
+}
+#register_div .input:focus{
+    border-color: var(--color-orange);
+    box-shadow: 0 0 0 3px rgba(232, 125, 42, 0.12);
+    outline: none;
 }
 #register_div .login-right{
-    width: 30%;
+    width: 42%;
     /* background-image: url(../images/login-img.png); */
     background-repeat: no-repeat;
     background-size: cover;
@@ -43,14 +59,63 @@
     margin-bottom: 10px;
 }
 #register_div .field-container{
-    margin: 20px 0;
+    margin: 18px 0 14px;
 }
 #register_div .btn-container{
     /* margin-top: 20px; */
 }
-#register_div .password-container{
+/* Each password input is its own row with its own eye toggle, so the two no longer
+   share a single cramped flex row (and a single toggle that drove neither). */
+#register_div .password-field{
+    position: relative;
+    margin-bottom: 12px;
+}
+#register_div .password-field .input{
+    margin-bottom: 0;
+    padding-right: 42px;
+}
+#register_div .signup-checks{
     display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 4px;
+}
+#register_div .form-check-row{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+#register_div .form-check-row .label{
+    margin-bottom: 0;
+    line-height: 1.3;
+}
+#register_div .terms-link{
+    color: var(--color-orange);
+    text-decoration: underline;
+    font-weight: 600;
+}
+#register_div .reg-error:empty{
+    display: none;
+}
+#register_div .reg-error{
+    padding: 8px 0 2px;
+    font-size: 0.88rem;
+}
+/* "or" rule between the phone form and the social buttons. */
+#register_div .or-divider{
+    display: flex;
+    align-items: center;
     gap: 10px;
+    margin: 16px 0 12px;
+    color: rgba(0, 0, 0, 0.45);
+    font-size: 0.85rem;
+}
+#register_div .or-divider::before,
+#register_div .or-divider::after{
+    content: "";
+    flex: 1;
+    height: 1px;
+    background-color: rgba(0, 0, 0, 0.12);
 }
 #register_div .page-icon-container{
     /* width: calc(70% - 80px); */
@@ -73,37 +138,68 @@
 }
 
 /* --- Style overrides over default template STARTS --- */
+/* Google and Facebook sit side by side rather than stacked. */
 #register_div .login-with-container{
     display: flex;
-    flex-direction: column;
-    gap: 5px;
-    align-items: center;
+    flex-direction: row;
+    gap: 10px;
+    align-items: stretch;
+}
+#register_div .login-with-container > a{
+    flex: 1 1 0;
+    min-width: 0;
 }
 #register_div .media-container{
-    padding: 10px;
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    border-radius: 2px;
-    width: 200px;
-    /* box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.04); */
+    padding: 10px 8px;
+    border: 1px solid rgba(0, 0, 0, 0.14);
+    border-radius: 10px;
+    width: 100%;
+    height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 5px;
+    gap: 8px;
     cursor: pointer;
+    transition: border-color .15s ease, background-color .15s ease;
+}
+/* The labels are full sentences ("Sign up with Facebook"), so they must not wrap
+   inside these two side-by-side buttons. */
+#register_div .media-container p{
+    margin-bottom: 0;
+    white-space: nowrap;
+    font-size: 0.8rem;
+}
+#register_div .media-container:hover{
+    border-color: rgba(0, 0, 0, 0.3);
+    background-color: rgba(0, 0, 0, 0.02);
 }
 #register_div .media-icon{
     height: 20px;
     width: auto;
 }
 
+/* Kept identical to the #login_div / #forgot_password_div rule in login.css so the
+   close button sits in the same top-right spot, and looks the same, in every auth
+   modal. It was previously position:relative with align-self:baseline, which in a
+   non-flex wrapper simply rendered it in the top-LEFT corner. */
 #register_div .btn-close {
-    position: relative;
-    align-self: baseline;
-    top: initial;
-    left: initial;
-    right: initial;
-    bottom: initial;
-    margin: 12px;
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    left: auto;
+    bottom: auto;
+    margin: 0;
+    z-index: 4;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    background-color: rgba(255, 255, 255, 0.9);
+    border-radius: 50%;
+    opacity: 1;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+    background-size: 12px;
+    background-position: center;
+    background-origin: border-box;
     pointer-events: auto;
 }
 #register_div input.form-control{
@@ -123,51 +219,45 @@
 #register_div .field-container .selected-dial-code {
     padding-left: 28px;
 }
+/* Anchored inside its own .password-field row, vertically centred on the input. */
 #register_div .password-toggle{
-    position: relative;
-    top: initial;
+    position: absolute;
+    top: 50%;
+    right: 14px;
     transform: translateY(-50%);
-    transform: none;
-    right: initial;
     cursor: pointer;
-    font-size: 0.9rem;
+    font-size: 1rem;
+    line-height: 1;
     color: #959ca9;
-    align-self: center;
-    align-content: center;
-    align-items: center;
+    z-index: 3;
 }
+#register_div .password-toggle:hover{
+    color: var(--color-orange);
+}
+/* Auto width, not 100% - the button is centred by .btn-container's ta-c and should
+   read as a compact action, not a full-width bar. */
 #register_div .cretzo.btn{
-    padding: 4px 60px;
+    padding: 8px 32px;
+    border-radius: 10px;
+    width: auto;
+    min-width: 150px;
 }
 /* --- Style overrides over default template ENDS --- */
 
-@media screen and (max-width: 1200px){
-    #register_div .login{
-        width: 70vw;
-    }
-}
-@media screen and (max-width: 1000px){
-    #register_div .login{
-        width: 80vw;
-    }
-}
+/* The vw-based widths that used to live here are gone: the .modal-lg dialog now
+   sizes the panel, and a vw width wider than that dialog was what pushed the
+   whole modal off-centre. Only padding/layout changes remain per breakpoint. */
 @media screen and (max-width: 800px){
-    #register_div .login{
-        width: 90vw;
-    }
     #register_div .login-left{
-        padding: 40px 40px 10px 40px;
+        padding: 32px 32px 20px 32px;
     }
 }
 @media screen and (max-width: 600px){
     #register_div .login-container{
         padding: 20px 10px;
     }
-    #register_div .login{
-        width: 100%;
-    }
     #register_div .login-left{
-        padding: 20px 20px 10px 20px;
+        padding: 20px 20px 16px 20px;
     }
 }
 @media screen and (max-width: 500px){

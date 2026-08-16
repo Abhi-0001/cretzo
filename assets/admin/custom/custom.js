@@ -2643,7 +2643,10 @@ $(document).on('change', '#product_type_menu', function () {
         $('.quantity_step_size').addClass('d-none');
         $('.deliverable_type').addClass('d-none');
         $('.hsn_code').addClass('d-none');
-        $('#product-dimensions').addClass('d-none');
+        // .product-dimensions covers the weight/height/breadth/length row too. The id
+        // alone matched only the caption row above it (the seller form had the same id
+        // on both), leaving the actual dimension inputs visible for digital products.
+        $('#product-dimensions, .product-dimensions').addClass('d-none');
         $('.is_attachment_required').addClass('d-none');
         $('.standdard_shipping').addClass('d-none');
 
@@ -2663,7 +2666,7 @@ $(document).on('change', '#product_type_menu', function () {
         $('.quantity_step_size').removeClass('d-none');
         $('.deliverable_type').removeClass('d-none');
         $('.hsn_code').removeClass('d-none');
-        $('#product-dimensions').removeClass('d-none');
+        $('#product-dimensions, .product-dimensions').removeClass('d-none');
         $('.is_attachment_required').removeClass('d-none');
         $('.standdard_shipping').removeClass('d-none');
     }
