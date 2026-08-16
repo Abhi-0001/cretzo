@@ -87,6 +87,19 @@ class Order_model extends CI_Model
                     if ($this->db->trans_status() === TRUE) {
                         $response = TRUE;
                     }
+                    /* Record WHEN the item was delivered. The seller-payout delay and the
+                       customer return window are both meant to run from this moment, but
+                       nothing recorded it - the settlement sweep fell back to the order
+                       placement date, which elapses earlier and paid sellers out while the
+                       buyer could still return the item. Guarded on delivered_at IS NULL so a
+                       repeated status write can't move the clock forward. */
+                    if ($current_status == 'delivered' && $table == 'order_items') {
+                        $this->db->set('delivered_at', $currTime)
+                            ->where('id', $row['id'])
+                            ->where('delivered_at IS NULL', null, false)
+                            ->update('order_items');
+                    }
+
                     /* give commission to the delivery boy if the order is delivered */
                     if ($current_status == 'delivered') {
                         $order = fetch_details('order_items', $where, 'delivery_boy_id,order_id,sub_total');
@@ -168,6 +181,76 @@ class Order_model extends CI_Model
 
             return $response;
         }
+    }
+
+    /**
+     * Cancel unpaid orders that were abandoned, and return their stock.
+     *
+     * Stock is taken at order CREATION, before payment. For COD and for gateways verified
+     * before place_order() that is fine, but bank transfer and the app's online-payment flow
+     * leave the order sitting at 'awaiting' with its stock already deducted. If the customer
+     * simply closes the tab, nothing ever cancels that order - so the stock stayed held
+     * indefinitely, invisibly, with no sale behind it. There was no expiry job of any kind.
+     *
+     * Only 'awaiting' items are touched. That status means "created, payment not confirmed":
+     * every path that confirms a payment moves the item to 'received' first, so a paid order
+     * can never be caught here.
+     *
+     * Idempotent - a cancelled item no longer matches the filter, so a second run restores
+     * nothing. Safe to schedule as often as you like.
+     *
+     * @param  int $hours How long an order may sit unpaid before it is released.
+     * @return array{orders: int, items_restored: int}
+     */
+    public function expire_abandoned_orders($hours = 48)
+    {
+        $hours = max(1, (int) $hours);
+        $cutoff = date('Y-m-d H:i:s', strtotime('-' . $hours . ' hours'));
+
+        $stale = $this->db
+            ->select('DISTINCT order_id', false)
+            ->where('active_status', 'awaiting')
+            ->where('date_added <', $cutoff)
+            ->get('order_items')
+            ->result_array();
+
+        $orders = 0;
+        $items_restored = 0;
+
+        foreach ($stale as $row) {
+            $order_id = $row['order_id'];
+
+            // Restore only the lines still awaiting - an order can be partly progressed.
+            $items = $this->db
+                ->select('product_variant_id, quantity')
+                ->where('order_id', $order_id)
+                ->where('active_status', 'awaiting')
+                ->get('order_items')
+                ->result_array();
+
+            if (empty($items)) {
+                continue;
+            }
+
+            set_stock_movement_context('expiry_restore', $order_id, null, 'Unpaid for over ' . $hours . 'h');
+            update_stock(
+                array_column($items, 'product_variant_id'),
+                array_column($items, 'quantity'),
+                'plus'
+            );
+
+            $this->db->where('order_id', $order_id)
+                ->where('active_status', 'awaiting')
+                ->update('order_items', [
+                    'active_status' => 'cancelled',
+                    'status' => json_encode([['cancelled', date('d-m-Y h:i:sa')]]),
+                ]);
+
+            $orders++;
+            $items_restored += count($items);
+        }
+
+        return ['orders' => $orders, 'items_restored' => $items_restored];
     }
 
     public function update_order_item($id, $status, $return_request = 0, $fromapp = false)
@@ -297,7 +380,13 @@ class Order_model extends CI_Model
 
                 $tax_percentage[$i] = (!empty($product_variant[$i]['tax_percentage'])) ? $product_variant[$i]['tax_percentage'] : 0;
                 if ($tax_percentage[$i] != NUll && $tax_percentage[$i] > 0) {
-                    $tax_amount[$i] = round($subtotal[$i] *  $tax_percentage[$i] / 100, 2);
+                    // Was `round($subtotal[$i] * $tax_percentage[$i] / 100, 2)`, which applied
+                    // the tax rate to a subtotal that ALREADY contains the tax - overstating it
+                    // (a 1,000 line at 18% stored 212.40 instead of 180.00, and the error grows
+                    // with the rate). $subtotal is tax-inclusive in both pricing modes, so the
+                    // tax it contains is extracted, not re-applied.
+                    $taxable_value = $subtotal[$i] / (1 + ($tax_percentage[$i] / 100));
+                    $tax_amount[$i] = round($subtotal[$i] - $taxable_value, 2);
                 } else {
                     $tax_amount[$i] = 0;
                     $tax_percentage[$i] = 0;
@@ -476,6 +565,10 @@ class Order_model extends CI_Model
             $this->db->insert('orders', $order_data);
             $last_order_id = $this->db->insert_id();
 
+            // Commission rate resolved once per seller on this order, then reused for each of
+            // that seller's lines (see the item loop below).
+            $resolved_commission = [];
+
 
             for ($i = 0; $i < count($product_variant); $i++) {
 
@@ -495,6 +588,19 @@ class Order_model extends CI_Model
                     'active_status' => $status,
                     'otp' => 0,
                 ];
+
+                // Fix the commission rate to the sale, here and now. It used to be resolved at
+                // settlement time from the seller's CURRENT plan - which can be weeks later, so
+                // a seller who changed plan in between had the new rate applied retroactively to
+                // sales already completed under the old one. Resolved once per seller per order,
+                // so every line of a multi-item order carries the same rate.
+                $item_seller_id = $product_variant[$i]['seller_id'];
+                if (!isset($resolved_commission[$item_seller_id])) {
+                    $this->load->model('Seller_model');
+                    $resolved_commission[$item_seller_id] = $this->Seller_model->resolve_commission_rate($item_seller_id);
+                }
+                $product_variant_data[$i]['commission_rate'] = $resolved_commission[$item_seller_id]['rate'];
+                $product_variant_data[$i]['commission_rate_source'] = $resolved_commission[$item_seller_id]['source'];
                 $this->db->insert('order_items', $product_variant_data[$i]);
                 $order_item_id = $this->db->insert_id();
                 if (isset($product_variant[$i]['download_link']) && !empty($product_variant[$i]['download_link'])) {
@@ -543,6 +649,7 @@ class Order_model extends CI_Model
             $qtns = explode(',', $data['quantity'] ?? '');
             // $qtns = array_reverse($qtns);
 
+            set_stock_movement_context('order_deduct', $last_order_id, isset($data['user_id']) ? $data['user_id'] : null);
             update_stock($product_variant_ids, $qtns);
 
             $overall_total = array(

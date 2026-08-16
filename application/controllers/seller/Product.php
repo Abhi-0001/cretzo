@@ -1161,7 +1161,8 @@ class Product extends CI_Controller
                             }
                             $data['type'] = $row[2];
                             if ($row[3] != '') {
-                                $data['stock_type'] = $row[3];
+                                // Same normalisation as the admin importer: raw CSV cells bypassed every guard.
+                                $data['stock_type'] = normalise_stock_type($row[3]);
                             }
 
                             $data['name'] = $row[4];
@@ -1211,7 +1212,7 @@ class Product extends CI_Controller
                                 $data['sku'] = $row[23];
                             }
                             if (!empty($row[24])) {
-                                $data['stock'] = $row[24];
+                                $data['stock'] = sanitise_import_stock($row[24]);
                             }
                             if ($row[25] != '') {
                                 $data['availability'] = $row[25];
@@ -1278,7 +1279,7 @@ class Product extends CI_Controller
                                 }
                                 $index++;
                                 if (isset($row[$index]) && !empty($row[$index])) {
-                                    $variant_data[$i]['stock'] = $row[$index];
+                                    $variant_data[$i]['stock'] = sanitise_import_stock($row[$index]);
                                 }
 
                                 $index++;
@@ -1448,7 +1449,7 @@ class Product extends CI_Controller
                                     $data['type'] = $product[0]['type'];
                                 }
                                 if ($row[4] != '') {
-                                    $data['stock_type'] = $row[4];
+                                    $data['stock_type'] = normalise_stock_type($row[4]);
                                 } else {
                                     $data['stock_type'] = $product[0]['stock_type'];
                                 }
@@ -1550,7 +1551,7 @@ class Product extends CI_Controller
                                     $data['sku'] = $product[0]['sku'];
                                 }
                                 if ($row[24] != '') {
-                                    $data['stock'] = $row[24];
+                                    $data['stock'] = sanitise_import_stock($row[24]);
                                 } else {
                                     $data['stock'] = $product[0]['stock'];
                                 }
@@ -1645,7 +1646,7 @@ class Product extends CI_Controller
                                     }
                                     $index++;
                                     if (isset($row[$index]) && $row[$index] != '') {
-                                        $variant_data[$i]['stock'] = $row[$index];
+                                        $variant_data[$i]['stock'] = sanitise_import_stock($row[$index]);
                                     } else {
                                         $variant_data[$i]['stock'] = $variant[0]['stock'];
                                     }

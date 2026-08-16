@@ -198,7 +198,13 @@ class Webhook extends CI_Controller
                                 ["customer" => [$user_fcm[0]['mobile']]],
                                 ["orders.id" => $order_id]
                             );
-                            update_stock($order['order_data'][0]['product_variant_ids'], $order['order_data'][0]['quantity'], 'plus');
+                            // The payment SUCCEEDED here - place_order() has already taken this
+                            // order's stock, so there was nothing to give back. This line ADDED it
+                            // back on every successful payment. In practice it never ran: the keys
+                            // it reads are not produced by fetch_orders(), so both arguments were
+                            // NULL and update_stock() fataled on an invalid ORDER BY - which meant
+                            // every Razorpay success crashed this webhook after the payment was
+                            // recorded, and Razorpay retried it. Removed entirely.
                         }
                     }
                 } else {
@@ -215,7 +221,10 @@ class Webhook extends CI_Controller
                 //$order = fetch_orders($order_id, false, false, false, false, false, false, false);
 
                 if (!empty($order_id)) {
-                    // update_stock($order['order_data'][0]['product_variant_ids'], $order['order_data'][0]['quantity'], 'plus');
+                    // The restore was commented out, so a failed online payment cancelled the
+                    // order but kept its stock held - permanently unsellable with no order to
+                    // show for it. Restored, via the helper that reads the real order lines.
+                    restore_order_stock($order_id);
                     update_details(['active_status' => 'cancelled'], ['order_id' => $order_id], 'order_items');
                 }
                 /* No need to add because the transaction is already added just update the transaction status */
@@ -369,7 +378,9 @@ class Webhook extends CI_Controller
 
 
                     if (!empty($order_id)) {
-                        // update_stock($order['order_data'][0]['product_variant_ids'], $order['order_data'][0]['quantity'], 'plus');
+                        // Restore was commented out: a failed payment cancelled the order but held
+                        // its stock forever. See restore_order_stock().
+                        restore_order_stock($order_id);
                         update_details(['active_status' => 'cancelled'], ['order_id' => $order_id], 'order_items');
                     }
                     /* No need to add because the transaction is already added just update the transaction status */
@@ -821,7 +832,9 @@ class Webhook extends CI_Controller
                             ["customer" => [$user_fcm[0]['mobile']]],
                             ["orders.id" => $order_id]
                         );
-                        update_stock($order['order_data'][0]['product_variant_ids'], $order['order_data'][0]['quantity'], 'plus');
+                        // Removed: this ran on payment SUCCESS and put the order's stock back
+                        // after place_order() had correctly taken it. See the equivalent comment
+                        // in the Razorpay branch above.
                     }
                 }
             } else {
@@ -838,7 +851,9 @@ class Webhook extends CI_Controller
             //$order = fetch_orders($order_id, false, false, false, false, false, false, false);
 
             if (!empty($order_id)) {
-                // update_stock($order['order_data'][0]['product_variant_ids'], $order['order_data'][0]['quantity'], 'plus');
+                // Restore was commented out: a failed payment cancelled the order but held its
+                // stock forever. See restore_order_stock().
+                restore_order_stock($order_id);
                 update_details(['active_status' => 'cancelled'], ['order_id' => $order_id], 'order_items');
             }
             /* No need to add because the transaction is already added just update the transaction status */

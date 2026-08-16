@@ -26,7 +26,7 @@
                     <a href="<?= base_url() . 'seller/payment-request/send-withdrawal-request' ?>" class="btn btn-primary-theme btn-sm"><i class="fas fa-plus mr-1"></i>Send Withdrawal Request</a>
                 </div>
                 <div class="card-body">
-                    <table class='table-striped' id='payment_request_table' data-toggle="table" data-url="<?= base_url('seller/payment-request/view_withdrawal_request_list') ?>" data-click-to-select="true" data-side-pagination="server" data-pagination="true" data-page-list="[5, 10, 20, 50, 100, 200]" data-search="true" data-show-columns="true" data-show-refresh="true" data-trim-on-search="false" data-sort-name="pr.id" data-sort-order="desc" data-mobile-responsive="true" data-toolbar="" data-show-export="true" data-maintain-selected="true">
+                    <table class='table-striped' id='payment_request_table' data-toggle="table" data-url="<?= base_url('seller/payment-request/view_withdrawal_request_list') ?>" data-click-to-select="true" data-side-pagination="server" data-pagination="true" data-page-list="[5, 10, 20, 50, 100, 200]" data-search="true" data-show-columns="true" data-show-refresh="true" data-trim-on-search="false" data-sort-name="id" data-sort-order="desc" data-mobile-responsive="true" data-toolbar="" data-show-export="true" data-maintain-selected="true">
                         <thead>
                             <tr>
                                 <th data-field="id" data-sortable="true">ID</th>
@@ -36,6 +36,11 @@
                                 <th data-field="amount_requested" data-sortable="false">Amount Requested</th>
                                 <th data-field="remarks" data-sortable="false">Remarks</th>
                                 <th data-field="status" data-sortable="false">Status</th>
+                                <!-- The seller had no way to see the payout reference or when
+                                     the request was actioned - an approved request just showed
+                                     a badge, with nothing to trace the money by. -->
+                                <th data-field="payment_reference" data-sortable="false">Payout Ref.</th>
+                                <th data-field="processed_at" data-sortable="false">Processed On</th>
                                 <th data-field="date_created" data-sortable="false">Date Created</th>
                             </tr>
                         </thead>

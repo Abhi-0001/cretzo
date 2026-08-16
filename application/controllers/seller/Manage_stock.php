@@ -63,10 +63,13 @@ class Manage_stock extends CI_Controller
             return;
         }
 
+        // These were all bare 'required'. quantity accepted anything, so a NEGATIVE quantity
+        // with type=add ran the add branch and SUBTRACTED stock, and a non-numeric value fell
+        // through to intval(). type accepted any string. Matches the admin controller's rules.
+        $this->form_validation->set_rules('variant_id', 'Variant', 'trim|required|numeric|xss_clean');
         $this->form_validation->set_rules('product_name', 'Product Name', 'trim|required|xss_clean');
-        $this->form_validation->set_rules('current_stock', 'Current Stock', 'trim|required|xss_clean');
-        $this->form_validation->set_rules('quantity', 'Quantity', 'trim|required|xss_clean');
-        $this->form_validation->set_rules('type', 'Type', 'trim|required|xss_clean');
+        $this->form_validation->set_rules('quantity', 'Quantity', 'trim|required|numeric|greater_than[0]|xss_clean');
+        $this->form_validation->set_rules('type', 'Type', 'trim|required|in_list[add,subtract]|xss_clean');
         if (!$this->form_validation->run()) {
 
             $this->response['error'] = true;
@@ -92,25 +95,24 @@ class Manage_stock extends CI_Controller
                 print_r(json_encode($this->response));
                 return;
             }
-            if ($_POST['type'] == 'add') {
-                update_stock([$_POST['variant_id']], [$_POST['quantity']], 'plus');
+            if ($this->input->post('type', true) == 'add') {
+                set_stock_movement_context('manual_add', null, $this->ion_auth->get_user_id());
+                update_stock([$this->input->post('variant_id', true)], [$this->input->post('quantity', true)], 'plus');
             } else {
-                if ($_POST['type'] == 'subtract') {
-
-                    if (
-                        $_POST['quantity'] > $_POST['current_stock']
-                    ) {
-                        $this->response['error'] = true;
-                        $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                        $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                        $this->response['message'] = "Subtracted stock cannot be greater than current stock";
-                        print_r(
-                            json_encode($this->response)
-                        );
-                        return;
-                    }
+                // The ceiling was read from a POSTED current_stock field - a number supplied by
+                // the same client making the request, so it proved nothing and could simply be
+                // inflated to subtract past the real stock. Read the actual value instead.
+                $actual = get_variant_current_stock($this->input->post('variant_id', true));
+                if ($actual !== null && $this->input->post('quantity', true) > $actual) {
+                    $this->response['error'] = true;
+                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                    $this->response['message'] = "Subtracted stock cannot be greater than current stock";
+                    print_r(json_encode($this->response));
+                    return;
                 }
-                update_stock([$_POST['variant_id']], [$_POST['quantity']]);
+                set_stock_movement_context('manual_subtract', null, $this->ion_auth->get_user_id());
+                update_stock([$this->input->post('variant_id', true)], [$this->input->post('quantity', true)]);
             }
 
             $this->response['error'] = false;
@@ -120,4 +122,5 @@ class Manage_stock extends CI_Controller
             print_r(json_encode($this->response));
         }
     }
+
 }

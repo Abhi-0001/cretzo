@@ -412,9 +412,15 @@ class Subscription extends CI_Controller
         $this->form_validation->set_rules('price', 'Price', 'trim|required|numeric|greater_than_equal_to[0]|xss_clean');
         $this->form_validation->set_rules('listings_limit', 'Listings Limit', 'trim|xss_clean');
         $this->form_validation->set_rules('validity', 'Validity', 'trim|required|numeric|greater_than[0]|xss_clean');
-        $this->form_validation->set_rules('commission_first50', 'Commission (first 50 orders)', 'trim|numeric|greater_than_equal_to[0]|less_than_equal_to[100]|xss_clean');
-        $this->form_validation->set_rules('commission_51_100', 'Commission (51-100 orders)', 'trim|numeric|greater_than_equal_to[0]|less_than_equal_to[100]|xss_clean');
-        $this->form_validation->set_rules('commission_after100', 'Commission (after 100 orders)', 'trim|numeric|greater_than_equal_to[0]|less_than_equal_to[100]|xss_clean');
+        // 'required' added. These were optional, so a plan could be saved with the commission
+        // fields left blank - they stored NULL, and the settlement engine casts NULL to 0.0,
+        // meaning every seller on that plan was settled at 0% commission and the platform
+        // earned nothing on their sales, silently. (The shipped "Launch Offer" plan is in
+        // exactly this state.) A plan must now state its rate explicitly, including a
+        // deliberate 0.
+        $this->form_validation->set_rules('commission_first50', 'Commission (first 50 orders)', 'trim|required|numeric|greater_than_equal_to[0]|less_than_equal_to[100]|xss_clean');
+        $this->form_validation->set_rules('commission_51_100', 'Commission (51-100 orders)', 'trim|required|numeric|greater_than_equal_to[0]|less_than_equal_to[100]|xss_clean');
+        $this->form_validation->set_rules('commission_after100', 'Commission (after 100 orders)', 'trim|required|numeric|greater_than_equal_to[0]|less_than_equal_to[100]|xss_clean');
         // Feature descriptions had no validation rule at all - completely bypassing xss_clean
         // unlike every other free-text field on this same form.
         $features_post = $this->input->post('features');

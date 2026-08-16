@@ -1207,7 +1207,16 @@ function update_wallet_balance($operation, $user_id, $amount, $message = "Balanc
             return $response;
         }
 
-        if ($user_balance[0]['balance'] >= 0) {
+        // Was `if ($user_balance[0]['balance'] >= 0)`, which refused EVERY operation - credits
+        // and refunds included - whenever the stored balance happened to be negative. A seller
+        // whose balance had gone negative (the old unlocked withdrawal path could overdraw, and
+        // raw update_balance() calls bypass every check) was therefore permanently stranded:
+        // no commission could ever be credited to them again, their delivered orders retried
+        // and failed on every settlement run, and the only visible symptom was an unexplained
+        // "wallet balance less than -X can be used only" error. A credit or refund must always
+        // be allowed - paying money IN is exactly how a negative balance gets corrected. Debits
+        // are unaffected: the `$amount > balance` check above already rejects those.
+        if ($operation != 'debit' || $user_balance[0]['balance'] >= 0) {
             $t = &get_instance();
             $data = [
                 'transaction_type' => $transaction_type,
@@ -1450,6 +1459,156 @@ function userrating_check()
 }
 
 //update_stock()
+/**
+ * Resolve a stock_type value to the documented 0 / 1 / 2, or null for "not tracked".
+ *
+ * stock_type is free text in practice. Alongside NULL, '0', '1' and '2', ten live products
+ * hold the literal string 'simple_product'. Under PHP 8 that string does not loosely equal 0
+ * (it did on PHP 7), so code comparing `stock_type == 0` silently skipped those products
+ * entirely - they sold without their stock ever moving. Everything that branches on
+ * stock_type goes through this so they all agree.
+ *
+ * @return int|null 0 = simple, 1 = product level, 2 = variant level, null = not tracked
+ */
+function normalise_stock_type($stock_type)
+{
+    if ($stock_type === null || $stock_type === '') {
+        return null;
+    }
+    if (is_numeric($stock_type)) {
+        $value = (int) $stock_type;
+        return in_array($value, [0, 1, 2], true) ? $value : null;
+    }
+    if ($stock_type === 'simple_product') {
+        return 0;
+    }
+
+    // Unrecognised marker: treat as untracked rather than guessing a branch.
+    return null;
+}
+
+/**
+ * Clean a stock value arriving from a CSV import.
+ *
+ * The importer wrote the raw cell straight into the column, so a blank, a negative or a
+ * non-numeric value went in untouched - bypassing every guard update_stock() applies and
+ * leaving stock in states the rest of the system does not expect (a negative stock reads as
+ * "available" to the availability flip).
+ *
+ * @return int|null null when the cell is blank, i.e. leave stock untracked.
+ */
+function sanitise_import_stock($value)
+{
+    if ($value === null || trim((string) $value) === '') {
+        return null;
+    }
+    if (!is_numeric($value)) {
+        return null;
+    }
+
+    return max(0, (int) $value);
+}
+
+/**
+ * The stock a variant actually has right now, read from whichever column update_stock() will
+ * change for that product's stock_type.
+ *
+ * All three manual-adjust endpoints (admin, seller panel, seller API) used to cap a subtract
+ * against a `current_stock` value POSTed by the client - a number supplied by the same caller
+ * making the change, so it proved nothing and could simply be inflated to subtract past the
+ * real stock.
+ *
+ * @return int|null null when the product does not track stock, i.e. no ceiling applies.
+ */
+function get_variant_current_stock($variant_id)
+{
+    if (empty($variant_id)) {
+        return null;
+    }
+
+    $t = &get_instance();
+    $row = $t->db->select('p.stock_type, p.stock AS p_stock, pv.stock AS pv_stock')
+        ->join('products p', 'p.id = pv.product_id')
+        ->where('pv.id', $variant_id)
+        ->get('product_variants pv')
+        ->row_array();
+
+    if (empty($row) || $row['stock_type'] === null || $row['stock_type'] === '') {
+        return null;
+    }
+
+    $stock_type = normalise_stock_type($row['stock_type']);
+    if ($stock_type === null) {
+        return null;
+    }
+
+    $stock = ($stock_type === 0) ? $row['p_stock'] : $row['pv_stock'];
+
+    return ($stock === null) ? null : (int) $stock;
+}
+
+/**
+ * Return every line of an order to stock.
+ *
+ * The webhook and payment-cancel paths used to do this by hand, and each got it wrong in a
+ * different way: some passed $order['order_data'][0]['product_variant_ids'], a key
+ * fetch_orders() does not produce (so both arguments were NULL); others restored only
+ * order_items[0], silently losing every line after the first on a multi-item order. Reading
+ * the items straight from the table gets it right in one place.
+ *
+ * @param int $order_id
+ * @return int number of lines restored
+ */
+function restore_order_stock($order_id)
+{
+    if (empty($order_id)) {
+        return 0;
+    }
+
+    $t = &get_instance();
+    $items = $t->db->select('product_variant_id, quantity')
+        ->where('order_id', $order_id)
+        ->get('order_items')
+        ->result_array();
+
+    if (empty($items)) {
+        return 0;
+    }
+
+    set_stock_movement_context('order_restore', $order_id);
+    update_stock(
+        array_column($items, 'product_variant_id'),
+        array_column($items, 'quantity'),
+        'plus'
+    );
+
+    return count($items);
+}
+
+/**
+ * Describe the reason for the next stock movement, so update_stock() can record it.
+ *
+ * update_stock() is reached from ~20 call sites through several layers, and threading a
+ * reason argument through all of them would mean touching every one. This sets it for the
+ * next call instead; update_stock() consumes and clears it, so an unlabelled call can never
+ * inherit a previous one's reason.
+ *
+ * @param string   $reason   order_deduct | order_restore | manual_add | manual_subtract |
+ *                           import | expiry_restore
+ * @param int|null $order_id
+ * @param int|null $user_id
+ */
+function set_stock_movement_context($reason, $order_id = null, $user_id = null, $note = null)
+{
+    $t = &get_instance();
+    $t->_stock_movement_context = [
+        'reason'   => $reason,
+        'order_id' => $order_id,
+        'user_id'  => $user_id,
+        'note'     => $note,
+    ];
+}
+
 function update_stock($product_variant_ids, $qtns, $type = '')
 {
 
@@ -1467,78 +1626,134 @@ function update_stock($product_variant_ids, $qtns, $type = '')
 				-Stock will be stored in product_variant table	
 		*/
     $t = &get_instance();
-    // $res = $t->db->select('p.*,pv.*,p.id as p_id,pv.id as pv_id,p.stock as p_stock,pv.stock as pv_stock')->where_in('pv.id', $product_variant_ids)->join('products p', 'pv.product_id = p.id')->get('product_variants pv')->result_array();
-    $ids = implode(',', (array)$product_variant_ids);
-    $res = $t->db->select('p.*,pv.*,p.id as p_id,pv.id as pv_id,p.stock as p_stock,pv.stock as pv_stock')->where_in('pv.id', $product_variant_ids)->join('products p', 'pv.product_id = p.id')->order_by('FIELD(pv.id,' . $ids . ')')->get('product_variants pv')->result_array();
 
-    for ($i = 0; $i < count($res); $i++) {
-        if (($res[$i]['stock_type'] != null || $res[$i]['stock_type'] != "")) {
+    // Callers are wildly inconsistent about argument shape: roughly ten cancellation and
+    // return paths pass SCALARS (update_stock($row['product_variant_id'], $row['quantity'],
+    // 'plus')) while the order paths pass arrays. With a scalar quantity the old code did
+    // $qtns[$i], which STRING-INDEXES it - so restoring a quantity of "12" put back "1", and
+    // every cancelled or returned line of 10 or more silently lost most of its stock.
+    // Normalising here fixes all of those call sites at once rather than editing each.
+    $ids = is_array($product_variant_ids) ? array_values($product_variant_ids) : [$product_variant_ids];
+    $quantities = is_array($qtns) ? array_values($qtns) : [$qtns];
 
-            /* Case 1 : Simple Product(simple product) */
-            if ($res[$i]['stock_type'] == 0) {
-                if ($type == 'plus') {
-                    if ($res[$i]['p_stock'] != null) {
-                        $stock = intval($res[$i]['p_stock']) + intval($qtns[$i]);
-                        $t->db->where('id', $res[$i]['p_id'])->update('products', ['stock' => $stock]);
-                        if ($stock > 0) {
-                            $t->db->where('id', $res[$i]['p_id'])->update('products', ['availability' => '1']);
-                        }
-                    }
-                } else {
-                    if ($res[$i]['p_stock'] != null && $res[$i]['p_stock'] > 0) {
-                        $stock = intval($res[$i]['p_stock']) - intval($qtns[$i]);
-                        $t->db->where('id', $res[$i]['p_id'])->update('products', ['stock' => $stock]);
-                        if ($stock == 0) {
-                            $t->db->where('id', $res[$i]['p_id'])->update('products', ['availability' => '0']);
-                        }
-                    }
-                }
-            }
-
-            /* Case 2 : Product level(variable product) */
-            if ($res[$i]['stock_type'] == 1) {
-                if ($type == 'plus') {
-                    if ($res[$i]['pv_stock'] != null) {
-                        $stock = intval($res[$i]['pv_stock']) + intval($qtns[$i]);
-                        $t->db->where('product_id', $res[$i]['p_id'])->update('product_variants', ['stock' => $stock]);
-                        if ($stock > 0) {
-                            $t->db->where('product_id', $res[$i]['p_id'])->update('product_variants', ['availability' => '1']);
-                        }
-                    }
-                } else {
-                    if ($res[$i]['pv_stock'] != null && $res[$i]['pv_stock'] > 0) {
-                        $stock = intval($res[$i]['pv_stock']) - intval($qtns[$i]);
-                        $t->db->where('product_id', $res[$i]['p_id'])->update('product_variants', ['stock' => $stock]);
-                        if ($stock == 0) {
-                            $t->db->where('product_id', $res[$i]['p_id'])->update('product_variants', ['availability' => '0']);
-                        }
-                    }
-                }
-            }
-
-            /* Case 3 : Variant level(variable product) */
-            if ($res[$i]['stock_type'] == 2) {
-                if ($type == 'plus') {
-                    if ($res[$i]['pv_stock'] != null) {
-
-                        $stock = intval($res[$i]['pv_stock']) + intval($qtns[$i]);
-                        $t->db->where('id', $res[$i]['id'])->update('product_variants', ['stock' => $stock]);
-                        if ($stock > 0) {
-                            $t->db->where('id', $res[$i]['id'])->update('product_variants', ['availability' => '1']);
-                        }
-                    }
-                } else {
-                    if ($res[$i]['pv_stock'] != null && $res[$i]['pv_stock'] > 0) {
-
-                        $stock = intval($res[$i]['pv_stock']) - intval($qtns[$i]);
-                        $t->db->where('id', $res[$i]['id'])->update('product_variants', ['stock' => $stock]);
-                        if ($stock == 0) {
-                            $t->db->where('id', $res[$i]['id'])->update('product_variants', ['availability' => '0']);
-                        }
-                    }
-                }
-            }
+    // Pair each id with its quantity before filtering, so a blank entry cannot shift the
+    // positional alignment between the two lists.
+    $wanted = [];
+    foreach ($ids as $index => $variant_id) {
+        if ($variant_id === null || $variant_id === '') {
+            continue;
         }
+        $quantity = isset($quantities[$index]) ? (int) $quantities[$index] : 0;
+        if ($quantity <= 0) {
+            continue;
+        }
+        // Same variant twice in one call: accumulate rather than overwrite.
+        $variant_id = (int) $variant_id;
+        $wanted[$variant_id] = isset($wanted[$variant_id]) ? $wanted[$variant_id] + $quantity : $quantity;
+    }
+
+    // Nothing to do. The old code built `ORDER BY FIELD(pv.id,)` from an empty id list, which
+    // is a SQL syntax error - the query returned FALSE and the next line fataled with
+    // "Call to a member function result_array() on bool". The Razorpay payment-success webhook
+    // hits exactly this (it passes keys that fetch_orders does not produce), so every
+    // successful Razorpay payment crashed the webhook after recording the payment, and
+    // Razorpay then retried it.
+    // Consume the reason set for this call (see set_stock_movement_context). Cleared straight
+    // away so an unlabelled later call cannot inherit it.
+    $context = isset($t->_stock_movement_context) ? $t->_stock_movement_context : null;
+    $t->_stock_movement_context = null;
+
+    if (empty($wanted)) {
+        return;
+    }
+
+    $res = $t->db->select('p.id as p_id, p.stock_type, p.stock as p_stock, pv.id as pv_id, pv.stock as pv_stock')
+        ->where_in('pv.id', array_keys($wanted))
+        ->join('products p', 'pv.product_id = p.id')
+        ->get('product_variants pv')
+        ->result_array();
+
+    foreach ($res as $row) {
+        $quantity = isset($wanted[$row['pv_id']]) ? (int) $wanted[$row['pv_id']] : 0;
+        if ($quantity <= 0) {
+            continue;
+        }
+
+        // stock_type is free text in practice: NULL / '' mean stock management is off, and 10
+        // live products store the literal string 'simple_product' instead of 0. Under PHP 8
+        // 'simple_product' == 0 is FALSE (it was TRUE on PHP 7), so those products matched no
+        // branch at all and their stock was never moved in either direction - sold without
+        // ever decrementing. Normalised to the documented 0/1/2 before dispatching.
+        $stock_type = normalise_stock_type($row['stock_type']);
+        if ($stock_type === null) {
+            continue; // stock management off, or an unrecognised marker
+        }
+
+        if ($stock_type === 0) {
+            $table = 'products';
+            $where = ['id' => $row['p_id']];
+            $current = $row['p_stock'];
+        } elseif ($stock_type === 1) {
+            // Product level: every variant of the product shares one number.
+            $table = 'product_variants';
+            $where = ['product_id' => $row['p_id']];
+            $current = $row['pv_stock'];
+        } elseif ($stock_type === 2) {
+            $table = 'product_variants';
+            $where = ['id' => $row['pv_id']];
+            $current = $row['pv_stock'];
+        } else {
+            continue;
+        }
+
+        // A NULL stock means this row does not track stock; leave it alone (matches the old
+        // behaviour, which skipped NULL in both directions).
+        if ($current === null) {
+            continue;
+        }
+
+        // Done as ONE relative SQL statement instead of read-into-PHP-then-write. Three things
+        // this fixes:
+        //   * Overselling. The old code read the stock, computed in PHP, then wrote an absolute
+        //     value. Two concurrent checkouts of the last unit both read the same number and
+        //     both wrote stock-1, so the item sold twice. A relative update is applied by the
+        //     database under a row lock.
+        //   * Lost updates within a single call. For product-level stock two variants of the
+        //     same product both read the pre-update value, so the second write undid the first
+        //     (10 - 2 - 3 came out as 7). Relative updates accumulate correctly.
+        //   * Negative stock. The only guard was "stock > 0", so 1 minus 5 wrote -4 - and
+        //     because the availability flip tested `== 0` rather than `<= 0`, the product stayed
+        //     purchasable forever at negative stock. GREATEST(0, ...) puts a floor under it.
+        //
+        // availability is assigned BEFORE stock in the SET list on purpose: MySQL evaluates
+        // assignments left to right and later ones see already-updated values, so computing it
+        // first means it reads the pre-update stock, exactly like the expression beside it.
+        $delta = ($type == 'plus') ? $quantity : -$quantity;
+        $new_stock_expr = 'GREATEST(0, COALESCE(`stock`, 0) + (' . (int) $delta . '))';
+
+        $t->db->set('availability', 'IF(' . $new_stock_expr . ' > 0, \'1\', \'0\')', false)
+            ->set('stock', $new_stock_expr, false)
+            ->where($where)
+            ->update($table);
+
+        // Audit row. The resulting stock is re-read rather than computed, so the log records
+        // what the column actually holds even when a concurrent movement landed in between.
+        $after = $t->db->select('stock')->where($where)->get($table)->row_array();
+
+        $t->db->insert('stock_logs', [
+            'product_id'         => $row['p_id'],
+            'product_variant_id' => $row['pv_id'],
+            'stock_table'        => $table,
+            'reason'             => isset($context['reason']) ? $context['reason'] : (($type == 'plus') ? 'restore' : 'deduct'),
+            'quantity'           => $quantity,
+            'delta'              => $delta,
+            'stock_before'       => (int) $current,
+            'stock_after'        => isset($after['stock']) ? (int) $after['stock'] : null,
+            'order_id'           => isset($context['order_id']) ? $context['order_id'] : null,
+            'user_id'            => isset($context['user_id']) ? $context['user_id'] : null,
+            'note'               => isset($context['note']) ? $context['note'] : null,
+            'created_at'         => date('Y-m-d H:i:s'),
+        ]);
     }
 }
 
@@ -2919,18 +3134,44 @@ function fetch_orders($order_id = NULL, $user_id = NULL, $status = NULL, $delive
                 $cancelable_count += (int) $order_item_data[$k]['is_cancelable'];
                 $already_returned_count += (int) $order_item_data[$k]['is_already_returned'];
                 $already_cancelled_count += (int) $order_item_data[$k]['is_already_cancelled'];
-                $delivery_date = isset($order_item_data[$k]['status'][3][1]) ? $order_item_data[$k]['status'][3][1] : null;
+                // The delivery date was read from status[3][1] - a hardcoded index assuming the
+                // history is always received -> processed -> shipped -> delivered, so that
+                // 'delivered' is the fourth entry. It very often isn't: an admin or seller who
+                // marks an item delivered without stepping through every intermediate status
+                // produces a one-entry history, index 3 doesn't exist, the delivery date comes
+                // out NULL and the item is silently NEVER returnable. Every delivered item in
+                // this database is in exactly that state, so returns were effectively impossible.
+                //
+                // delivered_at is the authoritative timestamp (migration 036). Falling back to
+                // searching the history by NAME rather than by position covers any row the
+                // backfill could not resolve.
+                $delivery_date = null;
+                if (!empty($order_item_data[$k]['delivered_at'])) {
+                    $delivery_date = $order_item_data[$k]['delivered_at'];
+                } elseif (!empty($order_item_data[$k]['status']) && is_array($order_item_data[$k]['status'])) {
+                    foreach ($order_item_data[$k]['status'] as $history_entry) {
+                        if (is_array($history_entry) && isset($history_entry[0], $history_entry[1]) && $history_entry[0] === 'delivered') {
+                            $delivery_date = $history_entry[1];
+                            break;
+                        }
+                    }
+                }
                 $settings = get_settings('system_settings', true);
                 $today = date('Y-m-d');
                 $return_till = !empty($delivery_date) ? date('Y-m-d', strtotime($delivery_date . ' + ' . $settings['max_product_return_days'] . ' days')) : null;
-                $order_item_data[$k]['is_returnable'] = (!empty($return_till) && $today < $return_till) ? '1' : '0';
+                // `<=` so the final day of the window is still returnable. With `<`, a 1-day
+                // window expired the moment it was granted.
+                $order_item_data[$k]['is_returnable'] = (!empty($return_till) && $today <= $return_till) ? '1' : '0';
             }
         }
 
         
         $order_details[$i]['delivery_time'] = (isset($order_details[$i]['delivery_time']) && !empty($order_details[$i]['delivery_time'])) ? $order_details[$i]['delivery_time'] : "";
         $order_details[$i]['delivery_date'] = (isset($order_details[$i]['delivery_date']) && !empty($order_details[$i]['delivery_date'])) ? $order_details[$i]['delivery_date'] : "";
-        $order_details[$i]['is_returnable'] = ($returnable_count >= 1 && isset($delivery_date) && !empty($delivery_date) && $today < $return_till) ? '1' : '0';
+        // Same `<=` boundary as the per-item flag above, so the order and its items agree on
+        // the final day of the window instead of the order saying "not returnable" while the
+        // item it contains says it is.
+        $order_details[$i]['is_returnable'] = ($returnable_count >= 1 && isset($delivery_date) && !empty($delivery_date) && $today <= $return_till) ? '1' : '0';
         $order_details[$i]['is_cancelable'] = ($cancelable_count >= 1) ? '1' : '0';
         $order_details[$i]['is_already_returned'] = ($already_returned_count == $order_item_data_count) ? '1' : '0';
         $order_details[$i]['is_already_cancelled'] = ($already_cancelled_count == $order_item_data_count) ? '1' : '0';
@@ -4283,7 +4524,24 @@ function process_refund($id, $status, $type = 'order_items')
             }
         }
 
-        // recalculate delivery charge and promocode for each seller 
+        // Claw back the seller's commission for this item.
+        //
+        // The customer has just been refunded for a sale that is no longer happening, but
+        // nothing anywhere reversed the seller side: if the item had already been settled the
+        // seller kept the full net payable and the platform kept its commission, so the refund
+        // came entirely out of platform funds with no record that it had. This runs for every
+        // cancellation and every approved return because every one of them reaches this
+        // function. It no-ops when the item was never settled (the common case, where the
+        // return window has not yet elapsed), and it is idempotent, so a repeated cancellation
+        // or a webhook retry cannot debit the seller twice.
+        $CI = &get_instance();
+        $CI->load->model('Seller_model');
+        $CI->Seller_model->reverse_settlement_for_order_item(
+            $order_item_id,
+            ($status == 'returned') ? 'Order item returned' : 'Order item cancelled'
+        );
+
+        // recalculate delivery charge and promocode for each seller
 
         $order_delivery_charge = fetch_details('order_charges', ['order_id' => $order_id, 'seller_id' => $seller_id], 'delivery_charge');
         $order_charges_data = fetch_details('order_charges', ['order_id' => $order_id, 'seller_id !=' => $seller_id], '*');
@@ -4353,6 +4611,20 @@ function process_refund($id, $status, $type = 'order_items')
     } elseif ($type == 'orders') {
 
         /* if complete order is getting cancelled */
+        // Same clawback as the per-item branch, applied to every item on the order. A
+        // whole-order cancellation refunds the customer for all of them, so any that had
+        // already been settled must be reversed too - otherwise cancelling an entire order
+        // was a way for the seller's commission to survive intact. No-ops per item when
+        // nothing was settled, and is idempotent.
+        $CI = &get_instance();
+        $CI->load->model('Seller_model');
+        foreach (fetch_details('order_items', ['order_id' => $id], 'id') as $item) {
+            $CI->Seller_model->reverse_settlement_for_order_item(
+                $item['id'],
+                ($status == 'returned') ? 'Order returned' : 'Order cancelled'
+            );
+        }
+
         $order_details =  fetch_orders($id);
         $order_item_details = fetch_details('order_items', ['order_id' => $order_details['order_data'][0]['id']], 'sum(tax_amount) as total_tax,status');
         $order_details = $order_details['order_data'];

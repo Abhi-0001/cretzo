@@ -1235,6 +1235,42 @@ function payment_request_queryParams(p) {
     };
 }
 
+// The payment-request table rendered an .edit_request button that opened
+// #payment_request_modal purely through its data-toggle attribute - nothing ever populated
+// the modal. #payment_request_id stayed empty, so update_payment_request() always failed
+// validation on "The id field is required" and no withdrawal request could be approved or
+// rejected from the admin panel at all. This fills the modal from the clicked row.
+$(document).on('click', '.edit_request', function () {
+    var btn = $(this);
+
+    $('#payment_request_id').val(btn.data('id'));
+    $('#update_remarks').val(btn.data('remarks') || '');
+    $('#payment_reference').val('');
+
+    // Reflect the row's current status in the radio group, and reset the button-group
+    // styling that AdminLTE's data-toggle-class applies.
+    var status = String(btn.data('status'));
+    $('#status input[name="status"]').prop('checked', false).parent().removeClass('active');
+    $('#status input[name="status"][value="' + status + '"]').prop('checked', true).parent().addClass('active');
+
+    // Context, so the admin can see what they're approving without going back to the table.
+    $('#pr_summary_user').text(btn.data('username') || '');
+    $('#pr_summary_amount').text(btn.data('amount') || '');
+    $('#pr_summary_address').text(btn.data('address') || '');
+
+    toggle_payment_reference_field();
+});
+
+// A payout reference (bank UTR / UPI ref) only makes sense when approving, and it's
+// required there - an approval with no reference leaves the seller nothing to chase.
+function toggle_payment_reference_field() {
+    var approving = $('#status input[name="status"]:checked').val() === '1';
+    $('#payment_reference_group').toggle(approving);
+    $('#payment_reference').prop('required', approving);
+}
+
+$(document).on('change', '#status input[name="status"]', toggle_payment_reference_field);
+
 function ratingParams(p) {
     return {
         "category_id": $('#category_parent').val(),
@@ -2607,7 +2643,10 @@ $(document).on('change', '#product_type_menu', function () {
         $('.quantity_step_size').addClass('d-none');
         $('.deliverable_type').addClass('d-none');
         $('.hsn_code').addClass('d-none');
-        $('#product-dimensions').addClass('d-none');
+        // .product-dimensions covers the weight/height/breadth/length row too. The id
+        // alone matched only the caption row above it (the seller form had the same id
+        // on both), leaving the actual dimension inputs visible for digital products.
+        $('#product-dimensions, .product-dimensions').addClass('d-none');
         $('.is_attachment_required').addClass('d-none');
         $('.standdard_shipping').addClass('d-none');
 
@@ -2627,7 +2666,7 @@ $(document).on('change', '#product_type_menu', function () {
         $('.quantity_step_size').removeClass('d-none');
         $('.deliverable_type').removeClass('d-none');
         $('.hsn_code').removeClass('d-none');
-        $('#product-dimensions').removeClass('d-none');
+        $('#product-dimensions, .product-dimensions').removeClass('d-none');
         $('.is_attachment_required').removeClass('d-none');
         $('.standdard_shipping').removeClass('d-none');
     }

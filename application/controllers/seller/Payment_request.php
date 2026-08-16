@@ -47,7 +47,17 @@ class Payment_request extends CI_Controller
             $settings = get_settings('system_settings', true);
             $this->data['title'] = 'Send Withdrawal Request | ' . $settings['app_name'];
             $this->data['meta_description'] = 'Send Withdrawal Request  | ' . $settings['app_name'];
-            $this->data['seller_id'] = $this->session->userdata('user_id');
+            $seller_id = $this->session->userdata('user_id');
+            $this->data['seller_id'] = $seller_id;
+            // The form asked for an amount with no indication of what was actually available
+            // or what the minimum was, so the only way to discover either was to be rejected.
+            $balance = fetch_details('users', ['id' => $seller_id], 'balance');
+            $this->data['wallet_balance'] = isset($balance[0]['balance']) ? (float) $balance[0]['balance'] : 0;
+            $this->data['min_withdrawal'] = Payment_request_model::MIN_WITHDRAWAL_AMOUNT;
+            $this->data['has_pending'] = (bool) $this->db
+                ->where('user_id', $seller_id)
+                ->where('status', 0)
+                ->count_all_results('payment_requests');
             $this->load->view('seller/template', $this->data);
         } else {
             redirect('seller/login', 'refresh');
@@ -78,43 +88,26 @@ class Payment_request extends CI_Controller
         } else {
             $user_id = $this->ion_auth->get_user_id();
             $payment_address = $this->input->post('payment_address', true);
-            $amount = $this->input->post('amount', true);
-            $userData = fetch_details('users', ['id' => $user_id], 'balance');
+            $amount = round((float) $this->input->post('amount', true), 2);
 
-            if (!empty($userData)) {
-                if ($amount <= $userData[0]['balance']) {
-                    $data = [
-                        'user_id' => $user_id,
-                        'payment_address' => $payment_address,
-                        'payment_type' => 'seller',
-                        'amount_requested' => $amount,
-                    ];
+            // The whole balance-check / insert / debit sequence now runs through one model
+            // method inside a single transaction with the user row locked. Previously the
+            // check and the debit were separate unlocked statements, so two requests
+            // submitted at once could both pass the "amount <= balance" check against the
+            // same starting balance and both be inserted - letting a seller withdraw more
+            // than they had and leaving users.balance negative.
+            $result = $this->payment_request_model->create_withdrawal_request($user_id, 'seller', $amount, $payment_address);
 
-                    if (insert_details($data, 'payment_requests')) {
-                        $this->delivery_boy_model->update_balance($amount, $user_id, 'deduct');
-                        $userData = fetch_details('users', ['id' => $user_id], 'balance');
-                        $this->response['error'] = false;
-                        $this->response['message'] = 'Withdrawal Request Sent Successfully';
-                        $this->response['data'] = $userData[0]['balance'];
-                        $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                        $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                    } else {
-                        $this->response['error'] = true;
-                        $this->response['message'] = 'Cannot sent Withdrawal Request.Please Try again later.';
-                        $this->response['data'] = array();
-                        $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                        $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                    }
-                } else {
-                    $this->response['error'] = true;
-                    $this->response['message'] = 'You don\'t have enough balance to sent the withdraw request.';
-                    $this->response['data'] = array();
-                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                }
+            $this->response['error'] = $result['error'];
+            $this->response['message'] = $result['message'];
+            $this->response['data'] = isset($result['balance']) ? $result['balance'] : array();
+            $this->response['csrfName'] = $this->security->get_csrf_token_name();
+            $this->response['csrfHash'] = $this->security->get_csrf_hash();
 
-                print_r(json_encode($this->response));
-            }
+            // This used to sit inside `if (!empty($userData))`, so when the user row could not
+            // be read the endpoint returned a completely EMPTY body - the seller's form showed
+            // no error and no success, it just silently did nothing.
+            print_r(json_encode($this->response));
         }
     }
 }

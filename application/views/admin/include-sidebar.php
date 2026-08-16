@@ -524,12 +524,23 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
                 <?php } ?>
                 */ ?>
 
-                <!-- I will permission for this module later. -->
-                <?php if (has_permissions('read', 'return_request')) { ?>
+                <?php // Was gated on 'return_request' while admin/Payment_request's constructor
+                      // requires read on 'payment_request'. A role granted return_request but not
+                      // payment_request saw this link and was bounced straight back to the
+                      // dashboard by the permission error on every click.
+                if (has_permissions('read', 'payment_request')) { ?>
                     <li class="nav-item has-treeview">
                         <a href="<?= base_url('admin/payment-request') ?>" class="nav-link">
                             <i class="nav-icon fas fa-money-bill-wave text-danger"></i>
                             <p>Payment Request</p>
+                        </a>
+                    </li>
+                <?php } ?>
+                <?php if (has_permissions('read', 'seller')) { ?>
+                    <li class="nav-item has-treeview">
+                        <a href="<?= base_url('admin/settlement') ?>" class="nav-link">
+                            <i class="nav-icon fas fa-percentage text-info"></i>
+                            <p>Commission &amp; Settlements</p>
                         </a>
                     </li>
                 <?php } ?>

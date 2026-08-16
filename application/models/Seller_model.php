@@ -457,13 +457,305 @@ class Seller_model extends CI_Model
         }
     }
 
+    /**
+     * How many ORDERS this seller has completed, for picking their commission slab.
+     *
+     * The slab used to be chosen from a count of rows in seller_settlements - which holds one
+     * row per order ITEM, not per order. A single six-item order therefore consumed six slab
+     * slots, and sellers crossed into the higher-commission bands three to six times faster
+     * than promised. The seller-facing plan page says "your first 50 completed ORDERS
+     * (lifetime)", so orders is what this counts: distinct order_ids for this seller.
+     *
+     * Counted at the moment of sale (see resolve_commission_rate) rather than at settlement,
+     * so the rate is a property of the sale and cannot move afterwards.
+     */
+    public function get_seller_order_count($seller_id)
+    {
+        $row = $this->db
+            ->select('COUNT(DISTINCT order_id) AS total', false)
+            ->where('seller_id', $seller_id)
+            ->get('order_items')
+            ->row_array();
+
+        return (int) $row['total'];
+    }
+
+    /**
+     * Resolve the commission percentage that applies to a seller right now.
+     *
+     * Slab direction and the lifetime basis are deliberate and left as they are: the seller
+     * panel states "your first 50 completed orders (lifetime)" with the rate RISING after
+     * that, i.e. an introductory rate for new sellers that steps up to the standard one. Only
+     * the counting unit was wrong.
+     *
+     * @param int      $seller_id
+     * @param int|null $order_no  1-based position of the order being priced. Defaults to the
+     *                            seller's next order.
+     * @return array{rate: float, source: string}
+     */
+    public function resolve_commission_rate($seller_id, $order_no = null)
+    {
+        $this->config->load('commission', true);
+        $default = (float) $this->config->item('default_commission_percent', 'commission');
+
+        $plan = $this->Seller_subscription_model->get_current_plan($seller_id);
+        if ($order_no === null) {
+            $order_no = $this->get_seller_order_count($seller_id) + 1;
+        }
+
+        if (empty($plan)) {
+            return ['rate' => $default, 'source' => 'platform_default'];
+        }
+
+        if ($order_no <= 50) {
+            $rate = $plan['commission_first50'];
+        } elseif ($order_no <= 100) {
+            $rate = $plan['commission_51_100'];
+        } else {
+            $rate = $plan['commission_after100'];
+        }
+
+        // A NULL slab used to be cast straight to 0.0, so a plan with no rates set settled
+        // every sale at ZERO commission and the platform earned nothing, silently. (The
+        // shipped "Launch Offer" plan is exactly that.) An unset rate now falls back to the
+        // configured platform rate instead of quietly meaning "free".
+        if ($rate === null || $rate === '') {
+            return ['rate' => $default, 'source' => 'platform_default'];
+        }
+
+        return ['rate' => (float) $rate, 'source' => 'plan_slab'];
+    }
+
+    /**
+     * Build the full settlement statement for one order item.
+     *
+     * The ladder, and why each line is where it is:
+     *
+     *   A  gross            what the buyer paid for the line (sub_total, GST inclusive)
+     *   B  product tax      the GST inside A. Belongs to the government and is remitted by
+     *                       the SELLER, who supplies the goods - so it is removed from the
+     *                       commission base but still paid out in full at line J.
+     *   C  taxable value    A - B. The commission base.
+     *   D  commission       C x rate. Previously charged on A, i.e. the platform took its
+     *                       percentage of the GST as well as of the sale.
+     *   E  commission GST   D x rate. The commission is a service the platform supplies.
+     *   F  TCS              C x rate. Collected under GST, deposited for the seller.
+     *   G  TDS              A x rate. Deducted under s.194-O, deposited for the seller.
+     *   J  net payable      A - D - E - F - G - shipping - gateway fee.
+     *
+     * E, F and G are configured to 0 by default (see config/commission.php) so nothing is
+     * withheld until an accountant confirms they apply.
+     *
+     * The tax is derived from sub_total and tax_percent rather than read from
+     * order_items.tax_amount, because that column was computed as
+     * `sub_total x tax_percent` on a sub_total that ALREADY includes the tax - overstating
+     * it (a 1,000 item at 18% stored 212.40 instead of 180.00). Deriving it here means the
+     * commission base is right for historic rows too, whatever is stored beside them.
+     */
+    public function calculate_settlement_breakdown($gross, $tax_percent, $commission_rate, $shipping = 0, $gateway_fee = 0)
+    {
+        // Read from the admin settings screen first, falling back to config/commission.php.
+        // These were config-file-only, which meant enabling them required a developer - the
+        // one person who cannot answer whether they apply. They are now editable by whoever
+        // has the accountant in the room.
+        $this->config->load('commission', true);
+        $settings = get_settings('system_settings', true);
+
+        $setting_or_config = function ($key) use ($settings) {
+            if (isset($settings[$key]) && $settings[$key] !== '') {
+                return (float) $settings[$key];
+            }
+            return (float) $this->config->item($key, 'commission');
+        };
+
+        $gst_on_commission = $setting_or_config('commission_gst_percent');
+        $tcs_percent = $setting_or_config('tcs_percent');
+        $tds_percent = $setting_or_config('tds_percent');
+
+        $gross = round((float) $gross, 2);
+        $tax_percent = (float) $tax_percent;
+
+        // sub_total is tax-INCLUSIVE in both pricing modes (for tax-exclusive products the
+        // tax is added on at order placement; for tax-inclusive ones it is already in the
+        // price), so one formula extracts it correctly in both cases.
+        $taxable_value = ($tax_percent > 0)
+            ? round($gross / (1 + ($tax_percent / 100)), 2)
+            : $gross;
+        $product_tax = round($gross - $taxable_value, 2);
+
+        $commission = round($taxable_value * $commission_rate / 100, 2);
+        $commission_gst = round($commission * $gst_on_commission / 100, 2);
+        $tcs = round($taxable_value * $tcs_percent / 100, 2);
+        $tds = round($gross * $tds_percent / 100, 2);
+        $shipping = round((float) $shipping, 2);
+        $gateway_fee = round((float) $gateway_fee, 2);
+
+        $net = round($gross - $commission - $commission_gst - $tcs - $tds - $shipping - $gateway_fee, 2);
+
+        return [
+            'order_amount'          => $gross,
+            'product_tax_amount'    => $product_tax,
+            'taxable_value'         => $taxable_value,
+            'commission_percent'    => round((float) $commission_rate, 2),
+            'commission_amount'     => $commission,
+            'commission_gst_amount' => $commission_gst,
+            'tcs_amount'            => $tcs,
+            'tds_amount'            => $tds,
+            'shipping_deduction'    => $shipping,
+            'gateway_fee'           => $gateway_fee,
+            'net_payable'           => $net,
+        ];
+    }
+
+    /**
+     * Atomically claim an order item for settlement.
+     *
+     * `UPDATE ... WHERE id = ? AND is_credited = 0` is decided by the database under a row
+     * lock, so exactly one concurrent caller can ever see a non-zero affected_rows for a given
+     * item. That is what stops two overlapping settlement runs from both crediting the same
+     * order item.
+     *
+     * @return bool TRUE if this caller won the claim and may credit the seller.
+     */
+    public function claim_order_item_for_settlement($order_item_id)
+    {
+        $this->db->set('is_credited', 1)
+            ->where('id', $order_item_id)
+            ->where('is_credited', 0)
+            ->update('order_items');
+
+        return $this->db->affected_rows() > 0;
+    }
+
+    /** Give the claim back when the settlement that took it did not complete. */
+    public function release_order_item_claim($order_item_id)
+    {
+        return $this->db->set('is_credited', 0)
+            ->where('id', $order_item_id)
+            ->update('order_items');
+    }
+
+    /**
+     * Claw back a seller commission after the order item is cancelled or returned.
+     *
+     * There was NO reversal anywhere in the codebase. Once an item settled, the seller kept
+     * the net payable permanently - even though a cancellation or an approved return refunds
+     * the customer in full out of platform funds. The platform absorbed the entire loss and
+     * nothing recorded that it had happened. The return-window delay was the only protection,
+     * and it was measured from the wrong date (see settle_seller_commission), so items were
+     * routinely settled while still returnable.
+     *
+     * The debit is allowed to take the seller's balance NEGATIVE. That is deliberate: the
+     * seller may already have withdrawn the money, and refusing the clawback in that case
+     * would silently write the loss off. A negative balance is recovered from their next
+     * settlement (update_wallet_balance permits crediting a negative balance), which is how
+     * marketplaces normally handle this.
+     *
+     * Idempotent: only a row still marked 'settled' is reversed, so repeated status writes
+     * (the same item cancelled twice, a webhook retry) cannot debit the seller twice.
+     *
+     * @return array{reversed: bool, amount: float, message: string}
+     */
+    public function reverse_settlement_for_order_item($order_item_id, $reason = 'Order item returned/cancelled')
+    {
+        $settlement = $this->db
+            ->where('order_item_id', $order_item_id)
+            ->where('settlement_status', 'settled')
+            ->get('seller_settlements')
+            ->row_array();
+
+        if (empty($settlement)) {
+            return ['reversed' => false, 'amount' => 0, 'message' => 'Nothing settled to reverse'];
+        }
+
+        $amount = round((float) $settlement['net_payable'], 2);
+        $seller_id = $settlement['seller_id'];
+
+        $this->db->trans_start();
+
+        if ($amount > 0) {
+            // Deliberately NOT update_wallet_balance('debit', ...): that refuses any debit
+            // larger than the current balance, which is precisely the case we must still
+            // record. The balance move and its ledger row are written here together.
+            $this->db->set('balance', '`balance` - ' . $this->db->escape_str($amount), false)
+                ->where('id', $seller_id)
+                ->update('users');
+
+            $this->db->insert('transactions', escape_array([
+                'transaction_type' => 'wallet',
+                'user_id'          => $seller_id,
+                'order_id'         => $settlement['order_id'],
+                'order_item_id'    => $order_item_id,
+                'type'             => 'debit',
+                'amount'           => $amount,
+                'status'           => 'success',
+                'message'          => $reason . ' - commission reversed for order item ID: ' . $order_item_id,
+                'is_refund'        => 0,
+            ]));
+        }
+
+        $this->db->where('id', $settlement['id'])
+            ->update('seller_settlements', ['settlement_status' => 'reversed']);
+
+        // is_credited is deliberately LEFT AT 1.
+        //
+        // Clearing it looks tidier but re-opens the item to the settlement sweep: the callers
+        // set active_status to cancelled/returned just before invoking the refund, and if that
+        // ordering ever changed - or a caller reversed without touching the status - the very
+        // next run would find a 'delivered', is_credited=0 row and pay the seller a second
+        // time. (Caught exactly that way in testing: the seller was re-credited 900 right
+        // after the clawback.) Keeping the flag set makes "already paid out once" permanent
+        // and independent of caller ordering; seller_settlements.settlement_status = 'reversed'
+        // is the record of what actually happened.
+        //
+        // The commission amounts ARE zeroed, because Home_model::total_earnings() sums those
+        // columns filtered on is_credited = 1 - leaving them would keep a refunded sale in the
+        // platform's and the seller's reported earnings forever.
+        $this->db->where('id', $order_item_id)->update('order_items', [
+            'admin_commission_amount' => 0,
+            'seller_commission_amount' => 0,
+        ]);
+
+        $this->db->trans_complete();
+
+        if ($this->db->trans_status() === FALSE) {
+            return ['reversed' => false, 'amount' => 0, 'message' => 'Commission reversal failed'];
+        }
+
+        return ['reversed' => true, 'amount' => $amount, 'message' => 'Commission reversed'];
+    }
+
     function settle_seller_commission($is_date = TRUE)
     {
 
         $date = date('Y-m-d');
         $settings = get_settings('system_settings', true);
+        // max_product_return_days comes from an admin-editable settings blob and was
+        // concatenated straight into SQL. Cast it so a non-numeric value can't reach the query.
+        $return_days = isset($settings['max_product_return_days']) ? (int) $settings['max_product_return_days'] : 0;
         if ($is_date == TRUE) {
-            $where = "oi.active_status='delivered' AND is_credited=0 and  DATE_ADD(DATE_FORMAT(oi.date_added, '%Y-%m-%d'), INTERVAL " . $settings['max_product_return_days'] . " DAY) = '" . $date . "'";
+            // Was `= '$date'` - an EXACT day match on "delivery date + return window". If the
+            // cron didn't run on precisely that calendar day (server down, deploy, DST/timezone
+            // drift, or the job simply added later than some orders), every order item whose
+            // window closed on a missed day was skipped and, because the next run only ever
+            // looks at that one day again, was never settled - the seller silently never got
+            // paid for it. `<=` makes the sweep catch up: anything whose return window has
+            // closed and is still uncredited gets settled on the next run.
+            // Measured from the DELIVERY date, not the order-placement date.
+            //
+            // This window exists so a seller is not paid until the buyer can no longer return
+            // the item. The customer's own return deadline is delivery_date + N days
+            // (see is_returnable in function_helper.php). Measuring the payout from
+            // oi.date_added instead meant the seller's clock started when the order was
+            // PLACED, so it always expired first: for any order taking longer than N days to
+            // arrive, the seller was paid the instant the item was marked delivered with the
+            // buyer's entire return window still open, and any return approved in that gap
+            // refunded the customer while the seller kept the money.
+            //
+            // COALESCE keeps pre-migration rows working: order items delivered before
+            // delivered_at existed and which the 036 backfill could not parse fall back to
+            // date_added, i.e. exactly the old behaviour rather than never settling.
+            $where = "oi.active_status='delivered' AND is_credited=0 AND DATE_ADD(DATE_FORMAT(COALESCE(oi.delivered_at, oi.date_added), '%Y-%m-%d'), INTERVAL " . $return_days . " DAY) <= '" . $date . "'";
         } else {
             $where = "oi.active_status='delivered' AND is_credited=0 ";
         }
@@ -472,79 +764,174 @@ class Seller_model extends CI_Model
         // seller's subscription plan instead. Joining on a since-deleted product/variant
         // silently dropped the order item from every settlement run forever, so this
         // also fixes orders never getting settled when their product was removed later.
-        $data = $this->db->select("oi.id,date(oi.date_added) as order_date,oi.order_id,oi.product_variant_id,oi.seller_id,oi.sub_total ")
+        $data = $this->db->select("oi.id,date(oi.date_added) as order_date,oi.order_id,oi.product_variant_id,oi.seller_id,oi.sub_total,oi.tax_percent,oi.commission_rate,oi.commission_rate_source ")
             ->where($where)
             ->order_by('oi.seller_id, oi.date_added', 'ASC')
             ->get('order_items oi')->result_array();
+        $order_items = $data;
+        // $response_data was only ever assigned INSIDE the per-item loop. When every row was
+        // skipped (e.g. no seller had a subscription yet) the loop assigned nothing and the
+        // final print_r(json_encode($response_data)) hit an undefined variable, emitting a PHP
+        // notice and "null" as the endpoint's entire response body.
+        $response_data = [
+            'error'   => true,
+            'message' => 'No order found for settlement',
+            'data'    => ['settled' => 0, 'failed' => 0, 'skipped_no_plan' => 0, 'total_credited' => 0, 'total_commission' => 0],
+        ];
+        $settled_count = 0;
+        $failed_count = 0;
+        $skipped_no_plan = 0;
+        $total_credited = 0;
+        $total_commission = 0;
+        // Only sellers whose wallet was actually credited by THIS run should be notified.
+        // The notification loop below used to walk every seller present in the query result,
+        // including ones whose items were all skipped for having no subscription and ones
+        // whose credit failed - they were told money had been credited when none had.
+        $credited_sellers = [];
         $wallet_updated = false;
-        if (isset($data) && !empty($data)) {
+        if (isset($order_items) && !empty($order_items)) {
 
-            $order_count_by_seller = [];
-            foreach ($data as $row) {
-                // Commission comes from the seller's active subscription plan, based on
-                // their lifetime completed-order count: first 50 orders / 51-100 / 100+
-                // each carry the plan's own slab %, not a flat per-category/global rate.
-                $plan = $this->Seller_subscription_model->get_current_plan($row['seller_id']);
-                if (empty($plan)) {
-                    // No subscription yet — leave is_credited=0, retried next cron run.
-                    continue;
-                }
-
-                if (!isset($order_count_by_seller[$row['seller_id']])) {
-                    $order_count_by_seller[$row['seller_id']] = $this->Seller_settlement_model->get_settled_order_count($row['seller_id']);
-                }
-                $order_count_by_seller[$row['seller_id']]++;
-                $order_no = $order_count_by_seller[$row['seller_id']];
-
-                if ($order_no <= 50) {
-                    $commission_pr = (float) $plan['commission_first50'];
-                } elseif ($order_no <= 100) {
-                    $commission_pr = (float) $plan['commission_51_100'];
+            foreach ($order_items as $row) {
+                // The rate is whatever was locked onto the order item when the sale was made.
+                // It used to be looked up here, from the seller's CURRENT plan - so a seller
+                // who changed plan between the sale and the settlement had the new rate applied
+                // retroactively to sales already completed under the old one.
+                //
+                // Legacy rows (sold before the rate was recorded) fall back to resolving it now,
+                // which is exactly the old behaviour rather than refusing to settle them.
+                $rate_source = $row['commission_rate_source'];
+                if ($row['commission_rate'] !== null && $row['commission_rate'] !== '') {
+                    $commission_pr = (float) $row['commission_rate'];
                 } else {
-                    $commission_pr = (float) $plan['commission_after100'];
+                    $resolved = $this->resolve_commission_rate($row['seller_id']);
+                    $commission_pr = $resolved['rate'];
+                    $rate_source = $resolved['source'];
                 }
 
-                $commission_amt = round($row['sub_total'] / 100 * $commission_pr, 2);
-                $transfer_amt = round($row['sub_total'] - $commission_amt, 2);
-                $response = update_wallet_balance('credit', $row['seller_id'], $transfer_amt, 'Commission Amount Credited for Order Item ID  : ' . $row['id']);
-                if ($response['error'] == false) {
-                    update_details(['is_credited' => 1, 'admin_commission_amount' => $commission_amt, "seller_commission_amount" => $transfer_amt], ['id' => $row['id']], 'order_items');
+                // A commission percentage outside 0-100 is a data-entry error on the plan, and
+                // acting on it moves money the wrong way: at 150% the "credit" was computed as
+                // a NEGATIVE transfer, and update_wallet_balance('credit', ..., -250) happily
+                // subtracted 250 from the seller's wallet - a settlement that silently DEBITED
+                // the seller. Refuse the row and record it as failed so the bad plan is visible
+                // instead of quietly draining sellers.
+                if ($commission_pr < 0 || $commission_pr > 100) {
+                    $failed_count++;
                     $this->Seller_settlement_model->record_settlement([
                         'seller_id' => $row['seller_id'],
                         'order_id' => $row['order_id'],
                         'order_item_id' => $row['id'],
                         'order_amount' => $row['sub_total'],
                         'commission_percent' => $commission_pr,
-                        'commission_amount' => $commission_amt,
-                        'net_payable' => $transfer_amt,
-                        'settlement_status' => 'settled',
+                        'commission_amount' => 0,
+                        'net_payable' => 0,
+                        'settlement_status' => 'failed',
                     ]);
+                    $response_data['error'] = true;
+                    $response_data['message'] = 'Commission not settled';
+                    continue;
+                }
+
+                // Commission used to be `sub_total / 100 * rate` - charged on the GST-INCLUSIVE
+                // amount, so the platform took its percentage of the government's tax as well
+                // as of the sale. The breakdown below charges it on the ex-GST taxable value and
+                // itemises every other deduction as its own line.
+                $breakdown = $this->calculate_settlement_breakdown($row['sub_total'], $row['tax_percent'], $commission_pr);
+                $commission_amt = $breakdown['commission_amount'];
+                $transfer_amt = $breakdown['net_payable'];
+
+                // Claim the row before touching any money. The eligible-items SELECT at the top
+                // of this method and the is_credited stamp below are far apart, so two overlapping
+                // runs (an admin double-clicking "Settle", or a cron overlapping a manual run)
+                // both saw is_credited=0 for the same item and both credited it - paying the
+                // seller twice. This conditional UPDATE is atomic: exactly one run can flip
+                // 0 -> 1, and whoever loses the race skips the row instead of double-paying.
+                if (!$this->claim_order_item_for_settlement($row['id'])) {
+                    continue;
+                }
+
+                // The wallet credit, the order_items stamp and the seller_settlements row were
+                // three separate unwrapped writes. If anything failed after the credit landed,
+                // the seller's balance went up but is_credited stayed 0 - so the NEXT run picked
+                // the same order item up again and credited it a second time, with no settlement
+                // record either time to reconcile against. All three now commit together or not
+                // at all, which is what makes is_credited a trustworthy "already paid" flag.
+                $this->db->trans_start();
+                // A net payable of exactly 0 is legitimate - a fully discounted / free item, or
+                // a 100% commission plan - but update_wallet_balance() rejects a zero amount
+                // outright ("Amount can't be Zero !"). That turned every such item into a
+                // permanent failure: it could never be credited, never be stamped, and was
+                // retried and re-recorded as failed on every single settlement run forever.
+                // There is simply no wallet movement to make, so skip the credit and settle it.
+                $response = ($transfer_amt == 0)
+                    ? ['error' => false, 'message' => 'No wallet movement required']
+                    : update_wallet_balance('credit', $row['seller_id'], $transfer_amt, 'Commission Amount Credited for Order Item ID  : ' . $row['id']);
+                if ($response['error'] == false) {
+                    // is_credited was already set by the claim above; this records the amounts.
+                    update_details(['is_credited' => 1, 'admin_commission_amount' => $commission_amt, "seller_commission_amount" => $transfer_amt], ['id' => $row['id']], 'order_items');
+                    $this->Seller_settlement_model->record_settlement(array_merge($breakdown, [
+                        'seller_id' => $row['seller_id'],
+                        'order_id' => $row['order_id'],
+                        'order_item_id' => $row['id'],
+                        'commission_rate_source' => $rate_source,
+                        'settlement_status' => 'settled',
+                    ]));
+                }
+                $this->db->trans_complete();
+
+                $settled_ok = ($response['error'] == false) && ($this->db->trans_status() !== FALSE);
+
+                if ($settled_ok) {
+                    $credited_sellers[$row['seller_id']] = true;
+                    $settled_count++;
+                    $total_credited += $transfer_amt;
+                    $total_commission += $commission_amt;
                     $wallet_updated = true;
                     $response_data['error'] = false;
                     $response_data['message'] = 'Commission settled Successfully';
                 } else {
-                    // Wallet credit failed — undo the in-memory count bump so a retry
-                    // next run lands on the same slab, and leave is_credited untouched.
-                    $order_count_by_seller[$row['seller_id']]--;
-                    $wallet_updated = false;
+                    // Wallet credit failed — release the claim taken above so
+                    // the item becomes eligible again (the transaction rolled back the amount
+                    // columns, but the claim was committed separately and would otherwise
+                    // leave the item marked paid when it never was).
+                    $this->release_order_item_claim($row['id']);
+                    $failed_count++;
+                    // A failure used to leave NO trace anywhere: settlement_status could only
+                    // ever be 'settled' because record_settlement() was called on the success
+                    // path only, so the 'Failed' badge the seller's settlement page renders was
+                    // unreachable and an item that kept failing looked simply un-settled. Recorded
+                    // outside the transaction above so the row survives that rollback; the model
+                    // upserts, so the retry that finally succeeds overwrites this row rather than
+                    // colliding with the unique key on order_item_id.
+                    $this->Seller_settlement_model->record_settlement(array_merge($breakdown, [
+                        'seller_id' => $row['seller_id'],
+                        'order_id' => $row['order_id'],
+                        'order_item_id' => $row['id'],
+                        'commission_rate_source' => $rate_source,
+                        'settlement_status' => 'failed',
+                    ]));
                     $response_data['error'] =  true;
                     $response_data['message'] =  'Commission not settled';
                 }
             }
             if ($wallet_updated == true) {
-                $seller_ids = array_values(array_unique(array_column($data, "seller_id")));
+                $seller_ids = array_keys($credited_sellers);
                 foreach ($seller_ids as $seller) {
                     //custom message
                     $settings = get_settings('system_settings', true);
                     $app_name = isset($settings['app_name']) && !empty($settings['app_name']) ? $settings['app_name'] : '';
                     $user_res = fetch_details('users', ['id' => $seller], 'username,fcm_id,email,mobile');
+                    if (empty($user_res)) {
+                        continue;
+                    }
                     $custom_notification = fetch_details('custom_notifications', ['type' => "settle_seller_commission"], '');
                     $hashtag_cutomer_name = '< cutomer_name >';
                     $hashtag_application_name = '< application_name >';
                     $string = isset($custom_notification[0]['message']) ? json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE) : "";
                     $hashtag = html_entity_decode($string);
-                    $data = str_replace(array($hashtag_cutomer_name, $hashtag_application_name), array($user_res[0]['username'], $app_name), $hashtag);
-                    $message = output_escaping(trim($data, '"'));
+                    // This used to assign to $data - the same variable holding the order-item
+                    // list this whole method iterates over - clobbering it mid-method.
+                    $personalised = str_replace(array($hashtag_cutomer_name, $hashtag_application_name), array($user_res[0]['username'], $app_name), $hashtag);
+                    $message = output_escaping(trim($personalised, '"'));
                     $customer_title = (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Commission Amount Credited";
                     $customer_msg = (!empty($custom_notification)) ? $message : 'Hello Dear ' . $user_res[0]['username'] . 'Commission Amount Credited, which orders are delivered. Please take note of it! Regards' . $app_name . '';
                     // send_mail($user_res[0]['email'], $customer_title, $customer_msg);
@@ -567,12 +954,20 @@ class Seller_model extends CI_Model
                 }
             } else {
                 $response_data['error'] =  true;
-                $response_data['message'] =  'Commission not settled';
+                // Distinguish "nothing was eligible because no seller has a plan" from a real
+                // failure - previously both reported the same bare "Commission not settled",
+                // which is why sellers stuck without a subscription were invisible to the admin.
+                $response_data['message'] = 'Commission not settled';
             }
-        } else {
-            $response_data['error'] =  true;
-            $response_data['message'] =  'No order found for settlement';
         }
+
+        $response_data['data'] = [
+            'settled'          => $settled_count,
+            'failed'           => $failed_count,
+            'skipped_no_plan'  => $skipped_no_plan,
+            'total_credited'   => round($total_credited, 2),
+            'total_commission' => round($total_commission, 2),
+        ];
         print_r(json_encode($response_data));
     }
 

@@ -250,24 +250,33 @@
                                                 </small>
                                             </div>
                                         </div>
-                                        <div class="row col mt-3">
-                                            <div class="col-md-3 col-xs-6">
+                                        <div class="row col mt-3 toggle-row">
+                                            <div class="col-md-3 col-6 toggle-field">
                                                 <label for="is_prices_inclusive_tax" class="col-form-label">Tax included in prices?</label>
                                                 <input type="checkbox" name="is_prices_inclusive_tax" <?= (isset($product_details[0]['is_prices_inclusive_tax']) && $product_details[0]['is_prices_inclusive_tax'] == '1') ? 'checked' : '' ?> data-bootstrap-switch data-off-color="danger" data-on-color="success" data-on-text="Yes" data-off-text="No">
                                             </div>
-                                            <div class="col-md-2 col-xs-6 cod_allowed <?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
+                                            <div class="col-md-3 col-6 toggle-field cod_allowed <?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
                                                 <label for="is_cod_allowed" class="col-form-label">Is COD allowed?</label>
                                                 <input type="checkbox" name="cod_allowed" <?= (isset($product_details[0]['cod_allowed']) && $product_details[0]['cod_allowed'] == '1') ? 'Checked' : '' ?> data-bootstrap-switch data-off-color="danger" data-on-color="success" data-on-text="Yes" data-off-text="No">
                                             </div>
-                                            <div class="col-md-2 col-xs-6 is_returnable <?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
+                                            <div class="col-md-3 col-6 toggle-field is_returnable <?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
                                                 <label for="is_returnable" class="col-form-label">IS Returnable ?</label>
                                                 <input type="checkbox" name="is_returnable" <?= (isset($product_details[0]['is_returnable']) && $product_details[0]['is_returnable'] == '1') ? 'Checked' : '' ?> data-bootstrap-switch data-off-color="danger" data-on-color="success" data-on-text="Yes" data-off-text="No">
                                             </div>
-                                            <div class="col-md-2 col-xs-6 is_cancelable <?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
+                                            <div class="col-md-3 col-6 toggle-field is_cancelable <?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
                                                 <label for="is_cancelable" class="col-form-label">Is cancelable ? </label>
                                                 <input type="checkbox" name="is_cancelable" id="is_cancelable" class="switch" <?= (isset($product_details[0]['is_cancelable']) && $product_details[0]['is_cancelable'] == '1') ? 'Checked' : ''; ?> data-bootstrap-switch data-off-color="danger" data-on-color="success" data-on-text="Yes" data-off-text="No">
                                             </div>
-                                            <div class="col-md-3 col-xs-6 <?= (isset($product_details[0]['is_cancelable']) && $product_details[0]['is_cancelable'] == 1) ? '' : 'collapse' ?>" id='cancelable_till'>
+                                            <?php /* Moved up from its own row so all five switches share one grid.
+                                                     The class list used to read "justify-content-between<?= ... ?>",
+                                                     with no space before the PHP tag - for a saved digital product that
+                                                     produced "justify-content-betweend-none", so the field never
+                                                     actually hid on first render. */ ?>
+                                            <div class="col-md-3 col-6 toggle-field is_attachment_required <?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
+                                                <label for="is_attachment_required" class="col-form-label">Is Attachment Required ?</label>
+                                                <input type="checkbox" class="form-check-input" role="switch" name="is_attachment_required" <?= (isset($product_details[0]['is_attachment_required']) && $product_details[0]['is_attachment_required'] == '1') ? 'Checked' : '' ?> data-bootstrap-switch data-off-color="danger" data-on-color="success" data-on-text="Yes" data-off-text="No">
+                                            </div>
+                                            <div class="col-md-3 col-6 toggle-field <?= (isset($product_details[0]['is_cancelable']) && $product_details[0]['is_cancelable'] == 1) ? '' : 'collapse' ?>" id='cancelable_till'>
                                                 <label for="cancelable_till" class="col-form-label">Till which status ? <span class='text-danger text-sm'>*</span></label>
                                                 <select class='form-control' name="cancelable_till">
                                                     <option value='received' <?= (isset($product_details[0]['cancelable_till']) && $product_details[0]['cancelable_till'] == 'received') ? 'selected' : '' ?>>Received</option>
@@ -278,19 +287,17 @@
                                         </div>
 
                                         <div class="row col mt-3">
-                                            <div class="col-md-4  is_attachment_required d-flex justify-content-between<?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
-                                                <label for="is_attachment_required" class="col-form-label is_attachment_required">Is Attachment Required ?</label>
-                                                <a class=" form-switch  mr-1 mb-1" title="Deactivate" href="javascript:void(0)"> <input type="checkbox" class="form-check-input " role="switch" name="is_attachment_required" <?= (isset($product_details[0]['is_attachment_required']) && $product_details[0]['is_attachment_required'] == '1') ? 'Checked' : '' ?> data-bootstrap-switch data-off-color="danger" data-on-color="success" /></a>
-                                            </div>
-                                        </div>
-
-                                        <div class="row col mt-3">
 
                                             <div class="col pt-4 pb-4">
                                                 <div class="section-header"><i class="fas fa-images"></i> Media</div>
                                                 <div class="form-group col-sm-12">
                                                     <label for="image">Main Image <span class='text-danger text-sm'>*</span><small>(Recommended Size : 180 x 180 pixels)</small></label>
-                                                    <div class='col-md-12'><a class="uploadFile img btn btn-primary text-white btn-sm" data-input='pro_input_image' data-isremovable='0' data-is-multiple-uploads-allowed='0' data-toggle="modal" data-target="#media-upload-modal" value="Upload Photo"><i class='fa fa-upload'></i> Upload</a></div>
+                                                    <?php /* Direct upload: opens the OS file picker and uploads straight to
+                                                             seller/media/upload, instead of opening the media-library modal. */ ?>
+                                                    <div class='col-md-12 px-0'>
+                                                        <button type="button" class="btn btn-primary btn-sm direct-upload-btn"><i class='fa fa-upload'></i> Choose Image</button>
+                                                        <input type="file" class="d-none direct-upload-input" accept="image/*" data-input="pro_input_image" data-multiple="0" data-media-type="image">
+                                                    </div>
                                                     <?php
                                                     if (isset($product_details[0]['id']) && !empty($product_details[0]['id'])) {
                                                     ?>
@@ -312,7 +319,10 @@
                                                 <div class="form-group">
                                                     <label for="other_images">Other Images <small>(Recommended Size : 180 x 180 pixels)</small></label>
                                                     <div class="col-sm-12">
-                                                        <div class='col-md-3'><a class="uploadFile img btn btn-primary text-white btn-sm" data-input='other_images[]' data-isremovable='1' data-is-multiple-uploads-allowed='1' data-toggle="modal" data-target="#media-upload-modal" value="Upload Photo"><i class='fa fa-upload'></i> Upload</a></div>
+                                                        <div class='px-0'>
+                                                            <button type="button" class="btn btn-primary btn-sm direct-upload-btn"><i class='fa fa-upload'></i> Choose Images</button>
+                                                            <input type="file" class="d-none direct-upload-input" accept="image/*" multiple data-input="other_images[]" data-multiple="1" data-media-type="image">
+                                                        </div>
                                                         <?php
                                                         if (isset($product_details[0]['id']) && !empty($product_details[0]['id'])) {
                                                         ?>
@@ -324,8 +334,10 @@
                                                                 ?>
                                                                         <div class="col-md-3 col-sm-12 shadow bg-white rounded m-3 p-3 text-center grow">
                                                                             <div class='image-upload-div'><img src="<?= BASE_URL()  . $row ?>" alt="Image Not Found"></div>
-                                                                            <a href="javascript:void(0)" class="delete-img-seller m-3" data-id="<?= $product_details[0]['id'] ?>" data-field="other_images" data-img="<?= $row ?>" data-table="products" data-path="<?= $row ?>" data-isjson="true">
-                                                                                <span class="btn btn-block bg-gradient-danger btn-xs"><i class="far fa-trash-alt "></i> Delete</span></a>
+                                                                            <?php /* Same delete-img-seller handler and data attributes as before (this
+                                                                                     image is already saved, so removal still goes through the server) -
+                                                                                     rendered as a corner cross instead of a full-width Delete bar. */ ?>
+                                                                            <a href="javascript:void(0)" class="delete-img-seller media-remove-btn" title="Remove image" aria-label="Remove image" data-id="<?= $product_details[0]['id'] ?>" data-field="other_images" data-img="<?= $row ?>" data-table="products" data-path="<?= $row ?>" data-isjson="true">&times;</a>
                                                                             <input type="hidden" name="other_images[]" value='<?= $row ?>'>
                                                                         </div>
                                                                 <?php
@@ -356,7 +368,10 @@
                                                     </div>
                                                     <div class="col-md-6 mt-2 <?= (isset($product_details[0]['video_type']) && ($product_details[0]['video_type'] == 'self_hosted')) ? '' : 'd-none'; ?>" id="video_media_container">
                                                         <label for="image" class="ml-2">Video <span class='text-danger text-sm'>*</span></label>
-                                                        <div class='col-md-3'><a class="uploadFile img btn btn-primary text-white btn-sm" data-input='pro_input_video' data-isremovable='1' data-media_type='video' data-is-multiple-uploads-allowed='0' data-toggle="modal" data-target="#media-upload-modal" value="Upload Photo"><i class='fa fa-upload'></i> Upload</a></div>
+                                                        <div class='px-0'>
+                                                            <button type="button" class="btn btn-primary btn-sm direct-upload-btn"><i class='fa fa-upload'></i> Choose Video</button>
+                                                            <input type="file" class="d-none direct-upload-input" accept="video/*" data-input="pro_input_video" data-multiple="0" data-media-type="video">
+                                                        </div>
                                                         <?php if (isset($product_details[0]['id']) && !empty($product_details[0]['id']) && isset($product_details[0]['video_type']) &&  $product_details[0]['video_type'] == 'self_hosted') { ?>
                                                             <label class="text-danger mt-3">*Only Choose When Update is necessary</label>
                                                             <div class="container-fluid row image-upload-section ">
@@ -476,7 +491,7 @@
                                                                             <label for="weight" class="control-label col-md-12"><small>(These are the product parcel's dimentions.)</small></label>
                                                                         </div>
                                                                     </div>
-                                                                    <div class="form-group row  dimensions  <?= $product_details[0]['type'] == "digital_product" ? 'd-none' : '' ?>">
+                                                                    <div class="form-group row dimensions product-dimensions <?= $product_details[0]['type'] == "digital_product" ? 'd-none' : '' ?>">
                                                                         <div class="col-3">
                                                                             <label for="weight" class="control-label col-md-12">Weight <small>(kg)</small> <span class='text-danger text-xs'>*</span></label>
                                                                             <input type="number" class="form-control" name="weight" placeholder="Weight" id="weight" value="<?= $simple_variant['weight'] ?? '' ?>" step="0.01">
@@ -541,7 +556,10 @@
                                                                             </div>
                                                                             <div class="col-md-6 mt-2 <?= (isset($product_details[0]['download_type']) && ($product_details[0]['download_type'] == 'self_hosted')) ? '' : 'd-none'; ?>" id="digital_media_container">
                                                                                 <label for="image" class="ml-2">File <span class='text-danger text-sm'>*</span></label>
-                                                                                <div class='col-md-3'><a class="uploadFile img btn btn-primary text-white btn-sm" data-input='pro_input_zip' data-isremovable='1' data-media_type='archive,document' data-is-multiple-uploads-allowed='0' data-toggle="modal" data-target="#media-upload-modal" value="Upload Photo"><i class='fa fa-upload'></i> Upload</a></div>
+                                                                                <div class='px-0'>
+                                                                                    <button type="button" class="btn btn-primary btn-sm direct-upload-btn"><i class='fa fa-upload'></i> Choose File</button>
+                                                                                    <input type="file" class="d-none direct-upload-input" data-input="pro_input_zip" data-multiple="0" data-media-type="archive,document">
+                                                                                </div>
                                                                                 <?php if (isset($product_details[0]['id']) && !empty($product_details[0]['id']) && isset($product_details[0]['download_type']) &&  $product_details[0]['download_type'] == 'self_hosted') { ?>
                                                                                     <label class="text-danger mt-3">*Only Choose When Update is necessary</label>
                                                                                     <div class="container-fluid row image-upload-section">
@@ -700,7 +718,11 @@
                                                                                     <label for="weight" class="control-label col-md-12"><small>(These are the product parcel's dimentions.)</small></label>
                                                                                 </div>
                                                                             </div>
-                                                                            <div class="form-group row" id="product-dimensions">
+                                                                            <?php /* Was a second id="product-dimensions" - a duplicate of the label row
+                                                                                     above, so $('#product-dimensions') only ever matched that label and the
+                                                                                     weight/height fields stayed visible for digital products. Carries the
+                                                                                     shared class instead; custom.js toggles both. */ ?>
+                                                                            <div class="form-group row product-dimensions">
                                                                                 <div class="col-3">
                                                                                     <label for="weight" class="control-label col-md-12">Weight <small>(kg)</small> <span class='text-danger text-xs'>*</span></label>
                                                                                     <input type="number" class="form-control" name="weight" placeholder="Weight" id="weight" value="" step="0.01">
@@ -805,7 +827,10 @@
                                                                             </div>
                                                                             <div class="col-md-6 mt-2 d-none" id="digital_media_container">
                                                                                 <label for="image" class="ml-2">File <span class='text-danger text-sm'>*</span></label>
-                                                                                <div class='col-md-3'><a class="uploadFile img btn btn-primary text-white btn-sm" data-input='pro_input_zip' data-isremovable='1' data-media_type='archive,document' data-is-multiple-uploads-allowed='0' data-toggle="modal" data-target="#media-upload-modal" value="Upload Photo"><i class='fa fa-upload'></i> Upload</a></div>
+                                                                                <div class='px-0'>
+                                                                                    <button type="button" class="btn btn-primary btn-sm direct-upload-btn"><i class='fa fa-upload'></i> Choose File</button>
+                                                                                    <input type="file" class="d-none direct-upload-input" data-input="pro_input_zip" data-multiple="0" data-media-type="archive,document">
+                                                                                </div>
                                                                                 <div class="container-fluid row image-upload-section">
                                                                                     <div class="col-md-3 col-sm-12 shadow p-3 mb-5 bg-white rounded m-4 text-center grow image d-none">
                                                                                     </div>
@@ -868,9 +893,9 @@
                                                 <div class="form-group" id="error_box">
                                                 </div>
                                             </div>
-                                            <div class="form-group">
-                                                <button type="reset" class="btn btn-warning">Reset</button>
+                                            <div class="form-group product-form-actions">
                                                 <button type="submit" class="btn btn-success" id="submit_btn"><?= (isset($product_details[0]['id'])) ? 'Update Product' : 'Add Product' ?></button>
+                                                <button type="reset" class="btn btn-warning">Reset</button>
                                             </div>
                                         </div>
                                     </div>
@@ -981,6 +1006,189 @@
     .seller-create-product-page .category-result-name { font-weight: 600; font-size: 14px; }
     .seller-create-product-page .category-result-path { font-size: 12px; color: var(--color-grey); }
     .seller-create-product-page .category-empty { padding: 10px 12px; color: var(--color-grey); font-size: 13px; }
+
+    /* ---------------------------------------------------------------
+     * Visual polish. Layout and markup are unchanged - this only tunes
+     * field sizing, spacing, the action bar and small-screen behaviour.
+     * ------------------------------------------------------------- */
+
+    /* Fields: one consistent height and radius across every control type.
+       select2 and file inputs are matched explicitly - they render their own
+       boxes and otherwise sit a few pixels short next to a plain input. */
+    .seller-create-product-page .form-control:not(textarea),
+    .seller-create-product-page .custom-select {
+        height: 42px;
+        border-radius: 8px;
+        border-color: rgba(0, 0, 0, 0.14);
+    }
+    .seller-create-product-page textarea.form-control { border-radius: 8px; border-color: rgba(0, 0, 0, 0.14); }
+    .seller-create-product-page .select2-container--bootstrap4 .select2-selection {
+        height: 42px;
+        border-radius: 8px;
+        border-color: rgba(0, 0, 0, 0.14);
+    }
+    .seller-create-product-page .form-group { margin-bottom: 1rem; }
+    .seller-create-product-page label { margin-bottom: .35rem; }
+
+    /* Cards: a little more room to breathe, less shadow noise. */
+    .seller-create-product-page .card-body { padding: 20px 24px; }
+    .seller-create-product-page .attribute-card { box-shadow: 0 1px 8px rgba(0, 0, 0, 0.07); }
+    .seller-create-product-page .section-header { margin: 22px 0 16px; }
+
+    /* Buttons: one size, one radius. The tiny btn-xs delete chips on image
+       tiles keep their own scale. */
+    .seller-create-product-page .btn:not(.btn-xs):not(.btn-sm) {
+        border-radius: 8px;
+        padding: 8px 20px;
+        font-weight: 600;
+    }
+    .seller-create-product-page .btn-sm { border-radius: 6px; font-weight: 600; }
+
+    /* Image / video / file preview tiles. The markup carries m-4 + mb-5 + p-3,
+       which spread three thumbnails across an entire row with large gaps. */
+    .seller-create-product-page .grow.image,
+    .seller-create-product-page .grow {
+        margin: 8px !important;
+        padding: 10px !important;
+        margin-bottom: 8px !important;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        box-shadow: none !important;
+        border-radius: 10px;
+    }
+    .seller-create-product-page .grow img { max-width: 100%; height: auto; }
+
+    /* Action bar: sticks to the bottom of the viewport while scrolling this
+       long form, so Save is always reachable without scrolling to the end. */
+    .seller-create-product-page .product-form-actions {
+        position: sticky;
+        bottom: 0;
+        z-index: 5;
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin: 24px -24px -20px;
+        padding: 14px 24px;
+        background: #fff;
+        border-top: 1px solid rgba(0, 0, 0, 0.08);
+        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+    }
+    .seller-create-product-page .product-form-actions .btn { min-width: 140px; }
+    /* Reset is the secondary action - the stock btn-warning yellow competed with
+       the orange primary sitting right next to it. */
+    .seller-create-product-page .product-form-actions .btn-warning {
+        background: #fff;
+        border: 1px solid rgba(0, 0, 0, 0.18);
+        color: var(--color-grey, #6c757d);
+        box-shadow: none;
+    }
+    .seller-create-product-page .product-form-actions .btn-warning:hover {
+        background: #f6f6f6;
+        border-color: rgba(0, 0, 0, 0.3);
+        color: #333;
+    }
+
+    /* The four dimension inputs are hardcoded col-3, so on a phone they end up
+       four across at roughly 60px each. Two-up below 768px, stacked below 480. */
+    @media (max-width: 767.98px) {
+        .seller-create-product-page .product-dimensions > .col-3 {
+            flex: 0 0 50%;
+            max-width: 50%;
+            margin-bottom: 10px;
+        }
+        .seller-create-product-page .card-body { padding: 16px; }
+        .seller-create-product-page .product-form-actions { margin: 20px -16px -16px; padding: 12px 16px; }
+        .seller-create-product-page .product-form-actions .btn { flex: 1; min-width: 0; }
+    }
+    @media (max-width: 479.98px) {
+        .seller-create-product-page .product-dimensions > .col-3 { flex: 0 0 100%; max-width: 100%; }
+    }
+
+    /* ---------------- Yes/No switches ---------------- */
+    /* All five switches now sit in one grid, each label above its control so the
+       row reads evenly instead of the labels wrapping at different heights. */
+    .seller-create-product-page .toggle-row { row-gap: 14px; }
+    .seller-create-product-page .toggle-field .col-form-label {
+        display: block;
+        padding: 0 0 6px;
+        font-weight: 600;
+        font-size: 13px;
+        line-height: 1.3;
+        color: #4a4a4a;
+    }
+    /* The "off" state was bootstrap-switch's danger red, which read as an error on a
+       field whose default is simply No. Neutral grey off, green on. */
+    .seller-create-product-page .bootstrap-switch { border-radius: 5px; border-color: rgba(0,0,0,.15); }
+    .seller-create-product-page .bootstrap-switch .bootstrap-switch-handle-on,
+    .seller-create-product-page .bootstrap-switch .bootstrap-switch-handle-off,
+    .seller-create-product-page .bootstrap-switch .bootstrap-switch-label {
+        padding: 6px 12px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+    .seller-create-product-page .bootstrap-switch .bootstrap-switch-handle-off.bootstrap-switch-danger {
+        background: red;
+        color: #fff;
+    }
+    .seller-create-product-page .bootstrap-switch .bootstrap-switch-handle-on.bootstrap-switch-success {
+        background: #2e7d32;
+        color: #fff;
+    }
+    .seller-create-product-page .bootstrap-switch.bootstrap-switch-focused {
+        border-color: var(--color-orange);
+        box-shadow: 0 0 0 .15rem rgba(242,130,46,.18);
+    }
+
+    /* ---------------- Media tiles ---------------- */
+    .seller-create-product-page .image-upload-section { margin-top: 12px; }
+    .seller-create-product-page .media-tile {
+        position: relative;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        border-radius: 10px;
+        background: #fff;
+        padding: 10px !important;
+        margin: 0 12px 12px 0 !important;
+        max-width: 170px;
+        box-shadow: none !important;
+    }
+    .seller-create-product-page .media-tile .image-upload-div {
+        height: 110px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+    }
+    .seller-create-product-page .media-tile img { max-height: 110px; width: auto; object-fit: contain; }
+    .seller-create-product-page .media-tile-name {
+        font-size: 11px;
+        color: var(--color-grey, #6c757d);
+        word-break: break-all;
+        line-height: 1.25;
+    }
+    /* The remove cross, pinned to the tile's top-right corner. Also applied to the
+       existing .delete-img-seller anchors on already-saved images. */
+    .seller-create-product-page .media-remove-btn {
+        position: absolute;
+        top: -8px;
+        right: -8px;
+        z-index: 3;
+        width: 24px;
+        height: 24px;
+        padding: 0;
+        border: none;
+        border-radius: 50%;
+        background: #dc3545;
+        color: #fff !important;
+        font-size: 17px;
+        line-height: 22px;
+        text-align: center;
+        text-decoration: none !important;
+        cursor: pointer;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+    }
+    .seller-create-product-page .media-remove-btn:hover { background: #b02a37; }
+    /* Saved images render through the original .grow markup, which has no
+       positioning context of its own for the corner cross. */
+    .seller-create-product-page .grow { position: relative; }
 </style>
 
 <script>
@@ -1151,5 +1359,113 @@ $(document).ready(function () {
     // one written against this panel's modal markup, so custom.js's copy is dropped.
     // This runs on ready, after custom.js has bound at parse time.
     $('#upload-media').off('click');
+
+    // ------------------------------------------------------------------
+    // Direct media upload.
+    //
+    // The Upload buttons used to open #media-upload-modal (the media-library
+    // browser) and insert whatever was ticked there. These controls skip the
+    // modal entirely: the button opens the OS file picker, the chosen file is
+    // POSTed straight to seller/media/upload, and the returned path is written
+    // into the same hidden input the modal flow used - so what the form submits
+    // is byte-for-byte what it submitted before.
+    // ------------------------------------------------------------------
+
+    // Non-image uploads have no thumbnail to show, so fall back to the same
+    // placeholder icons the modal flow used.
+    function previewSrcFor(mediaType, url) {
+        if (mediaType === 'image') return url;
+        var icon = (mediaType.indexOf('video') === 0) ? 'video' : 'archive';
+        return base_url + 'assets/admin/images/' + icon + '-file.png';
+    }
+
+    function buildTile(name, relPath, mediaType, url) {
+        var $tile = $(
+            '<div class="col-md-3 col-sm-12 text-center grow image media-tile">' +
+                '<button type="button" class="media-remove-btn" title="Remove" aria-label="Remove">&times;</button>' +
+                '<div class="image-upload-div"></div>' +
+                '<div class="media-tile-name"></div>' +
+            '</div>'
+        );
+        // .text()/.attr() rather than string-built HTML: file names come from the
+        // upload response and can contain quotes or angle brackets.
+        $tile.find('.image-upload-div').append(
+            $('<img class="img-fluid mb-2">').attr({ src: previewSrcFor(mediaType, url), alt: name, title: name })
+        );
+        $tile.find('.media-tile-name').text(name);
+        $tile.append($('<input type="hidden">').attr('name', relPath.inputName).val(relPath.value));
+        return $tile;
+    }
+
+    $(document).on('click', '.direct-upload-btn', function () {
+        $(this).siblings('.direct-upload-input').trigger('click');
+    });
+
+    $(document).on('change', '.direct-upload-input', function () {
+        var $input = $(this);
+        var files = this.files;
+        if (!files || !files.length) return;
+
+        var inputName = $input.data('input');
+        var mediaType = String($input.data('media-type') || 'image');
+        var isMultiple = String($input.data('multiple')) === '1';
+        var $group = $input.closest('.form-group');
+        var $section = $group.find('.image-upload-section').first();
+        var $btn = $input.siblings('.direct-upload-btn');
+        var originalLabel = $btn.html();
+
+        var fd = new FormData();
+        for (var i = 0; i < files.length; i++) fd.append('documents[]', files[i]);
+        fd.append('media_type', mediaType);
+        fd.append(csrfName, csrfHash);
+
+        $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Uploading...');
+
+        $.ajax({
+            url: base_url + 'seller/media/upload',
+            type: 'POST',
+            data: fd,
+            processData: false,
+            contentType: false,
+            dataType: 'json',
+            success: function (res) {
+                if (res.csrfName) csrfName = res.csrfName;
+                if (res.csrfHash) csrfHash = res.csrfHash;
+
+                if (!res.files || !res.files.length) {
+                    Swal.fire({ icon: 'error', title: 'Upload failed', text: res.message || 'No file was uploaded.' });
+                    return;
+                }
+                // The endpoint reports a partial failure by putting the message in
+                // `error` while still returning whatever did upload.
+                if (res.error) {
+                    Swal.fire({ icon: 'warning', title: 'Some files were rejected', html: res.error });
+                }
+
+                $section.removeClass('d-none').find('.image').removeClass('d-none');
+                if (!isMultiple) $section.empty();
+
+                $.each(res.files, function (_, f) {
+                    var value = f.sub_directory + f.name;
+                    $section.append(buildTile(f.name, { inputName: inputName, value: value }, mediaType, f.url));
+                });
+            },
+            error: function () {
+                Swal.fire({ icon: 'error', title: 'Upload failed', text: 'Could not reach the server. Please try again.' });
+            },
+            complete: function () {
+                $btn.prop('disabled', false).html(originalLabel);
+                // Reset so re-picking the same file still fires `change`.
+                $input.val('');
+            }
+        });
+    });
+
+    // Removes a tile that has not been saved yet - dropping the hidden input is
+    // all that is needed, since the form only submits what is still in the DOM.
+    // Already-saved images keep the server-side .delete-img-seller handler.
+    $(document).on('click', '.media-remove-btn', function () {
+        $(this).closest('.media-tile').remove();
+    });
 });
 </script>

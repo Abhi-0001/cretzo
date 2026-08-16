@@ -22,7 +22,7 @@ defined('FACEBOOK_APP_SECRET') or define('FACEBOOK_APP_SECRET', '42d7c2bed5fc50f
 | of this setting
 |
 */
-defined('SHOW_DEBUG_BACKTRACE') or define('SHOW_DEBUG_BACKTRACE', TRUE);
+defined('SHOW_DEBUG_BACKTRACE') or define('SHOW_DEBUG_BACKTRACE', FALSE);
 
 /*
 |--------------------------------------------------------------------------
@@ -103,7 +103,38 @@ define('FORMS', 'forms/');
 define('IS_ALLOWED_MODIFICATION',1);
 define('DEMO_VERSION_MSG', 'Modification in demo version is not allowed');
 define('SEMI_DEMO_MODE', 1);
-define('APP_URL', (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http") . "://" . $_SERVER['HTTP_HOST'] . str_replace(basename($_SERVER['SCRIPT_NAME']), "", $_SERVER['SCRIPT_NAME']));
+
+if (!function_exists('detect_app_url')) {
+    function detect_app_url() {
+        $is_https = (
+            (!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off')
+            || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https')
+            || (!empty($_SERVER['HTTP_X_FORWARDED_SSL']) && strtolower($_SERVER['HTTP_X_FORWARDED_SSL']) === 'on')
+        );
+
+        // Hosts this app may answer as. HTTP_HOST is client-controlled, so an
+        // unrecognised value falls back to the canonical domain rather than being
+        // echoed into every generated link (password-reset URLs included).
+        // X-Forwarded-Host is deliberately NOT trusted: no reverse proxy in front
+        // of this app overwrites it, so it arrives straight from the client.
+        $allowed = ['cretzo.com', 'www.cretzo.com', 'localhost', '127.0.0.1'];
+
+        $host = $_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? $allowed[0];
+        // The port is preserved on purpose - staging and Docker serve on
+        // non-default ports, and stripping it breaks every asset URL there.
+        if (!in_array(preg_replace('/:\d+$/', '', $host), $allowed, TRUE)) {
+            $host = $allowed[0];
+        }
+
+        $script_name = $_SERVER['SCRIPT_NAME'] ?? '/index.php';
+        $base_path = str_replace(basename($script_name), '', $script_name);
+        $base_path = rtrim($base_path, '/');
+
+        return ($is_https ? 'https' : 'http') . '://' . $host . $base_path . '/';
+    }
+}
+
+define('APP_URL', detect_app_url());
 define('SEMI_DEMO_MODE_MSG', 'Modification in semi demo version is not allowed');
 define('TABLES', 'tables/');
 define('VIEW', 'view/');

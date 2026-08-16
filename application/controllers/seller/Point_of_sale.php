@@ -238,6 +238,21 @@ class Point_of_sale extends CI_Controller
             $final_total = $cart['overall_amount'];
             $place_order_data['final_total'] = $final_total;
             $res = $this->order_model->place_order($place_order_data);
+
+            // place_order() reports failure by RETURNING ['error' => true] rather than throwing,
+            // and that was never checked: a failed sale still wrote a "success" transaction row
+            // and still reported "Order Delivered Successfully" to the cashier, with
+            // $res['order_id'] undefined. A POS sale that did not happen produced a payment
+            // record that said it did.
+            if (empty($res) || !empty($res['error']) || empty($res['order_id'])) {
+                $this->response['error'] = true;
+                $this->response['message'] = (!empty($res['message'])) ? $res['message'] : 'Could not complete the sale. Please try again.';
+                $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                print_r(json_encode($this->response));
+                return false;
+            }
+
             if (isset($res) && !empty($res)) {
                 // creating transaction record for card payments
                 $trans_data = [

@@ -157,6 +157,30 @@
                                         <label for="max_items_cart"> Low stock limit <small>(Product will be considered as low stock)</small> </label>
                                         <input type="number" class="form-control" name="low_stock_limit" value="<?= (isset($settings['low_stock_limit'])) ? html_escape($settings['low_stock_limit']) : '5' ?>" placeholder='Product low stock limit' min='1' />
                                     </div>
+                                    <div class="form-group col-12">
+                                        <div class="alert alert-warning mb-2">
+                                            <strong><i class="fas fa-balance-scale mr-1"></i>Statutory deductions on seller settlements</strong>
+                                            <div class="small mt-1">
+                                                These are withheld from every seller payout and shown as separate lines on their
+                                                settlement statement. <strong>Leave them at 0 unless your accountant has confirmed
+                                                they apply to you</strong> &mdash; withholding the wrong amount from sellers is worse
+                                                than withholding nothing. Typical Indian marketplace figures, for reference only,
+                                                are 18 / 1 / 1.
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="form-group col-md-4">
+                                        <label for="commission_gst_percent">GST on Commission (%) <small>(charged on the commission)</small></label>
+                                        <input type="number" step="0.01" min="0" max="100" class="form-control" name="commission_gst_percent" value="<?= (isset($settings['commission_gst_percent'])) ? html_escape($settings['commission_gst_percent']) : '0' ?>" placeholder='0' />
+                                    </div>
+                                    <div class="form-group col-md-4">
+                                        <label for="tcs_percent">TCS (%) <small>(on the ex-tax order value)</small></label>
+                                        <input type="number" step="0.01" min="0" max="100" class="form-control" name="tcs_percent" value="<?= (isset($settings['tcs_percent'])) ? html_escape($settings['tcs_percent']) : '0' ?>" placeholder='0' />
+                                    </div>
+                                    <div class="form-group col-md-4">
+                                        <label for="tds_percent">TDS u/s 194-O (%) <small>(on the gross order value)</small></label>
+                                        <input type="number" step="0.01" min="0" max="100" class="form-control" name="tds_percent" value="<?= (isset($settings['tds_percent'])) ? html_escape($settings['tds_percent']) : '0' ?>" placeholder='0' />
+                                    </div>
                                     <div class="form-group col-md-6">
                                         <label for="">Max days to return item</label>
                                         <input type="number" class="form-control" name="max_product_return_days" value="<?= (isset($settings['max_product_return_days'])) ? html_escape($settings['max_product_return_days']) : '' ?>" placeholder='Max days to return item' />

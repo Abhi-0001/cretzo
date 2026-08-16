@@ -1155,12 +1155,14 @@ class Auth extends CI_Controller
                 if ($owner['exists']) {
                     $this->response['error'] = true;
                     if (user_has_role($owner['user']['id'], 'customer')) {
-                        $this->response['message'] = 'This number already has an account here. Please log in - '
-                            . 'the same account works for buying, selling and admin.';
+                        $this->response['message'] = 'You are already registered with this number. Please sign in to continue.';
                     } else {
                         $this->ion_auth->add_to_group(2, $owner['user']['id']);
-                        $this->response['message'] = 'Shopping has been enabled on your existing account for this number. '
-                            . 'Please log in with your current password - it has not been changed.';
+                        // The account already existed (as a seller/admin) and has just been
+                        // given the customer role, so there is nothing for the user to do
+                        // beyond signing in with the password they already have.
+                        $this->response['message'] = 'Welcome back! This number is already registered. '
+                            . 'Please sign in with your existing password to start shopping.';
                     }
 
                     $this->response['data'] = array();
@@ -1170,7 +1172,7 @@ class Auth extends CI_Controller
             }
             if (isset($_POST['email']) && is_exist(['email' => $_POST['email']], 'users')) {
                 $this->response['error'] = true;
-                $this->response['message'] = 'Email is already registered.Please try to login !';
+                $this->response['message'] = 'This email is already registered. Please sign in to continue.';
                 $this->response['data'] = array();
                 print_r(json_encode($this->response));
                 return;
@@ -1222,10 +1224,12 @@ class Auth extends CI_Controller
         // print_r($_POST);
 
         $this->form_validation->set_rules('name', 'Name', 'trim|required|xss_clean');
-        $this->form_validation->set_rules('email', 'Mail', 'trim|required|xss_clean|valid_email|is_unique[users.email]', array('is_unique' => 'The email is already registered. Please login.'));
+        $this->form_validation->set_rules('email', 'Mail', 'trim|xss_clean|valid_email|is_unique[users.email]', array('is_unique' => 'The email is already registered. Please login.'));
         if (isset($_POST['type']) && !empty($_POST['type']) && $_POST['type'] == 'phone') {
             $this->form_validation->set_rules('mobile', 'Mobile', 'trim|required|xss_clean|min_length[5]|numeric|is_unique[users.mobile]', array('is_unique' => ' The mobile number is already registered . Please login'));
             $this->form_validation->set_rules('country_code', 'Country Code', 'trim|required|xss_clean');
+        } else {
+            $this->form_validation->set_rules('email', 'Mail', 'trim|required|xss_clean|valid_email|is_unique[users.email]', array('is_unique' => 'The email is already registered. Please login.'));
         }
         $this->form_validation->set_rules('dob', 'Date of birth', 'trim|xss_clean');
         $this->form_validation->set_rules('city', 'City', 'trim|numeric|xss_clean');
@@ -1262,7 +1266,11 @@ class Auth extends CI_Controller
             } else {
                 $identity_column = 'email';
             }
-            $email = strtolower($this->input->post('email'));
+            // Null-safe: email is optional on phone signups, and strtolower(NULL) is
+            // deprecated on PHP 8.1+. NULL (not '') is stored so the column stays empty
+            // rather than holding a shared '' that later lookups could match on.
+            $posted_email = $this->input->post('email');
+            $email = ($posted_email === NULL || $posted_email === '') ? NULL : strtolower($posted_email);
             $mobile = $this->input->post('mobile');
             if (isset($_POST['type']) && !empty($_POST['type']) && $_POST['type'] == 'phone') {
                 $identity = ($identity_column == 'mobile') ? $mobile : $email;

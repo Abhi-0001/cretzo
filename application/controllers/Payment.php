@@ -82,7 +82,9 @@
 
                 update_wallet_balance('credit', $user_id, $returnable_amount, 'Wallet Amount Credited for Order ID  : ' . $order_id);
                 if ($order['order_data'][0]['order_items'][0]['status'][0][0] == 'awaiting') {
-                    update_stock($order['order_data'][0]['order_items'][0]['product_variant_id'], $order['order_data'][0]['order_items'][0]['quantity'], 'plus');
+                    // Restored only order_items[0], so every line after the first on a
+                    // multi-item order stayed held. restore_order_stock() covers them all.
+                    restore_order_stock($order_id);
                 }
                 delete_details(['id' => $order_id], 'orders');
                 delete_details(['order_id' => $order_id], 'order_items');

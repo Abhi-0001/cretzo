@@ -110,11 +110,14 @@ class Manage_stock extends CI_Controller
             }
 
             if ($_POST['type'] == 'add') {
+                set_stock_movement_context('manual_add', null, $this->ion_auth->get_user_id());
                 update_stock([$_POST['variant_id']], [$_POST['quantity']], 'plus');
             } else {
-                if (
-                    $_POST['quantity'] > $_POST['current_stock']
-                ) {
+                // Ceiling was read from a POSTED current_stock field, i.e. a number supplied by
+                // the same client making the request - it proved nothing and could be inflated
+                // to subtract past the real stock. Read the actual value instead.
+                $actual = get_variant_current_stock($_POST['variant_id']);
+                if ($actual !== null && $_POST['quantity'] > $actual) {
                     $this->response['error'] = true;
                     $this->response['csrfName'] = $this->security->get_csrf_token_name();
                     $this->response['csrfHash'] = $this->security->get_csrf_hash();
@@ -124,6 +127,7 @@ class Manage_stock extends CI_Controller
                     );
                     return;
                 }
+                set_stock_movement_context('manual_subtract', null, $this->ion_auth->get_user_id());
                 update_stock([$_POST['variant_id']], [$_POST['quantity']]);
             }
 

@@ -48,6 +48,11 @@ Options -Indexes
   </FilesMatch>
 </IfModule>
 
+# NOTE: this value also selects the database credentials in config/database.php,
+# not just error verbosity - setting it to 'production' here points local XAMPP at
+# the Hostinger DB and takes the local site down with a connection error. Hostinger
+# should set CI_ENV=production in its own server/vhost config rather than in this
+# shared, deployed file.
 SetEnv CI_ENV development
 
 # COMMENTED BELOW LINES BECAUSE DEFLATE NOT WORKING ON 000WEBHOST for some reason, uncomment whenever possible
