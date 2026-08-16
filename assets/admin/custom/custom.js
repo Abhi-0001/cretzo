@@ -1235,6 +1235,42 @@ function payment_request_queryParams(p) {
     };
 }
 
+// The payment-request table rendered an .edit_request button that opened
+// #payment_request_modal purely through its data-toggle attribute - nothing ever populated
+// the modal. #payment_request_id stayed empty, so update_payment_request() always failed
+// validation on "The id field is required" and no withdrawal request could be approved or
+// rejected from the admin panel at all. This fills the modal from the clicked row.
+$(document).on('click', '.edit_request', function () {
+    var btn = $(this);
+
+    $('#payment_request_id').val(btn.data('id'));
+    $('#update_remarks').val(btn.data('remarks') || '');
+    $('#payment_reference').val('');
+
+    // Reflect the row's current status in the radio group, and reset the button-group
+    // styling that AdminLTE's data-toggle-class applies.
+    var status = String(btn.data('status'));
+    $('#status input[name="status"]').prop('checked', false).parent().removeClass('active');
+    $('#status input[name="status"][value="' + status + '"]').prop('checked', true).parent().addClass('active');
+
+    // Context, so the admin can see what they're approving without going back to the table.
+    $('#pr_summary_user').text(btn.data('username') || '');
+    $('#pr_summary_amount').text(btn.data('amount') || '');
+    $('#pr_summary_address').text(btn.data('address') || '');
+
+    toggle_payment_reference_field();
+});
+
+// A payout reference (bank UTR / UPI ref) only makes sense when approving, and it's
+// required there - an approval with no reference leaves the seller nothing to chase.
+function toggle_payment_reference_field() {
+    var approving = $('#status input[name="status"]:checked').val() === '1';
+    $('#payment_reference_group').toggle(approving);
+    $('#payment_reference').prop('required', approving);
+}
+
+$(document).on('change', '#status input[name="status"]', toggle_payment_reference_field);
+
 function ratingParams(p) {
     return {
         "category_id": $('#category_parent').val(),

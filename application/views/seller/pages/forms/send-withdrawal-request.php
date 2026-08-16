@@ -24,6 +24,21 @@
                     <h5 class="mb-0">New Withdrawal Request</h5>
                 </div>
                 <div class="card-body">
+                    <?php
+                    $settings = get_settings('system_settings', true);
+                    $currency = isset($settings['currency']) ? $settings['currency'] : '';
+                    ?>
+                    <div class="alert alert-light border d-flex justify-content-between flex-wrap mb-3">
+                        <span>Available balance: <strong><?= $currency . number_format($wallet_balance, 2) ?></strong></span>
+                        <span class="text-muted">Minimum withdrawal: <?= $currency . number_format($min_withdrawal, 2) ?></span>
+                    </div>
+                    <?php if (!empty($has_pending)) { ?>
+                        <div class="alert alert-warning">
+                            <i class="fas fa-clock mr-1"></i>
+                            You already have a withdrawal request awaiting approval. You can send a new one once it has
+                            been processed.
+                        </div>
+                    <?php } ?>
                     <form id="withdrawal_request_form" action="<?= base_url('seller/payment-request/add-withdrawal-request'); ?>" method="POST" enctype="multipart/form-data">
                         <div class="form-group row">
                             <label for="payment_address" class="col-sm-2 col-form-label">Payment Details <span class='text-danger text-sm'>*</span></label>
@@ -34,11 +49,14 @@
                         <div class="form-group row">
                             <label for="amount" class="col-sm-2 col-form-label">Amount <span class='text-danger text-sm'>*</span></label>
                             <div class="col-sm-10">
-                                <input type="number" class="form-control" id="amount" placeholder="Amount" name="amount" min="0" step="0.01">
+                                <!-- min was 0, which let the form submit an amount the server
+                                     would only then reject; it now matches the server's rule. -->
+                                <input type="number" class="form-control" id="amount" placeholder="Amount" name="amount"
+                                    min="<?= html_escape($min_withdrawal) ?>" max="<?= html_escape($wallet_balance) ?>" step="0.01">
                             </div>
                         </div>
                         <div class="form-group mb-0">
-                            <button type="submit" class="btn btn-primary-theme mr-2" id="submit_btn"><i class="fas fa-paper-plane mr-1"></i>Send</button>
+                            <button type="submit" class="btn btn-primary-theme mr-2" id="submit_btn" <?= !empty($has_pending) ? 'disabled' : '' ?>><i class="fas fa-paper-plane mr-1"></i>Send</button>
                             <button type="reset" class="btn btn-light border">Reset</button>
                         </div>
                         <div class="d-flex justify-content-center">

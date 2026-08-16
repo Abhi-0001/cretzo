@@ -239,6 +239,128 @@ class Cron_job extends CI_Controller
         return false;
     }
 
+    /**
+     * Release stock held by orders that were created but never paid for.
+     *
+     * Token-protected like the other scheduled endpoints, since an external cron cannot hold
+     * an admin session. The window comes from config/cron.php (abandoned_order_hours) and can
+     * be overridden per-call with ?hours= for a one-off sweep.
+     */
+    public function expire_abandoned_orders($token = null)
+    {
+        if (!$this->cron_authorized($token)) {
+            return false;
+        }
+
+        $this->config->load('cron', true);
+        $hours = $this->input->get('hours');
+        if (!is_numeric($hours) || $hours < 1) {
+            $hours = $this->config->item('abandoned_order_hours', 'cron');
+        }
+        if (!is_numeric($hours) || $hours < 1) {
+            $hours = 48;
+        }
+
+        $this->load->model('Order_model');
+        $result = $this->Order_model->expire_abandoned_orders((int) $hours);
+
+        $this->response['error'] = false;
+        $this->response['message'] = 'Abandoned unpaid orders released.';
+        $this->response['data'] = array_merge($result, ['window_hours' => (int) $hours]);
+        echo json_encode($this->response);
+        return false;
+    }
+
+    /**
+     * Email sellers about products that have fallen to or below the low-stock threshold.
+     *
+     * Nothing warned anyone before: the threshold only drove a dashboard tile and a list
+     * filter, so a seller had to go looking. Each (variant, level) pair is claimed before the
+     * mail is sent, so re-running does not re-notify; a further drop counts as a new
+     * condition, and recovering above the threshold clears the claim.
+     */
+    public function low_stock_alerts($token = null)
+    {
+        if (!$this->cron_authorized($token)) {
+            return false;
+        }
+
+        $this->load->model('Product_model');
+        $settings = get_settings('system_settings', true);
+        $limit = isset($settings['low_stock_limit']) ? (int) $settings['low_stock_limit'] : 5;
+        $app_name = isset($settings['app_name']) ? $settings['app_name'] : 'Your store';
+
+        $items = $this->Product_model->get_low_stock_items($limit);
+
+        $sent = 0;
+        $skipped = 0;
+        $failed = 0;
+        $by_seller = [];
+
+        foreach ($items as $item) {
+            if (!$this->Product_model->claim_low_stock_alert($item['product_id'], $item['product_variant_id'], (int) $item['stock'])) {
+                $skipped++; // already told them about this level
+                continue;
+            }
+            $by_seller[$item['seller_id']][] = $item;
+        }
+
+        // Products that have recovered can alert again next time they fall.
+        $this->Product_model->clear_recovered_low_stock_alerts($limit);
+
+        foreach ($by_seller as $seller_id => $seller_items) {
+            $seller = fetch_details('users', ['id' => $seller_id], 'username,email');
+            if (empty($seller) || empty($seller[0]['email']) || !filter_var($seller[0]['email'], FILTER_VALIDATE_EMAIL)) {
+                $failed += count($seller_items);
+                continue;
+            }
+
+            // Lowest first, so the most urgent items are the ones that survive the cap.
+            usort($seller_items, function ($a, $b) {
+                return (int) $a['stock'] <=> (int) $b['stock'];
+            });
+
+            // A seller with a large catalogue can easily have hundreds of items under the
+            // threshold; listing them all produces a wall of text nobody reads. Show the
+            // worst offenders and point at the full list.
+            $max_listed = 25;
+            $lines = '';
+            foreach (array_slice($seller_items, 0, $max_listed) as $row) {
+                $lines .= '  - ' . $row['product_name']
+                    . (!empty($row['variant_name']) ? ' (' . $row['variant_name'] . ')' : '')
+                    . ': ' . (int) $row['stock'] . " left\n";
+            }
+            $remaining = count($seller_items) - $max_listed;
+            if ($remaining > 0) {
+                $lines .= '  ... and ' . $remaining . " more\n";
+            }
+
+            $subject = count($seller_items) . ' product(s) running low on stock';
+            $body = 'Hi ' . $seller[0]['username'] . ",\n\n"
+                . "These items are at or below your low-stock threshold of " . $limit . ":\n\n"
+                . $lines . "\n"
+                . "Restock them here: " . base_url('seller/manage-stock') . "\n\n"
+                . $app_name;
+
+            $result = send_mail($seller[0]['email'], $subject, $body);
+            if (!empty($result['error'])) {
+                // Release the claims so a genuinely failed send is retried next run.
+                foreach ($seller_items as $row) {
+                    $this->Product_model->release_low_stock_alert($row['product_id'], $row['product_variant_id']);
+                }
+                $failed += count($seller_items);
+                continue;
+            }
+            $sent += count($seller_items);
+        }
+
+        $this->response['error'] = false;
+        $this->response['message'] = 'Low stock alerts processed.';
+        $this->response['data'] = ['low_items' => count($items), 'alerted' => $sent, 'already_alerted' => $skipped, 'failed' => $failed, 'threshold' => $limit];
+        echo json_encode($this->response);
+        return false;
+    }
+
     public function settle_cashback_discount()
     {
         if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {

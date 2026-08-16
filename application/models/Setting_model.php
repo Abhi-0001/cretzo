@@ -45,6 +45,13 @@ class Setting_model extends CI_Model
             'upload_limit' => $post['upload_limit'],
             'minimum_cart_amt' => $post['minimum_cart_amt'],
             'low_stock_limit' => (isset($post['low_stock_limit'])) ? $post['low_stock_limit'] : '5',
+            // Statutory deductions taken at settlement. Kept here rather than in a config file
+            // so they can be set by whoever has the answer (an accountant, alongside an admin)
+            // without a developer editing code. Blank means "not applicable" and is stored as
+            // 0, which withholds nothing.
+            'commission_gst_percent' => (isset($post['commission_gst_percent']) && $post['commission_gst_percent'] !== '') ? $post['commission_gst_percent'] : '0',
+            'tcs_percent' => (isset($post['tcs_percent']) && $post['tcs_percent'] !== '') ? $post['tcs_percent'] : '0',
+            'tds_percent' => (isset($post['tds_percent']) && $post['tds_percent'] !== '') ? $post['tds_percent'] : '0',
             'max_items_cart' => $post['max_items_cart'],
             'delivery_boy_bonus_percentage' => $post['delivery_boy_bonus_percentage'],
             'max_product_return_days' => $post['max_product_return_days'],

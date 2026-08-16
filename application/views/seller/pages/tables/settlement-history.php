@@ -17,6 +17,54 @@
     </section>
     <section class="content">
         <div class="container-fluid">
+            <?php
+            // The page listed individual settlements but totalled nothing, so a seller could
+            // not see what they had earned overall or how much commission had been deducted
+            // without exporting and summing the table by hand.
+            $settings = get_settings('system_settings', true);
+            $currency = isset($settings['currency']) ? $settings['currency'] : '';
+            ?>
+            <div class="row">
+                <div class="col-md-3 col-sm-6">
+                    <div class="stat-card">
+                        <span class="stat-label">Total Order Value</span>
+                        <span class="stat-value"><?= $currency . number_format($summary['gross_amount'], 2) ?></span>
+                        <span class="stat-sub"><?= (int) $summary['total_settlements'] ?> settled order item(s)</span>
+                    </div>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <div class="stat-card stat-card-accent">
+                        <span class="stat-label">Commission Deducted</span>
+                        <span class="stat-value"><?= $currency . number_format($summary['commission_amount'], 2) ?></span>
+                        <span class="stat-sub">Platform commission</span>
+                    </div>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <div class="stat-card">
+                        <span class="stat-label">Credited To Wallet</span>
+                        <span class="stat-value"><?= $currency . number_format($summary['net_payable'], 2) ?></span>
+                        <span class="stat-sub">Net of commission</span>
+                    </div>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <div class="stat-card">
+                        <span class="stat-label">Current Wallet Balance</span>
+                        <span class="stat-value"><?= $currency . number_format((float) $wallet_balance, 2) ?></span>
+                        <span class="stat-sub">Available to withdraw</span>
+                    </div>
+                </div>
+            </div>
+
+            <?php if (!empty($summary['reversed_count'])) { ?>
+                <div class="alert alert-secondary">
+                    <i class="fas fa-undo mr-1"></i>
+                    <?= (int) $summary['reversed_count'] ?> settlement(s) totalling
+                    <strong><?= $currency . number_format($summary['reversed_amount'], 2) ?></strong>
+                    were reversed because the order was returned or cancelled after being settled.
+                    These are shown as <span class="badge badge-secondary">Reversed</span> below.
+                </div>
+            <?php } ?>
+
             <div class="card attribute-card">
                 <div class="card-header attribute-card-header d-flex justify-content-between align-items-center">
                     <div class="d-flex align-items-center">
@@ -30,9 +78,14 @@
                             <tr>
                                 <th data-field="id" data-sortable="true">ID</th>
                                 <th data-field="order_id" data-sortable="true">Order ID</th>
-                                <th data-field="order_amount" data-sortable="false">Order Amount</th>
+                                <th data-field="order_amount" data-sortable="false">Gross</th>
+                                <th data-field="product_tax_amount" data-sortable="false" data-visible="false">Product Tax</th>
+                                <th data-field="taxable_value" data-sortable="false">Taxable Value</th>
                                 <th data-field="commission_percent" data-sortable="false">Commission %</th>
-                                <th data-field="commission_amount" data-sortable="false">Commission Amount</th>
+                                <th data-field="commission_amount" data-sortable="false">Commission</th>
+                                <th data-field="commission_gst_amount" data-sortable="false" data-visible="false">GST on Commission</th>
+                                <th data-field="tcs_amount" data-sortable="false" data-visible="false">TCS</th>
+                                <th data-field="tds_amount" data-sortable="false" data-visible="false">TDS</th>
                                 <th data-field="net_payable" data-sortable="false">Net Payable</th>
                                 <th data-field="settlement_status" data-sortable="false">Settlement Status</th>
                                 <th data-field="created_at" data-sortable="true">Date</th>
@@ -47,6 +100,27 @@
 
 <style>
     .settlement-history-page .text-primary-theme { color: var(--color-orange); }
+
+    .settlement-history-page .stat-card {
+        background: #fff;
+        border-radius: 10px;
+        box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06);
+        padding: 16px 18px;
+        margin-bottom: 20px;
+        display: flex;
+        flex-direction: column;
+        border-left: 4px solid rgba(0, 0, 0, 0.08);
+    }
+    .settlement-history-page .stat-card-accent { border-left-color: var(--color-orange); }
+    .settlement-history-page .stat-label {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: .4px;
+        color: var(--color-grey);
+        font-weight: 600;
+    }
+    .settlement-history-page .stat-value { font-size: 22px; font-weight: 700; margin-top: 4px; }
+    .settlement-history-page .stat-sub { font-size: 12px; color: #8a8a8a; margin-top: 2px; }
 
     .settlement-history-page .attribute-card {
         border: none;

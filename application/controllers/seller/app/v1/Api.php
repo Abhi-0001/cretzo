@@ -258,9 +258,31 @@ Defined Methods:-
                 $messages = array("0" => "Your account is deactivated", "1" => "Logged in successfully", "2" => "Your account is not yet approved.", "7" => "Your account has been removed by the admin. Contact admin for more information.");
                 //if the login is successful
 
-                $response['error'] = (isset($seller_data[0]['status']) && $seller_data[0]['status'] != "" && ($seller_data[0]['status'] == 1)) ? false : true;
+                $logged_in = (isset($seller_data[0]['status']) && $seller_data[0]['status'] != "" && ($seller_data[0]['status'] == 1));
+
+                // Issue a PER-USER token.
+                //
+                // verify_token() only proves the caller holds the shared, app-level API key -
+                // it carries no identity, so every endpoint had to take the user_id it acts on
+                // straight from the request body. For the withdrawal endpoints that meant
+                // anyone who extracted the key from the mobile app could name someone else's
+                // user_id and drain their wallet to their own payment address.
+                //
+                // This token is bound to one user, so those endpoints can now verify that the
+                // caller is who they claim to be. Stored in users.apikey, a column that already
+                // existed and was completely unused (0 of 45 rows populated, written nowhere).
+                // Rotated on every login, so a stolen token dies at the next sign-in.
+                if ($logged_in) {
+                    $api_token = bin2hex(random_bytes(32));
+                    update_details(['apikey' => $api_token], ['id' => $data[0]['id']], 'users');
+                    foreach ($out as $index => $row) {
+                        $out[$index]['api_token'] = $api_token;
+                    }
+                }
+
+                $response['error'] = $logged_in ? false : true;
                 $response['message'] =  $messages[$seller_data[0]['status']];
-                $response['data'] = (isset($seller_data[0]['status']) && $seller_data[0]['status'] != "" && ($seller_data[0]['status'] == 1)) ?  $out     : [];
+                $response['data'] = $logged_in ?  $out     : [];
                 echo json_encode($response);
                 return false;
             } else {
@@ -1526,6 +1548,70 @@ Defined Methods:-
         print_r(json_encode($this->response));
     }
 
+    /**
+     * Gate for the withdrawal endpoints.
+     *
+     * verify_token() proves the caller holds the app-level API key, not that they are the
+     * user whose wallet they are naming. Since these endpoints take user_id from the POST
+     * body, anyone with that key - which ships inside the mobile app - could request a
+     * withdrawal against ANY user's balance to their own payment address. There is no
+     * per-user credential in this API to check against (users.apikey exists but is unused
+     * and unpopulated), so this cannot be fixed server-side alone: it needs a token issued
+     * at login and sent on every request, which changes the app's contract.
+     *
+     * Until that exists these fail closed. See config/api_security.php. The seller web
+     * panel is unaffected - it uses a real session and the logged-in seller's own id.
+     */
+    private function api_withdrawals_allowed()
+    {
+        $this->config->load('api_security', true);
+        if ($this->config->item('allow_api_withdrawal_requests', 'api_security') !== true) {
+            $this->response['error'] = true;
+            $this->response['message'] = 'Withdrawal requests are not available through the app. Please use the seller panel.';
+            $this->response['data'] = array();
+            print_r(json_encode($this->response));
+            return false;
+        }
+
+        return $this->verify_user_token();
+    }
+
+    /**
+     * Prove the caller is the user whose id they are acting on.
+     *
+     * The app-level JWT checked by verify_token() says "a legitimate build of the app is
+     * calling" and nothing more, so on its own it cannot stop one user acting as another.
+     * This compares the per-user token issued at login (users.apikey) against the user_id in
+     * the request, with hash_equals so the comparison cannot be timed.
+     *
+     * @return bool
+     */
+    private function verify_user_token()
+    {
+        $user_id = $this->input->post('user_id', true);
+        $token = $this->input->post('api_token', true);
+
+        if (empty($user_id) || empty($token)) {
+            $this->response['error'] = true;
+            $this->response['message'] = 'Authentication required. Please sign in again.';
+            $this->response['data'] = array();
+            print_r(json_encode($this->response));
+            return false;
+        }
+
+        $user = fetch_details('users', ['id' => $user_id], 'apikey');
+
+        if (empty($user) || empty($user[0]['apikey']) || !hash_equals((string) $user[0]['apikey'], (string) $token)) {
+            $this->response['error'] = true;
+            $this->response['message'] = 'Authentication required. Please sign in again.';
+            $this->response['data'] = array();
+            print_r(json_encode($this->response));
+            return false;
+        }
+
+        return true;
+    }
+
     //19. send_withdrawal_request
     public function send_withdrawal_request()
     {
@@ -1536,6 +1622,9 @@ Defined Methods:-
         */
 
         if (!$this->verify_token()) {
+            return false;
+        }
+        if (!$this->api_withdrawals_allowed()) {
             return false;
         }
         $this->form_validation->set_rules('user_id', 'User Id', 'trim|numeric|required|xss_clean');
@@ -1550,37 +1639,26 @@ Defined Methods:-
         } else {
             $user_id = $this->input->post('user_id', true);
             $payment_address = $this->input->post('payment_address', true);
-            $amount = $this->input->post('amount', true);
-            $userData = fetch_details('users', ['id' => $_POST['user_id']], 'balance');
+            $amount = round((float) $this->input->post('amount', true), 2);
 
-            if (!empty($userData)) {
-                if ($_POST['amount'] <= $userData[0]['balance']) {
-                    $data = [
-                        'user_id' => $user_id,
-                        'payment_address' => $payment_address,
-                        'payment_type' => 'seller',
-                        'amount_requested' => $amount,
-                    ];
+            // Routed through the same model method the seller panel uses, so the API can no
+            // longer take a different (and wrong) path: the balance check now happens under a
+            // row lock instead of as an unlocked read-then-write race, the debit is written
+            // through update_wallet_balance() so it produces a `transactions` ledger row
+            // (the old Delivery_boy_model::update_balance() call wrote none, so API-created
+            // withdrawals were invisible in the seller's wallet history), the request row and
+            // the debit commit together, and the minimum-amount / one-pending-request rules
+            // apply here too.
+            $this->load->model('payment_request_model');
+            $result = $this->payment_request_model->create_withdrawal_request($user_id, 'seller', $amount, $payment_address);
 
-                    if (insert_details($data, 'payment_requests')) {
-                        $this->delivery_boy_model->update_balance($amount, $user_id, 'deduct');
-                        $userData = fetch_details('users', ['id' => $_POST['user_id']], 'balance');
-                        $this->response['error'] = false;
-                        $this->response['message'] = 'Withdrawal Request Sent Successfully';
-                        $this->response['data'] = $userData[0]['balance'];
-                    } else {
-                        $this->response['error'] = true;
-                        $this->response['message'] = 'Cannot sent Withdrawal Request.Please Try again later.';
-                        $this->response['data'] = array();
-                    }
-                } else {
-                    $this->response['error'] = true;
-                    $this->response['message'] = "You don't have enough balance to sent the withdraw request.";
-                    $this->response['data'] = array();
-                }
+            $this->response['error'] = $result['error'];
+            $this->response['message'] = $result['message'];
+            $this->response['data'] = isset($result['balance']) ? $result['balance'] : array();
 
-                print_r(json_encode($this->response));
-            }
+            // Was nested inside `if (!empty($userData))`, so an unknown user id produced an
+            // empty response body rather than an error.
+            print_r(json_encode($this->response));
         }
     }
 
@@ -1594,6 +1672,11 @@ Defined Methods:-
         */
 
         if (!$this->verify_token()) {
+            return false;
+        }
+        // Same gate: this reads another user's withdrawal history, including their payment
+        // addresses, from a user_id supplied by the caller.
+        if (!$this->api_withdrawals_allowed()) {
             return false;
         }
 
@@ -1630,7 +1713,11 @@ Defined Methods:-
                     '2' => 'rejected',
                 ];
                 $tempRow['status_code'] = $row['status'];
-                $tempRow['status'] = $status[$row['status']];
+                $tempRow['status'] = isset($status[$row['status']]) ? $status[$row['status']] : $row['status'];
+                // Exposed so an app can show the seller what reference their payout was made
+                // under and when it was actioned, matching the web panel.
+                $tempRow['payment_reference'] = isset($row['payment_reference']) ? $row['payment_reference'] : '';
+                $tempRow['processed_at'] = (isset($row['processed_at']) && !empty($row['processed_at'])) ? $row['processed_at'] : '';
                 $tempRow['date_created'] = $row['date_created'];
 
                 $rows[] = $tempRow;
@@ -4054,6 +4141,22 @@ Defined Methods:-
             print_r(json_encode($this->response));
             return false;
         } else {
+            // This endpoint had NO ownership check at all - unlike the seller web controller,
+            // which verifies the variant belongs to the caller. Any authenticated seller token
+            // could therefore move ANY seller's stock by naming their variant id.
+            $owner = $this->db
+                ->select('p.seller_id')
+                ->join('products p', 'p.id = pv.product_id')
+                ->where('pv.id', $this->input->post('product_variant_id', true))
+                ->get('product_variants pv')
+                ->row_array();
+            if (empty($owner) || (string) $owner['seller_id'] !== (string) $this->input->post('seller_id', true)) {
+                $this->response['error'] = true;
+                $this->response['message'] = 'Product variant not found';
+                print_r(json_encode($this->response));
+                return false;
+            }
+
             if ((isset($_POST['type']) && $_POST['type'] == 'add')) {
                 update_stock([$_POST['product_variant_id']], [$_POST['quantity']], 'plus');
                 $this->response['error'] = false;
@@ -4061,7 +4164,10 @@ Defined Methods:-
                 print_r(json_encode($this->response));
                 return false;
             } else if (isset($_POST['type']) && $_POST['type'] == 'subtract') {
-                if ($_POST['quantity'] > $_POST['current_stock']) {
+                // current_stock was read from the request body and was never even declared as
+                // a validation rule, so it was both client-controlled and undefined when omitted.
+                $actual = get_variant_current_stock($this->input->post('product_variant_id', true));
+                if ($actual !== null && $this->input->post('quantity', true) > $actual) {
                     $this->response['error'] = true;
                     $this->response['message'] = "Subtracted stock cannot be greater than current stock";
                     print_r(

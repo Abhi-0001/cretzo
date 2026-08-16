@@ -3751,7 +3751,8 @@ Defined Methods:-
                 $order = fetch_orders($order_id, false, false, false, false, false, false, false);
                 if (!empty($order_id)) {
                     update_details(['active_status' => 'cancelled'], ['order_id' => $order_id], 'order_items');
-                    //update_stock($order['order_data'][0]['product_variant_ids'], $order['order_data'][0]['quantity'], 'plus');
+                    // Restore on failed payment was commented out; stock stayed held forever.
+                    restore_order_stock($order_id);
                 }
                 /* No need to add because the transaction is already added just update the transaction status */
                 if (!empty($transaction)) {
@@ -4266,7 +4267,9 @@ Defined Methods:-
                 $this->db->insert('cart', $cart_data);
             }
             if ($order['order_data'][0]['order_items'][0]['status'][0][0] == 'awaiting') {
-                update_stock($order['order_data'][0]['order_items'][0]['product_variant_id'], $order['order_data'][0]['order_items'][0]['quantity'], 'plus');
+                // Restored only order_items[0] - every later line of a multi-item order was
+                // left held. restore_order_stock() covers them all.
+                restore_order_stock($order['order_data'][0]['id']);
             }
             if (isset($order['order_data'][0]['wallet_balance']) && $order['order_data'][0]['wallet_balance'] != '' && $order['order_data'][0]['wallet_balance'] != 0) {
                 update_wallet_balance('credit', $order['order_data'][0]['user_id'], $order['order_data'][0]['wallet_balance'], 'Wallet Amount Credited for Order ID  : ' . $order['order_data'][0]['id']);

@@ -25,42 +25,11 @@ $fetched_data = isset($fetched_data) && is_array($fetched_data) ? $fetched_data 
     <section class="content">
         <div class="container-fluid">
             <div class="row">
-                <div class="modal fade " tabindex="-1" role="dialog" aria-hidden="true" id='set_commission_model'>
-                    <div class="modal-dialog modal-lg">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title">Categories & Commission(%)</h5>
-                                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                    <span aria-hidden="true">&times;</span>
-                                </button>
-                            </div>
-                            <div class="modal-body p-0">
-                                <form class="form-horizontal" id="add-seller-commission-form" action="<?= base_url('admin/sellers/add-seller-commission'); ?>" method="POST" enctype="multipart/form-data">
-
-                                    <div class="card-body row">
-                                        <!-- dynamic section here -->
-                                        <label for="Categories" class="col-sm-2 col-form-label">Categories</label>
-
-                                        <div id="category_section"> </div>
-
-                                        <div class="form-group col-md-12  text-center">
-                                            <button type="button" id="add_category" class="btn btn-primary"> <i class="far fa-plus"></i> Add More Category </button>
-                                        </div>
-                                        <br>
-                                        <div class="form-group ">
-                                            <button type="reset" class="btn btn-warning">Reset</button>
-                                            <button type="submit" class="btn btn-success" id="save_btn">Save</button>
-                                        </div>
-                                    </div>
-                                    <div class="d-flex justify-content-center">
-                                        <div class="form-group" id="error_box">
-                                        </div>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <?php // The "Categories & Commission(%)" modal that lived here has been removed
+                      // along with its trigger button. It saved per-category rates into the
+                      // seller_commission table, which nothing reads: commission comes from the
+                      // seller's subscription plan slabs. Keeping a working-looking form that
+                      // wrote to a table no calculation consults was worse than not having it. ?>
 
                 <div class="category-picker-modal" id="category_picker_modal">
                     <div class="category-picker-content">
@@ -481,22 +450,48 @@ $fetched_data = isset($fetched_data) && is_array($fetched_data) ? $fetched_data 
                                         </label>
                                     </div>
                                 </div>
+                                <?php
+                                // The global "Commission(%)" input and the per-category commission
+                                // picker that used to sit here wrote to seller_data.commission and the
+                                // seller_commission table - neither of which is read by anything that
+                                // computes money any more. Commission is taken from the seller's
+                                // SUBSCRIPTION PLAN slabs (subscriptions.commission_first50 /
+                                // commission_51_100 / commission_after100), see
+                                // Seller_model::settle_seller_commission(). Leaving the old fields on
+                                // the form meant an admin could carefully set a rate here and see it
+                                // saved, while every settlement quietly ignored it. Replaced with a
+                                // pointer to where the rate actually lives.
+                                $plan_row = null;
+                                if (isset($fetched_data[0]['user_id']) && !empty($fetched_data[0]['user_id'])) {
+                                    $CI = &get_instance();
+                                    $CI->load->model('Seller_subscription_model');
+                                    $plan_row = $CI->Seller_subscription_model->get_current_plan($fetched_data[0]['user_id']);
+                                }
+                                ?>
                                 <div class="form-group row">
-                                    <label for="commission" class="col-sm-2 col-form-label">Commission(%) <small>(Commission(%) to be given to the Super Admin on order item globally.)</small> </label>
+                                    <label class="col-sm-2 col-form-label">Commission</label>
                                     <div class="col-sm-10">
-                                        <input type="number" class="form-control" id="global_commission" placeholder="Enter Commission(%) to be given to the Super Admin on order item." name="global_commission" value="<?= @$fetched_data[0]['commission'] ?>">
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <?php $category_html = get_categories_option_html($categories); ?>
-                                    <label for="commission" class="col-sm-8 col-form-label">Choose Categories & Commission(%) <small>(Commission(%) to be given to the Super Admin on order item by Category you select. If you do not set the commission beside category then it will get global commission, otherwise the particular category commission will be considered.)</small> </label>
-                                    <div style="display:none" id="cat_html">
-                                        <?= $category_html ?>
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <div class="col-sm-3 offset-2">
-                                        <a href="javascript:void(0)" id="seller_model" data-seller_id="<?= (isset($fetched_data[0]['user_id']) && !empty($fetched_data[0]['user_id'])) ? $fetched_data[0]['user_id'] : ""; ?>" data-cat_ids="<?= (isset($fetched_data[0]['id']) && !empty($fetched_data[0]['id'])) ? $fetched_data[0]['category_ids'] : ""; ?>" class=" btn btn-block  btn-outline-primary btn-sm" title="Manage Categories & Commission" data-target="#set_commission_model" data-toggle="modal">Manage</a>
+                                        <div class="alert alert-info mb-0 py-2">
+                                            <?php if (!empty($plan_row)) { ?>
+                                                Commission is set by this seller's subscription plan
+                                                &mdash; <strong><?= html_escape($plan_row['name']) ?></strong>:
+                                                <span class="badge badge-light">First 50 orders: <?= html_escape($plan_row['commission_first50']) ?>%</span>
+                                                <span class="badge badge-light">Orders 51&ndash;100: <?= html_escape($plan_row['commission_51_100']) ?>%</span>
+                                                <span class="badge badge-light">After 100: <?= html_escape($plan_row['commission_after100']) ?>%</span>
+                                                <div class="small mt-1">
+                                                    Change the rate on the
+                                                    <a href="<?= base_url('admin/subscription') ?>">subscription plan</a>,
+                                                    or see this seller's
+                                                    <a href="<?= base_url('admin/settlement') ?>">settlement records</a>.
+                                                </div>
+                                            <?php } else { ?>
+                                                <i class="fas fa-exclamation-triangle mr-1"></i>
+                                                This seller has <strong>no subscription plan</strong>, so there is no commission
+                                                slab to settle against. Their delivered orders will stay uncredited until they
+                                                are on a plan &mdash; see
+                                                <a href="<?= base_url('admin/settlement') ?>">Commission &amp; Settlements</a>.
+                                            <?php } ?>
+                                        </div>
                                     </div>
                                 </div>
                                 <?php if (isset($fetched_data[0]['permissions']) && !empty($fetched_data[0]['permissions'])) {

@@ -619,10 +619,14 @@ class Sellers extends CI_Controller
             // (seller/Login::update_user()), so it's safer to fix this here only rather than
             // touch that whitelist. Same direct-update pattern as save_verification_note().
             $persist_admin_only_fields = function ($target_user_id) use ($permmissions) {
+                // seller_data.commission is no longer written here. It is dead config - the
+                // settlement engine takes its rate from the seller's subscription plan slabs,
+                // not from this column - and the form field that fed it has been removed. Left
+                // in the update it would have resolved to its `: 0` fallback on every seller
+                // save, silently zeroing the stored value for no reason.
                 update_details([
                     'status' => $this->input->post('status', true),
                     'permissions' => json_encode($permmissions),
-                    'commission' => (isset($_POST['global_commission']) && $_POST['global_commission'] !== '') ? $this->input->post('global_commission', true) : 0,
                 ], ['user_id' => $target_user_id], 'seller_data');
             };
 

@@ -27,6 +27,17 @@
                         <div class="modal-body">
                             <form class="form-horizontal form-submit-event" action="<?= base_url('admin/payment-request/update-payment-request'); ?>" method="POST" enctype="multipart/form-data">
                                 <input type="hidden" name="payment_request_id" id="payment_request_id">
+                                <!-- Read-only context, filled from the clicked row, so the payout
+                                     decision is made against the actual amount and destination
+                                     rather than from memory of the table behind the modal. -->
+                                <dl class="row small text-muted mb-3 pr-summary">
+                                    <dt class="col-sm-3">Seller</dt>
+                                    <dd class="col-sm-9" id="pr_summary_user">&mdash;</dd>
+                                    <dt class="col-sm-3">Amount</dt>
+                                    <dd class="col-sm-9" id="pr_summary_amount">&mdash;</dd>
+                                    <dt class="col-sm-3">Pay To</dt>
+                                    <dd class="col-sm-9" id="pr_summary_address">&mdash;</dd>
+                                </dl>
                                 <div class="form-group">
                                     <label class="control-label col-md-3 col-sm-3 col-xs-12">Status <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-md-7 col-sm-6 col-xs-12">
@@ -43,11 +54,19 @@
                                         </div>
                                     </div>
                                 </div>
+                                <div class="form-group" id="payment_reference_group" style="display:none;">
+                                    <label for="payment_reference">Payout Reference (UTR / UPI ref / cheque no.) <span class='text-danger text-sm'>*</span></label>
+                                    <input type="text" id="payment_reference" name="payment_reference" class="form-control col-12" maxlength="128" placeholder="Reference of the payout you have made to the seller">
+                                    <small class="form-text text-muted">Approving marks the amount as paid out. Record the reference so the seller can trace it.</small>
+                                </div>
                                 <div class="form-group">
                                     <label class="" for="">Remark</label>
                                     <textarea id="update_remarks" name="update_remarks" class="form-control col-12 "></textarea>
                                 </div>
-                                <input type="hidden" id="id" name="id">
+                                <div class="alert alert-warning py-2 small mb-3">
+                                    <i class="fas fa-exclamation-triangle mr-1"></i>
+                                    Rejecting returns the amount to the seller's wallet. Approving does not &mdash; make the transfer yourself first. Either way the decision is final.
+                                </div>
                                 <div class="ln_solid"></div>
                                 <div class="form-group">
                                     <button type="reset" class="btn btn-warning">Reset</button>
@@ -95,6 +114,8 @@
                                         <th data-field="amount_requested" data-sortable="true">Amount Requested</th>
                                         <th data-field="remarks" data-sortable="false">Remarks</th>
                                         <th data-field="status" data-sortable="false">Status</th>
+                                        <th data-field="payment_reference" data-sortable="false">Payout Ref.</th>
+                                        <th data-field="processed_at" data-sortable="false">Processed On</th>
                                         <th data-field="date_created" data-sortable="true">Date Created</th>
                                         <th data-field="operate" data-sortable="false">Actions</th>
                                     </tr>

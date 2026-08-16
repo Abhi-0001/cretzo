@@ -1448,4 +1448,141 @@ class Product_model extends CI_Model
 
         print_r(json_encode($bulkData));
     }
+
+    /**
+     * Products at or below the low-stock threshold, resolved through each product's stock_type
+     * so the number compared is the column that actually holds its stock.
+     *
+     * The dashboard counters OR the product-level and variant-level stock columns together
+     * without regard to stock_type and rely on NULL propagation to keep the wrong one out.
+     * That mostly works, but it silently misses the 10 products whose stock_type is the string
+     * 'simple_product'. This resolves the type explicitly instead.
+     *
+     * @return array rows of product_id, product_variant_id, product_name, variant_name,
+     *               seller_id, stock
+     */
+    public function get_low_stock_items($limit = 5)
+    {
+        $limit = (int) $limit;
+
+        $rows = $this->db
+            ->select('p.id AS product_id, p.name AS product_name, p.seller_id, p.stock_type,
+                      p.stock AS p_stock, pv.id AS product_variant_id, pv.stock AS pv_stock,
+                      pv.attribute_value_ids', false)
+            ->join('product_variants pv', 'pv.product_id = p.id')
+            ->where('p.stock_type IS NOT NULL', null, false)
+            ->where('p.stock_type !=', '')
+            ->where('p.status', 1)
+            ->where('pv.status !=', 7)
+            ->get('products p')
+            ->result_array();
+
+        $out = [];
+        $seen_products = [];
+
+        foreach ($rows as $row) {
+            $stock_type = normalise_stock_type($row['stock_type']);
+            if ($stock_type === null) {
+                continue;
+            }
+
+            $stock = ($stock_type === 0) ? $row['p_stock'] : $row['pv_stock'];
+            if ($stock === null || (int) $stock > $limit) {
+                continue;
+            }
+
+            // Simple and product-level stock is one number shared by the whole product, so
+            // report it once rather than once per variant row.
+            if ($stock_type !== 2) {
+                if (isset($seen_products[$row['product_id']])) {
+                    continue;
+                }
+                $seen_products[$row['product_id']] = true;
+            }
+
+            $out[] = [
+                'product_id'         => $row['product_id'],
+                'product_variant_id' => $row['product_variant_id'],
+                'product_name'       => $row['product_name'],
+                'variant_name'       => '',
+                'seller_id'          => $row['seller_id'],
+                'stock'              => (int) $stock,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Claim the right to warn about this variant, at this level.
+     *
+     * Returns TRUE only if nobody has warned about it yet, or it has since dropped LOWER than
+     * the level of the open warning. The insert is attempted before the mail is sent and the
+     * table has a UNIQUE key on product_variant_id, so two overlapping runs cannot both claim.
+     */
+    public function claim_low_stock_alert($product_id, $product_variant_id, $stock)
+    {
+        $stock = (int) $stock;
+
+        $existing = $this->db
+            ->where('product_variant_id', $product_variant_id)
+            ->get('low_stock_alerts')
+            ->row_array();
+
+        if (!empty($existing)) {
+            if ($stock < (int) $existing['alerted_at_stock']) {
+                $this->db->where('id', $existing['id'])->update('low_stock_alerts', [
+                    'alerted_at_stock' => $stock,
+                    'created_at'       => date('Y-m-d H:i:s'),
+                ]);
+                return true; // dropped further - worth saying so
+            }
+            return false;
+        }
+
+        $this->db->db_debug = false;
+        $claimed = $this->db->insert('low_stock_alerts', [
+            'product_id'         => $product_id,
+            'product_variant_id' => $product_variant_id,
+            'alerted_at_stock'   => $stock,
+            'created_at'         => date('Y-m-d H:i:s'),
+        ]);
+        $this->db->db_debug = true;
+
+        return (bool) $claimed;
+    }
+
+    /** Give the claim back when the notification could not actually be sent. */
+    public function release_low_stock_alert($product_id, $product_variant_id)
+    {
+        return $this->db->where('product_variant_id', $product_variant_id)->delete('low_stock_alerts');
+    }
+
+    /** Recovery: clear a single variant's warning so it can alert again if it falls anew. */
+    public function clear_low_stock_alert($product_id, $product_variant_id)
+    {
+        return $this->db->where('product_variant_id', $product_variant_id)->delete('low_stock_alerts');
+    }
+
+    /**
+     * Drop warnings for anything that has climbed back above the threshold, so the next fall
+     * is reported instead of being suppressed by a stale claim.
+     */
+    public function clear_recovered_low_stock_alerts($limit = 5)
+    {
+        $limit = (int) $limit;
+
+        $open = $this->db->select('id, product_id, product_variant_id')->get('low_stock_alerts')->result_array();
+        $cleared = 0;
+
+        foreach ($open as $row) {
+            $stock = get_variant_current_stock($row['product_variant_id']);
+            if ($stock === null || $stock > $limit) {
+                $this->db->where('id', $row['id'])->delete('low_stock_alerts');
+                $cleared++;
+            }
+        }
+
+        return $cleared;
+    }
 }
