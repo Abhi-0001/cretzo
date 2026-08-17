@@ -78,7 +78,13 @@
 <script src="<?= add_ver(THEME_ASSETS_URL . 'js/range-slider/range-slider.min.js') ?>"></script>
 
 <!-- for Cretzo theme -->
-<?php $path = ($is_rtl == 1) ? 'rtl/' : ""; ?>
+<?php
+/* Same as include-css.php: pages/floating_chat.php loads this file without going through
+ * template.php, so neither $is_rtl nor $main_page is set on that request. */
+$is_rtl = isset($is_rtl) ? $is_rtl : is_rtl_language();
+$main_page = isset($main_page) ? $main_page : '';
+$path = ($is_rtl == 1) ? 'rtl/' : "";
+?>
 
 <script src="<?= add_ver(THEME_ASSETS_URL . 'js/' . $path . THEME . '/' . $path . 'cretzo.js') ?>"></script>
 
@@ -95,7 +101,7 @@
  * iframe, whose $main_page is 'floating_chat'). Emit the tag only when the file exists.
  */
 $page_script_rel = 'assets/front_end/' . THEME . '/js/' . $path . THEME . '/' . $path . $main_page . '.js';
-if (is_file(FCPATH . $page_script_rel)) { ?>
+if ($main_page !== '' && is_file(FCPATH . $page_script_rel)) { ?>
     <script src="<?= add_ver(THEME_ASSETS_URL . 'js/' . $path . THEME . '/' . $path . $main_page . '.js') ?>"></script>
 <?php } ?>
 <script src="<?= add_ver(base_url('assets/front_end/cretzo/js/cretzo-fixes.js')) ?>"></script>

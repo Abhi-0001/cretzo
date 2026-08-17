@@ -551,8 +551,14 @@ class Orders extends CI_Controller
                         $this->Order_model->update_order(['active_status' => $_POST['status']], ['id' => $order_item_res[0]['id']], false, 'order_items');
                         process_refund($order_item_res[0]['id'], $_POST['status'], 'order_items');
                         if (trim($_POST['status']) == 'cancelled' || trim($_POST['status']) == 'returned') {
-                            $data = fetch_details('order_items', ['id' => $order_item_id], 'product_variant_id,quantity');
-                            update_stock($data[0]['product_variant_id'], $data[0]['quantity'], 'plus');
+                            // Idempotent (migration 044). Several paths reach the same item -
+                            // this status change, the return-request approval, and the
+                            // Shiprocket webhook - and each bare update_stock() call put the
+                            // quantity back again, inflating sellable stock on every return.
+                            restore_order_item_stock(
+                                $order_item_id,
+                                (trim($_POST['status']) == 'returned') ? 'Order item returned' : 'Order item cancelled by seller'
+                            );
                         }
                         if (($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_cancel_counter']) + 1 && $_POST['status'] == 'cancelled') ||  ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_return_counter']) + 1 && $_POST['status'] == 'returned') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_delivered_counter']) + 1 && $_POST['status'] == 'delivered') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_processed_counter']) + 1 && $_POST['status'] == 'processed') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_shipped_counter']) + 1 && $_POST['status'] == 'shipped')) {
                             /* process the refer and earn */

@@ -136,13 +136,20 @@ class Orders extends CI_Controller
                 if ($this->Order_model->update_order(['status' => $_GET['status']], ['id' => $order_item_res[0]['id']], true, 'order_items')) {
                     $this->Order_model->update_order(['active_status' => $_GET['status']], ['id' => $order_item_res[0]['id']], false, 'order_items');
                     process_refund($order_item_res[0]['id'], $_GET['status'], 'order_items');
+
+                    // Restoring stock is per-item and must NOT be conditional on this being the
+                    // last line of the order. It used to sit inside the counter check below, so
+                    // cancelling one item of a multi-item order refunded the customer and left
+                    // the stock deducted; only the final cancellation put anything back, and
+                    // then only that one line's quantity. Returns are excluded here because the
+                    // return-request approval already restored them - and restore_order_item_stock()
+                    // would refuse a second attempt anyway.
+                    if (trim($_GET['status']) == 'cancelled') {
+                        restore_order_item_stock($_GET['id'], 'Order item cancelled by delivery boy');
+                    }
+
                     if (($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_cancel_counter']) + 1 && $_GET['status'] == 'cancelled') ||  ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_return_counter']) + 1 && $_GET['status'] == 'returned') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_delivered_counter']) + 1 && $_GET['status'] == 'delivered') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_processed_counter']) + 1 && $_GET['status'] == 'processed') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_shipped_counter']) + 1 && $_GET['status'] == 'shipped')) {
                         /* process the refer and earn */
-                        if (trim($_GET['status']) == 'cancelled') {
-                            $data = fetch_details('order_items', ['id' => $_GET['id']], 'product_variant_id,quantity');
-                            update_stock($data[0]['product_variant_id'], $data[0]['quantity'], 'plus');
-                        }
-
                         $user = fetch_details('orders', ['id' => $order_item_res[0]['order_id']], 'user_id');
                         $user_id = $user[0]['user_id'];
                         $response = process_referral_bonus($user_id, $order_item_res[0]['order_id'], $_GET['status']);
@@ -150,20 +157,20 @@ class Orders extends CI_Controller
                         $app_name = isset($settings['app_name']) && !empty($settings['app_name']) ? $settings['app_name'] : '';
                         $user_res = fetch_details('users', ['id' => $user_id], 'username,fcm_id,mobile,email');
                         $fcm_ids = array();
-                        //custom message
-                        if ($_POST['status'] == 'received') {
-                            $type = ['type' => "customer_order_received"];
-                        } elseif ($_POST['status'] == 'processed') {
-                            $type = ['type' => "customer_order_processed"];
-                        } elseif ($_POST['status'] == 'shipped') {
-                            $type = ['type' => "customer_order_shipped"];
-                        } elseif ($_POST['status'] == 'delivered') {
-                            $type = ['type' => "customer_order_delivered"];
-                        } elseif ($_POST['status'] == 'cancelled') {
-                            $type = ['type' => "customer_order_cancelled"];
-                        } elseif ($_POST['status'] == 'returned') {
-                            $type = ['type' => "customer_order_returned"];
-                        }
+                        // Was reading $_POST['status'] in a handler driven entirely by $_GET, so
+                        // every branch was false, $type stayed undefined, and the
+                        // fetch_details() below was called with an undefined variable on every
+                        // delivery-boy cancel/return.
+                        $notification_types = [
+                            'received'  => 'customer_order_received',
+                            'processed' => 'customer_order_processed',
+                            'shipped'   => 'customer_order_shipped',
+                            'delivered' => 'customer_order_delivered',
+                            'cancelled' => 'customer_order_cancelled',
+                            'returned'  => 'customer_order_returned',
+                        ];
+                        $status_key = trim($_GET['status']);
+                        $type = ['type' => isset($notification_types[$status_key]) ? $notification_types[$status_key] : ''];
                         $custom_notification = fetch_details('custom_notifications', $type, '');
                         $hashtag_cutomer_name = '< cutomer_name >';
                         $hashtag_order_id = '< order_item_id >';
@@ -208,8 +215,7 @@ class Orders extends CI_Controller
                     if (($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_cancel_counter']) + 1 && $_GET['status'] == 'cancelled') ||  ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_return_counter']) + 1 && $_GET['status'] == 'returned') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_delivered_counter']) + 1 && $_GET['status'] == 'delivered') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_processed_counter']) + 1 && $_GET['status'] == 'processed') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_shipped_counter']) + 1 && $_GET['status'] == 'shipped')) {
                         /* process the refer and earn */
                         if (trim($_GET['status']) == 'cancelled') {
-                            $data = fetch_details('order_items', ['id' => $_GET['id']], 'product_variant_id,quantity');
-                            update_stock($data[0]['product_variant_id'], $data[0]['quantity'], 'plus');
+                            restore_order_item_stock($_GET['id'], 'Order item cancelled by delivery boy');
                         }
 
                         $user = fetch_details('orders', ['id' => $order_item_res[0]['order_id']], 'user_id');
@@ -219,20 +225,18 @@ class Orders extends CI_Controller
                         $app_name = isset($settings['app_name']) && !empty($settings['app_name']) ? $settings['app_name'] : '';
                         $user_res = fetch_details('users', ['id' => $user_id], 'username,fcm_id,email,mobile');
                         $fcm_ids = array();
-                        //custom message
-                        if ($_POST['status'] == 'received') {
-                            $type = ['type' => "customer_order_received"];
-                        } elseif ($_POST['status'] == 'processed') {
-                            $type = ['type' => "customer_order_processed"];
-                        } elseif ($_POST['status'] == 'shipped') {
-                            $type = ['type' => "customer_order_shipped"];
-                        } elseif ($_POST['status'] == 'delivered') {
-                            $type = ['type' => "customer_order_delivered"];
-                        } elseif ($_POST['status'] == 'cancelled') {
-                            $type = ['type' => "customer_order_cancelled"];
-                        } elseif ($_POST['status'] == 'returned') {
-                            $type = ['type' => "customer_order_returned"];
-                        }
+                        // Same $_POST-in-a-$_GET-handler bug as the branch above: $type was
+                        // never set and fetch_details() below received an undefined variable.
+                        $notification_types = [
+                            'received'  => 'customer_order_received',
+                            'processed' => 'customer_order_processed',
+                            'shipped'   => 'customer_order_shipped',
+                            'delivered' => 'customer_order_delivered',
+                            'cancelled' => 'customer_order_cancelled',
+                            'returned'  => 'customer_order_returned',
+                        ];
+                        $status_key = trim($_GET['status']);
+                        $type = ['type' => isset($notification_types[$status_key]) ? $notification_types[$status_key] : ''];
                         $custom_notification = fetch_details('custom_notifications', $type, '');
                         $hashtag_cutomer_name = '< cutomer_name >';
                         $hashtag_order_id = '< order_item_id >';

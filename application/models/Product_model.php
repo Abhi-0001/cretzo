@@ -165,8 +165,11 @@ class Product_model extends CI_Model
                 if (!empty($data['product_sku'])) {
                     $pro_data['sku'] = $data['product_sku'];
                 }
-                $pro_data['stock'] = $data['product_total_stock'];
-                $pro_data['availability'] = $data['simple_product_stock_status'];
+                // Sanitised and reconciled: the form fields allow a negative/non-numeric level,
+                // and the stock-status dropdown is independent of the level beside it, so
+                // "In Stock" with a stock of 0 was storable and the listings believed it.
+                $pro_data['stock'] = sanitise_stock_input($data['product_total_stock']);
+                $pro_data['availability'] = reconcile_stock_availability($data['product_total_stock'], $data['simple_product_stock_status']);
             }
         }
 
@@ -302,8 +305,11 @@ class Product_model extends CI_Model
                 if ($data['variant_stock_level_type'] == "product_level") {
                     $flag = "product_level";
                     $pro_variance_data['sku'] = $data['sku_variant_type'];
-                    $pro_variance_data['stock'] = $data['total_stock_variant_type'];
-                    $pro_variance_data['availability']  = $data['variant_status'];
+                    // 'total_stock_variant_type' is not even validated as numeric by either
+                    // controller, so this is the only thing standing between the form and the
+                    // column. Same reconciliation as the simple-product branch above.
+                    $pro_variance_data['stock'] = sanitise_stock_input($data['total_stock_variant_type']);
+                    $pro_variance_data['availability']  = reconcile_stock_availability($data['total_stock_variant_type'], $data['variant_status']);
                     $variant_price = $data['variant_price'];
                     $variant_special_price = (isset($data['variant_special_price']) && !empty($data['variant_special_price'])) ? $data['variant_special_price'] : '0';
                     $variant_weight = (isset($data['weight'])) ? $data['weight'] : 0.0;
@@ -352,8 +358,9 @@ class Product_model extends CI_Model
                         $pro_variance_data['breadth'] = $variant_breadth[$i];
                         $pro_variance_data['length'] = $variant_length[$i];
                         $pro_variance_data['sku'] = $variant_sku[$i];
-                        $pro_variance_data['stock'] = $variant_total_stock[$i];
-                        $pro_variance_data['availability'] = $variant_stock_status[$i];
+                        // Per-variant stock: same sanitise + reconcile as the other two branches.
+                        $pro_variance_data['stock'] = sanitise_stock_input($variant_total_stock[$i]);
+                        $pro_variance_data['availability'] = reconcile_stock_availability($variant_total_stock[$i], $variant_stock_status[$i]);
                     } else {
                         $pro_variance_data['price'] = $variant_price[$i];
                         $pro_variance_data['special_price'] = (isset($variant_special_price[$i]) && !empty($variant_special_price[$i])) ? $variant_special_price[$i] : '0';

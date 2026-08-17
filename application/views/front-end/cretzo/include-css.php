@@ -8,6 +8,16 @@
 <!-- Favicon -->
 <?php $favicon = get_settings('web_favicon');
 
+/*
+ * template.php hands $is_rtl and $main_page in, but this file is also loaded directly by
+ * pages that render outside that template - pages/floating_chat.php - which supplies
+ * neither. Both were read unguarded, so every floating-chat request warned about them.
+ * Work $is_rtl out ourselves when it is missing, and treat a missing $main_page as
+ * "no per-page stylesheet" rather than building a path with an empty filename in it.
+ */
+$is_rtl = isset($is_rtl) ? $is_rtl : is_rtl_language();
+$main_page = isset($main_page) ? $main_page : '';
+
 $path = ($is_rtl == 1) ? 'rtl/' : "";
 ?>
 <link rel="icon" href="<?= base_url($favicon) ?>" type="image/gif" sizes="16x16">
@@ -180,8 +190,10 @@ if (!empty($fb_auth['authentication_method']) && $fb_auth['authentication_method
 
 <!-- --------------------------------------------------------------------------------------------------------------------- -->
 <!-- Finally include the main page's stylesheets at the end -->
-<link rel="stylesheet" href="<?= add_ver(THEME_ASSETS_URL  .  'css/'. $path . THEME . '/' . $path . $main_page . '.css') ?>">
-<link rel="stylesheet" href="<?= add_ver(THEME_ASSETS_URL  .  'css/'. $path . THEME . '/' . $path . $main_page . '-override.css') ?>">
+<?php if ($main_page !== '') { ?>
+    <link rel="stylesheet" href="<?= add_ver(THEME_ASSETS_URL  .  'css/'. $path . THEME . '/' . $path . $main_page . '.css') ?>">
+    <link rel="stylesheet" href="<?= add_ver(THEME_ASSETS_URL  .  'css/'. $path . THEME . '/' . $path . $main_page . '-override.css') ?>">
+<?php } ?>
 <!-- --------------------------------------------------------------------------------------------------------------------- -->
 <link rel="stylesheet" href="<?= add_ver(base_url('assets/front_end/cretzo/css/cretzo-fixes.css')) ?>">
 <link rel="stylesheet" href="<?= add_ver(base_url('assets/front_end/cretzo/css/mini-cart-compact.css')) ?>">

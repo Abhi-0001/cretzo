@@ -1807,6 +1807,28 @@ $(document).on('submit', '.container-fluid .form-submit-event', function (e) {
                     location.reload();
                 }, 1000);
             }
+        },
+        // Without this, ANY reply that is not parseable JSON - a PHP warning printed ahead
+        // of the response, a 500, an expired session redirecting to the login HTML, a
+        // rejected CSRF token - left the button reading "Please Wait.." and disabled with no
+        // message, so the save looked like it was still running when it had already failed.
+        error: function (xhr) {
+            var message = 'Something went wrong. Please try again.';
+            if (xhr.status === 0) {
+                message = 'Could not reach the server. Check your connection and try again.';
+            } else if (xhr.status === 403) {
+                message = 'Your session has expired. Please reload the page and try again.';
+            } else if (xhr.responseJSON && xhr.responseJSON.message) {
+                message = xhr.responseJSON.message;
+            }
+            error_box.addClass('msg_error rounded p-3').removeClass('d-none msg_success');
+            error_box.show().delay(1000).fadeOut();
+            error_box.html(message);
+            submit_btn.html(button_text);
+            submit_btn.attr('disabled', false);
+            iziToast.error({
+                message: message,
+            });
         }
     });
 });
@@ -7189,23 +7211,41 @@ $(document).on('show.bs.modal', '#product-faqs-modal', function (event) {
 });
 
 $(document).on('click', '.edit_order_refund', function () {
-    var order_item_id = $(this).data('order_item_id');
-    var txn_id = $(this).data('txn_id');
-    var txn_amount = $(this).data('txn_amount');
-    $('#transaction_id').val(txn_id);
-    $('#txn_amount').val(txn_amount);
-    $('#item_id').val(order_item_id);
+    // The transaction id is no longer carried by the button. It used to be read from a
+    // transactions row looked up by order_item_id, which never matches a gateway payment
+    // (payments are recorded against the order with a NULL order_item_id), so the field was
+    // always blank and the request failed validation. The server resolves the payment from
+    // the order itself now.
+    $('#txn_amount').val($(this).data('txn_amount'));
+    $('#item_id').val($(this).data('order_item_id'));
+    $('#refund_error').text('');
 });
 
-$('#refund_form').on('click', function (e) {
+// 'submit', not 'click'. Bound to click on the FORM, this fired on every click anywhere
+// inside the modal - including the amount field - firing a refund request per click.
+$(document).on('submit', '#refund_form', function (e) {
     e.preventDefault();
-    var txn_id = $('#transaction_id').val();
+
+    var $btn = $('#submit_btn');
+    if ($btn.prop('disabled')) {
+        return false;
+    }
+
     var txn_amount = $('#txn_amount').val();
     var item_id = $('#item_id').val();
+
+    if (!item_id || !(parseFloat(txn_amount) > 0)) {
+        $('#refund_error').text('Enter a refund amount greater than 0.');
+        return false;
+    }
+
+    // A refund is not idempotent at the gateway. Locking the button for the duration of the
+    // request is what stops an impatient double-click becoming two refunds.
+    $btn.prop('disabled', true).text('Refunding...');
+
     $.ajax({
         type: 'POST',
         data: {
-            'txn_id': txn_id,
             'txn_amount': txn_amount,
             'item_id': item_id,
             [csrfName]: csrfHash,
@@ -7219,11 +7259,20 @@ $('#refund_form').on('click', function (e) {
                 iziToast.success({
                     message: result['message'],
                 });
+                $('#refund_modal').modal('hide');
+                // Reload so the item shows its "Refunded" badge instead of the button.
+                setTimeout(function () { location.reload(); }, 800);
             } else {
+                $('#refund_error').text(result['message']);
                 iziToast.error({
                     message: result['message'],
                 });
+                $btn.prop('disabled', false).text('Refund');
             }
+        },
+        error: function () {
+            $('#refund_error').text('The refund request failed to reach the server. Check the Razorpay dashboard before retrying.');
+            $btn.prop('disabled', false).text('Refund');
         }
     });
 });

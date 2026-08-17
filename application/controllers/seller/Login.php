@@ -144,6 +144,26 @@ class Login extends CI_Controller
                     }
                 }
 
+                // PAN / GSTIN / GST Enrollment ID / bank account number belong to exactly one
+                // seller. Only the GST field that the "We are not GST registered" toggle
+                // actually keeps is checked - the other one stays in the DOM while hidden and
+                // can still post a stale value the seller can no longer see or correct.
+                $is_non_gst_posted = isset($_POST['gst_check']);
+                $duplicate_identifiers = duplicate_seller_identifiers([
+                    'pan' => $this->input->post('pan', true),
+                    'gst' => $is_non_gst_posted ? '' : $this->input->post('gst', true),
+                    'gst_enrollment_number' => $is_non_gst_posted ? $this->input->post('gst_enrollment_number', true) : '',
+                    'account_number' => $this->input->post('account_number', true),
+                ], $duplicate_user_id);
+                if (!empty($duplicate_identifiers)) {
+                    $this->response['error'] = true;
+                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                    $this->response['message'] = duplicate_seller_identifiers_message($duplicate_identifiers);
+                    print_r(json_encode($this->response));
+                    return;
+                }
+
                 // process images of seller
 
                 if (!file_exists(FCPATH . SELLER_DOCUMENTS_PATH)) {

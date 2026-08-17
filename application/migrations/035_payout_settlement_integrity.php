@@ -1,22 +1,6 @@
 <?php
 defined('BASEPATH') or exit('No direct script access allowed');
 
-/**
- * Payout / settlement data-integrity fixes.
- *
- * 1. payment_requests.amount_requested was INT(11). Every withdrawal amount was therefore
- *    silently ROUNDED on insert while the seller's wallet was debited the exact decimal
- *    value, so a request for 1500.60 stored 1501 and debited 1500.60 - the seller was
- *    approved for, and paid, more than was taken off their balance. Widened to DECIMAL(10,2)
- *    to match users.balance and every other money column in the schema.
- *
- * 2. payment_requests had no audit trail: nothing recorded which admin actioned a request,
- *    when, or what the real-world payout reference (UTR / transaction id) was. Approval was
- *    a status flag with no evidence attached to it.
- *
- * 3. seller_settlements had no index on order_id, which is what the new admin commission
- *    report groups and filters by.
- */
 class Migration_payout_settlement_integrity extends CI_Migration
 {
     public function up()

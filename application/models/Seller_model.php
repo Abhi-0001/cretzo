@@ -124,9 +124,19 @@ class Seller_model extends CI_Model
                 // 'email' => $profile['email'],
                 // 'mobile' => $profile['mobile'],
                 'address' => $profile['address'],
-                'latitude' => $profile['latitude'],
-                'longitude' => $profile['longitude'],
             ];
+            // Only the seller's own profile form posts coordinates. The admin seller form has
+            // no lat/long fields, so reading them unconditionally raised an undefined-index
+            // warning that got printed ahead of the JSON response - the admin form's AJAX call
+            // asks for dataType 'json', so the reply no longer parsed and the Update button sat
+            // on "Please Wait.." forever. Skipping them when absent also stops an admin save
+            // from overwriting the seller's stored coordinates with null.
+            if (isset($profile['latitude'])) {
+                $seller_profile['latitude'] = $profile['latitude'];
+            }
+            if (isset($profile['longitude'])) {
+                $seller_profile['longitude'] = $profile['longitude'];
+            }
             // Only touch users.image when a new photo was actually uploaded,
             // otherwise every profile save would blank out the seller's existing photo.
             if (!empty($profile['image'])) {
@@ -140,7 +150,27 @@ class Seller_model extends CI_Model
                 $this->db->insert_batch('seller_commission', $com_data);
             }
             if ($this->db->set($seller_profile)->where('id', $data['user_id'])->update('users')) {
-                $this->db->set($seller_data)->where('user_id', $data['edit_seller_data_id'])->update('seller_data');
+                // Keyed on user_id, NOT on edit_seller_data_id. Both are passed in, but they
+                // mean different things per caller: seller/Login::update_user() sets
+                // edit_seller_data_id to the seller's user id, while admin/Sellers::add_seller()
+                // sets it to the seller_data ROW id. Matching a row id against the user_id
+                // column meant an admin edit updated either nothing at all (so the save reported
+                // "Seller Update Successfully" while no field actually changed) or, where some
+                // other seller happened to hold that number as their user_id, it wrote the
+                // edited seller's details onto that unrelated seller's row.
+                // edit_seller_data_id now only signals "this is an edit, not an insert".
+                //
+                // Upsert rather than a bare update: a seller who registered through the
+                // self-service sign-up has a `users` row but no seller_data row at all, and
+                // Manage Sellers can still open them for editing (the listing joins seller_data
+                // LEFT). An UPDATE matching zero rows reported success and saved nothing, so
+                // those sellers could never be given a profile from the admin screen.
+                $exists = $this->db->where('user_id', $data['user_id'])->count_all_results('seller_data') > 0;
+                if ($exists) {
+                    $this->db->set($seller_data)->where('user_id', $data['user_id'])->update('seller_data');
+                } else {
+                    $this->db->insert('seller_data', $seller_data);
+                }
                 return true;
             } else {
                 return false;

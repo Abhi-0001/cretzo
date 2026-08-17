@@ -246,7 +246,14 @@
                                                         </th>
                                                         <th> <?= $settings['currency'] . number_format($final_sub_total, 2) ?><br></th>
                                                     </tr>
-                                                    <!-- <?php $total_order_price +=  $final_sub_total; ?> -->
+                                                    <?php
+                                                    // A dead "$total_order_price += $final_sub_total" line sat here wrapped in
+                                                    // an HTML comment. PHP evaluates short-echo/PHP tags regardless of the
+                                                    // surrounding HTML comment, so it still ran on every page load and warned
+                                                    // "Undefined variable $total_order_price" - the running total was never
+                                                    // initialised and never printed anywhere. Dropped entirely; the
+                                                    // per-seller total is $final_sub_total, printed in the row above.
+                                                    ?>
                                                 </tbody>
                                             </table>
                                             <div class="row m-3">

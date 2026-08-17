@@ -588,15 +588,20 @@
                       </div>
 
                       <h3>Declaration</h3>
+                      <?php
+                        // Pre-tick the entity declaration only when the seller has already saved
+                        // this profile as an Individual, i.e. they accepted it on a previous save.
+                        $entity_declaration_accepted = (($fetched_data[0]['entity_type'] ?? '') === 'individual');
+                      ?>
                       <div class="d-flex flex-column justify-content-between align-items-start">
-                          <div id="entity_check_div">
-                              <input type="checkbox" id="entity_check" class="check-input">
-                              <label for="entity_check">We are not a registered Entity.</label>
+                          <div id="entity_check_div" style="<?= $selected_entity_type === 'individual' ? '' : 'display:none;' ?>">
+                              <input type="checkbox" id="entity_check" class="check-input" <?= $entity_declaration_accepted ? 'checked' : '' ?>>
+                              <label for="entity_check">We are not a registered Entity. <span class="text-danger">*</span></label>
+                              <small class="text-muted d-block">Mandatory for Individual entity type.</small>
                           </div>
                           <div>
-                              <input type="checkbox" id="gst_check" name="gst_check" value="1" class="check-input" <?= ($is_non_gst || $selected_entity_type === 'individual') ? 'checked' : '' ?>>
+                              <input type="checkbox" id="gst_check" name="gst_check" value="1" class="check-input" <?= $is_non_gst ? 'checked' : '' ?>>
                               <label for="gst_check">We are not GST registered.</label>
-                              <small class="text-muted d-block" id="gst_check_individual_hint" style="<?= $selected_entity_type === 'individual' ? '' : 'display:none;' ?>">Mandatory for Individual entity type.</small>
                           </div>
                       </div>
 
@@ -769,7 +774,18 @@ function showError(input, message) {
 // form.js so the Submit gate enforces exactly the same rules as the Next buttons.
 function validateForm3() {
   var form3 = document.querySelector('.form3');
-  return (typeof validateForm === 'function') ? validateForm(form3) : true;
+  var valid = (typeof validateForm === 'function') ? validateForm(form3) : true;
+
+  // Individual sellers must accept "We are not a registered Entity." Checked here rather
+  // than via a `required` attribute because the shared validator only tests input.value,
+  // which is "1" on a checkbox whether or not it is ticked.
+  var entityTypeEl = document.getElementById('entity_type');
+  var entityCheckEl = document.getElementById('entity_check');
+  if (entityTypeEl && entityCheckEl && entityTypeEl.value === 'individual' && !entityCheckEl.checked) {
+    if (typeof showError === 'function') showError(entityCheckEl, 'Please confirm you are not a registered Entity');
+    valid = false;
+  }
+  return valid;
 }
 
 // GST enrollment toggle: ticking "We are not GST registered" swaps the GST Number
@@ -832,18 +848,20 @@ function validateForm3() {
     }
   }
 
-  // Individual sellers are never GST-registered in this app's flow — "We are not GST
-  // registered" is forced checked and can't be unchecked while Entity Type is Individual.
-  // Not implemented via the `disabled` attribute: a disabled checkbox is dropped from
-  // FormData on submit, which would flip is_gst_registered back to 1 server-side.
-  function enforceIndividualGstLock() {
+  // "We are not a registered Entity." is the only declaration Individual sellers must
+  // accept; it is hidden for every other entity type. "We are not GST registered" is
+  // free to toggle for any entity type — an Individual seller may hold a GSTIN.
+  function syncEntityDeclaration() {
     var isIndividual = (entityType.value === 'individual');
-    var hint = document.getElementById('gst_check_individual_hint');
-    if (isIndividual && !gstCheck.checked) {
-      gstCheck.checked = true;
+    var div = document.getElementById('entity_check_div');
+    var box = document.getElementById('entity_check');
+    if (div) div.style.display = isIndividual ? '' : 'none';
+    // Clear any stale "please confirm" error left behind when switching away from Individual.
+    if (box && !isIndividual) {
+      box.classList.remove('is-invalid');
+      var err = box.parentElement.querySelector('.error-msg');
+      if (err) err.remove();
     }
-    gstCheck.title = isIndividual ? 'Mandatory for Individual entity type' : '';
-    if (hint) hint.style.display = isIndividual ? '' : 'none';
   }
 
   function updateEntityTypeUI() {
@@ -875,13 +893,17 @@ function validateForm3() {
 
     if (partnershipSection) partnershipSection.style.display = (type === 'partnership_firm') ? '' : 'none';
 
-    enforceIndividualGstLock();
+    syncEntityDeclaration();
     syncGstFields();
   }
 
-  gstCheck.addEventListener('change', function () {
-    enforceIndividualGstLock();
-    syncGstFields();
+  gstCheck.addEventListener('change', syncGstFields);
+  var entityCheck = document.getElementById('entity_check');
+  if (entityCheck) entityCheck.addEventListener('change', function () {
+    if (!entityCheck.checked) return;
+    entityCheck.classList.remove('is-invalid');
+    var err = entityCheck.parentElement.querySelector('.error-msg');
+    if (err) err.remove();
   });
   entityType.addEventListener('change', updateEntityTypeUI);
   // "individual" is already the default selection, so entity_type's own 'change'

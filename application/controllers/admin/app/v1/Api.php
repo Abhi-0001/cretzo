@@ -404,8 +404,12 @@ Defined Methods:-
                     $user = fetch_details('orders', ['id' => $order_item_res[0]['order_id']], 'user_id');
                     $user_id = $user[0]['user_id'];
                     if (trim($_POST['status']) == 'cancelled' || trim($_POST['status']) == 'returned') {
-                        $data = fetch_details('order_items', ['id' => $_POST['order_item_id']], 'product_variant_id,quantity');
-                        update_stock($data[0]['product_variant_id'], $data[0]['quantity'], 'plus');
+                        // Idempotent (migration 044). Marking an item returned after its return
+                        // request was approved used to restore the stock a second time.
+                        restore_order_item_stock(
+                            $_POST['order_item_id'],
+                            (trim($_POST['status']) == 'returned') ? 'Order item returned' : 'Order item cancelled by admin'
+                        );
                     }
                     $response = process_referral_bonus($user_id, $order_item_res[0]['order_id'], $_POST['status']);
                     $settings = get_settings('system_settings', true);

@@ -142,6 +142,30 @@ class Sellers extends CI_Controller
             // restored (-> 1); every other actionable status (0 or 1) should be removed (-> 7).
             $status = ($status == 7) ? 1 : 7;
 
+            // Restoring a removed seller can resurrect a duplicate: their PAN / GSTIN /
+            // GST Enrollment ID / bank account number are released for reuse while they sit
+            // at status 7 (see duplicate_seller_identifiers()), so another seller may have
+            // claimed one in the meantime. Refuse the restore rather than end up with two
+            // live sellers sharing an identity.
+            if ($status == 1) {
+                $removed_seller = fetch_details('seller_data', ['user_id' => $id], 'pan,gst,gst_enrollment_number,account_number,is_gst_registered');
+                if (!empty($removed_seller)) {
+                    $was_non_gst = isset($removed_seller[0]['is_gst_registered']) && $removed_seller[0]['is_gst_registered'] == 0;
+                    $restore_clashes = duplicate_seller_identifiers([
+                        'pan' => $removed_seller[0]['pan'],
+                        'gst' => $was_non_gst ? '' : $removed_seller[0]['gst'],
+                        'gst_enrollment_number' => $was_non_gst ? $removed_seller[0]['gst_enrollment_number'] : '',
+                        'account_number' => $removed_seller[0]['account_number'],
+                    ], $id);
+                    if (!empty($restore_clashes)) {
+                        $this->response['error'] = true;
+                        $this->response['message'] = 'This seller cannot be restored: ' . duplicate_seller_identifiers_message($restore_clashes);
+                        print_r(json_encode($this->response));
+                        return;
+                    }
+                }
+            }
+
             if (update_details(['status' => $status], ['user_id' => $id], 'seller_data') == TRUE) {
                 $this->response['error'] = false;
                 $this->response['message'] = 'Seller removed succesfully';
@@ -445,6 +469,25 @@ class Sellers extends CI_Controller
                     print_r(json_encode($this->response));
                     return;
                 }
+            }
+
+            // PAN / GSTIN / GST Enrollment ID / bank account number must each belong to a
+            // single seller - mirrored from seller/Login::update_user(). Only the GST field
+            // the gst_check toggle actually keeps is checked; the hidden one can still post
+            // a stale value.
+            $duplicate_identifiers = duplicate_seller_identifiers([
+                'pan' => $this->input->post('pan', true),
+                'gst' => isset($_POST['gst_check']) ? '' : $this->input->post('gst', true),
+                'gst_enrollment_number' => isset($_POST['gst_check']) ? $this->input->post('gst_enrollment_number', true) : '',
+                'account_number' => $this->input->post('account_number', true),
+            ], $current_user_id_for_dup);
+            if (!empty($duplicate_identifiers)) {
+                $this->response['error'] = true;
+                $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                $this->response['message'] = duplicate_seller_identifiers_message($duplicate_identifiers);
+                print_r(json_encode($this->response));
+                return;
             }
 
             if (!file_exists(FCPATH . SELLER_DOCUMENTS_PATH)) {

@@ -44,8 +44,17 @@ class Return_request extends CI_Controller {
 			$this->form_validation->set_rules('status', 'Status', 'trim|required|numeric|xss_clean');
 			$this->form_validation->set_rules('update_remarks', 'Remarks ', 'trim|xss_clean');
 			$this->form_validation->set_rules('order_item_id', 'Order Id ', 'trim|required|numeric|xss_clean');
-			if(isset($_POST['status']) && $_POST['status'] == 1){
+			// A delivery boy is only required when local shipping is doing the collection.
+			// With Shiprocket enabled the approved return is collected by the courier
+			// (create_shiprocket_return_shipment()), so demanding one here made approval
+			// impossible on a Shiprocket-only install - the dropdown is empty when no delivery
+			// boy accounts exist.
+			$shipping_settings = get_settings('shipping_method', true);
+			$shiprocket_enabled = isset($shipping_settings['shiprocket_shipping_method']) && $shipping_settings['shiprocket_shipping_method'] == 1;
+			if(isset($_POST['status']) && $_POST['status'] == 1 && !$shiprocket_enabled){
 				$this->form_validation->set_rules('deliver_by', 'Delivery Boy ', 'trim|required|numeric|xss_clean');
+			} else {
+				$this->form_validation->set_rules('deliver_by', 'Delivery Boy ', 'trim|numeric|xss_clean');
 			}
 			
 			 if(!$this->form_validation->run()){

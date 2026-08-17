@@ -134,10 +134,31 @@ class Return_request_model extends CI_Model
                 $this->db->trans_complete();
                 return ['error' => true, 'message' => $refund_res['message']];
             }
-            $deliver_by = $data['deliver_by'];
+            $deliver_by = isset($data['deliver_by']) && !empty($data['deliver_by']) ? $data['deliver_by'] : null;
+
+            // Idempotent (migration 044). This used to be a bare update_stock(..., 'plus'),
+            // and marking the item "returned" once the parcel arrived restored it a second
+            // time.
+            restore_order_item_stock($item_id, 'Return request approved');
+
             $data = fetch_details('order_items', ['id' => $data['order_item_id']], 'product_variant_id,quantity,user_id');
-            update_stock([$data[0]['product_variant_id']], [$data[0]['quantity']], 'plus');
-            update_details(['delivery_boy_id' => $deliver_by], ['id' => $item_id], 'order_items');
+
+            // Book the physical return through Shiprocket - the same courier that carried the
+            // forward shipment now collects it from the customer and takes it back to the
+            // seller's pickup location. This is deliberately not fatal: the approval and the
+            // refund above stand whether or not the courier booking succeeds, so a Shiprocket
+            // outage or a seller with no pickup location configured cannot block a customer's
+            // refund. The failure reason is surfaced to the admin so the pickup can be
+            // arranged by hand.
+            $return_shipment = create_shiprocket_return_shipment($item_id);
+            $shipment_note = '';
+            if (!empty($return_shipment['error'])) {
+                $shipment_note = ' Note: the return pickup could not be booked automatically (' . $return_shipment['message'] . '). Please arrange collection manually.';
+            }
+
+            if (!empty($deliver_by)) {
+                update_details(['delivery_boy_id' => $deliver_by], ['id' => $item_id], 'order_items');
+            }
             $this->order_model->update_order_item($item_id, 'return_request_approved', 1);
 
             //for delivery boy notification
@@ -146,8 +167,15 @@ class Return_request_model extends CI_Model
             $cutomer_id = $data[0]['user_id'];
             $settings = get_settings('system_settings', true);
             $app_name = isset($settings['app_name']) && !empty($settings['app_name']) ? $settings['app_name'] : '';
-            $user_res = fetch_details('users', ['id' => $user_id], 'username,fcm_id,email,mobile');
+            // A delivery boy is now optional - the return travels back through Shiprocket, and
+            // only installations still using local shipping assign one. Every read below is
+            // guarded accordingly: this block used to index $user_res[0] unconditionally, which
+            // is a fatal on a Shiprocket-shipped return because there is no delivery boy to
+            // look up.
+            $user_res = !empty($user_id) ? fetch_details('users', ['id' => $user_id], 'username,fcm_id,email,mobile') : [];
             $customer_res = fetch_details('users', ['id' => $cutomer_id], 'username,fcm_id,email,mobile');
+            $has_delivery_boy = !empty($user_res);
+            $customer_name = !empty($customer_res[0]['username']) ? $customer_res[0]['username'] : 'Customer';
             $fcm_ids = array();
             //custom message
 
@@ -155,21 +183,32 @@ class Return_request_model extends CI_Model
             $hashtag_cutomer_name = '< cutomer_name >';
             $hashtag_order_id = '< order_item_id >';
             $hashtag_application_name = '< application_name >';
-            $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
-            $hashtag = html_entity_decode($string);
-            $data1 = str_replace(array($hashtag_cutomer_name, $hashtag_order_id, $hashtag_application_name), array($customer_res[0]['username'], $order_item_res[0]['order_id'], $app_name), $hashtag);
-            $message = output_escaping(trim($data1, '"'));
-            $delivery_boy_msg = 'Hello Dear ' . $user_res[0]['username'] . ' ' . 'you have new order to be pickup order ID #' . $order_item_res[0]['order_id'] . ' please take note of it! Thank you. Regards ' . $app_name . '';
-            $customer_msg = (!empty($custom_notification)) ? $message :  'Hello Dear ' . $customer_res[0]['username'] . ',your return request of order item id' . $item_id  . ' is approved';
+            $message = '';
+            if (!empty($custom_notification) && isset($custom_notification[0]['message'])) {
+                $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
+                $hashtag = html_entity_decode($string);
+                $data1 = str_replace(array($hashtag_cutomer_name, $hashtag_order_id, $hashtag_application_name), array($customer_name, $order_item_res[0]['order_id'], $app_name), $hashtag);
+                $message = output_escaping(trim($data1, '"'));
+            }
+            $delivery_boy_msg = $has_delivery_boy
+                ? 'Hello Dear ' . $user_res[0]['username'] . ' you have new order to be pickup order ID #' . $order_item_res[0]['order_id'] . ' please take note of it! Thank you. Regards ' . $app_name
+                : '';
+            $customer_msg = (!empty($message)) ? $message :  'Hello Dear ' . $customer_name . ', your return request for order item ' . $item_id  . ' has been approved.';
 
+            $notify_emails = ["customer" => [$customer_res[0]['email']]];
+            $notify_mobiles = ["customer" => [$customer_res[0]['mobile']]];
+            if ($has_delivery_boy) {
+                $notify_emails["delivery_boy"] = [$user_res[0]['email']];
+                $notify_mobiles["delivery_boy"] = [$user_res[0]['mobile']];
+            }
             (notify_event(
                 "customer_order_returned_request_approved",
-                ["customer" => [$customer_res[0]['email']], "delivery_boy" => [$user_res[0]['email']]],
-                ["customer" => [$customer_res[0]['mobile']], "delivery_boy" => [$user_res[0]['mobile']]],
+                $notify_emails,
+                $notify_mobiles,
                 ["users.mobile" => $customer_res[0]['mobile']]
             ));
 
-            if (!empty($user_res[0]['fcm_id'])) {
+            if ($has_delivery_boy && !empty($user_res[0]['fcm_id'])) {
                 $fcmMsg = array(
                     'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "You have new order to deliver",
                     'body' => $delivery_boy_msg,
@@ -210,11 +249,16 @@ class Return_request_model extends CI_Model
             $hashtag_cutomer_name = '< cutomer_name >';
             $hashtag_order_id = '< order_item_id >';
             $hashtag_application_name = '< application_name >';
-            $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
-            $hashtag = html_entity_decode($string);
-            $data1 = str_replace(array($hashtag_cutomer_name, $hashtag_order_id, $hashtag_application_name), array($customer_res[0]['username'], $order_item_res[0]['order_id'], $app_name), $hashtag);
-            $message = output_escaping(trim($data1, '"'));
-            $customer_msg = (!empty($custom_notification)) ? $message :  'Hello Dear ' . $customer_res[0]['username'] . ',your return request of order item id' . $item_id  . ' has been declined';
+            // Same guard as the approval branch: the template row is optional, and reading
+            // [0]['message'] off an empty result warned on every rejection.
+            $message = '';
+            if (!empty($custom_notification) && isset($custom_notification[0]['message'])) {
+                $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
+                $hashtag = html_entity_decode($string);
+                $data1 = str_replace(array($hashtag_cutomer_name, $hashtag_order_id, $hashtag_application_name), array($customer_res[0]['username'], $order_item_res[0]['order_id'], $app_name), $hashtag);
+                $message = output_escaping(trim($data1, '"'));
+            }
+            $customer_msg = (!empty($message)) ? $message :  'Hello Dear ' . $customer_res[0]['username'] . ', your return request for order item ' . $item_id  . ' has been declined.';
 
             (notify_event(
                 "customer_order_returned_request_decline",
@@ -240,6 +284,9 @@ class Return_request_model extends CI_Model
         if ($this->db->trans_status() === FALSE) {
             return ['error' => true, 'message' => 'Something went wrong while updating the return request.'];
         }
-        return ['error' => false, 'message' => 'Return request updated successfully'];
+        return [
+            'error' => false,
+            'message' => 'Return request updated successfully.' . (isset($shipment_note) ? $shipment_note : ''),
+        ];
     }
 }

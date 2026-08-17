@@ -120,6 +120,24 @@ class Promo_code extends CI_Controller
             }
             $this->form_validation->set_rules('status', 'Status ', 'trim|required|xss_clean');
 
+            // Nothing checked the two dates against each other. A code saved with end_date
+            // before start_date is silently dead on arrival: validate_promo_code() requires
+            // CURDATE() to sit between them, so the range can never be satisfied and the
+            // customer only ever sees "The promo code is not available or expired" - with no
+            // hint that the campaign itself is misconfigured.
+            if (
+                !empty($_POST['start_date']) && !empty($_POST['end_date'])
+                && strtotime($_POST['end_date']) !== false && strtotime($_POST['start_date']) !== false
+                && strtotime($_POST['end_date']) < strtotime($_POST['start_date'])
+            ) {
+                $this->response['error'] = true;
+                $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                $this->response['message'] = 'The end date must be on or after the start date.';
+                print_r(json_encode($this->response));
+                return false;
+            }
+
             if (!$this->form_validation->run()) {
 
                 $this->response['error'] = true;

@@ -801,7 +801,11 @@ class Cart extends CI_Controller
                         print_r(json_encode($this->response));
                         return false;
                     } else {
-                        $promo_discount = $validate['data'][0]['final_discount'];
+                        // checkout_discount, not final_discount: a cashback code is worth
+                        // final_discount to the customer but takes nothing off what they pay
+                        // now. Using final_discount here discounted the payment as well, on top
+                        // of the cashback that settle_cashback_discount() credits later.
+                        $promo_discount = $validate['data'][0]['checkout_discount'];
                     }
                 }
 
@@ -1097,7 +1101,9 @@ class Cart extends CI_Controller
                     print_r(json_encode($this->response));
                     return false;
                 } else {
-                    $overall_amount = $overall_amount - $validate['data'][0]['final_discount'];
+                    // See the note in place_order(): a cashback code must not reduce the amount
+                    // authorised at the gateway.
+                    $overall_amount = $overall_amount - $validate['data'][0]['checkout_discount'];
                 }
             }
             if ($_POST['payment_method'] == "Razorpay") {

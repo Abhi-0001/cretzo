@@ -1277,8 +1277,8 @@ Defined Methods:-
                     $user = fetch_details('orders', ['id' => $order_item_res[0]['order_id']], 'user_id');
                     $user_id = $user[0]['user_id'];
                     if (trim($_POST['status']) == 'cancelled') {
-                        $data = fetch_details('order_items', ['id' => $_POST['order_item_id']], 'product_variant_id,quantity');
-                        update_stock($data[0]['product_variant_id'], $data[0]['quantity'], 'plus');
+                        // Idempotent (migration 044) - several paths can restore the same item.
+                        restore_order_item_stock($_POST['order_item_id'], 'Order item cancelled by delivery boy');
                     }
                     $response = process_referral_bonus($user_id, $order_item_res[0]['order_id'], $_POST['status']);
                     $settings = get_settings('system_settings', true);
@@ -1343,8 +1343,8 @@ Defined Methods:-
                     $user = fetch_details('orders', ['id' => $order_item_res[0]['order_id']], 'user_id');
                     $user_id = $user[0]['user_id'];
                     if (trim($_POST['status']) == 'cancelled') {
-                        $data = fetch_details('order_items', ['id' => $_POST['order_item_id']], 'product_variant_id,quantity');
-                        update_stock($data[0]['product_variant_id'], $data[0]['quantity'], 'plus');
+                        // Idempotent (migration 044) - several paths can restore the same item.
+                        restore_order_item_stock($_POST['order_item_id'], 'Order item cancelled by delivery boy');
                     }
                     $response = process_referral_bonus($user_id, $order_item_res[0]['order_id'], $_POST['status']);
                     $settings = get_settings('system_settings', true);
