@@ -214,7 +214,14 @@ class My_account extends CI_Controller
             $this->data['title'] = 'Invoice Management |' . $settings['app_name'];
             $this->data['meta_description'] = 'Invoice Management | ' . $this->data['web_settings']['meta_description'];;
             if (isset($order_id) && !empty($order_id)) {
-                $res = $this->order_model->get_order_details(['o.id' => $order_id], true);
+                // Scoped to the logged-in customer. This looked the order up by id alone, so
+                // any signed-in user could read any other customer's invoice - products,
+                // amounts and shipping address - just by changing the id in the URL.
+                // order_details() above already scopes the same way.
+                $res = $this->order_model->get_order_details([
+                    'o.id'      => $order_id,
+                    'o.user_id' => $this->ion_auth->get_user_id(),
+                ], true);
                 if (!empty($res)) {
                     $items = [];
                     $promo_code = [];
@@ -257,6 +264,19 @@ class My_account extends CI_Controller
 
     public function update_order_item_status()
     {
+        // Neither this method nor update_order() below checked that the caller was logged in,
+        // let alone that the order was theirs - every other method in this controller gates on
+        // is_logged_in, these two were simply missed. order_item_id is a sequential integer, so
+        // anyone could POST one and cancel a stranger's order: that refunds the ORDER OWNER's
+        // wallet, restores stock and claws the commission back off the seller.
+        if (!$this->data['is_logged_in']) {
+            $this->response['error'] = true;
+            $this->response['message'] = "Please login to continue.";
+            $this->response['data'] = array();
+            print_r(json_encode($this->response));
+            return false;
+        }
+
         $this->form_validation->set_rules('order_item_id', 'Order item id', 'trim|required|numeric|xss_clean');
         $this->form_validation->set_rules('status', 'Status', 'trim|required|xss_clean|in_list[cancelled,returned]');
         if (!$this->form_validation->run()) {
@@ -264,13 +284,23 @@ class My_account extends CI_Controller
             $this->response['message'] = strip_tags(validation_errors());
             $this->response['data'] = array();
         } else {
+            $order_item = fetch_details('order_items', ['id' => $_POST['order_item_id']], 'id,order_id,user_id');
+            if (empty($order_item) || (string) $order_item[0]['user_id'] !== (string) $this->data['user']->id) {
+                // Same response whether the item is missing or belongs to someone else, so this
+                // cannot be used to probe which order ids exist.
+                $this->response['error'] = true;
+                $this->response['message'] = "Order item not found.";
+                $this->response['data'] = array();
+                print_r(json_encode($this->response));
+                return false;
+            }
+
             $this->response = $this->order_model->update_order_item($_POST['order_item_id'], trim($_POST['status']));
             if (trim($_POST['status']) != 'returned' && $this->response['error'] == false) {
                 process_refund($_POST['order_item_id'], trim($_POST['status']), 'order_items');
             }
             if ($this->response['error'] == false && trim($_POST['status']) == 'cancelled') {
-                $data = fetch_details('order_items', ['id' => $_POST['order_item_id']], 'product_variant_id,quantity');
-                update_stock($data[0]['product_variant_id'], $data[0]['quantity'], 'plus');
+                restore_order_item_stock($_POST['order_item_id'], 'Order item cancelled by customer');
             }
         }
         print_r(json_encode($this->response));
@@ -278,7 +308,17 @@ class My_account extends CI_Controller
 
     public function update_order()
     {
-        $this->form_validation->set_rules('order_id', 'Order id', 'trim|required|xss_clean');
+        // See update_order_item_status(): unauthenticated and with no ownership check, this
+        // cancelled or returned any order by id.
+        if (!$this->data['is_logged_in']) {
+            $this->response['error'] = true;
+            $this->response['message'] = "Please login to continue.";
+            $this->response['data'] = array();
+            print_r(json_encode($this->response));
+            return false;
+        }
+
+        $this->form_validation->set_rules('order_id', 'Order id', 'trim|required|numeric|xss_clean');
         $this->form_validation->set_rules('status', 'Status', 'trim|required|xss_clean|in_list[cancelled,returned]');
         if (!$this->form_validation->run()) {
             $this->response['error'] = true;
@@ -287,6 +327,15 @@ class My_account extends CI_Controller
             print_r(json_encode($this->response));
             return false;
         } else {
+            $order = fetch_details('orders', ['id' => $_POST['order_id']], 'id,user_id');
+            if (empty($order) || (string) $order[0]['user_id'] !== (string) $this->data['user']->id) {
+                $this->response['error'] = true;
+                $this->response['message'] = "Order not found.";
+                $this->response['data'] = array();
+                print_r(json_encode($this->response));
+                return false;
+            }
+
             $res = validate_order_status($_POST['order_id'], $_POST['status'], 'orders', '', true);
 
             if ($res['error']) {
@@ -305,16 +354,13 @@ class My_account extends CI_Controller
 
                     $this->order_model->update_order(['active_status' => $_POST['status']], ['order_id' => $_POST['order_id']], false, 'order_items');
                     process_refund($_POST['order_id'], $_POST['status'], 'orders');
-                    if (trim($_POST['status'] == 'cancelled')) {
-                        $data = fetch_details('order_items', ['order_id' => $_POST['order_id']], 'product_variant_id,quantity');
-                        $product_variant_ids = [];
-                        $qtns = [];
-                        foreach ($data as $d) {
-                            array_push($product_variant_ids, $d['product_variant_id']);
-                            array_push($qtns, $d['quantity']);
-                        }
-
-                        update_stock($product_variant_ids, $qtns, 'plus');
+                    // Was `trim($_POST['status'] == 'cancelled')` - the comparison happens
+                    // INSIDE trim(), so this trimmed a boolean and then tested the resulting
+                    // string. trim(true) is "1" (truthy) and trim(false) is "" (falsy), so it
+                    // happened to behave correctly, but only by accident; a 'returned' status
+                    // reached it as "" and was skipped for the right reason by luck.
+                    if (trim($_POST['status']) == 'cancelled') {
+                        restore_order_stock($_POST['order_id'], 'Order cancelled by customer');
                     }
                     $this->response['error'] = false;
                     $this->response['message'] = 'Order Updated Successfully';
@@ -1741,6 +1787,11 @@ class My_account extends CI_Controller
 
     public function floating_chat_classic()
     {
+        // floating_chat_modern() sets this; this method did not, so the theme's
+        // include-css / include-script had no $main_page to build their per-page
+        // asset paths from.
+        $this->data['main_page'] = 'floating_chat';
+
         $web_doctor_brown = get_settings('web_doctor_brown', true);
         $system_settings = get_settings('system_settings', true);
 

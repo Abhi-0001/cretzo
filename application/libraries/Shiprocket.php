@@ -139,6 +139,29 @@ class Shiprocket
         return $result;
     }
 
+    /**
+     * Books a REVERSE pickup - the courier collects the item from the customer and returns it
+     * to the seller's pickup location.
+     *
+     * This is a distinct Shiprocket endpoint from orders/create/adhoc: the forward endpoint
+     * ships seller -> customer, and there is no way to invert it. Without this, approving a
+     * return only moved rows in this database - the parcel itself had to be arranged by hand,
+     * or a delivery boy assigned, which is not how this platform ships anything else.
+     *
+     * @param  array $data  see build_shiprocket_return_payload() in function_helper.php
+     * @return array decoded Shiprocket response
+     */
+    public function create_return_order($data)
+    {
+        $url = $this->url . 'orders/create/return';
+
+        // curl() here already json_decodes the body (unlike the Razorpay library's, which
+        // returns ['body','http_code']) - so this returns the decoded response directly, the
+        // same shape create_order() gives its callers. A transport failure yields a non-array,
+        // which callers must treat as a failure rather than reading keys off it.
+        return $this->curl($url, 'POST', json_encode($data));
+    }
+
     public function generate_awb($shipment_id, $courier_id = null)
     {
         $url = $this->url . 'courier/assign/awb';

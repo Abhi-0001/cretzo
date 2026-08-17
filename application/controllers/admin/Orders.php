@@ -10,7 +10,8 @@ class Orders extends CI_Controller
         $this->load->database();
         $this->load->library(['razorpay', 'stripe', 'paystack', 'flutterwave', 'midtrans']);
         $this->load->helper(['url', 'language', 'timezone_helper']);
-        $this->load->model('Order_model');
+        // Transaction_model is used by refund_payment() to record the gateway refund.
+        $this->load->model(['Order_model', 'Transaction_model']);
 
         if (!has_permissions('read', 'orders')) {
             $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
@@ -432,16 +433,15 @@ class Orders extends CI_Controller
                             notify_customer_order_status($_POST['orderid'], $_POST['val']);
                             /* Process refer and earn bonus */
                             process_refund($_POST['orderid'], $_POST['val'], 'orders');
-                            if (trim($_POST['val'] == 'cancelled')) {
-                                $data = fetch_details('order_items', ['order_id' => $_POST['orderid']], 'product_variant_id,quantity');
-                                $product_variant_ids = [];
-                                $qtns = [];
-                                foreach ($data as $d) {
-                                    array_push($product_variant_ids, $d['product_variant_id']);
-                                    array_push($qtns, $d['quantity']);
-                                }
-
-                                update_stock($product_variant_ids, $qtns, 'plus');
+                            // Was `trim($_POST['val'] == 'cancelled')` - the comparison happens
+                            // INSIDE trim(), so a boolean was trimmed and the resulting string
+                            // tested. It worked only by coincidence ("1" is truthy, "" falsy).
+                            if (trim($_POST['val']) == 'cancelled') {
+                                // Idempotent per line (migration 044). The hand-rolled loop
+                                // restored every line unconditionally, so a line already put
+                                // back by a per-item cancellation or a Shiprocket callback was
+                                // restored a second time.
+                                restore_order_stock($_POST['orderid'], 'Order cancelled by admin');
                             }
                             $response = process_referral_bonus($user_id, $_POST['orderid'], $_POST['val']);
                             $message = 'Status Updated Successfully';
@@ -531,6 +531,9 @@ class Orders extends CI_Controller
                     $temp['tax_amount'] = $row['tax_amount'];
                     $temp['discounted_price'] = $row['discounted_price'];
                     $temp['price'] = $row['price'];
+                    // The line total, used by the Refund control as the default (and maximum)
+                    // refundable amount for this item.
+                    $temp['sub_total'] = $row['sub_total'];
                     // 'row_price' is not a column this query selects (see get_order_details()
                     // above) and the view never reads $items[...]['row_price'] either - this
                     // raised "Undefined array key 'row_price'" on every single load of this page.
@@ -941,8 +944,14 @@ class Orders extends CI_Controller
                         $this->Order_model->update_order(['active_status' => $_POST['status']], ['id' => $order_item_res[0]['id']], false, 'order_items');
                         process_refund($order_item_res[0]['id'], $_POST['status'], 'order_items');
                         if (trim($_POST['status']) == 'cancelled' || trim($_POST['status']) == 'returned') {
-                            $data = fetch_details('order_items', ['id' => $order_item_id], 'product_variant_id,quantity');
-                            update_stock($data[0]['product_variant_id'], $data[0]['quantity'], 'plus');
+                            // Idempotent (migration 044). Marking an item "returned" after its
+                            // return request was approved used to restore the stock a second
+                            // time - the approval already did it - so every approved return
+                            // inflated inventory by one quantity.
+                            restore_order_item_stock(
+                                $order_item_id,
+                                (trim($_POST['status']) == 'returned') ? 'Order item returned' : 'Order item cancelled by admin'
+                            );
                         }
                         if (($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_cancel_counter']) + 1 && $_POST['status'] == 'cancelled') ||  ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_return_counter']) + 1 && $_POST['status'] == 'returned') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_delivered_counter']) + 1 && $_POST['status'] == 'delivered') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_processed_counter']) + 1 && $_POST['status'] == 'processed') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_shipped_counter']) + 1 && $_POST['status'] == 'shipped')) {
                             /* process the refer and earn */
@@ -1315,11 +1324,23 @@ class Orders extends CI_Controller
         }
     }
 
+    /** Single exit point for refund_payment(), so every branch returns the same JSON shape. */
+    private function respond_refund($error, $message)
+    {
+        $this->response['error'] = $error;
+        $this->response['csrfName'] = $this->security->get_csrf_token_name();
+        $this->response['csrfHash'] = $this->security->get_csrf_hash();
+        $this->response['message'] = $message;
+        print_r(json_encode($this->response));
+    }
+
     public function refund_payment()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
-            $this->form_validation->set_rules('txn_id', 'Transaction Id', 'trim|required|xss_clean');
-            $this->form_validation->set_rules('txn_amount', 'Transaction Amount', 'trim|required|xss_clean');
+            // txn_id is no longer accepted from the client: it is resolved from the order's own
+            // payment transaction below, so a caller cannot nominate which payment to refund.
+            $this->form_validation->set_rules('item_id', 'Order Item', 'trim|required|numeric|xss_clean');
+            $this->form_validation->set_rules('txn_amount', 'Transaction Amount', 'trim|required|numeric|xss_clean');
             if (!$this->form_validation->run()) {
                 $this->response['error'] = true;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
@@ -1327,27 +1348,100 @@ class Orders extends CI_Controller
                 $this->response['message'] = validation_errors();
                 print_r(json_encode($this->response));
             } else {
-                if (!empty($_POST) || (isset($_POST['txn_id']) && $_POST['txn_id']) != '' && (isset($_POST['amount']) && $_POST['amount']) != '') {
-                    $item_id = trim($_POST['item_id']);
-                    $txn_id = $_POST['txn_id'];
-                    $amount = $_POST['txn_amount'];
-                    $payment = ($this->razorpay->refund_payment($txn_id, $amount));
-                    if (([$payment['http_code']] != 'null') && empty($payment['http_code']) && $payment['http_code'] != '400') {
-                        update_details(['is_refund' => 1], ['order_item_id' => $item_id], 'transactions');
-                        $this->response['error'] = false;
-                        $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                        $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                        $this->response['message'] = "Payment Refund Successfully";
-                    } else {
-                        $message = json_decode($payment['body'], true);
+                $item_id = (int) trim($_POST['item_id']);
+                $amount = (float) $_POST['txn_amount'];
 
-                        $this->response['error'] = true;
-                        $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                        $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                        $this->response['message'] = $message['error']['description'];
-                    }
-                    print_r(json_encode($this->response));
+                $order_item = fetch_details('order_items', ['id' => $item_id], 'id,order_id,sub_total,active_status,refunded_at,refund_mode,refund_amount');
+                if (empty($order_item)) {
+                    $this->respond_refund(true, 'Order item not found.');
+                    return false;
                 }
+
+                // The customer has already been made whole through their wallet - pushing a
+                // gateway refund on top would pay for the same item twice. This was previously
+                // unguarded, and the return-approval path credits the wallet, so every approved
+                // return was one click away from a double refund.
+                if (!empty($order_item[0]['refunded_at']) && $order_item[0]['refund_mode'] === 'wallet' && (float) $order_item[0]['refund_amount'] > 0) {
+                    $this->respond_refund(true, 'This item was already refunded to the customer\'s wallet (' . $order_item[0]['refund_amount'] . '). Refunding to the card as well would pay twice.');
+                    return false;
+                }
+                if (!empty($order_item[0]['refunded_at']) && $order_item[0]['refund_mode'] === 'gateway') {
+                    $this->respond_refund(true, 'A gateway refund has already been issued for this item.');
+                    return false;
+                }
+
+                // The gateway transaction is recorded against the ORDER, not the order item -
+                // add_transaction() writes order_item_id as NULL for payments. This lookup used
+                // to key on order_item_id, so it never found the payment; it matched the wallet
+                // refund row instead, whose txn_id is empty, and the request then failed
+                // validation with "Transaction Id is required". The button could not refund
+                // anything at all.
+                $payment_txn = $this->db
+                    ->where('order_id', $order_item[0]['order_id'])
+                    ->where('transaction_type', 'transaction')
+                    ->where('status', 'success')
+                    ->where('txn_id IS NOT NULL', null, false)
+                    ->where('txn_id !=', '')
+                    ->order_by('id', 'DESC')
+                    ->get('transactions')
+                    ->row_array();
+
+                if (empty($payment_txn)) {
+                    $this->respond_refund(true, 'No successful gateway payment was found for this order.');
+                    return false;
+                }
+
+                // Never refund more than the line is worth, and never more than was paid.
+                $max_refundable = min((float) $order_item[0]['sub_total'], (float) $payment_txn['amount']);
+                if ($amount <= 0 || $amount > $max_refundable + 0.01) {
+                    $this->respond_refund(true, 'Refund amount must be between 0 and ' . number_format($max_refundable, 2) . '.');
+                    return false;
+                }
+
+                $payment = $this->razorpay->refund_payment($payment_txn['txn_id'], $amount);
+
+                // refund_payment() returns the DECODED refund object on success (which carries
+                // an id and no http_code) and the raw curl result on failure. The old test was
+                // `empty($payment['http_code'])`, which is also true when curl could not connect
+                // at all and reported http_code 0 - so a total network failure was reported to
+                // the admin as "Payment Refund Successfully". Success is now asserted
+                // positively, from the refund id Razorpay returns.
+                if (empty($payment['id'])) {
+                    $body = isset($payment['body']) ? json_decode($payment['body'], true) : null;
+                    $reason = isset($body['error']['description'])
+                        ? $body['error']['description']
+                        : 'The refund could not be completed. Check the Razorpay dashboard before retrying.';
+                    $this->respond_refund(true, $reason);
+                    return false;
+                }
+
+                $this->db->trans_start();
+
+                update_details([
+                    'refunded_at'   => date('Y-m-d H:i:s'),
+                    'refund_amount' => round($amount, 2),
+                    'refund_mode'   => 'gateway',
+                ], ['id' => $item_id], 'order_items');
+
+                // Record the refund as its own ledger row rather than flipping is_refund on
+                // whatever happened to share the item id. The old update_details() set is_refund
+                // on every transaction matching order_item_id - which, since payments carry NULL
+                // there, meant it never touched the payment it was refunding.
+                $this->Transaction_model->add_transaction([
+                    'transaction_type' => 'transaction',
+                    'user_id'          => $payment_txn['user_id'],
+                    'order_id'         => $order_item[0]['order_id'],
+                    'order_item_id'    => $item_id,
+                    'type'             => 'refund',
+                    'txn_id'           => $payment['id'],
+                    'amount'           => round($amount, 2),
+                    'status'           => 'success',
+                    'message'          => 'Refunded to original payment method for order item ID: ' . $item_id,
+                ]);
+
+                $this->db->trans_complete();
+
+                $this->respond_refund(false, 'Payment refunded successfully.');
             }
         } else {
             redirect('admin/login', 'refresh');

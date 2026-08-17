@@ -5,8 +5,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<?php $this->load->view('front-end/' . THEME . '/include-css', $data); ?>
-<?php $this->load->view('front-end/' . THEME . '/include-script'); ?>
+<?php
+/* This passed a $data variable that does not exist in a view's scope - the controller's
+ * data is already extracted into local variables here - so it warned "Undefined variable
+ * $data" and handed include-css NULL, which is what left $is_rtl unset in there too.
+ * Both includes now read the variables already in scope. */
+$this->load->view('front-end/' . THEME . '/include-css');
+$this->load->view('front-end/' . THEME . '/include-script');
+?>
 
 <style>
 

@@ -51,6 +51,12 @@ class Invoice extends CI_Controller
                     $this->data['items'] = $items;
                     $this->data['s_user_data'] = $s_user_data;
                     $this->data['seller_data'] = $seller_data;
+                    // The view needs this for its get_seller_permission($seller_id,
+                    // 'customer_privacy') check. It was never passed through, so the view
+                    // warned "Undefined variable $seller_id" and the permission lookup ran
+                    // against NULL - which always came back false, masking the customer's
+                    // mobile and email even for sellers who do have the privacy permission.
+                    $this->data['seller_id'] = $seller_id;
                     $this->data['promo_code'] = $promo_code;
                     $this->data['settings'] = get_settings('system_settings', true);
                     $this->load->view('seller/template', $this->data);

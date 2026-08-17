@@ -645,7 +645,10 @@ class Webhook extends CI_Controller
             return false;
         }
 
-        $tracking = fetch_details('order_tracking', ['awb_code' => $request['awb']], 'id,order_id,order_item_id');
+        // is_return is selected so sync_shiprocket_shipment_status() can tell a reverse pickup
+        // apart from the original delivery. Both legs carry the same order_item_id, and the
+        // two report the same status names for opposite journeys.
+        $tracking = fetch_details('order_tracking', ['awb_code' => $request['awb']], 'id,order_id,order_item_id,is_return');
         if (empty($tracking)) {
             $res['error'] = true;
             $res['message'] = "order not found";

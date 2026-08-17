@@ -935,8 +935,10 @@ Defined Methods:-
                 process_refund($_POST['order_id'], $_POST['status'], 'order_items');
             }
             if (trim($_POST['status']) == 'cancelled') {
-                $data = fetch_details('order_items', ['id' => $_POST['order_id']], 'product_variant_id,quantity');
-                update_stock($data[0]['product_variant_id'], $data[0]['quantity'], 'plus');
+                // Idempotent (migration 044). Several paths can reach the same item - this
+                // endpoint, the admin/seller screens, the return-request approval and the
+                // Shiprocket webhook - and each bare update_stock() call restored it again.
+                restore_order_item_stock($_POST['order_id'], 'Order item cancelled by customer');
             }
         }
         print_r(json_encode($this->response));
@@ -2470,15 +2472,10 @@ Defined Methods:-
                                 if ($this->order_model->update_order(['status' => 'cancelled'], ['order_id' => $order['id']], true, 'order_items')) {
                                     $this->order_model->update_order(['active_status' => 'cancelled'], ['order_id' => $order['id']], false, 'order_items');
                                     process_refund($order['id'], 'cancelled', 'orders');
-                                    $data = fetch_details('order_items', ['order_id' => $order['id']], 'product_variant_id,quantity');
-                                    $product_variant_ids = [];
-                                    $qtns = [];
-                                    foreach ($data as $d) {
-                                        array_push($product_variant_ids, $d['product_variant_id']);
-                                        array_push($qtns, $d['quantity']);
-                                    }
-
-                                    update_stock($product_variant_ids, $qtns, 'plus');
+                                    // Idempotent per line (migration 044) - the hand-rolled loop
+                                    // restored every line unconditionally, including any already
+                                    // put back by a per-item cancellation or a webhook.
+                                    restore_order_stock($order['id'], 'Order cancelled');
                                 }
                             }
                         }
@@ -5812,8 +5809,10 @@ Defined Methods:-
                 process_refund($_POST['order_id'], $_POST['status'], 'order_items');
             }
             if (trim($_POST['status']) == 'cancelled') {
-                $data = fetch_details('order_items', ['id' => $_POST['order_id']], 'product_variant_id,quantity');
-                update_stock($data[0]['product_variant_id'], $data[0]['quantity'], 'plus');
+                // Idempotent (migration 044). Several paths can reach the same item - this
+                // endpoint, the admin/seller screens, the return-request approval and the
+                // Shiprocket webhook - and each bare update_stock() call restored it again.
+                restore_order_item_stock($_POST['order_id'], 'Order item cancelled by customer');
             }
         }
         print_r(json_encode($this->response));
@@ -6531,15 +6530,9 @@ Defined Methods:-
                             if ($this->order_model->update_order(['status' => 'cancelled'], ['order_id' => $order['id']], true, 'order_items')) {
                                 $this->order_model->update_order(['active_status' => 'cancelled'], ['order_id' => $order['id']], false, 'order_items');
                                 process_refund($order['id'], 'cancelled', 'orders');
-                                $data = fetch_details('order_items', ['order_id' => $order['id']], 'product_variant_id,quantity');
-                                $product_variant_ids = [];
-                                $qtns = [];
-                                foreach ($data as $d) {
-                                    array_push($product_variant_ids, $d['product_variant_id']);
-                                    array_push($qtns, $d['quantity']);
-                                }
-
-                                update_stock($product_variant_ids, $qtns, 'plus');
+                                // Idempotent per line (migration 044) - see the note on the
+                                // identical block above.
+                                restore_order_stock($order['id'], 'Order cancelled');
                             }
                         }
                     }
@@ -6846,7 +6839,11 @@ Defined Methods:-
                     print_r(json_encode($this->response));
                     return false;
                 } else {
-                    $overall_amount = $overall_amount - $validate['data'][0]['final_discount'];
+                    // checkout_discount, not final_discount: a cashback code is worth
+                    // final_discount to the customer but takes nothing off the amount charged
+                    // now, so subtracting it here discounted the payment as well as paying the
+                    // cashback later.
+                    $overall_amount = $overall_amount - $validate['data'][0]['checkout_discount'];
                 }
             }
             $amount = intval($overall_amount);

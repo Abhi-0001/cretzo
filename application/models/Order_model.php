@@ -222,7 +222,7 @@ class Order_model extends CI_Model
 
             // Restore only the lines still awaiting - an order can be partly progressed.
             $items = $this->db
-                ->select('product_variant_id, quantity')
+                ->select('id')
                 ->where('order_id', $order_id)
                 ->where('active_status', 'awaiting')
                 ->get('order_items')
@@ -232,12 +232,18 @@ class Order_model extends CI_Model
                 continue;
             }
 
-            set_stock_movement_context('expiry_restore', $order_id, null, 'Unpaid for over ' . $hours . 'h');
-            update_stock(
-                array_column($items, 'product_variant_id'),
-                array_column($items, 'quantity'),
-                'plus'
-            );
+            // Per line through restore_order_item_stock() rather than one bulk update_stock().
+            // The bulk call did not stamp stock_restored_at, so these lines still looked
+            // un-restored: a cancellation or a late payment-failure webhook arriving for the
+            // same order afterwards would have put the quantity back a second time. Going
+            // through the stamped path makes the expiry sweep agree with every other
+            // restore path.
+            $restored_here = 0;
+            foreach ($items as $line) {
+                if (restore_order_item_stock($line['id'], 'Unpaid for over ' . $hours . 'h', 'expiry_restore')) {
+                    $restored_here++;
+                }
+            }
 
             $this->db->where('order_id', $order_id)
                 ->where('active_status', 'awaiting')
@@ -247,7 +253,9 @@ class Order_model extends CI_Model
                 ]);
 
             $orders++;
-            $items_restored += count($items);
+            // Counts lines actually put back, not lines looked at, so a line already restored
+            // by another path is not double-reported.
+            $items_restored += $restored_here;
         }
 
         return ['orders' => $orders, 'items_restored' => $items_restored];
@@ -265,10 +273,18 @@ class Order_model extends CI_Model
                 return $response;
             }
         }
-        if ($fromapp == true) {
-            if ($status == 'returned') {
-                $status = 'return_request_pending';
-            }
+        // A customer asking to return an item raises a REQUEST; it is not the customer's call
+        // to declare the item returned. validate_order_status() above has just created the
+        // return_requests row, and an admin still has to approve it.
+        //
+        // This used to be gated on $fromapp, which only the app API passes. The web controller
+        // (My_account::update_order_item_status) does not, so the same action from a browser
+        // wrote active_status = 'returned' directly: the item showed as returned before anyone
+        // had looked at the request, the seller's settlement sweep skipped it, and approving
+        // the request afterwards was the second time the item changed hands. $fromapp is now
+        // irrelevant to this decision - both clients behave the same.
+        if ($status == 'returned') {
+            $status = 'return_request_pending';
         }
         $order_item_details = fetch_details('order_items', ['id' => $id], 'order_id,seller_id');
         $order_details =  fetch_orders($order_item_details[0]['order_id']);
@@ -293,7 +309,15 @@ class Order_model extends CI_Model
 
 
             if ($this->update_order(['status' => $status], ['id' => $id], true, 'order_items')) {
-                $this->order_model->update_order(['active_status' => $status], ['id' => $id], false, 'order_items');
+                // $this->update_order(), not $this->order_model->update_order(). This is
+                // Order_model calling itself: the $this->order_model property only exists when
+                // the CALLER happened to load this model under that exact lowercase name, so
+                // the line was a fatal ("Call to a member function update_order() on null") for
+                // any caller that loaded it as 'Order_model'. The line above already uses the
+                // correct form; only this one was wrong, and it is the line that writes
+                // active_status - so on an affected caller the status history was updated and
+                // the item's actual status was not.
+                $this->update_order(['active_status' => $status], ['id' => $id], false, 'order_items');
 
                 //send notification while order cancelled
                 if ($status == 'cancelled') {
@@ -408,7 +432,16 @@ class Order_model extends CI_Model
             /* Calculating Promo Discount */
             if (isset($data['promo_code']) && !empty($data['promo_code'])) {
 
-                $promo_code = validate_promo_code($data['promo_code'], $data['user_id'], $data['total']);
+                // $total, not $data['total']. $data['total'] is whatever the client posted -
+                // the classic theme sends it as a hidden field, and nothing recomputed it - so
+                // the minimum_order_amount eligibility test was being run against a number the
+                // customer controls, while the discount itself was calculated from the real
+                // server-side total below. Inflating that one field cleared the minimum on any
+                // code. It failed honest customers too: the field is rendered with
+                // number_format(), so a cart over 999 arrived as "1,234.00", which PHP 8
+                // compares as a string against the minimum and reports as too small - the code
+                // was accepted on the cart page and then rejected at place-order.
+                $promo_code = validate_promo_code($data['promo_code'], $data['user_id'], $total);
 
                 if ($promo_code['error'] == false) {
 
@@ -2338,7 +2371,10 @@ class Order_model extends CI_Model
 
             for ($i = 0; $i < count($order_items_details); $i++) {
                 if ($this->update_order(['status' => $status], ['id' => $order_items_details[$i]['id']], true, 'order_items')) {
-                    $this->order_model->update_order(['active_status' => $status], ['id' => $order_items_details[$i]['id']], false, 'order_items');
+                    // Same self-reference bug as in update_order_item() above - see the note
+                    // there. Calls itself directly so it does not depend on how the caller
+                    // spelled the model name when loading it.
+                    $this->update_order(['active_status' => $status], ['id' => $order_items_details[$i]['id']], false, 'order_items');
                 }
             }
             // if ($fromAPP == true) {

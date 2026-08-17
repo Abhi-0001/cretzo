@@ -121,7 +121,7 @@
                 if (isset($_POST['promo_code']) && !empty($_POST['promo_code'])) {
                     $validate = validate_promo_code($_POST['promo_code'], $this->data['user']->id, $cart['total_arr']);
                     if ($validate['error'] == false) {
-                        $promo_discount = $validate['data'][0]['final_discount'];
+                        $promo_discount = $validate['data'][0]['checkout_discount'];
                     } else {
                         $this->session->set_flashdata('message', $validate['message']);
                         $this->session->set_flashdata('message_type', 'error');
@@ -252,7 +252,7 @@
                             print_r(json_encode($this->response));
                             return false;
                         } else {
-                            $overall_amount = $overall_amount - $validate['data'][0]['final_discount'];
+                            $overall_amount = $overall_amount - $validate['data'][0]['checkout_discount'];
                         }
                     }
                     $amount = intval($overall_amount);
@@ -397,7 +397,7 @@
                         print_r(json_encode($this->response));
                         return false;
                     } else {
-                        $overall_amount = $overall_amount - $validate['data'][0]['final_discount'];
+                        $overall_amount = $overall_amount - $validate['data'][0]['checkout_discount'];
                     }
                 }
                 $amount = $overall_amount;
@@ -500,8 +500,8 @@
                             if (isset($_POST['promo_code']) && !empty($_POST['promo_code'])) {
                                 $validate = validate_promo_code($_POST['promo_code'], $this->data['user']->id, $cart['total_arr']);
                                 if ($validate['error'] == false) {
-                                    $promo_discount = $validate['data'][0]['final_discount'];
-                                    $_POST['promo_discount'] = $validate['data'][0]['final_discount'];
+                                    $promo_discount = $validate['data'][0]['checkout_discount'];
+                                    $_POST['promo_discount'] = $validate['data'][0]['checkout_discount'];
                                 }
                             }
                             $_POST['final_total'] = $cart['overall_amount'] - $_POST['wallet_balance_used'] - $promo_discount;

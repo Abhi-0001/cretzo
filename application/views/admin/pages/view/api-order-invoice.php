@@ -177,17 +177,20 @@
                                                 <?php $j = 1;
                                                 $total = $quantity = $total_tax = $total_discount = $final_sub_total = 0;
                                                 foreach ($items as $row) {
-
+                                                    // This row's tax has to be worked out BEFORE it is added into $total.
+                                                    // The computation used to sit further down, inside the seller-match
+                                                    // block, so the $total line below read $tax_amount from the *previous*
+                                                    // iteration (and from an undefined variable on the first one, which is
+                                                    // where the "Undefined variable $tax_amount" warning came from).
+                                                    if (isset($row['is_prices_inclusive_tax']) && $row['is_prices_inclusive_tax'] == 1) {
+                                                        $tax_amount  = $row['price'] - ($row['price'] * (100 / (100 + $row['tax_percent'])));
+                                                    } else {
+                                                        $tax_amount = $row['price'] * ($row['tax_percent'] / 100);
+                                                    }
                                                     $total += floatval($row['price'] + $tax_amount) * floatval($row['quantity']);
                                                     if ($sellers[$i] == $row['seller_id']) {
                                                         $product_variants = get_variants_values_by_id($row['product_variant_id']);
                                                         $product_variants = isset($product_variants[0]['variant_values']) && !empty($product_variants[0]['variant_values']) ? str_replace(',', ' | ', $product_variants[0]['variant_values']) : '-';
-                                                        // $tax_amount = ($row['tax_amount']) ? $row['tax_amount'] : '0';
-                                                        if (isset($row['is_prices_inclusive_tax']) && $row['is_prices_inclusive_tax'] == 1) {
-                                                            $tax_amount  = $row['price'] - ($row['price'] * (100 / (100 + $row['tax_percent'])));
-                                                        } else {
-                                                            $tax_amount = $row['price'] * ($row['tax_percent'] / 100);
-                                                        }
                                                         $hsn_code = ($row['hsn_code']) ? $row['hsn_code'] : '-';
                                                         $quantity += floatval($row['quantity']);
                                                         $total_tax += floatval($row['tax_amount']);
@@ -228,7 +231,12 @@
                                                     </th>
                                                     <th> <?= $settings['currency'] . number_format($final_sub_total, 2) ?><br></th>
                                                 </tr>
-                                                <!-- <?php $total_order_price +=  $final_sub_total; ?> -->
+                                                <?php
+                                                // Dead "$total_order_price += $final_sub_total" wrapped in an HTML comment
+                                                // used to sit here. PHP still executed it, so it warned about an
+                                                // uninitialised variable on every invoice, and the value was never printed.
+                                                // Dropped; $final_sub_total in the row above is the per-seller total.
+                                                ?>
                                             </tbody>
                                         </table>
                                         <div class="row m-3">

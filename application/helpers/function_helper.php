@@ -119,6 +119,79 @@ function seller_profile_url($slug = '', $user_id = '')
     return base_url('sellers');
 }
 
+/**
+ * Identity / bank fields that may only ever belong to one seller account.
+ *
+ * PAN, GSTIN, GST Enrollment ID and the bank account number each identify a single
+ * real-world entity: two seller accounts sharing one means duplicate KYC, and in the
+ * bank-account case it means payouts for two storefronts landing in the same account.
+ * Nothing enforced this, so a seller could open a second account and re-enter the
+ * identifiers from their first one.
+ *
+ * $values is a column => posted-value map; blank/omitted values are skipped so a
+ * partially filled form only checks what it actually supplied. Comparison is
+ * trimmed and case-insensitive, since PAN/GSTIN get retyped in mixed case.
+ * $exclude_user_id keeps a seller from colliding with their own saved row on edit;
+ * pass 0 when creating.
+ *
+ * Removed sellers (status 7) are ignored, so a deleted account's PAN/GSTIN/account
+ * number goes back into circulation and the same person can register again. Admin's
+ * "Delete Seller" drops the seller_data row outright and so frees them anyway; this
+ * covers "Remove Seller", which only flips the status and leaves the row behind.
+ * Deactive (0) and Not-Approved (2) sellers still block - those accounts are live and
+ * can be switched back on, which would leave two active sellers sharing one identity.
+ *
+ * Returns the human-readable labels of whichever fields are already taken, in
+ * $values order, or an empty array when everything is free.
+ */
+function duplicate_seller_identifiers($values, $exclude_user_id = 0)
+{
+    $t = &get_instance();
+    $labels = [
+        'pan' => 'PAN Number',
+        'gst' => 'GST Number',
+        'gst_enrollment_number' => 'GST Enrollment ID',
+        'account_number' => 'Account Number',
+    ];
+
+    $duplicates = [];
+    foreach ($values as $column => $value) {
+        if (!isset($labels[$column])) {
+            continue;
+        }
+        $value = trim((string) $value);
+        if ($value === '') {
+            continue;
+        }
+        $taken = $t->db
+            ->where('user_id !=', (int) $exclude_user_id)
+            ->where('status !=', 7)
+            ->where('UPPER(TRIM(' . $column . '))', strtoupper($value))
+            ->get('seller_data')
+            ->num_rows() > 0;
+        if ($taken) {
+            $duplicates[] = $labels[$column];
+        }
+    }
+    return $duplicates;
+}
+
+/**
+ * Rejection message for duplicate_seller_identifiers() output, so the seller form and
+ * the admin form phrase the same failure identically.
+ */
+function duplicate_seller_identifiers_message($duplicate_labels)
+{
+    $count = count($duplicate_labels);
+    if ($count === 0) {
+        return '';
+    }
+    $list = ($count === 1)
+        ? $duplicate_labels[0]
+        : implode(', ', array_slice($duplicate_labels, 0, -1)) . ' and ' . end($duplicate_labels);
+    return $list . ' ' . ($count === 1 ? 'is' : 'are') . ' already registered with another seller account. Each seller account must use its own ' . ($count === 1 ? 'value' : 'values') . '.';
+}
+
 function get_settings($type = 'system_settings', $is_json = false)
 {
     $t = &get_instance();
@@ -1065,6 +1138,31 @@ function is_json($data = NULL)
 }
 
 //validate_promo_code
+/**
+ * How much a promo code takes off the amount the customer pays RIGHT NOW.
+ *
+ * Zero for a cashback code, by definition: a cashback code does not reduce the bill, it pays
+ * the customer back afterwards (settle_cashback_discount() credits their wallet once the order
+ * is delivered and the return window has passed).
+ *
+ * This exists because 'final_discount' is populated for cashback codes too - it is the value
+ * that will eventually be credited - and the checkout screens were subtracting it from the
+ * amount charged. A cashback code therefore discounted the payment AND paid the cashback: the
+ * customer was charged the reduced amount at the gateway while the order recorded the full
+ * total_payable, and the cashback landed in their wallet days later. Callers that are sizing a
+ * payment, a wallet deduction or a gateway charge must use this; callers reporting the value
+ * of the code to the customer want final_discount.
+ *
+ * @param  array $promo_row
+ * @param  float $discount
+ * @return string
+ */
+function promo_checkout_discount($promo_row, $discount)
+{
+    $is_cashback = isset($promo_row['is_cashback']) && $promo_row['is_cashback'] == 1;
+    return strval($is_cashback ? 0 : floatval($discount));
+}
+
 function validate_promo_code($promo_code, $user_id, $final_total)
 {
 
@@ -1077,18 +1175,47 @@ function validate_promo_code($promo_code, $user_id, $final_total)
         // quoted string and inject arbitrary SQL. $t->db->escape() quotes/escapes it safely for
         // this raw-string context; user_id is cast to int since it's only ever a numeric id.
         $promo_code_input = $promo_code;
-        $promo_code = $t->db->select('pc.*,count(o.id) as promo_used_counter ,( SELECT count(user_id) from orders where user_id =' . (int) $user_id . ' and promo_code =' . $t->db->escape($promo_code_input) . ') as user_promo_usage_counter ')
-            ->join('orders o', 'o.promo_code=pc.promo_code', 'left')
+
+        // Both counters exclude cancelled orders. They used to count every row in `orders`
+        // carrying the code, so a cancelled order permanently burned a slot: nothing anywhere
+        // releases promo quota when an order is cancelled or refunded, and a customer whose
+        // order failed could not re-use their own single-use code.
+        //
+        // promo_used_counter counts DISTINCT USERS, not orders. It is compared against
+        // no_of_users, and the message shown to the customer says "applicable only for first N
+        // users" - but count(o.id) is a count of ORDERS, so on a repeat-usage code a handful of
+        // customers placing several orders each exhausted a "first 100 users" campaign long
+        // before 100 people had seen it.
+        // There is no orders.active_status column - this app tracks status per order_item - so
+        // "not cancelled" means the order still has at least one live line.
+        $cancelled_clause = " AND EXISTS (SELECT 1 FROM order_items oi2 WHERE oi2.order_id = o2.id AND oi2.active_status <> 'cancelled')";
+        $used_by_subquery = '(SELECT COUNT(DISTINCT o2.user_id) FROM orders o2 WHERE o2.promo_code = pc.promo_code' . $cancelled_clause . ')';
+        $user_usage_subquery = '(SELECT COUNT(o2.id) FROM orders o2 WHERE o2.user_id = ' . (int) $user_id
+            . ' AND o2.promo_code = ' . $t->db->escape($promo_code_input) . $cancelled_clause . ')';
+
+        $promo_code = $t->db->select('pc.*, ' . $used_by_subquery . ' as promo_used_counter, ' . $user_usage_subquery . ' as user_promo_usage_counter', false)
             ->where(['pc.promo_code' => $promo_code_input, 'pc.status' => '1', ' start_date <= ' => date('Y-m-d'), '  end_date >= ' => date('Y-m-d')])
             ->get('promo_codes pc')->result_array();
         if (!empty($promo_code[0]['id'])) {
 
-            if (intval($promo_code[0]['promo_used_counter']) < intval($promo_code[0]['no_of_users'])) {
+            // A user who has already used the code is inside the cap regardless of how many
+            // distinct users have used it - otherwise a repeat-usage code stops working for
+            // its existing users the moment the Nth user joins.
+            $distinct_users = intval($promo_code[0]['promo_used_counter']);
+            $already_used_by_this_user = intval($promo_code[0]['user_promo_usage_counter']) > 0;
 
-                if ($final_total >= intval($promo_code[0]['minimum_order_amount'])) {
+            if ($already_used_by_this_user || $distinct_users < intval($promo_code[0]['no_of_users'])) {
 
-                    if ($promo_code[0]['repeat_usage'] == 1 && ($promo_code[0]['user_promo_usage_counter'] <= $promo_code[0]['no_of_repeat_usage'])) {
-                        if (intval($promo_code[0]['user_promo_usage_counter']) <= intval($promo_code[0]['no_of_repeat_usage'])) {
+                // floatval, not intval: a minimum of 499.50 was truncated to 499, letting a
+                // 499.00 cart through.
+                if (floatval($final_total) >= floatval($promo_code[0]['minimum_order_amount'])) {
+
+                    // `<`, not `<=`. no_of_repeat_usage is the number of times a user may use
+                    // the code; with `<=`, a user who had already used it exactly that many
+                    // times still passed and got one more - every repeat-usage code granted
+                    // N+1 redemptions per customer.
+                    if ($promo_code[0]['repeat_usage'] == 1 && (intval($promo_code[0]['user_promo_usage_counter']) < intval($promo_code[0]['no_of_repeat_usage']))) {
+                        if (intval($promo_code[0]['user_promo_usage_counter']) < intval($promo_code[0]['no_of_repeat_usage'])) {
 
                             $response['error'] = false;
                             $response['message'] = 'The promo code is valid';
@@ -1112,6 +1239,7 @@ function validate_promo_code($promo_code, $user_id, $final_total)
                             $promo_code[0]['final_total'] = strval(floatval($total));
                             $promo_code[0]['image'] = (isset($promo_code[0]['image']) && !empty($promo_code[0]['image'])) ? $promo_code[0]['image'] : '';
                             $promo_code[0]['final_discount'] = strval(floatval($promo_code_discount));
+                            $promo_code[0]['checkout_discount'] = promo_checkout_discount($promo_code[0], $promo_code_discount);
                             $response['data'] = $promo_code;
                             return $response;
                         } else {
@@ -1148,6 +1276,7 @@ function validate_promo_code($promo_code, $user_id, $final_total)
                             $total = max(0, $total);
                             $promo_code[0]['final_total'] = strval(floatval($total));
                             $promo_code[0]['final_discount'] = strval(floatval($promo_code_discount));
+                            $promo_code[0]['checkout_discount'] = promo_checkout_discount($promo_code[0], $promo_code_discount);
                             $response['data'] = $promo_code;
                             return $response;
                         } else {
@@ -1510,6 +1639,53 @@ function sanitise_import_stock($value)
 }
 
 /**
+ * Clean a stock level arriving from the product add/edit form.
+ *
+ * The form fields are validated as 'numeric' at best (and 'total_stock_variant_type' not even
+ * that), so a negative or non-numeric level went straight into the column - bypassing every
+ * guard update_stock() applies. Negative stock is particularly bad because the availability
+ * flip and the listing filters both read "not zero" as "in stock".
+ *
+ * @return int  never negative
+ */
+function sanitise_stock_input($value)
+{
+    if ($value === null || trim((string) $value) === '' || !is_numeric($value)) {
+        return 0;
+    }
+    return max(0, (int) $value);
+}
+
+/**
+ * Reconcile the "stock status" dropdown against the stock level saved beside it.
+ *
+ * These two are independent form fields, so a product could be saved as In Stock (availability
+ * 1) with a stock level of 0. Nothing reconciled them, and the two halves of the system then
+ * disagreed permanently: the storefront and admin listings filter on `availability`, so the
+ * product was advertised as purchasable, while validate_stock() correctly refused it at
+ * checkout. update_stock() has always derived availability from the resulting stock
+ * (`IF(stock > 0, '1', '0')`), so a manual save was the one way to get the two out of step.
+ *
+ * Applies the weaker half of that same rule: zero stock can never be "available". A seller can
+ * still mark a well-stocked item unavailable deliberately - that is a legitimate choice, and
+ * only the impossible combination is corrected.
+ *
+ * @param  mixed $stock                 the stock level being saved
+ * @param  mixed $requested_availability the flag the form asked for
+ * @return string '0' or '1'
+ */
+function reconcile_stock_availability($stock, $requested_availability)
+{
+    $wants_available = ((string) $requested_availability === '1');
+
+    if (sanitise_stock_input($stock) <= 0) {
+        return '0';
+    }
+
+    return $wants_available ? '1' : '0';
+}
+
+/**
  * The stock a variant actually has right now, read from whichever column update_stock() will
  * change for that product's stock_type.
  *
@@ -1556,33 +1732,28 @@ function get_variant_current_stock($variant_id)
  * order_items[0], silently losing every line after the first on a multi-item order. Reading
  * the items straight from the table gets it right in one place.
  *
- * @param int $order_id
- * @return int number of lines restored
+ * Goes line by line through restore_order_item_stock() so each line is restored at most once,
+ * even if a per-item path (a customer cancelling one line, or a Shiprocket webhook for one
+ * shipment of a multi-parcel order) already put that line back.
+ *
+ * @param int    $order_id
+ * @param string $note  recorded against each stock movement
+ * @return int number of lines actually restored by this call
  */
-function restore_order_stock($order_id)
+function restore_order_stock($order_id, $note = 'Order cancelled')
 {
     if (empty($order_id)) {
         return 0;
     }
 
-    $t = &get_instance();
-    $items = $t->db->select('product_variant_id, quantity')
-        ->where('order_id', $order_id)
-        ->get('order_items')
-        ->result_array();
-
-    if (empty($items)) {
-        return 0;
+    $restored = 0;
+    foreach (fetch_details('order_items', ['order_id' => $order_id], 'id') as $item) {
+        if (restore_order_item_stock($item['id'], $note)) {
+            $restored++;
+        }
     }
 
-    set_stock_movement_context('order_restore', $order_id);
-    update_stock(
-        array_column($items, 'product_variant_id'),
-        array_column($items, 'quantity'),
-        'plus'
-    );
-
-    return count($items);
+    return $restored;
 }
 
 /**
@@ -1795,7 +1966,17 @@ function validate_stock($product_variant_ids, $qtns)
         // For variant-level / product-level variable stock the variant flag governs;
         // otherwise (simple product or no stock management) the product flag governs.
         // A null / empty flag means "available".
-        $effective_availability = ($res[0]['stock_type'] == 1 || $res[0]['stock_type'] == 2)
+        // stock_type is free text in practice: NULL / '' mean stock management is off, and this
+        // database holds 10 products storing the literal string 'simple_product' instead of 0.
+        // Normalised here for the same reason update_stock() and get_low_stock_items() normalise
+        // it - the raw comparisons below ('simple_product' == 0 is FALSE on PHP 8) matched no
+        // branch at all, so those products passed this check with their stock never examined
+        // while update_stock() went on to deduct from it. The result was a product that could be
+        // ordered past its stock: no pre-purchase rejection, and the quantity simply floored at
+        // zero on the way out.
+        $normalised_stock_type = normalise_stock_type($res[0]['stock_type']);
+
+        $effective_availability = ($normalised_stock_type === 1 || $normalised_stock_type === 2)
             ? $res[0]['pv_availability']
             : $res[0]['p_availability'];
         if ($effective_availability === 0 || $effective_availability === '0') {
@@ -1812,9 +1993,9 @@ function validate_stock($product_variant_ids, $qtns)
             }
         }
 
-        if (($res[0]['stock_type'] != null && $res[0]['stock_type'] != '')) {
+        if ($normalised_stock_type !== null) {
             //Case 1 : Simple Product(simple product)
-            if ($res[0]['stock_type'] == 0) {
+            if ($normalised_stock_type === 0) {
                 if ($res[0]['p_stock'] != null && $res[0]['p_stock'] != '') {
                     $stock = intval($res[0]['p_stock']) - intval($qtns[$i]);
                     if ($stock < 0 || $res[0]['p_availability'] == 0) {
@@ -1824,7 +2005,7 @@ function validate_stock($product_variant_ids, $qtns)
                 }
             }
             //Case 2 & 3 : Product level(variable product) ||  Variant level(variable product)
-            if ($res[0]['stock_type'] == 1 || $res[0]['stock_type'] == 2) {
+            if ($normalised_stock_type === 1 || $normalised_stock_type === 2) {
                 if ($res[0]['pv_stock'] != null && $res[0]['pv_stock'] != '') {
                     $stock = intval($res[0]['pv_stock']) - intval($qtns[$i]);
                     if ($stock < 0 || $res[0]['pv_availability'] == 0) {
@@ -1838,12 +2019,15 @@ function validate_stock($product_variant_ids, $qtns)
 
     if ($error) {
         $response['error'] = true;
+        // $res is EMPTY when the loop broke because the variant no longer exists (deleted or a
+        // bogus id), so reading [0]['product_name'] raised two warnings - and because this runs
+        // during an AJAX request, that warning HTML was emitted ahead of the JSON body and broke
+        // the caller's response parsing. Named generically when there is no product to name.
+        $product_label = isset($res[0]['product_name']) ? $res[0]['product_name'] : 'This';
         if ($is_exceed_allowed_quantity_limit) {
-            $response['message'] = $res[0]['product_name'] . " product's quantity exceeds the allowed limit.Please deduct some quanity in order to purchase the item";
-            // $response['message'] = "One of the products quantity exceeds the allowed limit.Please deduct some quanity in order to purchase the item";
+            $response['message'] = $product_label . " product's quantity exceeds the allowed limit.Please deduct some quanity in order to purchase the item";
         } else {
-            $response['message'] =  $res[0]['product_name'] . " product is out of stock.";
-            // $response['message'] = "One of the product is out of stock.";
+            $response['message'] =  $product_label . " product is out of stock.";
         }
     } else {
         $response['error'] = false;
@@ -1947,7 +2131,12 @@ function validate_order_status($order_ids, $status, $table = 'order_items', $use
             }
         }
 
-        $t->db->select('p.*,oi.active_status,pv.*,oi.id as order_item_id,oi.user_id as user_id,oi.product_variant_id as product_variant_id,oi.order_id as order_id, oi.status as order_item_status')
+        // oi.delivered_at is selected so the return WINDOW can be enforced below. It was only
+        // ever applied in fetch_orders() when rendering the order page, which hides the Return
+        // button but does nothing to the endpoint behind it - so a request posted directly (or
+        // replayed) could return an item delivered any length of time ago, including one whose
+        // commission had already been settled to the seller weeks earlier.
+        $t->db->select('p.*,oi.active_status,pv.*,oi.id as order_item_id,oi.user_id as user_id,oi.product_variant_id as product_variant_id,oi.order_id as order_id, oi.status as order_item_status, oi.delivered_at as delivered_at')
             ->join('product_variants pv', 'pv.id=oi.product_variant_id', 'left')
             ->join('products p', 'pv.product_id=p.id', 'left');
         if ($table == 'orders') {
@@ -2055,15 +2244,42 @@ function validate_order_status($order_ids, $status, $table = 'order_items', $use
                 break;
             }
 
-            if ($status == 'returned' && $product_data[$i]['is_returnable'] == 1 && $priority_status[$product_data[$i]['active_status']] < 3) {
+            // active_status can legitimately hold values that are not on the ladder ('awaiting'
+            // on an unpaid order, 'return_request_pending'), and indexing $priority_status with
+            // one raised a warning and then compared null - which reads as 0, i.e. "not yet
+            // delivered". Absent from the ladder is treated as not-delivered explicitly.
+            $item_priority = isset($priority_status[$product_data[$i]['active_status']])
+                ? $priority_status[$product_data[$i]['active_status']]
+                : 0;
+
+            if ($status == 'returned' && $product_data[$i]['is_returnable'] == 1 && $item_priority < 3) {
                 $error = 1;
                 $returnable_till = 'delivery';
                 break;
             }
 
+            // Enforce the return window, not just the returnable flag - but only for the
+            // customer ($fromuser). Staff must still be able to mark an item returned after the
+            // window closes: the customer raises the request inside the window and the parcel
+            // frequently gets back after it, so gating the staff-side transition on the same
+            // deadline would strand every return that took longer than the window to travel.
+            if ($fromuser && $status == 'returned' && $product_data[$i]['is_returnable'] == 1) {
+                $window = order_item_return_window($product_data[$i]);
+                if ($window['expired']) {
+                    $error = 1;
+                    // A separate boolean, not just the date: return_till is null when no
+                    // delivery date could be established at all, and testing the date alone
+                    // would let that case fall through every message branch below and end up
+                    // creating a return request regardless.
+                    $return_window_closed = true;
+                    $return_window_expired = $window['return_till'];
+                    break;
+                }
+            }
+
             if ($status == 'cancelled' && $product_data[$i]['is_cancelable'] == 1) {
-                $max = $priority_status[$product_data[$i]['cancelable_till']];
-                $min = $priority_status[$product_data[$i]['active_status']];
+                $max = isset($priority_status[$product_data[$i]['cancelable_till']]) ? $priority_status[$product_data[$i]['cancelable_till']] : 0;
+                $min = $item_priority;
 
                 if ($min > $max) {
                     $error = 1;
@@ -2076,6 +2292,22 @@ function validate_order_status($order_ids, $status, $table = 'order_items', $use
                 $error = 1;
                 break;
             }
+        }
+
+        if ($status == 'returned' && $error == 1 && !empty($return_window_closed)) {
+            if (!empty($return_window_expired)) {
+                $response['message'] = (count($product_data) > 1)
+                    ? "One of the order item is past its return window (returnable till " . $return_window_expired . ")."
+                    : "This item can no longer be returned. The return window closed on " . $return_window_expired . ".";
+            } else {
+                // No delivery date on record, so there is no window to be inside of.
+                $response['message'] = (count($product_data) > 1)
+                    ? "One of the order item has no recorded delivery date, so it cannot be returned."
+                    : "This item cannot be returned because it has no recorded delivery date.";
+            }
+            $response['error'] = true;
+            $response['data'] = array();
+            return $response;
         }
 
         if ($status == 'returned'  && $error == 1 && !empty($returnable_till)) {
@@ -2170,6 +2402,244 @@ function validate_order_status($order_ids, $status, $table = 'order_items', $use
         $response['data'] = array();
         return $response;
     }
+}
+
+/**
+ * Works out whether an order item is still inside its return window.
+ *
+ * The delivery date is taken from order_items.delivered_at (the authoritative column added by
+ * migration 036), falling back to searching the status history BY NAME. It is deliberately not
+ * read positionally: the history is not guaranteed to be
+ * received -> processed -> shipped -> delivered, so index 3 is frequently not the delivery
+ * entry - or does not exist at all when an item was marked delivered directly.
+ *
+ * A missing delivery date means "never delivered", which is not returnable. That is the same
+ * conclusion fetch_orders() reaches when it renders the Return button, so the endpoint and the
+ * UI now agree instead of the UI hiding a control the endpoint would still honour.
+ *
+ * @param  array $item  row containing delivered_at and (optionally) a decoded status history
+ * @return array ['expired' => bool, 'return_till' => string|null, 'delivered_at' => string|null]
+ */
+/**
+ * Books a Shiprocket reverse pickup for an approved return.
+ *
+ * The customer's delivery address becomes the PICKUP end and the seller's registered pickup
+ * location becomes the DROP end - the mirror of the forward shipment. The resulting shipment
+ * is recorded in order_tracking with is_return = 1 so the webhook can tell the return leg
+ * apart from the original delivery; both legs reference the same order item, and without the
+ * flag a "DELIVERED" callback for the return would have marked the item delivered again.
+ *
+ * Deliberately non-fatal: if Shiprocket is disabled, unconfigured, or simply refuses the
+ * booking, the return approval itself still stands and the customer is still refunded. The
+ * parcel can then be arranged manually. Tying the refund to a successful courier booking would
+ * mean an outage at Shiprocket blocks refunds.
+ *
+ * @param  int $order_item_id
+ * @return array ['error' => bool, 'message' => string, 'data' => array]
+ */
+function create_shiprocket_return_shipment($order_item_id)
+{
+    $t = &get_instance();
+
+    $shipping_settings = get_settings('shipping_method', true);
+    if (empty($shipping_settings['shiprocket_shipping_method']) || $shipping_settings['shiprocket_shipping_method'] != 1) {
+        return ['error' => true, 'message' => 'Shiprocket shipping is not enabled.', 'data' => []];
+    }
+
+    // Never book the same return twice - approving, un-approving and re-approving, or simply
+    // double-clicking, would otherwise raise two reverse pickups for one parcel.
+    $existing = fetch_details('order_tracking', ['order_item_id' => $order_item_id, 'is_return' => 1, 'is_canceled' => 0], 'id,shiprocket_order_id,shipment_id');
+    if (!empty($existing)) {
+        return ['error' => false, 'message' => 'A return pickup has already been booked for this item.', 'data' => $existing[0]];
+    }
+
+    $item = $t->db
+        ->select('oi.id, oi.order_id, oi.quantity, oi.price, oi.sub_total, oi.tax_amount, oi.seller_id, oi.product_variant_id,
+                  p.name as product_name, p.slug as product_slug, p.sku as product_sku, p.pickup_location,
+                  pv.sku as variant_sku, pv.weight, pv.length, pv.breadth, pv.height')
+        ->join('product_variants pv', 'pv.id = oi.product_variant_id', 'left')
+        ->join('products p', 'p.id = pv.product_id', 'left')
+        ->where('oi.id', $order_item_id)
+        ->get('order_items oi')
+        ->row_array();
+
+    if (empty($item)) {
+        return ['error' => true, 'message' => 'Order item not found.', 'data' => []];
+    }
+
+    $order = fetch_details('orders', ['id' => $item['order_id']], 'id,user_id,address_id,mobile,date_added,payment_method');
+    if (empty($order)) {
+        return ['error' => true, 'message' => 'Order not found.', 'data' => []];
+    }
+
+    $address = fetch_details('addresses', ['id' => $order[0]['address_id']], 'address,city_id,city,state,country,pincode,mobile,name');
+    if (empty($address) || empty($address[0]['pincode'])) {
+        return ['error' => true, 'message' => 'The delivery address on this order is incomplete, so a return pickup cannot be booked.', 'data' => []];
+    }
+
+    $pickup = fetch_details('pickup_locations', ['pickup_location' => $item['pickup_location'], 'seller_id' => $item['seller_id']], '*');
+    if (empty($pickup)) {
+        // Fall back to any location this seller has registered, rather than failing outright -
+        // products created before pickup locations existed carry no pickup_location value.
+        $pickup = fetch_details('pickup_locations', ['seller_id' => $item['seller_id']], '*');
+    }
+    if (empty($pickup)) {
+        return ['error' => true, 'message' => 'The seller has no Shiprocket pickup location configured, so the return cannot be collected.', 'data' => []];
+    }
+    $pickup = $pickup[0];
+
+    $customer = fetch_details('users', ['id' => $order[0]['user_id']], 'username,email,mobile');
+    $customer_name = !empty($address[0]['name']) ? $address[0]['name'] : (!empty($customer[0]['username']) ? $customer[0]['username'] : 'Customer');
+    $customer_phone = !empty($address[0]['mobile']) ? $address[0]['mobile'] : (!empty($order[0]['mobile']) ? $order[0]['mobile'] : (isset($customer[0]['mobile']) ? $customer[0]['mobile'] : ''));
+
+    $city = !empty($address[0]['city']) ? $address[0]['city'] : '';
+    if (empty($city) && !empty($address[0]['city_id'])) {
+        $city_row = fetch_details('cities', ['id' => $address[0]['city_id']], 'name');
+        $city = !empty($city_row) ? $city_row[0]['name'] : '';
+    }
+
+    $sku = !empty($item['variant_sku']) ? $item['variant_sku'] : (!empty($item['product_sku']) ? $item['product_sku'] : $item['product_slug']);
+
+    // Shiprocket rejects a zero weight outright, and dimensions of 0 on any axis. Products
+    // predating the shipping fields carry 0 in all four, so fall back to a nominal parcel.
+    $weight  = ((float) $item['weight'] > 0) ? (float) $item['weight'] : 0.5;
+    $length  = ((float) $item['length'] > 0) ? (float) $item['length'] : 10;
+    $breadth = ((float) $item['breadth'] > 0) ? (float) $item['breadth'] : 10;
+    $height  = ((float) $item['height'] > 0) ? (float) $item['height'] : 10;
+
+    $payload = [
+        // Unique per return, and traceable back to the item it belongs to.
+        'order_id'   => 'RET-' . $item['order_id'] . '-' . $item['id'],
+        'order_date' => date('Y-m-d H:i', strtotime($order[0]['date_added'])),
+        'channel_id' => '',
+
+        /* PICKUP = the customer (this is the reverse leg) */
+        'pickup_customer_name' => $customer_name,
+        'pickup_last_name'     => '',
+        'pickup_address'       => $address[0]['address'],
+        'pickup_address_2'     => '',
+        'pickup_city'          => $city,
+        'pickup_state'         => $address[0]['state'],
+        'pickup_country'       => $address[0]['country'],
+        'pickup_pincode'       => $address[0]['pincode'],
+        'pickup_email'         => isset($customer[0]['email']) ? $customer[0]['email'] : '',
+        'pickup_phone'         => $customer_phone,
+
+        /* SHIPPING = back to the seller's registered pickup location */
+        'shipping_customer_name' => $pickup['name'],
+        'shipping_last_name'     => '',
+        'shipping_address'       => $pickup['address'],
+        'shipping_address_2'     => isset($pickup['address_2']) ? $pickup['address_2'] : '',
+        'shipping_city'          => $pickup['city'],
+        'shipping_country'       => $pickup['country'],
+        'shipping_pincode'       => $pickup['pin_code'],
+        'shipping_state'         => $pickup['state'],
+        'shipping_email'         => $pickup['email'],
+        'shipping_phone'         => $pickup['phone'],
+
+        'order_items' => [[
+            'name'          => $item['product_name'],
+            'sku'           => $sku,
+            'units'         => (int) $item['quantity'],
+            'selling_price' => (float) $item['price'],
+            'discount'      => 0,
+            'hsn'           => '',
+        ]],
+
+        // A return is never collected on delivery.
+        'payment_method' => 'PREPAID',
+        'sub_total'      => (float) $item['sub_total'],
+        'length'         => $length,
+        'breadth'        => $breadth,
+        'height'         => $height,
+        'weight'         => $weight,
+    ];
+
+    $t->load->library('shiprocket');
+    $response = $t->shiprocket->create_return_order($payload);
+
+    if (!is_array($response) || empty($response['order_id'])) {
+        $reason = 'Shiprocket did not accept the return pickup.';
+        if (is_array($response)) {
+            if (!empty($response['message'])) {
+                $reason = is_array($response['message']) ? implode(' ', array_map('strval', $response['message'])) : $response['message'];
+            } elseif (!empty($response['errors'])) {
+                $reason = implode(' ', array_map(function ($e) {
+                    return is_array($e) ? implode(' ', $e) : (string) $e;
+                }, $response['errors']));
+            }
+        }
+        return ['error' => true, 'message' => $reason, 'data' => is_array($response) ? $response : []];
+    }
+
+    $t->db->insert('order_tracking', [
+        'order_id'              => $item['order_id'],
+        'order_item_id'         => $item['id'],
+        'shiprocket_order_id'   => $response['order_id'],
+        'shipment_id'           => isset($response['shipment_id']) ? $response['shipment_id'] : 0,
+        'courier_company_id'    => 0,
+        'is_return'             => 1,
+        'pickup_status'         => 0,
+        'pickup_scheduled_date' => '',
+        'pickup_token_number'   => '',
+        'status'                => 0,
+        'others'                => 'RETURN REQUESTED',
+        'pickup_generated_date' => '',
+        'data'                  => '',
+        'date'                  => '',
+        'manifest_url'          => '',
+        'label_url'             => '',
+        'invoice_url'           => '',
+        'is_canceled'           => 0,
+        'tracking_id'           => '',
+        'url'                   => '',
+    ]);
+
+    return ['error' => false, 'message' => 'Return pickup booked with Shiprocket.', 'data' => $response];
+}
+
+function order_item_return_window($item)
+{
+    $delivery_date = null;
+
+    if (!empty($item['delivered_at'])) {
+        $delivery_date = $item['delivered_at'];
+    } else {
+        $history = isset($item['order_item_status']) ? $item['order_item_status'] : (isset($item['status']) ? $item['status'] : null);
+        if (is_string($history)) {
+            $history = json_decode($history, true);
+        }
+        if (is_array($history)) {
+            foreach ($history as $entry) {
+                if (is_array($entry) && isset($entry[0], $entry[1]) && $entry[0] === 'delivered') {
+                    $delivery_date = $entry[1];
+                    break;
+                }
+            }
+        }
+    }
+
+    if (empty($delivery_date)) {
+        return ['expired' => true, 'return_till' => null, 'delivered_at' => null];
+    }
+
+    $settings = get_settings('system_settings', true);
+    $return_days = isset($settings['max_product_return_days']) ? (int) $settings['max_product_return_days'] : 0;
+
+    $delivered_ts = strtotime($delivery_date);
+    if ($delivered_ts === false) {
+        return ['expired' => true, 'return_till' => null, 'delivered_at' => null];
+    }
+
+    $return_till = date('Y-m-d', strtotime('+' . $return_days . ' days', $delivered_ts));
+
+    // `>` not `>=`, so the final day of the window is still returnable - matching the boundary
+    // fetch_orders() uses when it decides whether to show the Return button.
+    return [
+        'expired'      => (date('Y-m-d') > $return_till),
+        'return_till'  => $return_till,
+        'delivered_at' => $delivery_date,
+    ];
 }
 
 function is_exist($where, $table, $update_id = null)
@@ -3968,6 +4438,34 @@ function get_languages($id = '', $language_name = '', $code = '', $is_rtl = '')
     return $res;
 }
 
+/**
+ * Is the language the visitor is currently browsing in a right-to-left one?
+ *
+ * The front-end template works this out inline and hands the result to include-css as
+ * $is_rtl, but include-css / include-script are also pulled in by pages that render
+ * outside that template (pages/floating_chat.php), where $is_rtl does not exist. Those
+ * files call this instead of reading an undefined variable.
+ */
+function is_rtl_language()
+{
+    static $is_rtl = null;
+    if ($is_rtl !== null) {
+        return $is_rtl;
+    }
+
+    $CI = &get_instance();
+    $CI->load->helper('cookie');
+    $lang = $CI->input->cookie('language', TRUE);
+    if (empty($lang)) {
+        /* fall back to the site's default language */
+        $lang = $CI->config->item('language');
+    }
+
+    $language = get_languages(0, $lang, 0, 1);
+    $is_rtl = !empty($language);
+    return $is_rtl;
+}
+
 function verify_payment_transaction($txn_id, $payment_method, $additional_data = [])
 {
     if (empty(trim($txn_id))) {
@@ -4352,8 +4850,35 @@ function process_refund($id, $status, $type = 'order_items')
     if ($type == 'order_items') {
 
         /* fetch order_id */
-        $order_item_details = fetch_details('order_items', ['id' => $id], 'order_id,id,seller_id,sub_total,quantity,status');
+        $order_item_details = fetch_details('order_items', ['id' => $id], 'order_id,id,seller_id,sub_total,quantity,status,refunded_at');
 
+        if (empty($order_item_details)) {
+            return ['error' => true, 'message' => 'Order item not found.', 'data' => array()];
+        }
+
+        // Pay out AT MOST ONCE per order item, whichever path gets here first.
+        //
+        // Seven callers can reach this function - the customer's cancel/return, the app API,
+        // the admin and seller order screens, the delivery boy screen, the return-request
+        // approval, and the Shiprocket webhook - and several of them legitimately fire in
+        // sequence for a single return: approving the request refunds the customer, and then
+        // marking the item "returned" when the parcel arrives back ran the whole function
+        // again, crediting the wallet a second time and rewriting the order totals off the
+        // already-reduced figures. Webhook retries did the same.
+        //
+        // The guard lives on the item rather than in the callers because the callers cannot
+        // be made to agree on ordering: the Shiprocket webhook in particular arrives whenever
+        // the courier says so. Everything below - the wallet credit, the promo/delivery
+        // recalculation, the per-seller order_charges rewrite and the order totals - is
+        // non-idempotent, so the whole body is skipped, not just the payment.
+        if (!empty($order_item_details[0]['refunded_at'])) {
+            return [
+                'error' => false,
+                'message' => 'Refund already processed for this order item.',
+                'data' => array(),
+                'already_refunded' => true,
+            ];
+        }
 
         /* fetch order and its complete details with order_items */
         $order_id = $order_item_details[0]['order_id'];
@@ -4410,19 +4935,38 @@ function process_refund($id, $status, $type = 'order_items')
         $total_payable = $order_details[0]['total_payable'];
         $user_id = $order_details[0]['user_id'];
 
-        $order_items_count = $order_details[0]['order_items'][0]['order_counter'];
-        $cancelled_items_count = $order_details[0]['order_items'][0]['order_cancel_counter'];
-        $returned_items_count = $order_details[0]['order_items'][0]['order_return_counter'];
-        $last_item = 0;
+        // Is this the final live line on the order? It decides whether a returnable delivery
+        // charge is refunded too.
+        //
+        // This used to compare order_counter against the number of items whose active_status was
+        // ALREADY 'cancelled'/'returned', which makes the answer depend on whether the caller
+        // wrote the status before or after calling this function. The return-approval path
+        // writes it AFTER (the item sits at return_request_pending here and becomes
+        // return_request_approved once this returns), so last_item was never 1 on a return and
+        // the returnable delivery charge was silently never refunded. Now that the refund fires
+        // exactly once, at approval, there is no later pass to make up for it.
+        //
+        // Asked instead as "once this refund is done, is every line on this order finished?",
+        // counting a line as finished if it is cancelled/returned, has already been refunded, or
+        // is the line being refunded right now. That is true regardless of caller ordering.
+        $all_lines = fetch_details('order_items', ['order_id' => $order_id], 'id,active_status,refunded_at');
+        $order_items_count = count($all_lines);
+        $finished_lines = 0;
+        foreach ($all_lines as $line) {
+            if (
+                (string) $line['id'] === (string) $id
+                || !empty($line['refunded_at'])
+                || in_array($line['active_status'], ['cancelled', 'returned'], true)
+            ) {
+                $finished_lines++;
+            }
+        }
+        $last_item = ($order_items_count > 0 && $finished_lines >= $order_items_count) ? 1 : 0;
 
         $user_res = fetch_details('users', ['id' => $user_id],  'fcm_id,mobile,email,username');
         $fcm_ids = array();
         if (!empty($user_res[0]['fcm_id'])) {
             $fcm_ids[0][] = $user_res[0]['fcm_id'];
-        }
-
-        if (($cancelled_items_count + $returned_items_count) == $order_items_count) {
-            $last_item = 1;
         }
         $new_total = $total - $current_price;
 
@@ -4604,6 +5148,21 @@ function process_refund($id, $status, $type = 'order_items')
             'wallet_balance' => $new_wallet_balance
         ];
         update_details($set, ['id' => $order_id], 'orders');
+
+        // Close the item out. This is what makes the guard at the top of the function true for
+        // every later caller, so it is written unconditionally - including when
+        // $returnable_amount was 0 (an unpaid COD cancellation, say). "Nothing was owed" is
+        // just as final a settlement as "we paid 900", and leaving it NULL would let the next
+        // status change re-run the totals rewrite above.
+        update_details([
+            'refunded_at'   => date('Y-m-d H:i:s'),
+            'refund_amount' => round((float) $returnable_amount, 2),
+            'refund_mode'   => ($returnable_amount > 0) ? 'wallet' : 'none',
+        // Keyed on $id, the item this call was asked to refund, rather than on the
+        // $order_item_id derived from array_search() above - that returns false when the item
+        // is missing from the rebuilt order payload, and false as an id would stamp nothing.
+        ], ['id' => $id], 'order_items');
+
         $response['error'] = false;
         $response['message'] = 'Status Updated Successfully';
         $response['data'] = array();
@@ -4616,9 +5175,29 @@ function process_refund($id, $status, $type = 'order_items')
         // already been settled must be reversed too - otherwise cancelling an entire order
         // was a way for the seller's commission to survive intact. No-ops per item when
         // nothing was settled, and is idempotent.
+        // Same one-payout-per-item rule as the per-item branch above, applied to the order as a
+        // whole. This branch sizes the refund from the ORDER totals, so it is only correct if
+        // nothing on the order has been refunded individually yet - otherwise it would pay for
+        // items that have already been settled. Any item already stamped means a per-item path
+        // got here first, and the per-item paths between them cover the whole order.
+        $order_items_to_refund = fetch_details('order_items', ['order_id' => $id], 'id,refunded_at');
+        if (empty($order_items_to_refund)) {
+            return ['error' => true, 'message' => 'Order not found.', 'data' => array()];
+        }
+        foreach ($order_items_to_refund as $item) {
+            if (!empty($item['refunded_at'])) {
+                return [
+                    'error' => false,
+                    'message' => 'Refund already processed for this order.',
+                    'data' => array(),
+                    'already_refunded' => true,
+                ];
+            }
+        }
+
         $CI = &get_instance();
         $CI->load->model('Seller_model');
-        foreach (fetch_details('order_items', ['order_id' => $id], 'id') as $item) {
+        foreach ($order_items_to_refund as $item) {
             $CI->Seller_model->reverse_settlement_for_order_item(
                 $item['id'],
                 ($status == 'returned') ? 'Order returned' : 'Order cancelled'
@@ -4740,7 +5319,68 @@ function process_refund($id, $status, $type = 'order_items')
                 }
             }
         }
+
+        // Close out every item on the order, so a subsequent per-item cancel/return (or a
+        // Shiprocket webhook for one of these items) cannot pay a second time. The amount is
+        // recorded against the order as a whole rather than split across items, because that
+        // is how it was actually calculated.
+        $refunded_total = isset($returnable_amount) ? round((float) $returnable_amount, 2) : 0;
+        foreach ($order_items_to_refund as $item) {
+            update_details([
+                'refunded_at'   => date('Y-m-d H:i:s'),
+                'refund_amount' => 0,
+                'refund_mode'   => ($refunded_total > 0) ? 'wallet' : 'none',
+            ], ['id' => $item['id']], 'order_items');
+        }
+
+        // This branch used to fall off the end returning NULL, so callers doing
+        // `$res['error']` on the result got an "Trying to access array offset on null" notice
+        // instead of a status.
+        return [
+            'error'   => false,
+            'message' => 'Status Updated Successfully',
+            'data'    => array(),
+        ];
     }
+
+    return ['error' => true, 'message' => 'Refund cannot be processed. Invalid type', 'data' => array()];
+}
+
+/**
+ * Restores the stock of a single order item, at most once.
+ *
+ * Every cancellation and return path used to call update_stock(..., 'plus') inline, and
+ * several of them run in sequence over the same item (approve a return, then mark it returned
+ * when the parcel arrives; or a status change followed by the Shiprocket webhook for the same
+ * shipment). Each call put the quantity back again, so inventory drifted upwards by one
+ * quantity per extra path. The "already restored" fact is recorded on the item for the same
+ * reason process_refund() records "already refunded" there - the callers cannot be ordered.
+ *
+ * Also labels the movement, which the inline calls never did, so stock_logs shows WHY the
+ * quantity moved instead of an unattributed adjustment.
+ *
+ * @param  int    $order_item_id
+ * @param  string $note    free-text note recorded on the stock movement, e.g. 'Order item returned'
+ * @param  string $reason  stock_logs reason - 'order_restore' normally, 'expiry_restore' when an
+ *                         unpaid order is being released
+ * @return bool   true when stock was actually put back by this call
+ */
+function restore_order_item_stock($order_item_id, $note = 'Order item cancelled', $reason = 'order_restore')
+{
+    $item = fetch_details('order_items', ['id' => $order_item_id], 'id,order_id,user_id,product_variant_id,quantity,stock_restored_at');
+    if (empty($item) || !empty($item[0]['stock_restored_at'])) {
+        return false;
+    }
+
+    // Stamp BEFORE restoring: if two requests race here, the second one's read of
+    // stock_restored_at is what stops it, and losing a restore is recoverable while a double
+    // restore silently inflates sellable inventory.
+    update_details(['stock_restored_at' => date('Y-m-d H:i:s')], ['id' => $order_item_id], 'order_items');
+
+    set_stock_movement_context($reason, $item[0]['order_id'], $item[0]['user_id'], $note);
+    update_stock([$item[0]['product_variant_id']], [$item[0]['quantity']], 'plus');
+
+    return true;
 }
 
 
@@ -6207,7 +6847,21 @@ function sync_shiprocket_shipment_status($tracking, $shiprocket_status, $raw_pay
         return ['error' => true, 'message' => 'Shipment not found', 'updated' => 0];
     }
 
-    $internal_status = shiprocket_status_to_order_status($shiprocket_status);
+    $is_return_leg = !empty($tracking['is_return']);
+
+    // A reverse pickup reports the SAME vocabulary as a forward shipment - PICKED UP, IN
+    // TRANSIT, DELIVERED - but it means the opposite thing. Mapping a return leg through the
+    // forward table marked the item "shipped" while it was travelling back to the seller, and
+    // then "delivered" when it arrived there, which is how an approved return ended up looking
+    // like a fresh successful delivery. On the return leg only the terminal state matters: the
+    // parcel is back with the seller.
+    if ($is_return_leg) {
+        $internal_status = in_array(strtoupper(trim((string) $shiprocket_status)), ['DELIVERED', 'RTO DELIVERED', 'RETURN DELIVERED'], true)
+            ? 'returned'
+            : null;
+    } else {
+        $internal_status = shiprocket_status_to_order_status($shiprocket_status);
+    }
 
     // Always record what Shiprocket last told us, even for statuses with no
     // internal equivalent - otherwise intermediate tracking states (IN TRANSIT,
@@ -6257,8 +6911,16 @@ function sync_shiprocket_shipment_status($tracking, $shiprocket_status, $raw_pay
         $t->Order_model->update_order(['active_status' => $internal_status], ['id' => $order_item_id], false, 'order_items');
 
         if ($internal_status === 'cancelled' || $internal_status === 'returned') {
+            // Both of these are no-ops when the item has already been settled - which is the
+            // normal case for a return, where approving the request refunded the customer and
+            // restored the stock before the courier ever collected the parcel. They are still
+            // called so that a shipment that fails without anyone touching the order here (an
+            // RTO on an undelivered parcel, say) is still refunded and restocked.
             process_refund($order_item_id, $internal_status, 'order_items');
-            update_stock($current[0]['product_variant_id'], $current[0]['quantity'], 'plus');
+            restore_order_item_stock(
+                $order_item_id,
+                ($internal_status === 'returned') ? 'Shiprocket return/RTO delivered' : 'Shiprocket shipment cancelled'
+            );
         }
         $updated++;
     }

@@ -547,13 +547,24 @@
                                                                                 <div class="order-item-card">
                                                                                     <?php
                                                                                     $badges = ["awaiting" => "secondary", "received" => "primary", "processed" => "info", "shipped" => "warning", "delivered" => "success", "returned" => "danger", "cancelled" => "danger", "return_request_approved" => "success", "return_request_decline" => "danger", "return_request_pending" => "warning"];
-                                                                                    $transaction_data = fetch_details('transactions', ['order_item_id' => $item['id']], 'txn_id,amount');
+                                                                                    // Refund state lives on the order item (migration 044). The old lookup
+                                                                                    // read `transactions` by order_item_id hoping to find the gateway
+                                                                                    // payment, but payments are recorded against the ORDER with a NULL
+                                                                                    // order_item_id - it only ever matched the wallet refund row, whose
+                                                                                    // txn_id is empty, so the button posted a blank transaction id and the
+                                                                                    // request died in validation. The controller now resolves the payment
+                                                                                    // itself; the view only needs to know what is refundable.
+                                                                                    $item_refund = fetch_details('order_items', ['id' => $item['id']], 'refunded_at,refund_amount,refund_mode');
+                                                                                    $item_refund = !empty($item_refund) ? $item_refund[0] : ['refunded_at' => null, 'refund_amount' => null, 'refund_mode' => null];
                                                                                     // Operator precedence bug: "A || B || C) && D || E" parses as
                                                                                     // "((A||B||C) && D) || E" - so ANY item with active_status=='returned'
                                                                                     // showed a refund button regardless of payment method, including COD and
                                                                                     // bank transfer orders that were never charged through Razorpay at all.
                                                                                     $is_razorpay_payment = in_array($order_detls[0]['payment_method'], ['RazorPay', 'razorpay', 'Razorpay'], true);
                                                                                     $is_refundable_status = in_array($item['active_status'], ['cancelled', 'returned'], true);
+                                                                                    // Already settled one way or the other - offering the button again can
+                                                                                    // only lead to paying twice.
+                                                                                    $is_already_refunded = !empty($item_refund['refunded_at']) && (float) $item_refund['refund_amount'] > 0;
                                                                                     ?>
                                                                                     <div class="order-item-card-top">
                                                                                         <label class="order-item-select" title="Select to mark as cancelled/returned">
@@ -623,13 +634,16 @@
                                                                                         // fixed, and pared down to just that: the per-item delivery-boy and
                                                                                         // tracking controls it also contained are dropped as duplicates of the
                                                                                         // bulk section and the seller-level tracking button above.
-                                                                                        if ($is_razorpay_payment && $is_refundable_status) { ?>
+                                                                                        if ($is_razorpay_payment && $is_refundable_status && !$is_already_refunded) { ?>
                                                                                             <a href="javascript:void(0)" class="edit_order_refund btn btn-outline-danger btn-xs" title="Refund"
                                                                                                 data-order_id="<?= (int) $order_detls[0]['id'] ?>"
                                                                                                 data-order_item_id="<?= (int) $item['id'] ?>"
-                                                                                                data-txn_id="<?= html_escape($transaction_data[0]['txn_id'] ?? '') ?>"
-                                                                                                data-txn_amount="<?= html_escape($transaction_data[0]['amount'] ?? '') ?>"
+                                                                                                data-txn_amount="<?= html_escape($item['sub_total'] ?? '') ?>"
                                                                                                 data-target="#refund_modal" data-toggle="modal"><i class="fa fa-undo"></i> Refund</a>
+                                                                                        <?php } elseif ($is_already_refunded) { ?>
+                                                                                            <span class="badge badge-secondary" title="Refunded <?= html_escape($item_refund['refunded_at']) ?>">
+                                                                                                Refunded <?= html_escape($item_refund['refund_amount']) ?> (<?= html_escape($item_refund['refund_mode']) ?>)
+                                                                                            </span>
                                                                                         <?php } ?>
                                                                                     </div>
                                                                                 </div>
@@ -790,20 +804,23 @@
                                 </div>
                                 <div class="card-body pad">
                                     <div class="form-group ">
-                                        <label for="transaction_id">Transaction Id</label>
-                                        <input type="text" class="form-control" name="transaction_id" id="transaction_id" placeholder="Transaction Id" disabled />
-                                    </div>
-                                    <div class="form-group ">
-                                        <label for="txn_amount">Amount</label>
-                                        <input type="text" class="form-control" name="txn_amount" id="txn_amount" placeholder="Amount" disabled />
+                                        <label for="txn_amount">Refund amount</label>
+                                        <!-- Was `disabled`, which also meant the value was never submitted with
+                                             the form; the JS read it with .val() so it happened to work, but the
+                                             admin could not correct a part-refund either. Editable and bounded
+                                             server-side by the line total and by what was actually paid. -->
+                                        <input type="number" step="0.01" min="0" class="form-control" name="txn_amount" id="txn_amount" placeholder="Amount" />
+                                        <small class="form-text text-muted">
+                                            Defaults to this item's line total. Sent back to the original payment method.
+                                            An item already refunded to the customer's wallet cannot be refunded again here.
+                                        </small>
                                     </div>
                                     <div class="form-group">
                                         <button type="submit" class="btn btn-secondary" id="submit_btn">Refund</button>
                                     </div>
                                 </div>
                                 <div class="d-flex justify-content-center">
-                                    <div class="form-group" id="error_box">
-                                    </div>
+                                    <div class="form-group text-danger" id="refund_error"></div>
                                 </div>
                                 <!-- /.card-body -->
                             </form>

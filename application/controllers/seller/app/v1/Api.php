@@ -769,8 +769,12 @@ Defined Methods:-
                         $user = fetch_details('orders', ['id' => $order_item_res[0]['order_id']], 'user_id');
                         $user_id = $user[0]['user_id'];
                         if (trim($_POST['status']) == 'cancelled' || trim($_POST['status']) == 'returned') {
-                            $data = fetch_details('order_items', ['id' => $order_item_id], 'product_variant_id,quantity');
-                            update_stock($data[0]['product_variant_id'], $data[0]['quantity'], 'plus');
+                            // Idempotent (migration 044) - see the note on the same block in
+                            // seller/Orders.php.
+                            restore_order_item_stock(
+                                $order_item_id,
+                                (trim($_POST['status']) == 'returned') ? 'Order item returned' : 'Order item cancelled by seller'
+                            );
                         }
                         $response = process_referral_bonus($user_id, $order_item_res[0]['order_id'], $_POST['status']);
                     }

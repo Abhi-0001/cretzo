@@ -383,8 +383,7 @@ $fetched_data = isset($fetched_data) && is_array($fetched_data) ? $fetched_data 
                                 <div class="form-group row">
                                     <label class="col-sm-2 col-form-label">Not GST Registered?</label>
                                     <div class="col-sm-10">
-                                        <input type="checkbox" id="gst_check" name="gst_check" value="1" <?= ($is_non_gst || $selected_entity_type === 'individual') ? 'checked' : '' ?> data-bootstrap-switch data-off-color="danger" data-on-color="success">
-                                        <small class="text-muted d-block" id="gst_check_individual_hint" style="<?= $selected_entity_type === 'individual' ? '' : 'display:none;' ?>">Mandatory for Individual entity type.</small>
+                                        <input type="checkbox" id="gst_check" name="gst_check" value="1" <?= $is_non_gst ? 'checked' : '' ?> data-bootstrap-switch data-off-color="danger" data-on-color="success">
                                     </div>
                                 </div>
 
@@ -751,16 +750,6 @@ $fetched_data = isset($fetched_data) && is_array($fetched_data) ? $fetched_data 
             if (section) section.style.display = visible ? '' : 'none';
         }
 
-        function enforceIndividualGstLock() {
-            var isIndividual = (entityType.value === 'individual');
-            var hint = document.getElementById('gst_check_individual_hint');
-            if (isIndividual && !gstCheck.checked) {
-                gstCheck.checked = true;
-            }
-            gstCheck.title = isIndividual ? 'Mandatory for Individual entity type' : '';
-            if (hint) hint.style.display = isIndividual ? '' : 'none';
-        }
-
         function updateEntityTypeUI() {
             var type = entityType.value;
             var panLabelEl = document.getElementById('pan_label');
@@ -783,14 +772,10 @@ $fetched_data = isset($fetched_data) && is_array($fetched_data) ? $fetched_data 
 
             if (partnershipSection) partnershipSection.style.display = (type === 'partnership_firm') ? '' : 'none';
 
-            enforceIndividualGstLock();
             syncGstFields();
         }
 
-        gstCheck.addEventListener('change', function() {
-            enforceIndividualGstLock();
-            syncGstFields();
-        });
+        gstCheck.addEventListener('change', syncGstFields);
         entityType.addEventListener('change', updateEntityTypeUI);
         var firstNameInput = document.querySelector('input[name="first_name"]');
         var lastNameInput = document.querySelector('input[name="last_name"]');
