@@ -508,6 +508,24 @@ class Orders extends CI_Controller
 
             $item_ids = implode(",", $order_itam_ids);
 
+            // 'returned' is not the seller's to set. A return starts with the customer's return
+            // request, is approved or rejected by an admin, and completes when the courier
+            // reports the reverse pickup delivered - sync_shiprocket_shipment_status() writes
+            // the status then. Setting it from here refunded the customer, restored stock and
+            // clawed the commission back off this very seller, all outside that flow and with
+            // no request record: it worked with no return request at all, and while one was
+            // still pending an admin decision. The seller still SEES the status; they just no
+            // longer author it.
+            if (isset($_POST['status']) && trim($_POST['status']) == 'returned') {
+                $this->response['error'] = true;
+                $this->response['message'] = "Returns are handled through the customer's return request and the courier pickup. You cannot mark an item returned from here.";
+                $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                $this->response['data'] = array();
+                print_r(json_encode($this->response));
+                return false;
+            }
+
             if (isset($_POST['status']) && !empty($_POST['status']) && $_POST['status'] != '') {
                 $res = validate_order_status($item_ids, $_POST['status']);
 
@@ -572,28 +590,39 @@ class Orders extends CI_Controller
                 }
                 $settings = get_settings('system_settings', true);
                 $app_name = isset($settings['app_name']) && !empty($settings['app_name']) ? $settings['app_name'] : '';
-                $user_res = fetch_details('users', ['id' => $user_id], 'username,fcm_id,mobile,email');
+                // The customer is read from the order item, not from $user_id. $user_id is only
+                // ever assigned inside the refer-and-earn block above, which fires exactly once
+                // per order - when the LAST item reaches the posted status. On every other status
+                // change (any partial cancel or return, or any item on a multi-item order) it was
+                // undefined here, so this looked up users.id = NULL, found nobody, and the
+                // customer's status-change email, SMS and push notification were silently skipped.
+                $customer_id = isset($order_items[0]['user_id']) ? $order_items[0]['user_id'] : null;
+                $user_res = !empty($customer_id) ? fetch_details('users', ['id' => $customer_id], 'username,fcm_id,mobile,email') : [];
                 $fcm_ids = array();
                 //custom message
-                if (!empty($user_res[0]['fcm_id'])) {
-                    if ($_POST['status'] == 'received') {
-                        $type = ['type' => "customer_order_received"];
-                    } elseif ($_POST['status'] == 'processed') {
-                        $type = ['type' => "customer_order_processed"];
-                    } elseif ($_POST['status'] == 'shipped') {
-                        $type = ['type' => "customer_order_shipped"];
-                    } elseif ($_POST['status'] == 'delivered') {
-                        $type = ['type' => "customer_order_delivered"];
-                    } elseif ($_POST['status'] == 'cancelled') {
-                        $type = ['type' => "customer_order_cancelled"];
-                    } elseif ($_POST['status'] == 'returned') {
-                        $type = ['type' => "customer_order_returned"];
-                    }
+                // $type is only defined for the six statuses below, and this block also runs on a
+                // delivery-boy-only update where $_POST['status'] is empty - which used to reach
+                // fetch_details() with an undefined $type. Skip the notification entirely when
+                // there is no status change to announce.
+                $notification_types = [
+                    'received'  => 'customer_order_received',
+                    'processed' => 'customer_order_processed',
+                    'shipped'   => 'customer_order_shipped',
+                    'delivered' => 'customer_order_delivered',
+                    'cancelled' => 'customer_order_cancelled',
+                    'returned'  => 'customer_order_returned',
+                ];
+                $posted_status = isset($_POST['status']) ? trim($_POST['status']) : '';
+                if (!empty($user_res[0]['fcm_id']) && isset($notification_types[$posted_status])) {
+                    $type = ['type' => $notification_types[$posted_status]];
                     $custom_notification = fetch_details('custom_notifications', $type, '');
                     $hashtag_cutomer_name = '< cutomer_name >';
                     $hashtag_order_id = '< order_item_id >';
                     $hashtag_application_name = '< application_name >';
-                    $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
+                    // The template row is optional (a default install has no row for several of
+                    // these types) and is already treated as optional below - reading
+                    // [0]['message'] off an empty result warned on every status change.
+                    $string = isset($custom_notification[0]['message']) ? json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE) : '""';
                     $hashtag = html_entity_decode($string);
                     $data = str_replace(array($hashtag_cutomer_name, $hashtag_order_id, $hashtag_application_name), array($user_res[0]['username'], $order_items[0]['order_id'], $app_name), $hashtag);
                     $message = output_escaping(trim($data, '"'));

@@ -484,37 +484,53 @@ class Home extends CI_Controller
             // active/status flag on an arbitrary row of an arbitrary table (e.g. disable
             // another user's account) just by calling this URL directly.
             $allowed_tables = ['products'];
-            if (!in_array($_GET['table'], $allowed_tables, true)) {
-                $this->response['error'] = false;
+
+            // $user_id was never assigned in this method - the ownership check below and the
+            // UPDATE's WHERE both compared seller_id against an undefined variable (NULL), so
+            // $owns_row was always false and EVERY seller product activate/deactivate click
+            // came back "Not allowed." The seller-side publish toggle simply did not work.
+            $user_id = $this->session->userdata('user_id');
+
+            // $_GET['table'] / ['id'] / ['status'] were all read unguarded - a call missing any
+            // of them raised undefined-index warnings that get prepended to the JSON body and
+            // break the AJAX parse on a server with display_errors on (which this app ships with).
+            $table  = isset($_GET['table']) ? trim($_GET['table']) : '';
+            $id     = isset($_GET['id']) ? $_GET['id'] : null;
+
+            if (!in_array($table, $allowed_tables, true) || !is_numeric($id)) {
+                $this->response['error'] = true;
+                $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                $this->response['csrfHash'] = $this->security->get_csrf_hash();
                 $this->response['message'] = 'Not allowed.';
                 print_r(json_encode($this->response));
                 return;
             }
-            $owns_row = $this->db->where('id', $_GET['id'])->where('seller_id', $user_id)->get($_GET['table'])->num_rows() > 0;
+            $owns_row = $this->db->where('id', (int) $id)->where('seller_id', $user_id)->get($table)->num_rows() > 0;
             if (!$owns_row) {
-                $this->response['error'] = false;
+                $this->response['error'] = true;
+                $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                $this->response['csrfHash'] = $this->security->get_csrf_hash();
                 $this->response['message'] = 'Not allowed.';
                 print_r(json_encode($this->response));
                 return;
             }
-            if ($_GET['status'] == '1') {
-                $_GET['status'] = 0;
-            } else if ($_GET['status'] == '0') {
-                $_GET['status'] = 1;
-            }
+
+            $status = (isset($_GET['status']) && $_GET['status'] == '1') ? 0 : 1;
+
             $this->db->trans_start();
-            $this->db->set('status', $this->db->escape($_GET['status']));
-            $this->db->where('id', $_GET['id'])->where('seller_id', $user_id)->update($_GET['table']);
+            // $this->db->escape() wraps the value in quotes and set() escapes again by default,
+            // so the column was being written as a doubly-quoted string rather than an integer -
+            // the same bug already fixed on the admin side of this endpoint.
+            $this->db->set('status', $status);
+            $this->db->where('id', (int) $id)->where('seller_id', $user_id)->update($table);
             $this->db->trans_complete();
-            $error = false;
-            $message = str_replace('_', ' ', $_GET['table']);
-            if ($this->db->trans_status() === true) {
-                $error = true;
-            }
-            $response['error'] = $error;
+            // Was inverted (success set error=true); normalised to error=false meaning success,
+            // matching the admin endpoint and the rest of the app. The caller in
+            // views/seller/pages/tables/manage-product.php was updated to match.
+            $response['error'] = ($this->db->trans_status() === false);
             $response['csrfName'] = $this->security->get_csrf_token_name();
             $response['csrfHash'] = $this->security->get_csrf_hash();
-            $response['message'] = $message;
+            $response['message'] = str_replace('_', ' ', $table);
             print_r(json_encode($response));
         } else {
             redirect('seller/login', 'refresh');

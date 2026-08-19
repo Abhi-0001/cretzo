@@ -9,74 +9,53 @@ class Blog_model extends CI_Model
         $this->load->helper(['url', 'language', 'function_helper']);
     }
 
-    public function get_categories($id = NULL, $limit = '', $offset = '', $sort = 'row_order', $order = 'ASC', $has_child_or_item = 'true', $slug = '', $ignore_status = '', $seller_id = '')
-    {
-        $level = 0;
-        if ($ignore_status == 1) {
-            $where = (isset($id) && !empty($id)) ? ['c1.id' => $id] : ['c1.parent_id' => 0];
-        } else {
-            $where = (isset($id) && !empty($id)) ? ['c1.id' => $id, 'c1.status' => 1] : ['c1.parent_id' => 0, 'c1.status' => 1];
-        }
-
-        $this->db->select('c1.*');
-        $this->db->where($where);
-        if (!empty($slug)) {
-            $this->db->where('c1.slug', $slug);
-        }
-
-        if (!empty($limit) || !empty($offset)) {
-            $this->db->offset($offset);
-            $this->db->limit($limit);
-        }
-
-        $this->db->order_by($sort, $order);
-
-        $parent = $this->db->get('categories c1');
-        $categories = $parent->result();
-        $count_res = $this->db->count_all_results('categories c1');
-        $i = 0;
-        foreach ($categories as $p_cat) {
-            $categories[$i]->text = output_escaping($p_cat->name);
-            $categories[$i]->name = output_escaping($categories[$i]->name);
-            $categories[$i]->state = ['opened' => true];
-            $categories[$i]->icon = "jstree-folder";
-            $categories[$i]->level = $level;
-            $categories[$i]->image = get_image_url($categories[$i]->image, 'thumb', 'sm');
-            $categories[$i]->banner = get_image_url($categories[$i]->banner, 'thumb', 'md');
-            $i++;
-        }
-        if (isset($categories[0])) {
-            $categories[0]->total = $count_res;
-        }
-        return  json_decode(json_encode($categories), 1);
-    }
+    /*
+     * Removed: get_categories() used to live here, but it SELECTed from the `categories` table
+     * (product categories) while every caller believed it returned blog categories, and it
+     * filtered/ordered on parent_id and row_order - columns blog_categories does not have. Its
+     * only two callers (admin/Blogs::create_category and ::create_blog) assigned the result to
+     * view variables that neither form template ever read, so it was dead weight on top of being
+     * wrong. Blog categories are listed by get_category_list() and searched by
+     * get_blog_category(), both of which query blog_categories correctly.
+     */
 
     public function add_category($data)
     {
         $data = escape_array($data);
 
+        // create_unique_slug() must be told which row we're editing, otherwise it finds THIS
+        // category's own existing slug, treats it as a collision and mints "name-1", "name-2",
+        // ... on every save - silently changing its slug each time it is edited.
+        $edit_id = (isset($data['edit_category']) && !empty($data['edit_category'])) ? $data['edit_category'] : null;
+
         $cat_data = [
             'name' => $data['category_input_name'],
-            'slug' => create_unique_slug($data['category_input_name'], 'blog_categories'),
+            'slug' => ($edit_id !== null)
+                ? create_unique_slug($data['category_input_name'], 'blog_categories', 'slug', 'id', $edit_id)
+                : create_unique_slug($data['category_input_name'], 'blog_categories'),
             'status' => '1',
         ];
 
         if (isset($data['edit_category'])) {
             unset($cat_data['status']);
-            if (isset($data['category_input_image'])) {
+            // Guard on !empty(), not isset(): the image field is optional on edit, so a save
+            // that posts it empty used to overwrite the stored path with '' and wipe the
+            // category's image. Same for banner, which was unconditionally reset to '' whenever
+            // the form didn't happen to include the field.
+            if (!empty($data['category_input_image'])) {
                 $cat_data['image'] = $data['category_input_image'];
             }
-
-            $cat_data['banner'] = (isset($data['banner'])) ? $data['banner'] : '';
+            if (!empty($data['banner'])) {
+                $cat_data['banner'] = $data['banner'];
+            }
 
             $this->db->set($cat_data)->where('id', $data['edit_category'])->update('blog_categories');
         } else {
-            if (isset($data['category_input_image'])) {
-                $cat_data['image'] = $data['category_input_image'];
-            }
-            if (isset($data['banner'])) {
-                $cat_data['banner'] = (isset($data['banner']) && !empty($data['banner'])) ? $data['banner'] : '';
-            }
+            // blog_categories.image and .banner are both NOT NULL with no default - omitting
+            // either from the INSERT fails outright under STRICT_TRANS_TABLES, so always
+            // supply a value.
+            $cat_data['image'] = (!empty($data['category_input_image'])) ? $data['category_input_image'] : '';
+            $cat_data['banner'] = (!empty($data['banner'])) ? $data['banner'] : '';
             $this->db->insert('blog_categories', $cat_data);
         }
     }
@@ -91,8 +70,12 @@ class Blog_model extends CI_Model
         $order = 'ASC';
         $multipleWhere = '';
 
-        if (isset($_GET['id']))
-            $where['parent_id'] = $_GET['id'];
+        // Was $where['parent_id'] = $_GET['id'] - copy-pasted from the PRODUCT category list.
+        // blog_categories has no parent_id column (it is a flat list), so any request carrying
+        // ?id= died with "Unknown column 'parent_id' in 'where clause'". Filter on the row's own
+        // id instead, which is the only thing an ?id= could sensibly mean here.
+        if (isset($_GET['id']) && is_numeric($_GET['id']))
+            $where['id'] = (int) $_GET['id'];
         if (isset($_GET['offset']))
             $offset = $_GET['offset'];
         if (isset($_GET['limit']))
@@ -126,11 +109,18 @@ class Blog_model extends CI_Model
             $count_res->or_like($multipleWhere);
         }
 
+        // The count query skipped $where entirely, so the pagination total ignored the ?id=
+        // filter that the data query below applies - the footer count disagreed with the rows.
+        if (isset($where) && !empty($where)) {
+            $count_res->where($where);
+        }
+
         if (isset($seller_id) && $seller_id != "") {
             $count_res->where_in('id', $cat_ids);
         }
 
         $cat_count = $count_res->get('blog_categories')->result_array();
+        $total = 0;
         foreach ($cat_count as $row) {
             $total = $row['total'];
         }
@@ -143,8 +133,10 @@ class Blog_model extends CI_Model
             $search_res->where($where);
         }
 
+        // Was $count_res->where_in() - applied to the already-executed COUNT builder instead of
+        // the data query, so a seller-scoped call still listed every blog category.
         if (isset($seller_id) && $seller_id != "") {
-            $count_res->where_in('id', $cat_ids);
+            $search_res->where_in('id', $cat_ids);
         }
 
         $cat_search_res = $search_res->order_by($sort, $order)->limit($limit, $offset)->get('blog_categories')->result_array();
@@ -175,7 +167,10 @@ class Blog_model extends CI_Model
             $tempRow['id'] = $row['id'];
             // output_escaping() only strips backslash-escaping, it does not HTML-encode -
             // a stored-XSS route the same as already fixed on other list pages.
-            $tempRow['name'] = '<a href="' . base_url() . 'admin/category?id=' . $row['id'] . '">' . html_escape($row['name']) . '</a>';
+            // The href pointed at admin/category (the PRODUCT category module) with a blog
+            // category's id - clicking a blog category name landed on an unrelated, wrong page.
+            // Point it at this category's own edit form, which is what the row's Edit button uses.
+            $tempRow['name'] = '<a href="' . base_url('admin/blogs/create_category?edit_id=' . $row['id']) . '">' . html_escape($row['name']) . '</a>';
 
             if (empty($row['image']) || file_exists(FCPATH  . $row['image']) == FALSE) {
                 $row['image'] = base_url() . NO_IMAGE;
@@ -209,27 +204,38 @@ class Blog_model extends CI_Model
     public function add_blog($data)
     {
         $data = escape_array($data);
+
+        // create_unique_slug() must be told which row we're editing, otherwise it finds THIS
+        // post's own existing slug, treats it as a collision and mints "title-1", "title-2",
+        // ... on every save - silently changing the post's public URL
+        // (blogs/view_detail/<slug>) each time it is edited.
+        $edit_id = (isset($data['edit_blog']) && !empty($data['edit_blog'])) ? $data['edit_blog'] : null;
+
         $blog_data = [
             'title' => $data['blog_title'],
             'category_id' => $data['blog_category'],
             'image' => $data['blog_image'],
             'description' => $data['blog_description'],
-            'slug' => create_unique_slug($data['blog_title'], 'blogs'),
+            'slug' => ($edit_id !== null)
+                ? create_unique_slug($data['blog_title'], 'blogs', 'slug', 'id', $edit_id)
+                : create_unique_slug($data['blog_title'], 'blogs'),
             'status' => '1',
         ];
 
+        // Both branches used to re-read the image from 'category_input_image' - the BLOG
+        // CATEGORY form's field name, which this form never posts. Dead on every request; the
+        // real value is 'blog_image', already assigned above. Keep only a !empty() guard so a
+        // save that somehow posts an empty path can't blank a stored image.
+        if (empty($blog_data['image'])) {
+            unset($blog_data['image']);
+        }
 
-        if (isset($data['edit_blog'])) {
+        if ($edit_id !== null) {
             unset($blog_data['status']);
-            if (isset($data['category_input_image'])) {
-                $blog_data['image'] = $data['category_input_image'];
-            }
-
-
-            $this->db->set($blog_data)->where('id', $data['edit_blog'])->update('blogs');
+            $this->db->set($blog_data)->where('id', $edit_id)->update('blogs');
         } else {
-            if (isset($data['category_input_image'])) {
-                $blog_data['image'] = $data['category_input_image'];
+            if (!isset($blog_data['image'])) {
+                $blog_data['image'] = '';
             }
             $this->db->insert('blogs', $blog_data);
         }
@@ -384,34 +390,41 @@ class Blog_model extends CI_Model
         $blog_data = [];
         $multipleWhere = '';
 
-        $where['status'] = '1';
+        $where['b.status'] = '1';
         if (isset($category_id) && !empty($category_id)) {
-            $where['category_id'] = $category_id;
+            $where['b.category_id'] = $category_id;
         }
         if (isset($search) and $search != '') {
-            $multipleWhere = ['title' => $search, 'slug' => $search];
+            $multipleWhere = ['b.title' => $search, 'b.slug' => $search];
         }
 
-        $count_res = $this->db->select(' COUNT(id) as `total` ');
-        if (isset($multipleWhere) && !empty($multipleWhere)) {
-            $count_res->group_start();
-            $count_res->or_like($multipleWhere);
-            $count_res->group_end();
-        }
-        if (isset($where) && !empty($where)) {
-            $count_res->where($where);
-        }
-        $count_res = $count_res->get('blogs')->result_array();
-        $search_res = $this->db->select(' * ');
-        if (isset($multipleWhere) && !empty($multipleWhere)) {
-            $search_res->group_start();
-            $search_res->or_like($multipleWhere);
-            $search_res->group_end();
-        }
-        if (isset($where) && !empty($where)) {
-            $search_res->where($where);
-        }
-        $search_res = $search_res->order_by((string)$sort, (string)$order)->limit($limit, $offset)->get('blogs')->result_array();
+        // A post whose parent blog category has been deactivated used to stay fully visible on
+        // the storefront - nothing here or on the detail page ever consulted
+        // blog_categories.status, so unpublishing a whole category had no effect at all. Joined
+        // LEFT and allowed through when there is no category row, so an orphaned post (deleted
+        // category) still lists rather than silently vanishing.
+        $apply = function ($builder) use ($where, $multipleWhere) {
+            $builder->join('blog_categories bc', 'bc.id = b.category_id', 'left');
+            if (!empty($multipleWhere)) {
+                $builder->group_start()->or_like($multipleWhere)->group_end();
+            }
+            $builder->where($where);
+            $builder->group_start()->where('bc.status', 1)->or_where('bc.id IS NULL', null, false)->group_end();
+            return $builder;
+        };
+
+        $count_res = $apply($this->db->select(' COUNT(b.id) as `total` '))->get('blogs b')->result_array();
+
+        // $sort/$order arrive as NULL from Blogs::index, and CI's order_by() returns early on an
+        // empty field - so the listing came back in whatever order MySQL felt like, which means
+        // paging through it could repeat or skip posts. Order newest-first by default, and only
+        // honour an explicit sort against a whitelist.
+        $allowed_sort = ['id', 'title', 'date_added'];
+        $sort_col = (in_array((string) $sort, $allowed_sort, true)) ? 'b.' . $sort : 'b.date_added';
+        $sort_dir = (strtolower((string) $order) === 'asc') ? 'ASC' : 'DESC';
+
+        $search_res = $apply($this->db->select(' b.* '))
+            ->order_by($sort_col, $sort_dir)->limit($limit, $offset)->get('blogs b')->result_array();
         if (!empty($search_res)) {
             for ($i = 0; $i < count($search_res); $i++) {
                 $search_res[$i] = output_escaping($search_res[$i]);

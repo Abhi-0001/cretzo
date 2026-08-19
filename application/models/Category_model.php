@@ -332,10 +332,19 @@ class Category_model extends CI_Model
     {
         $data = escape_array($data);
 
+        // create_unique_slug() must be told which row we're editing, otherwise it finds THIS
+        // category's own existing slug, treats it as a collision and mints "name-1", "name-2",
+        // ... on every save - silently changing the category's public URL
+        // (products/category/<slug>) each time it is edited. Every top-level category in the
+        // live database was already sitting on a "-1" slug because of this.
+        $edit_id = (isset($data['edit_category']) && !empty($data['edit_category'])) ? $data['edit_category'] : null;
+
         $cat_data = [
             'name' => $data['category_input_name'],
             'parent_id' => ($data['category_parent'] == NULL && isset($data['category_parent'])) ? '0' : $data['category_parent'],
-            'slug' => create_unique_slug($data['category_input_name'], 'categories'),
+            'slug' => ($edit_id !== null)
+                ? create_unique_slug($data['category_input_name'], 'categories', 'slug', 'id', $edit_id)
+                : create_unique_slug($data['category_input_name'], 'categories'),
             'status' => '1',
         ];
 

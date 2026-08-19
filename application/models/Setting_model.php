@@ -856,12 +856,19 @@ class Setting_model extends CI_Model
                 $tempRow['is_default'] = '<a class="badge badge-danger text-white" >No</a>';
                 $operate .= '<a class="btn btn-success action-btn btn-xs update_default_theme mr-1 mb-1 ml-1" title="Default" href="javascript:void(0)" data-id="' . $row['id'] . '" data-status="' . $row['status'] . '" ><i class="fa fa-check-circle"></i></a>';
             }
+            // data-status carries the DESIRED new status, because admin/themes/switch writes it
+            // through verbatim (unlike admin/home/update_status, which inverts what it is sent).
+            // This was '. !$row['status'] .', and PHP renders the boolean false as the EMPTY
+            // STRING when concatenated - so on an active theme the button posted status="",
+            // which failed switch()'s 'required' rule and made deactivating a theme impossible.
+            // (int) keeps the intent and renders a real 0/1.
+            $desired_status = (int) !$row['status'];
             if ($row['status'] == '1') {
                 $tempRow['status'] = '<a class="badge badge-success text-white" >Active</a>';
-                $operate .= '<a class="btn btn-warning btn-xs action-btn update_active_status mb-1 ml-1 mr-1" data-table="themes" title="Deactivate" href="javascript:void(0)" data-id="' . $row['id'] . '" data-status="' . !$row['status'] . '" ><i class="fa fa-eye-slash"></i></a>';
+                $operate .= '<a class="btn btn-warning btn-xs action-btn update_active_status mb-1 ml-1 mr-1" data-table="themes" title="Deactivate" href="javascript:void(0)" data-id="' . $row['id'] . '" data-status="' . $desired_status . '" ><i class="fa fa-eye-slash"></i></a>';
             } else {
                 $tempRow['status'] = '<a class="badge badge-danger text-white" >Inactive</a>';
-                $operate .= '<a class="btn btn-primary mr-1 ml-1 mb-1 btn-xs action-btn update_active_status" data-table="themes" href="javascript:void(0)" title="Active" data-id="' . $row['id'] . '" data-status="' . !$row['status'] . '" ><i class="fa fa-eye"></i></a>';
+                $operate .= '<a class="btn btn-primary mr-1 ml-1 mb-1 btn-xs action-btn update_active_status" data-table="themes" href="javascript:void(0)" title="Active" data-id="' . $row['id'] . '" data-status="' . $desired_status . '" ><i class="fa fa-eye"></i></a>';
             }
             $tempRow['created_on'] = $row['created_on'];
             $tempRow['operate'] = $operate;

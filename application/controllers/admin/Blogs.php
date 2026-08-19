@@ -58,7 +58,6 @@ class Blogs extends CI_Controller
                 $this->data['fetched_data'] = fetch_details('blog_categories', ['id' => $_GET['edit_id']]);
             }
 
-            $this->data['blog_categories'] = $this->blog_model->get_categories();
 
             $this->load->view('admin/template', $this->data);
         } else {
@@ -127,7 +126,16 @@ class Blogs extends CI_Controller
             if (print_msg(!has_permissions('delete', 'blog_categories'), PERMISSION_ERROR_MSG, 'blog_categories', false)) {
                 return false;
             }
-            if (delete_details(['id' => $_GET['id']], 'blog_categories') == TRUE) {
+            // $_GET['id'] was read unguarded and handed straight to delete_details() - a call
+            // without it raised an undefined-index warning that gets prepended to the JSON body
+            // and breaks the AJAX parse (this app ships with display_errors on).
+            if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
+                $this->response['error'] = true;
+                $this->response['message'] = 'Invalid request';
+                print_r(json_encode($this->response));
+                return false;
+            }
+            if (delete_details(['id' => (int) $_GET['id']], 'blog_categories') == TRUE) {
                 $this->response['error'] = false;
                 $this->response['message'] = 'Deleted Succesfully';
             } else {
@@ -173,7 +181,6 @@ class Blogs extends CI_Controller
                 $this->data['fetched_data'] = fetch_details('blogs', ['id' => $_GET['edit_id']]);
             }
 
-            $this->data['blogs'] = $this->blog_model->get_categories();
 
             $this->load->view('admin/template', $this->data);
         } else {
@@ -250,7 +257,16 @@ class Blogs extends CI_Controller
             if (print_msg(!has_permissions('delete', 'blogs'), PERMISSION_ERROR_MSG, 'blogs', false)) {
                 return false;
             }
-            if (delete_details(['id' => $_GET['id']], 'blogs') == TRUE) {
+            // $_GET['id'] was read unguarded and handed straight to delete_details() - a call
+            // without it raised an undefined-index warning that gets prepended to the JSON body
+            // and breaks the AJAX parse (this app ships with display_errors on).
+            if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
+                $this->response['error'] = true;
+                $this->response['message'] = 'Invalid request';
+                print_r(json_encode($this->response));
+                return false;
+            }
+            if (delete_details(['id' => (int) $_GET['id']], 'blogs') == TRUE) {
                 $this->response['error'] = false;
                 $this->response['message'] = 'Deleted Succesfully';
             } else {

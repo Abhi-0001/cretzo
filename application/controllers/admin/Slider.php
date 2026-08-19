@@ -61,7 +61,16 @@ class Slider extends CI_Controller
                 return false;
                 exit();
             }
-            if (delete_details(['id' => $_GET['id']], 'sliders') == TRUE) {
+            // $_GET['id'] was read unguarded and handed straight to delete_details() - a call
+            // without it raised an undefined-index warning that gets prepended to the JSON body
+            // and breaks the AJAX parse (this app ships with display_errors on).
+            if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
+                $this->response['error'] = true;
+                $this->response['message'] = 'Invalid request';
+                print_r(json_encode($this->response));
+                return false;
+            }
+            if (delete_details(['id' => (int) $_GET['id']], 'sliders') == TRUE) {
                 $this->response['error'] = false;
                 $this->response['message'] = 'Deleted Succesfully';
             } else {
@@ -76,6 +85,14 @@ class Slider extends CI_Controller
 
     public function add_slider()
     {
+        // Every other action in this controller opens with this check; this one had none and
+        // relied entirely on has_permissions() to deny a guest as a side effect of finding no
+        // user_permissions row. That happens to work, but it is not what this endpoint should be
+        // depending on.
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {
+            redirect('admin/login', 'refresh');
+            return;
+        }
         if (isset($_POST['edit_slider'])) {
             if (print_msg(!has_permissions('update', 'home_slider_images'), PERMISSION_ERROR_MSG, 'home_slider_images')) {
                 return false;
@@ -99,14 +116,16 @@ class Slider extends CI_Controller
         $this->form_validation->set_rules('slider_type', 'Slider Type', 'trim|required|xss_clean|in_list[default,categories,products,slider_url]');
         $this->form_validation->set_rules('image', 'Slider Image', 'trim|required|xss_clean', array('required' => 'Slider image is required'));
         if (isset($_POST['slider_type']) && $_POST['slider_type'] == 'categories') {
-            $this->form_validation->set_rules('category_id', 'Category', 'trim|required|xss_clean');
+            // Was 'required' only - any string passed, and the value goes into sliders.type_id
+            // which the storefront then looks a category up by.
+            $this->form_validation->set_rules('category_id', 'Category', 'trim|required|numeric|xss_clean');
         }
         if (isset($_POST['slider_type']) && $_POST['slider_type'] == 'slider_url') {
             // Had no real URL validation at all - any string passed 'required'.
             $this->form_validation->set_rules('link', 'Link', 'trim|required|xss_clean|valid_url');
         }
         if (isset($_POST['slider_type']) && $_POST['slider_type'] == 'products') {
-            $this->form_validation->set_rules('product_id', 'Product', 'trim|required|xss_clean');
+            $this->form_validation->set_rules('product_id', 'Product', 'trim|required|numeric|xss_clean');
         }
 
         if (!$this->form_validation->run()) {

@@ -184,6 +184,9 @@
                                     <th data-field="categories" data-sortable="false" data-visible="false">Categories</th>
                                     <th data-field="product_ids" data-sortable="false" data-visible="false">Product ids</th>
                                     <th data-field="product_type" data-sortable="true">Product Type</th>
+                                    <!-- Featured sections gained a publish flag (migration 046); this
+                                         column surfaces it next to the Activate/Deactivate button. -->
+                                    <th data-field="status" data-sortable="true">Status</th>
                                     <th data-field="date" data-sortable="true">Date</th>
                                     <th data-field="operate">Actions</th>
                                 </tr>

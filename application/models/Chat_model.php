@@ -130,12 +130,23 @@ class Chat_model extends CI_Model
     function delete_msg($from_id, $msg_id)
     {
 
+        // $msg_id and $from_id are spliced straight into these queries, so force them to ints.
+        $msg_id = (int) $msg_id;
+        $from_id = (int) $from_id;
+
         $query = $this->db->query("SELECT * FROM chat_media WHERE message_id=$msg_id ");
         $data = $query->result_array();
         if (!empty($data)) {
-            $abspath = getcwd();
             foreach ($data as $row) {
-                unlink('assets/chats/' . $row['file_name']);
+                // Was unlink('assets/chats/' . $row['file_name']) with no existence check:
+                // wrong directory (uploads are written to CHAT_MEDIA_PATH) and, because
+                // file_name held PHP's temp path rather than the saved name, an unlink() that
+                // could never match anything - it just raised a warning per attachment while
+                // leaving the real file on disk forever. Both halves are fixed now.
+                $file = FCPATH . CHAT_MEDIA_PATH . $row['file_name'];
+                if (!empty($row['file_name']) && is_file($file)) {
+                    unlink($file);
+                }
             }
             $this->db->delete('chat_media', array('message_id' => $msg_id));
         }

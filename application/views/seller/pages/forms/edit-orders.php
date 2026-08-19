@@ -296,7 +296,7 @@
                                                     </div>
                                                 </div>
                                                 <p>
-                                                    <lable class="badge badge-warning mt-2" style="font-size:13px;">Note : Select square box of item only when you want to update it as cancelled or returned.</lable>
+                                                    <lable class="badge badge-warning mt-2" style="font-size:13px;">Note : Select square box of item only when you want to cancel it. Returns are handled through the customer's return request and the courier pickup.</lable>
                                                 </p>
                                             <?php } else { ?>
                                                 <div class="row">
@@ -317,7 +317,10 @@
                                                                 <option value="delivered">Delivered</option>
                                                             <?php } ?>
                                                             <option value="cancelled">Cancel</option>
-                                                            <option value="returned">Returned</option>
+                                                            <!-- No "Returned" option: a return runs through the customer's
+                                                                 return request, an admin decision and the courier's reverse
+                                                                 pickup, which is what sets this status. The seller sees the
+                                                                 result in the item's status badge. -->
                                                         </select>
                                                     </div>
                                                     <?php if (get_seller_permission($seller_id, 'assign_delivery_boy')) {
@@ -342,7 +345,7 @@
                                                     </div>
                                                 </div>
                                                 <p>
-                                                    <lable class="badge badge-warning mt-4" style="font-size:13px;">Note : Select square box of item only when you want to update it as cancelled or returned.</lable>
+                                                    <lable class="badge badge-warning mt-4" style="font-size:13px;">Note : Select square box of item only when you want to cancel it. Returns are handled through the customer's return request and the courier pickup.</lable>
                                                 </p>
                                                 <?php if ($shipping_method['shiprocket_shipping_method'] == 1) { ?>
                                                     <p>

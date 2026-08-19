@@ -133,8 +133,19 @@ $config['order_keys'] = ['order.id','order.user_id','order.address_id','order.mo
 
 
 $config['type'] = array(
+    // 'svg' was removed. An SVG is an XML document, not a bitmap: it can carry <script> and
+    // event handlers, and Apache serves it from uploads/ as image/svg+xml on this app's OWN
+    // origin, so opening one executes its script with full access to the logged-in session.
+    // CI's Upload library cannot catch it either - its extra "is this really an image?"
+    // getimagesize() check only covers gif/jpg/jpeg/jpe/png/webp (see
+    // system/libraries/Upload.php::is_allowed_filetype), and config/mimes.php accepts
+    // application/xml and text/xml for .svg, so a scripted SVG passed validation cleanly.
+    // Reachable by any seller through seller/media/upload. No stored media used it (verified
+    // against the media, products and product_variants tables) so nothing breaks by dropping it.
+    // Re-adding it needs a real sanitiser (e.g. strip script/handlers server-side) plus
+    // Content-Disposition/CSP on the uploads path - not just this list.
     'image' => array(
-        'types' => array('jpg', 'jpeg', 'png', 'gif', 'bmp', 'eps','webp','svg'),
+        'types' => array('jpg', 'jpeg', 'png', 'gif', 'bmp', 'eps', 'webp'),
         'icon' => ''
     ),
     'video' => array(

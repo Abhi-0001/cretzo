@@ -68,19 +68,23 @@
         </div>
         <div class="row">
 
-            <?php if (!isset($blogs['data']) && empty($blogs['data']) || $blogs['data'] == []) { ?>
+            <?php // Was "!isset($x) && empty($x) || $x == []" - && binds tighter than ||, so the
+                  // first two clauses could never both hold and the check reduced to $x == [].
+                  // Harmless today but wrong; state the intent directly.
+            ?>
+            <?php if (empty($blogs['data'])) { ?>
                 <div>
                     <h1 class="h2 text-center"><?= !empty($this->lang->line('no_blogs_found')) ? $this->lang->line('no_blogs_found') : 'No Blogs Added Yet.' ?></h1>
                 </div>
 
             <?php } ?>
 
-            <?php foreach ($blogs['data'] as $row) { ?>
+            <?php foreach ((isset($blogs['data']) && is_array($blogs['data']) ? $blogs['data'] : []) as $row) { ?>
                 <div class="item-inner col-md-4">
                     <article>
                         <div class="card">
                             <figure class="card-img-top overlay overlay-1 hover-scale">
-                                <a href="<?= base_url("blogs/view_detail/" . $row['slug']) ?>"> <img src="<?= base_url() . $row['image'] ?>" alt="" style="object-fit: cover;" /></a>
+                                <a href="<?= base_url("blogs/view_detail/" . $row['slug']) ?>"> <img src="<?= get_image_url($row['image'], 'thumb', 'md') ?>" alt="<?= html_escape($row['title']) ?>" style="object-fit: cover;" /></a>
                                 <figcaption>
                                     <h5 class="from-top mb-0"><?= labels('read_more','Read More') ?></h5>
                                 </figcaption>
@@ -88,7 +92,7 @@
                             <div class="card-body p-4">
                                 <div class="post-header">
                                     <h2 class="post-title h3 mt-1 mb-3"><a class="link-dark text-decoration-none" href="<?= base_url("blogs/view_detail/" . $row['slug']) ?>">
-                                            <?= description_word_limit($row['title'], 50) ?></a></h2>
+                                            <?= html_escape(description_word_limit($row['title'], 50)) ?></a></h2>
                                 </div>
                                 <!-- /.post-header -->
                                 <div class="post-content">

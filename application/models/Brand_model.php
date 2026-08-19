@@ -14,9 +14,16 @@ class Brand_model extends CI_Model
     {
         $data = escape_array($data);
 
+        // create_unique_slug() must be told which row we're editing, otherwise it finds THIS
+        // brand's own existing slug, treats it as a collision and mints "name-1", "name-2", ...
+        // on every save - silently changing the brand's public URL each time it is edited.
+        $edit_id = (isset($data['edit_brand']) && !empty($data['edit_brand'])) ? $data['edit_brand'] : null;
+
         $brands_data = [
             'name' => $data['brand_input_name'],
-            'slug' => create_unique_slug($data['brand_input_name'], 'brands'),
+            'slug' => ($edit_id !== null)
+                ? create_unique_slug($data['brand_input_name'], 'brands', 'slug', 'id', $edit_id)
+                : create_unique_slug($data['brand_input_name'], 'brands'),
             'status' => '1',
         ];
 

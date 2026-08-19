@@ -37,6 +37,32 @@ class Media extends CI_Controller
             return false;
         }
 
+
+        // When a POST body exceeds post_max_size, PHP discards both $_POST and $_FILES and hands
+        // the script an empty request. Without this the dropzone got the generic "Files not
+        // Uploaded Successfully..!" (or, on the seller side, a CSRF failure page, since the token
+        // lives in the discarded $_POST) with no hint that the real problem was the batch size.
+        if (empty($_POST) && empty($_FILES) && isset($_SERVER['CONTENT_LENGTH']) && $_SERVER['CONTENT_LENGTH'] > 0) {
+            $this->response['error'] = true;
+            $this->response['csrfName'] = $this->security->get_csrf_token_name();
+            $this->response['csrfHash'] = $this->security->get_csrf_hash();
+            $this->response['message'] = 'That upload is larger than this server accepts (post limit: ' . ini_get('post_max_size') . ', per-file limit: ' . ini_get('upload_max_filesize') . '). Upload fewer or smaller files at a time.';
+            print_r(json_encode($this->response));
+            return false;
+        }
+
+        // $_FILES['documents'] was dereferenced unconditionally below - a request that reaches
+        // this action without the field (a bare GET, a mis-wired caller) died on an undefined
+        // index instead of answering with JSON the dropzone can read.
+        if (!isset($_FILES['documents']['name']) || !is_array($_FILES['documents']['name'])) {
+            $this->response['error'] = true;
+            $this->response['csrfName'] = $this->security->get_csrf_token_name();
+            $this->response['csrfHash'] = $this->security->get_csrf_hash();
+            $this->response['message'] = 'No files were received.';
+            print_r(json_encode($this->response));
+            return false;
+        }
+
         $year = date('Y');
         $target_path = FCPATH . MEDIA_PATH . $year . '/';
         $sub_directory = MEDIA_PATH . $year . '/';
@@ -68,6 +94,11 @@ class Media extends CI_Controller
         $allowed_media_types = !empty($restricted_extensions) ? implode('|', $restricted_extensions) : implode('|', allowed_media_types());
         $config['upload_path'] = $target_path;
         $config['allowed_types'] = $allowed_media_types;
+        // No size cap was set here at all (CI's Upload library defaults max_size to 0 =
+        // unlimited), unlike the admin side of the same endpoint. PHP's upload_max_filesize
+        // masks it today, but nothing in the app enforced a ceiling of its own. Matches the
+        // admin cap so both halves of the media library behave the same.
+        $config['max_size'] = 51200;
         $other_image_cnt = count($_FILES['documents']['name']);
         $other_img = $this->upload;
         $other_img->initialize($config);
@@ -85,7 +116,12 @@ class Media extends CI_Controller
                     $temp_array = $other_img->data();
                     $temp_array['sub_directory'] = $sub_directory;
                     $media_ids[] = $media_id = $this->media_model->set_media($temp_array); /* set media in database */
-                    resize_image($temp_array,  $target_path, $media_id);
+                    // Skip GIFs, as the admin side already does: image_lib re-encodes only the
+                    // first frame, so running an animated GIF through the resizer silently
+                    // flattened it to a still image.
+                    if (strtolower($temp_array['image_type']) != 'gif') {
+                        resize_image($temp_array,  $target_path, $media_id);
+                    }
                     $other_images_new_name[$i] = $temp_array['file_name'];
                     $uploaded_files[] = [
                         'name' => $temp_array['file_name'],
@@ -137,7 +173,10 @@ class Media extends CI_Controller
         if (print_msg(!is_modification_allowed('create'), DEMO_VERSION_MSG, 'media', false)) {
             return false;
         }
-        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller() || ($this->ion_auth->seller_status() == 2 || $this->ion_auth->seller_status() == 7)) {
+        // Was a blacklist of two statuses (2 and 7), which let through every other value -
+        // including whatever a suspended/rejected seller ends up as. Use the same positive
+        // "active or pending" test as upload()/index()/fetch() in this controller.
+        if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0))) {
             redirect('seller/login', 'refresh');
             exit();
         }
@@ -173,7 +212,20 @@ class Media extends CI_Controller
             print_r(json_encode($this->response));
             return false;
         }
-        $path = FCPATH . $media[0]['sub_directory'] . $media[0]['name'];
+        // The admin side of this endpoint already refuses to delete a file that is still
+        // referenced somewhere on the site; the seller side never got that check. Nothing links
+        // a media row to where it is used - every consuming table stores the same relative path
+        // as plain text - so deleting an in-use file silently broke a live product image, with
+        // get_image_url() quietly substituting the placeholder and no warning anywhere.
+        if ($this->media_model->is_media_in_use($media[0]['sub_directory'] . $media[0]['name'])) {
+            $this->response['error'] = true;
+            $this->response['csrfName'] = $this->security->get_csrf_token_name();
+            $this->response['csrfHash'] = $this->security->get_csrf_hash();
+            $this->response['message'] = "This file is still in use on one of your products and can't be deleted.";
+            print_r(json_encode($this->response));
+            return false;
+        }
+
         $where = array('id' => $id);
 
         if (delete_details($where, 'media')) {

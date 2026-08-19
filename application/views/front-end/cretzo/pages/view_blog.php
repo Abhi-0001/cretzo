@@ -12,7 +12,7 @@
                     <?php }
                     } ?>
                     <li class="breadcrumb-item text-muted" aria-current="page"><?= !empty($this->lang->line('blogs')) ? $this->lang->line('blogs') : 'Blogs' ?></li>
-                    <li class="breadcrumb-item active text-muted" aria-current="page"><?= $blog[0]['title'] ?></li>
+                    <li class="breadcrumb-item active text-muted" aria-current="page"><?= html_escape($blog[0]['title']) ?></li>
                 </ol>
             </nav>
             <!-- /nav -->
@@ -31,11 +31,16 @@
                     <div class="card">
                         <div class="blog-card-img">
                             <a href="#">
-                                <img src="<?= base_url() . $blog[0]['image'] ?>" alt="Card image">
+                                <?php /* Was a bare base_url() . $blog[0]['image'] - an empty or
+                                   deleted image path produced a broken image (or, when empty,
+                                   requested the site root as an image). get_image_url() resolves
+                                   the generated thumb and falls back to the placeholder, which is
+                                   what every admin-side render of this same column already does. */ ?>
+                                <img src="<?= get_image_url($blog[0]['image'], 'thumb', 'md') ?>" alt="<?= html_escape($blog[0]['title']) ?>">
                             </a>
                         </div>
                         <div class="card-body">
-                            <h2 class="view-blog-title mb-2 mt-2"><?= $blog[0]['title'] ?></h2>
+                            <h2 class="view-blog-title mb-2 mt-2"><?= html_escape($blog[0]['title']) ?></h2>
                             <p class="card-text mt-5"><?= str_replace('\r\n', '&#13;&#10;', $blog[0]['description']) ?></p>
                         </div>
                     </div>

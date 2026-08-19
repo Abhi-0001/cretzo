@@ -3392,7 +3392,12 @@ function update_status(update_id, status, table, user) {
         },
         dataType: 'json',
         success: function (result) {
-            if (result['error'] == true) {
+            // The endpoint used to answer error=true on SUCCESS, so this test was inverted to
+            // match. That meant every guard the endpoint returns early on (demo mode, invalid
+            // table/id) was shown to the admin as a green "Status Updated" toast, complete with
+            // a table refresh, while nothing had changed. Both sides now use error=false =
+            // success, the convention every other endpoint follows.
+            if (result['error'] == false) {
                 iziToast.success({
                     message: '<span style="text-transform:capitalize">' + result.message + '</span> Status Updated',
                 });

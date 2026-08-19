@@ -511,7 +511,9 @@
                 csrfName = response.csrfName;
                 csrfHash = response.csrfHash;
             }
-            if (response.error === true) {
+            // seller/home/update_status used to answer error=true on success; both sides now
+            // use error=false = success, matching the rest of the app.
+            if (response.error === false) {
                 iziToast.success({ message: '<span style="text-transform:capitalize">' + response.message + '</span> Status Updated' });
             } else {
                 iziToast.error({ message: '<span style="text-transform:capitalize">' + response.message + '</span> Status Not Updated' });

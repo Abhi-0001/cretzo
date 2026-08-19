@@ -727,6 +727,19 @@ Defined Methods:-
                 }
             }
         }
+        // Same rule as the seller web screen: 'returned' is not the seller's to set. A return
+        // runs customer request -> admin decision -> courier reverse pickup, and
+        // sync_shiprocket_shipment_status() writes the final status. Marking it here refunded
+        // the customer, restored stock and reversed this seller's own commission outside that
+        // flow, with no request record to point at.
+        if (isset($_POST['status']) && trim($_POST['status']) == 'returned') {
+            $this->response['error'] = true;
+            $this->response['message'] = "Returns are handled through the customer's return request and the courier pickup. You cannot mark an item returned from here.";
+            $this->response['data'] = array();
+            print_r(json_encode($this->response));
+            return false;
+        }
+
         $item_ids = implode(",", $order_itam_ids);
         $res = validate_order_status($item_ids, $_POST['status']);
 
@@ -761,6 +774,17 @@ Defined Methods:-
                     ->where(['id' => $order_item_id])
                     ->get('order_items oi')->result_array();
                 process_refund($order_item_res[0]['id'], $_POST['status'], 'order_items');
+
+                // Per item, not per order. This sat inside the "is this the last line?" check
+                // below, so cancelling one line of a multi-item order refunded the customer and
+                // left that line's stock deducted. Idempotent (migration 044).
+                if (trim($_POST['status']) == 'cancelled' || trim($_POST['status']) == 'returned') {
+                    restore_order_item_stock(
+                        $order_item_id,
+                        (trim($_POST['status']) == 'returned') ? 'Order item returned' : 'Order item cancelled by seller'
+                    );
+                }
+
                 if ($this->order_model->update_order(['status' => $_POST['status']], ['id' => $order_item_res[0]['id']], true, 'order_items')) {
                     $this->order_model->update_order(['active_status' => $_POST['status']], ['id' => $order_item_res[0]['id']], false, 'order_items');
                     if (($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_cancel_counter']) + 1 && $_POST['status'] == 'cancelled') ||  ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_return_counter']) + 1 && $_POST['status'] == 'returned') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_delivered_counter']) + 1 && $_POST['status'] == 'delivered') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_processed_counter']) + 1 && $_POST['status'] == 'processed') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_shipped_counter']) + 1 && $_POST['status'] == 'shipped')) {
@@ -768,14 +792,6 @@ Defined Methods:-
                         /* process the refer and earn */
                         $user = fetch_details('orders', ['id' => $order_item_res[0]['order_id']], 'user_id');
                         $user_id = $user[0]['user_id'];
-                        if (trim($_POST['status']) == 'cancelled' || trim($_POST['status']) == 'returned') {
-                            // Idempotent (migration 044) - see the note on the same block in
-                            // seller/Orders.php.
-                            restore_order_item_stock(
-                                $order_item_id,
-                                (trim($_POST['status']) == 'returned') ? 'Order item returned' : 'Order item cancelled by seller'
-                            );
-                        }
                         $response = process_referral_bonus($user_id, $order_item_res[0]['order_id'], $_POST['status']);
                     }
                 }

@@ -613,28 +613,34 @@ Defined Methods:-
         if (!$this->verify_token()) {
             return false;
         }
-        $res = fetch_details('sliders', '');
-        $i = 0;
-        foreach ($res as $row) {
-
-            if ($res[$i]['link'] == null || empty($res[$i]['link'])) {
-                $res[$i]['link'] = "";
+        // Returned every slider row unconditionally, including ones whose target category or
+        // product has since been deleted, deactivated, unlisted, or belongs to an unapproved
+        // seller - the app rendered a banner that opened an empty screen. resolve_banner_target()
+        // applies the same visibility rules the storefront uses (and that get_sliders() now uses),
+        // returning FALSE for a target a user cannot reach. The response SHAPE is unchanged, so
+        // existing app versions keep working; dead entries are simply no longer in the list.
+        $sliders = fetch_details('sliders', '');
+        $res = [];
+        foreach ($sliders as $row) {
+            if (resolve_banner_target($row['type'], $row['type_id'], $row['link']) === false) {
+                continue;
             }
-            $res[$i]['image'] = base_url($res[$i]['image']);
 
-            if (strtolower($res[$i]['type']) == 'categories') {
-                $id = (!empty($res[$i]['type_id']) && isset($res[$i]['type_id'])) ? $res[$i]['type_id'] : '';
-                $cat_res = $this->category_model->get_categories($id);
-                $res[$i]['data'] = $cat_res;
-            } else if (strtolower($res[$i]['type']) == 'products') {
-                $id = (!empty($res[$i]['type_id']) && isset($res[$i]['type_id'])) ? $res[$i]['type_id'] : '';
+            $row['link'] = (isset($row['link']) && !empty($row['link'])) ? $row['link'] : "";
+            $row['image'] = base_url($row['image']);
+
+            if (strtolower($row['type']) == 'categories') {
+                $id = (!empty($row['type_id'])) ? $row['type_id'] : '';
+                $row['data'] = $this->category_model->get_categories($id);
+            } else if (strtolower($row['type']) == 'products') {
+                $id = (!empty($row['type_id'])) ? $row['type_id'] : '';
                 $pro_res = fetch_product(NULL, NULL, $id);
-                $res[$i]['data'] = $pro_res['product'];
+                $row['data'] = $pro_res['product'];
             } else {
-                $res[$i]['data'] = [];
+                $row['data'] = [];
             }
 
-            $i++;
+            $res[] = $row;
         }
         $this->response['error'] = false;
         $this->response['data'] = $res;
@@ -2939,7 +2945,9 @@ Defined Methods:-
             $this->db->where('id', $section_id);
         }
         $this->db->limit($limit, $offset);
-        $sections = $this->db->order_by('row_order')->get('sections')->result_array();
+        // Honour the publish flag (migration 046) - the app was still served sections the admin
+        // had unpublished on the web.
+        $sections = $this->db->where('status', 1)->order_by('row_order')->get('sections')->result_array();
 
         if (!empty($sections)) {
             for ($i = 0; $i < count($sections); $i++) {

@@ -141,11 +141,19 @@ class Orders extends CI_Controller
                     // last line of the order. It used to sit inside the counter check below, so
                     // cancelling one item of a multi-item order refunded the customer and left
                     // the stock deducted; only the final cancellation put anything back, and
-                    // then only that one line's quantity. Returns are excluded here because the
-                    // return-request approval already restored them - and restore_order_item_stock()
-                    // would refuse a second attempt anyway.
-                    if (trim($_GET['status']) == 'cancelled') {
-                        restore_order_item_stock($_GET['id'], 'Order item cancelled by delivery boy');
+                    // then only that one line's quantity.
+                    //
+                    // Returns are included. They were skipped on the grounds that the
+                    // return-request approval had already restored them - true for a return the
+                    // customer raised, but not for one a delivery boy marks on a delivered item
+                    // with no request behind it, and that item's stock was then never restored
+                    // at all. restore_order_item_stock() is idempotent, so covering both cases
+                    // costs nothing.
+                    if (trim($_GET['status']) == 'cancelled' || trim($_GET['status']) == 'returned') {
+                        restore_order_item_stock(
+                            $_GET['id'],
+                            (trim($_GET['status']) == 'returned') ? 'Order item returned' : 'Order item cancelled by delivery boy'
+                        );
                     }
 
                     if (($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_cancel_counter']) + 1 && $_GET['status'] == 'cancelled') ||  ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_return_counter']) + 1 && $_GET['status'] == 'returned') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_delivered_counter']) + 1 && $_GET['status'] == 'delivered') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_processed_counter']) + 1 && $_GET['status'] == 'processed') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_shipped_counter']) + 1 && $_GET['status'] == 'shipped')) {

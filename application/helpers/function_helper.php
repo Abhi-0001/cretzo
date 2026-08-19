@@ -1163,10 +1163,74 @@ function promo_checkout_discount($promo_row, $discount)
     return strval($is_cashback ? 0 : floatval($discount));
 }
 
-function validate_promo_code($promo_code, $user_id, $final_total)
+/**
+ * Applies a promo code row's discount to a total and builds the success payload for it.
+ *
+ * This math existed inline in two byte-identical copies inside validate_promo_code(), and the
+ * refund recalculation path kept a third, subtly different copy of its own. Extracted so the
+ * campaign ceiling and the clamp below cannot end up applying to only some of the callers -
+ * which is exactly how the refund path came to report a discount the checkout path would have
+ * capped.
+ *
+ * @param  array $promo_row  a row from `promo_codes`
+ * @param  float $final_total the amount the discount applies to
+ * @return array the row, with final_total / final_discount / checkout_discount filled in
+ */
+function apply_promo_code_discount($promo_row, $final_total)
 {
+    $final_total = floatval($final_total);
+    $is_cashback = isset($promo_row['is_cashback']) && $promo_row['is_cashback'] == 1;
 
-    if (isset($promo_code) && !empty($promo_code)) {
+    $discount = ($promo_row['discount_type'] == 'percentage')
+        ? floatval($final_total * $promo_row['discount'] / 100)
+        : floatval($promo_row['discount']);
+
+    /* cap at the campaign's own ceiling */
+    $max_discount = floatval($promo_row['max_discount_amount']);
+    if ($discount > $max_discount) {
+        $discount = $max_discount;
+    }
+
+    // ...and cap at the order itself. Nothing stops an admin creating a flat "amount" code
+    // worth more than the cart it is used on, and the reported discount was left uncapped:
+    // the customer's displayed total was floored at 0, but place_order() recomputes the
+    // discount from the same row with no floor at all, writing orders.total = 1000 - 5000 =
+    // -4000 and orders.promo_discount = 5000. process_refund() then sizes refunds and the
+    // per-seller order_charges split off that figure. A discount can never exceed the thing
+    // being discounted.
+    if ($discount > $final_total) {
+        $discount = $final_total;
+    }
+
+    /* a cashback code is paid to the wallet after delivery, so it does not reduce the total */
+    $total = $is_cashback ? $final_total : $final_total - $discount;
+
+    $promo_row['final_total'] = strval(floatval(max(0, $total)));
+    $promo_row['image'] = (isset($promo_row['image']) && !empty($promo_row['image'])) ? $promo_row['image'] : '';
+    $promo_row['final_discount'] = strval(floatval($discount));
+    $promo_row['checkout_discount'] = promo_checkout_discount($promo_row, $discount);
+
+    return $promo_row;
+}
+
+/**
+ * @param bool $skip_usage_checks  recalculation mode - see the block guarded by it below.
+ */
+function validate_promo_code($promo_code, $user_id, $final_total, $skip_usage_checks = false)
+{
+    // Every caller reads $res['error'] straight off the result. With no code supplied this
+    // function used to fall off the end and return NULL, so the caller got
+    // "Trying to access array offset on value of type null" and then treated the missing error
+    // flag as success. Return the same shape as every other exit.
+    if (!isset($promo_code) || $promo_code === '' || $promo_code === null) {
+        return [
+            'error'   => true,
+            'message' => 'No promo code was supplied.',
+            'data'    => ['final_total' => strval(floatval($final_total))],
+        ];
+    }
+
+    {
         $t = &get_instance();
 
         // user_id and promo_code were spliced directly into this raw SELECT subquery string
@@ -1176,10 +1240,16 @@ function validate_promo_code($promo_code, $user_id, $final_total)
         // this raw-string context; user_id is cast to int since it's only ever a numeric id.
         $promo_code_input = $promo_code;
 
-        // Both counters exclude cancelled orders. They used to count every row in `orders`
-        // carrying the code, so a cancelled order permanently burned a slot: nothing anywhere
-        // releases promo quota when an order is cancelled or refunded, and a customer whose
-        // order failed could not re-use their own single-use code.
+        // Both counters exclude orders that did not stand. They used to count every row in
+        // `orders` carrying the code, so a cancelled order permanently burned a slot: nothing
+        // anywhere releases promo quota when an order is cancelled or refunded, and a customer
+        // whose order failed could not re-use their own single-use code.
+        //
+        // Returned orders are released for the same reason cancelled ones are: the sale did not
+        // stand, the customer was refunded, and the campaign got none of what it was paying
+        // for. Excluding only cancellations meant a customer whose single-use code was on an
+        // order they returned in full could never use that code again, while a customer who
+        // cancelled the identical order could.
         //
         // promo_used_counter counts DISTINCT USERS, not orders. It is compared against
         // no_of_users, and the message shown to the customer says "applicable only for first N
@@ -1187,16 +1257,55 @@ function validate_promo_code($promo_code, $user_id, $final_total)
         // customers placing several orders each exhausted a "first 100 users" campaign long
         // before 100 people had seen it.
         // There is no orders.active_status column - this app tracks status per order_item - so
-        // "not cancelled" means the order still has at least one live line.
-        $cancelled_clause = " AND EXISTS (SELECT 1 FROM order_items oi2 WHERE oi2.order_id = o2.id AND oi2.active_status <> 'cancelled')";
+        // "still stands" means the order has at least one line that is neither cancelled nor
+        // returned.
+        $cancelled_clause = " AND EXISTS (SELECT 1 FROM order_items oi2 WHERE oi2.order_id = o2.id AND oi2.active_status NOT IN ('cancelled', 'returned'))";
         $used_by_subquery = '(SELECT COUNT(DISTINCT o2.user_id) FROM orders o2 WHERE o2.promo_code = pc.promo_code' . $cancelled_clause . ')';
         $user_usage_subquery = '(SELECT COUNT(o2.id) FROM orders o2 WHERE o2.user_id = ' . (int) $user_id
             . ' AND o2.promo_code = ' . $t->db->escape($promo_code_input) . $cancelled_clause . ')';
 
+        // In recalculation mode the campaign's status and date range are deliberately not
+        // applied: the order in hand already carries this code, and a campaign that has since
+        // been switched off or run past its end date must not retroactively change what that
+        // order was discounted by.
+        $promo_where = ['pc.promo_code' => $promo_code_input];
+        if (!$skip_usage_checks) {
+            $promo_where['pc.status'] = '1';
+            $promo_where[' start_date <= '] = date('Y-m-d');
+            $promo_where['  end_date >= '] = date('Y-m-d');
+        }
+
         $promo_code = $t->db->select('pc.*, ' . $used_by_subquery . ' as promo_used_counter, ' . $user_usage_subquery . ' as user_promo_usage_counter', false)
-            ->where(['pc.promo_code' => $promo_code_input, 'pc.status' => '1', ' start_date <= ' => date('Y-m-d'), '  end_date >= ' => date('Y-m-d')])
+            ->where($promo_where)
             ->get('promo_codes pc')->result_array();
         if (!empty($promo_code[0]['id'])) {
+
+            // Recalculation mode, used when an order that ALREADY carries this code is being
+            // partially cancelled or returned and its discount has to be resized to the
+            // remaining cart. Whether the campaign is still live, how many people have used
+            // it, and whether this customer has quota left are all settled questions by then -
+            // the customer redeemed it on this very order. Re-asking them is what made
+            // recalculate_promo_discount() return 0 for every single-use code, which
+            // short-paid the customer by the entire promo discount on every refund.
+            //
+            // The minimum-order test is the one gate that still applies: a cart that has
+            // shrunk below the campaign's minimum genuinely no longer qualifies, and forfeits
+            // the discount.
+            if ($skip_usage_checks) {
+                if (floatval($final_total) < floatval($promo_code[0]['minimum_order_amount'])) {
+                    return [
+                        'error'   => true,
+                        'message' => 'This promo code is applicable only for amount greater than or equal to ' . $promo_code[0]['minimum_order_amount'],
+                        'data'    => ['final_total' => strval(floatval($final_total))],
+                    ];
+                }
+                $promo_code[0] = apply_promo_code_discount($promo_code[0], $final_total);
+                return [
+                    'error'   => false,
+                    'message' => 'The promo code is valid',
+                    'data'    => $promo_code,
+                ];
+            }
 
             // A user who has already used the code is inside the cap regardless of how many
             // distinct users have used it - otherwise a repeat-usage code stops working for
@@ -1220,26 +1329,7 @@ function validate_promo_code($promo_code, $user_id, $final_total)
                             $response['error'] = false;
                             $response['message'] = 'The promo code is valid';
 
-                            if ($promo_code[0]['discount_type'] == 'percentage') {
-                                $promo_code_discount =  floatval($final_total  * $promo_code[0]['discount'] / 100);
-                            } else {
-                                $promo_code_discount = $promo_code[0]['discount'];
-                            }
-                            if ($promo_code_discount <= $promo_code[0]['max_discount_amount']) {
-                                $total = (isset($promo_code[0]['is_cashback']) && $promo_code[0]['is_cashback'] == 0) ? floatval($final_total) - $promo_code_discount : floatval($final_total);
-                            } else {
-                                $total = (isset($promo_code[0]['is_cashback']) && $promo_code[0]['is_cashback'] == 0) ? floatval($final_total) - $promo_code[0]['max_discount_amount'] : floatval($final_total);
-                                $promo_code_discount = $promo_code[0]['max_discount_amount'];
-                            }
-                            // A flat "amount" discount larger than the order total (nothing anywhere
-                            // enforced discount <= order total) could drive this negative with no
-                            // floor - the customer would be shown (and could potentially be charged)
-                            // a negative payable amount.
-                            $total = max(0, $total);
-                            $promo_code[0]['final_total'] = strval(floatval($total));
-                            $promo_code[0]['image'] = (isset($promo_code[0]['image']) && !empty($promo_code[0]['image'])) ? $promo_code[0]['image'] : '';
-                            $promo_code[0]['final_discount'] = strval(floatval($promo_code_discount));
-                            $promo_code[0]['checkout_discount'] = promo_checkout_discount($promo_code[0], $promo_code_discount);
+                            $promo_code[0] = apply_promo_code_discount($promo_code[0], $final_total);
                             $response['data'] = $promo_code;
                             return $response;
                         } else {
@@ -1255,28 +1345,14 @@ function validate_promo_code($promo_code, $user_id, $final_total)
                             $response['error'] = false;
                             $response['message'] = 'The promo code is valid';
 
-                            if ($promo_code[0]['discount_type'] == 'percentage') {
-                                $promo_code_discount =   floatval($final_total  * $promo_code[0]['discount'] / 100);
-                            } else {
-                                // Was "$final_total - $promo_code[0]['discount']" - computing
-                                // final_total-minus-discount as the DISCOUNT ITSELF, not the flat
-                                // discount amount. Combined with $total below (final_total -
-                                // promo_code_discount), this collapsed to "$total = $discount" -
-                                // a customer redeeming a non-repeatable, flat-amount promo code
-                                // paid only the discount value (e.g. a Rs. 500 order with a Rs. 10
-                                // discount charged just Rs. 10, not Rs. 490).
-                                $promo_code_discount = $promo_code[0]['discount'];
-                            }
-                            if ($promo_code_discount <= $promo_code[0]['max_discount_amount']) {
-                                $total = (isset($promo_code[0]['is_cashback']) && $promo_code[0]['is_cashback'] == 0) ? floatval($final_total) - $promo_code_discount : floatval($final_total);
-                            } else {
-                                $total = (isset($promo_code[0]['is_cashback']) && $promo_code[0]['is_cashback'] == 0) ? floatval($final_total) - $promo_code[0]['max_discount_amount'] : floatval($final_total);
-                                $promo_code_discount = $promo_code[0]['max_discount_amount'];
-                            }
-                            $total = max(0, $total);
-                            $promo_code[0]['final_total'] = strval(floatval($total));
-                            $promo_code[0]['final_discount'] = strval(floatval($promo_code_discount));
-                            $promo_code[0]['checkout_discount'] = promo_checkout_discount($promo_code[0], $promo_code_discount);
+                            // The flat-amount case here used to compute
+                            // "$final_total - $promo_code[0]['discount']" as the DISCOUNT ITSELF
+                            // rather than the flat discount amount, which collapsed to
+                            // "$total = $discount" - a customer redeeming a non-repeatable
+                            // flat-amount code paid only the discount value (a Rs. 500 order with
+                            // a Rs. 10 discount charged just Rs. 10, not Rs. 490). Now shared with
+                            // the repeat-usage branch so the two cannot drift again.
+                            $promo_code[0] = apply_promo_code_discount($promo_code[0], $final_total);
                             $response['data'] = $promo_code;
                             return $response;
                         } else {
@@ -1288,7 +1364,15 @@ function validate_promo_code($promo_code, $user_id, $final_total)
                         }
                     } else {
                         $response['error'] = true;
-                        $response['message'] = 'The promo has already been redeemed. cannot be reused';
+                        // A repeat-usage code whose per-customer quota is spent landed here and
+                        // was reported as "already redeemed, cannot be reused" - which
+                        // contradicts the code being reusable and tells the customer nothing
+                        // about the quota they just exhausted. (The dedicated usage-limit
+                        // message inside the branch above is unreachable: that branch's own
+                        // condition already requires quota to remain.)
+                        $response['message'] = ($promo_code[0]['repeat_usage'] == 1)
+                            ? 'This promo code cannot be redeemed as it exceeds the usage limit'
+                            : 'The promo has already been redeemed. cannot be reused';
                         $response['data']['final_total'] = strval(floatval($final_total));
                         return $response;
                     }
@@ -1313,6 +1397,14 @@ function validate_promo_code($promo_code, $user_id, $final_total)
             return $response;
         }
     }
+
+    // Unreachable today - every branch above returns - but a function whose result is read as
+    // an array must never be able to hand back NULL.
+    return [
+        'error'   => true,
+        'message' => 'The promo code could not be validated.',
+        'data'    => ['final_total' => strval(floatval($final_total))],
+    ];
 }
 
 //update_wallet_balance
@@ -1356,18 +1448,14 @@ function update_wallet_balance($operation, $user_id, $amount, $message = "Balanc
                 'order_item_id' => $order_item_id,
                 'is_refund' => $is_refund,
             ];
-            // Credits/refunds tied to a razorpay order are skipped here because Razorpay pays
-            // out directly and crediting the wallet too would double-pay. That lookup used to run
-            // even with no $order_item_id (the case for every manual admin credit/refund, which
-            // has no order context at all) - 'order_item_id' => '' matched essentially every past
-            // manual transaction with no ORDER BY, so whether a manual credit/refund actually
-            // touched the balance depended on an arbitrary unrelated row's type, not this
-            // transaction. Only run the check when there's a real order to check.
-            $skip_for_razorpay = false;
-            if (!empty($order_item_id)) {
-                $payment_data = fetch_details('transactions', ['order_item_id' => $order_item_id], 'type');
-                $skip_for_razorpay = isset($payment_data[0]['type']) && $payment_data[0]['type'] == 'razorpay';
-            }
+            // There used to be a "skip the wallet credit when the order was paid by Razorpay,
+            // because Razorpay pays out directly" branch here. It never once fired: it looked
+            // for a transaction of type 'razorpay' by order_item_id, and gateway payments are
+            // always written with order_item_id NULL, so the condition was constantly false and
+            // every card refund quietly became a wallet credit. Routing a refund back to the
+            // gateway is now an explicit decision made in refund_to_payment_source(), which
+            // calls this function only for the part that genuinely belongs in the wallet - so
+            // there is nothing left for a guard here to second-guess.
             $t->db->trans_start();
             if ($operation == 'debit') {
                 $data['message'] = (isset($message)) ? $message : 'Balance Debited';
@@ -1376,15 +1464,11 @@ function update_wallet_balance($operation, $user_id, $amount, $message = "Balanc
             } else if ($operation == 'credit') {
                 $data['message'] = (isset($message)) ? $message : 'Balance Credited';
                 $data['type'] = 'credit';
-                if (!$skip_for_razorpay) {
-                    $t->db->set('balance', '`balance` + ' . $amount, false)->where('id', $user_id)->update('users');
-                }
+                $t->db->set('balance', '`balance` + ' . $amount, false)->where('id', $user_id)->update('users');
             } else {
                 $data['message'] = (isset($message)) ? $message : 'Balance refuned';
                 $data['type'] = 'refund';
-                if (!$skip_for_razorpay) {
-                    $t->db->set('balance', '`balance` + ' . $amount, false)->where('id', $user_id)->update('users');
-                }
+                $t->db->set('balance', '`balance` + ' . $amount, false)->where('id', $user_id)->update('users');
             }
             $data = escape_array($data);
             $t->db->insert('transactions', $data);
@@ -2159,6 +2243,11 @@ function validate_order_status($order_ids, $status, $table = 'order_items', $use
             'processed' => 1,
             'shipped' => 2,
             'delivered' => 3,
+            // A refused return leaves the item exactly where it was: delivered, and staying
+            // sold. Absent from this ladder it scored 0 ("not yet delivered"), so once an admin
+            // declined a return nobody - admin included - could mark that item returned again
+            // if the decision was reversed.
+            'return_request_decline' => 3,
             'return_request_pending' => 4,
             'return_request_approved' => 5,
             'cancelled' => 6,
@@ -2368,8 +2457,16 @@ function validate_order_status($order_ids, $status, $table = 'order_items', $use
                         set_user_return_request($request_data_item_data, $table);
                     } else {
 
+                        // $product_data[$j], not $product_data[$i]. Indexed by $i this loop
+                        // re-tested the SAME item once per item on the order and never looked at
+                        // any of the others, so a whole-order return only noticed an existing
+                        // request if it happened to be against the first item. With a request
+                        // already pending on any later item, set_user_return_request() below
+                        // inserted a SECOND row for it - two pending requests for one item, both
+                        // approvable (the "already finalized" guard is per request row), and
+                        // create_shiprocket_return_shipment() booked a courier pickup for each.
                         for ($j = 0; $j < count($product_data); $j++) {
-                            if (is_exist(['user_id' => $product_data[$i]['user_id'], 'order_item_id' => $product_data[$i]['order_item_id'], 'order_id' => $product_data[$i]['order_id']], 'return_requests')) {
+                            if (is_exist(['user_id' => $product_data[$j]['user_id'], 'order_item_id' => $product_data[$j]['order_item_id'], 'order_id' => $product_data[$j]['order_id']], 'return_requests')) {
 
                                 $response['error'] = true;
                                 $response['message'] =  "Return request already submitted !";
@@ -2657,6 +2754,13 @@ function is_exist($where, $table, $update_id = null)
     }
 }
 
+/**
+ * Records the customer's return request(s).
+ *
+ * One request per order item, enforced here rather than only in the callers: there is no unique
+ * constraint on (order_id, order_item_id) and a duplicate row is not harmless - each one is
+ * separately approvable and each approval books its own Shiprocket return pickup.
+ */
 function set_user_return_request($data, $table = 'orders')
 {
 
@@ -2664,26 +2768,25 @@ function set_user_return_request($data, $table = 'orders')
 
     $t = &get_instance();
 
+    $insert_once = function ($row) use ($t) {
+        if (is_exist(['order_id' => $row['order_id'], 'order_item_id' => $row['order_item_id']], 'return_requests')) {
+            return;
+        }
+        $t->db->insert('return_requests', [
+            'user_id' => $row['user_id'],
+            'product_id' => $row['product_id'],
+            'product_variant_id' => $row['product_variant_id'],
+            'order_id' => $row['order_id'],
+            'order_item_id' => $row['order_item_id'],
+        ]);
+    };
+
     if ($table == 'orders') {
         for ($i = 0; $i < count($data); $i++) {
-            $request_data = [
-                'user_id' => $data[$i]['user_id'],
-                'product_id' => $data[$i]['product_id'],
-                'product_variant_id' => $data[$i]['product_variant_id'],
-                'order_id' => $data[$i]['order_id'],
-                'order_item_id' => $data[$i]['order_item_id']
-            ];
-            $t->db->insert('return_requests', $request_data);
+            $insert_once($data[$i]);
         }
     } else {
-        $request_data = [
-            'user_id' => $data['user_id'],
-            'product_id' => $data['product_id'],
-            'product_variant_id' => $data['product_variant_id'],
-            'order_id' => $data['order_id'],
-            'order_item_id' => $data['order_item_id']
-        ];
-        $t->db->insert('return_requests', $request_data);
+        $insert_once($data);
     }
 }
 
@@ -3528,10 +3631,17 @@ function fetch_orders($order_id = NULL, $user_id = NULL, $status = NULL, $delive
                     }
                 }
                 // $price_tax_amount = $price * ($order_item_data[$k]['tax_percent'] / 100);
+                // Coerced to a float first. order_items.tax_percent is nullable, and
+                // output_escaping_new() above runs stripslashes() over every scalar column -
+                // which turns a NULL into an EMPTY STRING. "" / 100 is a fatal TypeError on
+                // PHP 8 ("Unsupported operand types: string / int"), so a single order item
+                // with no tax percentage recorded took down fetch_orders() outright, and with
+                // it the order pages, the invoices, the app API and process_refund().
+                $tax_percent = is_numeric($order_item_data[$k]['tax_percent']) ? (float) $order_item_data[$k]['tax_percent'] : 0.0;
                 if (isset($order_item_data[$k]['is_prices_inclusive_tax']) && $order_item_data[$k]['is_prices_inclusive_tax'] == 1) {
-                    $price_tax_amount  = $price - ($price * (100 / (100 + $order_item_data[$k]['tax_percent'])));
+                    $price_tax_amount  = $price - ($price * (100 / (100 + $tax_percent)));
                 } else {
-                    $price_tax_amount = $price * ($order_item_data[$k]['tax_percent'] / 100);
+                    $price_tax_amount = $price * ($tax_percent / 100);
                 }
                 $order_item_data[$k]['tax_amount'] = isset($price_tax_amount) && !empty($price_tax_amount) ?  (float)number_format($price_tax_amount, 2) : 0.00;
                 $order_item_data[$k]['net_amount'] = $order_item_data[$k]['price'] - $order_item_data[$k]['tax_amount'];
@@ -3564,9 +3674,14 @@ function fetch_orders($order_id = NULL, $user_id = NULL, $status = NULL, $delive
                 $order_item_data[$k]['user_rating_comment'] = (!empty($order_item_data[$k]['user_rating_comment'])) ? $order_item_data[$k]['user_rating_comment'] : '';
                 $order_item_data[$k]['status'] = json_decode($order_item_data[$k]['status']);
                 if (!in_array($order_item_data[$k]['active_status'], ['returned', 'cancelled'])) {
-                    $total_tax_percent = $total_tax_percent +  $order_item_data[$k]['tax_percent'];
+                    // $tax_percent is the numeric-coerced copy made above; the raw column is a
+                    // NULL-turned-empty-string here (see the note there) and "int + string" is
+                    // just as fatal on PHP 8 as the division was.
+                    $total_tax_percent = $total_tax_percent + $tax_percent;
                     // $total_tax_amount  = $total_tax_amount + $order_item_data[$k]['tax_amount'];
-                    $total_tax_amount  =  $order_item_data[$k]['tax_amount'] * $order_item_data[$k]['quantity'];
+                    $item_tax_amount = is_numeric($order_item_data[$k]['tax_amount']) ? (float) $order_item_data[$k]['tax_amount'] : 0.0;
+                    $item_quantity = is_numeric($order_item_data[$k]['quantity']) ? (float) $order_item_data[$k]['quantity'] : 0.0;
+                    $total_tax_amount  =  $item_tax_amount * $item_quantity;
                 }
                 $order_item_data[$k]['image_sm'] = (empty($order_item_data[$k]['image']) || file_exists(FCPATH . $order_item_data[$k]['image']) == FALSE) ? base_url(NO_IMAGE) : get_image_url($order_item_data[$k]['image'], 'thumb', 'sm');
                 $order_item_data[$k]['image_md'] = (empty($order_item_data[$k]['image']) || file_exists(FCPATH . $order_item_data[$k]['image']) == FALSE) ? base_url(NO_IMAGE) : get_image_url($order_item_data[$k]['image'], 'thumb', 'md');
@@ -4850,28 +4965,35 @@ function process_refund($id, $status, $type = 'order_items')
     if ($type == 'order_items') {
 
         /* fetch order_id */
-        $order_item_details = fetch_details('order_items', ['id' => $id], 'order_id,id,seller_id,sub_total,quantity,status,refunded_at');
+        $order_item_details = fetch_details('order_items', ['id' => $id], 'order_id,id,seller_id,sub_total,quantity,status,refunded_at,accounted_at');
 
         if (empty($order_item_details)) {
             return ['error' => true, 'message' => 'Order item not found.', 'data' => array()];
         }
 
-        // Pay out AT MOST ONCE per order item, whichever path gets here first.
+        // TWO independent once-only guards, because paying the customer and adjusting the books
+        // are not always done by the same actor or at the same moment.
         //
-        // Seven callers can reach this function - the customer's cancel/return, the app API,
-        // the admin and seller order screens, the delivery boy screen, the return-request
-        // approval, and the Shiprocket webhook - and several of them legitimately fire in
-        // sequence for a single return: approving the request refunds the customer, and then
-        // marking the item "returned" when the parcel arrives back ran the whole function
-        // again, crediting the wallet a second time and rewriting the order totals off the
-        // already-reduced figures. Webhook retries did the same.
+        // Seven callers reach this function - the customer's cancel/return, the app API, the
+        // admin and seller order screens, the delivery boy screen, the return-request approval,
+        // and the Shiprocket webhook - and several legitimately fire in sequence for one
+        // return. The guards live on the item rather than in the callers because the callers
+        // cannot be made to agree on ordering; the Shiprocket webhook in particular arrives
+        // whenever the courier says so.
         //
-        // The guard lives on the item rather than in the callers because the callers cannot
-        // be made to agree on ordering: the Shiprocket webhook in particular arrives whenever
-        // the courier says so. Everything below - the wallet credit, the promo/delivery
-        // recalculation, the per-seller order_charges rewrite and the order totals - is
-        // non-idempotent, so the whole body is skipped, not just the payment.
-        if (!empty($order_item_details[0]['refunded_at'])) {
+        // refunded_at guards the PAYMENT: the wallet credit or the gateway refund.
+        // accounted_at guards the ACCOUNTING: the seller commission clawback, the per-seller
+        // order_charges rewrite and the order totals. All of it is non-idempotent.
+        //
+        // They were a single stamp, and that quietly lost money. An admin refunding a card from
+        // the order screen pays the customer and stamps refunded_at without touching the books;
+        // when the return was then approved, this function returned immediately, so the seller
+        // kept the commission on a refunded sale, the order totals still counted the returned
+        // line, and the seller's parcel was never resized.
+        $already_paid = !empty($order_item_details[0]['refunded_at']);
+        $already_accounted = !empty($order_item_details[0]['accounted_at']);
+
+        if ($already_paid && $already_accounted) {
             return [
                 'error' => false,
                 'message' => 'Refund already processed for this order item.',
@@ -5046,7 +5168,8 @@ function process_refund($id, $status, $type = 'order_items')
             $message = output_escaping(trim($data, '"'));
         }
 
-        if ($returnable_amount > 0) {
+        $refund_result = ['mode' => 'none', 'gateway_amount' => 0.0, 'wallet_amount' => 0.0, 'error' => false, 'message' => ''];
+        if (!$already_paid && $returnable_amount > 0) {
 
             $fcmMsg = array(
                 'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Amount Credited To Wallet",
@@ -5060,13 +5183,26 @@ function process_refund($id, $status, $type = 'order_items')
                 ["customer" => [$user_res[0]['mobile']]],
                 ["users.id" => $user_id]
             ));
-            //update_wallet_balance('credit', $user_id, $returnable_amount, 'Refund Amount Credited for Order Item ID  : ' . $id, $order_item_id);
-            if ($order_details[0]['payment_method'] == 'RazorPay' || $order_details[0]['payment_method'] == 'razorpay' || $order_details[0]['payment_method'] == 'Razorpay') {
-                update_wallet_balance('refund', $user_id, $returnable_amount, 'Amount Refund for Order Item ID  : ' . $id, $order_item_id, '', 'razorpay');
-            } else {
-                update_wallet_balance('credit', $user_id, $returnable_amount, 'Refund Amount Credited for Order Item ID  : ' . $id, $order_item_id);
-            }
+
+            // Back the way it came in - to the card/UPI account for a gateway payment, to the
+            // wallet for wallet-funded or COD money. This used to credit the wallet in every
+            // case: the two branches here differed only in the LABEL they put on the ledger row
+            // ('refund' vs 'credit'), so a customer who paid by card was handed store credit
+            // and told it was a refund. See refund_to_payment_source().
+            $refund_result = refund_to_payment_source(
+                $order_id,
+                $id,
+                $user_id,
+                $returnable_amount,
+                'Refund for Order Item ID  : ' . $id
+            );
         }
+
+        // ---------------------------------------------------------------------------------
+        // ACCOUNTING. Guarded by accounted_at, independently of whether the customer has
+        // already been paid - see the note on the guards at the top of this branch.
+        // ---------------------------------------------------------------------------------
+        if (!$already_accounted) {
 
         // Claw back the seller's commission for this item.
         //
@@ -5149,19 +5285,27 @@ function process_refund($id, $status, $type = 'order_items')
         ];
         update_details($set, ['id' => $order_id], 'orders');
 
-        // Close the item out. This is what makes the guard at the top of the function true for
-        // every later caller, so it is written unconditionally - including when
+            update_details(['accounted_at' => date('Y-m-d H:i:s')], ['id' => $id], 'order_items');
+        }
+
+        // Close the item out for payment. Written unconditionally - including when
         // $returnable_amount was 0 (an unpaid COD cancellation, say). "Nothing was owed" is
         // just as final a settlement as "we paid 900", and leaving it NULL would let the next
-        // status change re-run the totals rewrite above.
-        update_details([
-            'refunded_at'   => date('Y-m-d H:i:s'),
-            'refund_amount' => round((float) $returnable_amount, 2),
-            'refund_mode'   => ($returnable_amount > 0) ? 'wallet' : 'none',
+        // status change hand out a refund.
+        //
         // Keyed on $id, the item this call was asked to refund, rather than on the
         // $order_item_id derived from array_search() above - that returns false when the item
         // is missing from the rebuilt order payload, and false as an id would stamp nothing.
-        ], ['id' => $id], 'order_items');
+        if (!$already_paid) {
+            update_details([
+                'refunded_at'   => date('Y-m-d H:i:s'),
+                'refund_amount' => round((float) $returnable_amount, 2),
+                // The channel the money actually went back through - gateway, wallet, both, or
+                // none - rather than a hardcoded 'wallet'. admin/Orders::refund_payment() reads
+                // this to decide whether a manual card refund would be a second payout.
+                'refund_mode'   => isset($refund_result['mode']) ? $refund_result['mode'] : 'none',
+            ], ['id' => $id], 'order_items');
+        }
 
         $response['error'] = false;
         $response['message'] = 'Status Updated Successfully';
@@ -5180,28 +5324,59 @@ function process_refund($id, $status, $type = 'order_items')
         // nothing on the order has been refunded individually yet - otherwise it would pay for
         // items that have already been settled. Any item already stamped means a per-item path
         // got here first, and the per-item paths between them cover the whole order.
-        $order_items_to_refund = fetch_details('order_items', ['order_id' => $id], 'id,refunded_at');
+        $order_items_to_refund = fetch_details('order_items', ['order_id' => $id], 'id,refunded_at,accounted_at');
         if (empty($order_items_to_refund)) {
             return ['error' => true, 'message' => 'Order not found.', 'data' => array()];
         }
+
+        // Same two-guard split as the per-item branch above: refunded_at gates the payment,
+        // accounted_at gates the commission clawback.
+        //
+        // The payment here is sized from the ORDER totals, so it is only correct while nothing
+        // on the order has been refunded individually - otherwise it would pay again for lines
+        // already settled. One stamped line therefore disables the payment for the whole order
+        // (the per-item paths between them cover it). The clawback is per item and is applied
+        // to whichever lines have not had it yet, so a line refunded by hand from the order
+        // screen still has its commission reversed when the order is cancelled.
+        $unpaid_items = [];
+        $unaccounted_items = [];
         foreach ($order_items_to_refund as $item) {
-            if (!empty($item['refunded_at'])) {
-                return [
-                    'error' => false,
-                    'message' => 'Refund already processed for this order.',
-                    'data' => array(),
-                    'already_refunded' => true,
-                ];
+            if (empty($item['refunded_at'])) {
+                $unpaid_items[] = $item;
+            }
+            if (empty($item['accounted_at'])) {
+                $unaccounted_items[] = $item;
             }
         }
 
+        if (empty($unpaid_items) && empty($unaccounted_items)) {
+            return [
+                'error' => false,
+                'message' => 'Refund already processed for this order.',
+                'data' => array(),
+                'already_refunded' => true,
+            ];
+        }
+
+        $may_pay = (count($unpaid_items) === count($order_items_to_refund));
+
         $CI = &get_instance();
         $CI->load->model('Seller_model');
-        foreach ($order_items_to_refund as $item) {
+        foreach ($unaccounted_items as $item) {
             $CI->Seller_model->reverse_settlement_for_order_item(
                 $item['id'],
                 ($status == 'returned') ? 'Order returned' : 'Order cancelled'
             );
+            update_details(['accounted_at' => date('Y-m-d H:i:s')], ['id' => $item['id']], 'order_items');
+        }
+
+        if (!$may_pay) {
+            return [
+                'error'   => false,
+                'message' => 'Refund already processed for part of this order; the remaining accounting has been applied.',
+                'data'    => array(),
+                'already_refunded' => true,
+            ];
         }
 
         $order_details =  fetch_orders($id);
@@ -5209,16 +5384,38 @@ function process_refund($id, $status, $type = 'order_items')
         $order_details = $order_details['order_data'];
         $payment_method = $order_details[0]['payment_method'];
 
-        $active_status = json_decode($order_item_details[0]['status'], true);
+        // Same "went straight from awaiting to cancelled, so nothing was ever paid" test as the
+        // per-item branch, and guarded the same way. Indexing [1][0]/[0][0] blind warned twice
+        // on every whole-order refund (the history legitimately holds a single entry) and then
+        // compared null - and $order_item_details here is a bare aggregate over ALL the order's
+        // items, so `status` is whichever row MySQL happened to pick. Read the history from the
+        // order's own items instead, and only skip the refund when EVERY line went
+        // awaiting -> cancelled; one paid line means there is something to refund.
+        $never_paid = false;
         if (trim(strtolower($payment_method)) != 'wallet') {
-            if ($active_status[1][0] == 'cancelled' && $active_status[0][0] == 'awaiting') {
-                $response['error'] = true;
-                $response['message'] = 'Refund cannot be processed.';
-                $response['data'] = array();
-                return $response;
+            $status_rows = fetch_details('order_items', ['order_id' => $id], 'status');
+            $never_paid = !empty($status_rows);
+            foreach ($status_rows as $row) {
+                $history = json_decode($row['status'], true);
+                if (
+                    !is_array($history)
+                    || !isset($history[0][0], $history[1][0])
+                    || $history[0][0] != 'awaiting'
+                    || $history[1][0] != 'cancelled'
+                ) {
+                    $never_paid = false;
+                    break;
+                }
             }
         }
+        if ($never_paid) {
+            $response['error'] = true;
+            $response['message'] = 'Refund cannot be processed.';
+            $response['data'] = array();
+            return $response;
+        }
 
+        $refund_result = ['mode' => 'none', 'gateway_amount' => 0.0, 'wallet_amount' => 0.0, 'error' => false, 'message' => ''];
         $wallet_refund = true;
         $bank_receipt = fetch_details('order_bank_transfer', ['order_id' => $id]);
 
@@ -5269,13 +5466,20 @@ function process_refund($id, $status, $type = 'order_items')
                     $returnable_amount =  $returnable_amount - $order_details[0]['total_payable'];
                 }
                 //send custom notifications
+                // Optional template - see the per-item branch. Reading [0]['message'] off an
+                // empty result warned twice on every whole-order refund, and $message was then
+                // the empty string while the fcm/notify calls below still treated the template
+                // as present.
                 $custom_notification = fetch_details('custom_notifications', ['type' => "wallet_transaction"], '');
                 $hashtag_currency = '< currency >';
                 $hashtag_returnable_amount = '< returnable_amount >';
-                $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
-                $hashtag = html_entity_decode($string);
-                $data = str_replace(array($hashtag_currency, $hashtag_returnable_amount), array($currency, $returnable_amount), $hashtag);
-                $message = output_escaping(trim($data, '"'));
+                $message = '';
+                if (!empty($custom_notification) && isset($custom_notification[0]['message'])) {
+                    $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
+                    $hashtag = html_entity_decode($string);
+                    $data = str_replace(array($hashtag_currency, $hashtag_returnable_amount), array($currency, $returnable_amount), $hashtag);
+                    $message = output_escaping(trim($data, '"'));
+                }
                 $fcmMsg = array(
                     'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Amount Credited To Wallet",
                     'body' => (!empty($custom_notification)) ? $message : $currency . $returnable_amount,
@@ -5289,7 +5493,8 @@ function process_refund($id, $status, $type = 'order_items')
                     ["users.id" => $user_id]
                 ));
 
-                update_wallet_balance('credit', $user_id, $returnable_amount, 'Wallet Amount Credited for Order Item ID  : ' . $id);
+                // Back the way it came in - see refund_to_payment_source().
+                $refund_result = refund_to_payment_source($id, null, $user_id, $returnable_amount, 'Refund for Order ID  : ' . $id);
             } else {
                 if ($wallet_balance != 0) {
                     /* update user's wallet */
@@ -5298,10 +5503,13 @@ function process_refund($id, $status, $type = 'order_items')
                     $custom_notification = fetch_details('custom_notifications', ['type' => "wallet_transaction"], '');
                     $hashtag_currency = '< currency >';
                     $hashtag_returnable_amount = '< returnable_amount >';
-                    $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
-                    $hashtag = html_entity_decode($string);
-                    $data = str_replace(array($hashtag_currency, $hashtag_returnable_amount), array($currency, $returnable_amount), $hashtag);
-                    $message = output_escaping(trim($data, '"'));
+                    $message = '';
+                    if (!empty($custom_notification) && isset($custom_notification[0]['message'])) {
+                        $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
+                        $hashtag = html_entity_decode($string);
+                        $data = str_replace(array($hashtag_currency, $hashtag_returnable_amount), array($currency, $returnable_amount), $hashtag);
+                        $message = output_escaping(trim($data, '"'));
+                    }
                     $fcmMsg = array(
                         'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Amount Credited To Wallet",
                         'body' => (!empty($custom_notification)) ? $message : $currency . $returnable_amount,
@@ -5315,7 +5523,11 @@ function process_refund($id, $status, $type = 'order_items')
                         ["users.id" => $user_id]
                     ));
 
-                    update_wallet_balance('credit', $user_id, $returnable_amount, 'Wallet Amount Credited for Order Item ID  : ' . $id);
+                    // A COD order was never charged anywhere - the only money the customer
+                    // actually parted with is the wallet balance they put towards it, so this
+                    // leg is a wallet credit by definition. Routed through the same helper so
+                    // the mode recorded on the items below is decided in one place.
+                    $refund_result = refund_to_payment_source($id, null, $user_id, $returnable_amount, 'Refund for Order ID  : ' . $id);
                 }
             }
         }
@@ -5325,11 +5537,12 @@ function process_refund($id, $status, $type = 'order_items')
         // recorded against the order as a whole rather than split across items, because that
         // is how it was actually calculated.
         $refunded_total = isset($returnable_amount) ? round((float) $returnable_amount, 2) : 0;
-        foreach ($order_items_to_refund as $item) {
+        foreach ($unpaid_items as $item) {
             update_details([
                 'refunded_at'   => date('Y-m-d H:i:s'),
                 'refund_amount' => 0,
-                'refund_mode'   => ($refunded_total > 0) ? 'wallet' : 'none',
+                // The channel the money went back through, not a hardcoded 'wallet'.
+                'refund_mode'   => isset($refund_result['mode']) ? $refund_result['mode'] : 'none',
             ], ['id' => $item['id']], 'order_items');
         }
 
@@ -5344,6 +5557,205 @@ function process_refund($id, $status, $type = 'order_items')
     }
 
     return ['error' => true, 'message' => 'Refund cannot be processed. Invalid type', 'data' => array()];
+}
+
+/**
+ * The gateways this installation can push a refund back to, mapped to the library that does it.
+ *
+ * A payment transaction records its gateway in `transactions`.`type` ('razorpay', 'cod',
+ * 'wallet', ...). Only the entries listed here can be refunded automatically; anything else
+ * (COD, or a gateway whose library has no refund call) falls back to the customer's wallet.
+ */
+function refundable_payment_gateways()
+{
+    return [
+        'razorpay'    => 'razorpay',
+        'flutterwave' => 'flutterwave',
+    ];
+}
+
+/**
+ * Pushes a refund back through the gateway that took the payment.
+ *
+ * @return array{error: bool, refund_id: string, message: string}
+ */
+function gateway_refund($gateway, $txn_id, $amount)
+{
+    $gateway = strtolower(trim((string) $gateway));
+    $libraries = refundable_payment_gateways();
+
+    if (!isset($libraries[$gateway])) {
+        return ['error' => true, 'refund_id' => '', 'message' => 'The ' . $gateway . ' gateway cannot be refunded automatically.'];
+    }
+    if (empty($txn_id) || $amount <= 0) {
+        return ['error' => true, 'refund_id' => '', 'message' => 'No gateway payment reference to refund against.'];
+    }
+
+    $t = &get_instance();
+    $library = $libraries[$gateway];
+    $t->load->library($library);
+
+    try {
+        $response = $t->$library->refund_payment($txn_id, $amount);
+    } catch (Throwable $e) {
+        log_message('error', 'Gateway refund threw for ' . $gateway . ' txn ' . $txn_id . ': ' . $e->getMessage());
+        return ['error' => true, 'refund_id' => '', 'message' => 'The gateway refund call failed: ' . $e->getMessage()];
+    }
+
+    // Success is asserted POSITIVELY, from the refund id the gateway returns - the libraries
+    // hand back the decoded refund object on success and the raw curl result on failure, and a
+    // total network failure comes back with http_code 0, which reads as "no error" to any test
+    // phrased as empty($response['http_code']).
+    if (!empty($response['id'])) {
+        // Logged to file as well as to the ledger. process_refund() is called from inside a DB
+        // transaction on some paths (the return-request approval wraps it), and money leaving
+        // the gateway is not something a rollback can undo - so if the surrounding transaction
+        // ever fails, this line is the record that the refund actually went out.
+        log_message('error', 'Gateway refund issued: ' . $gateway . ' payment ' . $txn_id . ' amount ' . $amount . ' refund ' . $response['id']);
+        return ['error' => false, 'refund_id' => (string) $response['id'], 'message' => 'Refunded to the original payment method.'];
+    }
+
+    $body = isset($response['body']) ? json_decode($response['body'], true) : null;
+    $reason = isset($body['error']['description'])
+        ? $body['error']['description']
+        : 'The gateway did not confirm the refund.';
+    log_message('error', 'Gateway refund failed for ' . $gateway . ' txn ' . $txn_id . ' amount ' . $amount . ': ' . $reason);
+
+    return ['error' => true, 'refund_id' => '', 'message' => $reason];
+}
+
+/**
+ * Refunds money the way the customer paid it.
+ *
+ * Money that arrived at a payment gateway goes back to that gateway - to the card, the UPI
+ * handle or the netbanking account the customer actually used. Money that came out of the
+ * customer's wallet (or was never charged at all, as on COD) goes back to the wallet. An order
+ * part-paid from the wallet and part-charged to a card is split in exactly that way, gateway
+ * first: the gateway leg is capped at what was really captured there, less anything already
+ * refunded against the same payment, and whatever is left over lands in the wallet.
+ *
+ * Everything used to go to the wallet unconditionally, so a customer who paid by card got store
+ * credit instead of their money back and had to spend it here to realise its value. An admin
+ * could push a card refund by hand from the order screen, but that was a separate, manual and
+ * easily-forgotten step.
+ *
+ * If the gateway call fails - the gateway is down, the payment is too old to refund, the
+ * balance is short - the customer is still made whole through their wallet rather than left
+ * waiting on an operator. The failure reason is returned so the caller can surface it, and it
+ * is written into the ledger row's message so the reason survives in the transaction history.
+ *
+ * @param  int    $order_id
+ * @param  int    $order_item_id  the line being refunded, or 0/null for a whole-order refund
+ * @param  int    $user_id        the customer
+ * @param  float  $amount         total to refund
+ * @param  string $reason         free text recorded on the ledger rows
+ * @return array{
+ *     mode: string, gateway_amount: float, wallet_amount: float,
+ *     gateway: string, refund_id: string, error: bool, message: string
+ * }  mode is one of none | wallet | gateway | gateway+wallet
+ */
+function refund_to_payment_source($order_id, $order_item_id, $user_id, $amount, $reason = 'Refund')
+{
+    $t = &get_instance();
+    $amount = round((float) $amount, 2);
+
+    $result = [
+        'mode'           => 'none',
+        'gateway_amount' => 0.0,
+        'wallet_amount'  => 0.0,
+        'gateway'        => '',
+        'refund_id'      => '',
+        'error'          => false,
+        'message'        => '',
+    ];
+
+    if ($amount <= 0) {
+        return $result;
+    }
+
+    // The gateway payment is recorded against the ORDER, never against an order item - payments
+    // are written with order_item_id NULL. Keyed on the item (as one earlier version of this
+    // lookup was) it finds the wallet refund rows instead, whose txn_id is empty.
+    $payment = $t->db
+        ->where('order_id', $order_id)
+        ->where('transaction_type', 'transaction')
+        ->where('status', 'success')
+        ->where('txn_id IS NOT NULL', null, false)
+        ->where('txn_id !=', '')
+        ->order_by('id', 'DESC')
+        ->get('transactions')
+        ->row_array();
+
+    $gateway = !empty($payment['type']) ? strtolower(trim($payment['type'])) : '';
+    $gateways = refundable_payment_gateways();
+    $can_refund_to_gateway = !empty($payment) && isset($gateways[$gateway]);
+
+    $gateway_part = 0.0;
+    if ($can_refund_to_gateway) {
+        // Never refund more to the card than was charged to it. Refunds already pushed against
+        // this same payment are subtracted, so a second line on the same order cannot re-refund
+        // the first line's share, and an admin who already refunded part of it by hand from the
+        // order screen is accounted for.
+        $already = $t->db
+            ->select('COALESCE(SUM(amount), 0) as refunded', false)
+            ->where('order_id', $order_id)
+            ->where('transaction_type', 'transaction')
+            ->where('type', 'refund')
+            ->where('status', 'success')
+            ->get('transactions')
+            ->row_array();
+
+        $capacity = round((float) $payment['amount'] - (float) $already['refunded'], 2);
+        $gateway_part = min($amount, max(0.0, $capacity));
+    }
+
+    $wallet_part = round($amount - $gateway_part, 2);
+
+    if ($gateway_part > 0) {
+        $refund = gateway_refund($gateway, $payment['txn_id'], $gateway_part);
+
+        if (empty($refund['error'])) {
+            $result['gateway_amount'] = $gateway_part;
+            $result['gateway']        = $gateway;
+            $result['refund_id']      = $refund['refund_id'];
+
+            $t->load->model('Transaction_model');
+            $t->Transaction_model->add_transaction([
+                'transaction_type' => 'transaction',
+                'user_id'          => $user_id,
+                'order_id'         => $order_id,
+                'order_item_id'    => !empty($order_item_id) ? $order_item_id : null,
+                'type'             => 'refund',
+                'txn_id'           => $refund['refund_id'],
+                'amount'           => $gateway_part,
+                'status'           => 'success',
+                'message'          => $reason . ' - refunded to the original payment method (' . $gateway . ')',
+            ]);
+        } else {
+            // Make the customer whole through the wallet rather than leave the refund owed
+            // while somebody notices. The wallet credit is recorded with the gateway's own
+            // failure reason so it is obvious later why it went this way.
+            $wallet_part = round($wallet_part + $gateway_part, 2);
+            $result['error']   = true;
+            $result['message'] = $refund['message'];
+            $reason .= ' (gateway refund unavailable: ' . $refund['message'] . ')';
+        }
+    }
+
+    if ($wallet_part > 0) {
+        update_wallet_balance('refund', $user_id, $wallet_part, $reason, !empty($order_item_id) ? $order_item_id : '');
+        $result['wallet_amount'] = $wallet_part;
+    }
+
+    if ($result['gateway_amount'] > 0 && $result['wallet_amount'] > 0) {
+        $result['mode'] = 'gateway+wallet';
+    } elseif ($result['gateway_amount'] > 0) {
+        $result['mode'] = 'gateway';
+    } elseif ($result['wallet_amount'] > 0) {
+        $result['mode'] = 'wallet';
+    }
+
+    return $result;
 }
 
 /**
@@ -5418,41 +5830,49 @@ function recalulate_delivery_charge($address_id, $total, $old_delivery_charge)
     return $d_charge;
 }
 
+/**
+ * Resizes an order's promo discount to what is left of the cart after a cancellation/return.
+ *
+ * $payment_method, $delivery_charge and $wallet_balance are retained for call compatibility.
+ * They fed a $total_payable local that was computed in three branches and then never returned
+ * or read by anybody - process_refund(), the sole caller, derives total_payable itself.
+ */
 function recalculate_promo_discount($promo_code, $promo_discount, $user_id, $total, $payment_method, $delivery_charge, $wallet_balance)
 {
     /* recalculate promocode discount if the status of the order_items is cancelled or returned */
-    $promo_code_discount = $promo_discount;
-    if (isset($promo_code) && !empty($promo_code)) {
-        $promo_code = validate_promo_code($promo_code, $user_id, $total, true);
-        if ($promo_code['error'] == false) {
-
-            if ($promo_code['data'][0]['discount_type'] == 'percentage') {
-                $promo_code_discount =  floatval($total  * $promo_code['data'][0]['discount'] / 100);
-            } else {
-                $promo_code_discount = $promo_code['data'][0]['discount'];
-            }
-            if (trim(strtolower($payment_method)) != 'cod'  && $payment_method != 'Bank Transfer') {
-                /* If any other payment methods are used like razorpay, paytm, flutterwave or stripe then 
-                    obviously customer would have paid complete amount so making total_payable = 0*/
-                $total_payable = 0;
-                if ($promo_code_discount > $promo_code['data'][0]['max_discount_amount']) {
-                    $promo_code_discount = $promo_code['data'][0]['max_discount_amount'];
-                }
-            } else {
-                /* also check if the previous discount and recalculated discount are 
-                    different or not, then only modify total_payable*/
-                if ($promo_code_discount <= $promo_code['data'][0]['max_discount_amount'] && $promo_discount != $promo_code_discount) {
-                    $total_payable = floatval($total) + $delivery_charge - $promo_code_discount - $wallet_balance;
-                } else if ($promo_discount != $promo_code_discount) {
-                    $total_payable = floatval($total) + $delivery_charge - $promo_code['data'][0]['max_discount_amount'] - $wallet_balance;
-                    $promo_code_discount = $promo_code['data'][0]['max_discount_amount'];
-                }
-            }
-        } else {
-            $promo_code_discount = 0;
-        }
+    if (!isset($promo_code) || empty($promo_code)) {
+        return $promo_discount;
     }
-    return $promo_code_discount;
+
+    // The 4th argument - "this is a recalculation, not a fresh redemption" - was ALREADY being
+    // passed here, but validate_promo_code() declared only three parameters, so PHP discarded
+    // it silently and the call ran the full eligibility check. That check asks "may this
+    // customer redeem this code?" about a customer who has already redeemed it on the very
+    // order being refunded, so it failed for every single-use code (and for any code whose
+    // campaign had since ended or been switched off). This function then returned 0, and
+    // process_refund() sized the refund as "item total - the discount we have just decided to
+    // stop honouring": on a 2-item Rs. 2000 order with a Rs. 200 discount, returning one
+    // Rs. 1000 item refunded Rs. 800 instead of Rs. 1000, and left orders.promo_discount at 0
+    // while orders.promo_code still named the code.
+    $res = validate_promo_code($promo_code, $user_id, $total, true);
+    if (!empty($res['error'])) {
+        /* the remaining cart no longer meets the campaign minimum - the discount is forfeited */
+        return 0;
+    }
+
+    // A cashback code never reduced the order total to begin with: place_order() records
+    // promo_discount = 0 for one and settle_cashback_discount() credits the customer's wallet
+    // after delivery instead. Recalculating it as an order-level discount invented a discount
+    // the order never had, which OVER-refunded the customer by the cashback value and cut
+    // final_total at the same time.
+    if (isset($res['data'][0]['is_cashback']) && $res['data'][0]['is_cashback'] == 1) {
+        return 0;
+    }
+
+    // Already capped at max_discount_amount and clamped to the remaining total by
+    // apply_promo_code_discount(). The old code applied the ceiling only inside some of its
+    // payment-method branches, so a percentage code could return a discount above its own cap.
+    return floatval($res['data'][0]['final_discount']);
 }
 
 function process_refund_old($id, $status, $type = 'order_items')
@@ -5805,6 +6225,58 @@ function process_refund_old($id, $status, $type = 'order_items')
     }
 }
 
+/**
+ * Resolves a banner row (slider / offer) to the storefront URL it should link to.
+ *
+ * Returns the URL string, or FALSE when the banner points at something a visitor cannot
+ * actually reach - a category or product that has since been deleted, deactivated, pulled from
+ * listing, or whose seller is no longer approved. get_sliders()/get_offers() previously looked
+ * the target up by id ONLY, with no status conditions at all, and on a miss just left the link
+ * empty: the banner still rendered on the homepage hero and clicking it silently reloaded the
+ * current page. Callers now drop those rows instead of shipping a dead banner.
+ *
+ * The product conditions deliberately mirror fetch_product()'s visibility filter
+ * (p.status / p.listing_visibility / seller_data.status) so a banner can never advertise a
+ * product that the shop itself refuses to show.
+ *
+ * @param  string $type    slider/offer type: categories | products | slider_url | offer_url
+ * @param  mixed  $type_id target row id (ignored for the *_url types)
+ * @param  string $raw_link admin-entered URL, used by the *_url types
+ * @return string|false
+ */
+function resolve_banner_target($type, $type_id, $raw_link = '')
+{
+    $ci = &get_instance();
+    $type = (string) $type;
+
+    if ($type === 'categories') {
+        $row = $ci->db->select('slug')->where('id', $type_id)->where('status', 1)
+            ->get('categories')->row_array();
+        return (!empty($row['slug'])) ? base_url('products/category/' . $row['slug']) : false;
+    }
+
+    if ($type === 'products') {
+        $row = $ci->db->select('p.slug')
+            ->join('seller_data sd', 'sd.user_id = p.seller_id', 'inner')
+            ->where('p.id', $type_id)
+            ->where('p.status', 1)
+            ->where('p.listing_visibility', 1)
+            ->where('sd.status', 1)
+            ->get('products p')->row_array();
+        return (!empty($row['slug'])) ? base_url('products/details/' . $row['slug']) : false;
+    }
+
+    if ($type === 'slider_url' || $type === 'offer_url') {
+        // html_escape() because this one is admin-entered free text and gets rendered straight
+        // into an href at the storefront; the branches above build their URLs server-side.
+        return (trim((string) $raw_link) !== '') ? html_escape($raw_link) : false;
+    }
+
+    // 'default' and anything unrecognised: a plain image banner with nowhere to go. Keep it,
+    // with no link - that is a legitimate configuration, unlike a broken target above.
+    return '';
+}
+
 function get_sliders($id = '', $type = '', $type_id = '')
 {
     $ci = &get_instance();
@@ -5818,37 +6290,21 @@ function get_sliders($id = '', $type = '', $type_id = '')
         $ci->db->where('type_id', $type_id);
     }
     $res = $ci->db->get('sliders')->result_array();
-    $res = array_map(function ($d) {
-        $ci = &get_instance();
-        // The admin-entered link was unconditionally wiped here, then only ever re-populated
-        // for 'categories'/'products' - there was no branch for 'slider_url' at all, so every
-        // "Slider URL" banner the admin configures loses its link entirely and just reloads the
-        // current page when clicked. Preserve the stored (and already output_escaping()'d, see
-        // below) link for that type instead of erasing it.
-        $original_link = $d['link'];
-        $d['link'] = '';
-        if (!empty($d['type'])) {
-            if ($d['type'] == "categories") {
-                $type_details = $ci->db->where('id', $d['type_id'])->select('slug')->get('categories')->row_array();
-                if (!empty($type_details)) {
-                    $d['link'] = base_url('products/category/' . $type_details['slug']);
-                }
-            } elseif ($d['type'] == "products") {
-                $type_details = $ci->db->where('id', $d['type_id'])->select('slug')->get('products')->row_array();
-                if (!empty($type_details)) {
-                    $d['link'] = base_url('products/details/' . $type_details['slug']);
-                }
-            } elseif ($d['type'] == "slider_url") {
-                // html_escape() here, not just at the categories/products branches above (whose
-                // links are entirely server-built, not admin text) - this is the one branch
-                // where the value came from an admin-entered field and is rendered raw into an
-                // href attribute at the storefront render site.
-                $d['link'] = html_escape($original_link);
-            }
+
+    $sliders = [];
+    foreach ($res as $d) {
+        // See resolve_banner_target(): FALSE means this slider advertises a category/product
+        // that is deleted, deactivated, unlisted or belongs to an unapproved seller, or a URL
+        // slider with no URL. Such a slider used to render on the hero with an empty href and
+        // do nothing on click - drop it rather than show a dead banner.
+        $link = resolve_banner_target($d['type'], $d['type_id'], $d['link']);
+        if ($link === false) {
+            continue;
         }
-        return $d;
-    }, $res);
-    return $res;
+        $d['link'] = $link;
+        $sliders[] = $d;
+    }
+    return $sliders;
 }
 
 function get_offers($id = '', $type = '', $type_id = '')
@@ -5864,33 +6320,18 @@ function get_offers($id = '', $type = '', $type_id = '')
         $ci->db->where('type_id', $type_id);
     }
     $res = $ci->db->get('offers')->result_array();
-    $res = array_map(function ($d) {
-        $ci = &get_instance();
-        // Same bug as get_sliders() just above (this function is a copy of it): the
-        // admin-entered link was unconditionally wiped, then only ever re-populated for
-        // 'categories'/'products' - there was no branch for 'offer_url' (the admin offer form
-        // does support this type, per Offer.php's own validation), so every URL-type offer
-        // banner lost its link entirely.
-        $original_link = $d['link'];
-        $d['link'] = '';
-        if (!empty($d['type'])) {
-            if ($d['type'] == "categories") {
-                $type_details = $ci->db->where('id', $d['type_id'])->select('slug')->get('categories')->row_array();
-                if (!empty($type_details)) {
-                    $d['link'] = base_url('products/category/' . $type_details['slug']);
-                }
-            } elseif ($d['type'] == "products") {
-                $type_details = $ci->db->where('id', $d['type_id'])->select('slug')->get('products')->row_array();
-                if (!empty($type_details)) {
-                    $d['link'] = base_url('products/details/' . $type_details['slug']);
-                }
-            } elseif ($d['type'] == "offer_url") {
-                $d['link'] = html_escape($original_link);
-            }
+
+    $offers = [];
+    foreach ($res as $d) {
+        // Same treatment as get_sliders() above - this function is a copy of it.
+        $link = resolve_banner_target($d['type'], $d['type_id'], $d['link']);
+        if ($link === false) {
+            continue;
         }
-        return $d;
-    }, $res);
-    return $res;
+        $d['link'] = $link;
+        $offers[] = $d;
+    }
+    return $offers;
 }
 function get_cart_count($user_id)
 {
