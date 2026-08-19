@@ -53,7 +53,7 @@ class Featured_section_model extends CI_Model
 
         // Sort column was passed straight into order_by() with no whitelist - an injection
         // route the same as already fixed on other list pages.
-        $allowed_sort_columns = ['id', 'title', 'short_description', 'style', 'product_type', 'date_added'];
+        $allowed_sort_columns = ['id', 'title', 'short_description', 'style', 'product_type', 'status', 'date_added'];
         if (isset($_GET['sort']) && in_array($_GET['sort'], $allowed_sort_columns, true)) {
             $sort = $_GET['sort'];
         }
@@ -95,6 +95,20 @@ class Featured_section_model extends CI_Model
 
             $operate = ' <a href="javascript:void(0)" class="edit_btn action-btn btn btn-primary btn-xs ml-1 mr-1 mb-1" title="Edit" data-id="' . $row['id'] . '" data-url="admin/Featured_sections/"><i class="fa fa-pen"></i></a>';
             $operate .= ' <a  href="javascript:void(0)" class="btn btn-danger action-btn btn-xs mr-1 mb-1 ml-1" title="Delete" data-id="' . $row['id'] . '" id="delete-featured-section" ><i class="fa fa-trash"></i></a>';
+
+            // Featured sections had no publish/unpublish control at all - creating one pushed it
+            // live to the homepage and the only way to take it down was to delete it, losing its
+            // title, style, categories and hand-picked product list. Backed by the status column
+            // added in migration 046.
+            $status = isset($row['status']) ? $row['status'] : 1;
+            if ($status == '1') {
+                $tempRow['status'] = '<a class="badge badge-success text-white">Active</a>';
+                $operate .= ' <a class="btn btn-warning btn-xs action-btn update_active_status ml-1 mr-1 mb-1" data-table="sections" title="Deactivate" href="javascript:void(0)" data-id="' . $row['id'] . '" data-status="' . $status . '" ><i class="fa fa-eye-slash"></i></a>';
+            } else {
+                $tempRow['status'] = '<a class="badge badge-danger text-white">Inactive</a>';
+                $operate .= ' <a class="btn btn-primary btn-xs action-btn update_active_status ml-1 mr-1 mb-1" data-table="sections" title="Activate" href="javascript:void(0)" data-id="' . $row['id'] . '" data-status="' . $status . '" ><i class="fa fa-eye"></i></a>';
+            }
+
             $tempRow['id'] = $row['id'];
             // output_escaping() only strips backslash-escaping, it does not HTML-encode - a
             // stored-XSS route the same as already fixed on other list pages.

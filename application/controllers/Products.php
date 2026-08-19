@@ -597,7 +597,10 @@ class Products extends CI_Controller
         if (!empty($_GET) && !$this->form_validation->run()) {
             redirect(base_url('products'));
         }
-        $section = $this->db->where('id', $section_id)->get('sections')->row_array();
+        // Honour the publish flag (migration 046). Without the status condition an unpublished
+        // section stayed fully reachable at its own /products/section/<id> URL - the same
+        // "hidden from the listing but live at its direct link" hole the blog detail page had.
+        $section = $this->db->where('id', $section_id)->where('status', 1)->get('sections')->row_array();
         if (empty($section)) {
             redirect(base_url());
         }

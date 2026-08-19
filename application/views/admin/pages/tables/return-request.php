@@ -103,7 +103,10 @@
                                 <th data-field="discounted_price" data-sortable="false" data-visible="false">Discounted Price</th>
                                 <th data-field="quantity" data-sortable="false">Quantity</th>
                                 <th data-field="sub_total" data-sortable="false">Sub Total</th>
+                                <th data-field="seller_name" data-sortable="false">Seller</th>
                                 <th data-field="status" data-sortable="false">Status</th>
+                                <th data-field="item_status" data-sortable="false" data-visible="false">Item Status</th>
+                                <th data-field="refund" data-sortable="false">Refunded</th>
                                 <th data-field="operate" data-sortable="false">Actions</th>
                             </tr>
                         </thead>

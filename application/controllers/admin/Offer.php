@@ -62,16 +62,19 @@ class Offer extends CI_Controller
         // offer_type was only checked for 'required' - never against the actual allowed set,
         // so a forged request could store an arbitrary type string.
         $this->form_validation->set_rules('offer_type', 'Offer Type', 'trim|required|xss_clean|in_list[default,categories,products,offer_url]');
+        // The id of the row being edited went straight into the UPDATE's WHERE clause with no
+        // check that it was even a number.
+        $this->form_validation->set_rules('edit_offer', 'Offer', 'trim|numeric|xss_clean');
         $this->form_validation->set_rules('image', 'Offer Image', 'trim|required|xss_clean', array('required' => 'Offer image is required'));
         if (isset($_POST['offer_type']) && $_POST['offer_type'] == 'categories') {
-            $this->form_validation->set_rules('category_id', 'Category', 'trim|required|xss_clean');
+            $this->form_validation->set_rules('category_id', 'Category', 'trim|required|numeric|xss_clean');
         }
         if (isset($_POST['offer_type']) && $_POST['offer_type'] == 'offer_url') {
             // Had no real URL validation at all - any string passed 'required'.
             $this->form_validation->set_rules('link', 'Link', 'trim|required|xss_clean|valid_url');
         }
         if (isset($_POST['offer_type']) && $_POST['offer_type'] == 'products') {
-            $this->form_validation->set_rules('product_id', 'Product', 'trim|required|xss_clean');
+            $this->form_validation->set_rules('product_id', 'Product', 'trim|required|numeric|xss_clean');
         }
         if (!$this->form_validation->run()) {
             $this->response['error'] = true;
@@ -105,7 +108,13 @@ class Offer extends CI_Controller
             if (print_msg(!has_permissions('delete', 'new_offer_images'), PERMISSION_ERROR_MSG, 'new_offer_images', false)) {
                 return false;
             }
-            if (delete_details(['id' => $_GET['id']], 'offers') == TRUE) {
+            if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
+                $this->response['error'] = true;
+                $this->response['message'] = 'Invalid offer';
+                print_r(json_encode($this->response));
+                return false;
+            }
+            if (delete_details(['id' => (int) $_GET['id']], 'offers') == TRUE) {
                 $this->response['error'] = false;
                 $this->response['message'] = 'Deleted Succesfully';
             } else {

@@ -436,12 +436,22 @@ class Orders extends CI_Controller
                             // Was `trim($_POST['val'] == 'cancelled')` - the comparison happens
                             // INSIDE trim(), so a boolean was trimmed and the resulting string
                             // tested. It worked only by coincidence ("1" is truthy, "" falsy).
-                            if (trim($_POST['val']) == 'cancelled') {
+                            //
+                            // 'returned' restores stock too. The order-level dropdown offers it
+                            // (priority_status above ranks it 5), and process_refund() on the
+                            // line below refunds the customer for the whole order - but only
+                            // 'cancelled' put the goods back, so an admin returning an order in
+                            // one action refunded the money and left the stock written off.
+                            $restore_status = trim($_POST['val']);
+                            if ($restore_status == 'cancelled' || $restore_status == 'returned') {
                                 // Idempotent per line (migration 044). The hand-rolled loop
                                 // restored every line unconditionally, so a line already put
                                 // back by a per-item cancellation or a Shiprocket callback was
                                 // restored a second time.
-                                restore_order_stock($_POST['orderid'], 'Order cancelled by admin');
+                                restore_order_stock(
+                                    $_POST['orderid'],
+                                    ($restore_status == 'returned') ? 'Order returned by admin' : 'Order cancelled by admin'
+                                );
                             }
                             $response = process_referral_bonus($user_id, $_POST['orderid'], $_POST['val']);
                             $message = 'Status Updated Successfully';
@@ -1357,16 +1367,24 @@ class Orders extends CI_Controller
                     return false;
                 }
 
-                // The customer has already been made whole through their wallet - pushing a
-                // gateway refund on top would pay for the same item twice. This was previously
-                // unguarded, and the return-approval path credits the wallet, so every approved
-                // return was one click away from a double refund.
-                if (!empty($order_item[0]['refunded_at']) && $order_item[0]['refund_mode'] === 'wallet' && (float) $order_item[0]['refund_amount'] > 0) {
-                    $this->respond_refund(true, 'This item was already refunded to the customer\'s wallet (' . $order_item[0]['refund_amount'] . '). Refunding to the card as well would pay twice.');
-                    return false;
-                }
-                if (!empty($order_item[0]['refunded_at']) && $order_item[0]['refund_mode'] === 'gateway') {
-                    $this->respond_refund(true, 'A gateway refund has already been issued for this item.');
+                // The customer has already been made whole - pushing another refund on top
+                // would pay for the same item twice. This is now a single test on "was anything
+                // paid back for this line", because process_refund() routes the money to
+                // whichever channel the customer paid through and records that channel in
+                // refund_mode: 'gateway', 'wallet', or 'gateway+wallet' when an order part-paid
+                // from the wallet had to be split. Testing the modes one at a time (as this did
+                // when 'wallet' was the only value process_refund() ever wrote) leaves the split
+                // mode unmatched and the button live.
+                if (!empty($order_item[0]['refunded_at']) && (float) $order_item[0]['refund_amount'] > 0) {
+                    $where_to = [
+                        'wallet'         => "to the customer's wallet",
+                        'gateway'        => 'to the original payment method',
+                        'gateway+wallet' => "to the original payment method and the customer's wallet",
+                    ];
+                    $channel = isset($where_to[$order_item[0]['refund_mode']])
+                        ? $where_to[$order_item[0]['refund_mode']]
+                        : 'to the customer';
+                    $this->respond_refund(true, 'This item was already refunded ' . $channel . ' (' . $order_item[0]['refund_amount'] . '). Refunding again would pay twice.');
                     return false;
                 }
 

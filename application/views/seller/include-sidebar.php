@@ -194,6 +194,13 @@
                     </a>
                 </li>
 
+                <li class="nav-item">
+                    <a href="<?= base_url('seller/return-request') ?>" class="nav-link">
+                        <i class="nav-icon fas fa-undo text-secondary"></i>
+                        <p>Return Requests</p>
+                    </a>
+                </li>
+
                 <li class="nav-item has-treeview">
                     <a href="<?= base_url('seller/area/manage_deliverable_locations') ?>" class="nav-link">
                         <i class="nav-icon fas fa-shipping-fast text-success"></i>

@@ -9,9 +9,23 @@
                     <?php foreach ($sliders as $row) { ?>
                         <div class="swiper-slide">
                             <div class="slide-img">
-                                <a href="<?= $row['link'] ?>">
-                                    <img src="<?= base_url($row['image']) ?>" alt="Offer Slider" style="object-fit: cover;">
-                                </a>
+                                <?php /* Was base_url($row['image']) - the ORIGINAL upload, with no
+                                   existence check: a deleted file gave a broken hero image, and the
+                                   full-size original was being shipped on every page load (the live
+                                   slider images are ~2.3MB each) even though thumb-md/cropped-md
+                                   derivatives are generated at upload time. get_image_url() picks the
+                                   derivative and falls back to the placeholder, like every other
+                                   image render in the app.
+                                   $row['link'] is '' for a plain image banner, in which case there is
+                                   nothing to link to - render the image without an anchor rather than
+                                   an <a href=""> that reloads the page on click. */ ?>
+                                <?php if (!empty($row['link'])) { ?>
+                                    <a href="<?= $row['link'] ?>">
+                                        <img src="<?= get_image_url($row['image'], 'thumb', 'md') ?>" alt="Offer Slider" style="object-fit: cover;">
+                                    </a>
+                                <?php } else { ?>
+                                    <img src="<?= get_image_url($row['image'], 'thumb', 'md') ?>" alt="Offer Slider" style="object-fit: cover;">
+                                <?php } ?>
                             </div>
                         </div>
                     <?php } ?>

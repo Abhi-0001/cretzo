@@ -20,6 +20,10 @@ class Offer_model extends CI_Model
             'image' => $image_name['image'],
         ];
         $offer_data['link'] ='';
+        // Reset alongside the link. Only the branches below set type_id, so editing an offer
+        // from 'products' to 'default' left the old product id in place - the banner then
+        // still deep-linked to a product it was no longer advertising.
+        $offer_data['type_id'] = 0;
         if (isset($image_name['offer_type']) && $image_name['offer_type'] == 'categories' && isset($image_name['category_id']) && !empty($image_name['category_id'])) {
             $offer_data['type_id'] = $image_name['category_id'];
             $offer_data['link'] ='';

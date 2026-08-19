@@ -263,10 +263,22 @@ class Home extends CI_Controller
             // The table name came straight from $_GET and was passed unvalidated into update(),
             // letting a crafted request flip a status/active column on any table in the schema.
             // Restricted to the tables the admin UI actually toggles.
+            //
+            // This list is what the .update_active_status buttons actually send (every
+            // data-table= value rendered by the admin views/models), cross-checked against the
+            // schema for a real status/active column. The previous version was written from
+            // memory and diverged from both: it named 'attribute_sets' (the table is
+            // 'attribute_set'), omitted blog_categories, attribute_values, pickup_locations and
+            // client_api_keys outright, and listed sliders/offers/subscriptions/
+            // featured_sections/delivery_boy/system_users, none of which even have a status
+            // column. The result was six admin publish/unpublish buttons that silently did
+            // nothing - and, because of the response convention below, reported success while
+            // doing it.
             $allowed_tables = [
-                'users', 'products', 'categories', 'brands', 'sliders', 'offers', 'promo_codes',
-                'taxes', 'faqs', 'blogs', 'seller_data', 'subscriptions', 'featured_sections',
-                'attributes', 'attribute_sets', 'time_slots', 'delivery_boy', 'system_users'
+                'users', 'products', 'categories', 'brands', 'blogs', 'blog_categories',
+                'taxes', 'faqs', 'promo_codes', 'seller_data', 'themes',
+                'attributes', 'attribute_set', 'attribute_values',
+                'pickup_locations', 'client_api_keys', 'time_slots', 'sections',
             ];
             $table = isset($_GET['table']) ? trim($_GET['table']) : '';
             $id    = isset($_GET['id']) ? $_GET['id'] : null;
@@ -293,15 +305,16 @@ class Home extends CI_Controller
 
             $this->db->where('id', (int) $id)->update($table);
             $this->db->trans_complete();
-            $error = false;
-            $message = str_replace('_', ' ', $table);
-            if ($this->db->trans_status() === true) {
-                $error = true;
-            }
-            $response['error'] = $error;
+            // Was inverted - success set error=true and failure set error=false, and the two JS
+            // callers were written to match, so every early-return guard above (demo mode,
+            // "Invalid request") was rendered to the admin as a green success toast. Normalised
+            // to the convention used by every other endpoint in the app: error=false means the
+            // update went through. Both callers (assets/admin/custom/custom.js::update_status
+            // and views/seller/pages/tables/manage-product.php) were updated to match.
+            $response['error'] = ($this->db->trans_status() === false);
             $response['csrfName'] = $this->security->get_csrf_token_name();
             $response['csrfHash'] = $this->security->get_csrf_hash();
-            $response['message'] = $message;
+            $response['message'] = str_replace('_', ' ', $table);
             print_r(json_encode($response));
         } else {
             redirect('admin/login', 'refresh');

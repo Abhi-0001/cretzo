@@ -1338,8 +1338,12 @@ class My_account extends CI_Controller
             if (!empty($_FILES['documents']['name'])) {
 
                 $year = date('Y');
-                $target_path = FCPATH . CHAT_MEDIA_PATH  . '/';
-                $sub_directory = CHAT_MEDIA_PATH  . '/';
+                // CHAT_MEDIA_PATH already ends in '/', so appending another produced
+                // 'uploads/chat_media//' - stored verbatim in media.sub_directory and in every
+                // URL built from it. Harmless to the filesystem, but it means the stored path no
+                // longer matches CHAT_MEDIA_PATH, which Chat_model::delete_msg() now relies on.
+                $target_path = FCPATH . CHAT_MEDIA_PATH;
+                $sub_directory = CHAT_MEDIA_PATH;
 
                 if (!file_exists($target_path)) {
                     mkdir($target_path, 0777, true);
@@ -1351,6 +1355,9 @@ class My_account extends CI_Controller
                 $allowed_media_types = implode('|', allowed_media_types());
                 $config['upload_path'] = $target_path;
                 $config['allowed_types'] = $allowed_media_types;
+                // No size cap was set (CI defaults max_size to 0 = unlimited) on an endpoint that
+                // accepts every type the media library allows, from any logged-in user.
+                $config['max_size'] = 20480;
                 $other_image_cnt = count($_FILES['documents']['name']);
                 $other_img = $this->upload;
                 $other_img->initialize($config);
@@ -1371,17 +1378,30 @@ class My_account extends CI_Controller
                             if (strtolower($temp_array['image_type']) != 'gif')
                                 resize_image($temp_array,  $target_path, $media_id);
                             $other_images_new_name[$i] = $temp_array['file_name'];
+
+                            // Three bugs in the row this used to write, all of which made the
+                            // attachment unreachable:
+                            //   - file_name stored $_FILES['temp_image']['tmp_name'], i.e. PHP's
+                            //     temporary path (C:\...\phpXXXX.tmp), which no longer exists by
+                            //     the time anyone reads the row. The name the file was actually
+                            //     saved under ($temp_array['file_name']) was thrown away, so
+                            //     nothing could build a URL to it - and Chat_model::delete_msg(),
+                            //     which unlinks by this column, could never find the real file.
+                            //   - file_extension stored the browser-supplied MIME type, not an
+                            //     extension.
+                            //   - the insert sat OUTSIDE this else, so a FAILED upload still
+                            //     created a chat_media row pointing at nothing.
+                            $data = array(
+                                'original_file_name' => $_FILES['temp_image']['name'],
+                                'file_name' => $temp_array['file_name'],
+                                'file_extension' => ltrim($temp_array['file_ext'], '.'),
+                                'file_size' => $_FILES['temp_image']['size'],
+                                'user_id' => $this->session->userdata('user_id'),
+                                'message_id' => $msg_id
+                            );
+                            $file_id = $this->chat_model->add_file($data);
+                            $this->chat_model->add_media_ids_to_msg($msg_id, $file_id);
                         }
-                        $data = array(
-                            'original_file_name' => $_FILES['temp_image']['name'],
-                            'file_name' => $_FILES['temp_image']['tmp_name'],
-                            'file_extension' => $_FILES['temp_image']['type'],
-                            'file_size' => $_FILES['temp_image']['size'],
-                            'user_id' => $this->session->userdata('user_id'),
-                            'message_id' => $msg_id
-                        );
-                        $file_id = $this->chat_model->add_file($data);
-                        $this->chat_model->add_media_ids_to_msg($msg_id, $file_id);
                     } else {
 
                         $_FILES['temp_image']['name'] = $files['documents']['name'][$i];
@@ -1392,16 +1412,9 @@ class My_account extends CI_Controller
                         if (!$other_img->do_upload('temp_image')) {
                             $other_image_info_error = $other_img->display_errors();
                         }
-                        $data = array(
-                            'original_file_name' => $_FILES['temp_image']['name'],
-                            'file_name' => $_FILES['temp_image']['tmp_name'],
-                            'file_extension' => $_FILES['temp_image']['type'],
-                            'file_size' => $_FILES['temp_image']['size'],
-                            'user_id' => $this->session->userdata('user_id'),
-                            'message_id' => $msg_id
-                        );
-                        $file_id = $this->chat_model->add_file($data);
-                        $this->chat_model->add_media_ids_to_msg($msg_id, $file_id);
+                        // No chat_media row here: this branch is reached only when the
+                        // slot's filename is EMPTY, i.e. nothing was uploaded. It used to insert
+                        // a row anyway, attaching a phantom file to the message.
                     }
                 }
 

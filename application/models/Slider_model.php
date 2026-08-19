@@ -15,23 +15,28 @@ class Slider_model extends CI_Model
     {
         $data = escape_array($data);
 
+        // type_id and link are now BOTH always written, for every type. Previously type_id was
+        // only assigned inside the per-type branches, so:
+        //   - a 'default' (plain image) slider never set type_id at all on insert, and
+        //   - editing a slider from 'products'/'categories' to any other type left the OLD
+        //     type_id in the row, pointing the record at a product/category it no longer means.
+        // resolve_banner_target() keys off (type, type_id) to decide whether a banner is still
+        // reachable, so a stale type_id is not harmless bookkeeping - it can resurrect a link
+        // the admin thought they had removed.
+        $slider_type = isset($data['slider_type']) ? $data['slider_type'] : '';
         $slider_data = [
-            'type' => $data['slider_type'],
+            'type' => $slider_type,
             'image' => $data['image'],
+            'link' => '',
+            'type_id' => 0,
         ];
-        $slider_data['link'] = '';
-        if (isset($data['slider_type']) && $data['slider_type'] == 'categories' && isset($data['category_id']) && !empty($data['category_id'])) {
-            $slider_data['type_id'] = $data['category_id'];
-            $slider_data['link'] = '';
-        }
-        if (isset($data['slider_type']) && $data['slider_type'] == 'slider_url' && isset($data['link']) && !empty($data['link'])) {
-            $slider_data['link'] = $data['link'];
-            $slider_data['type_id'] = 0;
-        }
 
-        if (isset($data['slider_type']) && $data['slider_type'] == 'products' && isset($data['product_id']) && !empty($data['product_id'])) {
+        if ($slider_type == 'categories' && !empty($data['category_id'])) {
+            $slider_data['type_id'] = $data['category_id'];
+        } elseif ($slider_type == 'products' && !empty($data['product_id'])) {
             $slider_data['type_id'] = $data['product_id'];
-            $slider_data['link'] = '';
+        } elseif ($slider_type == 'slider_url' && !empty($data['link'])) {
+            $slider_data['link'] = $data['link'];
         }
 
         if (isset($data['edit_slider'])) {

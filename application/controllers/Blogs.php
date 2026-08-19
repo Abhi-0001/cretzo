@@ -84,7 +84,9 @@ class Blogs extends CI_Controller
         $this->data['meta_description'] = 'Blogs | ' . $this->data['web_settings']['site_title'];
         $this->data['blog_search'] = $blog_search;
         $this->data['blogs'] = $this->blog_model->get_blogs($offset, $limit, null, null, $blog_search, $category_id);
-        $this->data['fetched_data'] = fetch_details('blog_categories');
+        // Had no status filter, so the storefront's "Filter By Category" dropdown listed
+        // categories the admin had deactivated - and picking one returned nothing.
+        $this->data['fetched_data'] = fetch_details('blog_categories', ['status' => 1]);
         $this->load->view('front-end/' . THEME . '/template', $this->data);
     }
 
@@ -108,9 +110,31 @@ class Blogs extends CI_Controller
         $this->data['description'] = 'View Blog | ' . $this->data['web_settings']['meta_description'];
         $this->data['meta_description'] = 'View Blog | ' . $this->data['web_settings']['site_title'];
         $blog_id = $this->uri->segment(3);
-        $this->data['blog'] = fetch_details('blogs', ['slug' => $blog_id], 'id,title,description,image,slug,date_added');
-        // print_r($this->data['blog']);
-        // die;
+        // Two bugs here:
+        //   1. No status filter, so a post the admin had UNPUBLISHED stayed fully readable at
+        //      its direct URL - the toggle only ever removed it from the listing (get_blogs()
+        //      does filter status = 1). Also honour the parent category's status, which nothing
+        //      on the storefront consulted, so posts in a deactivated category stayed live too.
+        //   2. No empty guard. The view dereferences $blog[0] unconditionally, so ANY unknown
+        //      slug rendered a 200 page with "Undefined array key 0" warnings printed into it
+        //      (this app ships with display_errors on). Now a 404, like a missing product.
+        $blog = $this->db->select('b.id,b.title,b.description,b.image,b.slug,b.date_added')
+            ->join('blog_categories bc', 'bc.id = b.category_id', 'left')
+            ->where('b.slug', $blog_id)
+            ->where('b.status', 1)
+            ->group_start()
+            ->where('bc.status', 1)
+            ->or_where('bc.id IS NULL', null, false)
+            ->group_end()
+            ->get('blogs b')->result_array();
+
+        if (empty($blog)) {
+            show_404();
+            return;
+        }
+
+        $this->data['blog'] = $blog;
+        $this->data['title'] = $blog[0]['title'] . ' | ' . $this->data['web_settings']['site_title'];
         $this->load->view('front-end/' . THEME . '/template', $this->data);
     }
 }

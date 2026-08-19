@@ -132,6 +132,21 @@ class Themes extends CI_Controller
                 return false;
             }
 
+            // Exactly one theme is meant to be active at a time - the $status == 1 branch below
+            // enforces that by deactivating every other row first. Deactivating the active theme
+            // therefore leaves NONE active, and MyConfig's THEME resolution silently falls back
+            // to the 'default_theme' from config/eshop.php - i.e. the storefront changes theme
+            // as a side effect of a button that only claims to deactivate one. Refuse it and
+            // tell the admin to activate the theme they want instead.
+            if ($status == 0 && (int) $theme['status'] === 1) {
+                $this->response['error'] = true;
+                $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                $this->response['message'] = "This is the active theme. Activate another theme instead of deactivating this one.";
+                print_r(json_encode($this->response));
+                return false;
+            }
+
             $this->db->trans_start();
             if ($status == 1) {
                 $this->db->set('status', 0);
@@ -141,15 +156,13 @@ class Themes extends CI_Controller
             $this->db->set('status', $status);
             $this->db->where('id', $theme_id)->update('themes');
             $this->db->trans_complete();
-            $error = true;
-            if ($this->db->trans_status() === true) {
-                $error = false;
-            }
+            $error = ($this->db->trans_status() === false);
 
             $this->response['error'] = $error;
             $this->response['csrfName'] = $this->security->get_csrf_token_name();
             $this->response['csrfHash'] = $this->security->get_csrf_hash();
-            $this->response['message'] = "Theme changed successfully.";
+            // Was hardcoded to the success text even when the transaction had rolled back.
+            $this->response['message'] = ($error) ? "Theme could not be changed." : "Theme changed successfully.";
             print_r(json_encode($this->response));
         } else {
             redirect('admin/login', 'refresh');

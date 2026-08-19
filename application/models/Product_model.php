@@ -97,7 +97,15 @@ class Product_model extends CI_Model
         $description = $data['pro_input_description'];
         $extra_description = $data['extra_input_description'];
         $tags = (!empty($data['tags'])) ? $data['tags'] : "";
-        $slug   = create_unique_slug($data['pro_input_name'], 'products');
+        // create_unique_slug() must be told which row we're editing, otherwise it finds THIS
+        // product's own existing slug, treats it as a collision and mints "name-1", "name-2",
+        // ... on every save - silently changing the product's public URL
+        // (products/details/<slug>) each time it is edited, breaking every shared link,
+        // bookmark and indexed page for it. Live data already showed products sitting on "-3".
+        $slug_edit_id = (isset($data['edit_product_id']) && !empty($data['edit_product_id'])) ? $data['edit_product_id'] : null;
+        $slug   = ($slug_edit_id !== null)
+            ? create_unique_slug($data['pro_input_name'], 'products', 'slug', 'id', $slug_edit_id)
+            : create_unique_slug($data['pro_input_name'], 'products');
         $main_image_name = $data['pro_input_image'];
         $other_images = (isset($data['other_images']) && !empty($data['other_images'])) ? $data['other_images'] : [];
         if (isset($data['product_type']) && $data['product_type'] == 'digital_product') {

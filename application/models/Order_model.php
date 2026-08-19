@@ -445,18 +445,16 @@ class Order_model extends CI_Model
 
                 if ($promo_code['error'] == false) {
 
-                    if ($promo_code['data'][0]['discount_type'] == 'percentage') {
-                        $promo_code_discount =  (isset($promo_code['data'][0]['is_cashback']) && $promo_code['data'][0]['is_cashback'] == 0) ? floatval($total  * $promo_code['data'][0]['discount'] / 100) : 0;
-                    } else {
-                        $promo_code_discount = (isset($promo_code['data'][0]['is_cashback']) && $promo_code['data'][0]['is_cashback'] == 0) ? $promo_code['data'][0]['discount'] : 0;
-                        // $promo_code_discount = floatval($total - $promo_code['data'][0]['discount']);
-                    }
-                    if ($promo_code_discount <= $promo_code['data'][0]['max_discount_amount']) {
-                        $total = (isset($promo_code['data'][0]['is_cashback']) && $promo_code['data'][0]['is_cashback'] == 0) ? floatval($total) - $promo_code_discount : floatval($total);
-                    } else {
-                        $total = (isset($promo_code['data'][0]['is_cashback']) && $promo_code['data'][0]['is_cashback'] == 0) ? floatval($total) - $promo_code['data'][0]['max_discount_amount'] : floatval($total);
-                        $promo_code_discount = $promo_code['data'][0]['max_discount_amount'];
-                    }
+                    // Take the figure validate_promo_code() already computed instead of
+                    // recomputing it from the raw row. This was a third hand-rolled copy of the
+                    // same arithmetic (the campaign ceiling, the clamp to the cart, and the
+                    // "a cashback code does not reduce the bill" rule), and the copies had
+                    // already drifted apart once - a flat "amount" code worth more than the cart
+                    // wrote orders.total negative here while the cart page floored it at 0.
+                    // checkout_discount is exactly "what this code takes off the amount the
+                    // customer pays now", which is 0 for a cashback code.
+                    $promo_code_discount = floatval($promo_code['data'][0]['checkout_discount']);
+                    $total = floatval($total) - $promo_code_discount;
                 } else {
                     return $promo_code;
                 }

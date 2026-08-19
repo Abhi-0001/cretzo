@@ -100,7 +100,11 @@ class Promo_code extends CI_Controller
             $this->form_validation->set_rules('message', 'Message ', 'trim|required|xss_clean');
             $this->form_validation->set_rules('start_date', 'Start date ', 'trim|required|xss_clean');
             $this->form_validation->set_rules('end_date', 'End date ', 'trim|required|xss_clean');
-            $this->form_validation->set_rules('no_of_users', 'No of Users ', 'trim|required|numeric|xss_clean');
+            // greater_than[0]: a code saved with no_of_users = 0 can never be redeemed by
+            // anybody (validate_promo_code() needs distinct_users < no_of_users) and reports
+            // itself as 'applicable only for first 0 users', which reads as a bug to the
+            // customer rather than as a misconfigured campaign.
+            $this->form_validation->set_rules('no_of_users', 'No of Users ', 'trim|required|numeric|greater_than[0]|xss_clean');
             $this->form_validation->set_rules('minimum_order_amount', 'Minimum Order Amount ', 'trim|numeric|required|xss_clean');
             // 'discount' only had 'numeric' - no bound at all, so a negative discount, or a
             // percentage discount over 100%, could be created via a direct request with no
@@ -116,7 +120,10 @@ class Promo_code extends CI_Controller
             $this->form_validation->set_rules('list_promocode', 'List Promocode ', 'trim|xss_clean');
 
             if ($_POST['repeat_usage'] == '1') {
-                $this->form_validation->set_rules('no_of_repeat_usage', 'No. of Repeat Usage ', 'trim|required|numeric|xss_clean');
+                // Same reasoning as no_of_users: a repeat-usage code with a quota of 0 is dead
+                // on arrival - the first redemption already fails the 'usage < quota' test and
+                // the customer is told they have exceeded a limit they never used.
+                $this->form_validation->set_rules('no_of_repeat_usage', 'No. of Repeat Usage ', 'trim|required|numeric|greater_than[0]|xss_clean');
             }
             $this->form_validation->set_rules('status', 'Status ', 'trim|required|xss_clean');
 

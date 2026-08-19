@@ -763,6 +763,17 @@ class Seller_model extends CI_Model
         // max_product_return_days comes from an admin-editable settings blob and was
         // concatenated straight into SQL. Cast it so a non-numeric value can't reach the query.
         $return_days = isset($settings['max_product_return_days']) ? (int) $settings['max_product_return_days'] : 0;
+
+        // 'return_request_decline' settles too. It used to be 'delivered' alone, and a declined
+        // return moves the item to 'return_request_decline' permanently - so the moment a
+        // customer raised a return that an admin then REFUSED, the seller stopped being
+        // payable for that sale forever. The item is still delivered and still sold; refusing
+        // the return is precisely the decision that the seller keeps the money.
+        //
+        // 'return_request_pending' and 'return_request_approved' are deliberately absent: the
+        // first is undecided and the second is on its way back, and neither should pay out.
+        $settleable_statuses = "('delivered', 'return_request_decline')";
+
         if ($is_date == TRUE) {
             // Was `= '$date'` - an EXACT day match on "delivery date + return window". If the
             // cron didn't run on precisely that calendar day (server down, deploy, DST/timezone
@@ -785,9 +796,9 @@ class Seller_model extends CI_Model
             // COALESCE keeps pre-migration rows working: order items delivered before
             // delivered_at existed and which the 036 backfill could not parse fall back to
             // date_added, i.e. exactly the old behaviour rather than never settling.
-            $where = "oi.active_status='delivered' AND is_credited=0 AND DATE_ADD(DATE_FORMAT(COALESCE(oi.delivered_at, oi.date_added), '%Y-%m-%d'), INTERVAL " . $return_days . " DAY) <= '" . $date . "'";
+            $where = "oi.active_status IN " . $settleable_statuses . " AND is_credited=0 AND DATE_ADD(DATE_FORMAT(COALESCE(oi.delivered_at, oi.date_added), '%Y-%m-%d'), INTERVAL " . $return_days . " DAY) <= '" . $date . "'";
         } else {
-            $where = "oi.active_status='delivered' AND is_credited=0 ";
+            $where = "oi.active_status IN " . $settleable_statuses . " AND is_credited=0 ";
         }
         // No join to product_variants/products/categories here — the old per-category
         // commission lookup needed it, but the slab commission below comes from the

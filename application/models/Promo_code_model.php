@@ -202,42 +202,49 @@ class Promo_code_model extends CI_Model
     }
     function settle_cashback_discount()
     {
-        $return = false;
         $date = date('Y-m-d');
         $settings = get_settings('system_settings', true);
-        $returnable_where = "oi.active_status='delivered' AND o.promo_code != '' AND o.promo_discount <= 0 GROUP BY `o`.`id` HAVING date = '" . $date . "'";
-        $returnable_data = $this->db->select("o.id,o.date_added,o.total,o.final_total,o.promo_code,o.user_id,p.is_returnable,(date_format(o.date_added,'%Y-%m-%d')) as date ")
+        $return_days = isset($settings['max_product_return_days']) ? (int) $settings['max_product_return_days'] : 0;
+
+        // Candidate orders: a promo code was used but no order-level discount was taken off the
+        // bill. That IS a cashback code - place_order() records promo_discount = 0 for one and
+        // this job pays it to the wallet afterwards. Crediting sets promo_discount to the
+        // settled amount, which is what keeps a later run from paying twice.
+        //
+        // Two selection bugs are fixed here.
+        //
+        // 1. The window was decided ONCE for the whole batch. The first query walked every
+        //    candidate order asking "does it contain a returnable product?" and overwrote a
+        //    single $return flag each time, so whichever order MySQL returned last decided the
+        //    window for all of them - an order of returnable goods settled immediately because
+        //    some unrelated order in the same batch was non-returnable, and vice versa. The
+        //    window is now asked per order.
+        //
+        // 2. The due date was an EXACT day match (HAVING date = today). If the cron did not run
+        //    on precisely that calendar day - server down, deploy, timezone drift - the order was
+        //    skipped and, since every later run only ever looks at today again, its cashback was
+        //    never paid at all. Now `due <= today`, so a missed day is caught up on the next run.
+        //    (Same fix, same reason, as settle_seller_commission().)
+        $candidates = $this->db
+            ->select("o.id, o.date_added, o.total, o.final_total, o.promo_code, o.user_id,
+                      (date_format(o.date_added,'%Y-%m-%d')) as order_date,
+                      MAX(COALESCE(p.is_returnable, 0)) as has_returnable", false)
             ->join('order_items oi', 'oi.order_id=o.id', 'left')
             ->join('product_variants pv', 'oi.product_variant_id=pv.id', 'left')
             ->join('products p', 'p.id=pv.product_id', 'left')
-            ->where($returnable_where)
+            ->where("oi.active_status='delivered' AND o.promo_code != '' AND o.promo_discount <= 0")
+            ->group_by('o.id')
             ->get('orders o')->result_array();
-        foreach ($returnable_data as $result) {
-            $res =  $this->db->select('oi.id as item_id, oi.order_id,p.is_returnable')
-                ->join('product_variants pv', 'oi.product_variant_id = pv.id', 'left')
-                ->join('products p', 'p.id = pv.product_id')
-                ->where("oi.order_id", $result['id'])
-                ->where_in('p.is_returnable', [0, 1])
-                ->get('order_items oi')->result_array();
-            $returnable_status = array_column($res, 'is_returnable');
-            if (in_array("1", $returnable_status)) {
-                $return = true;
-            } else {
-                $return = false;
+
+        $data = [];
+        foreach ($candidates as $row) {
+            $due = ($row['has_returnable'] == 1)
+                ? date('Y-m-d', strtotime('+' . $return_days . ' days', strtotime($row['order_date'])))
+                : $row['order_date'];
+            if ($due <= $date) {
+                $data[] = $row;
             }
         }
-        if ($return == true) {
-            $select = "DATE_ADD(date_format(o.date_added,'%Y-%m-%d'), INTERVAL " . $settings['max_product_return_days'] . " DAY) as date";
-        } elseif ($return == false) {
-            $select = "(date_format(o.date_added,'%Y-%m-%d')) as date";
-        } else {
-            $select = "(date_format(o.date_added,'%Y-%m-%d')) as date";
-        }
-        $where = "oi.active_status='delivered' AND o.promo_code != '' AND o.promo_discount <= 0 GROUP BY `o`.`id` HAVING date = '" . $date . "'";
-        $data = $this->db->select("o.id,o.date_added,o.total,o.final_total,o.promo_code,o.user_id,$select ")
-            ->join('order_items oi', 'oi.order_id=o.id', 'left')
-            ->where($where)
-            ->get('orders o')->result_array();
         $wallet_updated = false;
         if (!empty($data)) {
             foreach ($data as $row) {
@@ -245,7 +252,25 @@ class Promo_code_model extends CI_Model
                 $user_id = $row['user_id'];
                 $final_total = $row['final_total'];
 
-                $res = validate_promo_code($promo_code, $user_id, $final_total);
+                // 4th argument true - this is a SETTLEMENT of a code the customer already
+                // redeemed on this order, not a fresh redemption. Called without it, the full
+                // eligibility check ran against the very customer whose usage it was checking
+                // for, so it always came back "The promo has already been redeemed" (and, for a
+                // campaign that had since ended, "not available or expired"). $res['data'] was
+                // then the error payload, $res['data'][0]['final_discount'] was undefined, and
+                // update_wallet_balance() was handed null - which it rejects as "Amount can't be
+                // Zero". Cashback promo codes therefore never paid out at all.
+                $res = validate_promo_code($promo_code, $user_id, $final_total, true);
+
+                if (!empty($res['error']) || !isset($res['data'][0]['final_discount'])) {
+                    // Nothing to settle for this order - skip it rather than crediting a null
+                    // and writing null totals over the order.
+                    $wallet_updated = false;
+                    $response_data['error'] = true;
+                    $response_data['message'] = 'Discount not Added';
+                    continue;
+                }
+
                 $response = update_wallet_balance('credit', $user_id, $res['data'][0]['final_discount'], 'Discounted Amount Credited for Order Item ID  : ' . $row['id']);
 
                 if ($response['error'] == false && $response['error'] == '') {
@@ -269,10 +294,16 @@ class Promo_code_model extends CI_Model
                     $custom_notification =  fetch_details('custom_notifications', ['type' => "settle_cashback_discount"], '');
                     $hashtag_cutomer_name = '< cutomer_name >';
                     $hashtag_application_name = '< application_name >';
-                    $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
-                    $hashtag = html_entity_decode($string);
-                    $data = str_replace(array($hashtag_cutomer_name, $hashtag_application_name), array($user_res[0]['username'], $app_name), $hashtag);
-                    $message = output_escaping(trim($data, '"'));
+                    // Optional template: reading [0]['message'] off an empty result warned on
+                    // every run of this job (there is no such row on a default install). The two
+                    // lines below already treat it as optional.
+                    $message = '';
+                    if (!empty($custom_notification) && isset($custom_notification[0]['message'])) {
+                        $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
+                        $hashtag = html_entity_decode($string);
+                        $replaced = str_replace(array($hashtag_cutomer_name, $hashtag_application_name), array($user_res[0]['username'], $app_name), $hashtag);
+                        $message = output_escaping(trim($replaced, '"'));
+                    }
                     $customer_title = (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Discounted Amount Credited";
                     $customer_msg = (!empty($custom_notification)) ? $message :  'Hello Dear ' . $user_res[0]['username'] . 'Discounted Amount Credited, which orders are delivered. Please take note of it! Regards' . $app_name . '';
                     send_mail($user_res[0]['email'], $customer_title,  $customer_msg);

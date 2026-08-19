@@ -57,7 +57,9 @@ class Home extends CI_Controller
         // die;
         /* Fetching Featured Sections */
 
-        $sections = $this->db->limit($limit, $offset)->order_by('row_order')->get('sections')->result_array();
+        // Honour the publish flag added in migration 046 - an unpublished section must not
+        // render on the homepage.
+        $sections = $this->db->where('status', 1)->limit($limit, $offset)->order_by('row_order')->get('sections')->result_array();
 
         $user_id = null;
 $id = null;

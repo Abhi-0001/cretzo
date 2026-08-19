@@ -37,6 +37,32 @@ class Media extends CI_Controller
         if (print_msg(!has_permissions('create', 'media'), PERMISSION_ERROR_MSG, 'media')) {
             return false;
         }
+
+        // When a POST body exceeds post_max_size, PHP discards both $_POST and $_FILES and hands
+        // the script an empty request. Without this the dropzone got the generic "Files not
+        // Uploaded Successfully..!" (or, on the seller side, a CSRF failure page, since the token
+        // lives in the discarded $_POST) with no hint that the real problem was the batch size.
+        if (empty($_POST) && empty($_FILES) && isset($_SERVER['CONTENT_LENGTH']) && $_SERVER['CONTENT_LENGTH'] > 0) {
+            $this->response['error'] = true;
+            $this->response['csrfName'] = $this->security->get_csrf_token_name();
+            $this->response['csrfHash'] = $this->security->get_csrf_hash();
+            $this->response['message'] = 'That upload is larger than this server accepts (post limit: ' . ini_get('post_max_size') . ', per-file limit: ' . ini_get('upload_max_filesize') . '). Upload fewer or smaller files at a time.';
+            print_r(json_encode($this->response));
+            return false;
+        }
+
+        // $_FILES['documents'] was dereferenced unconditionally below - a request that reaches
+        // this action without the field (a bare GET, a mis-wired caller) died on an undefined
+        // index instead of answering with JSON the dropzone can read.
+        if (!isset($_FILES['documents']['name']) || !is_array($_FILES['documents']['name'])) {
+            $this->response['error'] = true;
+            $this->response['csrfName'] = $this->security->get_csrf_token_name();
+            $this->response['csrfHash'] = $this->security->get_csrf_hash();
+            $this->response['message'] = 'No files were received.';
+            print_r(json_encode($this->response));
+            return false;
+        }
+
         $year = date('Y');
         $target_path = FCPATH . MEDIA_PATH . $year . '/';
         $sub_directory = MEDIA_PATH . $year . '/';

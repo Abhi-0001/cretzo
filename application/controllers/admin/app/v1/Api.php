@@ -396,6 +396,20 @@ Defined Methods:-
         if ($this->order_model->update_order(['status' => $_POST['status']], ['id' => $order_item_res[0]['id']], true, 'order_items')) {
             $this->order_model->update_order(['active_status' => $_POST['status']], ['id' => $order_item_res[0]['id']], false, 'order_items');
             process_refund($order_item_res[0]['id'], $_POST['status'], 'order_items');
+
+            // Restoring stock is PER ITEM and must not depend on this being the last line of
+            // the order. It used to sit inside the counter check below, so cancelling or
+            // returning one line of a multi-item order refunded the customer and left that
+            // line's stock deducted - only the final line of the order ever put anything back.
+            // Idempotent (migration 044), so the return-request approval having already
+            // restored it is harmless.
+            if (trim($_POST['status']) == 'cancelled' || trim($_POST['status']) == 'returned') {
+                restore_order_item_stock(
+                    $_POST['order_item_id'],
+                    (trim($_POST['status']) == 'returned') ? 'Order item returned' : 'Order item cancelled by admin'
+                );
+            }
+
             if (($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_cancel_counter']) + 1 && $_POST['status'] == 'cancelled') ||  ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_return_counter']) + 1 && $_POST['status'] == 'returned') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_delivered_counter']) + 1 && $_POST['status'] == 'delivered') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_processed_counter']) + 1 && $_POST['status'] == 'processed') || ($order_item_res[0]['order_counter'] == intval($order_item_res[0]['order_shipped_counter']) + 1 && $_POST['status'] == 'shipped')) {
                 if ($this->order_model->update_order(['status' => $_POST['status']], ['id' => $order_item_res[0]['order_id']], true)) {
                     $this->order_model->update_order(['active_status' => $_POST['status']], ['id' => $order_item_res[0]['order_id']]);
@@ -403,14 +417,6 @@ Defined Methods:-
                     /* process the refer and earn */
                     $user = fetch_details('orders', ['id' => $order_item_res[0]['order_id']], 'user_id');
                     $user_id = $user[0]['user_id'];
-                    if (trim($_POST['status']) == 'cancelled' || trim($_POST['status']) == 'returned') {
-                        // Idempotent (migration 044). Marking an item returned after its return
-                        // request was approved used to restore the stock a second time.
-                        restore_order_item_stock(
-                            $_POST['order_item_id'],
-                            (trim($_POST['status']) == 'returned') ? 'Order item returned' : 'Order item cancelled by admin'
-                        );
-                    }
                     $response = process_referral_bonus($user_id, $order_item_res[0]['order_id'], $_POST['status']);
                     $settings = get_settings('system_settings', true);
                     $app_name = isset($settings['app_name']) && !empty($settings['app_name']) ? $settings['app_name'] : '';

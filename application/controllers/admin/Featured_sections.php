@@ -24,10 +24,20 @@ class Featured_sections extends CI_Controller
             $this->data['title'] = 'Featured Sections Management | ' . $settings['app_name'];
             $this->data['meta_description'] = ' Featured Sections Management  | ' . $settings['app_name'];
             $this->data['categories'] = $this->category_model->get_categories();
-            if (isset($_GET['edit_id'])) {
-                $featured_data = fetch_details('sections', ['id' => $_GET['edit_id']]);
-                $this->data['product_details'] = $this->db->where_in('id', explode(',', $featured_data[0]['product_ids']))->get('products')->result_array();
-                $this->data['fetched_data'] = $featured_data;
+            // Was a bare isset() followed by an unconditional $featured_data[0] - an ?edit_id=
+                // that is empty, non-numeric, or names a deleted section blew up on "Undefined
+                // array key 0". Also guard the product_ids lookup: a section with no products
+                // (product_ids NULL) explode()d to [''] and asked for WHERE id IN ('').
+            $edit_id = $this->input->get('edit_id', true);
+            if (!empty($edit_id) && is_numeric($edit_id)) {
+                $featured_data = fetch_details('sections', ['id' => (int) $edit_id]);
+                if (!empty($featured_data)) {
+                    $product_ids = array_filter(explode(',', (string) $featured_data[0]['product_ids']), 'strlen');
+                    $this->data['product_details'] = (!empty($product_ids))
+                        ? $this->db->where_in('id', $product_ids)->get('products')->result_array()
+                        : [];
+                    $this->data['fetched_data'] = $featured_data;
+                }
             }
             $this->load->view('admin/template', $this->data);
         } else {
