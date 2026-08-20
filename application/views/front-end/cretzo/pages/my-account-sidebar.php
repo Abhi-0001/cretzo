@@ -79,6 +79,14 @@
                     <?= !empty($this->lang->line('chat')) ? $this->lang->line('chat') : 'Chat' ?>
             </p>
         </a>
+        <a class="rounded text-decoration-none d-flex gap-1 align-items-center <?= ($current_url == base_url('my-account/support')) ? 'active h6 text-primary' : '' ?>" id="user-support" href="<?= base_url('my-account/support') ?>">
+            <div>
+                <i class="uil uil-ticket fs-22"></i>
+            </div>
+            <p class="mb-0">
+                <?= !empty($this->lang->line('support')) ? $this->lang->line('support') : 'Support' ?>
+            </p>
+        </a>
     </li>
     <li class="nav-item p-1">
         <a class="rounded text-decoration-none d-flex gap-1 align-items-center <?= ($current_url == base_url('login/logout')) ? 'active h6 text-primary' : '' ?>" id="logout_btn" href="<?= base_url('login/logout') ?>">

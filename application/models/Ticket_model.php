@@ -16,7 +16,7 @@ class Ticket_model extends CI_Model
         $data = escape_array($data);
         if (isset($data['edit_ticket_status'])) {
             $ticket_data = [
-                'status' =>  $data['status'],
+                'status' =>  in_array((string) $data['status'], [PENDING, OPENED, RESOLVED, CLOSED, REOPEN], true) ? $data['status'] : PENDING,
             ];
         } else {
             $ticket_data = [
@@ -25,7 +25,11 @@ class Ticket_model extends CI_Model
                 'subject' => $data['subject'],
                 'email' => $data['email'],
                 'description' => $data['description'],
-                'status' =>  $data['status'],
+                // status is a tinyint whose only meaningful values are PENDING..REOPEN (1-5).
+                // Callers passed whatever they were given; anything outside that range renders
+                // as a blank badge in the admin list and is matched by none of the status
+                // filters, so the ticket becomes effectively invisible.
+                'status' =>  in_array((string) $data['status'], [PENDING, OPENED, RESOLVED, CLOSED, REOPEN], true) ? $data['status'] : PENDING,
             ];
         }
         if (isset($data['edit_ticket'])) {
@@ -69,24 +73,85 @@ class Ticket_model extends CI_Model
 
     function add_ticket_message($data)
     {
+        // escape_array() flattens each value with escape_str(); run it before pulling the
+        // attachment list out, but keep the list as an ARRAY. It used to be json_encode()d
+        // whatever shape it arrived in - the admin panel posts attachments[] (an array, fine)
+        // while other callers pass a single string, and json_encode('a/b.png') stores a bare
+        // JSON string. Reading that back, json_decode(..., 1) returns a string and the
+        // `foreach ($attachments as $row1)` in get_messages() raised a PHP 8 TypeError, taking
+        // the whole ticket thread down with it.
+        $attachments = (isset($data['attachments']) && $data['attachments'] !== '' && $data['attachments'] !== []) ? $data['attachments'] : null;
         $data = escape_array($data);
 
         $ticket_msg_data = [
             'user_type' => $data['user_type'],
             'user_id' => $data['user_id'],
             'ticket_id' => $data['ticket_id'],
-            'message' => $data['message']
+            'message' => isset($data['message']) ? $data['message'] : ''
         ];
-        if (isset($data['attachments']) && !empty($data['attachments'])) {
-            $ticket_msg_data['attachments'] = json_encode($data['attachments']);
+        if ($attachments !== null) {
+            $attachments = is_array($attachments) ? array_values($attachments) : [$attachments];
+            // Drop empty slots (the media picker submits a blank hidden input when nothing was
+            // chosen), otherwise the thread renders a broken-image tile per empty entry.
+            $attachments = array_values(array_filter($attachments, function ($a) {
+                return is_string($a) && trim($a) !== '';
+            }));
+            if (!empty($attachments)) {
+                $ticket_msg_data['attachments'] = json_encode($attachments);
+            }
         }
 
-        $this->db->insert('ticket_messages', $ticket_msg_data);
-        $insert_id = $this->db->insert_id();
-        if (!empty($insert_id)) {
-            return  $insert_id;
-        } else {
+        // A message with neither text nor an attachment is not a message.
+        if (trim((string) $ticket_msg_data['message']) === '' && empty($ticket_msg_data['attachments'])) {
             return false;
+        }
+
+        // Guard against orphaned rows: ticket_id used to be inserted unchecked, so a bad or
+        // stale id silently produced a message attached to a ticket that does not exist and can
+        // therefore never be read by anybody.
+        if (empty($ticket_msg_data['ticket_id']) || $this->db->where('id', (int) $ticket_msg_data['ticket_id'])->count_all_results('tickets') < 1) {
+            return false;
+        }
+
+        if (!$this->db->insert('ticket_messages', $ticket_msg_data)) {
+            return false;
+        }
+        $insert_id = $this->db->insert_id();
+
+        // Replying to a ticket should also move it out of PENDING and stamp last_updated, so
+        // the admin list surfaces active conversations instead of leaving every ticket showing
+        // its original creation state forever.
+        if ($insert_id > 0) {
+            $this->touch_ticket_on_reply((int) $ticket_msg_data['ticket_id'], (string) $data['user_type']);
+        }
+
+        return ($insert_id > 0) ? $insert_id : false;
+    }
+
+    /**
+     * A PENDING ticket becomes OPENED as soon as anyone replies on it; a RESOLVED/CLOSED ticket
+     * that the customer replies on is REOPENED. Admin replies never reopen a closed ticket.
+     */
+    private function touch_ticket_on_reply($ticket_id, $user_type)
+    {
+        $ticket = $this->db->select('status')->where('id', $ticket_id)->get('tickets')->row_array();
+        if (empty($ticket)) {
+            return;
+        }
+        $status = (string) $ticket['status'];
+        $new_status = null;
+
+        if ($status === PENDING) {
+            $new_status = OPENED;
+        } elseif ($user_type !== 'admin' && ($status === RESOLVED || $status === CLOSED)) {
+            $new_status = REOPEN;
+        }
+
+        if ($new_status !== null) {
+            $this->db->set('status', $new_status)->where('id', $ticket_id)->update('tickets');
+        } else {
+            // last_updated is ON UPDATE CURRENT_TIMESTAMP, so it only moves if a column changes.
+            $this->db->set('last_updated', 'CURRENT_TIMESTAMP', false)->where('id', $ticket_id)->update('tickets');
         }
     }
 
@@ -482,13 +547,47 @@ class Ticket_model extends CI_Model
 
     function delete_ticket($ticket_id)
     {
-        if (delete_details(['id' => $ticket_id], 'tickets') == TRUE) {
-            if (delete_details(['ticket_id' => $ticket_id], 'ticket_messages') == TRUE) {
-                return true;
-            }
-        } else {
+        $ticket_id = (int) $ticket_id;
+        if ($ticket_id < 1) {
             return false;
         }
+
+        // Was nested so that the function returned NULL (falsy -> "Something Went Wrong" in the
+        // UI) whenever the messages delete did not report success, even though the ticket itself
+        // had already been removed. Also deleted the ticket BEFORE its messages, so a failure
+        // half-way left the messages orphaned; both writes now run in one transaction, and the
+        // attachment files are cleaned up rather than left on disk forever.
+        $messages = $this->db->select('attachments')->where('ticket_id', $ticket_id)->get('ticket_messages')->result_array();
+
+        $this->db->trans_start();
+        $this->db->where('ticket_id', $ticket_id)->delete('ticket_messages');
+        $this->db->where('id', $ticket_id)->delete('tickets');
+        $this->db->trans_complete();
+
+        if ($this->db->trans_status() === FALSE) {
+            return false;
+        }
+
+        foreach ($messages as $message) {
+            if (empty($message['attachments'])) {
+                continue;
+            }
+            $files = json_decode($message['attachments'], true);
+            if (!is_array($files)) {
+                continue;
+            }
+            foreach ($files as $file) {
+                if (!is_string($file) || trim($file) === '') {
+                    continue;
+                }
+                $path = FCPATH . ltrim($file, '/');
+                if (is_file($path)) {
+                    unlink($path);
+                }
+            }
+        }
+
+        return true;
     }
 
     function get_ticket_type_list()

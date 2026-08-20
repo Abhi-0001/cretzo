@@ -604,10 +604,28 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
         $cs = $t->db->escape($filter['customer_state']);
         $t->db->where("(sd.is_gst_registered = 1 OR LOWER(TRIM(sd.state)) = LOWER(TRIM($cs)))", null, false);
     }
-    if (!isset($filter['flag']) && empty($filter['flag'])) {
+    /*
+     * A product is excluded here when its category's status is neither '1' nor '0' - which in
+     * practice means NULL, and NULL happens in two very different situations:
+     *
+     *   - `categories.status` is nullable with no default, so a category row created without an
+     *     explicit status silently swallows every product filed under it. Seven categories on
+     *     this database are in that state, including real ones ("HOME & LIVING", "FOOD &
+     *     SNACKS", "Bags"). Migration 050 backfills them and adds a default, and this clause now
+     *     treats an existing-but-unset category as visible so the trap cannot reopen.
+     *
+     *   - the join found no category row at all, because `products.category_id` points at a
+     *     category that no longer exists. 177 products here do exactly that (their category ids
+     *     are all above the highest surviving category id). Those stay excluded from storefront
+     *     reads - a product with no category cannot be browsed or filtered coherently - but
+     *     `ignore_category_status` lets administrative reads such as Manage Stock list them, so
+     *     they are at least visible to whoever has to repair them.
+     */
+    if (!isset($filter['flag']) && empty($filter['flag']) && empty($filter['ignore_category_status'])) {
         $t->db->group_Start();
         $t->db->or_where('c.status', '1');
         $t->db->or_where('c.status', '0');
+        $t->db->or_where('(c.id IS NOT NULL AND c.status IS NULL)', null, false);
         $t->db->group_End();
     }
     if (isset($filter['discount']) && !empty($filter['discount']) && $filter['discount'] != "") {
@@ -640,9 +658,19 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
 
     $count = isset($filter) && !empty($filter['flag']) ? 'count(DISTINCT(p.id))' : 'count(DISTINCT(p.id))';
     $discount_filter = (isset($filter['discount']) && !empty($filter['discount'])) ? ' , GROUP_CONCAT( IF( ( IF( pv.special_price > 0, ((pv.price - pv.special_price) / pv.price) * 100, 0 ) ) > ' . $filter['discount'] . ', ( IF( pv.special_price > 0, ((pv.price - pv.special_price) / pv.price) * 100, 0 ) ), 0 ) ) AS cal_discount_percentage ' : '';
+    /*
+     * `seller_data` is joined LEFT here to match the data query above.
+     *
+     * It used to be an INNER join (no third argument) while the data query LEFT-joins the same
+     * table, so the two disagreed about any product whose seller has no `seller_data` row: the
+     * rows came back but the total counted them out. Three products on this database are in that
+     * state, which is why the stock report advertised 267 records and returned 270. Every list
+     * built on fetch_product() paginates on this number, so the last page silently hid rows and
+     * the record count was wrong wherever such a product exists.
+     */
     $product_count = $t->db->select('count(DISTINCT(p.id)) as total , GROUP_CONCAT(pa.attribute_value_ids) as attr_value_ids' . $discount_filter)
         ->join(" categories c", "p.category_id=c.id ", 'LEFT')
-        ->join(" seller_data sd", "p.seller_id=sd.user_id ")
+        ->join(" seller_data sd", "p.seller_id=sd.user_id ", 'LEFT')
         ->join('`product_variants` pv', 'p.id = pv.product_id', 'LEFT')
         ->join('`product_attributes` pa', ' pa.product_id = p.id ', 'LEFT');
 
@@ -732,10 +760,12 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
         $t->db->where('(p.stock != "" or pv.stock != "")');
     }
     $product_count->where($where);
-    if (!isset($filter['flag']) && empty($filter['flag'])) {
+    // Must mirror the data query above exactly, or the row count and the rows disagree.
+    if (!isset($filter['flag']) && empty($filter['flag']) && empty($filter['ignore_category_status'])) {
         $product_count->group_Start();
         $product_count->or_where('c.status', '1');
         $product_count->or_where('c.status', '0');
+        $product_count->or_where('(c.id IS NOT NULL AND c.status IS NULL)', null, false);
         $product_count->group_End();
     }
 
@@ -753,7 +783,18 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
     $min_price = $price_range['min'];
     $max_price = $price_range['max'];
 
-
+    /*
+     * `total` used to be assigned ONLY inside the `if (!empty($product))` block below, so an
+     * empty result set returned no `total` key at all. Every caller reads it unconditionally -
+     * e.g. Product_model::get_stock_details() does `$total = $products['total']` - which meant
+     * an empty list produced an "Undefined array key total" warning printed straight into the
+     * JSON body, plus `"total": null`. bootstrap-table then has no row count to page with.
+     * Confirmed live on Manage Stock (admin and seller).
+     *
+     * The count query has already run at this point, so the real figure is available whether or
+     * not any rows came back.
+     */
+    $response['total'] = isset($count_res[0]['total']) ? (int) $count_res[0]['total'] : 0;
 
     if (!empty($product)) {
 
@@ -1032,16 +1073,33 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
                 $n++;
             }
             $variant_attributes = [];
-            $attributes_array = explode(',', $product[$i]['variants'][0]['attr_name']);
+            /*
+             * A product with no variant rows has an empty `variants` array, so [0] was an
+             * "Undefined array key 0" warning immediately followed by "Trying to access array
+             * offset on value of type null". 13 ACTIVE products on this database have no
+             * variants, and in development those warnings print into the response body and
+             * corrupt the JSON the product lists are parsing.
+             */
+            $first_variant_attr_names = isset($product[$i]['variants'][0]['attr_name'])
+                ? $product[$i]['variants'][0]['attr_name']
+                : '';
+            $attributes_array = ($first_variant_attr_names !== '') ? explode(',', $first_variant_attr_names) : [];
 
             foreach ($attributes_array as $attribute) {
                 $attribute = trim($attribute);
                 $key = array_search($attribute, array_column($product[$i]['attributes'], 'name'), false);
-                if (($key === 0 || !empty($key)) && isset($product[0]['attributes'][$key])) {
-                    $variant_attributes[$key]['ids'] = $product[0]['attributes'][$key]['ids'];
-                    $variant_attributes[$key]['values'] = $product[0]['attributes'][$key]['value'];
-                    $variant_attributes[$key]['swatche_type'] = $product[0]['attributes'][$key]['swatche_type'];
-                    $variant_attributes[$key]['swatche_value'] = $product[0]['attributes'][$key]['swatche_value'];
+                /*
+                 * These four reads were indexed $product[0] while $key was searched for in
+                 * $product[$i] - so for every product after the first in a list, the attribute
+                 * ids, values and colour/image swatches were copied off the FIRST product in the
+                 * result set. It looked correct on product-detail pages (one product, $i is
+                 * always 0) and silently wrong on listings, category pages and search results.
+                 */
+                if (($key === 0 || !empty($key)) && isset($product[$i]['attributes'][$key])) {
+                    $variant_attributes[$key]['ids'] = $product[$i]['attributes'][$key]['ids'];
+                    $variant_attributes[$key]['values'] = $product[$i]['attributes'][$key]['value'];
+                    $variant_attributes[$key]['swatche_type'] = $product[$i]['attributes'][$key]['swatche_type'];
+                    $variant_attributes[$key]['swatche_value'] = $product[$i]['attributes'][$key]['swatche_value'];
                     $variant_attributes[$key]['attr_name'] = $attribute;
                 }
             }
@@ -1053,7 +1111,11 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
         } else {
             $dicounted_total = 0;
         }
-        $response['total'] = (isset($filter) && !empty($filter['discount'])) ? count($dicounted_total) : $count_res[0]['total'];
+        // Overridden here only for the discount filter, which counts differently. Otherwise the
+        // value set before this block (which also covers the empty-result case) already stands.
+        $response['total'] = (isset($filter) && !empty($filter['discount']))
+            ? count($dicounted_total)
+            : (isset($count_res[0]['total']) ? (int) $count_res[0]['total'] : 0);
 
         array_push($attribute_values_ids, $count_res[0]['attr_value_ids']);
         $attribute_values_ids = implode(",", $attribute_values_ids);
@@ -1494,22 +1556,80 @@ function update_wallet_balance($operation, $user_id, $amount, $message = "Balanc
     return $response;
 }
 
+/**
+ * True when push notifications cannot possibly be delivered, so callers can skip the network
+ * round trip instead of blocking a user-facing request on a call that is guaranteed to fail.
+ *
+ * A fresh install ships `fcm_server_key` as the literal placeholder string
+ * "your_fcm_server_key", which is non-empty - so every `if (empty($fcm_key))` guard in this
+ * codebase passed and every notification attempt went out with a bogus credential, waited for
+ * the round trip, and threw the result away.
+ */
+function fcm_is_configured()
+{
+    $key = trim((string) get_settings('fcm_server_key'));
+    if ($key === '' || $key === 'NULL') {
+        return false;
+    }
+    // Placeholders shipped by the base product / left in by an incomplete setup.
+    $placeholders = ['your_fcm_server_key', 'fcm_server_key', 'your-fcm-server-key', 'xxxx'];
+    return !in_array(strtolower($key), $placeholders, true);
+}
+
 function send_notification($fcmMsg, $registrationIDs_chunks)
 {
+    $fcmFields = [
+        'priority'     => 'high',
+        'notification' => $fcmMsg,
+        'data'         => $fcmMsg,
+    ];
 
-    $fcmFields = [];
+    if (!fcm_is_configured()) {
+        // Logged rather than silently ignored: "notifications don't arrive" was previously
+        // indistinguishable from "notifications were never attempted".
+        log_message('error', 'send_notification: FCM server key is not configured (Admin > Notification Settings) - push skipped.');
+        return $fcmFields;
+    }
+
+    // A single scalar token, or a flat array of tokens, used to be passed straight through as if
+    // it were already a list of chunks. `foreach` over a scalar is a PHP 8 error and a flat token
+    // list ended up sending one request per token with `to` set to that token, so normalise the
+    // shape here instead of trusting ~60 call sites to agree on it.
+    if (!is_array($registrationIDs_chunks)) {
+        $registrationIDs_chunks = [[$registrationIDs_chunks]];
+    } elseif (!empty($registrationIDs_chunks) && !is_array(reset($registrationIDs_chunks))) {
+        $registrationIDs_chunks = array_chunk($registrationIDs_chunks, 1000);
+    }
+
+    $sent = 0;
     foreach ($registrationIDs_chunks as $registrationIDs) {
+        // Callers routinely build these lists with `$fcm_ids[0][] = $row['fcm_id']` without
+        // checking the column is populated, so the arrays arriving here are full of null / ''
+        // / the literal string 'NULL'. FCM rejects the whole request when the token list
+        // contains one, which meant one user with no device silently suppressed the
+        // notification for everyone else in the same batch.
+        $registrationIDs = array_values(array_unique(array_filter(
+            is_array($registrationIDs) ? $registrationIDs : [$registrationIDs],
+            function ($token) {
+                $token = is_string($token) ? trim($token) : $token;
+                return !empty($token) && $token !== 'NULL' && $token !== 'null';
+            }
+        )));
+
+        if (empty($registrationIDs)) {
+            continue;
+        }
+
         $fcmFields = array(
             'priority' => 'high',
             'notification' => $fcmMsg,
             'data' => $fcmMsg,
         );
-        if (is_array($registrationIDs)) {
-            $fcmFields['registration_ids'] = $registrationIDs;  // expects an array of ids
+        if (count($registrationIDs) > 1) {
+            $fcmFields['registration_ids'] = $registrationIDs;
         } else {
-            $fcmFields['to'] = $registrationIDs;  // expects an array of ids
+            $fcmFields['to'] = reset($registrationIDs);
         }
-        // print_r($fcmFields);
 
         $headers = array(
             'Authorization: key=' . get_settings('fcm_server_key'),
@@ -1522,11 +1642,225 @@ function send_notification($fcmMsg, $registrationIDs_chunks)
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        // No timeouts at all previously: an unreachable or slow FCM endpoint stalled the
+        // customer's checkout / ticket reply / status change for as long as curl's default
+        // (which is effectively forever for the connect phase).
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($fcmFields));
         $result = curl_exec($ch);
+        $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curl_error = curl_error($ch);
         curl_close($ch);
+
+        // The result was assigned to a variable and then discarded, so a rejected credential,
+        // an expired token or the legacy endpoint being retired all looked identical to success.
+        if ($result === false || $status < 200 || $status > 299) {
+            log_message('error', 'send_notification: FCM request failed (http ' . $status . ') ' . substr((string) ($curl_error !== '' ? $curl_error : $result), 0, 300));
+        } else {
+            $sent++;
+        }
     }
+
+    $fcmFields['sent_batches'] = $sent;
     return $fcmFields;
+}
+
+/**
+ * Records an in-app notification for one specific user, so it shows on
+ * My Account > Notifications even when push delivery is unavailable.
+ *
+ * Push was the ONLY delivery channel for every event-driven notification in this codebase
+ * (ticket replies, status changes, order events). With the FCM key unset - the default - those
+ * events produced no trace anywhere the customer could see. This writes the same `notifications`
+ * row shape the admin "Send Notification" screen produces, scoped to a single user.
+ */
+function add_user_notification($user_id, $title, $message, $type = 'default', $link = '')
+{
+    $t = &get_instance();
+    $user_id = (int) $user_id;
+    if ($user_id < 1) {
+        return false;
+    }
+
+    $row = [
+        'title'    => mb_substr((string) $title, 0, 128),
+        'message'  => mb_substr((string) $message, 0, 512),
+        // notifications.type was varchar(12) - too narrow for the type strings this product
+        // itself writes ('notification_url', 'ticket_message', 'ticket_status'), all of which
+        // were truncated mid-word on insert so nothing downstream could match on them.
+        // Migration 047 widens the column to 64; keep the guard in step with it.
+        'type'     => mb_substr((string) $type, 0, 64),
+        'type_id'  => '',
+        'send_to'  => 'specific_user',
+        // Stored in the same shape the admin screen uses (json array of id strings) so
+        // Notification_model's per-user filter matches both.
+        'users_id' => json_encode([(string) $user_id]),
+        'link'     => (string) $link,
+    ];
+
+    return (bool) $t->db->insert('notifications', $row);
+}
+
+/**
+ * Resolves an admin-authored custom notification template by type, falling back to the supplied
+ * defaults when no row exists.
+ *
+ * Every call site duplicated this block, and each copy indexed $custom_notification[0] without
+ * checking the lookup returned anything - with an empty `custom_notifications` table (the
+ * default) that is an "Undefined array key 0" warning printed straight into the JSON response
+ * body, corrupting it for the caller.
+ */
+function get_custom_notification_template($type, $default_title, $default_message)
+{
+    $settings = get_settings('system_settings', true);
+    $app_name = !empty($settings['app_name']) ? $settings['app_name'] : '';
+
+    $custom = fetch_details('custom_notifications', ['type' => $type], '*', 1);
+
+    $title   = $default_title;
+    $message = $default_message;
+
+    if (!empty($custom) && !empty($custom[0]['message'])) {
+        $title = !empty($custom[0]['title']) ? $custom[0]['title'] : $default_title;
+        $decoded = html_entity_decode(json_encode($custom[0]['message'], JSON_UNESCAPED_UNICODE));
+        $message = output_escaping(trim(str_replace('< application_name >', $app_name, $decoded), '"'));
+    }
+
+    return ['title' => $title, 'message' => $message];
+}
+
+/**
+ * Single notification trigger for the support-ticket system, used by both the admin panel and
+ * the app API so the two cannot drift apart.
+ *
+ * Before this existed, an admin replying to a ticket from the admin panel notified nobody at all
+ * (only a status CHANGE did), so a customer had no way of knowing a reply had arrived; and a
+ * customer replying via the app notified admins by push only, which is dead whenever FCM is
+ * unconfigured.
+ *
+ * @param string $event 'message' or 'status'
+ * @param string $actor 'admin' or 'user' - who performed the action
+ */
+function notify_ticket_event($ticket_id, $event, $actor)
+{
+    $t = &get_instance();
+    $ticket_id = (int) $ticket_id;
+    if ($ticket_id < 1) {
+        return false;
+    }
+
+    $ticket = fetch_details('tickets', ['id' => $ticket_id], '*', 1);
+    if (empty($ticket)) {
+        return false;
+    }
+    $ticket = $ticket[0];
+
+    $settings   = get_settings('system_settings', true);
+    $app_name   = !empty($settings['app_name']) ? $settings['app_name'] : 'Support';
+    $status_map = [
+        PENDING  => 'Pending',
+        OPENED   => 'Opened',
+        RESOLVED => 'Resolved',
+        CLOSED   => 'Closed',
+        REOPEN   => 'Reopened',
+    ];
+    $status_label = isset($status_map[(string) $ticket['status']]) ? $status_map[(string) $ticket['status']] : 'Updated';
+    $subject      = (string) $ticket['subject'];
+
+    if ($actor === 'admin') {
+        /* ---------------- notify the customer ---------------- */
+        $owner_id = (int) $ticket['user_id'];
+        if ($owner_id < 1) {
+            return false;
+        }
+
+        if ($event === 'status') {
+            $tpl = get_custom_notification_template(
+                'ticket_status',
+                'Your ticket status has been updated',
+                'Ticket #' . $ticket_id . ' (' . $subject . ') is now ' . $status_label . '.'
+            );
+        } else {
+            $tpl = get_custom_notification_template(
+                'ticket_message',
+                'New reply on your support ticket',
+                'Our team replied to ticket #' . $ticket_id . ' (' . $subject . ').'
+            );
+        }
+
+        add_user_notification($owner_id, $tpl['title'], $tpl['message'], $event === 'status' ? 'ticket_status' : 'ticket_message');
+
+        $owner = fetch_details('users', ['id' => $owner_id], 'fcm_id,email,username', 1);
+        if (!empty($owner)) {
+            if (!empty($owner[0]['fcm_id'])) {
+                send_notification([
+                    'title'        => $tpl['title'],
+                    'body'         => $tpl['message'],
+                    'type'         => $event === 'status' ? 'ticket_status' : 'ticket_message',
+                    'type_id'      => (string) $ticket_id,
+                    'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
+                ], [[$owner[0]['fcm_id']]]);
+            }
+
+            // Email is the only channel that reaches a customer who is not currently in the app
+            // and has push disabled; the ticket system had no email step whatsoever.
+            $to = !empty($ticket['email']) ? $ticket['email'] : (!empty($owner[0]['email']) ? $owner[0]['email'] : '');
+            if (!empty($to) && filter_var($to, FILTER_VALIDATE_EMAIL)) {
+                $body = '<p>Hi ' . html_escape((string) $owner[0]['username']) . ',</p>'
+                    . '<p>' . html_escape($tpl['message']) . '</p>'
+                    . '<p><strong>Ticket #' . $ticket_id . '</strong> &mdash; ' . html_escape($subject) . '<br>'
+                    . 'Status: ' . html_escape($status_label) . '</p>'
+                    . '<p>You can view the full conversation here: '
+                    . '<a href="' . base_url('my-account/support?ticket_id=' . $ticket_id) . '">View ticket</a></p>'
+                    . '<p>&mdash; ' . html_escape($app_name) . '</p>';
+                send_mail($to, $tpl['title'] . ' - ' . $app_name, $body);
+            }
+        }
+
+        return true;
+    }
+
+    /* ---------------- notify the admins ---------------- */
+    if ($event === 'created') {
+        $title = 'New support ticket #' . $ticket_id;
+        $body  = 'A customer raised ticket #' . $ticket_id . ' (' . $subject . ').';
+    } elseif ($event === 'status') {
+        $title = 'Ticket #' . $ticket_id . ' is now ' . $status_label;
+        $body  = 'The customer set ticket #' . $ticket_id . ' (' . $subject . ') to ' . $status_label . '.';
+    } else {
+        $title = 'New ticket message #' . $ticket_id;
+        $body  = 'A customer replied to ticket #' . $ticket_id . ' (' . $subject . ').';
+    }
+
+    // The admin bell reads `system_notification`; ticket activity never wrote there, so a reply
+    // arriving overnight was invisible until somebody happened to open the tickets page.
+    $t->db->insert('system_notification', [
+        'title'   => mb_substr($title, 0, 256),
+        'message' => mb_substr($body, 0, 512),
+        'type'    => 'ticket_message',
+        'type_id' => $ticket_id,
+        'read_by' => 0,
+    ]);
+
+    $staff = $t->db->select('u.fcm_id')
+        ->join('users u', 'u.id = up.user_id', 'inner')
+        ->where('u.fcm_id IS NOT NULL')
+        ->where('u.fcm_id !=', '')
+        ->get('user_permissions up')
+        ->result_array();
+
+    if (!empty($staff)) {
+        send_notification([
+            'title'        => $title,
+            'body'         => $body,
+            'type'         => 'ticket_message',
+            'type_id'      => (string) $ticket_id,
+            'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
+        ], [array_column($staff, 'fcm_id')]);
+    }
+
+    return true;
 }
 
 function get_attribute_values_by_pid($id)
@@ -1934,6 +2268,8 @@ function update_stock($product_variant_ids, $qtns, $type = '')
             continue;
         }
 
+        $mirror_to_siblings = null; // set only by the product-level branch below
+
         // stock_type is free text in practice: NULL / '' mean stock management is off, and 10
         // live products store the literal string 'simple_product' instead of 0. Under PHP 8
         // 'simple_product' == 0 is FALSE (it was TRUE on PHP 7), so those products matched no
@@ -1948,15 +2284,43 @@ function update_stock($product_variant_ids, $qtns, $type = '')
             $table = 'products';
             $where = ['id' => $row['p_id']];
             $current = $row['p_stock'];
+            // Which row the audit log should re-read afterwards. Same as $where here.
+            $audit_where = $where;
         } elseif ($stock_type === 1) {
-            // Product level: every variant of the product shares one number.
+            /*
+             * Product level: every variant of the product is meant to hold ONE shared number.
+             *
+             * This used to update `WHERE product_id = X`, applying `stock + delta` to each
+             * variant row separately. That looks equivalent, but it only is while the rows
+             * already agree - and once they disagree, a relative update preserves the gap
+             * forever. Measured on this database: product 25 "Handmade Hair clips" is the one
+             * product-level product and its three variants hold 12, 76 and 76. Nothing can ever
+             * bring those together, so a customer buying the 76 variant is checked against 76
+             * while the product really has 12 - overselling by design, indefinitely.
+             *
+             * So the movement is applied to the ordered variant only (relative, therefore still
+             * safe against two concurrent checkouts), and the siblings are then mirrored onto the
+             * result further down. The first movement collapses the divergence permanently.
+             */
             $table = 'product_variants';
-            $where = ['product_id' => $row['p_id']];
+            $where = ['id' => $row['pv_id']];
+            $mirror_to_siblings = $row['p_id'];
             $current = $row['pv_stock'];
+            /*
+             * ...but the audit log must re-read the SAME row it recorded `stock_before` from.
+             * It used to re-read with $where, i.e. `WHERE product_id = X`, and take row_array()
+             * off a multi-row result - so `stock_after` came from whichever variant MySQL
+             * returned first, which is generally NOT the variant that was ordered and can even
+             * be a deleted one. Observed live on a product-level product: a single +1 restore
+             * logged stock_before = 77, delta = +1, stock_after = 13. Three numbers that cannot
+             * all describe the same movement, in the table meant to be the stock audit trail.
+             */
+            $audit_where = ['id' => $row['pv_id']];
         } elseif ($stock_type === 2) {
             $table = 'product_variants';
             $where = ['id' => $row['pv_id']];
             $current = $row['pv_stock'];
+            $audit_where = $where;
         } else {
             continue;
         }
@@ -1993,7 +2357,20 @@ function update_stock($product_variant_ids, $qtns, $type = '')
 
         // Audit row. The resulting stock is re-read rather than computed, so the log records
         // what the column actually holds even when a concurrent movement landed in between.
-        $after = $t->db->select('stock')->where($where)->get($table)->row_array();
+        // Read via $audit_where, which always identifies exactly the row $current came from.
+        $after = $t->db->select('stock')->where($audit_where)->get($table)->row_array();
+
+        // Product-level stock only: bring every other variant of the product onto the number the
+        // ordered variant now holds, so "one stock figure per product" is actually true. Copied
+        // from the re-read value rather than recomputed, so the siblings cannot disagree with the
+        // row this movement was validated against.
+        if (!empty($mirror_to_siblings) && isset($after['stock'])) {
+            $t->db->set('stock', (int) $after['stock'])
+                ->set('availability', ((int) $after['stock'] > 0) ? '1' : '0')
+                ->where('product_id', $mirror_to_siblings)
+                ->where('id !=', $row['pv_id'])
+                ->update('product_variants');
+        }
 
         $t->db->insert('stock_logs', [
             'product_id'         => $row['p_id'],
@@ -4065,9 +4442,16 @@ function get_image_url($path, $image_type = '', $image_size = '', $file_type = '
 function fetch_users($id)
 {
     $t = &get_instance();
-    $user_details = $t->db->select('u.id,username,email,mobile,balance,dob, referral_code, friends_code, c.name as cities,a.name as area,street,pincode')
-        ->join('areas a', 'u.area = a.name', 'left')
-        ->join('cities c', 'u.city = c.name', 'left')
+    // Every one of the 16 callers of this function was returning a hard SQL error 1054
+    // ("Unknown column 'c.name' in 'field list'"), which meant an outright 500 on the admin
+    // ticket-reply endpoint, the app's add_ticket / edit_ticket / send_message endpoints and
+    // the seller auth flow among others. Two separate mistakes:
+    //   - the `cities` table's columns are city_id / city_name; there is no `cities.name`.
+    //   - users.city / users.area store the numeric ID of the row, not its name, so joining
+    //     on the name column matched nothing even once the column name was right.
+    $user_details = $t->db->select('u.id,username,email,mobile,balance,dob, referral_code, friends_code, c.city_name as cities,a.name as area,street,pincode')
+        ->join('areas a', 'u.area = a.id', 'left')
+        ->join('cities c', 'u.city = c.city_id', 'left')
         ->where('u.id', $id)->get('users u')
         ->result_array();
     return $user_details;
@@ -4293,6 +4677,25 @@ function get_min_max_price_of_product($product_id = '')
         $t->db->where('p.id', $product_id);
     }
     $response = $t->db->select('is_prices_inclusive_tax,price,special_price,tax.percentage as tax_percentage')->get('products p')->result_array();
+
+    /*
+     * The joins above are INNER joins onto product_variants, so a product with no variant rows
+     * yields an empty $response - and min(array_column([], 'price')) is a fatal
+     *   ValueError: min(): Argument #1 ($value) must contain at least one element
+     * on PHP 8 (it was merely a warning returning false on PHP 7, which is why this survived).
+     * 13 ACTIVE products on this database have no variant rows, so any page that priced one of
+     * them returned a 500 with no explanation.
+     */
+    if (empty($response)) {
+        return [
+            'min_price'              => 0,
+            'max_price'              => 0,
+            'special_price'          => 0,
+            'max_special_price'      => 0,
+            'discount_in_percentage' => 0,
+        ];
+    }
+
     $percentage = (isset($response[0]['tax_percentage']) && intval($response[0]['tax_percentage']) > 0 && $response[0]['tax_percentage'] != null) ? $response[0]['tax_percentage'] : '0';
     if ((isset($response[0]['is_prices_inclusive_tax']) && $response[0]['is_prices_inclusive_tax'] == 0) || (!isset($response[0]['is_prices_inclusive_tax'])) && $percentage > 0) {
         $price_tax_amount = $response[0]['price'] * ($percentage / 100);
@@ -4318,6 +4721,14 @@ function get_price_range_of_product($product_id = '')
         $t->db->where('p.id', $product_id);
     }
     $response = $t->db->select('is_prices_inclusive_tax,price,special_price,tax.percentage as tax_percentage')->get('products p')->result_array();
+
+    // Same empty-variant-set fatal as get_min_max_price_of_product(): with no rows, the else
+    // branch's for-loop never runs and $data['range'] is never assigned, so the caller reads an
+    // undefined index; and where the loop DOES run on an empty column it throws on min().
+    if (empty($response)) {
+        $data['range'] = $currency . "<small style='font-size: 20px;'>" . number_format(0, 2) . "</small>";
+        return $data;
+    }
 
     if (count($response) == 1) {
         $percentage = (isset($response[0]['tax_percentage']) && intval($response[0]['tax_percentage']) > 0 && $response[0]['tax_percentage'] != null) ? $response[0]['tax_percentage'] : '0';
@@ -4360,7 +4771,12 @@ function get_price_range_of_product($product_id = '')
                         unset($min_special_price[$j]);
                     }
                 }
-                $min_special_price = min($min_special_price);
+                // Every special_price could have been unset by the loop above (this branch is
+                // reached when ANY variant has a special price, but the zero-stripping runs over
+                // ALL of them) - min([]) is fatal on PHP 8. Fall back to the list price.
+                $min_special_price = !empty($min_special_price)
+                    ? min($min_special_price)
+                    : min(array_column($response, 'price'));
                 $max = max(array_column($response, 'price'));
                 $percentage = (isset($response[$i]['tax_percentage']) && intval($response[$i]['tax_percentage']) > 0 && $response[$i]['tax_percentage'] != null) ? $response[$i]['tax_percentage'] : '0';
                 if ((isset($response[$i]['is_prices_inclusive_tax']) && $response[$i]['is_prices_inclusive_tax'] == 0) || (!isset($response[$i]['is_prices_inclusive_tax'])) && $percentage > 0) {
@@ -6439,23 +6855,36 @@ function is_product_delivarable($type, $type_id, $product_id)
         return false;
     }
 
-    if (!empty($zipcode_id) && $zipcode_id != 0) {
+    $zipcode_id = (int) $zipcode_id;
+    $product_id = (int) $product_id;
+
+    if ($zipcode_id > 0 && $product_id > 0) {
+        /*
+         * Both ids were interpolated straight into the SQL - FIND_IN_SET('$zipcode_id', ...) and
+         * where("id = $product_id") - with no binding or casting. $product_id reaches this from
+         * request data on three call paths (Products::..., and two app API endpoints). Cast to
+         * int above and bound below.
+         *
+         * deliverable_type vocabulary, from config/constants.php:
+         *   0 NONE     - not deliverable anywhere (correctly matches nothing here)
+         *   1 ALL      - deliverable everywhere
+         *   2 INCLUDED - deliverable only to the listed zipcodes
+         *   3 EXCLUDED - deliverable everywhere except the listed zipcodes
+         * Note: 3 products on this database store deliverable_type = 4, which is not a defined
+         * value, so they match no branch and are treated as undeliverable. That is a data problem
+         * to correct on those products, not something to guess at here.
+         */
         $ci->db->select('id');
         $ci->db->group_Start();
-        $where = "((deliverable_type='2' and FIND_IN_SET('$zipcode_id', deliverable_zipcodes)) or deliverable_type = '1') OR (deliverable_type='3' and NOT FIND_IN_SET('$zipcode_id', deliverable_zipcodes)) ";
-        $ci->db->where($where);
+        $ci->db->where("((deliverable_type = '2' AND FIND_IN_SET(" . $zipcode_id . ", deliverable_zipcodes)) OR deliverable_type = '1') OR (deliverable_type = '3' AND NOT FIND_IN_SET(" . $zipcode_id . ", deliverable_zipcodes))", null, false);
         $ci->db->group_End();
-        $ci->db->where("id = $product_id");
+        $ci->db->where('id', $product_id);
         $product = $ci->db->get('products')->num_rows();
 
-        if ($product > 0) {
-            return true;
-        } else {
-            return false;
-        }
-    } else {
-        return false;
+        return ($product > 0);
     }
+
+    return false;
 }
 
 function check_cart_products_delivarable($user_id, $area_id = 0, $zipcode = "", $zipcode_id = "")
@@ -6472,6 +6901,15 @@ function check_cart_products_delivarable($user_id, $area_id = 0, $zipcode = "", 
     if (!empty($cart) && isset($cart[0]['cart_count'])) {
         $product_weight = 0;
         for ($i = 0; $i < $cart[0]['cart_count']; $i++) {
+            /*
+             * $tmpRow is reused for every cart item and only two of its keys were reset at the
+             * top of the loop. `message`, `estimate_date` and `is_valid_wight` were not - so an
+             * item that produced no message of its own inherited the PREVIOUS item's, and the
+             * cart could tell a customer "Product is deliverable by <date>" about an item that
+             * had never been checked, or carry a stale "You cannot ship weight more then 15 KG"
+             * onto an item well under the limit.
+             */
+            $tmpRow = [];
             /* check in local shipping first */
             $tmpRow['is_deliverable'] = false;
             $tmpRow['delivery_by'] = "";
@@ -6488,7 +6926,18 @@ function check_cart_products_delivarable($user_id, $area_id = 0, $zipcode = "", 
                 if (!$tmpRow['is_deliverable'] && trim($cart[$i]['pickup_location']) != "") {
 
                     $t->load->library(['Shiprocket']);
-                    $pickup_pincode = fetch_details('pickup_locations', ['pickup_location' => $cart[$i]['pickup_location']], 'pin_code');
+                    /*
+                     * pickup_location is a per-seller NICKNAME, not a globally unique key - two
+                     * sellers can both call one "Warehouse". Looking it up without the seller
+                     * scope returned whichever row came first, so serviceability (and therefore
+                     * the delivery estimate and the charge derived from it) could be quoted from
+                     * a different seller's pincode entirely.
+                     */
+                    $pickup_where = ['pickup_location' => $cart[$i]['pickup_location']];
+                    if (!empty($cart[$i]['seller_id'])) {
+                        $pickup_where['seller_id'] = $cart[$i]['seller_id'];
+                    }
+                    $pickup_pincode = fetch_details('pickup_locations', $pickup_where, 'pin_code');
 
                     // $product_weight += $cart[$i]['weight'] * $cart[$i]['qty']; // This sums up the total weight of the products in the cart and checks the total for the limit.
                     $product_weight = $cart[$i]['weight']; // Modified so that each individual item shall be within the weight limit. (previously the total of the items needed to be within the weight limit)
@@ -6522,7 +6971,13 @@ function check_cart_products_delivarable($user_id, $area_id = 0, $zipcode = "", 
                                     $tmpRow['message'] = 'Product is deliverable by ' . $estimate_date;
                                 } else {
                                     $tmpRow['is_deliverable'] = false;
-                                    $tmpRow['message'] = $check_deliveribility['message'];
+                                    // Read unguarded before: a transport failure returns null and
+                                    // a rejection does not always carry `message`, so this warned
+                                    // "Trying to access array offset on value of type null" and
+                                    // showed the customer a blank reason.
+                                    $tmpRow['message'] = (is_array($check_deliveribility) && !empty($check_deliveribility['message']))
+                                        ? $check_deliveribility['message']
+                                        : 'This item cannot be delivered to the selected pincode right now.';
                                 }
                             }
                         }
@@ -6752,10 +7207,12 @@ function get_filtered_price_range($filter = NULL, $category_id = NULL, $seller_i
 
     $t->db->where($where);
 
-    // Only active/visible categories (mirror fetch_product's no-flag branch).
+    // Only active/visible categories (mirror fetch_product's no-flag branch, including its
+    // treatment of an existing category whose status was never set).
     $t->db->group_Start();
     $t->db->or_where('c.status', '1');
     $t->db->or_where('c.status', '0');
+    $t->db->or_where('(c.id IS NOT NULL AND c.status IS NULL)', null, false);
     $t->db->group_End();
 
     $row = $t->db->from("products p")->get()->row_array();
@@ -6808,27 +7265,65 @@ function check_for_parent_id($category_id)
     }
 }
 
+/**
+ * See the model copies of this function for the full rationale. In short: $amount was
+ * concatenated into SQL with escaping disabled and never validated, 'add' with a negative
+ * amount debited the wallet, and update() reporting TRUE for zero matched rows made a credit to
+ * a non-existent user look successful. Writes no `transactions` row - use
+ * update_wallet_balance() when you need the ledger entry too (it does both atomically).
+ */
 function update_balance($amount, $delivery_boy_id, $action)
 {
     $t = &get_instance();
 
-    if ($action == "add") {
-        $t->db->set('balance', 'balance+' . $amount, FALSE);
-    } elseif ($action == "deduct") {
-        $t->db->set('balance', 'balance-' . $amount, FALSE);
+    $delivery_boy_id = (int) $delivery_boy_id;
+    if ($delivery_boy_id < 1 || !is_numeric($amount)) {
+        return false;
     }
-    return $t->db->where('id', $delivery_boy_id)->update('users');
+
+    $amount = (float) $amount;
+    if ($amount <= 0) {
+        log_message('error', 'update_balance: refused a non-positive amount (' . $amount . ') for user ' . $delivery_boy_id);
+        return false;
+    }
+
+    if ($action === 'add') {
+        $t->db->set('balance', '`balance` + ' . $amount, FALSE);
+    } elseif ($action === 'deduct') {
+        $t->db->set('balance', '`balance` - ' . $amount, FALSE);
+    } else {
+        return false;
+    }
+
+    $t->db->where('id', $delivery_boy_id)->update('users');
+    return $t->db->affected_rows() > 0;
 }
 
+/** Same unescaped-concatenation and no-validation problem as update_balance() above. */
 function update_cash_received($amount, $delivery_boy_id, $action)
 {
     $t = &get_instance();
-    if ($action == "add") {
-        $t->db->set('cash_received', 'cash_received+' . $amount, FALSE);
-    } elseif ($action == "deduct") {
-        $t->db->set('cash_received', 'cash_received-' . $amount, FALSE);
+
+    $delivery_boy_id = (int) $delivery_boy_id;
+    if ($delivery_boy_id < 1 || !is_numeric($amount)) {
+        return false;
     }
-    return $t->db->where('id', $delivery_boy_id)->update('users');
+
+    $amount = (float) $amount;
+    if ($amount <= 0) {
+        return false;
+    }
+
+    if ($action === 'add') {
+        $t->db->set('cash_received', '`cash_received` + ' . $amount, FALSE);
+    } elseif ($action === 'deduct') {
+        $t->db->set('cash_received', '`cash_received` - ' . $amount, FALSE);
+    } else {
+        return false;
+    }
+
+    $t->db->where('id', $delivery_boy_id)->update('users');
+    return $t->db->affected_rows() > 0;
 }
 
 function word_limit($string, $length = WORD_LIMIT, $dots = "...")
@@ -6897,14 +7392,28 @@ function calculate_tax_inclusive($original_cost, $tax)
 function labels($label, $alt = '')
 {
     $label = trim($label);
-    if (lang('Text.' . $label) != 'Text.' . $label) {
-        if (lang('Text.' . $label) == '') {
-            return $alt;
-        }
-        return trim(lang('Text.' . $label));
-    } else {
+    $t = &get_instance();
+
+    /*
+     * Looked up with $log_errors = FALSE, and once instead of three times.
+     *
+     * This helper's contract is "use the translation if there is one, otherwise use the English
+     * default in $alt", so a key with no translation is the normal case here - not an error. Going
+     * through the lang() helper leaves CI's default $log_errors = TRUE, which writes
+     * "Could not find the language line" to the error log on every single miss. The stock report
+     * alone has nine untranslated column headers, so each load of it wrote nine error lines:
+     * across one test run of this project, 324 of them. That is enough to bury a real warning in
+     * the same file, and it did - a genuine "Undefined array key" sat among them.
+     *
+     * Behaviour is unchanged: a missing, empty, or un-translated key still falls back to $alt.
+     */
+    $value = $t->lang->line('Text.' . $label, false);
+
+    if ($value === false || $value === '' || $value === 'Text.' . $label) {
         return trim($alt);
     }
+
+    return trim($value);
 }
 
 
@@ -7163,19 +7672,104 @@ function send_pickup_request($shipment_id)
     $t = &get_instance();
     $t->load->library(['Shiprocket']);
     $res = $t->shiprocket->request_for_pickup($shipment_id);
-    if (isset($res['pickup_status']) && $res['pickup_status'] == 1) {
 
-        $order_tracking_data = [
-            'pickup_status' => $res['pickup_status'],
-            'pickup_scheduled_date' => $res['response']['pickup_scheduled_date'],
-            'pickup_token_number' => $res['response']['pickup_token_number'],
-            'status' => $res['response']['status'],
-            'pickup_generated_date' => json_encode(array($res['response']['pickup_generated_date'])),
-            'data' => $res['response']['data'],
-        ];
-        $t->db->set($order_tracking_data)->where('shipment_id', $shipment_id)->update('order_tracking');
+    if (!shiprocket_result_ok('pickup', $res)) {
+        // Previously this simply fell through and returned the response, and the callers report
+        // success on any non-empty value - so a refused pickup ("already requested", "past the
+        // courier's cut-off", an unserviceable address) told the seller "Request send
+        // successfully" and no courier was ever coming.
+        log_message('error', 'Shiprocket pickup request refused for shipment ' . $shipment_id . ': '
+            . shiprocket_result_message($res, 'pickup could not be scheduled'));
+        return $res;
     }
+
+    /*
+     * Every one of these was read unguarded off $res['response']. Shiprocket does not always
+     * return the same shape - a queued pickup can come back without a token or a scheduled date -
+     * so each missing key was an "Undefined array key" warning that then wrote NULL over a column.
+     * Two are worse than that:
+     *   - `data` is sometimes an ARRAY, and assigning an array to a DB column is an
+     *     "Array to string conversion" that stores the literal text "Array".
+     *   - order_tracking.status is int NOT NULL, so a non-numeric status wrote 0 - the same value
+     *     as "nothing has happened yet".
+     */
+    $response = isset($res['response']) && is_array($res['response']) ? $res['response'] : [];
+
+    $order_tracking_data = [
+        'pickup_status'         => 1,
+        'pickup_scheduled_date' => isset($response['pickup_scheduled_date']) ? (string) $response['pickup_scheduled_date'] : '',
+        'pickup_token_number'   => isset($response['pickup_token_number']) ? (string) $response['pickup_token_number'] : '',
+        'pickup_generated_date' => json_encode([isset($response['pickup_generated_date']) ? $response['pickup_generated_date'] : null]),
+        'data'                  => isset($response['data'])
+            ? (is_scalar($response['data']) ? (string) $response['data'] : json_encode($response['data']))
+            : '',
+    ];
+    if (isset($response['status']) && is_numeric($response['status'])) {
+        $order_tracking_data['status'] = (int) $response['status'];
+    }
+
+    $t->db->set($order_tracking_data)->where('shipment_id', $shipment_id)->update('order_tracking');
+
     return $res;
+}
+
+/**
+ * Did a Shiprocket operation actually succeed?
+ *
+ * Every one of these operations was judged by its caller with `if (!empty($res))`. A Shiprocket
+ * REJECTION is also a non-empty array, so a refused pickup, an ungenerated label, a missing
+ * invoice and a declined cancellation all reported success to the seller or admin who pressed the
+ * button. Each operation has its own success marker, and this is the single place that knows them.
+ *
+ * @param string $operation pickup|label|invoice|cancel
+ * @param mixed  $res       decoded Shiprocket response (null on a transport failure)
+ */
+function shiprocket_result_ok($operation, $res)
+{
+    if (!is_array($res)) {
+        return false; // transport failure, or a non-JSON response
+    }
+
+    switch ($operation) {
+        case 'pickup':
+            return isset($res['pickup_status']) && $res['pickup_status'] == 1;
+        case 'label':
+            return isset($res['label_created']) && $res['label_created'] == 1 && !empty($res['label_url']);
+        case 'invoice':
+            return isset($res['is_invoice_created']) && $res['is_invoice_created'] == 1 && !empty($res['invoice_url']);
+        case 'cancel':
+            return isset($res['status']) && (int) $res['status'] === 200;
+        default:
+            return false;
+    }
+}
+
+/**
+ * The most useful failure text Shiprocket gave us, for showing to whoever pressed the button.
+ */
+function shiprocket_result_message($res, $fallback = 'Shiprocket rejected the request.')
+{
+    if (is_array($res)) {
+        foreach (['message', 'error', 'errors'] as $key) {
+            if (!empty($res[$key])) {
+                return is_string($res[$key]) ? $res[$key] : json_encode($res[$key]);
+            }
+        }
+        // A pickup that is refused because one is already booked reports it under `response`.
+        if (isset($res['response']) && is_string($res['response']) && $res['response'] !== '') {
+            return $res['response'];
+        }
+    }
+
+    $t = &get_instance();
+    if (isset($t->shiprocket) && method_exists($t->shiprocket, 'last_error')) {
+        $last = $t->shiprocket->last_error();
+        if (!empty($last)) {
+            return $last;
+        }
+    }
+
+    return $fallback;
 }
 
 function generate_label($shipment_id)
@@ -7184,11 +7778,13 @@ function generate_label($shipment_id)
     $t->load->library(['Shiprocket']);
     $res = $t->shiprocket->generate_label($shipment_id);
 
-    if (isset($res['label_created']) && $res['label_created'] == 1) {
-        $label_data = [
-            'label_url' => $res['label_url'],
-        ];
-        $t->db->set($label_data)->where('shipment_id', $shipment_id)->update('order_tracking');
+    // Was `label_created == 1` alone, then read $res['label_url'] unguarded - so a response
+    // claiming the label was created but carrying no URL wrote NULL over any previous label.
+    if (shiprocket_result_ok('label', $res)) {
+        $t->db->set(['label_url' => $res['label_url']])->where('shipment_id', $shipment_id)->update('order_tracking');
+    } else {
+        log_message('error', 'Shiprocket label not generated for shipment ' . $shipment_id . ': '
+            . shiprocket_result_message($res, 'label could not be generated'));
     }
     return $res;
 }
@@ -7199,11 +7795,12 @@ function generate_invoice($shiprocket_order_id)
     $t->load->library(['Shiprocket']);
     $res = $t->shiprocket->generate_invoice($shiprocket_order_id);
 
-    if (isset($res['is_invoice_created']) && $res['is_invoice_created'] == 1) {
-        $invoice_data = [
-            'invoice_url' => $res['invoice_url'],
-        ];
-        $t->db->set($invoice_data)->where('shiprocket_order_id', $shiprocket_order_id)->update('order_tracking');
+    // Same as generate_label(): the URL was read unguarded once the flag looked right.
+    if (shiprocket_result_ok('invoice', $res)) {
+        $t->db->set(['invoice_url' => $res['invoice_url']])->where('shiprocket_order_id', $shiprocket_order_id)->update('order_tracking');
+    } else {
+        log_message('error', 'Shiprocket invoice not generated for order ' . $shiprocket_order_id . ': '
+            . shiprocket_result_message($res, 'invoice could not be generated'));
     }
     return $res;
 }
@@ -7218,8 +7815,11 @@ function cancel_shiprocket_order($shiprocket_order_id)
     // cancel call still flipped is_canceled to 1 locally - the shipment stayed live
     // at Shiprocket while every screen here showed it as cancelled, and the cancel
     // button was then hidden so nobody could retry.
-    if (!empty($res) && isset($res['status']) && $res['status'] == 200) {
+    if (shiprocket_result_ok('cancel', $res)) {
         $t->db->set(['is_canceled' => 1])->where('shiprocket_order_id', $shiprocket_order_id)->update('order_tracking');
+    } else {
+        log_message('error', 'Shiprocket cancellation refused for order ' . $shiprocket_order_id . ': '
+            . shiprocket_result_message($res, 'the shipment could not be cancelled'));
     }
     return $res;
 }
@@ -7342,9 +7942,38 @@ function sync_shiprocket_shipment_status($tracking, $shiprocket_status, $raw_pay
         if ($current[0]['active_status'] === $internal_status) {
             continue; // already there - keeps repeated webhook deliveries idempotent
         }
-        // Never walk a finished item backwards, and never resurrect one that a
-        // customer/seller already cancelled or returned here.
+        // Never resurrect an item a customer/seller already cancelled or returned here.
         if (in_array($current[0]['active_status'], ['cancelled', 'returned'], true)) {
+            continue;
+        }
+        /*
+         * Forward-only. Shiprocket retries webhooks and does not guarantee ordering, so a
+         * delayed IN TRANSIT callback can land AFTER the DELIVERED one. The previous guard only
+         * blocked cancelled/returned, so that late callback un-delivered the order: verified
+         * live, a delivered item went back to "shipped".
+         *
+         * That is not cosmetic - `delivered` is what stamps delivered_at and makes the item
+         * eligible for seller commission settlement, and the customer gets an "order shipped"
+         * notification after they have already received the parcel.
+         *
+         * The ranking matches $priority_status in admin/Orders.php, which the manual
+         * status-update screens already enforce. cancelled and returned outrank delivered on
+         * purpose: an RTO or a post-delivery cancellation must still be able to land.
+         */
+        $status_rank = [
+            'received'  => 0,
+            'processed' => 1,
+            'shipped'   => 2,
+            'delivered' => 3,
+            'cancelled' => 4,
+            'returned'  => 5,
+        ];
+        $current_rank = isset($status_rank[$current[0]['active_status']]) ? $status_rank[$current[0]['active_status']] : -1;
+        $new_rank = isset($status_rank[$internal_status]) ? $status_rank[$internal_status] : -1;
+        if ($current_rank >= 0 && $new_rank >= 0 && $new_rank < $current_rank) {
+            log_message('debug', 'sync_shiprocket_shipment_status: ignoring out-of-order status "'
+                . $shiprocket_status . '" for order item ' . $order_item_id
+                . ' (already ' . $current[0]['active_status'] . ').');
             continue;
         }
 
@@ -7433,6 +8062,27 @@ function notify_customer_order_status($order_id, $status, $order_item_ids = null
 
     $title = (!empty($custom_notification)) ? $custom_notification[0]['title'] : 'Order status updated';
 
+    /*
+     * Record it in the customer's own notification list.
+     *
+     * Before this, an order status change reached the customer through push and email ONLY - and
+     * both of those can be unavailable at the same time:
+     *   - push needs an FCM server key, which ships as the placeholder "your_fcm_server_key";
+     *   - email needs working SMTP credentials, and Gmail currently rejects the configured
+     *     password ("534-5.7.9 Application-specific password required").
+     * With both down, a customer whose order was shipped, delivered or cancelled was told
+     * NOTHING, anywhere - there was no in-app record at all. The support-ticket events already
+     * write one (see notify_ticket_event); order events are at least as important and now do too,
+     * so My Account > Notifications is a reliable history regardless of the other two channels.
+     */
+    add_user_notification(
+        $order[0]['user_id'],
+        $title,
+        $message,
+        'order_' . $status,
+        base_url('my-account/orders')
+    );
+
     if (!empty($user_res[0]['fcm_id'])) {
         send_notification([
             'title'    => $title,
@@ -7502,14 +8152,31 @@ function expoxable_settings()
 {
     $settings = get_settings('system_settings', true);
     $settings_data = [];
-    $settings_data['system.app_name'] = $settings['app_name'];
-    $settings_data['system.support_number'] = $settings['support_number'];
-    $settings_data['system.support_email'] = $settings['support_email'];
-    $settings_data['system.company_name'] = $settings['company_name'];
-    $settings_data['system.currency'] = $settings['currency'];
+    $settings_data['system.app_name'] = isset($settings['app_name']) ? $settings['app_name'] : '';
+    $settings_data['system.support_number'] = isset($settings['support_number']) ? $settings['support_number'] : '';
+    $settings_data['system.support_email'] = isset($settings['support_email']) ? $settings['support_email'] : '';
+    // company_name is blank in the live settings row, so every template that signs off with
+    // "{system.company_name}" delivered a message ending in "Best regards," and nothing else.
+    // Each key is also read unguarded, which warns on any install where the key was never saved.
+    $settings_data['system.company_name'] = !empty($settings['company_name'])
+        ? $settings['company_name']
+        : (!empty($settings['app_name']) ? $settings['app_name'] : '');
+    $settings_data['system.currency'] = isset($settings['currency']) ? $settings['currency'] : '';
     return $settings_data;
 }
 
+/**
+ * Assembles the {order.*} / {user.*} / {addresses.*} / {transactions.*} / {return_requests.*}
+ * placeholder data set that every notification template is rendered against.
+ *
+ * The SELECT below used to name `users.created_on`, a column that does not exist on this schema
+ * (it is `users.created_at`). One wrong column name made the WHOLE query fail with SQL error
+ * 1054, and this function is the first thing notify_event() calls - so every transactional email
+ * and SMS on the platform (order placed, received, processed, shipped, delivered, cancelled,
+ * returned, return approved/declined, wallet credit, seller settlement, bank transfer status)
+ * died right here, before a template was ever rendered. It is still aliased as
+ * `user.created_on` because that is the placeholder name $config['order_keys'] advertises.
+ */
 function get_order_data($where = [], $first = false)
 {
     $t = &get_instance();
@@ -7564,7 +8231,7 @@ function get_order_data($where = [], $first = false)
                 users.driving_license AS 'user.driving_license', 
                 users.status AS 'user.status', 
                 users.web_fcm AS 'user.web_fcm', 
-                users.created_on AS 'user.created_on', 
+                users.created_at AS 'user.created_on', 
                 addresses.id AS 'addresses.id', 
                 addresses.user_id AS 'addresses.user_id', 
                 addresses.name AS 'addresses.name', 

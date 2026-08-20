@@ -361,6 +361,163 @@ class Cron_job extends CI_Controller
         return false;
     }
 
+    /**
+     * Reconciles shipment status with Shiprocket for shipments that are still in flight.
+     *
+     * Why this is needed: status synchronisation was ENTIRELY webhook-driven. If a callback is
+     * missed - Shiprocket retries exhausted, this server briefly down, the webhook token
+     * misconfigured, a deploy mid-delivery - nothing ever catches up. The order simply sits at
+     * whatever status it last received, forever, and no screen anywhere shows that it is stale.
+     * There was no polling path at all: Shiprocket::track_order() existed but had zero callers.
+     *
+     * This is the safety net. It is read-only against Shiprocket and pushes any change through
+     * the same sync_shiprocket_shipment_status() the webhook uses, so refunds, stock restoration,
+     * the status ladder and customer notifications all behave identically either way. Running it
+     * when nothing has changed is a no-op.
+     *
+     * Suggested schedule: every 30 minutes.
+     *   php index.php admin cron_job sync_shipment_statuses <cron-secret>
+     */
+    public function sync_shipment_statuses($token = null)
+    {
+        if (!$this->cron_authorized($token)) {
+            return false;
+        }
+
+        $shipping = get_settings('shipping_method', true);
+        if (empty($shipping['shiprocket_shipping_method']) || $shipping['shiprocket_shipping_method'] != 1) {
+            $this->response['error'] = false;
+            $this->response['message'] = 'Shiprocket shipping is disabled - nothing to reconcile.';
+            $this->response['data'] = ['checked' => 0];
+            echo json_encode($this->response);
+            return false;
+        }
+
+        // Cap the work per run so one invocation cannot run for an unbounded time against a
+        // third-party API. ?limit= lets an operator drain a backlog faster if they need to.
+        $limit = (int) $this->input->get('limit');
+        $limit = ($limit > 0 && $limit <= 200) ? $limit : 50;
+
+        /*
+         * Only shipments worth asking about:
+         *   - not already cancelled here
+         *   - a real Shiprocket shipment id
+         *   - at least one order item NOT in a terminal state (delivered / cancelled / returned),
+         *     because a finished shipment can never change again and polling it is pure waste.
+         * Oldest-checked first, so a backlog drains evenly rather than re-polling the same rows.
+         */
+        $candidates = $this->db
+            ->select('ot.id, ot.order_id, ot.order_item_id, ot.shipment_id, ot.is_return, ot.others')
+            ->from('order_tracking ot')
+            ->where('ot.is_canceled', 0)
+            ->where('ot.shipment_id >', 0)
+            ->where("EXISTS (SELECT 1 FROM order_items oi WHERE oi.order_id = ot.order_id AND (oi.active_status IS NULL OR oi.active_status NOT IN ('delivered','cancelled','returned')))", null, false)
+            ->order_by('ot.id', 'ASC')
+            ->limit($limit)
+            ->get()
+            ->result_array();
+
+        $this->load->library('Shiprocket');
+        $this->load->helper('function_helper');
+
+        $checked = 0;
+        $changed = 0;
+        $unchanged = 0;
+        $failed = 0;
+
+        foreach ($candidates as $tracking) {
+            $checked++;
+
+            $res = $this->shiprocket->get_order($tracking['shipment_id']);
+
+            if (!is_array($res)) {
+                // Transport failure or an unreadable response. The library has already logged
+                // the detail; count it and move on rather than aborting the whole sweep, so one
+                // bad shipment cannot block the rest.
+                $failed++;
+                continue;
+            }
+
+            $status = $this->extract_shipment_status($res);
+            if ($status === '') {
+                $failed++;
+                log_message('error', 'sync_shipment_statuses: no status field in Shiprocket response for shipment '
+                    . $tracking['shipment_id'] . ' -> ' . substr(json_encode($res), 0, 300));
+                continue;
+            }
+
+            // Nothing new since the last webhook/poll - skip without touching the order.
+            if (strcasecmp(trim((string) $tracking['others']), trim($status)) === 0) {
+                $unchanged++;
+                continue;
+            }
+
+            $sync = sync_shiprocket_shipment_status($tracking, $status, $res);
+            if (!empty($sync['error'])) {
+                $failed++;
+                continue;
+            }
+            if (!empty($sync['updated'])) {
+                $changed++;
+            } else {
+                $unchanged++;
+            }
+        }
+
+        $this->response['error'] = false;
+        $this->response['message'] = 'Shipment statuses reconciled.';
+        $this->response['data'] = [
+            'checked'   => $checked,
+            'changed'   => $changed,
+            'unchanged' => $unchanged,
+            'failed'    => $failed,
+            'limit'     => $limit,
+        ];
+        echo json_encode($this->response);
+        return false;
+    }
+
+    /**
+     * Digs the shipment status string out of a Shiprocket response.
+     *
+     * Shiprocket is not consistent about where it puts this - `shipments/{id}` has returned it
+     * at the top level, under `data`, and as `current_status` depending on the account and the
+     * shipment's stage - so check the known shapes rather than assuming one and silently
+     * treating a present status as missing.
+     */
+    private function extract_shipment_status($res)
+    {
+        $candidates = [];
+
+        if (isset($res['status']) && is_string($res['status'])) {
+            $candidates[] = $res['status'];
+        }
+        if (isset($res['current_status']) && is_string($res['current_status'])) {
+            $candidates[] = $res['current_status'];
+        }
+        if (isset($res['data']) && is_array($res['data'])) {
+            foreach (['status', 'current_status'] as $key) {
+                if (isset($res['data'][$key]) && is_string($res['data'][$key])) {
+                    $candidates[] = $res['data'][$key];
+                }
+            }
+            if (isset($res['data']['shipment_status']) && is_string($res['data']['shipment_status'])) {
+                $candidates[] = $res['data']['shipment_status'];
+            }
+        }
+
+        foreach ($candidates as $candidate) {
+            $candidate = trim($candidate);
+            // Shiprocket sometimes returns the numeric status code in the same field; a code
+            // carries no meaning for shiprocket_status_to_order_status(), so ignore it.
+            if ($candidate !== '' && !is_numeric($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return '';
+    }
+
     public function settle_cashback_discount()
     {
         if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {

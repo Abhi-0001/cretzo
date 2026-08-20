@@ -4360,6 +4360,10 @@ Defined Methods:-
             $insert_id = $this->ticket_model->add_ticket($data);
             if (!empty($insert_id)) {
                 $result = $this->ticket_model->get_tickets($insert_id, $ticket_type_id, $user_id);
+                // Nothing anywhere announced a newly created ticket - not the admin bell, not
+                // push - so a ticket raised from the app sat unnoticed until somebody happened
+                // to open the admin tickets page.
+                notify_ticket_event($insert_id, 'created', 'user');
                 $this->response['error'] = false;
                 $this->response['message'] = 'Ticket Added Successfully';
                 $this->response['data'] = $result['data'];
@@ -4389,13 +4393,18 @@ Defined Methods:-
             return false;
         }
 
-        $this->form_validation->set_rules('ticket_type_id', 'Ticket Type Id', 'trim|required|xss_clean');
-        $this->form_validation->set_rules('ticket_id', 'Ticket Id', 'trim|required|xss_clean');
+        // ticket_id and ticket_type_id were only checked 'required', not 'numeric', and
+        // ticket_id is concatenated into a raw WHERE string below
+        // (fetch_details('tickets', 'id=' . $ticket_id . ' and user_id=' . $user_id)) rather
+        // than being bound - so arbitrary SQL could be appended to that lookup. status was
+        // likewise unconstrained even though only 1-5 mean anything.
+        $this->form_validation->set_rules('ticket_type_id', 'Ticket Type Id', 'trim|required|numeric|xss_clean');
+        $this->form_validation->set_rules('ticket_id', 'Ticket Id', 'trim|required|numeric|xss_clean');
         $this->form_validation->set_rules('user_id', 'User id', 'trim|required|numeric|xss_clean');
         $this->form_validation->set_rules('subject', 'Subject', 'trim|required|xss_clean');
         $this->form_validation->set_rules('email', 'Email', 'trim|required|xss_clean');
         $this->form_validation->set_rules('description', 'Description', 'trim|required|xss_clean');
-        $this->form_validation->set_rules('status', 'Status', 'trim|required|xss_clean');
+        $this->form_validation->set_rules('status', 'Status', 'trim|required|xss_clean|in_list[' . PENDING . ',' . OPENED . ',' . RESOLVED . ',' . CLOSED . ',' . REOPEN . ']');
 
 
         if (!$this->form_validation->run()) {
@@ -4406,7 +4415,8 @@ Defined Methods:-
             $status = $this->input->post('status', true);
             $ticket_id = $this->input->post('ticket_id', true);
             $user_id = $this->input->post('user_id', true);
-            $res = fetch_details('tickets', 'id=' . $ticket_id . ' and user_id=' . $user_id, '*');
+            // Bound where-array instead of the previous raw string concatenation.
+            $res = fetch_details('tickets', ['id' => (int) $ticket_id, 'user_id' => (int) $user_id], '*');
             if (empty($res)) {
                 $this->response['error'] = true;
                 $this->response['message'] = "User id is changed you can not udpate the ticket.";
@@ -4507,6 +4517,35 @@ Defined Methods:-
                 print_r(json_encode($this->response));
                 return false;
             }
+
+            // ticket_id was accepted with no ownership check at all, so any caller holding the
+            // app token could post a message into ANY ticket on the platform simply by
+            // incrementing the id - including tickets belonging to other customers. A 'user'
+            // message must belong to the ticket's own owner; staff replies (user_type other
+            // than 'user') are allowed on any ticket, which is what the admin app needs.
+            $ticket_row = fetch_details('tickets', ['id' => (int) $ticket_id], '*', 1);
+            if (empty($ticket_row)) {
+                $this->response['error'] = true;
+                $this->response['message'] = "Ticket not found!";
+                $this->response['data'] = [];
+                print_r(json_encode($this->response));
+                return false;
+            }
+            if ($user_type === 'user' && (int) $ticket_row[0]['user_id'] !== (int) $user_id) {
+                $this->response['error'] = true;
+                $this->response['message'] = "You are not allowed to reply on this ticket.";
+                $this->response['data'] = [];
+                print_r(json_encode($this->response));
+                return false;
+            }
+            if ((string) $ticket_row[0]['status'] === CLOSED) {
+                $this->response['error'] = true;
+                $this->response['message'] = "This ticket is closed.";
+                $this->response['data'] = [];
+                print_r(json_encode($this->response));
+                return false;
+            }
+
             if (!file_exists(FCPATH . TICKET_IMG_PATH)) {
                 mkdir(FCPATH . TICKET_IMG_PATH, 0777);
             }
@@ -4556,13 +4595,24 @@ Defined Methods:-
                     }
                 }
 
-                //Deleting Uploaded attachments if any overall error occured
-                if ($images_info_error != NULL || !$this->form_validation->run()) {
-                    if (isset($images_new_name_arr) && !empty($images_new_name_arr || !$this->form_validation->run())) {
-                        foreach ($images_new_name_arr as $key => $val) {
-                            unlink(FCPATH . TICKET_IMG_PATH . $images_new_name_arr[$key]);
+                // Deleting uploaded attachments if any overall error occurred.
+                //
+                // Two bugs here: the entries in $images_new_name_arr ALREADY start with
+                // TICKET_IMG_PATH (see where they are built above), so prefixing it again
+                // produced 'uploads/tickets/uploads/tickets/x.png' - a path that never exists,
+                // so the cleanup silently unlinked nothing and every failed upload leaked its
+                // partial files onto disk forever. And the condition
+                // `!empty($images_new_name_arr || !$this->form_validation->run())` applies || to
+                // the ARRAY first and then empty() to the resulting boolean, which is
+                // empty(true) === false - so it was a constant, not a check.
+                if ($images_info_error != NULL) {
+                    foreach ($images_new_name_arr as $stored_path) {
+                        $abs = FCPATH . ltrim((string) $stored_path, '/');
+                        if (is_file($abs)) {
+                            unlink($abs);
                         }
                     }
+                    $images_new_name_arr = array();
                 }
             }
             if ($images_info_error != NULL) {
@@ -4586,32 +4636,23 @@ Defined Methods:-
                 $data1 = $this->config->item('type');
                 $result = $this->ticket_model->get_messages($ticket_id, $user_id, "", "", "1", "", "", $data1, $insert_id);
                 if (!empty($result)) {
-                    //custom message
-                    $settings = get_settings('system_settings', true);
-                    $user_roles = fetch_details("user_permissions", "", '*', '', '', '', '');
-                    foreach ($user_roles as $user) {
-                        $user_res = fetch_details('users', ['id' => $user['user_id']], 'fcm_id');
-                        $fcm_ids[0][] = $user_res[0]['fcm_id'];
-                    }
-                    $custom_notification = fetch_details('custom_notifications', ['type' => "ticket_message"], '');
-                    $hashtag_application_name = '< application_name >';
-                    $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
-                    $hashtag = html_entity_decode($string);
-                    $data = str_replace($hashtag_application_name, $app_settings['app_name'], $hashtag);
-                    $message = output_escaping(trim($data, '"'));
-                    $fcm_admin_subject = (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Attachments";
-                    $fcm_admin_msg = (!empty($custom_notification)) ? $message : "Ticket Message";
-                    if (!empty($fcm_ids)) {
-                        $fcmMsg = array(
-                            'title' => $fcm_admin_subject,
-                            'body' => $fcm_admin_msg,
-                            'type' => "ticket_message",
-                            'type_id' => $ticket_id,
-                            'chat' => json_encode($result['data']),
-                            'content_available' => true
-                        );
-                        send_notification($fcmMsg, $fcm_ids);
-                    }
+                    /*
+                     * Replaced a hand-rolled notification block that had three faults:
+                     *   - `$custom_notification[0]['message']` was read without checking the
+                     *     lookup returned anything. `custom_notifications` is empty on a default
+                     *     install, so this was an "Undefined array key 0" warning printed into
+                     *     the middle of the JSON response body, corrupting it for the app.
+                     *   - `$user_res[0]['fcm_id']` likewise, for every staff row whose user
+                     *     account no longer exists, and it pushed null tokens into the batch -
+                     *     which makes FCM reject the whole request, so ONE staff member without
+                     *     a device suppressed the notification for all of them.
+                     *   - it was push-only, and push is unusable whenever the FCM key is not
+                     *     configured (it ships as the literal string "your_fcm_server_key"), so
+                     *     a customer's reply reached the admins through no channel at all.
+                     * notify_ticket_event() records it on the admin bell, pushes when push
+                     * works, and is shared with the admin panel so the two cannot drift.
+                     */
+                    notify_ticket_event($ticket_id, 'message', $user_type === 'user' ? 'user' : 'admin');
                 }
                 $this->response['error'] = false;
                 $this->response['message'] = 'Ticket Message Added Successfully!';
@@ -4710,8 +4751,28 @@ Defined Methods:-
             $offset = (isset($_POST['offset']) && is_numeric($_POST['offset']) && !empty(trim($_POST['offset']))) ? $this->input->post('offset', true) : 0;
             $order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $_POST['order'] : 'DESC';
             $sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $_POST['sort'] : 'id';
+
+            // No ownership check existed: ticket_id came from the request and the whole
+            // conversation - including every attachment URL - was returned for it, so walking
+            // ticket_id from 1 upwards dumped every customer's support history. When a user_id
+            // is supplied, the ticket must actually belong to that user.
+            if ($user_id !== "") {
+                $owns = fetch_details('tickets', ['id' => (int) $ticket_id, 'user_id' => (int) $user_id], 'id', 1);
+                if (empty($owns)) {
+                    $this->response['error'] = true;
+                    $this->response['message'] = 'Ticket Message(s) does not exist';
+                    $this->response['total'] = 0;
+                    $this->response['data'] = array();
+                    print_r(json_encode($this->response));
+                    return false;
+                }
+            }
+
             $data = $this->config->item('type');
-            $result = $this->ticket_model->get_messages($ticket_id, $user_id, $search, $offset, $limit, $sort, $order, $data, "");
+            // get_messages() filters ticket_messages by tm.user_id when a user_id is passed,
+            // which would hide the SUPPORT side of the conversation from the customer. The
+            // ownership check above is what scopes access, so read the whole thread.
+            $result = $this->ticket_model->get_messages($ticket_id, "", $search, $offset, $limit, $sort, $order, $data, "");
             print_r(json_encode($result));
         }
     }

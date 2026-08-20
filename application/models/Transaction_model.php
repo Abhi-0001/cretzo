@@ -80,7 +80,15 @@ class Transaction_model extends CI_Model
                 $group_id = $group_id_res[0]['id'];
             }
         }
-        $count_res = $this->db->select(' COUNT(transactions.id) as `total`  ');
+        /*
+         * COUNT(DISTINCT ...), not COUNT(...). This query joins users_groups, and a user can hold
+         * more than one group row - 8 accounts on this database are in both `members` and `seller`.
+         * Today the group filter below happens to match only one of those rows, so nothing is
+         * double-counted; the moment a user is in two MATCHING groups (both 1 and 2), every one of
+         * their transactions would be counted twice in a money report. DISTINCT removes the
+         * dependence on that coincidence.
+         */
+        $count_res = $this->db->select(' COUNT(DISTINCT transactions.id) as `total`  ');
 
         if (isset($multipleWhere) && !empty($multipleWhere)) {
             $this->db->group_Start();
@@ -103,7 +111,21 @@ class Transaction_model extends CI_Model
         // customers'. Grouped so the two group ids are evaluated together, independent of
         // whatever other conditions are already attached.
         if (isset($group_id) && !empty($group_id) && $group_id == 2) {
-            $count_res->group_start()->where('ug.group_id', 1)->or_where('ug.group_id', 2)->group_end();
+            /*
+             * `ug.group_id IS NULL` is included deliberately.
+             *
+             * users_groups is LEFT-joined below specifically so that a transaction whose user has
+             * no group row is not dropped - but this WHERE then excluded exactly those rows again,
+             * so the LEFT join changed nothing. Measured on this database: 115 transactions exist
+             * and this report showed 87. All 28 missing ones belong to users with no users_groups
+             * row at all, including user 1 ("Admin"). Money movements invisible in the money
+             * report is the worst kind of quiet inaccuracy, so an unclassified user's transactions
+             * are now shown in this (customer + admin) view.
+             *
+             * Only this branch is widened. The else branch serves a SPECIFIC role view
+             * (delivery boy, seller), where pulling in unclassified users would be wrong.
+             */
+            $count_res->group_start()->where('ug.group_id', 1)->or_where('ug.group_id', 2)->or_where('ug.group_id IS NULL', null, false)->group_end();
         } else {
             $count_res->where('ug.group_id', $group_id);
         }
@@ -131,13 +153,16 @@ class Transaction_model extends CI_Model
         if (isset($user_where) && !empty($user_where)) {
             $search_res->where($user_where);
         }
+        // Must mirror the count query above exactly, or the total and the rows disagree.
         if (isset($group_id) && !empty($group_id) && $group_id == 2) {
-            $search_res->group_start()->where('ug.group_id', 1)->or_where('ug.group_id', 2)->group_end();
+            $search_res->group_start()->where('ug.group_id', 1)->or_where('ug.group_id', 2)->or_where('ug.group_id IS NULL', null, false)->group_end();
         } else {
             $search_res->where('ug.group_id', $group_id);
         }
         $search_res->join('users', ' transactions.user_id = users.id', 'left')->join('users_groups ug', 'ug.user_id = users.id', 'left');
-        $txn_search_res = $search_res->order_by($sort, $order)->limit($limit, $offset)->get('transactions')->result_array();
+        // Grouped for the same reason the count is DISTINCT: the users_groups join can multiply a
+        // transaction into several rows, and a money list must show each movement exactly once.
+        $txn_search_res = $search_res->group_by('transactions.id')->order_by($sort, $order)->limit($limit, $offset)->get('transactions')->result_array();
         // print_R(count($txn_search_res));
        
         $bulkData = array();

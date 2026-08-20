@@ -15,19 +15,24 @@ class Chat extends CI_Controller {
 
     public function send() {
         $message = $this->sanitize_message($this->input->post('message', true));
+        // The widget posts an `action` for every button press (track_order, payment_issue, ...).
+        // It was accepted by the client and then completely ignored here, so a button only ever
+        // worked by coincidence - because its data-chat-message text happened to contain a
+        // keyword get_bot_reply() recognises. Renaming a button label silently broke it. The
+        // action is now the authoritative signal, with the free-text keyword match as fallback.
+        $action = (string) $this->input->post('action', true);
 
-        if ($message === '') {
-            echo json_encode([
-                'reply' => 'Please enter a message.',
-                'messages' => []
-            ]);
+        if ($message === '' && $action === '') {
+            $this->respond('Please enter a message.');
             return;
         }
 
         $user_id = $this->get_chat_user_id();
-        $session_id = session_id();
 
-        $this->log_message_row($user_id, $message, 'user');
+        if ($message !== '') {
+            $this->log_message_row($user_id, $message, 'user');
+        }
+
         $state = $this->session->userdata('chat_state');
 
         if ($state === self::STATE_ORDER_ID) {
@@ -42,18 +47,79 @@ class Chat extends CI_Controller {
             $this->clear_chat_state();
             $reply = $this->reply_with_product_matches($message);
         }
+        elseif ($action !== '') {
+            $reply = $this->reply_for_action($action, $message);
+        }
         else {
             $reply = $this->get_bot_reply($message);
         }
 
         if (empty($reply)) {
-            $reply = "Thanks We'll help you shortly.";
+            $reply = "Thanks - we will help you shortly.";
         }
 
-        echo json_encode([
-            'reply' => $reply,
-            'messages' => []
-        ]);
+        // The bot's own half of the conversation was never stored, so `chat_messages` held only
+        // the customer's side: the transcript read as a monologue and support had no way to see
+        // what the customer had already been told.
+        $this->log_message_row($user_id, $reply, 'agent');
+
+        $this->respond($reply);
+    }
+
+    /**
+     * Maps a widget button to its flow. Kept separate from the free-text keyword matcher so a
+     * button's behaviour does not depend on its visible label.
+     */
+    private function reply_for_action($action, $message)
+    {
+        switch ($action) {
+            case 'track_order':
+                return $this->start_order_tracking_flow();
+            case 'cancel_order':
+                return 'You can cancel from My Account > My Orders > Cancel. If the order has already shipped, raise a support ticket and we will check it manually.';
+            case 'return_item':
+                return $this->return_policy_reply();
+            case 'payment_issue':
+                return $this->start_payment_issue_flow();
+            case 'product_inquiry':
+                return $this->start_product_enquiry_flow();
+            case 'support':
+                return $this->support_handoff_reply();
+            default:
+                // Unknown action: fall back to whatever the user actually typed rather than
+                // dead-ending on an unrecognised button.
+                return $message !== '' ? $this->get_bot_reply($message) : $this->fallback_reply();
+        }
+    }
+
+    private function support_handoff_reply()
+    {
+        if ($this->get_chat_user_id() <= 0) {
+            return 'Please log in, then open My Account > Support to raise a ticket with our team.';
+        }
+        return 'You can raise a support ticket from My Account > Support. Our team replies on the ticket itself and you can follow its status there.';
+    }
+
+    /**
+     * Single exit point for the endpoint. Always emits a JSON content type (the widget was
+     * parsing a text/html response) and always returns a fresh CSRF hash so a long-lived
+     * widget can keep posting - this endpoint used to 403 on every single message because the
+     * widget sent no CSRF token at all and `chat/send` is not in csrf_exclude_uris.
+     */
+    private function respond($reply)
+    {
+        $payload = [
+            'error'    => false,
+            'reply'    => $reply,
+            'messages' => [],
+        ];
+        if (isset($this->security)) {
+            $payload['csrfName'] = $this->security->get_csrf_token_name();
+            $payload['csrfHash'] = $this->security->get_csrf_hash();
+        }
+        $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode($payload));
     }
 
     
@@ -264,7 +330,9 @@ class Chat extends CI_Controller {
         $return_days = $this->get_return_window_days();
 
         if ($return_days !== '') {
-            return 'Items can be returned within ' . $return_days . ' days, subject to the platform return policy and product eligibility shown on the product page.';
+            // The setting is often 1 on a new store, which rendered as "within 1 days".
+            $unit = ((int) $return_days === 1) ? ' day' : ' days';
+            return 'Items can be returned within ' . (int) $return_days . $unit . ', subject to the platform return policy and product eligibility shown on the product page.';
         }
 
         return 'Items can generally be returned within the allowed return period shown on the product page.';
@@ -287,14 +355,25 @@ class Chat extends CI_Controller {
 
     private function log_message_row($user_id, $message, $sender)
     {
-        $session_id = session_id();
-    
+        $message = (string) $message;
+        if ($message === '') {
+            return;
+        }
+
+        // `chat_messages.session_id` is varchar(128) and `message` is NOT NULL, so guard both:
+        // an over-long session id or an empty body would abort the insert and - with db_debug
+        // on - print a database error page into the middle of the JSON response.
+        $session_id = substr((string) session_id(), 0, 128);
+
         $this->db->insert('chat_messages', [
             'chat_session_id' => 1,
             'user_id' => $user_id > 0 ? $user_id : null,
-            'session_id' => $session_id,
-            'sender' => $sender,
-            'message' => $message
+            'session_id' => $session_id !== '' ? $session_id : null,
+            'sender' => in_array($sender, ['user', 'agent'], true) ? $sender : 'user',
+            // is_read is only meaningful for the customer's own messages (it tells support what
+            // it has not looked at yet); the bot's own replies are read by definition.
+            'is_read' => $sender === 'user' ? 0 : 1,
+            'message' => mb_substr($message, 0, 5000)
         ]);
     }
 

@@ -69,6 +69,12 @@ class Product_model extends CI_Model
 
     public function add_product($data)
     {
+        // Keep the pre-escape values. escape_array() is applied below for backwards
+        // compatibility with the rest of this method (everything it writes is read back through
+        // output_escaping(), which stripcslashes() the escaping off again), but a few fields are
+        // IDENTIFIERS matched exactly against another table rather than text that gets displayed,
+        // and for those the escaping must not be applied. See $pickup_location below.
+        $raw_data = $data;
         $data = escape_array($data);
 
 
@@ -124,10 +130,22 @@ class Product_model extends CI_Model
         $hsn_code = (isset($data['hsn_code']) && !empty($data['hsn_code'])) ? $data['hsn_code'] : "";
         $download_type = (isset($data['download_link_type']) && !empty($data['download_link_type'])) ? $data['download_link_type'] : "";
         $download_link = (!empty($download_type)) ? (($download_type == 'add_link') ? $data['download_link'] : $data['pro_input_zip']) : "";
-        // products.pickup_location is NOT NULL — a literal null here fatals the insert
-        // (1048 "Column 'pickup_location' cannot be null"). Mirrors the same coercion
-        // the mobile API already applies before calling this method.
-        $pickup_location = (isset($data['pickup_location']) && $data['pickup_location'] !== 'NULL' && $data['pickup_location'] !== null) ? $data['pickup_location'] : '';
+        /*
+         * products.pickup_location is NOT NULL — a literal null here fatals the insert
+         * (1048 "Column 'pickup_location' cannot be null"). Mirrors the same coercion
+         * the mobile API already applies before calling this method.
+         *
+         * Read from $raw_data, NOT the escape_array()'d copy. This column holds the pickup
+         * location's NICKNAME and is matched exactly against pickup_locations.pickup_location -
+         * by create_shiprocket_order() to find the pickup pincode, and by
+         * check_cart_products_delivarable() to check serviceability. escape_array() turned
+         * "Developer's Den" into "Developer\'s Den" on the product while the pickup_locations
+         * row holds the plain form, so the two never matched: verified on this database, all 12
+         * products that name a pickup location resolve to nothing, which means no shipment can be
+         * booked for them at all. Everything else in this method stays escaped because it is read
+         * back through output_escaping(); an exact-match key cannot be.
+         */
+        $pickup_location = (isset($raw_data['pickup_location']) && $raw_data['pickup_location'] !== 'NULL' && $raw_data['pickup_location'] !== null) ? $raw_data['pickup_location'] : '';
 
         $pro_data = [
             'name' => $data['pro_input_name'],
@@ -1229,6 +1247,33 @@ class Product_model extends CI_Model
 
         $filters['show_only_stock_product'] = true;
 
+        /*
+         * Manage Stock is an inventory screen, not a shop listing, so it must not inherit the
+         * storefront visibility rules. fetch_product() otherwise applies
+         *   p.status = 1 AND pv.status = 1 AND sd.status = 1 AND p.listing_visibility = 1
+         *   AND (c.status = '1' OR c.status = '0')
+         * which hides stock for three reasons that have nothing to do with inventory:
+         *   - listing_visibility = 2 means the seller is over their PLAN's listing cap. Their
+         *     stock still exists and still needs managing; on this database 176 of 290 products
+         *     are in that state.
+         *   - the category filter compares c.status to '1'/'0', so a product whose category row
+         *     is missing (c.status IS NULL) is excluded. 177 products here reference category
+         *     ids that no longer exist, and every product that passed the other filters fell
+         *     into exactly that group.
+         *   - a deactivated product or seller still has counted stock an admin may need to see.
+         * Between them these left the admin and seller Manage Stock screens showing ZERO rows
+         * while 270 products had stock recorded - verified live before this change.
+         *
+         * show_only_active_products = 0 is fetch_product()'s own documented switch for
+         * "administrative read, not a storefront read" and sets the where-clause to empty.
+         */
+        $filters['show_only_active_products'] = 0;
+
+        // Also list products whose category row has been deleted. 177 products here reference a
+        // category id that no longer exists, which made them unreachable from every screen -
+        // including the one an admin would use to notice and fix them.
+        $filters['ignore_category_status'] = 1;
+
         $offset = 0;
 
         $limit = 10;
@@ -1292,7 +1337,22 @@ class Product_model extends CI_Model
 
 
 
-            $tempRow['id'] = $product['variants'][0]['id'];
+            /*
+             * Two unguarded reads, both of which fire on real data:
+             *   - $product['variants'][0]['id'] assumes the product HAS a variant row. 13 active
+             *     products here have none, so this was "Undefined array key 0" followed by
+             *     "Trying to access array offset on value of type null".
+             *   - $category_name[0]['name'] assumes the category row exists. 177 products here
+             *     reference a category id that has been deleted, so the lookup returns nothing.
+             * In development both warnings print into the response body and corrupt the JSON the
+             * stock table is parsing; in production they fill the log and render an empty cell.
+             * A product with no variants still has a row worth showing - it just has no variant
+             * id - so fall back to the product id rather than skipping it.
+             */
+            $first_variant_id = isset($product['variants'][0]['id']) ? $product['variants'][0]['id'] : null;
+            $resolved_category = isset($category_name[0]['name']) ? $category_name[0]['name'] : '';
+
+            $tempRow['id'] = $first_variant_id;
 
             // Neither product name, category name, nor variant attribute values were ever
             // escaped here - all three are seller-controlled input, rendered raw into the
@@ -1302,7 +1362,7 @@ class Product_model extends CI_Model
 
             $tempRow['seller_name'] = html_escape($product['seller_name']);
 
-            $tempRow['category_name'] = html_escape($category_name[0]['name']);
+            $tempRow['category_name'] = html_escape($resolved_category);
 
             $tempRow['image'] = '<div class="mx-auto product-image image-box-100"><a href=' . $product['image'] . ' data-toggle="lightbox" data-gallery="gallery"><img src=' . $product['image'] . ' class="rounded"></a></div>';
 
@@ -1312,6 +1372,12 @@ class Product_model extends CI_Model
             // with no real target for that row.
             $edit = '';
             $operate = "<table class='table-borderless table-sm w-100'>";
+
+            // $edit is assigned inside the loop below. With no variants the loop never runs, so
+            // the simple-product line at the end of this block used either an undefined variable
+            // or - worse - the edit button built for the PREVIOUS product in the list, pointing
+            // the admin at the wrong variant.
+            $edit = '';
 
             for ($i = 0; $i < count($variants); $i++) {
 
@@ -1337,7 +1403,31 @@ class Product_model extends CI_Model
 
             $operate .= "</table>";
 
-            $tempRow['operate'] = (isset($product['stock']) && !empty($product['stock'])) ? '<table class="table-borderless table-sm w-100"><tr><th><b>'  . 'Simple Product' . '</b></th><td> <b>'  . ($product['stock']) . '</b></td><td>' . ' ' . $edit . "</td></tr></table>" : $operate;
+            /*
+             * Which view this row gets is decided by stock_type, not by whether products.stock
+             * happens to hold a number.
+             *
+             * products.stock is only maintained for a simple product (stock_type 0). For a
+             * product-level or variant-level product the real figure lives on the variants - see
+             * update_stock() and validate_stock(), which both read and write product_variants for
+             * those types - and products.stock is a stale leftover nothing ever updates. Because
+             * this line only tested !empty(), any such leftover made the report throw away the
+             * per-variant table carefully built just above and print "Simple Product" with the
+             * dead number instead.
+             *
+             * Measured live: product 25 "Handmade Hair clips" is stock_type 1 with its variants
+             * holding 77, and this report displayed "Simple Product" and 21 - a figure no
+             * customer, order or stock movement has anything to do with. On a stock report that
+             * is the one thing that must not happen.
+             */
+            $row_stock_type = normalise_stock_type($product['stock_type']);
+            $has_product_stock = isset($product['stock']) && $product['stock'] !== '' && $product['stock'] !== null;
+
+            if ($row_stock_type === 0 && $has_product_stock) {
+                $tempRow['operate'] = '<table class="table-borderless table-sm w-100"><tr><th><b>' . 'Simple Product' . '</b></th><td> <b>' . ($product['stock']) . '</b></td><td>' . ' ' . $edit . "</td></tr></table>";
+            } else {
+                $tempRow['operate'] = $operate;
+            }
 
             $rows[] = $tempRow;
         }
@@ -1359,6 +1449,25 @@ class Product_model extends CI_Model
 
         $filters['show_only_stock_product'] = true;
 
+        /*
+         * Same reasoning as get_stock_details() above - this is the SELLER's copy of the same
+         * screen and had the same defect. Manage Stock is an inventory screen, so it must not
+         * inherit the storefront's visibility rules:
+         *   - listing_visibility = 2 means the seller is over their plan's listing cap; the
+         *     stock still exists and is still theirs to manage.
+         *   - the category filter excludes a product whose category row was deleted.
+         *   - a deactivated product still has counted stock.
+         * Verified live: the admin screen listed 267 of this seller's stock products while the
+         * seller's own screen listed ZERO.
+         *
+         * Seller scoping is unaffected - fetch_product() applies p.seller_id from the $seller_id
+         * argument separately, after the visibility where-clause is built, so relaxing these
+         * filters cannot show one seller another seller's stock. Confirmed by comparing the
+         * variant ids this returns against products.seller_id.
+         */
+        $filters['show_only_active_products'] = 0;
+        $filters['ignore_category_status'] = 1;
+
         $offset = 0;
 
         $limit = 10;
@@ -1379,9 +1488,12 @@ class Product_model extends CI_Model
 
             $limit = $_GET['limit'];
 
-        if (isset($_GET['order']))
+        // Was assigned straight from the querystring. $sort is hardcoded to 'id' above so this
+        // is not the same injection shape as elsewhere, but the admin copy of this method already
+        // whitelists the direction and relying on that accident is fragile.
+        if (isset($_GET['order']) && strtolower($_GET['order']) === 'desc')
 
-            $order = $_GET['order'];
+            $order = 'DESC';
 
         if (isset($_GET['category_id'])) {
 
@@ -1416,17 +1528,40 @@ class Product_model extends CI_Model
 
 
 
-            $tempRow['id'] = $product['variants'][0]['id'];
+            /*
+             * Two unguarded reads, both of which fire on real data:
+             *   - $product['variants'][0]['id'] assumes the product HAS a variant row. 13 active
+             *     products here have none, so this was "Undefined array key 0" followed by
+             *     "Trying to access array offset on value of type null".
+             *   - $category_name[0]['name'] assumes the category row exists. 177 products here
+             *     reference a category id that has been deleted, so the lookup returns nothing.
+             * In development both warnings print into the response body and corrupt the JSON the
+             * stock table is parsing; in production they fill the log and render an empty cell.
+             * A product with no variants still has a row worth showing - it just has no variant
+             * id - so fall back to the product id rather than skipping it.
+             */
+            $first_variant_id = isset($product['variants'][0]['id']) ? $product['variants'][0]['id'] : null;
+            $resolved_category = isset($category_name[0]['name']) ? $category_name[0]['name'] : '';
 
-            $tempRow['name'] = $product['name'];
+            $tempRow['id'] = $first_variant_id;
 
-            $tempRow['seller_name'] = $product['seller_name'];
+            // Escaped for the same reason the admin copy is: these are seller-authored strings
+            // rendered straight into the table's HTML payload.
+            $tempRow['name'] = html_escape($product['name']);
 
-            $tempRow['category_name'] = $category_name[0]['name'];
+            $tempRow['seller_name'] = html_escape((string) $product['seller_name']);
+
+            $tempRow['category_name'] = html_escape($resolved_category);
 
             $tempRow['image'] = '<div class="mx-auto product-image image-box-100"><a href=' . $product['image'] . ' data-toggle="lightbox" data-gallery="gallery"><img src=' . $product['image'] . ' class="rounded"></a></div>';
 
             $operate = "<table class='table-borderless table-sm w-100'>";
+
+            // $edit is assigned inside the loop below. With no variants the loop never runs, so
+            // the simple-product line at the end of this block used either an undefined variable
+            // or - worse - the edit button built for the PREVIOUS product in the list, pointing
+            // the admin at the wrong variant.
+            $edit = '';
 
             for ($i = 0; $i < count($variants); $i++) {
 
@@ -1452,7 +1587,31 @@ class Product_model extends CI_Model
 
             $operate .= "</table>";
 
-            $tempRow['operate'] = (isset($product['stock']) && !empty($product['stock'])) ? '<table class="table-borderless table-sm w-100"><tr><th><b>'  . 'Simple Product' . '</b></th><td> <b>'  . ($product['stock']) . '</b></td><td>' . ' ' . $edit . "</td></tr></table>" : $operate;
+            /*
+             * Which view this row gets is decided by stock_type, not by whether products.stock
+             * happens to hold a number.
+             *
+             * products.stock is only maintained for a simple product (stock_type 0). For a
+             * product-level or variant-level product the real figure lives on the variants - see
+             * update_stock() and validate_stock(), which both read and write product_variants for
+             * those types - and products.stock is a stale leftover nothing ever updates. Because
+             * this line only tested !empty(), any such leftover made the report throw away the
+             * per-variant table carefully built just above and print "Simple Product" with the
+             * dead number instead.
+             *
+             * Measured live: product 25 "Handmade Hair clips" is stock_type 1 with its variants
+             * holding 77, and this report displayed "Simple Product" and 21 - a figure no
+             * customer, order or stock movement has anything to do with. On a stock report that
+             * is the one thing that must not happen.
+             */
+            $row_stock_type = normalise_stock_type($product['stock_type']);
+            $has_product_stock = isset($product['stock']) && $product['stock'] !== '' && $product['stock'] !== null;
+
+            if ($row_stock_type === 0 && $has_product_stock) {
+                $tempRow['operate'] = '<table class="table-borderless table-sm w-100"><tr><th><b>' . 'Simple Product' . '</b></th><td> <b>' . ($product['stock']) . '</b></td><td>' . ' ' . $edit . "</td></tr></table>";
+            } else {
+                $tempRow['operate'] = $operate;
+            }
 
             $rows[] = $tempRow;
         }

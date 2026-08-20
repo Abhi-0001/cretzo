@@ -60,13 +60,51 @@ class Order_model extends CI_Model
                     $set = array();
                     $temp = array();
                     $active_status = array();
-                    $active_status[$i] = json_decode($row['status'], 1);
+                    /*
+                     * `status` holds the status HISTORY as a JSON array of [status, timestamp]
+                     * pairs. Anything that is not a decodable array used to reach end() directly
+                     * and throw an uncaught TypeError -
+                     *   end(): Argument #1 ($array) must be of type array, null given
+                     * - which is a hard 500. Worse, it is permanent: once a row's history is
+                     * unreadable, EVERY subsequent status change on that order item throws, so
+                     * the item can never be advanced, cancelled or returned again by anyone.
+                     *
+                     * The column is varchar(1024) and each entry costs roughly 40 characters, so
+                     * a long enough history (repeated return/redelivery cycles) truncates and
+                     * becomes invalid JSON on its own. Rows imported or edited outside the normal
+                     * path do the same. Treat an unreadable history as empty and start a fresh
+                     * one rather than bricking the order item.
+                     */
+                    $decoded_history = json_decode((string) $row['status'], 1);
+                    if (!is_array($decoded_history)) {
+                        if (!empty($row['status'])) {
+                            log_message('error', 'update_order: unreadable status history on ' . $table . ' #'
+                                . (isset($row['id']) ? $row['id'] : '?') . ' - rebuilding it. Was: '
+                                . substr((string) $row['status'], 0, 200));
+                        }
+                        $decoded_history = [];
+                    }
+                    $active_status[$i] = $decoded_history;
                     $current_selected_status = end($active_status[$i]);
                     $temp = $active_status[$i];
                     $cnt = count($temp);
                     $currTime = date('Y-m-d H:i:s');
-                    $min_value = (!empty($temp)) ? $priority_status[$current_selected_status[0]] : -1;
-                    $max_value = $priority_status[$current_status];
+                    /*
+                     * Two further ways this line could fail even with valid JSON:
+                     *   - end() returns FALSE on an empty array, so $current_selected_status[0]
+                     *     was an "Trying to access array offset on value of type bool" notice;
+                     *   - a history entry naming a status that is not in $priority_status (e.g.
+                     *     'return_request_decline' while the other map is in force) was an
+                     *     undefined-index warning and silently became NULL, which then compares
+                     *     as 0 and lets the ladder move backwards.
+                     */
+                    $last_status_name = (is_array($current_selected_status) && isset($current_selected_status[0]))
+                        ? $current_selected_status[0]
+                        : null;
+                    $min_value = (!empty($temp) && $last_status_name !== null && isset($priority_status[$last_status_name]))
+                        ? $priority_status[$last_status_name]
+                        : -1;
+                    $max_value = isset($priority_status[$current_status]) ? $priority_status[$current_status] : -1;
                     if ($current_status == 'returned'  || $current_status == 'cancelled') {
                         $temp[$cnt] = [$current_status, $currTime];
                     } else {
@@ -509,7 +547,11 @@ class Order_model extends CI_Model
 
             /* Calculating Wallet Balance */
             $total_payable = $final_total;
-            if ($data['is_wallet_used'] == '1') {
+            // isset() because this key is optional in practice: the POS screen, the digital-order
+            // path and every direct place_order() caller omit it, and reading it raised an
+            // "Undefined array key" warning on each of those checkouts. Under the API that
+            // warning text is prepended to the JSON response body, which breaks the client's parse.
+            if (isset($data['is_wallet_used']) && $data['is_wallet_used'] == '1') {
 
                 // Clamp rather than reject. $final_total here is the authoritative figure -
                 // it is recomputed from the cart rows, the promo code and the delivery charge
@@ -593,8 +635,51 @@ class Order_model extends CI_Model
             $order_data['notes'] = $data['order_note'];
 
 
-            $this->db->insert('orders', $order_data);
+            $order_inserted = $this->db->insert('orders', $order_data);
             $last_order_id = $this->db->insert_id();
+
+            /*
+             * Stop here if the order row was not actually written.
+             *
+             * insert_id() returns 0 when the insert failed, and nothing checked it - so the whole
+             * rest of this method ran against order id 0: every order_items row was written with
+             * order_id = 0, parcels and OTPs were generated, stock was deducted and the cart was
+             * emptied, all for an order that does not exist. The customer got "Order Placed
+             * Successfully" and an order they could never see, and the seller got stock sold off
+             * a phantom sale.
+             *
+             * This is not hypothetical - it already happened on this database. order_items row 11
+             * (user 25, seller 7, 449.00, 2026-01-01 18:03:48) sits at order_id 0, while order 9
+             * carries the same user, the same second and the same 449.00 with no items at all.
+             *
+             * The test for it has to be the insert's OWN return value. insert_id() is not a
+             * reliable signal: MySQL leaves it holding the previous AUTO_INCREMENT value of the
+             * session, and on a wallet-paid order the previous insert is the wallet debit in
+             * `transactions`. Reproduced here: with the orders insert refused, insert_id()
+             * returned 1057 - the id of the debit row - and the order item was written with
+             * order_id = 1057, an id that belongs to a different table entirely. That is worse
+             * than order_id 0, because 0 is obviously broken while 1057 looks like a real order
+             * and will one day collide with one.
+             *
+             * The wallet is the one side effect that already happened above, so it is put back
+             * before returning. Stock is deducted further down, after this point, so there is
+             * nothing to restore there.
+             */
+            if ($order_inserted === false || empty($last_order_id) || $this->db->affected_rows() < 1) {
+                $db_error = $this->db->error();
+                log_message('error', 'place_order: the orders insert failed for user ' . $data['user_id']
+                    . ' - (' . (isset($db_error['code']) ? $db_error['code'] : '?') . ') '
+                    . (isset($db_error['message']) ? $db_error['message'] : 'no driver message'));
+
+                if (isset($Wallet_used) && $Wallet_used === true && !empty($data['wallet_balance_used'])) {
+                    update_wallet_balance('credit', $data['user_id'], $data['wallet_balance_used'], 'Refund: order could not be placed');
+                }
+
+                $response['error'] = true;
+                $response['message'] = 'Your order could not be placed. Please try again.';
+                $response['balance'] = fetch_details('users', ['id' => $data['user_id']], 'balance');
+                return $response;
+            }
 
             // Commission rate resolved once per seller on this order, then reused for each of
             // that seller's lines (see the item loop below).
@@ -653,9 +738,19 @@ class Order_model extends CI_Model
                 $parcel_total = $parcel['total'] + intval(isset($parcel['delivery_charge']) ? $parcel['delivery_charge'] : 0) - $seller_promocode_discount;
                 $parcel_total = round($parcel_total, 2);
                 foreach ($varient_ids as $ids) {
-                    $order_item_ids .= fetch_details('order_items', ['seller_id' => $seller_id, 'product_variant_id' => $ids, 'order_id' => $last_order_id], 'id')[0]['id'] . ',';
+                    // [0]['id'] was read straight off this lookup. When it missed, PHP 8 yielded
+                    // null, the id appended was empty, and the loop below then ran
+                    // UPDATE order_items SET otp = ... WHERE id = '' - which MySQL evaluates by
+                    // casting every id to 0, so it matched nothing here but is a blind write.
+                    $found = fetch_details('order_items', ['seller_id' => $seller_id, 'product_variant_id' => $ids, 'order_id' => $last_order_id], 'id');
+                    if (!empty($found[0]['id'])) {
+                        $order_item_ids .= $found[0]['id'] . ',';
+                    } else {
+                        log_message('error', 'place_order: no order_items row for seller ' . $seller_id
+                            . ' variant ' . $ids . ' on order ' . $last_order_id . ' while building parcels');
+                    }
                 }
-                $order_item_id = explode(',', trim($order_item_ids, ','));
+                $order_item_id = array_filter(explode(',', trim($order_item_ids, ',')));
                 foreach ($order_item_id as $ids) {
                     update_details(['otp' => $otp], ['id' => $ids], 'order_items');
                 }
@@ -1013,85 +1108,99 @@ class Order_model extends CI_Model
             // echo "<pre>";
             // print_r($row);
 
-            if (!empty($row['items'])) {
-                $items = $row['items'];
-                $items1 = '';
-                $temp = '';
-                $total_amt = $total_qty = 0;
-                $seller = implode(",", array_values(array_unique(array_column($items, "seller"))));
+            /*
+             * This used to be wrapped in `if (!empty($row['items']))`, and everything below reads
+             * $row['items'][0] - so an order carrying no order_items row was skipped here while the
+             * COUNT(DISTINCT o.id) above still counted it. Measured on this database: the report
+             * announced 26 orders and rendered 25. The missing one is order 9, a 501 Razorpay
+             * order whose items were written against order_id 0 - exactly the kind of broken order
+             * an admin most needs to see, and the only screen that would have shown it hid it.
+             *
+             * The order is now always rendered; the fields that genuinely come from an item fall
+             * back to the order's own columns or to a dash.
+             */
+            $tempRow = [];   // not reset per iteration before, so a skipped key showed the previous order's value
+            $first = !empty($row['items']) ? $row['items'][0] : [];
+            $first_discount = isset($first['discount']) ? $first['discount'] : 0;
+            $customer_name = !empty($first['uname']) ? $first['uname'] : (!empty($row['username']) ? $row['username'] : '');
+            $order_status = !empty($first['active_status']) ? $first['active_status'] : 'awaiting';
+            $items = $row['items'];
+            $items1 = '';
+            $temp = '';
+            $total_amt = $total_qty = 0;
+            $seller = implode(",", array_values(array_unique(array_column($items, "seller"))));
 
-                foreach ($items as $item) {
-                    $product_variants = get_variants_values_by_id($item['product_variant_id']);
-                    $variants = isset($product_variants[0]['variant_values']) && !empty($product_variants[0]['variant_values']) ? str_replace(',', ' | ', $product_variants[0]['variant_values']) : '-';
-                    $temp .= "<b>ID :</b>" . $item['id'] . "<b> Product Variant Id :</b> " . $item['product_variant_id'] . "<b> Variants :</b> " . $variants . "<b> Name : </b>" . $item['name'] . " <b>Price : </b>" . $item['price'] . " <b>QTY : </b>" . $item['quantity'] . " <b>Subtotal : </b>" . $item['quantity'] * $item['price'] . "<br>------<br>";
-                    $total_amt += $item['sub_total'];
-                    $total_qty += $item['quantity'];
-                }
-
-                $items1 = $temp;
-                $discounted_amount = $row['total'] * $row['items'][0]['discount'] / 100;
-                $final_total = $row['total'] - $discounted_amount;
-                $discount_in_rupees = $row['total'] - $final_total;
-                $discount_in_rupees = floor($discount_in_rupees);
-                $tempRow['id'] = $row['id'];
-                $tempRow['user_id'] = $row['user_id'];
-                $tempRow['name'] = $row['items'][0]['uname'];
-                if (isset($row['mobile']) && !empty($row['mobile']) && $row['mobile'] != "" && $row['mobile'] != " ") {
-                    $tempRow['mobile'] =  (defined('ALLOW_MODIFICATION') && ALLOW_MODIFICATION == 0) ? str_repeat("X", strlen($row['mobile']) - 3) . substr($row['mobile'], -3) : $row['mobile'];
-                } else {
-                    $tempRow['mobile'] = "";
-                }
-                $tempRow['delivery_charge'] = $currency_symbol . $row['delivery_charge'];
-                $tempRow['items'] = $items1;
-                $tempRow['sellers'] = $seller;
-                $tempRow['total'] = $currency_symbol . $row['total'];
-                $tota_amount += intval($row['total']);
-                $tempRow['wallet_balance'] = $currency_symbol . $row['wallet_balance'];
-                $tempRow['discount'] = $currency_symbol . $discount_in_rupees . '(' . $row['items'][0]['discount'] . '%)';
-                $tempRow['promo_discount'] = $currency_symbol . $row['promo_discount'];
-                $tempRow['promo_code'] = $row['promo_code'];
-                $tempRow['notes'] = $row['notes'];
-                $tempRow['qty'] =  $total_qty;
-                $tempRow['final_total'] = $currency_symbol . $row['total_payable'];
-                $final_total = $row['final_total'] - $row['wallet_balance']  - $row['discount'];
-                $tempRow['final_total'] = $currency_symbol . $final_total;
-                $final_tota_amount += intval($row['final_total']);
-                $tempRow['deliver_by'] = $row['delivery_boy'];
-                $tempRow['payment_method'] = $row['payment_method'];
-                // updated_by is 0 for every order_items row in this database (none has ever
-                // been status-updated by a specific user id), so this lookup always came back
-                // empty and $updated_username[0] always raised an "Undefined array key 0"
-                // warning - on every row, every time this table loaded. Confirmed live: 10
-                // warnings across 5 rows. That was invisible only because error_reporting was
-                // disabled sitewide for the whole Order_model file (see the top of this file);
-                // with that restored, this endpoint is consumed via dataType:'json', so warning
-                // HTML text prepended to the response would break bootstrap-table's JSON parsing
-                // on every load.
-                $updated_by_id = $row['items'][0]['updated_by'];
-                $updated_username = (!empty($updated_by_id)) ? fetch_details('users', ['id' => $updated_by_id], 'username') : [];
-                $tempRow['updated_by'] = (!empty($updated_username[0]['username'])) ? $updated_username[0]['username'] : '';
-                $tempRow['address'] = output_escaping(str_replace('\r\n', '</br>', $row['address']));
-                $tempRow['delivery_date'] = $row['delivery_date'];
-                $tempRow['delivery_time'] = $row['delivery_time'];
-                $tempRow['date_added'] = date('d-m-Y', strtotime($row['date_added']));
-                $operate = '<a href=' . base_url('admin/orders/edit_orders') . '?edit_id=' . $row['id'] . '" class="btn action-btn btn-primary btn-xs mr-1 ml-1 mb-1" title="View" ><i class="fa fa-eye"></i></a>';
-                if (!$this->ion_auth->is_delivery_boy()) {
-                    $operate = '<a href=' . base_url('admin/orders/edit_orders') . '?edit_id=' . $row['id'] . ' class="btn action-btn btn-primary btn-xs ml-1 mr-1 mb-1" title="View" ><i class="fa fa-eye"></i></a>';
-                    $operate .= '<a href="javascript:void(0)" class="delete-orders btn btn-danger action-btn btn-xs ml-1 mr-1 mb-1" data-id=' . $row['id'] . ' title="Delete" ><i class="fa fa-trash"></i></a>';
-                    $operate .= '<a href="' . base_url() . 'admin/invoice?edit_id=' . $row['id'] . '" class="btn action-btn btn-info btn-xs  ml-1 mb-1" title="Invoice" ><i class="fa fa-file"></i></a>';
-                    $operate .= '<a href="https://api.whatsapp.com/send?phone='.$row['country_code'] .$tempRow['mobile'].'&amp;text=Hello, '. $row['items'][0]['uname'].' Your order with ID : '.$row['items'][0]['order_id'] .' and is '.$row['items'][0]['active_status'].'. Please take a note of it. If you have further queries feel free to contact us. Thank you." target="_blank" title="Send Whatsapp Notification" class="btn btn-xs ml-1 mr-1 mb-1 btn-success"><i class="fa fa-phone-alt" style="font-size: 16px;color:white"></i></a>';
-                    if ($row['items'][0]['type'] != 'digital_product') {
-                        $operate .= ' <a href="javascript:void(0)" class="edit_order_tracking btn action-btn btn-success btn-xs ml-1 mr-1 mb-1" title="Order Tracking" data-order_id="' . $row['id'] . '"  data-target="#order-tracking-modal" data-toggle="modal"><i class="fa fa-map-marker-alt"></i></a>';
-                    }
-                    if ($row['items'][0]['type'] == 'digital_product' && $row['items'][0]['download_allowed'] != 1) {
-                        $operate .= ' <a href="javascript:void(0)" class="edit_digital_order_mails action-btn btn btn-warning btn-xs mr-1 ml-1 mb-1" title="Digital Order Mails" data-order_id="' . $row['id'] . '"  data-target="#digital-order-mails" data-toggle="modal"><i class="far fa-envelope-open"></i></a>';
-                    }
-                } else {
-                    $operate = '<a href=' . base_url('delivery_boy/orders/edit_orders') . '?edit_id=' . $row['id'] . ' class="btn action-btn btn-primary btn-xs ml-1 mr-1 mb-1" title="View"><i class="fa fa-eye"></i></a>';
-                }
-                $tempRow['operate'] = $operate;
-                $rows[] = $tempRow;
+            foreach ($items as $item) {
+                $product_variants = get_variants_values_by_id($item['product_variant_id']);
+                $variants = isset($product_variants[0]['variant_values']) && !empty($product_variants[0]['variant_values']) ? str_replace(',', ' | ', $product_variants[0]['variant_values']) : '-';
+                $temp .= "<b>ID :</b>" . $item['id'] . "<b> Product Variant Id :</b> " . $item['product_variant_id'] . "<b> Variants :</b> " . $variants . "<b> Name : </b>" . $item['name'] . " <b>Price : </b>" . $item['price'] . " <b>QTY : </b>" . $item['quantity'] . " <b>Subtotal : </b>" . $item['quantity'] * $item['price'] . "<br>------<br>";
+                $total_amt += $item['sub_total'];
+                $total_qty += $item['quantity'];
             }
+
+            $items1 = $temp;
+            $discounted_amount = $row['total'] * $first_discount / 100;
+            $final_total = $row['total'] - $discounted_amount;
+            $discount_in_rupees = $row['total'] - $final_total;
+            $discount_in_rupees = floor($discount_in_rupees);
+            $tempRow['id'] = $row['id'];
+            $tempRow['user_id'] = $row['user_id'];
+            $tempRow['name'] = $customer_name;
+            if (isset($row['mobile']) && !empty($row['mobile']) && $row['mobile'] != "" && $row['mobile'] != " ") {
+                $tempRow['mobile'] =  (defined('ALLOW_MODIFICATION') && ALLOW_MODIFICATION == 0) ? str_repeat("X", strlen($row['mobile']) - 3) . substr($row['mobile'], -3) : $row['mobile'];
+            } else {
+                $tempRow['mobile'] = "";
+            }
+            $tempRow['delivery_charge'] = $currency_symbol . $row['delivery_charge'];
+            $tempRow['items'] = $items1;
+            $tempRow['sellers'] = $seller;
+            $tempRow['total'] = $currency_symbol . $row['total'];
+            $tota_amount += intval($row['total']);
+            $tempRow['wallet_balance'] = $currency_symbol . $row['wallet_balance'];
+            $tempRow['discount'] = $currency_symbol . $discount_in_rupees . '(' . $first_discount . '%)';
+            $tempRow['promo_discount'] = $currency_symbol . $row['promo_discount'];
+            $tempRow['promo_code'] = $row['promo_code'];
+            $tempRow['notes'] = $row['notes'];
+            $tempRow['qty'] =  $total_qty;
+            $tempRow['final_total'] = $currency_symbol . $row['total_payable'];
+            $final_total = $row['final_total'] - $row['wallet_balance']  - $row['discount'];
+            $tempRow['final_total'] = $currency_symbol . $final_total;
+            $final_tota_amount += intval($row['final_total']);
+            $tempRow['deliver_by'] = $row['delivery_boy'];
+            $tempRow['payment_method'] = $row['payment_method'];
+            // updated_by is 0 for every order_items row in this database (none has ever
+            // been status-updated by a specific user id), so this lookup always came back
+            // empty and $updated_username[0] always raised an "Undefined array key 0"
+            // warning - on every row, every time this table loaded. Confirmed live: 10
+            // warnings across 5 rows. That was invisible only because error_reporting was
+            // disabled sitewide for the whole Order_model file (see the top of this file);
+            // with that restored, this endpoint is consumed via dataType:'json', so warning
+            // HTML text prepended to the response would break bootstrap-table's JSON parsing
+            // on every load.
+            $updated_by_id = isset($first['updated_by']) ? $first['updated_by'] : 0;
+            $updated_username = (!empty($updated_by_id)) ? fetch_details('users', ['id' => $updated_by_id], 'username') : [];
+            $tempRow['updated_by'] = (!empty($updated_username[0]['username'])) ? $updated_username[0]['username'] : '';
+            $tempRow['address'] = output_escaping(str_replace('\r\n', '</br>', $row['address']));
+            $tempRow['delivery_date'] = $row['delivery_date'];
+            $tempRow['delivery_time'] = $row['delivery_time'];
+            $tempRow['date_added'] = date('d-m-Y', strtotime($row['date_added']));
+            $operate = '<a href=' . base_url('admin/orders/edit_orders') . '?edit_id=' . $row['id'] . '" class="btn action-btn btn-primary btn-xs mr-1 ml-1 mb-1" title="View" ><i class="fa fa-eye"></i></a>';
+            if (!$this->ion_auth->is_delivery_boy()) {
+                $operate = '<a href=' . base_url('admin/orders/edit_orders') . '?edit_id=' . $row['id'] . ' class="btn action-btn btn-primary btn-xs ml-1 mr-1 mb-1" title="View" ><i class="fa fa-eye"></i></a>';
+                $operate .= '<a href="javascript:void(0)" class="delete-orders btn btn-danger action-btn btn-xs ml-1 mr-1 mb-1" data-id=' . $row['id'] . ' title="Delete" ><i class="fa fa-trash"></i></a>';
+                $operate .= '<a href="' . base_url() . 'admin/invoice?edit_id=' . $row['id'] . '" class="btn action-btn btn-info btn-xs  ml-1 mb-1" title="Invoice" ><i class="fa fa-file"></i></a>';
+                $operate .= '<a href="https://api.whatsapp.com/send?phone='.$row['country_code'] .$tempRow['mobile'].'&amp;text=Hello, '. $customer_name.' Your order with ID : '.$row['id'] .' and is '.$order_status.'. Please take a note of it. If you have further queries feel free to contact us. Thank you." target="_blank" title="Send Whatsapp Notification" class="btn btn-xs ml-1 mr-1 mb-1 btn-success"><i class="fa fa-phone-alt" style="font-size: 16px;color:white"></i></a>';
+                if (!empty($first) && $first['type'] != 'digital_product') {
+                    $operate .= ' <a href="javascript:void(0)" class="edit_order_tracking btn action-btn btn-success btn-xs ml-1 mr-1 mb-1" title="Order Tracking" data-order_id="' . $row['id'] . '"  data-target="#order-tracking-modal" data-toggle="modal"><i class="fa fa-map-marker-alt"></i></a>';
+                }
+                if (!empty($first) && $first['type'] == 'digital_product' && $first['download_allowed'] != 1) {
+                    $operate .= ' <a href="javascript:void(0)" class="edit_digital_order_mails action-btn btn btn-warning btn-xs mr-1 ml-1 mb-1" title="Digital Order Mails" data-order_id="' . $row['id'] . '"  data-target="#digital-order-mails" data-toggle="modal"><i class="far fa-envelope-open"></i></a>';
+                }
+            } else {
+                $operate = '<a href=' . base_url('delivery_boy/orders/edit_orders') . '?edit_id=' . $row['id'] . ' class="btn action-btn btn-primary btn-xs ml-1 mr-1 mb-1" title="View"><i class="fa fa-eye"></i></a>';
+            }
+            $tempRow['operate'] = $operate;
+            $rows[] = $tempRow;
         }
         if (!empty($user_details)) {
             $tempRow['id'] = '-';
@@ -1114,6 +1223,14 @@ class Order_model extends CI_Model
             $tempRow['active_status'] = '-';
             $tempRow['wallet_balance'] = '-';
             $tempRow['date_added'] = '-';
+            // These five were never set on the totals row, and $tempRow still held the last
+            // order's values - so the footer showed a real order's promo code, notes and
+            // delivery date next to the grand totals.
+            $tempRow['promo_discount'] = '-';
+            $tempRow['promo_code'] = '-';
+            $tempRow['notes'] = '-';
+            $tempRow['updated_by'] = '-';
+            $tempRow['delivery_date'] = '-';
             $tempRow['operate'] = '-';
             array_push($rows, $tempRow);
         }
@@ -1154,12 +1271,29 @@ class Order_model extends CI_Model
             ];
         }
 
-        $count_res = $this->db->select(' COUNT(o.id) as `total` ')
+        /*
+         * This is a list of ORDER ITEMS, so the total must count order items.
+         *
+         * Three separate reasons the total and the rows disagreed - measured live on this
+         * database: the count said 42 while the list returned 45 rows out of 43 real order items.
+         *
+         *   1. COUNT(o.id) counted the ORDERS-table id off a joined row, not oi.id.
+         *   2. `orders` was joined INNER here but LEFT in the data query below, so an order item
+         *      whose order row is missing (one exists here) was excluded from the total but still
+         *      listed. An admin report should not hide a record; both are LEFT now.
+         *   3. The data query carries two extra one-to-many joins the count knows nothing about -
+         *      order_tracking and transactions - and had no GROUP BY, so an order item with two
+         *      transactions was listed twice. Those joins are added here too so the filters can
+         *      still reference them, and DISTINCT keeps the number honest.
+         */
+        $count_res = $this->db->select(' COUNT(DISTINCT oi.id) as `total` ')
             ->join(' `users` u', 'u.id= oi.delivery_boy_id', 'left')
             ->join('users us ', ' us.id = oi.seller_id', 'left')
-            ->join(' `orders` o', 'o.id= oi.order_id')
+            ->join('order_tracking ot ', ' ot.order_item_id = oi.id', 'left')
+            ->join(' `orders` o', 'o.id= oi.order_id', 'left')
             ->join('product_variants v ', ' oi.product_variant_id = v.id', 'left')
             ->join('products p ', ' p.id = v.product_id ', 'left')
+            ->join('transactions t ', ' t.order_item_id = oi.id ', 'left')
             ->join('users un ', ' un.id = o.user_id', 'left');
         if (!empty($_GET['start_date']) && !empty($_GET['end_date'])) {
 
@@ -1265,7 +1399,9 @@ class Order_model extends CI_Model
         }
 
 
-        $user_details = $search_res->order_by($sort, "DESC")->limit($limit, $offset)->get('order_items oi')->result_array();
+        // GROUP BY oi.id so an order item with several transactions or tracking rows appears
+        // exactly once, matching the COUNT(DISTINCT oi.id) above.
+        $user_details = $search_res->group_by('oi.id')->order_by($sort, "DESC")->limit($limit, $offset)->get('order_items oi')->result_array();
 
         $bulkData = array();
         $bulkData['total'] = $total;

@@ -52,16 +52,22 @@ class Notification_settings extends CI_Controller
 
     public function get_notification_list()
     {
-        // NOTE: intentionally NOT restricted to is_admin() - this same endpoint is also called
-        // directly by the customer-facing "My Account > Notifications" front-end page
-        // (front-end/*/pages/notifications.php), so a logged-in customer legitimately needs
-        // to reach it too. See the report for the real, separate issue this raises (every
-        // customer currently sees every notification ever sent to anyone, not just their own).
-        if ($this->ion_auth->logged_in()) {
-            return $this->notification_model->get_notification_list();
-        } else {
+        // Intentionally NOT restricted to is_admin() - this same endpoint backs the
+        // customer-facing "My Account > Notifications" page (front-end/*/pages/notifications.php),
+        // so a logged-in customer legitimately needs to reach it too.
+        //
+        // What WAS wrong is that both audiences got the same unfiltered result set: a customer
+        // saw every notification ever sent to anyone, including messages the admin had targeted
+        // at one specific named user. A non-admin viewer is now scoped to their own recipient id
+        // (broadcasts plus anything addressed to them); admins still see the full log.
+        if (!$this->ion_auth->logged_in()) {
             redirect('admin/login', 'refresh');
+            return;
         }
+
+        $for_user_id = $this->ion_auth->is_admin() ? null : (int) $this->session->userdata('user_id');
+
+        return $this->notification_model->get_notification_list(0, 10, 'id', 'ASC', $for_user_id);
     }
     public function get_notifications_data()
     {

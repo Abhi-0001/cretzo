@@ -14,18 +14,28 @@ class Custom_sms extends CI_Controller
 
     public function index()
      {
-        if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
-            $this->data['main_page'] = FORMS . 'custom_sms';
-            $settings = get_settings('system_settings', true);
-            $this->data['title'] = (isset($_GET['edit_id']) && !empty($_GET['edit_id'])) ? 'Edit Custom SMS | ' . $settings['app_name'] : 'Add Custom SMS | ' . $settings['app_name'];
-            $this->data['meta_description'] = 'Add Custom SMS , Create Custom SMS | ' . $settings['app_name'];
-            if (isset($_GET['edit_id']) && !empty($_GET['edit_id'])) {
-                $this->data['fetched_data'] = fetch_details('custom_sms', ['id' => $_GET['edit_id']]);
-            }
-            $this->load->view('admin/template', $this->data);
-        } else {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {
             redirect('admin/login', 'refresh');
+            return;
         }
+
+        /*
+         * This route returned a hard 500 - "Unable to load the requested file:
+         * admin/pages/forms/custom_sms.php". That view does not exist and never did; the
+         * custom-SMS/notification-template editor and its list are rendered inside
+         * admin/pages/forms/sms-gateway-settings.php instead (it posts to
+         * admin/custom_sms/add_sms and reads admin/custom_sms/view_sms, both of which work).
+         *
+         * Nothing in the admin sidebar links here, so the 500 was only reachable by typing the
+         * URL - but it is still a broken page on an admin panel, and now that the transactional
+         * notification matrix is switched on these templates matter. Send the admin to the screen
+         * that actually edits them rather than erroring.
+         */
+        $target = 'admin/sms-gateway-settings';
+        if (isset($_GET['edit_id']) && is_numeric($_GET['edit_id'])) {
+            $target .= '?edit_id=' . (int) $_GET['edit_id'];
+        }
+        redirect($target, 'refresh');
     }
     public function add_sms()
     {
@@ -94,7 +104,16 @@ class Custom_sms extends CI_Controller
                 return false;
             }
 
-            if (delete_details(['id' => $_GET['id']], 'custom_sms') == TRUE) {
+            // $_GET['id'] was read unchecked - a missing parameter was an undefined-index warning
+            // printed into the JSON body, and a non-numeric one reached the delete.
+            if (!isset($_GET['id']) || !is_numeric($_GET['id']) || (int) $_GET['id'] < 1) {
+                $this->response['error'] = true;
+                $this->response['message'] = 'Invalid id';
+                print_r(json_encode($this->response));
+                return false;
+            }
+
+            if (delete_details(['id' => (int) $_GET['id']], 'custom_sms') == TRUE) {
 				$this->response['error'] = false;				
 				$this->response['message'] = 'Deleted Succesfully';
 				print_r(json_encode($this->response));	

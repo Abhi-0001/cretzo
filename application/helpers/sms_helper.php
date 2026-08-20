@@ -3,16 +3,39 @@ defined('BASEPATH') or exit('No direct script access allowed');
 
 function parseSmsString($string, $data = [])
 {
+    $string = (string) $string;
 
     foreach ($data as $key => $val) {
-        // echo ($key).": " . $val;
-        if ($val != null) {
-            $string = str_replace("{" . $key . "}", $val, $string);
-        }else{
-            $string = str_replace("{" . $key . "}", "NULL", $string);
-        }
+        // A null/empty field used to be substituted with the literal text "NULL", so a customer
+        // whose order had no delivery date received "Estimated Delivery: NULL". An empty string
+        // reads correctly and is what the surrounding template sentence expects.
+        $string = str_replace("{" . $key . "}", ($val === null || $val === '') ? '' : (string) $val, $string);
     }
+
+    // Any placeholder the data set does not provide would otherwise be delivered to the customer
+    // verbatim, e.g. "Best regards, {system.company_name}".
+    $string = preg_replace('/\{[a-z0-9_.]+\}/i', '', $string);
+
     return $string;
+}
+
+/**
+ * The seeded notification templates in `custom_sms` store their line breaks as the LITERAL
+ * two-character sequences \r and \n rather than real control characters (verified in the live
+ * data: LOCATE('\\r', message) is non-zero on every row). Delivered as-is, the customer got one
+ * unbroken paragraph with visible "\r\n" strings sprinkled through it.
+ *
+ * Normalise to real newlines here, so SMS gets plain text and the HTML mail path can turn them
+ * into <br>.
+ */
+function normalize_notification_text($text)
+{
+    $text = (string) $text;
+    // Literal backslash-r / backslash-n written into the template.
+    $text = str_replace(['\\r\\n', '\\n', '\\r'], "\n", $text);
+    // Real CRLF -> LF so nl2br output is consistent.
+    $text = str_replace(["\r\n", "\r"], "\n", $text);
+    return $text;
 }
 
 /**
@@ -44,6 +67,14 @@ function notify_event(string $event,array $emails = [], array $phone = [],  $whe
     $send_notification_settings = get_settings('send_notification_settings', true);
 
     if (!isset($send_notification_settings[$event])) {
+        // This was a silent early return, and the `send_notification_settings` row ships EMPTY:
+        // the on/off matrix under Admin > SMS Gateway Settings has to be saved once before it
+        // exists at all. Until then this function bailed out here for EVERY event, so not one
+        // order-confirmation, shipped, delivered, cancelled, return-approved, wallet or
+        // settlement email or SMS was ever sent - with nothing logged and no error surfaced
+        // anywhere. Migration 048 seeds a sensible default; this log makes the state visible if
+        // the row is ever cleared again.
+        log_message('error', 'notify_event: no send_notification_settings entry for event "' . $event . '" - nothing sent. Save Admin > SMS Gateway Settings > Notification Modules to configure it.');
         return [
             "error" => true,
             "message" => "setting not found"
@@ -63,14 +94,15 @@ function notify_event(string $event,array $emails = [], array $phone = [],  $whe
     $data = $data["data"];
     $template =  fetch_details('custom_sms', ['type' => $event], ['title', 'message']);
     if (count($template) == 0) {
+        log_message('error', 'notify_event: no custom_sms template for event "' . $event . '" - nothing sent.');
         return [
             "error" => true,
             "message" => "Template not found."
         ];
     }
 
-    $title = parseSmsString($template[0]["title"], $data);
-    $message = parseSmsString($template[0]["message"], $data);
+    $title = trim(parseSmsString(normalize_notification_text($template[0]["title"]), $data));
+    $message = parseSmsString(normalize_notification_text($template[0]["message"]), $data);
 
     $sendEmail = [];
     $sendPhone = [];
@@ -128,21 +160,67 @@ function notify_event(string $event,array $emails = [], array $phone = [],  $whe
 
 
 
-    foreach ($sendPhone as $phone) {
-        if ($phone != "") {
-            (send_sms($phone, $message));
-            // print_r((send_sms($phone, $message)));
-        }
-    }
-    foreach ($sendEmail as $email) {
-        if ($email != "") {
-            (send_mail($email, $title, $message));
-            // print_r((send_mail($email, $title, $message)));
+    // Some callers pass an already-array value wrapped in another array, e.g. Cart.php's
+    // bank_transfer_proof call does ["admin" => [$admin_email]] where $admin_email is itself a
+    // list. Those nested entries used to survive array_merge() and reach send_mail()/send_sms()
+    // as an array, which is an "Array to string conversion" and a message sent to the literal
+    // recipient "Array". Flatten first so the shape a caller happens to use cannot break delivery.
+    $flatten = function (array $list) {
+        $out = [];
+        array_walk_recursive($list, function ($value) use (&$out) {
+            $out[] = $value;
+        });
+        return $out;
+    };
+    $sendEmail = $flatten($sendEmail);
+    $sendPhone = $flatten($sendPhone);
+
+    // The same address/number routinely lands in these lists more than once - e.g. the customer
+    // IS the admin on a small shop, or the seller and delivery boy share a number - and each
+    // duplicate sent another identical copy of the message.
+    $sendPhone = array_values(array_unique(array_filter(array_map('strval', $sendPhone), function ($v) {
+        return trim($v) !== '';
+    })));
+    $sendEmail = array_values(array_unique(array_filter(array_map('strval', $sendEmail), function ($v) {
+        return trim($v) !== '' && filter_var(trim($v), FILTER_VALIDATE_EMAIL);
+    })));
+
+    $sent = ['sms' => 0, 'mail' => 0];
+    $failed = ['sms' => 0, 'mail' => 0];
+
+    foreach ($sendPhone as $phone_number) {
+        $result = send_sms($phone_number, $message);
+        if (!empty($result['error']) || empty($result['http_code']) || $result['http_code'] < 200 || $result['http_code'] >= 300) {
+            $failed['sms']++;
+        } else {
+            $sent['sms']++;
         }
     }
 
-    // print_r($message);
-    return [];
+    // send_mail() is configured with mail_content_type=html, so raw newlines would collapse to a
+    // single run-on paragraph in the delivered mail regardless of how clean the source text is.
+    $html_message = nl2br(html_escape($message));
+
+    foreach ($sendEmail as $email_address) {
+        $result = send_mail($email_address, $title, $html_message);
+        if (!empty($result['error'])) {
+            $failed['mail']++;
+        } else {
+            $sent['mail']++;
+        }
+    }
+
+    // The return value used to be a bare [], so no caller could tell the difference between
+    // "delivered" and "silently did nothing".
+    if ($failed['sms'] > 0 || $failed['mail'] > 0) {
+        log_message('error', 'notify_event(' . $event . '): ' . $failed['mail'] . ' email and ' . $failed['sms'] . ' sms deliveries failed.');
+    }
+
+    return [
+        "error"   => ($sent['sms'] + $sent['mail']) === 0 && ($failed['sms'] + $failed['mail']) > 0,
+        "message" => "sent " . $sent['mail'] . " email(s) and " . $sent['sms'] . " sms",
+        "data"    => ['sent' => $sent, 'failed' => $failed],
+    ];
 }
 
 function send_sms($phone, $msg, $country_code = "+91")

@@ -168,28 +168,49 @@ class Chat_model extends CI_Model
         return $query->result_array();
     }
 
-    function get_supporters()
+    /**
+     * The staff accounts a customer or seller can start a support conversation with.
+     *
+     * Three separate problems with what used to be here:
+     *
+     *  1. It filtered on `up.role = 3` ("Supporter") only. Nothing in this product creates a
+     *     role-3 user by default, and a real install can easily have none - this database has
+     *     zero. So the query returned an EMPTY list and the "Support" column on the customer and
+     *     seller chat pages rendered with nobody in it: there was literally no one to message.
+     *     Super Admin (0) and Admin (1) are included now, so the list is only empty if the
+     *     platform has no staff accounts at all.
+     *
+     *  2. It `LEFT JOIN`ed `messages` and selected `m.*` alongside `GROUP BY u.id`. That is
+     *     invalid under ONLY_FULL_GROUP_BY (a hard error on any MySQL 5.7+/8 default config), and
+     *     where it did run it filled `id`, `from_id`, `to_id`, `is_read` and `message` with values
+     *     from ONE arbitrary message row - which then collided with the `u.id` the views read. The
+     *     join contributed nothing but breakage; the unread count the views actually want is
+     *     computed properly below.
+     *
+     *  3. It did not select `image`, which the chat views read for the contact avatar.
+     *
+     * @param int|null $viewer_id When given, each supporter carries that viewer's unread count.
+     */
+    function get_supporters($viewer_id = null)
     {
+        $supporters = $this->db
+            ->select('up.user_id as user_permission_id, up.role as user_role, u.id as userto_id, u.username, u.image, u.last_online, u.web_fcm')
+            ->join('user_permissions up', 'up.user_id = u.id', 'inner')
+            ->where_in('up.role', [0, 1, 3])
+            ->where('u.active', 1)
+            ->order_by('up.role', 'ASC')
+            ->order_by('u.username', 'ASC')
+            ->get('users u')
+            ->result_array();
 
-        // $sql = "SELECT gm.*,g.title,g.description,g.created_by,g.no_of_members FROM chat_group_members gm 
-        // LEFT JOIN chat_groups g ON gm.group_id = g.id
-        // WHERE gm.user_id=$user_id 
-        // ORDER BY g.title ASC";
-        // "select up.*,u.* FROM user_permissions up LEFT JOIN users u ON up.user_id = u.id where up.user_id = u.id"
-        // $sql = "SELECT up.*,u.*,m.* FROM users u LEFT JOIN user_permissions up ON up.user_id = u.id where up.user_id = u.id AND up.role = 3 AND LEFT JOIN messages m ON m.to_id = u.id ";
-        $sql =
-            "SELECT up.user_id as user_permission_id, up.role as user_role, u.id as userto_id, u.username, u.last_online, 
-                m.* FROM users u
-                LEFT JOIN user_permissions up ON up.user_id = u.id
-                LEFT JOIN messages m ON m.to_id = u.id OR m.from_id = u.id
-                WHERE up.user_id = u.id AND up.role = 3
-                GROUP BY u.id";
+        $viewer_id = (int) $viewer_id;
+        foreach ($supporters as &$supporter) {
+            $supporter['unread_msg'] = ($viewer_id > 0)
+                ? $this->get_unread_msg_count('person', (int) $supporter['userto_id'], $viewer_id)
+                : 0;
+        }
+        unset($supporter);
 
-        // -- LEFT JOIN messages m ON m.to_id = u.id OR m.from_id = u.id
-        $query = $this->db->query($sql);
-        $supporters =  $query->result_array();
-        // echo $this->db->last_query();
-        // die;
         return $supporters;
     }
 
@@ -211,15 +232,23 @@ class Chat_model extends CI_Model
     //     }
     // }
 
+    /**
+     * Messages from $from_id to $to_id that $to_id has not read yet.
+     *
+     * Note the inverted convention this whole table uses: `is_read = 1` means UNREAD and
+     * mark_msg_read() sets it to 0. That is what the column default (1) is for - a new message
+     * starts unread.
+     *
+     * All three arguments were interpolated straight into raw SQL. $from_id in particular
+     * reaches this from POST data on several endpoints.
+     */
     function get_unread_msg_count($type, $from_id, $to_id)
     {
-        // print_r($from_id);
-        $query1 = "SELECT count(id) as total FROM messages WHERE type='$type' AND is_read=1 AND from_id=$from_id AND to_id=$to_id";
-        $query1 = $this->db->query($query1);
-        $total = $query1->result_array();
-        // echo $this->db->last_query();
-        // die;
-        return $total[0]['total'];
+        return (int) $this->db->where('type', (string) $type)
+            ->where('is_read', 1)
+            ->where('from_id', (int) $from_id)
+            ->where('to_id', (int) $to_id)
+            ->count_all_results('messages');
     }
 
 
@@ -256,11 +285,27 @@ class Chat_model extends CI_Model
 
     function mark_msg_read($type, $from_id, $to_id)
     {
-        if ($type == 'person') {
-            if ($this->db->query("UPDATE messages SET is_read=0 WHERE type='$type' AND is_read=1 AND from_id=$from_id AND to_id=$to_id"))
-                return true;
-            else
-                return false;
+        // CONFIRMED LIVE SQL INJECTION before this change: $from_id arrives straight from
+        // $this->input->post('from_id') in My_account/seller/admin mark_msg_read(), and $type
+        // from POST too, and both were spliced into this raw UPDATE. Posting
+        // from_id=1 AND (  to my-account/mark_msg_read returned MySQL error 1064 quoting the
+        // assembled statement, i.e. arbitrary SQL could be appended to an UPDATE on `messages`.
+        $type = (string) $type;
+        $from_id = (int) $from_id;
+        $to_id = (int) $to_id;
+
+        if ($from_id < 1 || $to_id < 1) {
+            return false;
+        }
+
+        if ($type !== 'group') {
+            $this->db->set('is_read', 0)
+                ->where('type', $type)
+                ->where('is_read', 1)
+                ->where('from_id', $from_id)
+                ->where('to_id', $to_id)
+                ->update('messages');
+            return true;
         }
         //  else  if ($type == 'supporter') {
         //     if ($this->db->query("UPDATE messages SET is_read=0 WHERE type='$type' AND is_read=1 AND from_id=$from_id AND to_id=$to_id"))
@@ -268,12 +313,21 @@ class Chat_model extends CI_Model
         //     else
         //         return false;
         // } 
-        else {
-            if ($this->db->query("UPDATE chat_group_members SET is_read=0 WHERE is_read=1 AND group_id=$from_id AND user_id=$to_id"))
-                return true;
-            else
-                return false;
+        // Group chat was removed from this product: `chat_groups` and `chat_group_members` do
+        // not exist in the schema, and the model methods that managed them are commented out
+        // further up this file. Reaching this branch used to be a hard "Table doesn't exist"
+        // database error (a 500 with db_debug on) triggerable by anyone simply POSTing
+        // type=group. Refuse it instead.
+        if (!$this->db->table_exists('chat_group_members')) {
+            return false;
         }
+
+        $this->db->set('is_read', 0)
+            ->where('is_read', 1)
+            ->where('group_id', $from_id)
+            ->where('user_id', $to_id)
+            ->update('chat_group_members');
+        return true;
     }
 
     // function set_group_msg_as_unread($group_id, $my_id)
@@ -286,19 +340,93 @@ class Chat_model extends CI_Model
 
     function update_web_fcm($user_id, $fcm)
     {
-        if ($this->db->query('UPDATE users SET web_fcm="' . $fcm . '" WHERE id=' . $user_id . ' '))
-            return true;
-        else
+        // CONFIRMED LIVE SQL INJECTION before this change. $fcm came straight from
+        // $this->input->post('web_fcm') and was concatenated inside double quotes, so posting
+        //     web_fcm=abc" , username="PWNED
+        // to my-account/update_web_fcm rewrote a SECOND column on the users row - verified by
+        // observing users.username actually change. Any column on `users` (balance, email,
+        // api tokens) was writable this way by any logged-in user.
+        $user_id = (int) $user_id;
+        if ($user_id < 1) {
             return false;
+        }
+
+        // FCM registration tokens are opaque base64url-ish strings; anything else is not a token.
+        $fcm = trim((string) $fcm);
+        if ($fcm !== '' && !preg_match('/^[A-Za-z0-9_:.\-]{1,512}$/', $fcm)) {
+            return false;
+        }
+
+        return (bool) $this->db->set('web_fcm', $fcm !== '' ? $fcm : null)
+            ->where('id', $user_id)
+            ->update('users');
     }
 
+    /**
+     * Single choke point for writing a chat message - every one of the six controllers that can
+     * send one (customer, seller, admin, and the three app APIs) calls through here, so the
+     * validation belongs here rather than in six places that had none of it.
+     *
+     * What was previously accepted, because the row was inserted verbatim with no checks:
+     *   - to_id = 0, or any other id that is not a user. This actually happened: the live
+     *     `messages` table contained rows addressed to "user 0", which are undeliverable and
+     *     which surfaced in the chat contact list as a conversation with a non-existent person.
+     *   - to_id belonging to ANY user on the platform, chosen freely by the client - the
+     *     recipient was whatever `opposite_user_id` the browser posted.
+     *   - an empty message body (messages.message is NOT NULL but '' satisfies it), so a
+     *     stray submit produced blank bubbles in the thread.
+     *   - from_id == to_id, i.e. messaging yourself.
+     *   - type = anything, including 'group', for which no tables exist.
+     */
     function send_msg($data)
     {
+        $from_id = isset($data['from_id']) ? (int) $data['from_id'] : 0;
+        $to_id   = isset($data['to_id']) ? (int) $data['to_id'] : 0;
+        $type    = isset($data['type']) ? (string) $data['type'] : '';
+        $message = isset($data['message']) ? trim((string) $data['message']) : '';
+        $has_upload = !empty($_FILES['documents']['name']);
 
-        if ($this->db->insert('messages', $data))
-            return $this->db->insert_id();
-        else
+        if ($from_id < 1 || $to_id < 1 || $from_id === $to_id) {
             return false;
+        }
+
+        // Only one-to-one chat exists in this schema; see mark_msg_read() for why 'group' cannot
+        // work. Default an unrecognised type to 'person' rather than storing a type that no
+        // reader filters on (load_chat() matches on type exactly, so a typo'd type made the
+        // message invisible to both parties while still sitting in the table).
+        if (!in_array($type, ['person', 'supporter'], true)) {
+            $type = 'person';
+        }
+
+        if ($message === '' && !$has_upload) {
+            return false;
+        }
+
+        // Both parties must be real, active accounts.
+        $participants = $this->db->select('id')
+            ->where_in('id', [$from_id, $to_id])
+            ->where('active', 1)
+            ->get('users')
+            ->result_array();
+        if (count($participants) < 2) {
+            return false;
+        }
+
+        $row = [
+            'from_id' => $from_id,
+            'to_id'   => $to_id,
+            'type'    => $type,
+            'message' => mb_substr($message, 0, 5000),
+            // is_read defaults to 1 (= unread, see get_unread_msg_count) but be explicit: a
+            // caller passing its own is_read could otherwise mark its own message pre-read.
+            'is_read' => 1,
+            'media'   => '',
+        ];
+
+        if (!$this->db->insert('messages', $row)) {
+            return false;
+        }
+        return $this->db->insert_id();
     }
 
     function get_msg_by_id($msg_id, $to_id, $from_id, $type)
@@ -465,7 +593,11 @@ class Chat_model extends CI_Model
         // select only display columns — this used to be `SELECT *` on `users`, handing
         // back the caller's password hash, salt, api key, address and more.
         $user_or_group_id = (int) $user_or_group_id;
-        if ($type == 'person') {
+        if ($type == 'person' || !$this->db->table_exists('chat_groups')) {
+            // `chat_groups` does not exist in this schema (group chat was removed - see
+            // mark_msg_read), so the else branch was a guaranteed "Table doesn't exist" database
+            // error for any caller passing a non-'person' type, which is client-controlled on
+            // every switch_chat endpoint. Fall back to the user lookup instead of erroring.
             $query = $this->db->query("SELECT id, username, image, last_online, web_fcm FROM users WHERE id=$user_or_group_id ");
         } else {
             $query = $this->db->query("SELECT * FROM chat_groups WHERE id=$user_or_group_id ");
@@ -479,35 +611,50 @@ class Chat_model extends CI_Model
 
     function get_user_picture($user_id)
     {
-        $user_id = (int) $user_id;
-        $query = $this->db->query("SELECT * FROM users WHERE id='$user_id' ");
-        $messages =  $query->result_array();
-        $picture = substr($messages[0]['first_name'], 0, 1) . '' . substr($messages[0]['last_name'], 0, 1);
-        return $picture;
+        // `users` has no first_name / last_name columns on this schema (they are username /
+        // email / mobile), so both reads were undefined-index warnings and the function always
+        // returned an empty string. Build the initials from username, and stop SELECT *'ing the
+        // password hash to do it.
+        $row = $this->db->select('username')->where('id', (int) $user_id)->get('users')->row_array();
+        if (empty($row) || trim((string) $row['username']) === '') {
+            return '';
+        }
+
+        $parts = preg_split('/\s+/', trim((string) $row['username']));
+        $initials = mb_substr($parts[0], 0, 1);
+        if (count($parts) > 1) {
+            $initials .= mb_substr($parts[count($parts) - 1], 0, 1);
+        }
+        return mb_strtoupper($initials);
     }
 
     function get_web_fcm($user_id)
     {
-        $query = $this->db->query("SELECT web_fcm FROM users WHERE id=$user_id ");
-        return $query->result_array();
+        // $user_id was interpolated raw; it comes from POST on the chat endpoints.
+        return $this->db->select('web_fcm')->where('id', (int) $user_id)->get('users')->result_array();
     }
 
     function add_media_ids_to_msg($msg_id, $media_id)
     {
-
-        $query = $this->db->query('SELECT media FROM messages WHERE id=' . $msg_id . ' ');
-
-        if (!empty($query)) {
-            foreach ($query->result_array() as $row) {
-                $product_ids = $row['media'];
-            }
-            $ids = !empty($product_ids) ? $product_ids . ',' . $media_id : $media_id;
+        // $ids was only assigned inside `if (!empty($query))`, and a CI query object is never
+        // empty - but if the message row itself was gone, $product_ids stayed undefined and this
+        // warned "Undefined variable $product_ids" before writing the media id anyway. Both ids
+        // are also cast now rather than concatenated into raw SQL.
+        $msg_id = (int) $msg_id;
+        $media_id = (int) $media_id;
+        if ($msg_id < 1 || $media_id < 1) {
+            return false;
         }
 
-        if ($this->db->query('UPDATE messages SET media="' . $ids . '" WHERE id=' . $msg_id . ' '))
-            return true;
-        else
+        $row = $this->db->select('media')->where('id', $msg_id)->get('messages')->row_array();
+        if (empty($row)) {
             return false;
+        }
+
+        $existing = trim((string) $row['media']);
+        $ids = ($existing !== '') ? $existing . ',' . $media_id : (string) $media_id;
+
+        return (bool) $this->db->set('media', $ids)->where('id', $msg_id)->update('messages');
     }
 
     function make_user_admin($workspace_id, $user_id)
@@ -642,11 +789,25 @@ class Chat_model extends CI_Model
 
     function get_users_by_email($email)
     {
+        // Was a raw where() string with $email concatenated into three LIKE clauses - straight
+        // SQL injection from the search box. It also referenced `first_name` / `last_name`,
+        // which do not exist on this `users` table (the columns are username/email/mobile), so
+        // the query was a hard error 1054 the moment it ran at all. And it SELECT *'d, returning
+        // password hashes and api keys for every match.
+        $email = trim((string) $email);
+        if ($email === '') {
+            return [];
+        }
 
-        $this->db->from('users');
-        $this->db->where('`email` like "%' . $email . '%" or `first_name` like "%' . $email . '%" or `last_name` like "%' . $email . '%" ');
-        $query = $this->db->get();
-        return $query->result_array();
+        return $this->db->select('id, username, email, mobile, image')
+            ->group_start()
+            ->like('email', $email)
+            ->or_like('username', $email)
+            ->or_like('mobile', $email)
+            ->group_end()
+            ->limit(25)
+            ->get('users')
+            ->result_array();
     }
 
     function get_users_by_email_for_add($email)
