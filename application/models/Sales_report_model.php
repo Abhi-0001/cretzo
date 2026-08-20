@@ -125,21 +125,34 @@ class Sales_report_model extends CI_Model
             }
             $tempRow['date_added'] = $row['date_added'];
             $tempRow['final_total'] = $row['final_total'];
-            $total_amount += intval($row['total']);
-            $final_total_amount += intval($row['final_total']);
-            $total_delivery_charge += intval($row['delivery_charge']);
+            // intval() truncated every figure to whole rupees - Rs. 1099.50 counted as 1099 -
+            // and these three running totals were then never returned to the caller at all, so
+            // the work was both wrong and thrown away. Summed as floats and exposed below.
+            $total_amount += (float) $row['total'];
+            $final_total_amount += (float) $row['final_total'];
+            $total_delivery_charge += (float) $row['delivery_charge'];
             if ($this->ion_auth->is_seller()) {
                 $tempRow['total'] = '<span class="badge badge-danger">' . $row['total'] . '</span>';
                 $tempRow['payment_method'] = $row['payment_method'];
                 $tempRow['tax_amount'] = $row['tax_amount'];
                 $tempRow['discounted_price'] = (isset($row['discounted_price']) && $row['discounted_price'] != '') ? $row['discounted_price'] : 0;
-                $tempRow['store_name'] =  $row['store_name'];
+                // stripcslashes via output_escaping(): this codebase stores seller-authored text
+                // SQL-escaped and strips it again on read, but these two were emitted raw - so a
+                // store called "Developer's Den" was shown to the seller as "Developer's Den",
+                // backslash and all, on their own sales report. html_escape() as well because both
+                // are seller-supplied strings rendered into the table's HTML payload.
+                $tempRow['store_name'] =  html_escape(output_escaping((string) $row['store_name']));
                 $tempRow['delivery_charge'] =  $row['delivery_charge'];
-                $tempRow['seller_name'] =  $row['seller_name'];
+                $tempRow['seller_name'] =  html_escape(output_escaping((string) $row['seller_name']));
             }
             $rows[] = $tempRow;
         }
         $bulkData['rows'] = $rows;
+        // Computed above since the report was written, but never returned - so nothing could
+        // display a sales total. Rounded to 2dp because these are money figures.
+        $bulkData['total_amount'] = round($total_amount, 2);
+        $bulkData['final_total_amount'] = round($final_total_amount, 2);
+        $bulkData['total_delivery_charge'] = round($total_delivery_charge, 2);
         print_r(json_encode($bulkData));
     }
 
@@ -170,11 +183,28 @@ class Sales_report_model extends CI_Model
                 'o.payment_method' => $search,
             ];
         }
+        // The bootstrap-table widget sends sort/order, and this function ignored both entirely -
+        // $sort stayed at its " o.id " default and the direction was hardcoded DESC below, so
+        // every column header in the seller's sales report did nothing when clicked.
+        $allowed_sort_columns = ['id', 'date_added', 'final_total', 'product_name', 'payment_method'];
+        $sort_column_map = ['id' => 'o.id', 'date_added' => 'o.date_added', 'final_total' => 'o.final_total', 'product_name' => 'oi.product_name', 'payment_method' => 'o.payment_method'];
+        if (isset($_GET['sort']) && in_array($_GET['sort'], $allowed_sort_columns, true)) {
+            $sort = $sort_column_map[$_GET['sort']];
+        }
+        $order = (isset($_GET['order']) && strtolower($_GET['order']) === 'asc') ? 'ASC' : 'DESC';
+
         // seller_id must always come from the authenticated session (passed in by the
         // controller) — the previous version read it from $_GET/$_POST and concatenated it
         // directly into a raw where() string, which was both a SQL injection point and let
         // any seller see another seller's sales-report row count by changing a URL param.
-        $count_res = $this->db->select(' COUNT(o.id) as `total` ')->join(' `users` u', 'u.id= o.user_id');
+        //
+        // COUNT(DISTINCT o.id), not COUNT(o.id): the data query below GROUPs BY o.id, so it
+        // returns one row per ORDER, while this count joined order_items and therefore counted
+        // one row per ORDER ITEM. Any order containing two of the seller's products was counted
+        // twice. Confirmed live - seller 7's report advertised 42 records and returned 25, so the
+        // pagination offered pages that do not exist and the record count a seller reads off this
+        // screen was simply wrong.
+        $count_res = $this->db->select(' COUNT(DISTINCT o.id) as `total` ')->join(' `users` u', 'u.id= o.user_id');
         if (!empty($seller_id)) {
             $count_res->join(' `order_items` oi', 'oi.order_id=o.id');
             $count_res->where('oi.seller_id', $seller_id);
@@ -195,7 +225,17 @@ class Sales_report_model extends CI_Model
             $total = $row['total'];
         }
 
-        $search_res = $this->db->select(' o.*,oi.* , u.username ,u.email,u.mobile,COALESCE(NULLIF(sd.shop_name, ""), sd.store_name) as store_name,u.username as seller_name ')
+        /*
+         * `seller_share` is this seller's own money on the order.
+         *
+         * The report renders o.final_total in its "Final Total" column, and final_total is the
+         * WHOLE order - every seller's items, plus delivery and discounts. On a marketplace order
+         * split across two sellers, each seller's own sales report showed the other seller's
+         * revenue as part of their sales figure. The subquery is restricted to this seller's
+         * items on this order, so the column can show what the seller actually sold.
+         */
+        $search_res = $this->db->select(' o.*,oi.* , u.username ,u.email,u.mobile,COALESCE(NULLIF(sd.shop_name, ""), sd.store_name) as store_name,u.username as seller_name,
+            (SELECT ROUND(SUM(soi.sub_total), 2) FROM order_items soi WHERE soi.order_id = o.id AND soi.seller_id = ' . (int) $seller_id . ') as seller_share ', false)
             ->join('users u', 'u.id= o.user_id', 'left')
             ->join('order_items oi', 'oi.order_id=o.id', 'left')
             ->join('seller_data sd', 'sd.user_id=oi.seller_id', 'left')
@@ -211,7 +251,8 @@ class Sales_report_model extends CI_Model
             $search_res->group_End();
         }
         $search_res->group_by('o.id');
-        $user_details = $search_res->order_by($sort, "DESC")->limit($limit, $offset)->get('`orders` o')->result_array();
+        // Was order_by($sort, "DESC") with the direction hardcoded, ignoring $order entirely.
+        $user_details = $search_res->order_by($sort, $order)->limit($limit, $offset)->get('`orders` o')->result_array();
         $bulkData = array();
         $bulkData['total'] = $total;
         $rows = array();
@@ -235,14 +276,27 @@ class Sales_report_model extends CI_Model
                 $tempRow['mobile'] = (ALLOW_MODIFICATION == 0 && !defined(ALLOW_MODIFICATION)) ? str_repeat("X", strlen($row['mobile']) - 3) . substr($row['mobile'], -3) : $row['mobile'];
             }
             $tempRow['date_added'] = $row['date_added'];
-            $tempRow['final_total'] = $row['final_total'];
-            $total_amount += intval($row['total']);
-            $final_total_amount += intval($row['final_total']);
-            $total_delivery_charge += intval($row['delivery_charge']);
+            // A seller sees their own share; an admin viewing this same report sees the order.
+            // `order_final_total` always carries the whole-order figure so nothing is lost.
+            $tempRow['final_total'] = ($this->ion_auth->is_seller() && isset($row['seller_share']))
+                ? $row['seller_share']
+                : $row['final_total'];
+            $tempRow['order_final_total'] = $row['final_total'];
+            // intval() truncated every figure to whole rupees - Rs. 1099.50 counted as 1099 -
+            // and these three running totals were then never returned to the caller at all, so
+            // the work was both wrong and thrown away. Summed as floats and exposed below.
+            $total_amount += (float) $row['total'];
+            $final_total_amount += (float) (($this->ion_auth->is_seller() && isset($row['seller_share'])) ? $row['seller_share'] : $row['final_total']);
+            $total_delivery_charge += (float) $row['delivery_charge'];
             if ($this->ion_auth->is_seller()) {
                 $tempRow['payment_method'] = $row['payment_method'];
-                $tempRow['store_name'] =  $row['store_name'];
-                $tempRow['seller_name'] =  $row['seller_name'];
+                // stripcslashes via output_escaping(): this codebase stores seller-authored text
+                // SQL-escaped and strips it again on read, but these two were emitted raw - so a
+                // store called "Developer's Den" was shown to the seller as "Developer's Den",
+                // backslash and all, on their own sales report. html_escape() as well because both
+                // are seller-supplied strings rendered into the table's HTML payload.
+                $tempRow['store_name'] =  html_escape(output_escaping((string) $row['store_name']));
+                $tempRow['seller_name'] =  html_escape(output_escaping((string) $row['seller_name']));
             }
             if (!$this->ion_auth->is_seller()) {
                 $tempRow['operate'] = $operate;
@@ -250,6 +304,11 @@ class Sales_report_model extends CI_Model
             $rows[] = $tempRow;
         }
         $bulkData['rows'] = $rows;
+        // Computed above since the report was written, but never returned - so nothing could
+        // display a sales total. Rounded to 2dp because these are money figures.
+        $bulkData['total_amount'] = round($total_amount, 2);
+        $bulkData['final_total_amount'] = round($final_total_amount, 2);
+        $bulkData['total_delivery_charge'] = round($total_delivery_charge, 2);
         print_r(json_encode($bulkData));
     }
 }

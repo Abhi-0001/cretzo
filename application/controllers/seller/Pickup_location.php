@@ -64,12 +64,39 @@ class Pickup_location extends CI_Controller
                 print_r(json_encode($this->response));
             } else {
                 $_POST['seller_id'] = $this->session->userdata('user_id');
-                $this->Pickup_location_model->add_pickup_location($_POST);
-                $this->response['error'] = false;
+                // seller_id must come from the session. It was taken from $_POST, so a seller
+                // could file a pickup location under another seller's account.
+                $_POST['seller_id'] = $this->ion_auth->get_user_id();
+
+                $result = $this->Pickup_location_model->add_pickup_location($_POST);
+
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $message = (isset($_POST['edit_pickup_location'])) ? 'Update Pickup Location' : 'Add Pickup Location';
-                $this->response['message'] = $message;
+
+                if (!empty($result['error'])) {
+                    // The Shiprocket registration result was previously thrown away and this
+                    // always reported success, so a pickup address the courier had rejected
+                    // looked fine here and only failed much later, at shipment booking.
+                    $this->response['error'] = true;
+                    $this->response['message'] = $result['message'];
+                    print_r(json_encode($this->response));
+                    return;
+                }
+
+                $this->response['error'] = false;
+                if (isset($_POST['edit_pickup_location'])) {
+                    $this->response['message'] = 'Update Pickup Location';
+                } else {
+                    /*
+                     * pickup_locations.status defaults to 0 and nothing sets it on insert, while
+                     * the product form only offers pickup locations with status = 1
+                     * (seller/Product.php). So a newly added pickup location does not appear when
+                     * the seller goes to use it - and the old flat "Add Pickup Location" message
+                     * gave no hint why. Admin activation is the intended gate (the admin list has
+                     * an activate/deactivate control), so say so rather than changing it.
+                     */
+                    $this->response['message'] = 'Pickup location added. It becomes selectable on your products once an admin activates it.';
+                }
                 print_r(json_encode($this->response));
             }
         } else {

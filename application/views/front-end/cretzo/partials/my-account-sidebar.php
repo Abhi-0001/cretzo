@@ -53,7 +53,21 @@
             <a href="<?= base_url('my-account/chat') ?>" class="text-decoration-none cretzo-link">Chat with us</a>
         </h1>
 
-        <a class="rounded text-decoration-none d-flex gap-1 align-items-center mt-4" id="logout_btn" href="https://cretzo.com/login/logout">
+        <?php
+        /* The support-ticket system had no entry point on the website at all - it existed only
+         * in the admin panel and the mobile app, so a web customer could not raise or read a
+         * ticket. */
+        ?>
+        <h1 class="text-b list-item <?= $active_menu == 'support' ? 'selected' : '' ?>">
+            <a href="<?= base_url('my-account/support') ?>" class="text-decoration-none cretzo-link">Support tickets</a>
+        </h1>
+
+        <?php
+        /* Was hardcoded to https://cretzo.com/login/logout, so logging out of any non-production
+         * environment (local, staging, or a site served on a different domain) bounced the user
+         * to production instead of ending their session here. */
+        ?>
+        <a class="rounded text-decoration-none d-flex gap-1 align-items-center mt-4" id="logout_btn" href="<?= base_url('login/logout') ?>">
             <div>
                 <i class="uil uil-signout fs-22" style="color: red;"></i>
             </div>

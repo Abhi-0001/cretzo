@@ -132,19 +132,53 @@ class Delivery_boy_model extends CI_Model
         print_r(json_encode($bulkData));
     }
 
+    /**
+     * Moves users.balance by $amount.
+     *
+     * @param float  $amount  must be a positive number - the DIRECTION comes from $action
+     * @param string $action  'add' | 'deduct'
+     * @return bool  true only when a row was actually changed
+     *
+     * $amount used to be concatenated straight into the SQL with escaping explicitly disabled
+     * (the FALSE third argument to set()), and on most call paths it comes from a payment
+     * gateway callback body - so a crafted amount could inject arbitrary SQL into an UPDATE on
+     * `users`. It was also unvalidated, so 'add' with a negative amount silently DEBITED the
+     * wallet, and a non-numeric amount produced a broken statement.
+     *
+     * NOTE for callers: this writes NO row to `transactions`. Callers must record the ledger
+     * entry themselves, and the balance move and that insert belong in one db transaction -
+     * every place they are not, the two can disagree. That drift is real on this database: three
+     * users' stored balances do not match the sum of their ledger, one of them by a large amount.
+     * Prefer update_wallet_balance() in function_helper.php, which does both atomically.
+     */
     function update_balance($amount, $delivery_boy_id, $action)
     {
-        /**
-         * @param
-         * action = deduct / add
-         */
-
-        if ($action == "add") {
-            $this->db->set('balance', 'balance+' . $amount, FALSE);
-        } elseif ($action == "deduct") {
-            $this->db->set('balance', 'balance-' . $amount, FALSE);
+        $delivery_boy_id = (int) $delivery_boy_id;
+        if ($delivery_boy_id < 1 || !is_numeric($amount)) {
+            return false;
         }
-        return $this->db->where('id', $delivery_boy_id)->update('users');
+
+        $amount = (float) $amount;
+        if ($amount <= 0) {
+            // A zero move is a no-op, and a negative one means the caller has the direction
+            // wrong - honouring it would move the balance the opposite way to what it asked for.
+            log_message('error', 'update_balance: refused a non-positive amount (' . $amount . ') for user ' . $delivery_boy_id);
+            return false;
+        }
+
+        if ($action === 'add') {
+            $this->db->set('balance', '`balance` + ' . $amount, FALSE);
+        } elseif ($action === 'deduct') {
+            $this->db->set('balance', '`balance` - ' . $amount, FALSE);
+        } else {
+            return false;
+        }
+
+        $this->db->where('id', $delivery_boy_id)->update('users');
+
+        // update() returns TRUE for a syntactically valid statement that matched nothing, so a
+        // deleted or mistyped user id used to look like a successful credit to every caller.
+        return $this->db->affected_rows() > 0;
     }
     public function get_delivery_boys($id, $search, $offset, $limit, $sort, $order)
     {

@@ -1088,7 +1088,11 @@ class Orders extends CI_Controller
 
             $res = send_pickup_request($_POST['shipment_id']);
 
-            if (!empty($res)) {
+            // Judged with `if (!empty($res))` before. A Shiprocket REJECTION is also a non-empty
+            // array, so a refused pickup / ungenerated label / declined cancellation all reported
+            // SUCCESS to whoever pressed the button. shiprocket_result_ok() knows each
+            // operation's real success marker, and the failure branch now shows Shiprocket's reason.
+            if (shiprocket_result_ok('pickup', $res)) {
                 $this->response['error'] = false;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
@@ -1098,7 +1102,7 @@ class Orders extends CI_Controller
                 $this->response['error'] = true;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = 'Request not sent';
+                $this->response['message'] = shiprocket_result_message($res, 'Request not sent');
                 $this->response['data'] = array();
             }
             print_r(json_encode($this->response));
@@ -1119,7 +1123,11 @@ class Orders extends CI_Controller
                 return false;
             }
             $res = generate_label($_POST['shipment_id']);
-            if (!empty($res)) {
+            // Judged with `if (!empty($res))` before. A Shiprocket REJECTION is also a non-empty
+            // array, so a refused pickup / ungenerated label / declined cancellation all reported
+            // SUCCESS to whoever pressed the button. shiprocket_result_ok() knows each
+            // operation's real success marker, and the failure branch now shows Shiprocket's reason.
+            if (shiprocket_result_ok('label', $res)) {
                 $this->response['error'] = false;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
@@ -1129,7 +1137,7 @@ class Orders extends CI_Controller
                 $this->response['error'] = true;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = 'Label not generated';
+                $this->response['message'] = shiprocket_result_message($res, 'Label not generated');
                 $this->response['data'] = array();
             }
             print_r(json_encode($this->response));
@@ -1164,7 +1172,7 @@ class Orders extends CI_Controller
                 $this->response['error'] = true;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = 'Invoice not generated';
+                $this->response['message'] = shiprocket_result_message($res, 'Invoice not generated');
                 $this->response['data'] = array();
             }
             print_r(json_encode($this->response));
@@ -1196,7 +1204,7 @@ class Orders extends CI_Controller
                 $this->response['error'] = true;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = 'Order not cancelled';
+                $this->response['message'] = shiprocket_result_message($res, 'Order not cancelled');
                 $this->response['data'] = array();
             }
             print_r(json_encode($this->response));

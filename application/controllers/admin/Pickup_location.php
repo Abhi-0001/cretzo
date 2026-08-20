@@ -78,12 +78,28 @@ class Pickup_location extends CI_Controller
                 $this->response['message'] = validation_errors();
                 print_r(json_encode($this->response));
             } else {
-                $this->Pickup_location_model->add_pickup_location($_POST);
-                $this->response['error'] = false;
+                $result = $this->Pickup_location_model->add_pickup_location($_POST);
+
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $message = (isset($_POST['edit_pickup_location'])) ? 'Update Pickup Location' : 'Add Pickup Location';
-                $this->response['message'] = $message;
+
+                // The Shiprocket registration result was discarded and this always reported
+                // success, so a pickup address the courier had rejected looked fine here and only
+                // failed later when a shipment was booked from it.
+                if (!empty($result['error'])) {
+                    $this->response['error'] = true;
+                    $this->response['message'] = $result['message'];
+                    print_r(json_encode($this->response));
+                    return;
+                }
+
+                $this->response['error'] = false;
+                // pickup_locations.status defaults to 0 and nothing sets it on insert, while the
+                // product form only lists pickup locations with status = 1 - so even an
+                // admin-created one is not selectable until it is activated from this list.
+                $this->response['message'] = (isset($_POST['edit_pickup_location']))
+                    ? 'Update Pickup Location'
+                    : 'Pickup location added. Activate it in the list to make it selectable on products.';
                 print_r(json_encode($this->response));
             }
         } else {

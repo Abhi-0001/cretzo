@@ -440,10 +440,14 @@ class Setting_model extends CI_Model
 
     public function update_notification_setting($data)
     {
+        // $data['permissions'] was read unguarded. The form only submits it when at least one
+        // checkbox is ticked, so an admin who unticked EVERYTHING got an "Undefined array key
+        // permissions" warning and json_encode(null) - the literal string "null" - written into
+        // the settings row. notify_event() then treats that as "no settings at all" and silently
+        // stops sending every notification on the platform, with no way to tell from the UI.
+        $permissions = (isset($data['permissions']) && is_array($data['permissions'])) ? $data['permissions'] : [];
         $data = escape_array($data);
-        // print_r($data['permissions']);
-        // die;
-        $notification_data = json_encode($data['permissions']);
+        $notification_data = json_encode($permissions);
         $query = $this->db->get_where('settings', array(
             'variable' => 'send_notification_settings'
         ));

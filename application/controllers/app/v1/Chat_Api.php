@@ -427,13 +427,18 @@ Defined Methods:-
                         $user[$i]['is_online'] = 0;
                     }
                 } else {
+                    /*
+                     * The group branch called $this->chat_model->check_group_admin(), which does
+                     * NOT exist - it is commented out in Chat_model along with the rest of the
+                     * group-chat code, and the `chat_groups` / `chat_group_members` tables are not
+                     * in the schema. `type` is posted by the client, so any value other than
+                     * 'person' reached here and died with an uncaught
+                     * "Call to undefined method Chat_model::check_group_admin()".
+                     * Chat_model::switch_chat() now falls back to the user lookup for any type, so
+                     * there is no group membership to report.
+                     */
                     $user[$i]['picture'] = '#';
-
-                    if ($this->chat_model->check_group_admin($row['id'], $_POST['user_id'])) {
-                        $user[$i]['is_admin'] = true;
-                    } else {
-                        $user[$i]['is_admin'] = false;
-                    }
+                    $user[$i]['is_admin'] = false;
                 }
 
                 $i++;
@@ -466,9 +471,11 @@ Defined Methods:-
 
         $this->form_validation->set_rules('type', 'Type', 'trim|required|xss_clean');
         $this->form_validation->set_rules('from_id', 'From Id', 'trim|numeric|required|xss_clean');
-        if (isset($_POST['type']) && strtolower($_POST['type']) == 'group') {
-            $this->form_validation->set_rules('user_id', 'User Id', 'trim|numeric|required|xss_clean');
-        }
+        // user_id identifies WHOSE copy of the conversation is being marked read, so it is
+        // required for every type - not just 'group'. Without it $to_id below was '', and the
+        // model built "... AND to_id=" - a SQL syntax error (1064) on a call the app was told
+        // had succeeded. It now fails validation with a clear message instead.
+        $this->form_validation->set_rules('user_id', 'User Id', 'trim|numeric|required|xss_clean');
 
         if (!$this->form_validation->run()) {
             $this->response['error'] = true;
@@ -753,88 +760,25 @@ Defined Methods:-
 
                         curl_close($ch);
                     } else {
-
-                        // group user msg
-                        $group_id = $to_id;
-
-                        $users = $this->chat_model->get_group_members($group_id);
-                        foreach ($users as $user) {
-                            // $userdata = $this->users_model->get_user_by_id($user['user_id']);
-                            $userdata = fetch_details('users', ['active' => 1, 'id' => $user['user_id']]);
-
-                            if ($user['user_id'] != $from_id) {
-                                $fcm_ids[][] = $userdata[0]['fcm_id'];
-                            }
-                        }
-
-                        $registrationIDs = $fcm_ids;
-
-
-                        // this is the user who going to send FCM msg
-                        // $senders_info = $this->users_model->get_user_by_id($this->session->userdata('user_id'));
-                        $senders_info = fetch_details('users', ['active' => 1, 'id' => $from_id]);
-
-                        $data = $notification = array();
-                        $notification['title'] = '#' . $users[0]['title'] . ' - ' . $senders_info[0]['username'];
-                        // $notification['picture'] = mb_substr($senders_info[0]['first_name'], 0, 1) . '' . mb_substr($senders_info[0]['last_name'], 0, 1);
-
-                        // $notification['profile'] = !empty($senders_info[0]['profile']) ? $senders_info[0]['profile'] : '';
-
-                        $notification['senders_name'] = $senders_info[0]['username'];
-                        $notification['type'] = 'message';
-                        $notification['message_type'] = 'group';
-                        $notification['from_id'] = $from_id;
-                        $notification['to_id'] = $group_id;
-                        $notification['msg_id'] = $msg_id;
-                        $notification['registrationIDs'] = $registrationIDs;
-                        $notification['new_msg'] = json_encode($new_msg);
-                        $notification['body'] = $this->input->post('chat-input-textarea');
-                        // $notification['icon'] = 'assets/icons/' . (!empty(get_half_logo()) ? get_half_logo() : 'logo-half.png');
-                        $notification['base_url'] = base_url('chat');
-                        $data['data']['data'] = $notification;
-                        $data['data']['webpush']['fcm_options']['link'] = base_url('chat');
-                        $data['registration_ids'] = $registrationIDs;
-
-                        //send notification to members
-
-                        $fcm_admin_subject = 'New Message from' . $senders_info[0]['username'];
-                        $fcmMsg = array(
-                            'title' => $fcm_admin_subject,
-                            'body' => $this->input->post('message'),
-                            'type' => "chat",
-                            'message' => json_encode($new_msg),
-                            'content_available' => true
-                        );
-                        $fcmFields = send_notification($fcmMsg, $registrationIDs);
-
-                        $ch = curl_init();
-                        $fcm_key = get_settings('firebase_settings');
-
-                        $fcm_key = !empty($fcm_key) ? json_decode($fcm_key) : '';
-
-                        $fcm_key = !empty($fcm_key->fcm_server_key) ? $fcm_key->fcm_server_key : '';
-
-                        curl_setopt($ch, CURLOPT_POST, 1);
-                        $headers = array();
-                        $headers[] = "Authorization: key = " . $fcm_key;
-
-                        $headers[] = "Content-Type: application/json";
-                        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-
-                        curl_setopt($ch, CURLOPT_URL, "https://fcm.googleapis.com/fcm/send");
-                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "POST");
-                        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-
-                        $result['error'] = false;
-
-                        $this->chat_model->set_group_msg_as_unread($group_id, $from_id);
-
-                        $result['response'] = curl_exec($ch);
-                        if (curl_errno($ch))
-                            echo 'Error:' . curl_error($ch);
-
-                        curl_close($ch);
+                        /*
+                         * The "group chat" delivery path used to live here and was a guaranteed
+                         * fatal error for anybody who reached it:
+                         *
+                         *   PHP Error - Call to undefined method Chat_model::get_group_members()
+                         *
+                         * Group chat was removed from this product - `chat_groups` /
+                         * `chat_group_members` are not in the schema, and both model methods this
+                         * branch called (get_group_members(), set_group_msg_as_unread()) are
+                         * commented out in Chat_model. `type` is supplied by the client, so any
+                         * value other than 'person' landed here. This was latent only because the
+                         * whole chat API answered 403 on every request (it was missing from
+                         * csrf_exclude_uris); with that fixed, this branch became reachable.
+                         *
+                         * Chat_model::send_msg() normalises the type, so the message row itself is
+                         * stored correctly as a person message - there is simply no group fan-out
+                         * left to perform.
+                         */
+                        log_message('debug', 'chat send_msg: ignoring unsupported type "' . $type . '" - group chat is not part of this schema.');
                     }
 
                     $response['error'] = false;
@@ -943,30 +887,44 @@ Defined Methods:-
             return false;
         }
 
-        $data = $this->chat_model->get_supporters();
+        // Optional: lets the app show a per-supporter unread badge. Chat_model::get_supporters()
+        // computes it against this viewer.
+        $viewer_id = (isset($_POST['user_id']) && is_numeric($_POST['user_id'])) ? (int) $this->input->post('user_id', true) : 0;
+
+        $data = $this->chat_model->get_supporters($viewer_id);
         $items = [];
         $res = [];
-        $i = 0;
         foreach ($data as $key => $value) {
 
-            $items['user_permission_id'] = (!empty($value['user_permission_id']) && isset($value['user_permission_id'])) ? $value['user_permission_id'] : "";
-            $items['user_role'] = (!empty($value['user_role']) && isset($value['user_role'])) ? $value['user_role'] : "";
-            $items['userto_id'] = (!empty($value['userto_id']) && isset($value['userto_id'])) ? $value['userto_id'] : "";
-            $items['username'] = (!empty($value['username']) && isset($value['username'])) ? $value['username'] : "";
-            $items['last_online'] = (!empty($value['last_online']) && isset($value['last_online'])) ? $value['last_online'] : "";
-            $items['id'] = (!empty($value['id']) && isset($value['id'])) ? $value['id'] : "";
-            $items['from_id'] = (!empty($value['from_id']) && isset($value['from_id'])) ? $value['from_id'] : "";
-            $items['to_id'] = (!empty($value['to_id']) && isset($value['to_id'])) ? $value['to_id'] : "";
-            $items['is_read'] = (!empty($value['is_read']) && isset($value['is_read'])) ? $value['is_read'] : "";
-            $items['message'] = (!empty($value['message']) && isset($value['message'])) ? $value['message'] : "";
-            $items['type'] = (!empty($value['type']) && isset($value['type'])) ? $value['type'] : "";
-            $items['media'] = (!empty($value['media']) && isset($value['media'])) ? $value['media'] : "";
-            $items['date_created'] = (!empty($value['date_created']) && isset($value['date_created'])) ? $value['date_created'] : "";
+            $items['user_permission_id'] = isset($value['user_permission_id']) ? $value['user_permission_id'] : "";
+            // Was `!empty($value['user_role'])`, and Super Admin IS role 0 - a falsy value - so
+            // every super-admin supporter was reported with an EMPTY role instead of "0".
+            $items['user_role'] = isset($value['user_role']) ? (string) $value['user_role'] : "";
+            $items['userto_id'] = isset($value['userto_id']) ? $value['userto_id'] : "";
+            $items['username'] = isset($value['username']) ? $value['username'] : "";
+            $items['image'] = isset($value['image']) ? $value['image'] : "";
+            $items['last_online'] = isset($value['last_online']) ? $value['last_online'] : "";
+            $items['unread_msg'] = isset($value['unread_msg']) ? (int) $value['unread_msg'] : 0;
+            /*
+             * These eight keys are kept for wire compatibility with the app, but they were never
+             * meaningful: they came from a `LEFT JOIN messages ... GROUP BY u.id` in the old
+             * get_supporters() query that selected `m.*`, so they held the columns of ONE
+             * arbitrary message row (and collided with u.id). That join was invalid under
+             * ONLY_FULL_GROUP_BY anyway and has been removed; the real unread figure is
+             * `unread_msg` above.
+             */
+            $items['id'] = "";
+            $items['from_id'] = "";
+            $items['to_id'] = "";
+            $items['is_read'] = "";
+            $items['message'] = "";
+            $items['type'] = "";
+            $items['media'] = "";
+            $items['date_created'] = "";
 
             array_push($res, $items);
         }
-        // print_r($res);
-        if (!empty($items)) {
+        if (!empty($res)) {
             $this->response['error'] = false;
             $this->response['message'] = "Data fetched successfully !";
             $this->response['data'] = $res;

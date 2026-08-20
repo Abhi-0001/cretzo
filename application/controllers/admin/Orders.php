@@ -257,66 +257,81 @@ class Orders extends CI_Controller
                 $user_res = fetch_details('users', ['id' => $_POST['deliver_by']], 'fcm_id,username,mobile,email');
                 $fcm_ids = array();
                 //custom message
+                $fcmMsg = array();
                 if (isset($user_res[0]) && !empty($user_res[0])) {
+                    // $_POST['order_id'] was passed as the notify_event() lookup key, but the id
+                    // this whole block works with is posted as `orderid` - there is no `order_id`
+                    // field. So the lookup ran with an undefined index (a PHP warning printed
+                    // into the JSON response) and a NULL order id, which matched no order, so
+                    // get_order_data() returned "No data found" and the email/SMS was never sent.
+                    $notify_order_id = (int) $this->input->post('orderid');
+
                     if ((isset($current_delivery_boy[0]['delivery_boy_id']) && $current_delivery_boy[0]['delivery_boy_id'] == $_POST['deliver_by']) || (isset($_POST['status']) && $_POST['status'] == 'cancelled')) {
-                        if ($_POST['status'] == 'received') {
-                            $type = ['type' => "customer_order_received"];
-                        } elseif ($_POST['status'] == 'processed') {
-                            $type = ['type' => "customer_order_processed"];
-                        } elseif ($_POST['status'] == 'shipped') {
-                            $type = ['type' => "customer_order_shipped"];
-                        } elseif ($_POST['status'] == 'delivered') {
-                            $type = ['type' => "customer_order_delivered"];
-                        } elseif ($_POST['status'] == 'cancelled') {
-                            $type = ['type' => "customer_order_cancelled"];
-                        } elseif ($_POST['status'] == 'returned') {
-                            $type = ['type' => "customer_order_returned"];
+                        // $type was left UNDEFINED whenever status was not one of these six
+                        // (it is posted by the client), and it is dereferenced as
+                        // $type['type'] a few lines down - an undefined-variable + undefined-index
+                        // warning, then a notify_event('') call that could never match an event.
+                        $status_events = [
+                            'received'  => 'customer_order_received',
+                            'processed' => 'customer_order_processed',
+                            'shipped'   => 'customer_order_shipped',
+                            'delivered' => 'customer_order_delivered',
+                            'cancelled' => 'customer_order_cancelled',
+                            'returned'  => 'customer_order_returned',
+                        ];
+                        $posted_status = (string) $this->input->post('status');
+
+                        if (isset($status_events[$posted_status])) {
+                            $event = $status_events[$posted_status];
+
+                            // Replaces a hand-rolled template lookup that read
+                            // $custom_notification[0]['message'] without checking the row existed.
+                            // `custom_notifications` is EMPTY on a default install, so this was an
+                            // "Undefined array key 0" warning printed into the middle of the JSON
+                            // response body on every single order status change, breaking the
+                            // response the admin UI tries to parse.
+                            $tpl = get_custom_notification_template(
+                                $event,
+                                'Order status updated',
+                                'Hello Dear ' . $user_res[0]['username'] . ', order status updated to ' . $posted_status . ' for order ID #' . $notify_order_id . '. Thank you. Regards ' . $app_name
+                            );
+                            $fcmMsg = array(
+                                'title' => $tpl['title'],
+                                'body'  => $tpl['message'],
+                                'type'  => "order",
+                            );
+
+                            notify_event(
+                                $event,
+                                ["delivery_boy" => [$user_res[0]['email']]],
+                                ["delivery_boy" => [$user_res[0]['mobile']]],
+                                ["orders.id" => $notify_order_id]
+                            );
                         }
-                        $custom_notification = fetch_details('custom_notifications', $type, '');
-                        $hashtag_cutomer_name = '< cutomer_name >';
-                        $hashtag_order_id = '< order_item_id >';
-                        $hashtag_application_name = '< application_name >';
-                        $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
-                        $hashtag = html_entity_decode($string);
-                        $data = str_replace(array($hashtag_cutomer_name, $hashtag_order_id, $hashtag_application_name), array($user_res[0]['username'], $_POST['orderid'], $app_name), $hashtag);
-                        $message = output_escaping(trim($data, '"'));
-                        $customer_msg = (!empty($custom_notification)) ? $message :  'Hello Dear ' . $user_res[0]['username'] . ' Order status updated to' . $_POST['val'] . ' for order ID #' . $_POST['orderid'] . ' please take note of it! Thank you. Regards ' . $app_name . '';
-                        $fcmMsg = array(
-                            'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Order status updated",
-                            'body' =>  $customer_msg,
-                            'type' => "order",
-                        );
-                        notify_event(
-                            $type['type'],
-                            ["delivery_boy" => [$user_res[0]['email']]],
-                            ["delivery_boy" => [$user_res[0]['mobile']]],
-                            ["orders.id" => $_POST['order_id']]
-                        );
                     } else {
-                        $custom_notification =  fetch_details('custom_notifications', ['type' => "delivery_boy_order_deliver"], '');
-                        $hashtag_cutomer_name = '< cutomer_name >';
-                        $hashtag_order_id = '< order_id >';
-                        $hashtag_application_name = '< application_name >';
-                        $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
-                        $hashtag = html_entity_decode($string);
-                        $data = str_replace(array($hashtag_cutomer_name, $hashtag_order_id, $hashtag_application_name), array($user_res[0]['username'], $_POST['orderid'], $app_name), $hashtag);
-                        $message = output_escaping(trim($data, '"'));
-                        $customer_msg = (!empty($custom_notification)) ? $message : 'Hello Dear ' . $user_res[0]['username'] . ' you have new order to be deliver order ID #' . $_POST['orderid'] . ' please take note of it! Thank you. Regards ' . $app_name . '';
+                        $tpl = get_custom_notification_template(
+                            'delivery_boy_order_deliver',
+                            'You have a new order to deliver',
+                            'Hello Dear ' . $user_res[0]['username'] . ', you have a new order to deliver, order ID #' . $notify_order_id . '. Thank you. Regards ' . $app_name
+                        );
                         $fcmMsg = array(
-                            'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : " You have new order to deliver",
-                            'body' => $customer_msg,
-                            'type' => "order",
+                            'title' => $tpl['title'],
+                            'body'  => $tpl['message'],
+                            'type'  => "order",
                         );
                         $msg = 'Delivery Boy Updated. ';
                         notify_event(
                             "delivery_boy_order_deliver",
                             ["delivery_boy" => [$user_res[0]['email']]],
                             ["delivery_boy" => [$user_res[0]['mobile']]],
-                            ["orders.id" => $_POST['order_id']]
+                            ["orders.id" => $notify_order_id]
                         );
                     }
                 }
-                if (!empty($user_res[0]['fcm_id'])) {
+                // $fcmMsg was only assigned inside the branches above, so when none of them ran
+                // this pushed an undefined variable (warning, then a notification with an empty
+                // body). Initialised to [] above and checked here.
+                if (!empty($fcmMsg) && !empty($user_res[0]['fcm_id'])) {
                     $fcm_ids[0][] = $user_res[0]['fcm_id'];
                     send_notification($fcmMsg, $fcm_ids);
                 }
@@ -1675,7 +1690,11 @@ class Orders extends CI_Controller
 
             $res = send_pickup_request($_POST['shipment_id']);
 
-            if (!empty($res)) {
+            // Judged with `if (!empty($res))` before. A Shiprocket REJECTION is also a non-empty
+            // array, so a refused pickup / ungenerated label / declined cancellation all reported
+            // SUCCESS to whoever pressed the button. shiprocket_result_ok() knows each
+            // operation's real success marker, and the failure branch now shows Shiprocket's reason.
+            if (shiprocket_result_ok('pickup', $res)) {
                 $this->response['error'] = false;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
@@ -1685,7 +1704,7 @@ class Orders extends CI_Controller
                 $this->response['error'] = true;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = 'Request not sent';
+                $this->response['message'] = shiprocket_result_message($res, 'Request not sent');
                 $this->response['data'] = array();
             }
             print_r(json_encode($this->response));
@@ -1699,7 +1718,11 @@ class Orders extends CI_Controller
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
             $res = generate_label($_POST['shipment_id']);
-            if (!empty($res)) {
+            // Judged with `if (!empty($res))` before. A Shiprocket REJECTION is also a non-empty
+            // array, so a refused pickup / ungenerated label / declined cancellation all reported
+            // SUCCESS to whoever pressed the button. shiprocket_result_ok() knows each
+            // operation's real success marker, and the failure branch now shows Shiprocket's reason.
+            if (shiprocket_result_ok('label', $res)) {
                 $this->response['error'] = false;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
@@ -1709,7 +1732,7 @@ class Orders extends CI_Controller
                 $this->response['error'] = true;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = 'Label not generated';
+                $this->response['message'] = shiprocket_result_message($res, 'Label not generated');
                 $this->response['data'] = array();
             }
             print_r(json_encode($this->response));
@@ -1733,7 +1756,7 @@ class Orders extends CI_Controller
                 $this->response['error'] = true;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = 'Invoice not generated';
+                $this->response['message'] = shiprocket_result_message($res, 'Invoice not generated');
                 $this->response['data'] = array();
             }
             print_r(json_encode($this->response));
@@ -1757,7 +1780,7 @@ class Orders extends CI_Controller
                 $this->response['error'] = true;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = 'Order not cancelled';
+                $this->response['message'] = shiprocket_result_message($res, 'Order not cancelled');
                 $this->response['data'] = array();
             }
             print_r(json_encode($this->response));

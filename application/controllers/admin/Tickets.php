@@ -191,6 +191,20 @@ class Tickets extends CI_Controller
                     return false;
                 }
 
+                // The ticket was never verified to exist. add_ticket_message() now refuses to
+                // create an orphan, but returning a clear message beats a generic
+                // "could not be sent".
+                $ticket = fetch_details('tickets', ['id' => (int) $ticket_id], '*', 1);
+                if (empty($ticket)) {
+                    $this->response['error'] = true;
+                    $this->response['message'] = "Ticket not found!";
+                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                    $this->response['data'] = [];
+                    print_r(json_encode($this->response));
+                    return false;
+                }
+
                 $data = array(
                     'user_type' => "admin",
                     'user_id' => $user_id,
@@ -203,6 +217,10 @@ class Tickets extends CI_Controller
                 if (!empty($insert_id)) {
                     $data1 = $this->config->item('type');
                     $result = $this->ticket_model->get_messages($ticket_id, $user_id, "", "", "1", "", "", $data1, $insert_id);
+                    // An admin reply notified NOBODY. Only a status change did, so a customer
+                    // whose ticket was answered but left in the same status had no signal at all
+                    // that anyone had responded - they had to keep re-opening the ticket to check.
+                    notify_ticket_event($ticket_id, 'message', 'admin');
                     $this->response['error'] = false;
                     $this->response['message'] =  'Ticket message sent successfully';
                     $this->response['csrfName'] = $this->security->get_csrf_token_name();
@@ -257,7 +275,15 @@ class Tickets extends CI_Controller
             if (print_msg(!has_permissions('delete', 'support_tickets'), PERMISSION_ERROR_MSG, 'support_tickets')) {
                 return false;
             }
-            $ticket_id = $_GET['id'];
+            // $_GET['id'] was read unchecked: a missing parameter was an undefined-index
+            // warning printed into the JSON body, and a non-numeric one reached the model.
+            if (!isset($_GET['id']) || !is_numeric($_GET['id']) || (int) $_GET['id'] < 1) {
+                $this->response['error'] = true;
+                $this->response['message'] = 'Invalid ticket id';
+                print_r(json_encode($this->response));
+                return false;
+            }
+            $ticket_id = (int) $_GET['id'];
             $result = $this->ticket_model->delete_ticket($ticket_id);
             if ($result == true) {
                 $this->response['error'] = false;
@@ -282,7 +308,11 @@ class Tickets extends CI_Controller
             // $ticket_id, '*')), not a parameterized one, so a non-numeric value could inject
             // arbitrary SQL into that query.
             $this->form_validation->set_rules('ticket_id', 'Ticket Id', 'trim|required|numeric|xss_clean');
-            $this->form_validation->set_rules('status', 'Status', 'trim|required|xss_clean');
+            // status was only checked 'required'. The five transition guards below all compare
+            // against specific values, so an out-of-range value (e.g. 9) matched none of them,
+            // sailed through every guard, and was written to the column - leaving the ticket in
+            // a state that renders as a blank badge and matches no status filter.
+            $this->form_validation->set_rules('status', 'Status', 'trim|required|xss_clean|in_list[' . PENDING . ',' . OPENED . ',' . RESOLVED . ',' . CLOSED . ',' . REOPEN . ']');
 
 
             if (!$this->form_validation->run()) {
@@ -348,33 +378,18 @@ class Tickets extends CI_Controller
                 $settings = get_settings('system_settings', true);
                 if ($this->ticket_model->add_ticket($data)) {
                     $result = $this->ticket_model->get_tickets($ticket_id);
-                    if (!empty($result)) {
-                        //custom message
-                        $custom_notification = fetch_details('custom_notifications', ['type' => "ticket_status"], '');
-                        $hashtag_application_name = '< application_name >';
-                        $string = json_encode(isset($custom_notification[0]['message']) ? $custom_notification[0]['message'] : '', JSON_UNESCAPED_UNICODE);
-                        $hashtag = html_entity_decode($string);
-                        $data = str_replace($hashtag_application_name, $settings['app_name'], $hashtag);
-                        $message = output_escaping(trim($data, '"'));
-                        // Was looking up the ticket's owner via a ticket_messages row filtered to
-                        // user_type='user' - if the ticket had no such message yet (e.g. only
-                        // admin replies so far), this came back empty and $ticket_res[0]['user_id']
-                        // threw an undefined-index notice, silently failing to notify anyone.
-                        // The ticket's own owner is already known from $res[0]['user_id'] above.
-                        $user_res = fetch_details("users", ['id' => $res[0]['user_id']], 'fcm_id', '',  '', '', '');
-                        $fcm_ids[0][] = $user_res[0]['fcm_id'];
-                        $fcm_admin_subject =  (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Your Ticket status has been changed";
-                        $fcm_admin_msg = (!empty($custom_notification)) ? $message : "Ticket Message";
-                        if (!empty($fcm_ids)) {
-                            $fcmMsg = array(
-                                'title' => $fcm_admin_subject,
-                                'body' => $fcm_admin_msg,
-                                'type' => "ticket_status",
-                                'type_id' => $ticket_id
-                            );
-                            send_notification($fcmMsg, $fcm_ids);
-                        }
-                    }
+                    // The block that used to live here was dead in two different ways:
+                    //   - $fcm_ids was assigned one line above the `if (!empty($fcm_ids))` that
+                    //     guards the send, but nothing ever emptied it, so it pushed a token list
+                    //     of [null] whenever the customer had no device registered - which FCM
+                    //     rejects outright, killing the notification for that ticket.
+                    //   - it was push-only, so with FCM unconfigured (the shipped default, the key
+                    //     is still the literal string "your_fcm_server_key") a status change
+                    //     reached the customer through no channel at all.
+                    // notify_ticket_event() records an in-app notification, emails the customer
+                    // and pushes only when push is actually usable - and is shared with the app
+                    // API so the two cannot drift.
+                    notify_ticket_event($ticket_id, 'status', 'admin');
                     $this->response['error'] = false;
                     $this->response['message'] =  'Ticket updated Successfully';
                     $this->response['csrfName'] = $this->security->get_csrf_token_name();

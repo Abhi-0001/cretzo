@@ -1,3 +1,16 @@
+<?php
+/*
+ * `login_with_email` is not a key in the `system_settings` row on this install, but it is read
+ * unguarded three times below to decide whether the mobile and email inputs are readonly - so
+ * every visit to My Account > Profile emitted three "Undefined array key login_with_email"
+ * warnings, and in development those print into the page body.
+ *
+ * Defaulted to 0, which preserves today's behaviour exactly: config/ion_auth.php sets
+ * $config['identity'] = 'mobile', so the mobile number IS the login identity and must stay
+ * readonly, while the email address remains editable.
+ */
+$login_with_email = isset($system_settings['login_with_email']) ? $system_settings['login_with_email'] : 0;
+?>
 <!-- breadcrumb -->
 <section class="breadcrumb-title-bar colored-breadcrumb">
     <div class="main-content responsive-breadcrumb">
@@ -39,13 +52,13 @@
                         <div class="form-group col-md-6">
                             <label for="mobile" class="col-sm-12 col-form-label"><?= !empty($this->lang->line('mobile')) ? $this->lang->line('mobile') : 'Mobile' ?>*</label>
                             <div>
-                                <input type="phone" class="form-control" id="mobile" placeholder="Type Mobile No. here" name="mobile" value="<?= $users->mobile ?>" <?= isset($users->type) && ($users->type == 'phone' || $users->type == '') && ($system_settings['login_with_email'] == 0 || $system_settings['login_with_email'] == '0') ? 'readonly' : '' ?>>
+                                <input type="phone" class="form-control" id="mobile" placeholder="Type Mobile No. here" name="mobile" value="<?= $users->mobile ?>" <?= isset($users->type) && ($users->type == 'phone' || $users->type == '') && ($login_with_email == 0 || $login_with_email == '0') ? 'readonly' : '' ?>>
                             </div>
                         </div>
 
                         <div class="form-group col-md-6">
                             <label for="email" class="col-sm-12 col-form-label"><?= !empty($this->lang->line('email')) ? $this->lang->line('email') : 'Email' ?>*</label>
-                            <input type="text" class="form-control" id="email" placeholder="Type Email here" name="email" value="<?= $users->email ?>" <?= (isset($users->type) && !empty($users->type) && ($users->type == 'google' || ($users->type == 'facebook') && $users->type != '' && !empty($users->email))) || ($system_settings['login_with_email'] == 1 || $system_settings['login_with_email'] == '1') ? 'readonly' : '' ?>>
+                            <input type="text" class="form-control" id="email" placeholder="Type Email here" name="email" value="<?= $users->email ?>" <?= (isset($users->type) && !empty($users->type) && ($users->type == 'google' || ($users->type == 'facebook') && $users->type != '' && !empty($users->email))) || ($login_with_email == 1 || $login_with_email == '1') ? 'readonly' : '' ?>>
                         </div>
                     </div>
 

@@ -182,7 +182,15 @@ Choose an option below or type your question
 
 <div class="chat-row">
 <div class="chat-btn" data-chat-action="product_inquiry" data-chat-message="product inquiry">🛍️ Product Inquiry</div>
+<?php if (!empty($whatsapp_status) && !empty($whatsapp_number)) { ?>
 <div class="chat-btn" onclick="openWhatsApp()">🎧 WhatsApp Support </div>
+<?php } else { ?>
+<div class="chat-btn" data-chat-action="support" data-chat-message="customer support">🎧 Contact Support</div>
+<?php } ?>
+</div>
+
+<div class="chat-row">
+<a class="chat-btn text-decoration-none text-center" href="<?= base_url('my-account/support') ?>" target="_top">🎫 My Support Tickets</a>
 </div>
 
 </div>
@@ -212,6 +220,15 @@ Choose an option below or type your question
 
 <!-- JS -->
 <script>
+
+/* Every message the widget sent used to come back 403 Forbidden: `chat/send` is a POST and
+ * CSRF protection is on globally, but this fetch() carried no token and the URI is not in
+ * csrf_exclude_uris - so the customer-facing support chat was completely non-functional and
+ * only ever showed "Server error". The token is emitted here and refreshed from each reply. */
+var CSRF_NAME = <?= json_encode($this->security->get_csrf_token_name()) ?>;
+var CSRF_HASH = <?= json_encode($this->security->get_csrf_hash()) ?>;
+var WHATSAPP_NUMBER = <?= json_encode(preg_replace('/\D+/', '', (string) (isset($whatsapp_number) ? $whatsapp_number : ''))) ?>;
+var APP_SUPPORT_LABEL = <?= json_encode(isset($title) ? trim(explode('|', $title)[1] ?? 'Support') : 'Support') ?>;
 
 // =====================
 // MAIN SEND FUNCTION
@@ -254,6 +271,7 @@ function sendChatRequest(text, action, orderId) {
 
     const params = new URLSearchParams();
     params.append("message", text || "");
+    params.append(CSRF_NAME, CSRF_HASH);
 
     if (action) {
         params.append("action", action);
@@ -286,6 +304,14 @@ function sendChatRequest(text, action, orderId) {
 
         try {
             let json = JSON.parse(data);
+            // csrf_regenerate is off today, but adopting the hash the server hands back keeps
+            // the widget working if that ever changes or the token expires mid-session.
+            if (json.csrfHash) {
+                CSRF_HASH = json.csrfHash;
+            }
+            if (json.csrfName) {
+                CSRF_NAME = json.csrfName;
+            }
             appendMessage("bot-msg", json.reply || "No response");
 
         } catch (e) {
@@ -306,8 +332,12 @@ function sendChatRequest(text, action, orderId) {
 //Whatsapp direct connection
 function openWhatsApp()
 {
+    if (!WHATSAPP_NUMBER) {
+        appendMessage("bot-msg", "WhatsApp support is not available right now. Please raise a support ticket instead.");
+        return;
+    }
     window.open(
-        "https://wa.me/917290024349?text=Hello%20Cretzo%20Support",
+        "https://wa.me/" + encodeURIComponent(WHATSAPP_NUMBER) + "?text=" + encodeURIComponent("Hello " + APP_SUPPORT_LABEL + " Support"),
         "_blank"
     );
 }

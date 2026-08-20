@@ -1304,41 +1304,58 @@ class Cart extends CI_Controller
                 /* Send notification */
                 $settings = get_settings('system_settings', true);
                 $app_name = isset($settings['app_name']) && !empty($settings['app_name']) ? $settings['app_name'] : '';
+                // All three of these were used without ever being initialised, so an install with
+                // no user_permissions rows hit "Undefined variable" on each of them further down.
+                // And $user_res[0] was dereferenced without checking the lookup returned anything:
+                // a user_permissions row whose user account has since been deleted (nothing
+                // cascades that delete) was an "Undefined array key 0" warning printed into this
+                // JSON response, which is on the customer's checkout path.
+                $admin_email = $admin_mobile = array();
+                $fcm_ids = array();
                 $user_roles = fetch_details("user_permissions", "", '*', '',  '', '', '');
                 foreach ($user_roles as $user) {
                     $user_res = fetch_details('users', ['id' => $user['user_id']], 'fcm_id,email,mobile');
-                    $admin_email[] = $user_res[0]['email'];
-                    $admin_mobile[] = $user_res[0]['mobile'];
-                    if ($user_res[0]['fcm_id'] != '') {
+                    if (empty($user_res)) {
+                        continue;
+                    }
+                    if (!empty($user_res[0]['email'])) {
+                        $admin_email[] = $user_res[0]['email'];
+                    }
+                    if (!empty($user_res[0]['mobile'])) {
+                        $admin_mobile[] = $user_res[0]['mobile'];
+                    }
+                    if (!empty($user_res[0]['fcm_id'])) {
                         $fcm_ids[0][] = $user_res[0]['fcm_id'];
                     }
                 }
                 // print_R($admin_email[0]);
                 // print_R($admin_mobile[0]);
                 // print_R($order_id);
-                if (!empty($admin_email) && !empty($admin_mobile)) {
-                    // print_r("in event ");
+                // Was gated on BOTH lists being non-empty, so an admin account with an email but
+                // no mobile number on file (or vice versa) suppressed the notification entirely.
+                if (!empty($admin_email) || !empty($admin_mobile)) {
                     notify_event(
                         "bank_transfer_proof",
-                        ["admin" => [$admin_email]],
-                        ["admin" => [$admin_mobile]],
+                        ["admin" => $admin_email],
+                        ["admin" => $admin_mobile],
                         ["orders.id" => $order_id]
                     );
                 }
                 //custom message
                 if (!empty($fcm_ids)) {
-                    $custom_notification = fetch_details('custom_notifications', ['type' => "bank_transfer_proof"], '');
-                    $hashtag_order_id = '< order_id >';
-                    $hashtag_application_name = '< application_name >';
-                    $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
-                    $hashtag = html_entity_decode($string);
-                    $data = str_replace(array($hashtag_order_id, $hashtag_application_name), array($order_id, $app_name), $hashtag);
-                    $message = output_escaping(trim($data, '"'));
-                    $customer_msg = (!empty($custom_notification)) ? $message : "Hello Dear Admin you have new order bank transfer proof. Order ID #" . $order_id . ' please take note of it! Thank you. Regards ' . $app_name . '';
+                    // Replaced a hand-rolled template lookup that read $custom_notification[0]
+                    // without checking the row existed - "Undefined array key 0" printed into the
+                    // JSON response on the customer's checkout path whenever the template was
+                    // missing, which was always (custom_notifications ships empty).
+                    $tpl = get_custom_notification_template(
+                        'bank_transfer_proof',
+                        'You have a new order payment receipt',
+                        'A payment receipt has been submitted for order #' . $order_id . '. - ' . $app_name
+                    );
                     $fcmMsg = array(
-                        'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "You have new order proof",
-                        'body' =>   $customer_msg,
-                        'type' => "bank_transfer_proof",
+                        'title' => $tpl['title'],
+                        'body'  => str_replace('< order_id >', $order_id, $tpl['message']),
+                        'type'  => "bank_transfer_proof",
                     );
                     send_notification($fcmMsg, $fcm_ids);
                 }

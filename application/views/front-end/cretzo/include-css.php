@@ -190,8 +190,21 @@ if (!empty($fb_auth['authentication_method']) && $fb_auth['authentication_method
 
 <!-- --------------------------------------------------------------------------------------------------------------------- -->
 <!-- Finally include the main page's stylesheets at the end -->
-<?php if ($main_page !== '') { ?>
+<?php
+/*
+ * Same problem the per-page <script> tag in include-script.php already guards against: only
+ * about half the theme's pages ship a matching stylesheet, and because $route['404_override']
+ * is set, a missing .css does NOT 404 - Apache/CI answer with the themed "Page Not Found" HTML
+ * at HTTP 200 and content-type text/html. So pages like notifications, transactions, profile,
+ * chat and support each fired two pointless full-page requests on every load, each returning a
+ * whole HTML document the browser then discarded. Emit each tag only when the file is there.
+ */
+$page_css_rel     = 'assets/front_end/' . THEME . '/css/' . $path . THEME . '/' . $path . $main_page . '.css';
+$page_css_ovr_rel = 'assets/front_end/' . THEME . '/css/' . $path . THEME . '/' . $path . $main_page . '-override.css';
+if ($main_page !== '' && is_file(FCPATH . $page_css_rel)) { ?>
     <link rel="stylesheet" href="<?= add_ver(THEME_ASSETS_URL  .  'css/'. $path . THEME . '/' . $path . $main_page . '.css') ?>">
+<?php }
+if ($main_page !== '' && is_file(FCPATH . $page_css_ovr_rel)) { ?>
     <link rel="stylesheet" href="<?= add_ver(THEME_ASSETS_URL  .  'css/'. $path . THEME . '/' . $path . $main_page . '-override.css') ?>">
 <?php } ?>
 <!-- --------------------------------------------------------------------------------------------------------------------- -->

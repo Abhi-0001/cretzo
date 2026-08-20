@@ -63,7 +63,7 @@ class Chat extends CI_Controller
             // }
 
             // $this->data['groups'] = $this->chat_model->get_groups($to_id);
-            $this->data['supporters'] = $this->chat_model->get_supporters();
+            $this->data['supporters'] = $this->chat_model->get_supporters($to_id);
 
             $this->data['users'] = $user;
             $this->load->view('seller/template', $this->data);
@@ -124,13 +124,29 @@ class Chat extends CI_Controller
 
             $users = $this->chat_model->get_chat_history($user_id, 20, 0);
 
+            /*
+             * This used to read:
+             *     $user_ids = explode(',', $users[0]['id']);
+             * `$users[0]['id']` is a single integer - the id of the newest MESSAGE in the first
+             * conversation, not a comma-separated id list - so exploding it produced a
+             * one-element array holding a message id, which was then looked up in `users`.
+             * Result: the online-members panel listed at most one user, and that user was
+             * whoever happened to own the id matching a message id rather than one of the
+             * viewer's actual contacts. It also raised "Undefined array key 0" outright whenever
+             * the viewer had no conversations yet.
+             *
+             * The conversation rows already carry the correct contact id as `opponent_user_id`.
+             */
+            $user_ids = array();
+            foreach ($users as $conversation) {
+                if (!empty($conversation['opponent_user_id'])) {
+                    $user_ids[] = (int) $conversation['opponent_user_id'];
+                }
+            }
+            $user_ids = array_values(array_unique($user_ids));
 
-            $user_ids = explode(',', $users[0]['id']);
-            $section = array_map('trim', $user_ids);
-            $user_ids = $section;
 
-
-            $members = $this->chat_model->get_members($user_ids);
+            $members = !empty($user_ids) ? $this->chat_model->get_members($user_ids) : array();
             $member = array();
             $i = 0;
 
@@ -139,9 +155,9 @@ class Chat extends CI_Controller
 
             foreach ($members as $row) {
 
-                $from_id = $row['id'];
+                $from_id = (int) $row['id'];
 
-                $unread_meg = $this->chat_model->get_unread_msg_count($type, $from_id, $to_id);
+                $unread_meg = ($from_id > 0) ? $this->chat_model->get_unread_msg_count($type, $from_id, $to_id) : 0;
 
                 $member[$i] = $row;
                 $member[$i]['unread_msg'] = $unread_meg;
@@ -569,86 +585,23 @@ class Chat extends CI_Controller
 
                     curl_close($ch);
                 } else {
-
-                    // group user msg
-                    $group_id = $this->input->post('opposite_user_id');
-
-                    $users = $this->chat_model->get_group_members($group_id);
-                    foreach ($users as $user) {
-                        // $userdata = $this->users_model->get_user_by_id($user['user_id']);
-                        $userdata = fetch_details('users', ['active' => 1, 'id' => $user['user_id']]);
-                        if ($user['user_id'] != $this->session->userdata('user_id')) {
-                            $fcm_ids[] = $userdata[0]['web_fcm'];
-                        }
-                    }
-
-                    $registrationIDs = $fcm_ids;
-
-                    // this is the user who going to send FCM msg
-                    // $senders_info = $this->users_model->get_user_by_id($this->session->userdata('user_id'));
-                    $senders_info = fetch_details('users', ['active' => 1, 'id' => $this->session->userdata('user_id')]);
-
-                    $data = $notification = array();
-                    $notification['title'] = '#' . $users[0]['title'] . ' - ' . $senders_info[0]['username'];
-                    // $notification['picture'] = mb_substr($senders_info[0]['first_name'], 0, 1) . '' . mb_substr($senders_info[0]['last_name'], 0, 1);
-
-                    // $notification['profile'] = !empty($senders_info[0]['profile']) ? $senders_info[0]['profile'] : '';
-
-                    $notification['senders_name'] = $senders_info[0]['username'];
-                    $notification['type'] = 'message';
-                    $notification['message_type'] = 'group';
-                    $notification['from_id'] = $from_id;
-                    $notification['to_id'] = $group_id;
-                    $notification['msg_id'] = $msg_id;
-                    $notification['registrationIDs'] = $registrationIDs;
-                    $notification['new_msg'] = json_encode($new_msg);
-                    $notification['body'] = $this->input->post('chat-input-textarea');
-                    // $notification['icon'] = 'assets/icons/' . (!empty(get_half_logo()) ? get_half_logo() : 'logo-half.png');
-                    $notification['base_url'] = base_url('chat');
-                    $data['data']['data'] = $notification;
-                    $data['data']['webpush']['fcm_options']['link'] = base_url('chat');
-                    $data['registration_ids'] = $registrationIDs;
-
-                    //send notification to members 
-
-                    $fcmMsg = array(
-                        'content_available' => true,
-                        'title' => $senders_info[0]['username'],
-                        'body' => $this->input->post('chat-input-textarea'),
-                        'type' => "group",
-                        'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
-                    );
-
-                    $fcmFields = send_notification($fcmMsg, $registrationIDs);
-
-                    $ch = curl_init();
-                    $fcm_key = get_settings('firebase_settings');
-
-                    $fcm_key = !empty($fcm_key) ? json_decode($fcm_key) : '';
-
-                    $fcm_key = !empty($fcm_key->fcm_server_key) ? $fcm_key->fcm_server_key : '';
-
-                    curl_setopt($ch, CURLOPT_POST, 1);
-                    $headers = array();
-                    $headers[] = "Authorization: key = " . $fcm_key;
-
-                    $headers[] = "Content-Type: application/json";
-                    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-
-                    curl_setopt($ch, CURLOPT_URL, "https://fcm.googleapis.com/fcm/send");
-                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "POST");
-                    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-
-                    $result['error'] = false;
-
-                    $this->chat_model->set_group_msg_as_unread($group_id, $this->session->userdata('user_id'));
-
-                    $result['response'] = curl_exec($ch);
-                    if (curl_errno($ch))
-                        echo 'Error:' . curl_error($ch);
-
-                    curl_close($ch);
+                    /*
+                     * The block that used to live here was the "group chat" delivery path, and it
+                     * was a guaranteed fatal error for anyone who reached it:
+                     *
+                     *   PHP Error - Call to undefined method Chat_model::get_group_members()
+                     *
+                     * Group chat was removed from this product - `chat_groups` /
+                     * `chat_group_members` are not in the schema and both model methods this
+                     * branch called (get_group_members(), set_group_msg_as_unread()) are
+                     * commented out in Chat_model. But `chat_type` is posted by the client, so
+                     * ANY value other than 'person'/'supporter' landed here: a one-line request
+                     * with chat_type=group crashed the endpoint with an uncaught Error (verified
+                     * live). Chat_model::send_msg() now normalises the type, so the message row
+                     * itself is written correctly as a person message; there is simply no group
+                     * fan-out left to do.
+                     */
+                    log_message('debug', 'send_msg: ignoring unsupported chat_type "' . $this->input->post('chat_type') . '" - group chat is not part of this schema.');
                 }
 
                 $response['error'] = false;

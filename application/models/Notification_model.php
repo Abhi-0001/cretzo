@@ -175,7 +175,18 @@ class Notification_model extends CI_Model
         }
         print_r(json_encode($response));
     }
-    public function get_notification_list($offset = 0, $limit = 10, $sort = 'id', $order = 'ASC')
+    /**
+     * @param int|null $for_user_id When set, only notifications this user is a recipient of are
+     *                              returned. Omitted (null) means "everything", which is what the
+     *                              admin log needs.
+     *
+     * The customer-facing "My Account > Notifications" page calls this same endpoint, and it used
+     * to receive EVERY notification row ever created - including ones the admin had targeted at a
+     * single named customer via "Send to > Specific user". So one customer's targeted message
+     * (which can name an order, a refund, an account issue) was displayed verbatim to every other
+     * customer who opened their notifications page.
+     */
+    public function get_notification_list($offset = 0, $limit = 10, $sort = 'id', $order = 'ASC', $for_user_id = null)
     {
 
         $multipleWhere = '';
@@ -201,13 +212,26 @@ class Notification_model extends CI_Model
             $multipleWhere = ['id' => $search, 'title' => $search, 'message' => $search];
         }
 
+        // `users_id` holds a json array of id strings (e.g. ["4","7"]) written by
+        // Notification_model::add_notification(), so match on the quoted id to avoid "4" also
+        // matching "14"/"41". Rows with send_to anything other than 'specific_user' are
+        // broadcasts and belong to everyone.
+        $recipient_id = ($for_user_id !== null && (int) $for_user_id > 0) ? (int) $for_user_id : null;
+
         $count_res = $this->db->select(' COUNT(id) as `total` ');
 
         if (isset($multipleWhere) && !empty($multipleWhere)) {
-            $count_res->or_like($multipleWhere);
+            $count_res->group_start()->or_like($multipleWhere)->group_end();
         }
         if (isset($where) && !empty($where)) {
             $count_res->where($where);
+        }
+        if ($recipient_id !== null) {
+            $count_res->group_start()
+                ->where('send_to !=', 'specific_user')
+                ->or_where('send_to IS NULL')
+                ->or_like('users_id', '"' . $recipient_id . '"')
+                ->group_end();
         }
         $city_count = $count_res->get('notifications')->result_array();
 
@@ -217,10 +241,17 @@ class Notification_model extends CI_Model
 
         $search_res = $this->db->select(' * ');
         if (isset($multipleWhere) && !empty($multipleWhere)) {
-            $search_res->or_like($multipleWhere);
+            $search_res->group_start()->or_like($multipleWhere)->group_end();
         }
         if (isset($where) && !empty($where)) {
             $search_res->where($where);
+        }
+        if ($recipient_id !== null) {
+            $search_res->group_start()
+                ->where('send_to !=', 'specific_user')
+                ->or_where('send_to IS NULL')
+                ->or_like('users_id', '"' . $recipient_id . '"')
+                ->group_end();
         }
 
         $city_search_res = $search_res->order_by($sort, $order)->limit($limit, $offset)->get('notifications')->result_array();
@@ -230,7 +261,12 @@ class Notification_model extends CI_Model
         $tempRow = array();
         foreach ($city_search_res as $row) {
             $row = output_escaping($row);
-            $operate = ' <a class="delete_notifications btn btn-danger action-btn btn-xs mr-1 ml-1 mb-1" title="Delete" href="javascript:void(0)"  data-id="' . $row['id'] . '" ><i class="fa fa-trash"></i></a>';
+            // The Delete button calls an admin-only endpoint. It was rendered for customers too,
+            // so every customer's notifications page showed a delete icon that answered with the
+            // admin-login redirect when clicked.
+            $operate = ($recipient_id === null)
+                ? ' <a class="delete_notifications btn btn-danger action-btn btn-xs mr-1 ml-1 mb-1" title="Delete" href="javascript:void(0)"  data-id="' . $row['id'] . '" ><i class="fa fa-trash"></i></a>'
+                : '';
             $tempRow['id'] = $row['id'];
             // output_escaping() only strips backslash-escaping, it does not HTML-encode - a
             // stored-XSS route the same as already fixed on other list pages (title/message are

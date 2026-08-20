@@ -4,38 +4,116 @@ defined('BASEPATH') or exit('No direct script access allowed');
 class Pickup_location_model extends CI_Model
 {
 
+    /**
+     * @return array ['error' => bool, 'message' => string, 'shiprocket' => mixed]
+     *
+     * Returned a value for the first time here. The Shiprocket registration result used to be
+     * discarded entirely, and the local row was written first and unconditionally - so when
+     * Shiprocket rejected the address (duplicate nickname, unserviceable pincode, malformed
+     * phone) the platform ended up holding a pickup location the courier had never heard of.
+     * Nothing surfaced that. The seller saw "Add Pickup Location", chose it on a product, and
+     * then every shipment booked from it failed at create-order time with Shiprocket's
+     * "Wrong Pickup location entered" - with no way to connect that back to this step.
+     */
     function add_pickup_location($data)
     {
-        $data = escape_array($data);
-        $pickup_location_data = [
-            'seller_id' => $data['seller_id'],
-            'pickup_location' => $data['pickup_location'],
-            'name' => $data['name'],
-            'email' => $data['email'],
-            'phone' => $data['phone'],
-            'address' => $data['address'],
-            'address_2' => $data['address2'],
-            'city' => $data['city'],
-            'state' => $data['state'],
-            'country' => $data['country'],
-            'pin_code' => $data['pincode'],
-            'latitude' => $data['latitude'],
-            'longitude' => $data['longitude'],
+        /*
+         * escape_array() is deliberately NOT used here.
+         *
+         * CI's query builder already parameter-escapes everything passed to insert()/set(), so
+         * running escape_array() first escapes it TWICE and the backslashes are persisted: an
+         * address for "12 O'Brien Lane" was stored as "12 O\'Brien Lane" and shown that way on
+         * every screen. Verified live before this change. The same double-escaping also reached
+         * Shiprocket, so the address registered with the courier - and printed on the shipping
+         * label - carried literal backslashes too.
+         */
+        $raw = $data;
+
+        $columns = [
+            'seller_id'       => 'seller_id',
+            'pickup_location' => 'pickup_location',
+            'name'            => 'name',
+            'email'           => 'email',
+            'phone'           => 'phone',
+            'address'         => 'address',
+            'address_2'       => 'address2',
+            'city'            => 'city',
+            'state'           => 'state',
+            'country'         => 'country',
+            'pin_code'        => 'pincode',
+            'latitude'        => 'latitude',
+            'longitude'       => 'longitude',
         ];
-        if (isset($data['edit_pickup_location'])) {
+
+        $pickup_location_data = [];
+        $shiprocket_payload = [];
+        foreach ($columns as $column => $post_key) {
+            // latitude/longitude/address2 are optional on both forms; reading them unguarded
+            // warned "Undefined array key" on every save that left them blank.
+            $pickup_location_data[$column] = isset($raw[$post_key]) ? $raw[$post_key] : '';
+            $shiprocket_payload[$column] = isset($raw[$post_key]) ? $raw[$post_key] : '';
+        }
+
+        // Shiprocket has no use for our internal seller id, and rejects unexpected empties on
+        // the coordinate fields.
+        unset($shiprocket_payload['seller_id']);
+        foreach (['latitude', 'longitude', 'address_2'] as $optional) {
+            if ($shiprocket_payload[$optional] === '' || $shiprocket_payload[$optional] === null) {
+                unset($shiprocket_payload[$optional]);
+            }
+        }
+
+        if (isset($raw['edit_pickup_location'])) {
             // Scoped to this seller on the row being matched, not just the seller_id being
             // written — previously the WHERE ignored ownership entirely, so any seller could
             // overwrite another seller's pickup location by id, and since seller_id was part
             // of the SET data, the row was simultaneously reassigned to the caller's account.
-            $this->db->set($pickup_location_data)->where(['id' => $data['edit_pickup_location'], 'seller_id' => $data['seller_id']])->update('pickup_locations');
-        } else {
-            $this->db->insert('pickup_locations', $pickup_location_data);
-
-            //    send add_pickup_location request in shiprocket
-
-            $this->load->library(['Shiprocket']);
-            $this->shiprocket->add_pickup_location($pickup_location_data);
+            $this->db->set($pickup_location_data)->where(['id' => $raw['edit_pickup_location'], 'seller_id' => $pickup_location_data['seller_id']])->update('pickup_locations');
+            return ['error' => false, 'message' => 'Pickup location updated.', 'shiprocket' => null];
         }
+
+        if (!$this->db->insert('pickup_locations', $pickup_location_data)) {
+            return ['error' => true, 'message' => 'Could not save the pickup location.', 'shiprocket' => null];
+        }
+
+        // Register it with Shiprocket. Only attempted when Shiprocket shipping is actually the
+        // configured method - otherwise this made a pointless authenticated API call (and logged
+        // a credentials error) on every pickup location added by a store that ships locally.
+        $shipping = get_settings('shipping_method', true);
+        if (empty($shipping['shiprocket_shipping_method']) || $shipping['shiprocket_shipping_method'] != 1) {
+            return ['error' => false, 'message' => 'Pickup location added.', 'shiprocket' => null];
+        }
+
+        $this->load->library(['Shiprocket']);
+        $result = $this->shiprocket->add_pickup_location($shiprocket_payload);
+
+        // Shiprocket answers a successful addpickup with success = 1. Anything else - including a
+        // transport failure, which now returns null - means the courier does not have this
+        // address, and shipments booked from it will fail later.
+        $accepted = is_array($result) && (
+            (isset($result['success']) && $result['success'])
+            || (isset($result['status']) && (int) $result['status'] === 200)
+            || isset($result['address']['pickup_code'])
+        );
+
+        if (!$accepted) {
+            $reason = $this->shiprocket->last_error();
+            if (empty($reason) && is_array($result) && !empty($result['message'])) {
+                $reason = is_string($result['message']) ? $result['message'] : json_encode($result['message']);
+            }
+            log_message('error', 'Shiprocket rejected pickup location "' . $pickup_location_data['pickup_location']
+                . '": ' . ($reason !== '' ? $reason : json_encode($result)));
+
+            return [
+                'error'      => true,
+                'message'    => 'Saved here, but Shiprocket did not accept this pickup address'
+                    . ($reason ? ' (' . $reason . ')' : '')
+                    . '. Shipments booked from it will fail until it is corrected.',
+                'shiprocket' => $result,
+            ];
+        }
+
+        return ['error' => false, 'message' => 'Pickup location added.', 'shiprocket' => $result];
     }
 
     public function get_list($table, $where = NULL, $seller_id = 0, $from_app = false)
