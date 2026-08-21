@@ -640,10 +640,13 @@
                 'APIVersion' => $this->config->item('APIVersion')        // API version you'd like to use for your call.  You can set a default version in the class and leave this blank if you want.
             );
 
-            // Show Errors
+            // Errors are configured per ENVIRONMENT in index.php, which turns display_errors OFF
+            // on production. Turning it back on here keyed off the PayPal SANDBOX flag, which is
+            // a payment-gateway setting and says nothing about whether this install is live - a
+            // production store left in sandbox would print PHP warnings straight into the payment
+            // callback response. Anything worth knowing here is already written to the log.
             if ($config['Sandbox']) {
-                error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT);
-                ini_set('display_errors', '1');
+                log_message('debug', 'PayPal running in sandbox mode.');
             }
 
             $this->load->library('Paypal_pro', $config);

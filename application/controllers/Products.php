@@ -554,7 +554,12 @@ class Products extends CI_Controller
 
     public function get_details($product_id = '')
     {
+        // Both early exits used to `return false`, i.e. send an EMPTY body. This is fetched with
+        // $.getJSON (the quick-view modal in the classic theme), and jQuery treats an empty body
+        // as a parse failure - so the modal just never opened, with nothing logged and no error
+        // shown. Answer with JSON either way so the caller can tell what happened.
         if (empty($product_id)) {
+            print_r(json_encode(['error' => true, 'message' => 'No product specified.', 'data' => []]));
             return false;
         }
         $user_id = NULL;
@@ -564,7 +569,10 @@ class Products extends CI_Controller
         $valid_zipcode = (!empty($this->session->userdata('valid_zipcode'))) ? $this->session->userdata('valid_zipcode') : "";
         // GST enrollment restriction (P3.2): don't expose a state-restricted product to out-of-state customers.
         $product = fetch_product($user_id, ['customer_state' => get_customer_state()], $product_id, NULL, NULL, NULL, NULL, NULL, NULL, $valid_zipcode);
-        if (isset($product['product']) && empty($product['product'])) {
+        if (empty($product['product'])) {
+            // Also covers a product hidden from THIS customer by the GST state restriction, which
+            // is a legitimate "not available" rather than an error worth alarming anyone about.
+            print_r(json_encode(['error' => true, 'message' => 'Product not available.', 'data' => []]));
             return false;
         }
         $product['product'][0]['zipcode'] = $valid_zipcode;
@@ -947,7 +955,9 @@ class Products extends CI_Controller
         $offset = ($page_no - 1) * $limit;
         $this->pagination->initialize($config);
         $this->data['links'] = $this->pagination->create_links();
-        $page_title = 'Search Result for "' . html_escape($_GET['q']) . '"';
+        // Read unguarded, so /products/search with no q - a bare visit, or a cleared search box -
+        // printed a warning into the page.
+        $page_title = 'Search Result for "' . html_escape(isset($_GET['q']) ? $_GET['q'] : '') . '"';
         $this->data['main_page'] = 'product-listing';
         $this->data['title'] = $page_title . ' | ' . $this->data['web_settings']['site_title'];
         $this->data['keywords'] = $page_title . ',Product Section, ' . $this->data['web_settings']['meta_keywords'];

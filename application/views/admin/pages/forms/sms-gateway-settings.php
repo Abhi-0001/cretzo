@@ -306,9 +306,9 @@
                                             <?php
                                             if (isset($fetched_data[0]['id'])) {
                                             ?>
-                                                <input type="hidden" id="edit_custom_sms" name="edit_custom_sms" value="<?= @$fetched_data[0]['id'] ?>">
+                                                <input type="hidden" id="edit_custom_sms" name="edit_custom_sms" value="<?= html_escape(@$fetched_data[0]['id']) ?>">
                                                 <input type="hidden" id="update_id" name="update_id" value="1">
-                                                <input type="hidden" id="udt_title" value="<?= @$fetched_data[0]['title'] ?>">
+                                                <input type="hidden" id="udt_title" value="<?= html_escape(@$fetched_data[0]['title']) ?>">
                                             <?php
                                             }
                                             ?>
@@ -330,7 +330,7 @@
                                                 <div class="form-group row">
                                                     <label for="title" class="col-sm-2 col-form-label">Title <span class='text-danger text-sm'>*</span></label>
                                                     <div class="col-sm-10">
-                                                        <input type="text" name="title" id="update_title" class="form-control update_title" placeholder="Title Name" value="<?= (isset($fetched_data[0]['title'])) ? $fetched_data[0]['title'] : ""; ?>" />
+                                                        <input type="text" name="title" id="update_title" class="form-control update_title" placeholder="Title Name" value="<?= html_escape((isset($fetched_data[0]['title'])) ? $fetched_data[0]['title'] : "") ?>" />
                                                     </div>
                                                 </div>
                                                 <div class="form-group row place_order <?= (isset($fetched_data[0]['id'])  && $fetched_data[0]['type'] == 'place_order') ? '' : 'd-none' ?>">

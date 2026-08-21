@@ -59,8 +59,8 @@ $fetched_data = isset($fetched_data) && is_array($fetched_data) ? $fetched_data 
                         <!-- form start -->
                         <form class="form-horizontal form-submit-event" action="<?= base_url('admin/sellers/add_seller'); ?>" method="POST" enctype="multipart/form-data" id="add_product_form">
                             <?php if (isset($fetched_data[0]['id'])) { ?>
-                                <input type="hidden" name="edit_seller" value="<?= $fetched_data[0]['user_id'] ?>">
-                                <input type="hidden" name="edit_seller_data_id" value="<?= $fetched_data[0]['id'] ?>">
+                                <input type="hidden" name="edit_seller" value="<?= html_escape($fetched_data[0]['user_id']) ?>">
+                                <input type="hidden" name="edit_seller_data_id" value="<?= html_escape($fetched_data[0]['id']) ?>">
                             <?php
                             } ?>
                             <div class="card-body">
@@ -73,7 +73,7 @@ $fetched_data = isset($fetched_data) && is_array($fetched_data) ? $fetched_data 
                                     <label class="col-sm-2 col-form-label">Seller Photo</label>
                                     <div class="col-sm-10 d-flex align-items-center gap-3">
                                         <input type="file" class="hidden" name="seller_photo" id="personalPhotoInput" accept="image/*,application/pdf" style="display:none;">
-                                        <input type="hidden" name="old_seller_photo" value="<?= htmlspecialchars($fetched_data[0]['image'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                                        <input type="hidden" name="old_seller_photo" value="<?= html_escape(htmlspecialchars($fetched_data[0]['image'] ?? '', ENT_QUOTES, 'UTF-8')) ?>">
                                         <div class="personal-photo-preview" id="personalPhotoContainer">
                                             <svg class="personal-photo-icon" id="personalPhotoIcon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="<?= !empty($fetched_data[0]['image']) ? 'display:none;' : '' ?>">
                                                 <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6m2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0m4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4m-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10s-3.516.68-4.168 1.332c-.678.678-.83 1.418-.832 1.664z" />
@@ -87,31 +87,31 @@ $fetched_data = isset($fetched_data) && is_array($fetched_data) ? $fetched_data 
                                 <div class="form-group row">
                                     <label for="first_name" class="col-sm-2 col-form-label">First Name <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="first_name" placeholder="First Name" name="first_name" value="<?= @$fetched_data[0]['first_name'] ?>">
+                                        <input type="text" class="form-control" id="first_name" placeholder="First Name" name="first_name" value="<?= html_escape(@$fetched_data[0]['first_name']) ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row">
                                     <label for="middle_name" class="col-sm-2 col-form-label">Middle Name</label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="middle_name" placeholder="Middle Name (optional)" name="middle_name" value="<?= @$fetched_data[0]['middle_name'] ?>">
+                                        <input type="text" class="form-control" id="middle_name" placeholder="Middle Name (optional)" name="middle_name" value="<?= html_escape(@$fetched_data[0]['middle_name']) ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row">
                                     <label for="last_name" class="col-sm-2 col-form-label">Last Name <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="last_name" placeholder="Last Name" name="last_name" value="<?= @$fetched_data[0]['last_name'] ?>">
+                                        <input type="text" class="form-control" id="last_name" placeholder="Last Name" name="last_name" value="<?= html_escape(@$fetched_data[0]['last_name']) ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row">
                                     <label for="phone" class="col-sm-2 col-form-label">Phone <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="phone" placeholder="Enter Phone Number" name="phone" maxlength="10" value="<?= @$fetched_data[0]['phone'] ?>">
+                                        <input type="text" class="form-control" id="phone" placeholder="Enter Phone Number" name="phone" maxlength="10" value="<?= html_escape(@$fetched_data[0]['phone']) ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row">
                                     <label for="email" class="col-sm-2 col-form-label">Email <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="email" class="form-control" id="email" placeholder="Enter Email" name="email" value="<?= @$fetched_data[0]['email'] ?>">
+                                        <input type="email" class="form-control" id="email" placeholder="Enter Email" name="email" value="<?= html_escape(@$fetched_data[0]['email']) ?>">
                                     </div>
                                 </div>
                                 <?php if (!isset($fetched_data[0]['id'])) { ?>
@@ -131,32 +131,32 @@ $fetched_data = isset($fetched_data) && is_array($fetched_data) ? $fetched_data 
                                 <div class="form-group row">
                                     <label for="address1" class="col-sm-2 col-form-label">Address <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="address1" placeholder="Street" name="address1" value="<?= @$fetched_data[0]['address1'] ?>">
+                                        <input type="text" class="form-control" id="address1" placeholder="Street" name="address1" value="<?= html_escape(@$fetched_data[0]['address1']) ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row">
                                     <label for="pin" class="col-sm-2 col-form-label">PIN Code <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="pin" placeholder="Enter PIN Code" name="pin" maxlength="6" value="<?= @$fetched_data[0]['pin'] ?>">
+                                        <input type="text" class="form-control" id="pin" placeholder="Enter PIN Code" name="pin" maxlength="6" value="<?= html_escape(@$fetched_data[0]['pin']) ?>">
                                         <span id="pin_lookup_status" class="pincode-lookup-status"></span>
                                     </div>
                                 </div>
                                 <div class="form-group row">
                                     <label for="state" class="col-sm-2 col-form-label">State <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="state" placeholder="Enter State" name="state" value="<?= htmlspecialchars($fetched_data[0]['state'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                                        <input type="text" class="form-control" id="state" placeholder="Enter State" name="state" value="<?= html_escape(htmlspecialchars($fetched_data[0]['state'] ?? '', ENT_QUOTES, 'UTF-8')) ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row">
                                     <label for="district" class="col-sm-2 col-form-label">District <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="district" placeholder="Enter District" name="district" value="<?= htmlspecialchars($fetched_data[0]['district'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                                        <input type="text" class="form-control" id="district" placeholder="Enter District" name="district" value="<?= html_escape(htmlspecialchars($fetched_data[0]['district'] ?? '', ENT_QUOTES, 'UTF-8')) ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row">
                                     <label for="city" class="col-sm-2 col-form-label">City/Village/Town <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="city" placeholder="Enter City/Village/Town" name="city" value="<?= htmlspecialchars($fetched_data[0]['city'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                                        <input type="text" class="form-control" id="city" placeholder="Enter City/Village/Town" name="city" value="<?= html_escape(htmlspecialchars($fetched_data[0]['city'] ?? '', ENT_QUOTES, 'UTF-8')) ?>">
                                     </div>
                                 </div>
 
@@ -175,7 +175,7 @@ $fetched_data = isset($fetched_data) && is_array($fetched_data) ? $fetched_data 
                                         <label for="<?= $field ?>_input" class="col-sm-2 col-form-label"><?= $label ?><?= $required ? " <span class='text-danger text-sm'>*</span>" : '' ?></label>
                                         <div class="col-sm-10">
                                             <input type="file" class="form-control" name="<?= $field ?>" id="<?= $field ?>_input" accept="image/*,application/pdf">
-                                            <input type="hidden" name="old_<?= $field ?>" value="<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>">
+                                            <input type="hidden" name="old_<?= $field ?>" value="<?= html_escape(htmlspecialchars($value, ENT_QUOTES, 'UTF-8')) ?>">
                                             <div class="doc-upload-preview-wrap<?= empty($value) ? ' hidden' : '' ?>" id="<?= $field ?>_wrap">
                                                 <a href="<?= (!empty($value) && !$is_pdf) ? base_url($value) : '' ?>" target="_blank" id="<?= $field ?>_link" data-toggle="lightbox" data-gallery="gallery_seller">
                                                     <img id="<?= $field ?>_preview" src="<?= (!empty($value) && !$is_pdf) ? base_url($value) : '' ?>" class="doc-upload-thumb<?= ($is_pdf || empty($value)) ? ' hidden' : '' ?>" alt="<?= $label ?>">
@@ -197,62 +197,62 @@ $fetched_data = isset($fetched_data) && is_array($fetched_data) ? $fetched_data 
                                 <div class="form-group row">
                                     <label for="shop_name" class="col-sm-2 col-form-label">Shop Name <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="shop_name" placeholder="Shop Name" name="shop_name" value="<?= @$fetched_data[0]['shop_name'] ?>">
+                                        <input type="text" class="form-control" id="shop_name" placeholder="Shop Name" name="shop_name" value="<?= html_escape(@$fetched_data[0]['shop_name']) ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row">
                                     <label for="social" class="col-sm-2 col-form-label">Social Media Handle</label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="social" placeholder="Enter Social Media" name="social" value="<?= @$fetched_data[0]['social'] ?>">
+                                        <input type="text" class="form-control" id="social" placeholder="Enter Social Media" name="social" value="<?= html_escape(@$fetched_data[0]['social']) ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row">
                                     <label for="shop_phone" class="col-sm-2 col-form-label">Shop Phone Number <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="shop_phone" placeholder="Enter Shop Phone Number" name="shop_phone" maxlength="10" value="<?= @$fetched_data[0]['shop_phone'] ?>">
+                                        <input type="text" class="form-control" id="shop_phone" placeholder="Enter Shop Phone Number" name="shop_phone" maxlength="10" value="<?= html_escape(@$fetched_data[0]['shop_phone']) ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row">
                                     <label for="pickup_address1" class="col-sm-2 col-form-label">Pickup Address Line 1 <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="pickup_address1" placeholder="Address Line 1" name="pickup_address1" value="<?= @$fetched_data[0]['pickup_address1'] ?>">
+                                        <input type="text" class="form-control" id="pickup_address1" placeholder="Address Line 1" name="pickup_address1" value="<?= html_escape(@$fetched_data[0]['pickup_address1']) ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row">
                                     <label for="pickup_address2" class="col-sm-2 col-form-label">Pickup Address Line 2</label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="pickup_address2" placeholder="Address Line 2" name="pickup_address2" value="<?= @$fetched_data[0]['pickup_address2'] ?>">
+                                        <input type="text" class="form-control" id="pickup_address2" placeholder="Address Line 2" name="pickup_address2" value="<?= html_escape(@$fetched_data[0]['pickup_address2']) ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row">
                                     <label for="pickup_pin" class="col-sm-2 col-form-label">Pickup PIN Code <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="pickup_pin" placeholder="Enter PIN Code" name="pickup_pin" maxlength="6" value="<?= @$fetched_data[0]['pickup_pin'] ?>">
+                                        <input type="text" class="form-control" id="pickup_pin" placeholder="Enter PIN Code" name="pickup_pin" maxlength="6" value="<?= html_escape(@$fetched_data[0]['pickup_pin']) ?>">
                                         <span id="pickup_pin_lookup_status" class="pincode-lookup-status"></span>
                                     </div>
                                 </div>
                                 <div class="form-group row">
                                     <label for="pickup_state" class="col-sm-2 col-form-label">Pickup State</label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="pickup_state" placeholder="Enter State" name="pickup_state" value="<?= htmlspecialchars($fetched_data[0]['pickup_state'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                                        <input type="text" class="form-control" id="pickup_state" placeholder="Enter State" name="pickup_state" value="<?= html_escape(htmlspecialchars($fetched_data[0]['pickup_state'] ?? '', ENT_QUOTES, 'UTF-8')) ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row">
                                     <label for="pickup_district" class="col-sm-2 col-form-label">Pickup District</label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="pickup_district" placeholder="Enter District" name="pickup_district" value="<?= htmlspecialchars($fetched_data[0]['pickup_district'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                                        <input type="text" class="form-control" id="pickup_district" placeholder="Enter District" name="pickup_district" value="<?= html_escape(htmlspecialchars($fetched_data[0]['pickup_district'] ?? '', ENT_QUOTES, 'UTF-8')) ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row">
                                     <label for="pickup_city" class="col-sm-2 col-form-label">Pickup City</label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="pickup_city" placeholder="Enter City" name="pickup_city" value="<?= htmlspecialchars($fetched_data[0]['pickup_city'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                                        <input type="text" class="form-control" id="pickup_city" placeholder="Enter City" name="pickup_city" value="<?= html_escape(htmlspecialchars($fetched_data[0]['pickup_city'] ?? '', ENT_QUOTES, 'UTF-8')) ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row">
                                     <label for="slug_input" class="col-sm-2 col-form-label">Store URL</label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="slug_input" name="slug" placeholder="<?= !empty($fetched_data[0]['shop_name']) ? htmlspecialchars($fetched_data[0]['shop_name'], ENT_QUOTES, 'UTF-8') : 'your-shop-name' ?>" value="<?= htmlspecialchars($fetched_data[0]['slug'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                                        <input type="text" class="form-control" id="slug_input" name="slug" placeholder="<?= !empty($fetched_data[0]['shop_name']) ? htmlspecialchars($fetched_data[0]['shop_name'], ENT_QUOTES, 'UTF-8') : 'your-shop-name' ?>" value="<?= html_escape(htmlspecialchars($fetched_data[0]['slug'] ?? '', ENT_QUOTES, 'UTF-8')) ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row">
@@ -279,7 +279,7 @@ $fetched_data = isset($fetched_data) && is_array($fetched_data) ? $fetched_data 
                                         <small class="text-muted d-block mb-1">Choose a Primary Product Category first — only its sub-categories can be added here.</small>
                                         <div id="secondary_category_pills"></div>
                                         <button type="button" class="btn-add-categories" id="open_category_picker_btn">+ Add Categories</button>
-                                        <input type="hidden" name="secondary_category_ids" id="secondary_category_ids_hidden" value="<?= htmlspecialchars($fetched_data[0]['category_ids'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                                        <input type="hidden" name="secondary_category_ids" id="secondary_category_ids_hidden" value="<?= html_escape(htmlspecialchars($fetched_data[0]['category_ids'] ?? '', ENT_QUOTES, 'UTF-8')) ?>">
                                     </div>
                                 </div>
 
@@ -299,13 +299,13 @@ $fetched_data = isset($fetched_data) && is_array($fetched_data) ? $fetched_data 
                                 <div class="form-group row">
                                     <label for="legal_business_name_input" class="col-sm-2 col-form-label" id="legal_business_name_label">Legal Business Name</label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="legal_business_name_input" name="legal_business_name" placeholder="Legal Business Name" value="<?= htmlspecialchars($fetched_data[0]['legal_business_name'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                                        <input type="text" class="form-control" id="legal_business_name_input" name="legal_business_name" placeholder="Legal Business Name" value="<?= html_escape(htmlspecialchars($fetched_data[0]['legal_business_name'] ?? '', ENT_QUOTES, 'UTF-8')) ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row">
                                     <label for="pan" class="col-sm-2 col-form-label" id="pan_label">PAN Number <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="pan" placeholder="Enter PAN Number" name="pan" maxlength="10" value="<?= @$fetched_data[0]['pan'] ?>">
+                                        <input type="text" class="form-control" id="pan" placeholder="Enter PAN Number" name="pan" maxlength="10" value="<?= html_escape(@$fetched_data[0]['pan']) ?>">
                                     </div>
                                 </div>
                                 <?php render_admin_doc_field('pan_card_document', $fetched_data, 'Upload PAN Card'); ?>
@@ -314,38 +314,38 @@ $fetched_data = isset($fetched_data) && is_array($fetched_data) ? $fetched_data 
                                 <div class="form-group row">
                                     <label for="business_address1" class="col-sm-2 col-form-label">Address Line 1 <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="business_address1" placeholder="Street 1" name="business_address1" value="<?= htmlspecialchars($fetched_data[0]['business_address1'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                                        <input type="text" class="form-control" id="business_address1" placeholder="Street 1" name="business_address1" value="<?= html_escape(htmlspecialchars($fetched_data[0]['business_address1'] ?? '', ENT_QUOTES, 'UTF-8')) ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row">
                                     <label for="business_address2" class="col-sm-2 col-form-label">Address Line 2</label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="business_address2" placeholder="Street 2" name="business_address2" value="<?= htmlspecialchars($fetched_data[0]['business_address2'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                                        <input type="text" class="form-control" id="business_address2" placeholder="Street 2" name="business_address2" value="<?= html_escape(htmlspecialchars($fetched_data[0]['business_address2'] ?? '', ENT_QUOTES, 'UTF-8')) ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row">
                                     <label for="business_pin" class="col-sm-2 col-form-label">PIN Code <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="business_pin" placeholder="Enter PIN Code" name="business_pin" maxlength="6" value="<?= htmlspecialchars($fetched_data[0]['business_pin'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                                        <input type="text" class="form-control" id="business_pin" placeholder="Enter PIN Code" name="business_pin" maxlength="6" value="<?= html_escape(htmlspecialchars($fetched_data[0]['business_pin'] ?? '', ENT_QUOTES, 'UTF-8')) ?>">
                                         <span id="business_pin_lookup_status" class="pincode-lookup-status"></span>
                                     </div>
                                 </div>
                                 <div class="form-group row">
                                     <label for="business_state" class="col-sm-2 col-form-label">State <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="business_state" placeholder="Enter State" name="business_state" value="<?= htmlspecialchars($fetched_data[0]['business_state'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                                        <input type="text" class="form-control" id="business_state" placeholder="Enter State" name="business_state" value="<?= html_escape(htmlspecialchars($fetched_data[0]['business_state'] ?? '', ENT_QUOTES, 'UTF-8')) ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row">
                                     <label for="business_district" class="col-sm-2 col-form-label">District <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="business_district" placeholder="Enter District" name="business_district" value="<?= htmlspecialchars($fetched_data[0]['business_district'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                                        <input type="text" class="form-control" id="business_district" placeholder="Enter District" name="business_district" value="<?= html_escape(htmlspecialchars($fetched_data[0]['business_district'] ?? '', ENT_QUOTES, 'UTF-8')) ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row">
                                     <label for="business_city" class="col-sm-2 col-form-label">City/Village/Town <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="business_city" placeholder="Enter City/Village/Town" name="business_city" value="<?= htmlspecialchars($fetched_data[0]['business_city'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                                        <input type="text" class="form-control" id="business_city" placeholder="Enter City/Village/Town" name="business_city" value="<?= html_escape(htmlspecialchars($fetched_data[0]['business_city'] ?? '', ENT_QUOTES, 'UTF-8')) ?>">
                                     </div>
                                 </div>
 
@@ -357,7 +357,7 @@ $fetched_data = isset($fetched_data) && is_array($fetched_data) ? $fetched_data 
                                 <div class="form-group row" id="gst_number_div" style="<?= $is_non_gst ? 'display:none;' : '' ?>">
                                     <label for="gst" class="col-sm-2 col-form-label">GST Number <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="gst" placeholder="22ABCDE0000A1Z5" name="gst" maxlength="15" value="<?= @$fetched_data[0]['gst'] ?>">
+                                        <input type="text" class="form-control" id="gst" placeholder="22ABCDE0000A1Z5" name="gst" maxlength="15" value="<?= html_escape(@$fetched_data[0]['gst']) ?>">
                                     </div>
                                 </div>
                                 <?php render_admin_doc_field('gstin_document', $fetched_data, 'Upload GSTIN PDF'); ?>
@@ -392,31 +392,31 @@ $fetched_data = isset($fetched_data) && is_array($fetched_data) ? $fetched_data 
                                 <div class="form-group row">
                                     <label for="account_number" class="col-sm-2 col-form-label">Account Number <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="account_number" placeholder="Account Number" name="account_number" maxlength="18" value="<?= @$fetched_data[0]['account_number'] ?>">
+                                        <input type="text" class="form-control" id="account_number" placeholder="Account Number" name="account_number" maxlength="18" value="<?= html_escape(@$fetched_data[0]['account_number']) ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row">
                                     <label for="confirm_account_number" class="col-sm-2 col-form-label">Confirm Account Number <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="confirm_account_number" placeholder="Confirm Account Number" name="confirm_account_number" maxlength="18" value="<?= @$fetched_data[0]['account_number'] ?>">
+                                        <input type="text" class="form-control" id="confirm_account_number" placeholder="Confirm Account Number" name="confirm_account_number" maxlength="18" value="<?= html_escape(@$fetched_data[0]['account_number']) ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row">
                                     <label for="account_holder_name" class="col-sm-2 col-form-label">Account Holder Name <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="account_holder_name" placeholder="Account Holder Name" name="account_holder_name" value="<?= @$fetched_data[0]['account_holder_name'] ?>">
+                                        <input type="text" class="form-control" id="account_holder_name" placeholder="Account Holder Name" name="account_holder_name" value="<?= html_escape(@$fetched_data[0]['account_holder_name']) ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row">
                                     <label for="ifsc" class="col-sm-2 col-form-label">IFSC Code <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="ifsc" placeholder="Enter IFSC Code" name="ifsc" maxlength="11" value="<?= @$fetched_data[0]['ifsc'] ?>">
+                                        <input type="text" class="form-control" id="ifsc" placeholder="Enter IFSC Code" name="ifsc" maxlength="11" value="<?= html_escape(@$fetched_data[0]['ifsc']) ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row">
                                     <label for="branch" class="col-sm-2 col-form-label">Branch Name <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="branch" placeholder="Enter Branch" name="branch" value="<?= @$fetched_data[0]['branch'] ?>">
+                                        <input type="text" class="form-control" id="branch" placeholder="Enter Branch" name="branch" value="<?= html_escape(@$fetched_data[0]['branch']) ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row">
@@ -424,10 +424,10 @@ $fetched_data = isset($fetched_data) && is_array($fetched_data) ? $fetched_data 
                                     <div class="col-sm-10" style="position:relative;">
                                         <?php if (!empty($indian_banks)): ?>
                                             <input type="text" id="bank_search" class="form-control" placeholder="Search Bank Name..." autocomplete="off">
-                                            <input type="hidden" name="bank_name" id="bank_name_hidden" value="<?= @$fetched_data[0]['bank_name'] ?>">
+                                            <input type="hidden" name="bank_name" id="bank_name_hidden" value="<?= html_escape(@$fetched_data[0]['bank_name']) ?>">
                                             <div id="bank_dropdown" style="display:none; border:1px solid #ccc; max-height:200px; overflow-y:auto; background:#fff; position:absolute; z-index:999; width:100%;"></div>
                                         <?php else: ?>
-                                            <input type="text" name="bank_name" id="bank_name_hidden" class="form-control" placeholder="Enter Bank Name" value="<?= @$fetched_data[0]['bank_name'] ?>">
+                                            <input type="text" name="bank_name" id="bank_name_hidden" class="form-control" placeholder="Enter Bank Name" value="<?= html_escape(@$fetched_data[0]['bank_name']) ?>">
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -524,7 +524,7 @@ $fetched_data = isset($fetched_data) && is_array($fetched_data) ? $fetched_data 
                                         </div>
                                     </div>
                                     <form id="verification_note_form" class="form-group row">
-                                        <input type="hidden" name="user_id" value="<?= $fetched_data[0]['user_id'] ?>">
+                                        <input type="hidden" name="user_id" value="<?= html_escape($fetched_data[0]['user_id']) ?>">
                                         <label for="verification_note_input" class="col-sm-2 col-form-label">Admin verification note</label>
                                         <div class="col-sm-10">
                                             <textarea name="verification_note" id="verification_note_input" class="form-control" rows="3" placeholder="Write a note back to the seller about their verification review..."><?= html_escape($fetched_data[0]['verification_note'] ?? '') ?></textarea>

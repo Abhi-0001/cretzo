@@ -354,8 +354,17 @@ class Orders extends CI_Controller
                 // an order_tracking row with a live shiprocket_order_id means the shipment is
                 // already handed off to Shiprocket, so the internal delivery-boy requirement
                 // (meant for sellers who run their own delivery staff) doesn't apply here.
+                //
+                // That exemption only fires AFTER a shipment has been booked, though. This store
+                // has no Shiprocket credentials configured, so nothing is ever booked,
+                // order_tracking stays empty and the requirement bit anyway - making 'shipped'
+                // unreachable. Confirmed by the owner: delivery here is Shiprocket, not the
+                // built-in delivery-boy feature, and there is not one delivery-boy account. The
+                // workaround was to go processed -> delivered, which silently skips the "your
+                // order has shipped" notification to the customer. So the requirement now also
+                // lifts when the store does not actually run its own delivery staff.
                 $shiprocket_shipment = fetch_details('order_tracking', ['order_id' => $_POST['order_id'], 'shiprocket_order_id !=' => '', 'is_canceled' => 0]);
-                if ((!isset($current_status[0]['delivery_boy_id']) || empty($current_status[0]['delivery_boy_id']) || $current_status[0]['delivery_boy_id'] == 0) && (empty($_POST['deliver_by']) || $_POST['deliver_by'] == '') && empty($shiprocket_shipment)) {
+                if ((!isset($current_status[0]['delivery_boy_id']) || empty($current_status[0]['delivery_boy_id']) || $current_status[0]['delivery_boy_id'] == 0) && (empty($_POST['deliver_by']) || $_POST['deliver_by'] == '') && empty($shiprocket_shipment) && store_uses_delivery_boys()) {
                     $this->response['error'] = true;
                     $this->response['message'] = "Please select delivery boy to mark this order as shipped.";
                     $this->response['csrfName'] = $this->security->get_csrf_token_name();
@@ -899,7 +908,10 @@ class Orders extends CI_Controller
                     print_r(json_encode($this->response));
                     return false;
                 }
-                $city_data = fetch_details('cities', ['id' => $address_data[0]['city_id']], 'name');
+                // The `cities` table keys on city_id and names the column city_name - it has no `id` and
+                // no `name`, so this lookup never returned anything and the Shiprocket booking went out
+                // with an empty city. Shiprocket requires that field and rejects the shipment.
+                $city_data = fetch_details('cities', ['city_id' => $address_data[0]['city_id']], 'city_name');
 
                 $availibility_data = [
                     'pickup_postcode' => $pickup_location_pincode[0]['pin_code'],
@@ -917,7 +929,16 @@ class Orders extends CI_Controller
                 // instead of JSON.
                 $order_item_id = [];
                 foreach ($order_items as $row) {
-                    if ($row['pickup_location'] == $_POST['pickup_location'] && $row['seller_id'] == $_POST['shiprocket_seller_id']) {
+                    // Matched the RAW per-product pickup_location column, which is blank on 278 of
+                    // the 290 live products - those items matched nothing and the shipment was
+                    // booked empty. Resolve to the seller's registered pickup address, the same
+                    // way the deliverability check does.
+                    $row_pickup = resolve_seller_pickup_location(
+                        isset($row['pickup_location']) ? $row['pickup_location'] : '',
+                        isset($row['seller_id']) ? $row['seller_id'] : 0
+                    );
+                    $row_pickup_name = isset($row_pickup['pickup_location']) ? $row_pickup['pickup_location'] : '';
+                    if ($row_pickup_name == $_POST['pickup_location'] && $row['seller_id'] == $_POST['shiprocket_seller_id']) {
                         // Verify this order item id is real and actually belongs to this
                         // seller and this order — the rest of $row is still client-supplied
                         // JSON, but the id itself must check out against the database.
@@ -965,7 +986,9 @@ class Orders extends CI_Controller
                     'billing_customer_name' =>  $user_data[0]['username'],
                     'billing_last_name' => "",
                     'billing_address' => $address_data[0]['address'],
-                    'billing_city' => $city_data[0]['name'],
+                    // Falls back to the city typed on the address when the lookup finds nothing,
+                    // rather than sending Shiprocket an empty required field.
+                    'billing_city' => !empty($city_data[0]['city_name']) ? $city_data[0]['city_name'] : (isset($address_data[0]['city']) ? $address_data[0]['city'] : ''),
                     'billing_pincode' => $address_data[0]['pincode'],
                     'billing_state' => $address_data[0]['state'],
                     'billing_country' => $address_data[0]['country'],
@@ -1194,7 +1217,12 @@ class Orders extends CI_Controller
             }
 
             $res = cancel_shiprocket_order($_POST['shiprocket_order_id']);
-            if (!empty($res) && isset($res['status']) && $res['status'] == 200) {
+            // Duplicated the cancel success rule instead of using the shared one, and used the
+            // stale version of it: Shiprocket answers a successful cancellation with HTTP 200 and
+            // just {"message":"Order cancelled successfully."} - no `status` in the body. So the
+            // helper correctly marked the shipment cancelled while this told the admin it had
+            // failed. One rule, in shiprocket_result_ok().
+            if (shiprocket_result_ok('cancel', $res)) {
                 $this->response['error'] = false;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();

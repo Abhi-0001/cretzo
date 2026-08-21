@@ -14,19 +14,19 @@
                                 <div class="form-group row">
                                     <label for="username" class="col-sm-2 col-form-label">Username <span class='text-danger text-xs'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="username" placeholder="Type Username here" name="username" value="<?= $users->username ?>">
+                                        <input type="text" class="form-control" id="username" placeholder="Type Username here" name="username" value="<?= html_escape($users->username) ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row">
                                     <?php if ($identity_column == 'email') { ?>
                                         <label for="email" class="col-sm-2 col-form-label">Email <span class='text-danger text-xs'>*</span></label>
                                         <div class="col-sm-10">
-                                            <input type="text" class="form-control" id="email" placeholder="Type Email ID here" name="email" value="<?= $users->email ?>">
+                                            <input type="text" class="form-control" id="email" placeholder="Type Email ID here" name="email" value="<?= html_escape($users->email) ?>">
                                         </div>
                                     <?php } else { ?>
                                         <label for="mobile" class="col-sm-2 col-form-label">Mobile <span class='text-danger text-xs'>*</span></label>
                                         <div class="col-sm-10">
-                                            <input type="number" class="form-control" id="mobile" placeholder="Type Mobile Number here" name="mobile" value="<?= $users->mobile ?>">
+                                            <input type="number" class="form-control" id="mobile" placeholder="Type Mobile Number here" name="mobile" value="<?= html_escape($users->mobile) ?>">
                                         </div>
                                     <?php } ?>
                                 </div>

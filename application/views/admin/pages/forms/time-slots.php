@@ -97,7 +97,7 @@
                         <!-- form start -->
                         <form class="form-horizontal form-submit-event" action="<?= base_url('admin/Time_slots/update_time_slots'); ?>" method="POST" enctype="multipart/form-data">
                             <?php if (isset($fetched_data[0]['id'])) { ?>
-                                <input type="hidden" id="edit_time_slot" name="edit_time_slot" value="<?= @$fetched_data[0]['id'] ?>">
+                                <input type="hidden" id="edit_time_slot" name="edit_time_slot" value="<?= html_escape(@$fetched_data[0]['id']) ?>">
                             <?php } else { ?>
                                 <input type="hidden" id="add_time_slot" name="add_time_slot" required="" value="1" aria-required="true">
                             <?php } ?>
@@ -107,7 +107,7 @@
                                         <label for="">Title</label>
                                     </div>
                                     <div class="form-group col-md-8">
-                                        <input type="text" class="form-control" name="title" value="<?= (isset($fetched_data[0]['title']) ? $fetched_data[0]['title'] : '') ?>" placeholder="Morning 9AM to 12PM">
+                                        <input type="text" class="form-control" name="title" value="<?= html_escape((isset($fetched_data[0]['title']) ? $fetched_data[0]['title'] : '')) ?>" placeholder="Morning 9AM to 12PM">
                                     </div>
                                 </div>
                                 <div class="row">
@@ -115,7 +115,7 @@
                                         <label for="">From Time</label>
                                     </div>
                                     <div class="form-group col-md-8">
-                                        <input type="time" class="form-control" name="from_time" value="<?= (isset($fetched_data[0]['from_time']) ? $fetched_data[0]['from_time'] : '') ?>" placeholder="09:00:00">
+                                        <input type="time" class="form-control" name="from_time" value="<?= html_escape((isset($fetched_data[0]['from_time']) ? $fetched_data[0]['from_time'] : '')) ?>" placeholder="09:00:00">
                                     </div>
                                 </div>
                                 <div class="row">
@@ -123,7 +123,7 @@
                                         <label for="">To Time</label>
                                     </div>
                                     <div class="form-group col-md-8">
-                                        <input type="time" class="form-control" name="to_time" value="<?= (isset($fetched_data[0]['to_time']) ? $fetched_data[0]['to_time'] : '') ?>" placeholder="12:00:00">
+                                        <input type="time" class="form-control" name="to_time" value="<?= html_escape((isset($fetched_data[0]['to_time']) ? $fetched_data[0]['to_time'] : '')) ?>" placeholder="12:00:00">
                                     </div>
                                 </div>
                                 <div class="row">
@@ -131,7 +131,7 @@
                                         <label for="">Last Order Time</label>
                                     </div>
                                     <div class="form-group col-md-8">
-                                        <input type="time" class="form-control" name="last_order_time" value="<?= (isset($fetched_data[0]['last_order_time']) ? $fetched_data[0]['last_order_time'] : '') ?>" placeholder="11:00:00">
+                                        <input type="time" class="form-control" name="last_order_time" value="<?= html_escape((isset($fetched_data[0]['last_order_time']) ? $fetched_data[0]['last_order_time'] : '')) ?>" placeholder="11:00:00">
                                     </div>
                                 </div>
                                 <div class="row">

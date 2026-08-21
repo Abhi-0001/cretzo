@@ -96,7 +96,17 @@ class Faq extends CI_Controller
                 return false;
             }
 
-            if (update_details(['status' => '0'], ['id' => $_GET['id']], 'faqs') == TRUE) {
+            // $_GET['id'] used to be read straight into the WHERE clause with no check at all,
+            // so a request with no id (or a non-numeric one) raised an undefined-index notice
+            // and handed the query builder a NULL/garbage id.
+            if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
+                $this->response['error'] = true;
+                $this->response['message'] = 'Invalid FAQ id';
+                print_r(json_encode($this->response));
+                return false;
+            }
+
+            if (update_details(['status' => '0'], ['id' => (int) $_GET['id']], 'faqs') == TRUE) {
                 $this->response['error'] = false;
                 $this->response['message'] = 'Deleted Succesfully';
                 print_r(json_encode($this->response));

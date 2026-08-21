@@ -9,7 +9,17 @@ class Transaction extends CI_Controller {
 		$this->load->database();
 		$this->load->library(['ion_auth', 'form_validation','upload']);
 		$this->load->helper(['url', 'language','file']);		
-        $this->load->model('Transaction_model');	
+        $this->load->model('Transaction_model');
+
+		// This controller had NO permission check of any kind - only ion_auth->is_admin(),
+		// which every admin-panel role satisfies. Verified live: an "Editor" account holding
+		// only faq:read and settings:read could open every customer wallet, every seller
+		// wallet and the full payment-transaction ledger. See the new 'transactions' module
+		// in config/eshop.php; edit_transactions() is gated on 'update' separately below.
+		if (!has_permissions('read', 'transactions')) {
+			$this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
+			redirect('admin/home', 'refresh');
+		}	
 	}
 
 	public function customer_wallet()
@@ -71,6 +81,12 @@ class Transaction extends CI_Controller {
     {
         if($this->ion_auth->logged_in() && $this->ion_auth->is_admin())
 		{			
+            // Rewriting a transaction's status and gateway txn_id is a money-facing write
+            // and was completely ungated - the same Editor account above got back
+            // "Transaction Updated Successfuly." from this endpoint.
+            if (print_msg(!has_permissions('update', 'transactions'), PERMISSION_ERROR_MSG, 'transactions')) {
+                return false;
+            }
             $this->form_validation->set_rules('status', 'status', 'trim|required|xss_clean');
             $this->form_validation->set_rules('txn_id', 'txn_id', 'trim|required|xss_clean');
             $this->form_validation->set_rules('id', 'id', 'trim|required|xss_clean');

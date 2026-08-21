@@ -24,6 +24,15 @@
             <div class="row">
                 <div class="col-md-12">
                     <form class="form-horizontal form-submit-event" action="<?= base_url('admin/Payment_settings/update_payment_settings'); ?>" method="POST" id="payment_setting_form">
+                        <?php /*
+                          Marker proving a submission came from THIS form, so
+                          Setting_model::update_payment_method() can tell "the admin unticked every
+                          gateway" apart from "this request simply did not carry those fields".
+                          Without it a partial POST silently disabled every gateway and blanked
+                          every key and secret - the same shape as system_configurations on the
+                          Store Settings form.
+                        */ ?>
+                        <input type="hidden" name="payment_method_form" value="1">
 
                         <div class="card attribute-card">
                             <div class="card-header attribute-card-header d-flex justify-content-between align-items-center flex-wrap">
@@ -58,7 +67,7 @@
                                         <label for="paypal_business_email">Paypal Business Email</label>
                                     </div>
                                     <div class="form-group col-md-8">
-                                        <input type="text" class="form-control" name="paypal_business_email" value="<?= (isset($settings['paypal_mode'])) ? $settings['paypal_business_email'] : '' ?>" placeholder="Paypal Business Email" />
+                                        <input type="text" class="form-control" name="paypal_business_email" value="<?= html_escape((isset($settings['paypal_mode'])) ? $settings['paypal_business_email'] : '') ?>" placeholder="Paypal Business Email" />
                                     </div>
                                 </div>
                                 <div class="row">
@@ -946,7 +955,16 @@
                                 <div class="row">
                                     <div class="form-group col-md-12">
                                         <label for="notes">Extra Notes</label>
-                                        <textarea name="notes" class="textarea addr_editor" placeholder="Extra Notes">  <?= @$settings['notes'] ?></textarea>
+                                        <?php /*
+                                          Two problems here. The value was echoed UNESCAPED into the
+                                          textarea, so a stored `</textarea>` would close the element
+                                          and everything after it would be parsed as markup in the
+                                          admin page - stored XSS against whoever opens Payment
+                                          Settings. And the two literal spaces before the echo were
+                                          submitted back as part of the field, so every save
+                                          prepended another two spaces to the note.
+                                        */ ?>
+                                        <textarea name="notes" class="textarea addr_editor" placeholder="Extra Notes"><?= html_escape(isset($settings['notes']) ? $settings['notes'] : '') ?></textarea>
                                     </div>
                                 </div>
 

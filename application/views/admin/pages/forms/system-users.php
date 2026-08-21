@@ -31,7 +31,7 @@
 
                                 <?php
                                 if (isset($fetched_data[0]['id'])) { ?>
-                                    <input type='hidden' name='edit_system_user' value="<?= $fetched_data[0]['id'] ?>">
+                                    <input type='hidden' name='edit_system_user' value="<?= html_escape($fetched_data[0]['id']) ?>">
                                 <?php    }
                                 ?>
 
@@ -41,19 +41,19 @@
                                     <div class="form-group">
                                         <label for="username" class="control-label">Username <span class='text-danger text-sm'>*</span></label>
                                         <div class="col-md-12">
-                                            <input type="text" class="form-control" name="username" id="username" value="<?= (isset($fetched_data[0]['username'])) ?  $fetched_data[0]['username'] : ' ' ?>">
+                                            <input type="text" class="form-control" name="username" id="username" value="<?= html_escape((isset($fetched_data[0]['username'])) ?  $fetched_data[0]['username'] : ' ') ?>">
                                         </div>
                                     </div>
                                     <div class="form-group">
                                         <label for="mobile" class="control-label">Mobile <span class='text-danger text-sm'>*</span></label>
                                         <div class="col-md-12">
-                                            <input type="number" class="form-control" name="mobile" id="mobile" value="<?= (isset($fetched_data[0]['mobile'])) ?  $fetched_data[0]['mobile'] : ' ' ?>">
+                                            <input type="number" class="form-control" name="mobile" id="mobile" value="<?= html_escape((isset($fetched_data[0]['mobile'])) ?  $fetched_data[0]['mobile'] : ' ') ?>">
                                         </div>
                                     </div>
                                     <div class="form-group">
                                         <label for="email" class="control-label">Email <span class='text-danger text-sm'>*</span></label>
                                         <div class="col-md-12">
-                                            <input type="email" class="form-control" name="email" id="email" value="<?= (isset($fetched_data[0]['email'])) ?  $fetched_data[0]['email'] : ' ' ?>">
+                                            <input type="email" class="form-control" name="email" id="email" value="<?= html_escape((isset($fetched_data[0]['email'])) ?  $fetched_data[0]['email'] : ' ') ?>">
                                         </div>
                                     </div>
 

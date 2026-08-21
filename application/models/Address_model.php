@@ -6,9 +6,17 @@ class Address_model extends CI_Model
 
     function set_address($data)
     {
+        // Every value here used to be escaped TWICE before the query builder escaped it a third
+        // time - escape_array() on the whole $data array here, and escape_array() again on
+        // $address_data at the insert below. Both run db->escape_str(), which is only correct
+        // for a string being pasted straight into SQL text; the query builder parameter-escapes
+        // on its own. Reproduced live: saving a delivery address for "O'Brien Test" at
+        // "5 O'Brien Road, St. Mary's Colony" stored the name as "O\\\'Brien Test" and the
+        // street as "5 O\\\'Brien Road, St. Mary\\\'s Colony". That text is what gets copied
+        // onto the order, the invoice and the shipping label, so any customer with an
+        // apostrophe in their name or street - which is common - had a mangled address printed
+        // on the parcel. Editing the address re-escaped it again on every save.
 
-        $data = escape_array($data);
-       
         $address_data = [];
        
         if (isset($data['user_id'])) {
@@ -105,9 +113,16 @@ class Address_model extends CI_Model
 
             $this->db->set($address_data)->where('id', $data['id'])->update('addresses');
         } else {
-            $this->db->insert('addresses', escape_array($address_data));
+            $this->db->insert('addresses', $address_data);
             $last_added_id = $this->db->insert_id();
-            if (isset($data['is_default']) && $data['is_default'] == true) {
+
+            // A customer's very first address was never marked default unless the client
+            // happened to ask for it, so a newly registered buyer ended up with exactly one
+            // address and no default one. Make the first address the default.
+            $is_first_address = isset($data['user_id'])
+                && $this->db->where('user_id', $data['user_id'])->count_all_results('addresses') === 1;
+
+            if ((isset($data['is_default']) && $data['is_default'] == true) || $is_first_address) {
                 $this->db->where('user_id', $data['user_id'])->set('is_default', '0')->update('addresses');
                 $this->db->where('id', $last_added_id)->set('is_default', '1')->update('addresses');
             }

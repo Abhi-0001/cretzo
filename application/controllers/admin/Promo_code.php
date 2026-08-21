@@ -119,7 +119,10 @@ class Promo_code extends CI_Controller
             $this->form_validation->set_rules('is_cashback', 'Is Cashback ', 'trim|xss_clean');
             $this->form_validation->set_rules('list_promocode', 'List Promocode ', 'trim|xss_clean');
 
-            if ($_POST['repeat_usage'] == '1') {
+            // repeat_usage has a `required` rule above, but rules do not run until
+            // form_validation->run() further down - so reading it here warned on any request
+            // that omitted it, ahead of the JSON.
+            if (isset($_POST['repeat_usage']) && $_POST['repeat_usage'] == '1') {
                 // Same reasoning as no_of_users: a repeat-usage code with a quota of 0 is dead
                 // on arrival - the first redemption already fails the 'usage < quota' test and
                 // the customer is told they have exceeded a limit they never used.

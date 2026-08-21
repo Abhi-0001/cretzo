@@ -25,13 +25,13 @@
             <form class="form-horizontal form-submit-event" action="<?= base_url('admin/attribute_set/add_attribute_set'); ?>" method="POST" enctype="multipart/form-data">
               <div class="card-body">
                 <?php if (isset($fetched_data[0]['id'])) { ?>
-                  <input type="hidden" name="edit_attribute_set" value="<?= @$fetched_data[0]['id'] ?>">
+                  <input type="hidden" name="edit_attribute_set" value="<?= html_escape(@$fetched_data[0]['id']) ?>">
                 <?php  } ?>
                 <div class="form-group row">
 
                   <label for="name" class="col-sm-2 col-form-label">Name <span class='text-danger text-sm'>*</span></label>
                   <div class="col-md-6">
-                    <input type="text" class="form-control" id="name" placeholder="Name" name="name" value="<?= @$fetched_data[0]['name'] ?>">
+                    <input type="text" class="form-control" id="name" placeholder="Name" name="name" value="<?= html_escape(@$fetched_data[0]['name']) ?>">
                   </div>
 
                   <!-- test code -->

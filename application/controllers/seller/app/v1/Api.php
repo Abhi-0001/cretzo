@@ -4496,12 +4496,22 @@ Defined Methods:-
             $subtotal = 0;
             $order_id = 0;
 
-            $pickup_location_pincode = fetch_details('pickup_locations', ['pickup_location' => $_POST['pickup_location']], 'pin_code');
+            // Nickname alone is not unique across sellers - two can both call one "Warehouse",
+            // and an unscoped lookup books the parcel against whichever row comes first, i.e.
+            // potentially another seller's pincode. The web equivalents already scope this.
+            $pickup_where = ['pickup_location' => $_POST['pickup_location']];
+            if (!empty($_POST['seller_id'])) {
+                $pickup_where['seller_id'] = $_POST['seller_id'];
+            }
+            $pickup_location_pincode = fetch_details('pickup_locations', $pickup_where, 'pin_code');
             $user_data = fetch_details('users', ['id' => $_POST['user_id']], 'username,email');
             $order_data = fetch_details('orders', ['id' => $_POST['order_id']], 'date_added,address_id,mobile,payment_method,delivery_charge');
             $address_data = fetch_details('addresses', ['id' => $order_data[0]['address_id']], 'address,city_id,pincode,city,state,country');
             if (isset($address_data[0]['city_id']) && $address_data[0]['city_id'] != 0) {
-                $city_data = fetch_details('cities', ['id' => $address_data[0]['city_id']], 'name');
+                // The `cities` table keys on city_id and names the column city_name - it has no `id` and
+                // no `name`, so this lookup never returned anything and the Shiprocket booking went out
+                // with an empty city. Shiprocket requires that field and rejects the shipment.
+                $city_data = fetch_details('cities', ['city_id' => $address_data[0]['city_id']], 'city_name');
             }
 
             $availibility_data = [
@@ -4515,7 +4525,16 @@ Defined Methods:-
             $get_currier_id = shiprocket_recomended_data($check_deliveribility);
             foreach ($order_items as $row) {
 
-                if ($row['pickup_location'] == $_POST['pickup_location'] && $row['seller_id'] == $_POST['seller_id']) {
+                // Matched the RAW per-product pickup_location column, which is blank on 278 of
+                // the 290 live products - those items matched nothing and the shipment was
+                // booked empty. Resolve to the seller's registered pickup address, the same
+                // way the deliverability check does.
+                $row_pickup = resolve_seller_pickup_location(
+                    isset($row['pickup_location']) ? $row['pickup_location'] : '',
+                    isset($row['seller_id']) ? $row['seller_id'] : 0
+                );
+                $row_pickup_name = isset($row_pickup['pickup_location']) ? $row_pickup['pickup_location'] : '';
+                if ($row_pickup_name == $_POST['pickup_location'] && $row['seller_id'] == $_POST['seller_id']) {
                     $order_item_id[] = $row['id'];
                     $order_id .= '-' . $row['id'];
                     $order_item_data = fetch_details('order_items', ['id' => $row['id']], 'sub_total');
@@ -4547,7 +4566,7 @@ Defined Methods:-
                 'billing_customer_name' =>  $user_data[0]['username'],
                 'billing_last_name' => "",
                 'billing_address' => $address_data[0]['address'],
-                'billing_city' => isset($city_data[0]['name']) && !empty($city_data[0]['name']) ? $city_data[0]['name'] : $address_data[0]['city'],
+                'billing_city' => !empty($city_data[0]['city_name']) ? $city_data[0]['city_name'] : $address_data[0]['city'],
                 'billing_pincode' => $address_data[0]['pincode'],
                 'billing_state' => $address_data[0]['state'],
                 'billing_country' => $address_data[0]['country'],

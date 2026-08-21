@@ -10,6 +10,15 @@ class Custom_notification extends CI_Controller
         $this->load->database();
         $this->load->helper(['url', 'language', 'timezone_helper']);
         $this->load->model(['custom_notification_model']);
+
+        // create/update/delete were already gated on 'custom_notifications', but nothing gated
+        // reading - the compose form and the sent-message list rendered in full for any
+        // restricted admin (verified live with an Editor account holding only faq:read and
+        // settings:read).
+        if (!has_permissions('read', 'custom_notifications')) {
+            $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
+            redirect('admin/home', 'refresh');
+        }
     }
 
     public function index()

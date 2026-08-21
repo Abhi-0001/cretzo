@@ -10,6 +10,17 @@ class Manage_stock extends CI_Controller
         $this->load->library(['ion_auth', 'form_validation', 'upload']);
         $this->load->helper(['url', 'language', 'file']);
         $this->load->model(['product_model', 'product_faqs_model', 'category_model']);
+
+        // The 'manage_stock' module is registered in config/eshop.php and the sidebar already
+        // hides this link behind has_permissions('read','manage_stock'), but the controller
+        // itself never checked anything - so the page, the stock list JSON and the per-product
+        // lookup were all reachable by URL for any restricted admin (verified live with an
+        // Editor account holding only faq:read and settings:read). update_stock() was already
+        // gated; only the read side was open.
+        if (!has_permissions('read', 'manage_stock')) {
+            $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
+            redirect('admin/home', 'refresh');
+        }
     }
 
     public function index()

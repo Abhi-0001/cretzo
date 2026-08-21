@@ -30,7 +30,7 @@
                                 <div class="form-group">
                                     <?php if (isset($fetched_data[0]['id'])) {
                                     ?>
-                                        <input type="hidden" name="edit_slider" value="<?= $fetched_data[0]['id'] ?>">
+                                        <input type="hidden" name="edit_slider" value="<?= html_escape($fetched_data[0]['id']) ?>">
                                     <?php } ?>
                                     <label for="slider_type">Type <span class='text-danger text-sm'>*</span> </label>
                                     <select name="slider_type" id="slider_type" class="form-control type_event_trigger" required="">

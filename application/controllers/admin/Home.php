@@ -20,6 +20,13 @@ class Home extends CI_Controller
             $this->data['title'] = 'Admin Panel | ' . $settings['app_name'];
             $this->data['meta_description'] = 'Admin Panel | ' . $settings['app_name'];
             $this->data['curreny'] = get_settings('currency');
+            // Settings combinations that stop the storefront trading (see
+            // validate_store_configuration()). Only shown to roles that can actually reach the
+            // settings pages the warnings link to - there is no point telling a Supporter the
+            // Shiprocket credentials are missing.
+            $this->data['configuration_problems'] = has_permissions('read', 'settings')
+                ? validate_store_configuration()
+                : [];
             $this->data['order_counter'] = $this->Home_model->count_new_orders();
             $this->data['user_counter'] = $this->Home_model->count_new_users();
             $this->data['delivery_boy_counter'] = $this->Home_model->count_delivery_boys();

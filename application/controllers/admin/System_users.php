@@ -229,12 +229,46 @@ class System_users extends CI_Controller
             return false;
             exit();
         }
-        if (delete_details(['user_id' => (int) $_GET['id']], 'user_permissions') == TRUE) {
-            delete_details(['id' => (int) $_GET['id']], 'users');
+        $target_id = (int) $_GET['id'];
+
+        // One mobile number is ONE account that may hold several roles at once - the same
+        // person can be a buyer, a seller and an admin (System_users_model::update_user()
+        // deliberately attaches the admin role to an existing account rather than creating a
+        // second one). Deleting the whole `users` row therefore used to destroy that person's
+        // buyer and seller identity too, along with their orders, wallet and listings, when all
+        // the admin asked for was to revoke admin access. It also left the users_groups rows
+        // behind entirely - verified live: deleting a system user removed its users and
+        // user_permissions rows but left both of its users_groups rows orphaned, and because
+        // users.id is an auto-increment, a stale group row is a grant waiting to be handed to
+        // whichever account is created with that id next.
+        //
+        // Revoke the admin role first, then remove the login itself only when nothing else is
+        // attached to it.
+        $revoked = delete_details(['user_id' => $target_id], 'user_permissions');
+        if ($revoked == TRUE) {
+            delete_details(['user_id' => $target_id, 'group_id' => 1], 'users_groups');
+
+            $other_roles = $this->db
+                ->from('users_groups ug')
+                ->where('ug.user_id', $target_id)
+                ->where_not_in('ug.group_id', [1, 2])   // 1 = admin (just revoked), 2 = members
+                ->count_all_results();
+            $is_seller = !empty($this->db->select('id')->where('user_id', $target_id)->get('seller_data')->row_array());
+            $has_orders = !empty($this->db->select('id')->where('user_id', $target_id)->get('orders')->row_array());
+
+            if ($other_roles == 0 && !$is_seller && !$has_orders) {
+                delete_details(['user_id' => $target_id], 'users_groups');
+                delete_details(['id' => $target_id], 'users');
+                $message = 'Deleted Succesfully';
+            } else {
+                $message = 'Admin access has been removed. The account itself was kept because '
+                    . 'it is also used to buy or sell on the store.';
+            }
+
             $this->response['error'] = false;
             $this->response['csrfName'] = $this->security->get_csrf_token_name();
             $this->response['csrfHash'] = $this->security->get_csrf_hash();
-            $this->response['message'] = 'Deleted Succesfully';
+            $this->response['message'] = $message;
             print_r(json_encode($this->response));
         } else {
             $this->response['error'] = true;

@@ -25,7 +25,7 @@
                         <form class="form-horizontal form-submit-event" action="<?= base_url('admin/tickets/add_ticket_type'); ?>" method="POST" enctype="multipart/form-data">
                             <div class="card-body">
                                 <?php if (isset($fetched_data[0]['id'])) { ?>
-                                    <input type="hidden" name="edit_ticket_type" value="<?= @$fetched_data[0]['id'] ?>">
+                                    <input type="hidden" name="edit_ticket_type" value="<?= html_escape(@$fetched_data[0]['id']) ?>">
                                 <?php  } ?>
                                 <div class="form-group row">
                                     <label for="title" class="col-sm-2 col-form-label">Title <span class='text-danger text-sm'>*</span></label>

@@ -24,13 +24,13 @@
                         <!-- form start -->
                         <form class="form-horizontal form-submit-event" action="<?= base_url('admin/category/add_category'); ?>" method="POST" id="add_product_form" enctype="multipart/form-data">
                             <?php if (isset($fetched_data[0]['id'])) { ?>
-                                <input type="hidden" name="edit_category" value="<?= @$fetched_data[0]['id'] ?>">
+                                <input type="hidden" name="edit_category" value="<?= html_escape(@$fetched_data[0]['id']) ?>">
                             <?php } ?>
                             <div class="card-body">
                                 <div class="form-group row">
                                     <label for="category_input_name" class="col-sm-2 col-form-label">Name <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="category_input_name" placeholder="Category Name" name="category_input_name" value="<?= isset($fetched_data[0]['name'])?output_escaping($fetched_data[0]['name']):"" ?>">
+                                        <input type="text" class="form-control" id="category_input_name" placeholder="Category Name" name="category_input_name" value="<?= html_escape(isset($fetched_data[0]['name'])?output_escaping($fetched_data[0]['name']):"") ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row">

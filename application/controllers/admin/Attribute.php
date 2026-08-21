@@ -1,117 +1,24 @@
 <?php
 defined('BASEPATH') or exit('No direct script access allowed');
 
-class Attribute extends CI_Controller
-{
-
-	public function __construct()
-	{
-		parent::__construct();
-		$this->load->database();
-		$this->load->helper(['url', 'language', 'timezone_helper']);
-		$this->load->model('attribute_model');
-		if (!has_permissions('read', 'attribute')) {
-			$this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-			redirect('admin/home', 'refresh');
-		}
-	}
-
-	public function index()
-	{
-		if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
-			$this->data['main_page'] = FORMS . 'attribute';
-			$settings = get_settings('system_settings', true);
-			$this->data['title'] = 'Add Attributes | ' . $settings['app_name'];
-			$this->data['meta_description'] = 'Add Attributes | ' . $settings['app_name'];
-			if (isset($_GET['edit_id'])) {
-				$this->data['fetched_data'] = fetch_details('attributes', ['id' => $_GET['edit_id']]);
-			}
-			$this->data['attribute_set'] = fetch_details('attribute_set', '');
-			$this->load->view('admin/template', $this->data);
-		} else {
-			redirect('admin/login', 'refresh');
-		}
-	}
-
-	public function manage_attribute()
-	{
-		if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
-			$this->data['main_page'] = TABLES . 'manage-attribute';
-			$settings = get_settings('system_settings', true);
-			$this->data['title'] = 'Manage Attribute | ' . $settings['app_name'];
-			$this->data['meta_description'] = 'Manage Attribute  | ' . $settings['app_name'];
-			$this->load->view('admin/template', $this->data);
-		} else {
-			redirect('admin/login', 'refresh');
-		}
-	}
-
-	public function add_attributes()
-	{
-		if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
-
-			if (isset($_POST['edit_attribute'])) {
-
-				if (print_msg(!has_permissions('update', 'attribute'), PERMISSION_ERROR_MSG, 'attribute')) {
-					return false;
-				}
-			} else {
-				if (print_msg(!has_permissions('create', 'attribute'), PERMISSION_ERROR_MSG, 'attribute')) {
-					return false;
-				}
-			}
-
-
-			$this->form_validation->set_rules('name', 'Name', 'trim|required|xss_clean');
-			$this->form_validation->set_rules('attribute_set', 'Attribute set', 'trim|required|xss_clean');
-			if (!$this->form_validation->run()) {
-				$this->response['error'] = true;
-				$this->response['csrfName'] = $this->security->get_csrf_token_name();
-				$this->response['csrfHash'] = $this->security->get_csrf_hash();
-				$this->response['message'] = validation_errors();
-				print_r(json_encode($this->response));
-			} else {
-				if (isset($_POST['edit_attribute'])) {
-
-					if (is_exist(['name' => $_POST['name'], 'attribute_set_id' => $_POST['attribute_set']], 'attributes', $_POST['edit_attribute'])) {
-						$response["error"]   = true;
-						$response['csrfName'] = $this->security->get_csrf_token_name();
-						$response['csrfHash'] = $this->security->get_csrf_hash();
-						$response["message"] = "This Combination Already Exist. Provide a new combination";
-						$response["data"] = array();
-						echo json_encode($response);
-						return false;
-					}
-				} else {
-					if (is_exist(['name' => $_POST['name'], 'attribute_set_id' => $_POST['attribute_set']], 'attributes')) {
-						$response["error"]   = true;
-						$response['csrfName'] = $this->security->get_csrf_token_name();
-						$response['csrfHash'] = $this->security->get_csrf_hash();
-						$response["message"] = "This Combination Already Exist. Provide a new combination";
-						$response["data"] = array();
-						echo json_encode($response);
-						return false;
-					}
-				}
-				$this->attribute_model->add_attributes($_POST);
-				$this->response['error'] = false;
-				$this->response['csrfName'] = $this->security->get_csrf_token_name();
-				$this->response['csrfHash'] = $this->security->get_csrf_hash();
-				$message = (isset($_POST['edit_attribute'])) ? 'Attribute Updated Successfully' : 'Attribute Added Successfully';
-				$this->response['message'] = $message;
-				print_r(json_encode($this->response));
-			}
-		} else {
-			redirect('admin/login', 'refresh');
-		}
-	}
-
-	public function attribute_list()
-	{
-		if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
-			return $this->attribute_model->get_attribute_list();
-		} else {
-			redirect('admin/login', 'refresh');
-		}
-	}
-}
+/*
+ * Intentionally empty.
+ *
+ * This file used to declare `class Attribute extends CI_Controller`. PHP 8.0 added a built-in
+ * class called `Attribute` (the one behind #[Attr] syntax), so as soon as this project moved to
+ * PHP 8 the mere act of routing to admin/attribute produced an unrecoverable
+ *
+ *     Fatal error: Cannot declare class Attribute, because the name is already in use
+ *
+ * before any of the controller's own code ran - not a 404, a hard 500 with a PHP stack path
+ * printed to the browser. Reproduced live on this install, for the super admin as well as for
+ * restricted roles, so the permission check inside it never got a chance to run either.
+ *
+ * Nothing pointed at it: it was a stale, shorter copy of admin/Attributes.php (117 lines vs
+ * 200), and the sidebar, the views and the admin JS all link to `admin/attributes/...`, which
+ * is the maintained one. Emptying the file rather than editing the class name keeps
+ * admin/attribute a plain 404 instead of resurrecting a second, out-of-date copy of the
+ * attribute screens that would then drift from Attributes.php.
+ *
+ * The real controller is application/controllers/admin/Attributes.php.
+ */

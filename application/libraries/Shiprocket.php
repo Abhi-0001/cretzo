@@ -174,6 +174,23 @@ class Shiprocket
         return $result;
     }
 
+    /**
+     * Lists the pickup addresses registered on the Shiprocket account.
+     *
+     * The library could only ever PUSH a pickup location (add_pickup_location), so the local
+     * `pickup_locations` table had to be filled in by hand, retyping addresses that Shiprocket
+     * already holds - and a typo in the pincode there is invisible until a customer is told their
+     * address is not serviceable. This is the read side, so the platform can take them from
+     * Shiprocket instead of asking someone to key them in again.
+     *
+     * @return array decoded Shiprocket response; the addresses live under
+     *               ['data']['shipping_address'].
+     */
+    public function get_pickup_locations()
+    {
+        return $this->curl($this->url . 'settings/company/pickup');
+    }
+
     public function curl($url, $method = 'GET', $data = [], $is_retry = false)
     {
         $this->last_error = null;
@@ -371,6 +388,27 @@ class Shiprocket
         return $result;
     }
 
+    /**
+     * Step 8 of Shiprocket's documented flow - returns the PDF URL for a generated manifest.
+     *
+     * This was the one step of the whole documented sequence with no implementation at all.
+     * `manifests/generate` (step 7) existed but had no callers, and without `manifests/print`
+     * there was nothing that could produce a manifest URL - so `order_tracking.manifest_url` was
+     * written as '' at shipment creation and never updated, while the seller app happily reads
+     * that column and offers it alongside the label and invoice. Sellers had a permanently empty
+     * manifest link.
+     *
+     * Takes the same shipment id list as generate; Shiprocket returns {"manifest_url": "..."}.
+     */
+    public function print_manifest($shipment_id)
+    {
+        $url = $this->url . 'manifests/print';
+        $data = array(
+            'order_ids' => is_array($shipment_id) ? array_values($shipment_id) : [$shipment_id]
+        );
+        return $this->curl($url, 'POST', json_encode($data));
+    }
+
     public function generate_label($shipment_id)
     {
         $url = $this->url . 'courier/generate/label';
@@ -423,6 +461,21 @@ class Shiprocket
     public function track_order($shipment_id)
     {
         $url = $this->url . 'courier/track/shipment/' . $shipment_id;
+        return $this->curl($url, "GET");
+    }
+
+    /**
+     * Step 11 of Shiprocket's documented flow - tracking by AWB rather than by shipment id.
+     *
+     * The AWB is the courier's own consignment number and is what the scan history is actually
+     * filed under; `courier/track/shipment/{id}` resolves to the same data only while Shiprocket's
+     * shipment record still points at the right AWB. When a shipment is re-assigned to a different
+     * courier the AWB changes and tracking by shipment id can return the previous courier's
+     * timeline. Prefer this whenever an AWB is known - order_tracking.awb_code stores it.
+     */
+    public function track_awb($awb_code)
+    {
+        $url = $this->url . 'courier/track/awb/' . rawurlencode((string) $awb_code);
         return $this->curl($url, "GET");
     }
 

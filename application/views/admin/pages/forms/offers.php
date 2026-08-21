@@ -27,7 +27,7 @@
                                 <div class="form-group">
                                     <?php if (isset($fetched_data[0]['id'])) {
                                     ?>
-                                        <input type="hidden" name="edit_offer" value="<?= $fetched_data[0]['id'] ?>">
+                                        <input type="hidden" name="edit_offer" value="<?= html_escape($fetched_data[0]['id']) ?>">
                                     <?php } ?>
                                     <label for="offer_type">Type <span class='text-danger text-sm'>*</span> </label>
                                     <select name="offer_type" id="offer_type" class="form-control type_event_trigger" required="">

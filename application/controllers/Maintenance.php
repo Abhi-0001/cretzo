@@ -1,7 +1,10 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT);
+// NOTE: error reporting and display_errors are set per ENVIRONMENT in index.php -
+// production turns display_errors OFF. This file used to force it back ON at the top,
+// unconditionally, which meant any PHP notice or warning raised anywhere in this
+// controller was rendered INTO the live page or the JSON body on production: file paths
+// leaked to shoppers, and an AJAX response that picked up a warning stopped parsing.
+// Leave the environment to decide.
 defined('BASEPATH') or exit('No direct script access allowed');
 
 

@@ -24,7 +24,7 @@
                         <!-- form start -->
                         <form class="form-horizontal form-submit-event" action="<?= base_url('admin/blogs/add_blog'); ?>" method="POST" id="add_product_form" enctype="multipart/form-data">
                             <?php if (isset($fetched_data[0]['id'])) { ?>
-                                <input type="hidden" name="edit_blog" value="<?= @$fetched_data[0]['id'] ?>">
+                                <input type="hidden" name="edit_blog" value="<?= html_escape(@$fetched_data[0]['id']) ?>">
                             <?php } ?>
                             <div class="card-body">
                                 <div class="form-group row">

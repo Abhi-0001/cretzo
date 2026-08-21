@@ -582,7 +582,12 @@ class Orders extends CI_Controller
                     $temp['product_variants'] = get_variants_values_by_id($row['product_variant_id']);
                     $temp['product_type'] = $row['type'];
                     $temp['product_id'] = $row['product_id'];
-                    $temp['pickup_location'] = $row['pickup_location'];
+                    // Show the pickup address the parcel will ACTUALLY be collected from.
+                    // This echoed the raw per-product override, which is blank on almost every
+                    // product, so the admin's Ship-with-Shiprocket dialog offered nothing to
+                    // group those items under.
+                    $resolved_pickup = resolve_seller_pickup_location($row['pickup_location'], $row['seller_id']);
+                    $temp['pickup_location'] = isset($resolved_pickup['pickup_location']) ? $resolved_pickup['pickup_location'] : $row['pickup_location'];
                     $temp['seller_otp'] = !empty($order_charge_data[0]['otp']) ? $order_charge_data[0]['otp'] : '';
                     $temp['is_sent'] = $row['is_sent'];
                     $temp['seller_id'] = $row['seller_id'];
@@ -628,7 +633,12 @@ class Orders extends CI_Controller
             if (empty($_POST['status']) && empty($_POST['deliver_by'])) {
                 $this->form_validation->set_rules('status', 'Status', 'trim|required|xss_clean', array('required' => "Please select status or delivery boy for updation."));
             }
-            if ($_POST['status'] == 'cancelled' || $_POST['status'] == 'returned') {
+            // Read unguarded, so a request without `status` - which the block directly above
+            // explicitly allows, since an update may carry only a delivery boy - warned twice
+            // before any validation ran, and the warnings print ahead of the JSON the orders
+            // screen parses.
+            $posted_status = isset($_POST['status']) ? $_POST['status'] : '';
+            if ($posted_status == 'cancelled' || $posted_status == 'returned') {
                 $this->form_validation->set_rules('order_item_id[]', 'Order Item ID', 'trim|required|xss_clean', array('required' => "Please select atleast one item of seller for order cancelation or return."));
             }
             if (empty($_POST['seller_id']) || !isset($_POST['seller_id'])) {
@@ -654,7 +664,9 @@ class Orders extends CI_Controller
             //for order item
             $order_itam_id = [];
             $order_itam_ids = [];
-            if ($_POST['status'] == 'cancelled' || $_POST['status'] == 'returned') {
+            // $posted_status was resolved above; validation has since passed, so it is either a
+            // valid status or '' (a delivery-boy-only update).
+            if ($posted_status == 'cancelled' || $posted_status == 'returned') {
                 $order_itam_ids = $_POST['order_item_id'];
             } else {
                 $order_itam_id = fetch_details('order_items', ['order_id' => $_POST['order_id'], 'seller_id' => $_POST['seller_id'], 'active_status !=' => 'cancelled'], 'id');
@@ -757,8 +769,17 @@ class Orders extends CI_Controller
                 // an order_tracking row with a live shiprocket_order_id means the shipment is
                 // already handed off to Shiprocket, so the internal delivery-boy requirement
                 // (meant for sellers who run their own delivery staff) doesn't apply here.
+                //
+                // That exemption only fires AFTER a shipment has been booked, though. This store
+                // has no Shiprocket credentials configured, so nothing is ever booked,
+                // order_tracking stays empty and the requirement bit anyway - making 'shipped'
+                // unreachable. Confirmed by the owner: delivery here is Shiprocket, not the
+                // built-in delivery-boy feature, and there is not one delivery-boy account. The
+                // workaround was to go processed -> delivered, which silently skips the "your
+                // order has shipped" notification to the customer. So the requirement now also
+                // lifts when the store does not actually run its own delivery staff.
                 $shiprocket_shipment = fetch_details('order_tracking', ['order_id' => $_POST['order_id'], 'shiprocket_order_id !=' => '', 'is_canceled' => 0]);
-                if ((!isset($current_status[0]['delivery_boy_id']) || empty($current_status[0]['delivery_boy_id']) || $current_status[0]['delivery_boy_id'] == 0) && empty($shiprocket_shipment)) {
+                if ((!isset($current_status[0]['delivery_boy_id']) || empty($current_status[0]['delivery_boy_id']) || $current_status[0]['delivery_boy_id'] == 0) && empty($shiprocket_shipment) && store_uses_delivery_boys()) {
                     $this->response['error'] = true;
                     $this->response['message'] = "Please select delivery boy to mark this order as shipped.";
                     $this->response['csrfName'] = $this->security->get_csrf_token_name();
@@ -1507,7 +1528,15 @@ class Orders extends CI_Controller
                 // Shiprocket order reference ("28" . "0-48" . "-4171").
                 $order_id = '';
 
-                $pickup_location_pincode = fetch_details('pickup_locations', ['pickup_location' => $_POST['pickup_location']], 'pin_code');
+                // Looked up by nickname ALONE, so with two sellers using the same label (they are
+                // per-seller nicknames, not unique keys) the parcel could be booked against another
+                // seller's pincode entirely. Scope it to the seller this shipment is for.
+                $shiprocket_seller_id = isset($_POST['shiprocket_seller_id']) ? (int) $_POST['shiprocket_seller_id'] : 0;
+                $pickup_where = ['pickup_location' => $_POST['pickup_location']];
+                if ($shiprocket_seller_id > 0) {
+                    $pickup_where['seller_id'] = $shiprocket_seller_id;
+                }
+                $pickup_location_pincode = fetch_details('pickup_locations', $pickup_where, 'pin_code');
                 $order_data = fetch_details('orders', ['id' => $_POST['order_id']], 'date_added,address_id,mobile,payment_method,delivery_charge');
                 if (empty($pickup_location_pincode) || empty($order_data)) {
                     $this->response['error'] = true;
@@ -1519,7 +1548,7 @@ class Orders extends CI_Controller
                     return false;
                 }
                 $user_data = fetch_details('users', ['id' => $_POST['user_id']], 'username,email');
-                $address_data = fetch_details('addresses', ['id' => $order_data[0]['address_id']], 'address,city_id,pincode,state,country');
+                $address_data = fetch_details('addresses', ['id' => $order_data[0]['address_id']], 'address,city,city_id,pincode,state,country');
                 if (empty($address_data)) {
                     $this->response['error'] = true;
                     $this->response['csrfName'] = $this->security->get_csrf_token_name();
@@ -1529,7 +1558,15 @@ class Orders extends CI_Controller
                     print_r(json_encode($this->response));
                     return false;
                 }
-                $city_data = fetch_details('cities', ['id' => $address_data[0]['city_id']], 'name');
+                // The `cities` table keys on city_id and names the column city_name - there is no
+                // `id` and no `name`. This asked for both, so it never returned a city and the
+                // Shiprocket order went out with billing_city empty; Shiprocket requires that
+                // field, so the booking was rejected. Falls back to the city text stored on the
+                // address itself, which is what the customer actually typed.
+                $city_data = fetch_details('cities', ['city_id' => $address_data[0]['city_id']], 'city_name');
+                $billing_city = !empty($city_data[0]['city_name'])
+                    ? $city_data[0]['city_name']
+                    : (isset($address_data[0]['city']) ? $address_data[0]['city'] : '');
 
                 $availibility_data = [
                     'pickup_postcode' => $pickup_location_pincode[0]['pin_code'],
@@ -1546,7 +1583,19 @@ class Orders extends CI_Controller
                 // HTML error page instead of JSON).
                 $order_item_id = [];
                 foreach ($order_items as $row) {
-                    if ($row['pickup_location'] == $_POST['pickup_location'] && $row['seller_id'] == $_POST['shiprocket_seller_id']) {
+                    // Compared the product's RAW pickup_location column against the chosen
+                    // location. That column is an optional per-product override and is blank on
+                    // 278 of the 290 live products, so those items matched nothing, $order_item_id
+                    // stayed empty and the shipment was booked with no items in it - the same
+                    // products the deliverability check now handles via the seller's registered
+                    // address. Match on the resolved location so the two agree.
+                    $row_pickup = resolve_seller_pickup_location(
+                        isset($row['pickup_location']) ? $row['pickup_location'] : '',
+                        isset($row['seller_id']) ? $row['seller_id'] : 0
+                    );
+                    $row_pickup_name = isset($row_pickup['pickup_location']) ? $row_pickup['pickup_location'] : '';
+
+                    if ($row_pickup_name == $_POST['pickup_location'] && $row['seller_id'] == $_POST['shiprocket_seller_id']) {
                         $order_item_id[] = $row['id'];
                         $order_id .= '-' . $row['id'];
                         $order_item_data = fetch_details('order_items', ['id' => $row['id']], 'sub_total');
@@ -1561,8 +1610,14 @@ class Orders extends CI_Controller
                         $temp['sku'] = isset($sku) && !empty($sku) ? $sku : $row['product_slug'];
                         $temp['units'] = $row['quantity'];
                         $temp['selling_price'] = $row['price'];
-                        $temp['discount'] = $row['discounted_price'];
-                        $temp['tax'] = $row['tax_amount'];
+                        // Read unguarded from the row the BROWSER posted, which does not carry
+                        // either key - so every Shiprocket booking raised two warnings and sent
+                        // the line item with a null discount and null tax. Take them from the
+                        // order_items row we already fetched for this id, which is the record of
+                        // what was actually charged, and fall back to 0.
+                        $line = fetch_details('order_items', ['id' => $row['id']], 'discounted_price,tax_amount');
+                        $temp['discount'] = isset($line[0]['discounted_price']) ? $line[0]['discounted_price'] : 0;
+                        $temp['tax'] = isset($line[0]['tax_amount']) ? $line[0]['tax_amount'] : 0;
                         array_push($items, $temp);
                     }
                 }
@@ -1587,7 +1642,7 @@ class Orders extends CI_Controller
                     'billing_customer_name' =>  $user_data[0]['username'],
                     'billing_last_name' => "",
                     'billing_address' => $address_data[0]['address'],
-                    'billing_city' => $city_data[0]['name'],
+                    'billing_city' => $billing_city,
                     'billing_pincode' => $address_data[0]['pincode'],
                     'billing_state' => $address_data[0]['state'],
                     'billing_country' => $address_data[0]['country'],
@@ -1741,6 +1796,40 @@ class Orders extends CI_Controller
         }
     }
 
+    /**
+     * Shiprocket flow steps 7 and 8. There was no endpoint for this at all - the manifest was
+     * the only document of the three (manifest / label / invoice) a seller could never obtain,
+     * even though order_tracking.manifest_url exists and the seller app displays it.
+     */
+    public function generate_manifest()
+    {
+        if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
+            if (print_msg(!has_permissions('update', 'orders'), PERMISSION_ERROR_MSG, 'orders')) {
+                return false;
+            }
+            $shipment_id = $this->input->post('shipment_id', true);
+            if (empty($shipment_id) || !is_numeric($shipment_id)) {
+                $this->response['error'] = true;
+                $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                $this->response['message'] = 'A shipment id is required.';
+                print_r(json_encode($this->response));
+                return false;
+            }
+            $res = generate_manifest($shipment_id);
+            $this->response['error'] = !shiprocket_result_ok('manifest', $res);
+            $this->response['csrfName'] = $this->security->get_csrf_token_name();
+            $this->response['csrfHash'] = $this->security->get_csrf_hash();
+            $this->response['message'] = $this->response['error']
+                ? shiprocket_result_message($res, 'Manifest not generated')
+                : 'Manifest generated successfully';
+            $this->response['data'] = $this->response['error'] ? array() : $res;
+            print_r(json_encode($this->response));
+        } else {
+            redirect('admin/login', 'refresh');
+        }
+    }
+
     public function generate_invoice()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
@@ -1770,7 +1859,12 @@ class Orders extends CI_Controller
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
 
             $res = cancel_shiprocket_order($_POST['shiprocket_order_id']);
-            if (!empty($res) && isset($res['status']) && $res['status'] == 200) {
+            // Duplicated the cancel success rule instead of using the shared one, and used the
+            // stale version of it: Shiprocket answers a successful cancellation with HTTP 200 and
+            // just {"message":"Order cancelled successfully."} - no `status` in the body. So the
+            // helper correctly marked the shipment cancelled while this told the admin it had
+            // failed. One rule, in shiprocket_result_ok().
+            if (shiprocket_result_ok('cancel', $res)) {
                 $this->response['error'] = false;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();

@@ -31,7 +31,7 @@
                             <?php
                             if (isset($fetched_data[0]['id'])) {
                             ?>
-                                <input type="hidden" id="edit_custom_notification" name="edit_custom_notification" value="<?= $fetched_data[0]['id'] ?>">
+                                <input type="hidden" id="edit_custom_notification" name="edit_custom_notification" value="<?= html_escape($fetched_data[0]['id']) ?>">
                                 <input type="hidden" id="update_id" name="update_id" value="1">
                                 <input type="hidden" id="udt_title" value="<?= html_escape($fetched_data[0]['title']) ?>">
                             <?php
