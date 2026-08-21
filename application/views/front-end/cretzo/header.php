@@ -616,11 +616,36 @@ $auth_settings = get_settings('authentication_settings', true);
     }
 
     function generateMegaMenu($categories, $noOfRows) {
+        /*
+         * A top-level category with NO subcategories used to bring the entire storefront down.
+         * count() is 0, so $categoriesPerRow becomes ceil(0 / n) = 0, and on PHP 8
+         * array_chunk($categories, 0) is a fatal TypeError - "Argument #2 ($length) must be
+         * greater than 0" - thrown from the shared header, which every storefront page renders.
+         * Not a 404 on one page: the home page, product listing, cart, contact, blogs and every
+         * category page all returned HTTP 500 together.
+         *
+         * This is reachable purely from data: it fires the moment anyone adds a category without
+         * children in the admin (it surfaced here when migration 056 introduced "Uncategorised"),
+         * and nothing about the admin form warns that doing so takes the shop offline.
+         *
+         * $noOfRows is guarded too - it is a caller-supplied divisor and a 0 would be a division
+         * by zero, which is also fatal on PHP 8.
+         */
+        $categories = is_array($categories) ? $categories : [];
         $totalCategories = count($categories);
-        $categoriesPerRow = ceil($totalCategories / $noOfRows);
-        
+        if ($totalCategories === 0) {
+            echo '<div class="mega-menu"></div>';
+            return;
+        }
+
+        $noOfRows = (int) $noOfRows;
+        $noOfRows = ($noOfRows > 0) ? $noOfRows : 1;
+
+        $categoriesPerRow = (int) ceil($totalCategories / $noOfRows);
+        $categoriesPerRow = ($categoriesPerRow > 0) ? $categoriesPerRow : 1;
+
         $chunks = array_chunk($categories, $categoriesPerRow);
-        
+
         echo '<div class="mega-menu">';
         foreach ($chunks as $chunk) {
             $chunkCount = count($chunk);

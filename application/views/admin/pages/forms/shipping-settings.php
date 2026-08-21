@@ -45,14 +45,32 @@
                                         </div>
                                     </div>
                                 </div>
+                                <?php /*
+                                  These two fields asked for the "Shiprocket account email/password",
+                                  which is the one thing that must NOT go here. Shiprocket's API
+                                  authenticates against a separate API user, and its documentation is
+                                  explicit that the address "should not be registered on Shiprocket" -
+                                  so entering the normal login silently fails auth/login and every
+                                  shipping call then dies with no usable error. Spelling out the real
+                                  requirement here rather than leaving it to be discovered.
+                                */ ?>
                                 <div class="row">
-                                    <div class="form-group col-5">
-                                        <label for="email">Email</label>
-                                        <input type="email" class="form-control" name="email" id="email" value="<?= html_escape((defined('ALLOW_MODIFICATION') && ALLOW_MODIFICATION == 0) ? str_repeat("X", strlen(@$settings['email']) - 3) . substr(@$settings['email'], -3) : @$settings['email']) ?>" placeholder="Shiprocket acount email" />
+                                    <div class="col-12 mb-2">
+                                        <div class="alert alert-info py-2 px-3 mb-2" style="font-size:13px;">
+                                            <strong>Use API user credentials, not your Shiprocket login.</strong>
+                                            In the Shiprocket panel go to <em>Settings &rarr; API &rarr; Configure &rarr;
+                                            Create an API User</em>, and give it an email address that is
+                                            <strong>not</strong> already registered on Shiprocket. The normal
+                                            account login will not authenticate here.
+                                        </div>
                                     </div>
                                     <div class="form-group col-5">
-                                        <label for="password">Password</label>
-                                        <input type="password" class="form-control" name="password" id="" value="<?= html_escape((defined('ALLOW_MODIFICATION') && ALLOW_MODIFICATION == 0) ? str_repeat("X", strlen(@$settings['password']) - 3) . substr(@$settings['password'], -3) : @$settings['password']) ?>" placeholder="Shiprocket acount Password" />
+                                        <label for="email">API User Email</label>
+                                        <input type="email" class="form-control" name="email" id="email" value="<?= html_escape((defined('ALLOW_MODIFICATION') && ALLOW_MODIFICATION == 0) ? str_repeat("X", strlen(@$settings['email']) - 3) . substr(@$settings['email'], -3) : @$settings['email']) ?>" placeholder="Shiprocket API user email (not your login)" />
+                                    </div>
+                                    <div class="form-group col-5">
+                                        <label for="password">API User Password</label>
+                                        <input type="password" class="form-control" name="password" id="" value="<?= html_escape((defined('ALLOW_MODIFICATION') && ALLOW_MODIFICATION == 0) ? str_repeat("X", strlen(@$settings['password']) - 3) . substr(@$settings['password'], -3) : @$settings['password']) ?>" placeholder="Password set for the API user" />
                                     </div>
                                     <div class="form-group col-5">
                                         <label for="webhook_url">Shiprocket Webhoook Url</label>

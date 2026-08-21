@@ -2968,15 +2968,18 @@ function create_shiprocket_return_shipment($order_item_id)
 
     $city = !empty($address[0]['city']) ? $address[0]['city'] : '';
     if (empty($city) && !empty($address[0]['city_id'])) {
-        $city_row = fetch_details('cities', ['id' => $address[0]['city_id']], 'name');
-        $city = !empty($city_row) ? $city_row[0]['name'] : '';
+        // The `cities` table keys on city_id and names the column city_name - it has no `id` and
+        // no `name`, so this lookup never returned anything and the Shiprocket booking went out
+        // with an empty city. Shiprocket requires that field and rejects the shipment.
+        $city_row = fetch_details('cities', ['city_id' => $address[0]['city_id']], 'city_name');
+        $city = !empty($city_row) ? $city_row[0]['city_name'] : '';
     }
 
     $sku = !empty($item['variant_sku']) ? $item['variant_sku'] : (!empty($item['product_sku']) ? $item['product_sku'] : $item['product_slug']);
 
     // Shiprocket rejects a zero weight outright, and dimensions of 0 on any axis. Products
     // predating the shipping fields carry 0 in all four, so fall back to a nominal parcel.
-    $weight  = ((float) $item['weight'] > 0) ? (float) $item['weight'] : 0.5;
+    $weight  = shiprocket_parcel_weight($item['weight']);
     $length  = ((float) $item['length'] > 0) ? (float) $item['length'] : 10;
     $breadth = ((float) $item['breadth'] > 0) ? (float) $item['breadth'] : 10;
     $height  = ((float) $item['height'] > 0) ? (float) $item['height'] : 10;
@@ -3305,7 +3308,16 @@ function get_cart_total($user_id, $product_variant_id = false, $is_saved_for_lat
 
     $system_settings = get_settings('system_settings', true);
     $delivery_charge = $system_settings['delivery_charge'];
-    if (!empty($address_id) && !empty($address = fetch_details('addresses', ['id' => $address_id], ['area_id', 'area', 'pincode']))) {
+    // $data[0] only exists when the cart actually holds a line - the summary keys added below
+    // ($data['sub_total'] and friends) are present either way, so callers cannot tell an empty
+    // cart apart by checking !empty($data). Quoting a delivery charge for nothing to deliver is
+    // meaningless anyway, and reading $data[0]['product_id'] off an empty cart raised
+    // "Undefined array key 0" here - reproduced live by calling cart/pre-payment-setup right
+    // after an order cleared the cart, which printed the warning into the JSON the checkout
+    // page then tried to parse.
+    $cart_has_items = isset($data[0]) && is_array($data[0]) && isset($data[0]['product_id']);
+
+    if ($cart_has_items && !empty($address_id) && !empty($address = fetch_details('addresses', ['id' => $address_id], ['area_id', 'area', 'pincode']))) {
         $zipcode_id = fetch_details('zipcodes', ['zipcode' => $address[0]['pincode']], 'id')[0] ?? array();
 
         $tmpRow['is_deliverable'] = (!empty($zipcode_id['id']) && $zipcode_id['id'] > 0) ?
@@ -6923,24 +6935,39 @@ function check_cart_products_delivarable($user_id, $area_id = 0, $zipcode = "", 
 
             /* check in standard shipping then */
             if (isset($settings['shiprocket_shipping_method']) && $settings['shiprocket_shipping_method'] == 1) {
-                if (!$tmpRow['is_deliverable'] && trim($cart[$i]['pickup_location']) != "") {
+                /*
+                 * The gate here used to be `trim($cart[$i]['pickup_location']) != ""`, i.e. the
+                 * product had to name a pickup address itself. 278 of 290 live products leave that
+                 * column blank, so this whole block was skipped for them and they fell out with
+                 * is_deliverable = false and no message - the customer was told their address was
+                 * not serviceable when the real problem was that nobody had typed a nickname into
+                 * a product field. resolve_seller_pickup_location() falls back to the seller's own
+                 * registered pickup address, which is what actually determines where a parcel is
+                 * collected from.
+                 */
+                $pickup = resolve_seller_pickup_location($cart[$i]['pickup_location'], $cart[$i]['seller_id']);
+
+                if (!$tmpRow['is_deliverable'] && empty($pickup)) {
+                    // Genuinely nothing to ship from: this seller has registered no pickup address
+                    // at all. Say so instead of leaving a silent false - it is the seller's or the
+                    // admin's problem to fix, and it used to be invisible to both.
+                    $tmpRow['message'] = 'This seller has not set up a pickup address yet, so delivery cannot be quoted.';
+                }
+
+                if (!$tmpRow['is_deliverable'] && !empty($pickup)) {
 
                     $t->load->library(['Shiprocket']);
-                    /*
-                     * pickup_location is a per-seller NICKNAME, not a globally unique key - two
-                     * sellers can both call one "Warehouse". Looking it up without the seller
-                     * scope returned whichever row came first, so serviceability (and therefore
-                     * the delivery estimate and the charge derived from it) could be quoted from
-                     * a different seller's pincode entirely.
-                     */
-                    $pickup_where = ['pickup_location' => $cart[$i]['pickup_location']];
-                    if (!empty($cart[$i]['seller_id'])) {
-                        $pickup_where['seller_id'] = $cart[$i]['seller_id'];
-                    }
-                    $pickup_pincode = fetch_details('pickup_locations', $pickup_where, 'pin_code');
+                    $pickup_pincode = [['pin_code' => $pickup['pin_code']]];
 
                     // $product_weight += $cart[$i]['weight'] * $cart[$i]['qty']; // This sums up the total weight of the products in the cart and checks the total for the limit.
-                    $product_weight = $cart[$i]['weight']; // Modified so that each individual item shall be within the weight limit. (previously the total of the items needed to be within the weight limit)
+                    // Modified so that each individual item shall be within the weight limit.
+                    // (previously the total of the items needed to be within the weight limit)
+                    //
+                    // Passed straight through before, so a product with weight 0 - 266 of the 299
+                    // variants on this store - sent weight="" and Shiprocket answered
+                    // "Weight Required" with no couriers. The customer saw that as their address
+                    // being unserviceable. Nominal fallback, same as the return path already used.
+                    $product_weight = shiprocket_parcel_weight($cart[$i]['weight']);
 
                     if (isset($zipcode) && !empty($zipcode)) {
 
@@ -6975,9 +7002,27 @@ function check_cart_products_delivarable($user_id, $area_id = 0, $zipcode = "", 
                                     // a rejection does not always carry `message`, so this warned
                                     // "Trying to access array offset on value of type null" and
                                     // showed the customer a blank reason.
-                                    $tmpRow['message'] = (is_array($check_deliveribility) && !empty($check_deliveribility['message']))
-                                        ? $check_deliveribility['message']
-                                        : 'This item cannot be delivered to the selected pincode right now.';
+                                    //
+                                    // Beyond that, "cannot be delivered to this pincode" was told to
+                                    // the customer for BOTH real causes: a route no courier serves,
+                                    // and Shiprocket never having been reached at all. Those need
+                                    // different answers - the first is about their address, the
+                                    // second is a configuration fault on our side and no change of
+                                    // address will fix it. curl() returns a non-array precisely when
+                                    // the call did not complete, and carries the reason on
+                                    // last_error(), so separate the two and log the real cause.
+                                    if (!is_array($check_deliveribility)) {
+                                        $reason = method_exists($t->shiprocket, 'last_error')
+                                            ? (string) $t->shiprocket->last_error() : '';
+                                        log_message('error', 'Deliverability check could not reach Shiprocket for product '
+                                            . $cart[$i]['product_id'] . ' (pickup ' . $availibility_data['pickup_postcode']
+                                            . ' -> ' . $zipcode . '): ' . ($reason !== '' ? $reason : 'unknown error'));
+                                        $tmpRow['message'] = 'Delivery cannot be checked right now. Please try again shortly.';
+                                    } elseif (!empty($check_deliveribility['message'])) {
+                                        $tmpRow['message'] = $check_deliveribility['message'];
+                                    } else {
+                                        $tmpRow['message'] = 'This item cannot be delivered to the selected pincode right now.';
+                                    }
                                 }
                             }
                         }
@@ -7550,12 +7595,37 @@ function make_shipping_parcels($data)
     $parcels = array();
     foreach ($data as $product) {
 
-        if (!empty($product['pickup_location'])) {
-            // $parcels[$product['pickup_location']]['weight'] += (isset($parcels[$product['pickup_location']][$product['weight']]) && !empty($product['weight'])) ? $parcels[$product['pickup_location']] : $product['weight'] * $product['qty'];
-            $parcels[$product['seller_id']][$product['pickup_location']]['weight'] += (isset($parcels[$product['seller_id']][$product['pickup_location']][$product['weight']]) && !empty($product['weight'])) ?  $parcels[$product['seller_id']][$product['pickup_location']] : $product['weight'] * $product['qty'];
+        // Grouped on the product's own pickup_location before, so any product with that column
+        // blank - 278 of the 290 live ones - was silently dropped from the parcel set. Its weight
+        // never reached the rate request, so a cart containing one was quoted a delivery charge
+        // for only part of what was actually being shipped. Resolve to the seller's registered
+        // pickup address instead (see resolve_seller_pickup_location).
+        $seller_id = isset($product['seller_id']) ? $product['seller_id'] : 0;
+        $pickup = resolve_seller_pickup_location(
+            isset($product['pickup_location']) ? $product['pickup_location'] : '',
+            $seller_id
+        );
+
+        if (empty($pickup)) {
+            continue; // seller has no pickup address at all; nothing to quote against
         }
+
+        $location = $pickup['pickup_location'];
+        // Nominal per-unit weight when the product carries none, so a parcel of zero-weight
+        // products is still quotable - Shiprocket rejects a zero total with "Weight Required".
+        $weight = shiprocket_parcel_weight(isset($product['weight']) ? $product['weight'] : 0)
+            * (isset($product['qty']) ? (float) $product['qty'] : 1);
+
+        // The original expression assigned the whole parcel ARRAY back into ['weight'] on the
+        // second item of a group (`? $parcels[$seller][$loc] :`), so a seller shipping two lines
+        // from one address ended up with an array where a number belonged and the rate request
+        // went out with a nonsense weight. Plain accumulation.
+        if (!isset($parcels[$seller_id][$location]['weight'])) {
+            $parcels[$seller_id][$location]['weight'] = 0;
+        }
+        $parcels[$seller_id][$location]['weight'] += $weight;
+        $parcels[$seller_id][$location]['pin_code'] = $pickup['pin_code'];
     }
-    // print_R($parcels);
     return $parcels;
 }
 
@@ -7569,12 +7639,25 @@ function check_parcels_deliveriblity($parcels, $user_pincode)
         foreach ($parcel as $pickup_location => $parcel_weight) {
 
 
-            $pickup_postcode = fetch_details('pickup_locations', ['pickup_location' => $pickup_location], 'pin_code');
+            // make_shipping_parcels() now carries the resolved pincode on the parcel, so there is
+            // no second lookup to get wrong. The old one searched `pickup_locations` by nickname
+            // ALONE - not scoped to the seller - so with two sellers using the same label it could
+            // quote from the wrong warehouse's pincode entirely, and it read [0]['pin_code']
+            // unguarded, which fataled outright when the nickname matched no row.
+            $pickup_pin = isset($parcel_weight['pin_code']) ? $parcel_weight['pin_code'] : '';
+            if ($pickup_pin === '') {
+                $resolved = resolve_seller_pickup_location($pickup_location, $seller_id);
+                $pickup_pin = isset($resolved['pin_code']) ? $resolved['pin_code'] : '';
+            }
+            if ($pickup_pin === '') {
+                continue;
+            }
+
             if (isset($parcel[$pickup_location]['weight']) && $parcel[$pickup_location]['weight'] > 15) {
                 $data = "More than 15kg weight is not allow";
             } else {
                 $availibility_data = [
-                    'pickup_postcode' => $pickup_postcode[0]['pin_code'],
+                    'pickup_postcode' => $pickup_pin,
                     'delivery_postcode' => $user_pincode,
                     'cod' => 0,
                     'weight' => $parcel_weight['weight'],
@@ -7586,7 +7669,7 @@ function check_parcels_deliveriblity($parcels, $user_pincode)
 
 
                 $availibility_data_with_cod = [
-                    'pickup_postcode' => $pickup_postcode[0]['pin_code'],
+                    'pickup_postcode' => $pickup_pin,
                     'delivery_postcode' => $user_pincode,
                     'cod' => 1,
                     'weight' =>  $parcel_weight['weight'],
@@ -7737,8 +7820,34 @@ function shiprocket_result_ok($operation, $res)
             return isset($res['label_created']) && $res['label_created'] == 1 && !empty($res['label_url']);
         case 'invoice':
             return isset($res['is_invoice_created']) && $res['is_invoice_created'] == 1 && !empty($res['invoice_url']);
+        case 'manifest':
+            // manifests/print answers with the URL itself; there is no "created" flag to check.
+            return !empty($res['manifest_url']);
         case 'cancel':
-            return isset($res['status']) && (int) $res['status'] === 200;
+            // Shiprocket does not always put a `status` in the cancel BODY. Observed live: a
+            // successful cancellation came back as HTTP 200 with just
+            // {"message":"Order cancelled successfully."} - no status field at all. Requiring one
+            // meant a cancellation that Shiprocket had actually performed was reported to the
+            // admin as a failure, AND order_tracking.is_canceled was left at 0, so this side went
+            // on believing the shipment was live and the status-sync cron kept polling a dead
+            // shipment forever.
+            if (isset($res['status']) && (int) $res['status'] === 200) {
+                return true;
+            }
+            if (isset($res['status_code']) && (int) $res['status_code'] === 200) {
+                return true;
+            }
+            // Nothing in the body to judge by: fall back to the transport result. curl() records
+            // the HTTP status and only leaves last_error() set when the call did not succeed.
+            $t = &get_instance();
+            if (isset($t->shiprocket) && method_exists($t->shiprocket, 'last_status')) {
+                $http = (int) $t->shiprocket->last_status();
+                $failed = method_exists($t->shiprocket, 'last_error') ? $t->shiprocket->last_error() : null;
+                if ($http >= 200 && $http <= 299 && empty($failed)) {
+                    return true;
+                }
+            }
+            return false;
         default:
             return false;
     }
@@ -9062,4 +9171,479 @@ function output_escaping_new($array)
             return stripslashes($array);  // Correct function is stripslashes(), not stripcslashes()
         }
     }
+}
+
+/**
+ * Checks the store's configuration for combinations that leave it unable to trade, and
+ * returns one entry per problem found.
+ *
+ * This exists because of a failure this codebase has no other way to report. The store is
+ * configured for Shiprocket-only delivery (shipping_method.shiprocket_shipping_method = 1,
+ * local_shipping_method = 0) while the Shiprocket email and password are both blank, so every
+ * serviceability lookup fails and check_cart_products_delivarable() marks every cart line
+ * undeliverable. The customer gets "Some of the item(s) are not delivarable on selected
+ * address. Try changing address or modify your cart items." on an address that is perfectly
+ * fine, and no order can be completed at all. Verified on this database: turning local
+ * shipping on let the exact same cart check out immediately, and the last storefront order in
+ * the table predates the current settings - everything since is an in-panel POS order.
+ *
+ * Nothing anywhere told the admin. The Shipping Settings form does reject a save that leaves
+ * the credentials blank, so the state cannot be created through the UI any more, but a store
+ * already in it stays there silently. These checks make it visible on the dashboard.
+ *
+ * Each returned entry has:
+ *   severity - 'critical' (the storefront cannot take orders) or 'warning'
+ *   title    - short label
+ *   message  - what is wrong and what it causes
+ *   url      - admin page that fixes it (may be empty)
+ *   link     - label for that page
+ *
+ * @return array
+ */
+function validate_store_configuration()
+{
+    $t = &get_instance();
+    $problems = [];
+
+    $system   = get_settings('system_settings', true);
+    $shipping = get_settings('shipping_method', true);
+    $payment  = get_settings('payment_method', true);
+
+    $system   = is_array($system) ? $system : [];
+    $shipping = is_array($shipping) ? $shipping : [];
+    $payment  = is_array($payment) ? $payment : [];
+
+    $shiprocket_on = isset($shipping['shiprocket_shipping_method']) && $shipping['shiprocket_shipping_method'] == 1;
+    $local_on      = isset($shipping['local_shipping_method']) && $shipping['local_shipping_method'] == 1;
+
+    /* ---------------------------------------------------------------- shipping */
+
+    if (!$shiprocket_on && !$local_on) {
+        $problems[] = [
+            'severity' => 'critical',
+            'title'    => 'No delivery method is enabled',
+            'message'  => 'Neither Shiprocket nor local (zipcode) shipping is switched on, so no product can be '
+                . 'delivered anywhere and checkout will reject every order.',
+            'url'      => base_url('admin/shipping-settings'),
+            'link'     => 'Shipping Methods',
+        ];
+    }
+
+    if ($shiprocket_on && (empty(trim((string) ($shipping['email'] ?? ''))) || empty(trim((string) ($shipping['password'] ?? ''))))) {
+        $problems[] = [
+            'severity' => 'critical',
+            'title'    => 'Shiprocket is enabled but has no credentials',
+            'message'  => 'Shiprocket is the ' . ($local_on ? 'primary' : 'only') . ' delivery method but its email '
+                . 'and/or password are blank, so every serviceability check fails. Customers are told their address '
+                . 'is not deliverable'
+                . ($local_on ? '' : ' and no order can be placed at all')
+                . '. Enter the credentials of a Shiprocket API user - created under Settings > API in the '
+                . 'Shiprocket panel, with an email not already registered there; the normal account login '
+                . 'will not authenticate. Or switch on local shipping.',
+            'url'      => base_url('admin/shipping-settings'),
+            'link'     => 'Shipping Methods',
+        ];
+    }
+
+    if ($shiprocket_on) {
+        // Shiprocket books a pickup from a registered address. A product whose seller has none
+        // can never be quoted or collected, whatever the customer's address is.
+        //
+        // Counted on products.pickup_location being blank before, which reported 278 of 290 here
+        // and was the wrong question: that column is an optional per-product override, and
+        // resolve_seller_pickup_location() falls back to the seller's own registered address. What
+        // actually blocks a shipment is the SELLER having registered nothing at all.
+        // Restricted to products that could ACTUALLY be sold if they had a pickup address, i.e.
+        // whose seller is approved and active. Counting every product regardless made this cry
+        // wolf: on this store all 14 it was reporting belong to sellers who are not trading at
+        // all (two have no seller profile, one is deactivated), so their products are off the
+        // shop for a quite different reason and no pickup address would change that. A warning
+        // that cannot be acted on teaches people to ignore the panel.
+        $missing_pickup = (int) $t->db->query(
+            "SELECT COUNT(*) AS total
+               FROM products p
+              WHERE p.status = 1
+                AND EXISTS (
+                    SELECT 1 FROM seller_data sd
+                     WHERE sd.user_id = p.seller_id AND sd.status = 1
+                )
+                AND NOT EXISTS (
+                    SELECT 1 FROM pickup_locations pl
+                     WHERE pl.seller_id = p.seller_id AND pl.pin_code <> ''
+                )"
+        )->row()->total;
+
+        if ($missing_pickup > 0) {
+            $active_products = (int) $t->db->where('status', 1)->count_all_results('products');
+            $sellers_without = (int) $t->db->query(
+                // Same active-seller restriction as the product count above, so the two numbers
+                // in the message describe the same set rather than disagreeing.
+                "SELECT COUNT(DISTINCT p.seller_id) AS total
+                   FROM products p
+                  WHERE p.status = 1
+                    AND EXISTS (
+                        SELECT 1 FROM seller_data sd
+                         WHERE sd.user_id = p.seller_id AND sd.status = 1
+                    )
+                    AND NOT EXISTS (
+                        SELECT 1 FROM pickup_locations pl
+                         WHERE pl.seller_id = p.seller_id AND pl.pin_code <> ''
+                    )"
+            )->row()->total;
+
+            $problems[] = [
+                'severity' => $local_on ? 'warning' : 'critical',
+                'title'    => 'Sellers with no pickup address',
+                'message'  => $sellers_without . ' seller(s), covering ' . $missing_pickup . ' of '
+                    . $active_products . ' live products, have not registered a pickup address. Shiprocket '
+                    . 'cannot quote or collect those, so they read as undeliverable to every customer. '
+                    . 'Add a pickup address for each seller - or import the ones already on the Shiprocket '
+                    . 'account rather than retyping them.',
+                'url'      => base_url('admin/Pickup_location/manage-pickup-locations'),
+                'link'     => 'Pickup Locations',
+            ];
+        }
+    }
+
+    if ($local_on) {
+        $zipcodes = (int) $t->db->count_all_results('zipcodes');
+        if ($zipcodes === 0) {
+            $problems[] = [
+                'severity' => 'critical',
+                'title'    => 'Local shipping has no zipcodes',
+                'message'  => 'Local shipping is enabled but no delivery zipcodes are configured, so every address '
+                    . 'is treated as out of range.',
+                'url'      => base_url('admin/area/manage-zipcodes'),
+                'link'     => 'Zipcodes',
+            ];
+        }
+    }
+
+    /* ---------------------------------------------------------------- catalogue */
+
+    // The storefront listing (fetch_product()) requires ALL of: products.status = 1,
+    // products.listing_visibility = 1, at least one active variant, an ACTIVE seller_data row
+    // for the seller, and a category row that still exists. Each of those is a reasonable rule
+    // on its own, and each is applied silently - a product that fails one simply is not in the
+    // result. Overlap them and a catalogue can disappear completely with nothing logged and no
+    // error anywhere. That is the current state of this store: 290 live products, and
+    // products/ajax_get_products returns {"total":0}. Whoever runs the shop has no way to
+    // discover that from the admin panel, where all 290 look perfectly healthy.
+    $active_products = (int) $t->db->where('status', 1)->count_all_results('products');
+
+    if ($active_products > 0) {
+        $visible = (int) $t->db->query(
+            "SELECT COUNT(DISTINCT p.id) AS total
+               FROM products p
+               JOIN product_variants pv ON pv.product_id = p.id AND pv.status = 1
+               JOIN seller_data sd ON sd.user_id = p.seller_id AND sd.status = 1
+               LEFT JOIN categories c ON c.id = p.category_id
+              WHERE p.status = 1
+                AND p.listing_visibility = 1
+                AND (c.status = '1' OR c.status = '0' OR (c.id IS NOT NULL AND c.status IS NULL))"
+        )->row()->total;
+
+        if ($visible === 0 || $visible < ($active_products * 0.25)) {
+            // Report the reasons, so this points at the fix rather than just the symptom.
+            $counts = $t->db->query(
+                "SELECT
+                    (SELECT COUNT(*) FROM products WHERE status = 1 AND listing_visibility <> 1) AS plan_hidden,
+                    (SELECT COUNT(*) FROM products p LEFT JOIN categories c ON c.id = p.category_id
+                      WHERE p.status = 1 AND c.id IS NULL) AS no_category,
+                    (SELECT COUNT(*) FROM products p LEFT JOIN seller_data sd
+                        ON sd.user_id = p.seller_id AND sd.status = 1
+                      WHERE p.status = 1 AND sd.id IS NULL) AS no_active_seller,
+                    (SELECT COUNT(*) FROM products p LEFT JOIN product_variants pv
+                        ON pv.product_id = p.id AND pv.status = 1
+                      WHERE p.status = 1 AND pv.id IS NULL) AS no_active_variant"
+            )->row_array();
+
+            $reasons = [];
+            if (!empty($counts['plan_hidden'])) {
+                $reasons[] = $counts['plan_hidden'] . ' are hidden by their seller\'s plan listing limit';
+            }
+            if (!empty($counts['no_category'])) {
+                $reasons[] = $counts['no_category'] . ' point at a category that no longer exists';
+            }
+            if (!empty($counts['no_active_seller'])) {
+                $reasons[] = $counts['no_active_seller'] . ' belong to a seller with no approved seller profile';
+            }
+            if (!empty($counts['no_active_variant'])) {
+                $reasons[] = $counts['no_active_variant'] . ' have no active variant';
+            }
+
+            $problems[] = [
+                'severity' => ($visible === 0) ? 'critical' : 'warning',
+                'title'    => ($visible === 0)
+                    ? 'No products are visible on the storefront'
+                    : 'Most products are hidden from the storefront',
+                'message'  => $visible . ' of ' . $active_products . ' live products actually appear in the shop. '
+                    . (empty($reasons) ? '' : 'Of the rest: ' . implode('; ', $reasons) . '. ')
+                    . 'A product must be active, within its seller\'s plan listing limit, have an active variant, '
+                    . 'belong to an approved seller and sit in a category that still exists.',
+                'url'      => base_url('admin/product'),
+                'link'     => 'Products',
+            ];
+        }
+    }
+
+    /* ---------------------------------------------------------------- payment */
+
+    $gateway_flags = [
+        'razorpay_payment_method', 'paypal_payment_method', 'paystack_payment_method',
+        'stripe_payment_method', 'flutterwave_payment_method', 'paytm_payment_method',
+        'midtrans_payment_method', 'direct_bank_transfer', 'cod_payment_method',
+        'my_fatoorah_payment_method', 'instamojo_payment_method', 'phonepe_payment_method',
+    ];
+    $enabled_gateways = 0;
+    foreach ($gateway_flags as $flag) {
+        if (isset($payment[$flag]) && $payment[$flag] == 1) {
+            $enabled_gateways++;
+        }
+    }
+    if ($enabled_gateways === 0) {
+        $problems[] = [
+            'severity' => 'critical',
+            'title'    => 'No payment method is enabled',
+            'message'  => 'Every payment gateway is switched off, so a customer has no way to pay for an order.',
+            'url'      => base_url('admin/payment-settings'),
+            'link'     => 'Payment Methods',
+        ];
+    }
+
+    /* ---------------------------------------------------------------- store basics */
+
+    if (empty(trim((string) ($system['currency'] ?? '')))) {
+        $problems[] = [
+            'severity' => 'critical',
+            'title'    => 'No currency is set',
+            'message'  => 'Every price on the storefront is rendered without a currency symbol.',
+            'url'      => base_url('admin/setting'),
+            'link'     => 'Store Settings',
+        ];
+    }
+
+    foreach (['support_email' => 'support email', 'support_number' => 'support phone number'] as $key => $label) {
+        if (empty(trim((string) ($system[$key] ?? '')))) {
+            $problems[] = [
+                'severity' => 'warning',
+                'title'    => 'No ' . $label,
+                'message'  => 'The ' . $label . ' is blank. It is shown to customers across the site and used on '
+                    . 'order notifications.',
+                'url'      => base_url('admin/setting'),
+                'link'     => 'Store Settings',
+            ];
+        }
+    }
+
+    if (isset($system['is_web_under_maintenance']) && $system['is_web_under_maintenance'] == 1) {
+        $problems[] = [
+            'severity' => 'warning',
+            'title'    => 'The website is in maintenance mode',
+            'message'  => 'Every visitor is being redirected to the maintenance page. Switch this off to reopen '
+                . 'the storefront.',
+            'url'      => base_url('admin/setting'),
+            'link'     => 'Store Settings',
+        ];
+    }
+
+    return $problems;
+}
+
+/**
+ * Does this store actually run its own delivery staff?
+ *
+ * The owner has confirmed delivery is handled by Shiprocket, not by the built-in delivery-boy
+ * feature, and there is not a single account in the `delivery_boy` group - the Delivery Boys menu
+ * is switched off in the admin sidebar too. Any rule that REQUIRES a delivery boy is therefore
+ * unsatisfiable here, and simply blocks the flow it was guarding. Two were doing exactly that:
+ *
+ *   - admin/Orders and seller/Orders refused to mark an order `shipped` without one. Both already
+ *     made an exception for Shiprocket, but only once an order_tracking row with a live
+ *     shiprocket_order_id existed - i.e. after the shipment had actually been booked. With no
+ *     Shiprocket credentials configured nothing is ever booked, so the exception never applied and
+ *     `shipped` was unreachable. The workaround was to jump processed -> delivered, which skips
+ *     the "your order has shipped" notification to the customer entirely.
+ *   - admin/Return_request refused to approve a return without one whenever Shiprocket was off,
+ *     so a customer could raise a return that could never be actioned.
+ *
+ * "Runs its own delivery staff" means both halves are true: local shipping is switched on (so
+ * somebody in-house is doing the collecting) AND at least one delivery-boy account exists to be
+ * picked. Either half missing and asking for a delivery boy is asking for something that cannot
+ * be given.
+ *
+ * Kept in one place so the three call sites cannot drift apart.
+ *
+ * @return bool
+ */
+function store_uses_delivery_boys()
+{
+    $t = &get_instance();
+
+    $shipping = get_settings('shipping_method', true);
+    $local_shipping_on = is_array($shipping)
+        && isset($shipping['local_shipping_method'])
+        && $shipping['local_shipping_method'] == 1;
+
+    if (!$local_shipping_on) {
+        return false;
+    }
+
+    return (int) $t->db
+        ->from('users_groups ug')
+        ->join('groups g', 'g.id = ug.group_id')
+        ->where('g.name', 'delivery_boy')
+        ->count_all_results() > 0;
+}
+
+/**
+ * Works out which pickup address a product actually ships from.
+ *
+ * Shiprocket cannot quote, book or collect anything without a pickup address, and the platform
+ * only ever looked at `products.pickup_location` - a free-text nickname typed per product. On this
+ * store 278 of 290 live products have that column empty, so every Shiprocket path skipped them:
+ *
+ *   - check_cart_products_delivarable() gated the whole serviceability check on
+ *     `trim($cart[$i]['pickup_location']) != ""`, so those products fell through with
+ *     is_deliverable = false and NO message at all. The customer saw "Some of the item(s) are not
+ *     delivarable on selected address" for an address that was perfectly serviceable, with nothing
+ *     naming the real reason.
+ *   - make_shipping_parcels() dropped them from the parcel set, so their weight never entered the
+ *     rate request and the quoted delivery charge was wrong whenever a cart mixed them in.
+ *
+ * The nickname is a per-seller label, not a product-level fact: every seller registers their pickup
+ * addresses once with Shiprocket, and in practice a seller ships everything from the same one. So
+ * an empty column means "this seller's usual pickup address", not "this product cannot ship". This
+ * resolves it that way - the product's own value wins when it is set and valid, otherwise the
+ * seller's registered pickup address is used.
+ *
+ * Verified against this database: seller 7 has exactly one registered pickup location
+ * ("Developer's Den", 201301) and 276 live products, only 12 of which named it. With this
+ * fallback all 276 resolve.
+ *
+ * @param  string $product_pickup_location value of products.pickup_location (may be blank)
+ * @param  int    $seller_id
+ * @return array  ['pickup_location' => string, 'pin_code' => string] or [] when the seller has
+ *                registered no usable pickup address at all
+ */
+function resolve_seller_pickup_location($product_pickup_location, $seller_id)
+{
+    static $cache = [];
+
+    $seller_id = (int) $seller_id;
+    $named = trim((string) $product_pickup_location);
+    $key = $seller_id . '|' . $named;
+
+    if (isset($cache[$key])) {
+        return $cache[$key];
+    }
+
+    $t = &get_instance();
+    $resolved = [];
+
+    // 1. The product names one. Scope the lookup to the seller: `pickup_location` is a nickname,
+    //    not a unique key, and two sellers can both call one "Warehouse" - an unscoped lookup
+    //    returns whichever row comes first and can quote from a different seller's pincode.
+    if ($named !== '' && $seller_id > 0) {
+        $row = $t->db->select('pickup_location, pin_code')
+            ->where('seller_id', $seller_id)
+            ->where('pickup_location', $named)
+            ->where('pin_code !=', '')
+            ->get('pickup_locations')->row_array();
+        if (!empty($row)) {
+            $resolved = ['pickup_location' => $row['pickup_location'], 'pin_code' => $row['pin_code']];
+        }
+    }
+
+    // 2. Otherwise (blank, or naming a location that no longer exists) use the seller's own
+    //    registered pickup address.
+    //
+    //    Ordering matters more than it looks. Shiprocket books a pickup by nickname and rejects
+    //    any it does not hold on the account - "Wrong Pickup location entered" - and it will not
+    //    schedule a pickup from an address whose phone is unverified. This store had one stale
+    //    hand-entered row that Shiprocket has never heard of, and because the order was simply
+    //    oldest-first that row won and every booking failed. It failed late, too: serviceability
+    //    only needs a pincode, so the shop quoted a charge and took the order, and the rejection
+    //    surfaced only when someone tried to ship it.
+    //
+    //    So: addresses Shiprocket has confirmed first, then phone-verified ones, then active,
+    //    then oldest for a stable choice. Rows that have never been confirmed are still usable as
+    //    a last resort - a store on local shipping has no Shiprocket to confirm anything.
+    if (empty($resolved) && $seller_id > 0) {
+        $has_verification = $t->db->field_exists('shiprocket_verified_at', 'pickup_locations');
+
+        $t->db->select('pickup_location, pin_code')
+            ->where('seller_id', $seller_id)
+            ->where('pin_code !=', '');
+        if ($has_verification) {
+            $t->db->order_by('shiprocket_verified_at IS NULL', 'ASC', false)
+                ->order_by('phone_verified', 'DESC');
+        }
+        $row = $t->db->order_by('status', 'DESC')
+            ->order_by('id', 'ASC')
+            ->limit(1)
+            ->get('pickup_locations')->row_array();
+
+        if (!empty($row)) {
+            $resolved = ['pickup_location' => $row['pickup_location'], 'pin_code' => $row['pin_code']];
+        }
+    }
+
+    $cache[$key] = $resolved;
+    return $resolved;
+}
+
+/**
+ * Generates a manifest for a shipment and stores its PDF URL (Shiprocket flow steps 7 and 8).
+ *
+ * Mirrors generate_label() / generate_invoice() above. Those two were wired up; the manifest was
+ * not, so `order_tracking.manifest_url` stayed at the '' written when the shipment was created,
+ * even though the seller app reads and offers that column next to the label and invoice.
+ *
+ * Two calls, because Shiprocket splits them: `manifests/generate` builds it, `manifests/print`
+ * returns the URL. Generate is idempotent enough to re-run - an already-manifested shipment simply
+ * reports so - and print is what actually yields something to store.
+ */
+function generate_manifest($shipment_id)
+{
+    $t = &get_instance();
+    $t->load->library(['Shiprocket']);
+
+    $generated = $t->shiprocket->generate_manifests($shipment_id);
+    $res = $t->shiprocket->print_manifest($shipment_id);
+
+    if (shiprocket_result_ok('manifest', $res)) {
+        $t->db->set(['manifest_url' => $res['manifest_url']])->where('shipment_id', $shipment_id)->update('order_tracking');
+    } else {
+        log_message('error', 'Shiprocket manifest not generated for shipment ' . $shipment_id . ': '
+            . shiprocket_result_message($res, 'manifest could not be generated')
+            . ' (generate step: ' . shiprocket_result_message($generated, 'no detail') . ')');
+    }
+
+    return $res;
+}
+
+/**
+ * A parcel weight Shiprocket will accept, in kilograms.
+ *
+ * Shiprocket rejects a serviceability or rate request whose weight is empty or zero - it answers
+ * "Weight Required" and no courier is returned, which the storefront then shows the customer as
+ * "not deliverable on selected address". 266 of the 299 product variants on this store carry
+ * weight 0 (the shipping fields were added to the product form after most of the catalogue was
+ * entered), so that rejection applied to almost everything in the shop.
+ *
+ * build_shiprocket_return_payload() already had exactly this fallback - a nominal 0.5 kg - because
+ * the return path hit the same wall first. The forward paths never got it, so the two disagreed:
+ * a return could be booked for an item whose delivery could not even be quoted. Same constant,
+ * defined once, used by both.
+ *
+ * A nominal weight is the right default rather than refusing to quote: it is what the seller would
+ * be charged for anyway at the courier's minimum slab, and an under-declared weight is reconciled
+ * by the courier at pickup. Setting real weights on the products is still the correct fix, and the
+ * dashboard reports how many are missing.
+ */
+function shiprocket_parcel_weight($weight)
+{
+    $weight = (float) $weight;
+    return ($weight > 0) ? $weight : SHIPROCKET_NOMINAL_WEIGHT_KG;
 }

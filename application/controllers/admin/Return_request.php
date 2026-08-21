@@ -51,7 +51,21 @@ class Return_request extends CI_Controller {
 			// boy accounts exist.
 			$shipping_settings = get_settings('shipping_method', true);
 			$shiprocket_enabled = isset($shipping_settings['shiprocket_shipping_method']) && $shipping_settings['shiprocket_shipping_method'] == 1;
-			if(isset($_POST['status']) && $_POST['status'] == 1 && !$shiprocket_enabled){
+
+			// ...and the same dead end existed on the OTHER side of that branch. With local
+			// shipping selected the rule demanded a delivery boy, but this marketplace runs no
+			// delivery boys at all - delivery is handled by Shiprocket, there is not one account
+			// in the `delivery_boy` group, and the Delivery Boys menu is deliberately switched
+			// off in the sidebar. So approving a return under local shipping was impossible: the
+			// form answered "The Delivery Boy field is required." and no value could satisfy it.
+			// Reproduced end to end - a customer's return could be raised but never actioned.
+			//
+			// Ask for one only when one can actually be picked (see store_uses_delivery_boys()).
+			// Return_request_model already treats deliver_by as optional - it assigns
+			// delivery_boy_id only when non-empty - and an approval with no collector behaves
+			// exactly like the Shiprocket path when the courier pickup cannot be booked:
+			// approved, with the admin told to arrange collection.
+			if(isset($_POST['status']) && $_POST['status'] == 1 && !$shiprocket_enabled && store_uses_delivery_boys()){
 				$this->form_validation->set_rules('deliver_by', 'Delivery Boy ', 'trim|required|numeric|xss_clean');
 			} else {
 				$this->form_validation->set_rules('deliver_by', 'Delivery Boy ', 'trim|numeric|xss_clean');

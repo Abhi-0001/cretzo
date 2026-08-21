@@ -29,25 +29,25 @@
                         <form class="form-horizontal" action="<?= base_url('admin/product/add_product'); ?>" method="POST" enctype="multipart/form-data" id="save-product">
                             <?php if (isset($product_details[0]['id'])) {
                             ?>
-                                <input type="hidden" name="edit_product_id" value="<?= (isset($product_details[0]['id'])) ? $product_details[0]['id'] : "" ?>">
+                                <input type="hidden" name="edit_product_id" value="<?= html_escape((isset($product_details[0]['id'])) ? $product_details[0]['id'] : "") ?>">
                                 <?php // The seller_id was also emitted here as a hidden input while the Seller
                                       // dropdown below carries the same name, so the form submitted the field
                                       // twice and relied on document order to decide which value won. ?>
-                                <input type="hidden" id="subcategory_id_js" value="<?= (isset($product_details[0]['subcategory_id'])) ? $product_details[0]['subcategory_id'] : "" ?>">
+                                <input type="hidden" id="subcategory_id_js" value="<?= html_escape((isset($product_details[0]['subcategory_id'])) ? $product_details[0]['subcategory_id'] : "") ?>">
                             <?php } ?>
                             <?php
                             // Single source of truth for the chosen category, in both create and edit mode.
                             // Previously this input existed only when editing, so on the create screen the
                             // category lived solely inside the tree widget.
                             ?>
-                            <input type="hidden" name="category_id" id="product_category_id" value="<?= isset($product_details[0]['category_id']) ? (int) $product_details[0]['category_id'] : '' ?>">
+                            <input type="hidden" name="category_id" id="product_category_id" value="<?= html_escape(isset($product_details[0]['category_id']) ? (int) $product_details[0]['category_id'] : '') ?>">
                             <div class="card-body">
 
                                 <div class="section-header"><i class="fas fa-info-circle"></i> Basic Details</div>
 
                                 <div class="form-group col-md-12">
                                     <label for="pro_input_text" class="col-form-label">Name <span class='text-danger text-sm'>*</span> </label>
-                                    <input type="text" class="form-control" id="pro_input_text" placeholder="Product Name" name="pro_input_name" value="<?= (isset($product_details[0]['name'])) ? output_escaping(str_replace('\r\n', '&#13;&#10;', $product_details[0]['name'])) : "" ?>">
+                                    <input type="text" class="form-control" id="pro_input_text" placeholder="Product Name" name="pro_input_name" value="<?= html_escape((isset($product_details[0]['name'])) ? output_escaping(str_replace('\r\n', '&#13;&#10;', $product_details[0]['name'])) : "") ?>">
                                 </div>
                                 <div class="row col-md-12">
                                     <div class="form-group col-md-6">
@@ -77,7 +77,7 @@
                                 <div class="form-group">
                                     <div class="col-md-12">
                                         <label for="tags">Tags <small>( These tags help you in search result )</small></label>
-                                        <input name='tags' class='' id='tags' placeholder="AC, Cooler,Smartphones,etc" value="<?= (isset($product_details[0]['tags']) && !empty($product_details[0]['tags'])) ? $product_details[0]['tags'] : "" ?>" />
+                                        <input name='tags' class='' id='tags' placeholder="AC, Cooler,Smartphones,etc" value="<?= html_escape((isset($product_details[0]['tags']) && !empty($product_details[0]['tags'])) ? $product_details[0]['tags'] : "") ?>" />
                                     </div>
                                 </div>
                                 <div class="form-group row">
@@ -139,23 +139,23 @@
                                             </div>
                                             <div class="col-md-4 total_allowed_quantity <?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
                                                 <label for="total_allowed_quantity" class="col-form-label">Total Allowed Quantity</label>
-                                                <input type="number" class="col-md-12 form-control" name="total_allowed_quantity" value="<?= (isset($product_details[0]['total_allowed_quantity'])) ? $product_details[0]['total_allowed_quantity'] : ''; ?>" placeholder='Total Allowed Quantity'>
+                                                <input type="number" class="col-md-12 form-control" name="total_allowed_quantity" value="<?= html_escape((isset($product_details[0]['total_allowed_quantity'])) ? $product_details[0]['total_allowed_quantity'] : '') ?>" placeholder='Total Allowed Quantity'>
                                             </div>
                                             <div class="col-md-4 minimum_order_quantity <?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
                                                 <label for="minimum_order_quantity" class="col-form-label">Minimum Order Quantity</label>
-                                                <input type="number" class="col-md-12 form-control" name="minimum_order_quantity" min="1" value="<?= (isset($product_details[0]['minimum_order_quantity'])) ? $product_details[0]['minimum_order_quantity'] : 1; ?>" placeholder='Minimum Order Quantity'>
+                                                <input type="number" class="col-md-12 form-control" name="minimum_order_quantity" min="1" value="<?= html_escape((isset($product_details[0]['minimum_order_quantity'])) ? $product_details[0]['minimum_order_quantity'] : 1) ?>" placeholder='Minimum Order Quantity'>
                                             </div>
                                             <div class="col-md-4 quantity_step_size <?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
                                                 <label for="quantity_step_size" class="col-form-label">Quantity Step Size</label>
-                                                <input type="number" class="col-md-12 form-control" name="quantity_step_size" min="1" value="<?= (isset($product_details[0]['quantity_step_size'])) ? $product_details[0]['quantity_step_size'] : 1; ?>" placeholder='Quantity Step Size'>
+                                                <input type="number" class="col-md-12 form-control" name="quantity_step_size" min="1" value="<?= html_escape((isset($product_details[0]['quantity_step_size'])) ? $product_details[0]['quantity_step_size'] : 1) ?>" placeholder='Quantity Step Size'>
                                             </div>
                                             <div class="col-md-4 warranty_period <?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
                                                 <label for="warranty_period" class="col-form-label">Warranty Period</label>
-                                                <input type="text" class="col-md-12 form-control" name="warranty_period" value="<?= (isset($product_details[0]['warranty_period'])) ? $product_details[0]['warranty_period'] : "" ?>" placeholder='Warranty Period if any'>
+                                                <input type="text" class="col-md-12 form-control" name="warranty_period" value="<?= html_escape((isset($product_details[0]['warranty_period'])) ? $product_details[0]['warranty_period'] : "") ?>" placeholder='Warranty Period if any'>
                                             </div>
                                             <div class="col-md-4 guarantee_period <?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
                                                 <label for="guarantee_period" class="col-form-label">Guarantee Period</label>
-                                                <input type="text" class="col-md-12 form-control" name="guarantee_period" value="<?= (isset($product_details[0]['guarantee_period'])) ? $product_details[0]['guarantee_period'] : "" ?>" placeholder='Guarantee Period if any'>
+                                                <input type="text" class="col-md-12 form-control" name="guarantee_period" value="<?= html_escape((isset($product_details[0]['guarantee_period'])) ? $product_details[0]['guarantee_period'] : "") ?>" placeholder='Guarantee Period if any'>
                                             </div>
                                             <div class="row col mt-3 deliverable_type <?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
                                                 <div class="col-md-6">
@@ -192,7 +192,7 @@
                                             <!-- HSN Code -->
                                             <div class="col-md-4 col-sm-12 mt-3 hsn_code <?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
                                                 <label for="zipcodes" class="col-form-label">HSN Code</label>
-                                                <input type="text" class="col-md-12 form-control" name="hsn_code" value="<?= (isset($product_details[0]['hsn_code'])) ? $product_details[0]['hsn_code'] : "" ?>" placeholder='HSN Code'>
+                                                <input type="text" class="col-md-12 form-control" name="hsn_code" value="<?= html_escape((isset($product_details[0]['hsn_code'])) ? $product_details[0]['hsn_code'] : "") ?>" placeholder='HSN Code'>
                                             </div>
                                         </div>
                                         <div class="row col mt-3 pickup_locations <?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
@@ -318,7 +318,7 @@
                                                     </div>
                                                     <div class="col-md-6 <?= (isset($product_details[0]['video_type']) && ($product_details[0]['video_type'] == 'youtube' ||  $product_details[0]['video_type'] == 'vimeo')) ? '' : 'd-none'; ?>" id="video_link_container">
                                                         <label for="video" class="col-form-label">Video Link <span class='text-danger text-sm'>*</span></label>
-                                                        <input type="text" class='form-control' name='video' id='video' value="<?= (isset($product_details[0]['video_type']) && ($product_details[0]['video_type'] == 'youtube' || $product_details[0]['video_type'] == 'vimeo')) ? $product_details[0]['video'] : ''; ?>" placeholder="Paste Youtube / Vimeo Video link or URL here">
+                                                        <input type="text" class='form-control' name='video' id='video' value="<?= html_escape((isset($product_details[0]['video_type']) && ($product_details[0]['video_type'] == 'youtube' || $product_details[0]['video_type'] == 'vimeo')) ? $product_details[0]['video'] : '') ?>" placeholder="Paste Youtube / Vimeo Video link or URL here">
                                                     </div>
                                                     <div class="col-md-6 mt-2 <?= (isset($product_details[0]['video_type']) && ($product_details[0]['video_type'] == 'self_hosted')) ? '' : 'd-none'; ?>" id="video_media_container">
                                                         <label for="image" class="ml-2">Video <span class='text-danger text-sm'>*</span></label>
@@ -405,7 +405,7 @@
                                                             <label for="type" class="col-md-12">Type Of Product :</label>
                                                             <div class="col-md-12">
                                                                 <?php @$variant_stock_level = !empty($product_details[0]['stock_type']) && $product_details[0]['stock_type'] == '1' ? 'product_level' : 'variant_level' ?>
-                                                                <input type="hidden" name="product_type" value="<?= isset($product_details[0]['type']) ? $product_details[0]['type'] : '' ?>">
+                                                                <input type="hidden" name="product_type" value="<?= html_escape(isset($product_details[0]['type']) ? $product_details[0]['type'] : '') ?>">
                                                                 <input type="hidden" name="simple_product_stock_status" <?= isset($product_details[0]['stock_type']) && !empty($product_details[0]['stock_type']) && $product_details[0]['type'] == 'simple_product' ? 'value="' . $product_details[0]['stock_type'] . '"'  : '' ?>>
                                                                 <input type="hidden" name="variant_stock_level_type" <?= isset($product_details[0]['stock_type']) && !empty($product_details[0]['stock_type']) && $product_details[0]['type'] == 'variable_product' ? 'value="' . $variant_stock_level . '"'  : '' ?>>
                                                                 <input type="hidden" name="variant_stock_status" <?= isset($product_details[0]['stock_type']) && !empty($product_details[0]['stock_type']) && $product_details[0]['type'] == 'variable_product' ? 'value="0"'  : '' ?>>
@@ -430,13 +430,13 @@
                                                                     <div class="form-group">
                                                                         <label for="type" class="col-md-2">Price:</label>
                                                                         <div class="col-md-12">
-                                                                            <input type="number" name="simple_price" class="form-control stock-simple-mustfill-field price" value="<?= $simple_variant['price'] ?? '' ?>" min='0' step="0.01">
+                                                                            <input type="number" name="simple_price" class="form-control stock-simple-mustfill-field price" value="<?= html_escape($simple_variant['price'] ?? '') ?>" min='0' step="0.01">
                                                                         </div>
                                                                     </div>
                                                                     <div class="form-group">
                                                                         <label for="type" class="col-md-2">Special Price:</label>
                                                                         <div class="col-md-12">
-                                                                            <input type="number" name="simple_special_price" class="form-control  discounted_price" value="<?= !empty($simple_variant['special_price']) ? $simple_variant['special_price'] : '' ?>" min='0' step="0.01">
+                                                                            <input type="number" name="simple_special_price" class="form-control  discounted_price" value="<?= html_escape(!empty($simple_variant['special_price']) ? $simple_variant['special_price'] : '') ?>" min='0' step="0.01">
                                                                         </div>
                                                                     </div>
                                                                     <div class="form-group row mt-3 <?= $product_details[0]['type'] == "digital_product" ? 'd-none' : '' ?>" id="product-dimensions">
@@ -447,19 +447,19 @@
                                                                     <div class="form-group row  dimensions  <?= $product_details[0]['type'] == "digital_product" ? 'd-none' : '' ?>">
                                                                         <div class="col-3">
                                                                             <label for="weight" class="control-label col-md-12">Weight <small>(kg)</small> <span class='text-danger text-xs'>*</span></label>
-                                                                            <input type="number" class="form-control" name="weight" placeholder="Weight" id="weight" value="<?= $simple_variant['weight'] ?? '' ?>" step="0.01">
+                                                                            <input type="number" class="form-control" name="weight" placeholder="Weight" id="weight" value="<?= html_escape($simple_variant['weight'] ?? '') ?>" step="0.01">
                                                                         </div>
                                                                         <div class="col-3">
                                                                             <label for="height" class="control-label col-md-12">Height <small>(cms)</small></label>
-                                                                            <input type="number" class="form-control" name="height" placeholder="Height" id="height" value="<?= $simple_variant['height'] ?? '' ?>" step="0.01">
+                                                                            <input type="number" class="form-control" name="height" placeholder="Height" id="height" value="<?= html_escape($simple_variant['height'] ?? '') ?>" step="0.01">
                                                                         </div>
                                                                         <div class="col-3">
                                                                             <label for="breadth" class="control-label col-md-12">Breadth <small>(cms)</small> </label>
-                                                                            <input type="number" class="form-control" name="breadth" placeholder="Breadth" id="breadth" value="<?= $simple_variant['breadth'] ?? '' ?>" step="0.01">
+                                                                            <input type="number" class="form-control" name="breadth" placeholder="Breadth" id="breadth" value="<?= html_escape($simple_variant['breadth'] ?? '') ?>" step="0.01">
                                                                         </div>
                                                                         <div class="col-3">
                                                                             <label for="length" class="control-label col-md-12">Length <small>(cms)</small> </label>
-                                                                            <input type="number" class="form-control" name="length" placeholder="Length" id="length" value="<?= $simple_variant['length'] ?? '' ?>" step="0.01">
+                                                                            <input type="number" class="form-control" name="length" placeholder="Length" id="length" value="<?= html_escape($simple_variant['length'] ?? '') ?>" step="0.01">
                                                                         </div>
                                                                     </div>
 
@@ -472,7 +472,7 @@
                                                                 <div class="form-group simple-product-level-stock-management <?= $HideStatus ?>">
                                                                     <div class="col col-xs-12">
                                                                         <label class="control-label">SKU :</label>
-                                                                        <input type="text" name="product_sku" class="col form-control simple-pro-sku" value="<?= (isset($product_details[0]['id']) && $product_details[0]['stock_type'] != NULL) ? $product_details[0]['sku'] : '' ?>">
+                                                                        <input type="text" name="product_sku" class="col form-control simple-pro-sku" value="<?= html_escape((isset($product_details[0]['id']) && $product_details[0]['stock_type'] != NULL) ? $product_details[0]['sku'] : '') ?>">
                                                                     </div>
                                                                     <div class="col col-xs-12">
                                                                         <label class="control-label">Total Stock :</label>
@@ -505,7 +505,7 @@
                                                                             </div>
                                                                             <div class="col-md-6 <?= (isset($product_details[0]['download_type']) && ($product_details[0]['download_type'] == 'add_link')) ? '' : 'd-none'; ?>" id="digital_link_container">
                                                                                 <label for="video" class="col-form-label ml-1">Digital Product Link <span class='text-danger text-sm'>*</span></label>
-                                                                                <input type="url" class='form-control' name='download_link' id='download_link' value="<?= (isset($product_details[0]['download_type']) && ($product_details[0]['download_type'] == 'add_link')) ? $product_details[0]['download_link'] : ''; ?>" placeholder="Paste digital product link or URL here">
+                                                                                <input type="url" class='form-control' name='download_link' id='download_link' value="<?= html_escape((isset($product_details[0]['download_type']) && ($product_details[0]['download_type'] == 'add_link')) ? $product_details[0]['download_link'] : '') ?>" placeholder="Paste digital product link or URL here">
                                                                             </div>
                                                                             <div class="col-md-6 mt-2 <?= (isset($product_details[0]['download_type']) && ($product_details[0]['download_type'] == 'self_hosted')) ? '' : 'd-none'; ?>" id="digital_media_container">
                                                                                 <label for="image" class="ml-2">File <span class='text-danger text-sm'>*</span></label>
@@ -554,11 +554,11 @@
                                                                             <div class="form-group variant-product-level-stock-management <?= (intval($product_details[0]['stock_type']) == 1) ? '' : 'collapse' ?>">
                                                                                 <div class="col col-xs-12">
                                                                                     <label class="control-label">SKU :</label>
-                                                                                    <input type="text" name="sku_variant_type" class="col form-control" value="<?= (intval($product_details[0]['stock_type']) == 1 && isset($product_variants[0]['id']) && !empty($product_variants[0]['sku'])) ? $product_variants[0]['sku'] : '' ?>">
+                                                                                    <input type="text" name="sku_variant_type" class="col form-control" value="<?= html_escape((intval($product_details[0]['stock_type']) == 1 && isset($product_variants[0]['id']) && !empty($product_variants[0]['sku'])) ? $product_variants[0]['sku'] : '') ?>">
                                                                                 </div>
                                                                                 <div class="col col-xs-12">
                                                                                     <label class="control-label">Total Stock :</label>
-                                                                                    <input type="number" min="1" name="total_stock_variant_type" class="col form-control variant-stock-mustfill-field" value="<?= (intval($product_details[0]['stock_type']) == 1 && isset($product_variants[0]['id']) && !empty($product_variants[0]['stock'])) ? $product_variants[0]['stock'] : '' ?>">
+                                                                                    <input type="number" min="1" name="total_stock_variant_type" class="col form-control variant-stock-mustfill-field" value="<?= html_escape((intval($product_details[0]['stock_type']) == 1 && isset($product_variants[0]['id']) && !empty($product_variants[0]['stock'])) ? $product_variants[0]['stock'] : '') ?>">
                                                                                 </div>
                                                                                 <div class="col col-xs-12">
                                                                                     <label class="control-label">Stock Status :</label>

@@ -510,9 +510,16 @@ class Cart extends CI_Controller
             address_id:17
             delivery_date:10/12/2012
             delivery_time:Today - Evening (4:00pm to 7:00pm)
-            is_wallet_used:1 {By default 0}
-            wallet_balance_used:1
+            wallet_used:1 {By default 0}
             active_status:awaiting {optional}
+
+            NOTE: this list was copied from the mobile API's place_order (app/v1/Api.php), which
+            really does take `is_wallet_used` and `wallet_balance_used` from the caller. THIS
+            endpoint does not. It reads `wallet_used`, and derives both `is_wallet_used` and
+            `wallet_balance_used` itself further down - sizing the deduction against the wallet
+            balance and the post-promo total rather than trusting the request. Posting
+            `is_wallet_used` here does nothing at all, which is a quiet way to lose a wallet
+            payment, so the two are spelled out separately rather than left to look identical.
       
         */
             // total:60.0
@@ -524,7 +531,11 @@ class Cart extends CI_Controller
 
 
             $limit = (isset($_FILES['documents']['name'])) ? count($_FILES['documents']['name']) : 0;
-            if ((!isset($_POST['address_id']) || empty($_POST['address_id'])) && $_POST['product_type'] != 'digital_product') {
+            // product_type was read unguarded on the very first line of the method, so a request
+            // that omitted it warned before any validation ran - and the warning prints ahead of
+            // the JSON that checkout.js parses, which is what leaves the Place Order button stuck.
+            $product_type = isset($_POST['product_type']) ? $_POST['product_type'] : '';
+            if ((!isset($_POST['address_id']) || empty($_POST['address_id'])) && $product_type != 'digital_product') {
                 $this->response['error'] = true;
                 $this->response['message'] = "Please choose address.";
                 $this->response['data'] = array();
@@ -762,7 +773,13 @@ class Cart extends CI_Controller
                     }
                 }
 
-                $cart = get_cart_total($_POST['user_id'], false, '0', $_POST['address_id']);
+                $is_cod_payment = isset($_POST['payment_method'])
+                    && strtolower((string) $_POST['payment_method']) === 'cod';
+
+                // $is_cod is passed through so get_cart_total() picks the with-COD or the
+                // without-COD courier rate, exactly as cart/get_delivery_charge does when the
+                // checkout page quotes the charge to the customer.
+                $cart = get_cart_total($_POST['user_id'], false, '0', $_POST['address_id'], $is_cod_payment);
                 if (empty($cart)) {
 
                     $this->response['error'] = true;
@@ -773,13 +790,25 @@ class Cart extends CI_Controller
                 }
 
                 if (isset($_POST['product_type']) && $_POST['product_type'] != 'digital_product') {
-                    if ($_POST['payment_method'] == 'COD' || $_POST['payment_method'] == 'cod') {
-                        $_POST['delivery_charge'] = $_POST['delivery_charge_with_cod'];
-                    } else {
-                        $_POST['delivery_charge'] = $_POST['delivery_charge_without_cod'];
-                    }
-                    // $_POST['delivery_charge'] = get_delivery_charge($_POST['address_id'], $cart['total_arr']);
-                    $_POST['delivery_charge'] = str_replace(',', '', $_POST['delivery_charge']);
+                    // The delivery charge is now taken from the server's own calculation
+                    // (get_cart_total() above, the same code path cart/get_delivery_charge uses
+                    // to quote it) instead of from the request body.
+                    //
+                    // It used to be read straight out of $_POST['delivery_charge_with_cod'] /
+                    // ['delivery_charge_without_cod'] - values the browser sends back after the
+                    // quote - with no isset() guard and no re-check. Two things went wrong:
+                    //
+                    //   * a request that simply did not carry the key raised "Undefined array
+                    //     key" and left the charge NULL, which is stored as 0. Reproduced live
+                    //     placing a real COD order: the order recorded delivery_charge 0 and a
+                    //     final_total of 849 instead of 859, so the store absorbed the courier
+                    //     fee and the warning text was printed into the JSON response as well.
+                    //   * because the figure was whatever the client sent, a customer could post
+                    //     delivery_charge_with_cod=0 and be charged nothing for shipping. The
+                    //     line below this one was already commented out with a server-side
+                    //     recalculation, which is what this restores.
+                    $_POST['delivery_charge'] = isset($cart['delivery_charge']) ? $cart['delivery_charge'] : 0;
+                    $_POST['delivery_charge'] = str_replace(',', '', (string) $_POST['delivery_charge']);
                     $_POST['is_delivery_charge_returnable'] = intval($_POST['delivery_charge']) != 0 ? 1 : 0;
                 }
                 $wallet_balance = fetch_details('users', 'id=' . $_POST['user_id'], 'balance');
@@ -1044,7 +1073,10 @@ class Cart extends CI_Controller
             //     return false;
             // } else {
             $_POST['user_id'] = $this->data['user']->id;
-            $cart = get_cart_total($this->data['user']->id, false, '0', $_POST['address_id'], false);
+            // address_id was read unguarded here too; a payment setup call without one warned
+            // ahead of the JSON. get_cart_total() treats an empty address as "no address yet".
+            $payment_address_id = isset($_POST['address_id']) ? $_POST['address_id'] : '';
+            $cart = get_cart_total($this->data['user']->id, false, '0', $payment_address_id, false);
 
             /* If both shipping methods are disabled, throw error */
             if(isset($cart['delivery_error']) && $cart['delivery_error']){
@@ -1059,20 +1091,45 @@ class Cart extends CI_Controller
             print_r(json_encode($this->response));
             return false; */
 
+            // Everything below reads $cart[0] and treats the cart as non-empty. get_cart_total()
+            // always returns its summary keys, so an empty cart still looks like a populated
+            // array to the checks above. Starting a payment for an empty cart is meaningless,
+            // and the unguarded reads raised PHP warnings that were printed BEFORE the JSON -
+            // which is fatal here rather than cosmetic: checkout.js parses this response as
+            // JSON, so the parse fails, the success callback never runs, and the "Place Order"
+            // button stays stuck on "Please Wait" (the same failure mode already seen on this
+            // page). Reproduced by calling this endpoint straight after an order emptied the
+            // cart.
+            // Note $cart[0] itself is always present - get_cart_total() assigns
+            // $data[0]['is_cod_allowed'] on the way out even with nothing in the cart - so the
+            // emptiness test has to be a key that only a real cart line carries.
+            if (!isset($cart[0]) || !is_array($cart[0]) || !isset($cart[0]['user_id'])) {
+                $this->response['error'] = true;
+                $this->response['message'] = "Your Cart is empty.";
+                $this->response['data'] = array();
+                print_r(json_encode($this->response));
+                return false;
+            }
+
             $user = fetch_details('users', ['id' => $cart[0]['user_id']], 'username,email,mobile');
 
             $wallet_balance = fetch_details('users', 'id=' . $this->data['user']->id, 'balance');
             $wallet_balance = $wallet_balance[0]['balance'];
             $overall_amount = $cart['overall_amount'];
 
-            if ($_POST['wallet_used'] == 1 && $wallet_balance > 0) {
+            // Both were read unconditionally. wallet_used is absent whenever the customer did
+            // not tick "use wallet balance", and product_type is absent on any request that
+            // does not spell it out - each one printed a warning ahead of the JSON body.
+            $wallet_used = isset($_POST['wallet_used']) ? $_POST['wallet_used'] : 0;
+            $product_type = isset($_POST['product_type']) ? $_POST['product_type'] : '';
+            if ($wallet_used == 1 && $wallet_balance > 0) {
                 $overall_amount = $overall_amount - $wallet_balance;
             }
             $area_id = fetch_details('addresses', ['id' => $_POST['address_id']], ['area_id', 'area', 'pincode']);
             $zipcode = $area_id[0]['pincode'];
             $zipcode_id = fetch_details('zipcodes', ['zipcode' => $zipcode], 'id')[0];
             $product_delivarable = check_cart_products_delivarable($_POST['user_id'], $area_id[0]['area_id'], $zipcode, $zipcode_id['id']);
-            if ($_POST['product_type'] != 'digital_product') {
+            if ($product_type != 'digital_product') {
                 if (!empty($product_delivarable)) {
                     $product_not_delivarable = array_filter($product_delivarable, function ($var) {
                         return ($var['is_deliverable'] == false && $var['product_id'] != null);
@@ -1221,6 +1278,12 @@ class Cart extends CI_Controller
             $this->response['error'] = true;
             $this->response['message'] = strip_tags(validation_errors());
             $this->response['data'] = array();
+            // Never sent - every later branch prints and returns from inside the else, so a
+            // validation failure left the customer with an empty response. This is the bank
+            // transfer RECEIPT upload: the shopper has already paid out of band and is trying
+            // to prove it, and the page gave them no reason at all for the failure.
+            print_r(json_encode($this->response));
+            return false;
         } else {
             $order_id = $this->input->post('order_id', true);
 

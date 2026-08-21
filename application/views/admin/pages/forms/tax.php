@@ -24,18 +24,18 @@
                         <form class="form-horizontal form-submit-event" action="<?= base_url('admin/taxes/add_tax'); ?>" method="POST" enctype="multipart/form-data">
                             <div class="card-body">
                                 <?php if (isset($fetched_data[0]['id'])) { ?>
-                                    <input type="hidden" name="edit_tax_id" value="<?= @$fetched_data[0]['id'] ?>">
+                                    <input type="hidden" name="edit_tax_id" value="<?= html_escape(@$fetched_data[0]['id']) ?>">
                                 <?php } ?>
                                 <div class="form-group row">
                                     <label for="title" class="col-sm-2 col-form-label">Title <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="title" placeholder="Title" name="title" value="<?= @$fetched_data[0]['title'] ?>">
+                                        <input type="text" class="form-control" id="title" placeholder="Title" name="title" value="<?= html_escape(@$fetched_data[0]['title']) ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row">
                                     <label for="percentage" class="col-sm-2 col-form-label">Percentage <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="percentage" placeholder="Percentage" name="percentage" value="<?= @$fetched_data[0]['percentage'] ?>">
+                                        <input type="text" class="form-control" id="percentage" placeholder="Percentage" name="percentage" value="<?= html_escape(@$fetched_data[0]['percentage']) ?>">
                                     </div>
                                 </div>
                                 <div class="form-group">

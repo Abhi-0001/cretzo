@@ -188,3 +188,10 @@ define('EXCLUDED', '3');
 defined("WORD_LIMIT") || define("WORD_LIMIT", 12);
 defined("DESCRIPTION_WORD_LIMIT") || define("DESCRIPTION_WORD_LIMIT", 150);
 defined("SHORT_DESCRIPTION_WORD_LIMIT") || define("SHORT_DESCRIPTION_WORD_LIMIT", 22);
+
+/*
+| Fallback parcel weight (kg) for Shiprocket when a product carries none. Shiprocket rejects
+| a zero/empty weight outright with "Weight Required", and most of this catalogue predates
+| the product shipping fields. See shiprocket_parcel_weight() in function_helper.php.
+*/
+defined('SHIPROCKET_NOMINAL_WEIGHT_KG') or define('SHIPROCKET_NOMINAL_WEIGHT_KG', 0.5);

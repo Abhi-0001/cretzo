@@ -43,13 +43,13 @@
                                 <div class="form-group row">
                                     <label for="value" class="col-sm-2 col-form-label">Value <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="value" placeholder="value" name="value" value="<?= @$fetched_data[0]['value'] ?>">
+                                        <input type="text" class="form-control" id="value" placeholder="value" name="value" value="<?= html_escape(@$fetched_data[0]['value']) ?>">
                                     </div>
                                 </div>
                                 <?php
                                  $no_display_image =  $no_display_color = "";
                                 if (isset($fetched_data[0]['id'])) { ?>
-                                    <input type="hidden" name="edit_attribute_value" value="<?= @$fetched_data[0]['id'] ?>">
+                                    <input type="hidden" name="edit_attribute_value" value="<?= html_escape(@$fetched_data[0]['id']) ?>">
                                 <?php  } ?>
                                 <?php
                                 if (isset($fetched_data[0]['swatche_type']) && $fetched_data[0]['swatche_type'] == "1") {
@@ -73,7 +73,7 @@
                                 <div class="form-group row" id="swatche_color" <?=$no_display_color  ?>>
                                     <label for="value" class="col-sm-2 col-form-label">Select Color </label>
                                     <div class="col-sm-10">
-                                        <input type="color" class="form-control" id="swatche_value" placeholder="Color hex" name="swatche_value" value="<?=(isset($fetched_data[0]['swatche_type']) && !empty($fetched_data) && $fetched_data[0]['swatche_type'] == "1") ? $fetched_data[0]['swatche_value'] : "" ?>">
+                                        <input type="color" class="form-control" id="swatche_value" placeholder="Color hex" name="swatche_value" value="<?= html_escape((isset($fetched_data[0]['swatche_type']) && !empty($fetched_data) && $fetched_data[0]['swatche_type'] == "1") ? $fetched_data[0]['swatche_value'] : "") ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row" id="swatche_image" <?=$no_display_image  ?>>

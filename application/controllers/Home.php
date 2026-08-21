@@ -1,7 +1,10 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT);
+// NOTE: error reporting and display_errors are set per ENVIRONMENT in index.php -
+// production turns display_errors OFF. This file used to force it back ON at the top,
+// unconditionally, which meant any PHP notice or warning raised anywhere in this
+// controller was rendered INTO the live page or the JSON body on production: file paths
+// leaked to shoppers, and an AJAX response that picked up a warning stopped parsing.
+// Leave the environment to decide.
 defined('BASEPATH') or exit('No direct script access allowed');
 
 
@@ -280,12 +283,18 @@ if (!empty($sections)) {
             $user_id = (isset($_GET['user_id'])) ? $_GET['user_id'] : null;
 
             $products = fetch_product($user_id, (isset($filters)) ? $filters : null, $product_id, $category_id, $limit, $offset, $sort, $order);
+            // Read unguarded, so any call to this endpoint without a `search` parameter - the
+            // header's live-search box omits it until the shopper types - printed two
+            // "Undefined array key" warnings ahead of the JSON. That body is consumed with
+            // dataType:'json', so the warnings break the parse and the suggestions dropdown
+            // silently stops working rather than showing an error.
+            $search_term = isset($_GET['search']) ? (string) $_GET['search'] : '';
             $first_search_option[0] = array(
                 'id' => 0,
                 'image_sm' => base_url(get_settings('favicon')),
-                'name' => 'Search Result for ' . $_GET['search'],
+                'name' => 'Search Result for ' . $search_term,
                 'category_name' => 'all categories',
-                'link' => base_url('products/search?q=' . $_GET['search']),
+                'link' => base_url('products/search?q=' . urlencode($search_term)),
             );
             if (!empty($products['product'])) {
                 $products['product'] = array_map(function ($d) {
@@ -535,12 +544,18 @@ if (!empty($sections)) {
         $regex = '/^[_a-z0-9-]+(\.[_a-z0-9-]+)*@[a-z0-9-]+(\.[a-z0-9-]+)*(\.[a-z]{2,3})$/';
         $this->data['title'] = $this->lang->line('login_heading');
 
-        if (preg_match($regex, $_POST['identity'])) {
+        // The login endpoint read `identity` with no guard at all, so any POST without it - a
+        // probe, a half-submitted form, a client that names the field differently - emitted a
+        // warning from the authentication path before validation had a chance to reject it.
+        if (preg_match($regex, isset($_POST['identity']) ? (string) $_POST['identity'] : '')) {
             $identity_column = 'email';
         } else {
             $identity_column = $this->config->item('identity', 'ion_auth');
         }
-        if (preg_match($regex, $_POST['identity'])) {
+        // The login endpoint read `identity` with no guard at all, so any POST without it - a
+        // probe, a half-submitted form, a client that names the field differently - emitted a
+        // warning from the authentication path before validation had a chance to reject it.
+        if (preg_match($regex, isset($_POST['identity']) ? (string) $_POST['identity'] : '')) {
             $this->ion_auth_model->identity_column = 'email';
         } else {
             $this->ion_auth_model->identity_column = 'mobile';
@@ -548,7 +563,10 @@ if (!empty($sections)) {
 
         // validate form input
         if (isset($_POST['type']) && $_POST['type'] == 'phone') {
-            if (preg_match($regex, $_POST['identity'])) {
+            // The login endpoint read `identity` with no guard at all, so any POST without it - a
+        // probe, a half-submitted form, a client that names the field differently - emitted a
+        // warning from the authentication path before validation had a chance to reject it.
+        if (preg_match($regex, isset($_POST['identity']) ? (string) $_POST['identity'] : '')) {
                 $this->form_validation->set_rules('identity', ucfirst($identity_column), 'trim|required|valid_email');
             } else {
                 $this->form_validation->set_rules('identity', ucfirst($identity_column), 'required|numeric');
@@ -645,7 +663,10 @@ if (!empty($sections)) {
             if (isset($_POST['type']) && $_POST['type'] != 'phone') {
                 $user_data = fetch_details('users', ['email' => $identity]);
             } else {
-                if (preg_match($regex, $_POST['identity'])) {
+                // The login endpoint read `identity` with no guard at all, so any POST without it - a
+        // probe, a half-submitted form, a client that names the field differently - emitted a
+        // warning from the authentication path before validation had a chance to reject it.
+        if (preg_match($regex, isset($_POST['identity']) ? (string) $_POST['identity'] : '')) {
                     $user_data = fetch_details('users', ['email' => $identity]);
                 } else {
                     $user_data = fetch_details('users', ['mobile' => $identity]);

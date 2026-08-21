@@ -14,7 +14,7 @@ class Cron_job extends CI_Controller
         $this->load->model(['Seller_model', 'Promo_code_model']);
     }
 
-    public function settle_seller_commission()
+    public function settle_seller_commission($token = null)
     {
         // This controller had no authentication check on any method - confirmed live with no
         // session cookie at all: the request succeeded and returned a normal application
@@ -23,10 +23,14 @@ class Cron_job extends CI_Controller
         // authenticated admin button (the "Settle Promo Code Discount" button on the Orders
         // page), so - as with every other admin controller in this codebase - they should only
         // ever run for a logged-in administrator.
-        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {
-            $this->response['error'] = true;
-            $this->response['message'] = 'Unauthorized';
-            echo json_encode($this->response);
+        // Also accepts the shared cron token, not just an admin session. The Settings page
+        // prints this exact URL under "Set this URL at your server cron job list for once a
+        // day", but an OS-level scheduler cannot hold an admin session - so with a login-only
+        // gate the instruction printed on that page could never work: wired into a real cron
+        // the URL answered {"error":true,"message":"Unauthorized"} every night and the
+        // settlement simply never ran. cron_authorized() still lets a logged-in admin
+        // straight through, so the in-panel button behaves exactly as before.
+        if (!$this->cron_authorized($token)) {
             return false;
         }
 
@@ -407,7 +411,7 @@ class Cron_job extends CI_Controller
          * Oldest-checked first, so a backlog drains evenly rather than re-polling the same rows.
          */
         $candidates = $this->db
-            ->select('ot.id, ot.order_id, ot.order_item_id, ot.shipment_id, ot.is_return, ot.others')
+            ->select('ot.id, ot.order_id, ot.order_item_id, ot.shipment_id, ot.awb_code, ot.is_return, ot.others')
             ->from('order_tracking ot')
             ->where('ot.is_canceled', 0)
             ->where('ot.shipment_id >', 0)
@@ -428,7 +432,15 @@ class Cron_job extends CI_Controller
         foreach ($candidates as $tracking) {
             $checked++;
 
-            $res = $this->shiprocket->get_order($tracking['shipment_id']);
+            // Track by AWB when we have one - that is step 11 of Shiprocket's documented flow and
+            // the AWB is the courier's own consignment number, so it carries the real scan status.
+            // `shipments/{id}` (the previous call, and get_order()'s endpoint) returns the shipment
+            // RECORD, whose status can lag the courier and can describe a previous courier
+            // altogether after a re-assignment. Falls back to the record for shipments that have
+            // not been assigned an AWB yet.
+            $res = !empty($tracking['awb_code'])
+                ? $this->shiprocket->track_awb($tracking['awb_code'])
+                : $this->shiprocket->get_order($tracking['shipment_id']);
 
             if (!is_array($res)) {
                 // Transport failure or an unreadable response. The library has already logged
@@ -440,9 +452,26 @@ class Cron_job extends CI_Controller
 
             $status = $this->extract_shipment_status($res);
             if ($status === '') {
-                $failed++;
-                log_message('error', 'sync_shipment_statuses: no status field in Shiprocket response for shipment '
-                    . $tracking['shipment_id'] . ' -> ' . substr(json_encode($res), 0, 300));
+                /*
+                 * An empty status is not necessarily a fault. A shipment that has just been
+                 * created, or that has no AWB assigned yet, legitimately has nothing to report -
+                 * Shiprocket answers with a well-formed body whose status fields are simply empty
+                 * ("current_status": "", "shipment_status": 0). Counting that as a failure and
+                 * logging it meant every fresh shipment produced an ERROR line and inflated the
+                 * failed count on EVERY sweep until a courier finally scanned it. Observed on a
+                 * newly created shipment.
+                 *
+                 * So: a recognisable tracking body with no status yet is "nothing to do"; only a
+                 * body we cannot make sense of at all is a real failure worth logging.
+                 */
+                $recognisable = isset($res['tracking_data']) || isset($res['data']) || isset($res['status']);
+                if ($recognisable) {
+                    $unchanged++;
+                } else {
+                    $failed++;
+                    log_message('error', 'sync_shipment_statuses: unrecognised Shiprocket response for shipment '
+                        . $tracking['shipment_id'] . ' -> ' . substr(json_encode($res), 0, 300));
+                }
                 continue;
             }
 
@@ -506,6 +535,24 @@ class Cron_job extends CI_Controller
             }
         }
 
+        // courier/track/awb/{awb} - the tracking endpoint in Shiprocket's documented flow - nests
+        // the real courier status under tracking_data.shipment_track, which none of the shapes
+        // above reach. Without this the AWB response parses to '' and the sweep records a failure
+        // for a shipment it actually read successfully.
+        if (isset($res['tracking_data']) && is_array($res['tracking_data'])) {
+            $tracking_data = $res['tracking_data'];
+            if (isset($tracking_data['shipment_track']) && is_array($tracking_data['shipment_track'])) {
+                foreach ($tracking_data['shipment_track'] as $track) {
+                    if (is_array($track) && isset($track['current_status']) && is_string($track['current_status'])) {
+                        $candidates[] = $track['current_status'];
+                    }
+                }
+            }
+            if (isset($tracking_data['shipment_status']) && is_string($tracking_data['shipment_status'])) {
+                $candidates[] = $tracking_data['shipment_status'];
+            }
+        }
+
         foreach ($candidates as $candidate) {
             $candidate = trim($candidate);
             // Shiprocket sometimes returns the numeric status code in the same field; a code
@@ -518,12 +565,16 @@ class Cron_job extends CI_Controller
         return '';
     }
 
-    public function settle_cashback_discount()
+    public function settle_cashback_discount($token = null)
     {
-        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {
-            $this->response['error'] = true;
-            $this->response['message'] = 'Unauthorized';
-            echo json_encode($this->response);
+        // Also accepts the shared cron token, not just an admin session. The Settings page
+        // prints this exact URL under "Set this URL at your server cron job list for once a
+        // day", but an OS-level scheduler cannot hold an admin session - so with a login-only
+        // gate the instruction printed on that page could never work: wired into a real cron
+        // the URL answered {"error":true,"message":"Unauthorized"} every night and the
+        // settlement simply never ran. cron_authorized() still lets a logged-in admin
+        // straight through, so the in-panel button behaves exactly as before.
+        if (!$this->cron_authorized($token)) {
             return false;
         }
 

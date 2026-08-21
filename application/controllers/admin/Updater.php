@@ -12,6 +12,15 @@ class Updater extends CI_Controller
         $this->load->library(['ion_auth', 'form_validation', 'upload']);
         $this->load->helper(['url', 'language', 'file']);
         $this->load->model('Transaction_model');
+
+        // Only upload_update_file() was gated; the page itself had no check, so any restricted
+        // admin could open the System Updater and read the installed/available version info
+        // (verified live with an Editor account holding only faq:read and settings:read).
+        // 'read' has been added to the system_update module in config/eshop.php for this.
+        if (!has_permissions('read', 'system_update')) {
+            $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
+            redirect('admin/home', 'refresh');
+        }
     }
 
     public function index()

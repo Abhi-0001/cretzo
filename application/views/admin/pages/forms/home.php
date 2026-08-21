@@ -23,6 +23,34 @@ $low_stock_limit = isset($settings['low_stock_limit']) ? $settings['low_stock_li
     <section class="content">
         <div class="container-fluid">
 
+            <!-- ============ CONFIGURATION HEALTH ============ -->
+            <?php if (!empty($configuration_problems)) { ?>
+                <div class="row">
+                    <div class="col-12 mb-3">
+                        <div class="config-health-card">
+                            <div class="config-health-head">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <span>Store configuration needs attention</span>
+                            </div>
+                            <ul class="config-health-list">
+                                <?php foreach ($configuration_problems as $problem) { ?>
+                                    <li class="config-health-item config-health-<?= html_escape($problem['severity']) ?>">
+                                        <div class="config-health-title">
+                                            <span class="config-health-badge"><?= $problem['severity'] === 'critical' ? 'Blocks orders' : 'Check' ?></span>
+                                            <?= html_escape($problem['title']) ?>
+                                        </div>
+                                        <div class="config-health-text"><?= html_escape($problem['message']) ?></div>
+                                        <?php if (!empty($problem['url'])) { ?>
+                                            <a class="config-health-link" href="<?= $problem['url'] ?>"><?= html_escape($problem['link']) ?> &rarr;</a>
+                                        <?php } ?>
+                                    </li>
+                                <?php } ?>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            <?php } ?>
+
             <!-- ============ KEY COUNTS ============ -->
             <div class="row">
                 <div class="col-xl-3 col-lg-6 col-md-6 col-12 mb-3">
@@ -511,6 +539,44 @@ $low_stock_limit = isset($settings['low_stock_limit']) ? $settings['low_stock_li
 </div>
 
 <style>
+    .admin-dashboard-page .config-health-card {
+        background: #fff;
+        border: 1px solid rgba(0,0,0,0.06);
+        border-left: 4px solid #e8532e;
+        border-radius: 10px;
+        box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+        overflow: hidden;
+    }
+    .admin-dashboard-page .config-health-head {
+        display: flex; align-items: center; gap: 10px;
+        padding: 12px 16px;
+        font-weight: 600;
+        color: #b23c1d;
+        background: #fff6f3;
+        border-bottom: 1px solid rgba(0,0,0,0.05);
+    }
+    .admin-dashboard-page .config-health-list { list-style: none; margin: 0; padding: 0; }
+    .admin-dashboard-page .config-health-item {
+        padding: 12px 16px;
+        border-bottom: 1px solid rgba(0,0,0,0.05);
+    }
+    .admin-dashboard-page .config-health-item:last-child { border-bottom: none; }
+    .admin-dashboard-page .config-health-title {
+        font-weight: 600; color: #333; margin-bottom: 3px;
+        display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    }
+    .admin-dashboard-page .config-health-badge {
+        font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .3px;
+        padding: 2px 8px; border-radius: 20px; color: #fff; background: #6c757d;
+    }
+    .admin-dashboard-page .config-health-critical .config-health-badge { background: #dc3545; }
+    .admin-dashboard-page .config-health-warning .config-health-badge { background: #f0ad4e; }
+    .admin-dashboard-page .config-health-text { color: #666; font-size: 13px; line-height: 1.5; }
+    .admin-dashboard-page .config-health-link {
+        display: inline-block; margin-top: 6px; font-size: 13px; font-weight: 600;
+        color: #e8532e; text-decoration: none;
+    }
+    .admin-dashboard-page .config-health-link:hover { text-decoration: underline; }
     .admin-dashboard-page .text-primary-theme { color: var(--color-orange); }
     .admin-dashboard-page .section-title { margin: 6px 0 14px; font-weight: 600; }
 

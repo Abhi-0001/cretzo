@@ -62,7 +62,10 @@ $config['system_modules'] = [
     'zipcodes' => array('create', 'read', 'update', 'delete'),
     'support_tickets' => array('create', 'read', 'update', 'delete'),
     'settings' => array('read', 'update'),
-    'system_update' => array('update'),
+    // 'read' was missing, so the System Updater page itself could not be gated - only the
+    // upload endpoint was. admin/Updater::index() consequently had no check at all and
+    // rendered in full for any restricted admin (verified live with an Editor account).
+    'system_update' => array('read', 'update'),
     'seller' => array('create', 'read', 'update', 'delete'),
     'shipping_settings' => array('read', 'update'),
     'pickup_location' => array('create', 'read', 'update', 'delete'),
@@ -107,6 +110,13 @@ $config['system_modules'] = [
     // permission system used everywhere else in this panel.
     'sales_report' => array('read'),
     'sales_inventory' => array('read'),
+    // admin/Transaction.php had NO has_permissions() call of any kind. Verified live: an
+    // account created as an "Editor" holding only faq:read and settings:read could open
+    // every customer wallet, every seller wallet and the full payment-transaction ledger,
+    // and could POST to admin/transaction/edit_transactions to rewrite a transaction's
+    // status and gateway txn_id - it returned "Transaction Updated Successfuly." Registering
+    // its own module so viewing money and editing money can be granted separately.
+    'transactions' => array('read', 'update'),
 ];
 
 $config['notification_modules'] = [ 

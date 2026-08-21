@@ -37,14 +37,14 @@
                             <div class="modal-body ">
                                 <form class="form-horizontal form-submit-event" action="<?= base_url('admin/orders/send_digital_product'); ?>" method="POST" enctype="multipart/form-data">
                                     <div class="card-body">
-                                        <input type="hidden" name="order_id" value="<?= $order_detls[0]['order_id'] ?>">
-                                        <input type="hidden" name="order_item_id" value="<?= $this->input->get('edit_id') ?>">
-                                        <input type="hidden" name="username" value="<?= $order_detls[0]['uname']  ?>">
+                                        <input type="hidden" name="order_id" value="<?= html_escape($order_detls[0]['order_id']) ?>">
+                                        <input type="hidden" name="order_item_id" value="<?= html_escape($this->input->get('edit_id')) ?>">
+                                        <input type="hidden" name="username" value="<?= html_escape($order_detls[0]['uname']) ?>">
                                         <div class="row form-group">
                                             <div class="col-12">
                                                 <div class="form-group">
                                                     <label for="product_name">Customer Email-ID </label>
-                                                    <input type="text" class="form-control" id="email" name="email" value="<?= $order_detls[0]['user_email'] ?>" readonly>
+                                                    <input type="text" class="form-control" id="email" name="email" value="<?= html_escape($order_detls[0]['user_email']) ?>" readonly>
                                                 </div>
                                             </div>
                                             <div class="col-12">
@@ -523,8 +523,8 @@
                                                                     </div>
                                                                 <?php } ?>
 
-                                                                <input type="hidden" name="<?= $this->security->get_csrf_token_name(); ?>" value="<?= $this->security->get_csrf_hash(); ?>">
-                                                                <input type="hidden" name="order_id" value="<?= $order_detls[0]['order_id'] ?>">
+                                                                <input type="hidden" name="<?= $this->security->get_csrf_token_name(); ?>" value="<?= html_escape($this->security->get_csrf_hash()) ?>">
+                                                                <input type="hidden" name="order_id" value="<?= html_escape($order_detls[0]['order_id']) ?>">
 
                                                                 <?php $total = 0;
                                                                 $tax_amount = 0; ?>
@@ -710,7 +710,7 @@
                                 ?>
                                 <tr>
                                     <th class="w-10px">Payable Total(<?= $settings['currency'] ?>)</th>
-                                    <td><input type="text" class="form-control" id="final_total" name="final_total" value="<?= $total; ?>" disabled></td>
+                                    <td><input type="text" class="form-control" id="final_total" name="final_total" value="<?= html_escape($total) ?>" disabled></td>
                                 </tr>
                                 <tr>
                                     <th class="w-10px">Payment Method</th>

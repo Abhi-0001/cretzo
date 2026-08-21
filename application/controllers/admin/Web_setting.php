@@ -33,6 +33,16 @@ class Web_setting extends CI_Controller
     }
 
 
+    /**
+     * Superseded by Setting::update_system_settings(), which is what the Store Settings form
+     * actually posts to. This copy validates a smaller and partly stale field set (it still
+     * requires `minimum_version_required`, which no form has had for a long time, and knows
+     * nothing about the commission/TCS/TDS fields), so anything saved through it used to write
+     * NULL over every setting it does not know about. Setting_model::update_system_setting()
+     * now merges over the stored values instead of rebuilding the blob from the request, which
+     * removes that hazard; the method is kept only so that an existing bookmark or integration
+     * pointed at this URL does not start 404ing.
+     */
     public function update_system_settings()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
@@ -74,7 +84,11 @@ class Web_setting extends CI_Controller
                 print_r(json_encode($this->response));
             } else {
                 $_POST['system_timezone_gmt'] = preg_replace('/\s+/', '', $_POST['system_timezone_gmt']);
-                $_POST['system_timezone_gmt'] = ($_POST['system_timezone_gmt'] == '00:00') ? "+" . $_POST['system_timezone_gmt'] : $_POST['system_timezone_gmt'];
+                // Same sign repair as Setting::update_system_settings() - a GMT offset that
+                // arrives without its leading "+" must not be stored unsigned.
+                if ($_POST['system_timezone_gmt'] !== '' && $_POST['system_timezone_gmt'][0] !== '+' && $_POST['system_timezone_gmt'][0] !== '-') {
+                    $_POST['system_timezone_gmt'] = '+' . $_POST['system_timezone_gmt'];
+                }
                 $updated = $this->Setting_model->update_system_setting($_POST);
                 $this->response['error'] = !$updated;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
@@ -171,7 +185,11 @@ class Web_setting extends CI_Controller
             $this->response['error'] = $error;
             $this->response['csrfName'] = $this->security->get_csrf_token_name();
             $this->response['csrfHash'] = $this->security->get_csrf_hash();
-            $this->response['message'] = "Default Theme Updated.";
+            // Reported "Default Theme Updated." unconditionally, including when the transaction had
+
+            // rolled back - the admin saw a success toast while the storefront kept the old theme.
+
+            $this->response['message'] = $error ? "Could not update the default theme." : "Default Theme Updated.";
             print_r(json_encode($this->response));
         } else {
             redirect('admin/login', 'refresh');

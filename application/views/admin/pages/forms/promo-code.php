@@ -33,7 +33,7 @@
                                 <?php
                                 if (isset($fetched_details[0]['id']) && !empty($fetched_details[0]['id'])) {
                                 ?>
-                                    <input type="hidden" name="edit_promo_code" value="<?= $fetched_details[0]['id'] ?>">
+                                    <input type="hidden" name="edit_promo_code" value="<?= html_escape($fetched_details[0]['id']) ?>">
                                 <?php
                                 }
                                 ?>
@@ -49,24 +49,24 @@
                                    
                                     <div class="form-group col-md-6">
                                         <label for="">Start Date <span class='text-danger text-sm'>*</span></label>
-                                        <input type="date" class="form-control" name="start_date" id="start_date" min="<?= date('Y-m-d') ?>" value="<?= @$fetched_details[0]['start_date'] ?>">  
+                                        <input type="date" class="form-control" name="start_date" id="start_date" min="<?= date('Y-m-d') ?>" value="<?= html_escape(@$fetched_details[0]['start_date']) ?>">  
                                     </div>
                                     <div class="form-group col-md-6">
                                         <label for="">End Date <span class='text-danger text-sm'>*</span></label>
-                                        <input type="date" class="form-control" name="end_date" id="end_date"  min="<?= date('Y-m-d') ?>" value="<?= @$fetched_details[0]['end_date'] ?>">
+                                        <input type="date" class="form-control" name="end_date" id="end_date"  min="<?= date('Y-m-d') ?>" value="<?= html_escape(@$fetched_details[0]['end_date']) ?>">
                                     </div>
 
                                     <div class="form-group col-md-6">
                                         <label for="">No. Of Users <span class='text-danger text-sm'>*</span></label>
-                                        <input type="number" min="0" class="form-control" name="no_of_users" value="<?= @$fetched_details[0]['no_of_users'] ?>">
+                                        <input type="number" min="0" class="form-control" name="no_of_users" value="<?= html_escape(@$fetched_details[0]['no_of_users']) ?>">
                                     </div>
                                     <div class="form-group col-md-6">
                                         <label for="">Minimum Order Amount <span class='text-danger text-sm'>*</span></label>
-                                        <input type="number" min="1" class="form-control" name="minimum_order_amount" value="<?= @$fetched_details[0]['minimum_order_amount'] ?>">
+                                        <input type="number" min="1" class="form-control" name="minimum_order_amount" value="<?= html_escape(@$fetched_details[0]['minimum_order_amount']) ?>">
                                     </div>
                                     <div class="form-group col-md-6">
                                         <label for="">Discount <span class='text-danger text-sm'>*</span></label>
-                                        <input type="number" min="1" class="form-control discount" name="discount" id="discount" value="<?= @$fetched_details[0]['discount'] ?>">
+                                        <input type="number" min="1" class="form-control discount" name="discount" id="discount" value="<?= html_escape(@$fetched_details[0]['discount']) ?>">
                                         <div class="error"></div>
                                     </div>
 
@@ -81,7 +81,7 @@
                                     </div>
                                     <div class="form-group col-md-6">
                                         <label for="">Max Discount Amount <span class='text-danger text-sm'>*</span></label>
-                                        <input type="number" min="1" class="form-control" name="max_discount_amount" id="max_discount_amount" value="<?= @$fetched_details[0]['max_discount_amount'] ?>">
+                                        <input type="number" min="1" class="form-control" name="max_discount_amount" id="max_discount_amount" value="<?= html_escape(@$fetched_details[0]['max_discount_amount']) ?>">
                                     </div>
                                     <div class="form-group col-md-6">
                                         <label for="">Repeat Usage <span class='text-danger text-sm'>*</span></label>
@@ -101,7 +101,7 @@
                                     </div>
                                     <div class="form-group col-md-6 <?= (isset($fetched_details[0]['repeat_usage']) && $fetched_details[0]['repeat_usage'] == '1') ? '' : 'd-none' ?>" id="repeat_usage_html">
                                         <label for=""> No of repeat usage </label>
-                                        <input type="number" class="form-control" min='0' name="no_of_repeat_usage" id="no_of_repeat_usage" value="<?= @$fetched_details[0]['no_of_repeat_usage'] ?>">
+                                        <input type="number" class="form-control" min='0' name="no_of_repeat_usage" id="no_of_repeat_usage" value="<?= html_escape(@$fetched_details[0]['no_of_repeat_usage']) ?>">
                                     </div>
                                     <div class="form-group col-md-6">
                                         <label for="is_cashback"> Is Cashback? </label>

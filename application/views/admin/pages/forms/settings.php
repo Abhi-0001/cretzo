@@ -30,7 +30,7 @@
                         </div>
                         <form class="form-horizontal form-submit-event" action="<?= base_url('admin/setting/update_system_settings') ?>" method="POST" id="system_setting_form" enctype="multipart/form-data">
                             <input type="hidden" id="system_configurations" name="system_configurations" required="" value="1" aria-required="true">
-                            <input type="hidden" id="system_timezone_gmt" name="system_timezone_gmt" value="<?= (isset($settings['system_timezone_gmt']) && !empty($settings['system_timezone_gmt'])) ? $settings['system_timezone_gmt'] : '+05:30'; ?>" aria-required="true">
+                            <input type="hidden" id="system_timezone_gmt" name="system_timezone_gmt" value="<?= html_escape((isset($settings['system_timezone_gmt']) && !empty($settings['system_timezone_gmt'])) ? $settings['system_timezone_gmt'] : '+05:30') ?>" aria-required="true">
                             <input type="hidden" id="system_configurations_id" name="system_configurations_id" value="13" aria-required="true">
                             <div class="card-body">
                                 <div class="row">
@@ -439,18 +439,18 @@
                                 <hr>
                                 <div class="row">
                                     <div class="form-group col-md-8">
-                                        <label for="app_name">Cron Job URL <span class='text-danger text-xs'>*</span> <small>(Set this URL at your server cron job list for "once a day")</small></label>
+                                        <label for="cron_seller_commission_url">Cron Job URL <span class='text-danger text-xs'>*</span> <small>(Set this URL at your server cron job list for "once a day")</small></label>
                                         <a class="btn btn-xs btn-primary text-white mb-2" data-toggle="modal" data-target="#howItWorksModal" title="How it works">How seller commission works?</a>
-                                        <input type="text" class="form-control" name="app_name" value="<?= base_url('admin/cron-job/settle-seller-commission') ?>" disabled />
+                                        <input type="text" class="form-control" id="cron_seller_commission_url" value="<?= base_url('admin/cron-job/settle-seller-commission') ?>" readonly />
                                     </div>
                                 </div>
                                 <h4>Cron Job URL for Add Promo Code Discount</h4>
                                 <hr>
                                 <div class="row">
                                     <div class="form-group col-md-8">
-                                        <label for="app_name">Add Promo Code Discount URL <span class='text-danger text-xs'>*</span> <small>(Set this URL at your server cron job list for "once a day")</small></label>
+                                        <label for="cron_promo_discount_url">Add Promo Code Discount URL <span class='text-danger text-xs'>*</span> <small>(Set this URL at your server cron job list for "once a day")</small></label>
                                         <a class="btn btn-xs btn-primary text-white mb-2" data-toggle="modal" data-target="#howItWorksModal1" title="How it works">How Promo Code Discount works?</a>
-                                        <input type="text" class="form-control" name="app_name" value="<?= base_url('admin/cron_job/settle_cashback_discount') ?>" disabled />
+                                        <input type="text" class="form-control" id="cron_promo_discount_url" value="<?= base_url('admin/cron_job/settle_cashback_discount') ?>" readonly />
                                     </div>
                                 </div>
                                 <div class="d-flex justify-content-center">

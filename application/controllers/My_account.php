@@ -896,6 +896,13 @@ class My_account extends CI_Controller
                 $this->response['error'] = true;
                 $this->response['message'] = validation_errors();
                 $this->response['data'] = array();
+                // Filled the response and then never sent it - every success path below returns
+                // from inside the else, so a failed validation fell out of the method with an
+                // EMPTY body. The wishlist button posts with dataType:'json', so an empty body
+                // fails to parse, the success callback never fires, and the button simply hangs
+                // with nothing shown to the shopper.
+                print_r(json_encode($this->response));
+                return false;
             } else {
                 $data = [
                     'user_id' => $this->data['user']->id,
@@ -933,6 +940,10 @@ class My_account extends CI_Controller
                 $this->response['error'] = true;
                 $this->response['message'] = validation_errors();
                 $this->response['data'] = array();
+                // Same silent failure as manage_favorites(): the response was built and then
+                // dropped, so the caller received an empty body instead of a reason.
+                print_r(json_encode($this->response));
+                return false;
             } else {
                 $user_id = $this->data['user']->id;
                 $product_ids = $this->input->post('product_ids', true);

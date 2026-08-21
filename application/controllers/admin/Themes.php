@@ -93,7 +93,11 @@ class Themes extends CI_Controller
             $this->response['error'] = $error;
             $this->response['csrfName'] = $this->security->get_csrf_token_name();
             $this->response['csrfHash'] = $this->security->get_csrf_hash();
-            $this->response['message'] = "Default Theme Updated.";
+            // Reported "Default Theme Updated." unconditionally, including when the transaction had
+
+            // rolled back - the admin saw a success toast while the storefront kept the old theme.
+
+            $this->response['message'] = $error ? "Could not update the default theme." : "Default Theme Updated.";
             print_r(json_encode($this->response));
         } else {
             redirect('admin/login', 'refresh');

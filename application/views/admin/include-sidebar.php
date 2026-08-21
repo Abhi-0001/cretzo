@@ -170,7 +170,10 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
                                     </a>
                                 </li>
                             <?php } ?>
-                            <?php if (has_permissions('read', 'orders')) { ?>
+                            <?php // Was gated on 'orders' - admin/Notification_settings.php denies
+                                  // unless the caller holds 'notification_setting', so anyone with
+                                  // orders access saw a link that bounced them off. ?>
+                            <?php if (has_permissions('read', 'notification_setting')) { ?>
                                 <li class="nav-item">
                                     <a href="<?= base_url('admin/notification_settings/manage_system_notifications') ?>" class="nav-link">
                                         <i class="fas fa-bell nav-icon"></i>
@@ -241,7 +244,10 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
                     </li>
                 <?php } ?>
 
-                <?php if (has_permissions('read', 'seller')) { ?>
+                <?php // Group opens for any of its own entries: Sellers, the seller wallet
+                      // (served by admin/Transaction.php, 'transactions' module) and
+                      // Subscriptions are each gated separately inside. ?>
+                <?php if (has_permissions('read', 'seller') || has_permissions('read', 'transactions') || has_permissions('read', 'subscription')) { ?>
                     <li class="nav-item has-treeview">
                         <a href="#" class="nav-link">
                             <i class="nav-icon fas fa-store text-danger"></i>
@@ -259,7 +265,9 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
                                     </a>
                                 </li>
                             <?php } ?>
-                            <?php if (has_permissions('read', 'seller')) { ?>
+                            <?php // Seller wallet is served by admin/Transaction.php, which gates on
+                                  // the 'transactions' module - not on 'seller'. ?>
+                            <?php if (has_permissions('read', 'transactions')) { ?>
                                 <li class="nav-item">
                                     <a href="<?= base_url('admin/transaction/wallet-transactions') ?>" class="nav-link">
                                         <i class="fa fa-wallet nav-icon"></i>
@@ -293,6 +301,8 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
                     </li>
                 <?php } ?>
 
+                <?php // Had no guard, while admin/Blogs.php denies unless one of these is held. ?>
+                <?php if (has_permissions('read', 'blogs') || has_permissions('read', 'blog_categories')) { ?>
                 <li class="nav-item">
                     <a href="#" class="nav-link">
                         <i class="nav-icon fas fa-blog text-warning"></i>
@@ -303,21 +313,26 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
                     </a>
                     <ul class="nav nav-treeview">
 
+                        <?php if (has_permissions('read', 'blog_categories')) { ?>
                         <li class="nav-item">
                             <a href="<?= base_url('admin/blogs') ?>" class="nav-link">
                                 <i class="fas fa-bullseye nav-icon"></i>
                                 <p>Blog Categories</p>
                             </a>
                         </li>
+                        <?php } ?>
+                        <?php if (has_permissions('read', 'blogs')) { ?>
                         <li class="nav-item">
                             <a href="<?= base_url('admin/blogs/manage_blogs') ?>" class="nav-link">
                                 <i class="fas fa-upload nav-icon"></i>
                                 <p>Create blog</p>
                             </a>
                         </li>
+                        <?php } ?>
 
                     </ul>
                 </li>
+                <?php } ?>
 
 
                 <?php if (has_permissions('read', 'media')) { ?>
@@ -436,7 +451,11 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
                         </ul>
                     </li>
                 <?php } ?>
-                <?php if (has_permissions('read', 'customers')) { ?>
+                <?php // The two Transaction entries below live in this group but are gated on
+                      // their own module, so the group has to open for either one - otherwise
+                      // an admin granted transactions:read (and not customers:read) can reach
+                      // those pages by URL but has no menu entry leading to them. ?>
+                <?php if (has_permissions('read', 'customers') || has_permissions('read', 'transactions')) { ?>
                     <li class="nav-item has-treeview">
                         <a href="#" class="nav-link">
                             <i class="nav-icon fa fa-user text-success"></i>
@@ -446,6 +465,7 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
                             </p>
                         </a>
                         <ul class="nav nav-treeview">
+                            <?php if (has_permissions('read', 'customers')) { ?>
                             <li class="nav-item">
                                 <a href="<?= base_url('admin/customer/') ?>" class="nav-link">
                                     <i class="fas fa-users nav-icon"></i>
@@ -458,18 +478,23 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
                                     <p> Addresses </p>
                                 </a>
                             </li>
+                            <?php } ?>
+                            <?php if (has_permissions('read', 'transactions')) { ?>
                             <li class="nav-item">
                                 <a href="<?= base_url('admin/transaction/view-transaction') ?>" class="nav-link">
                                     <i class="fas fa-money-bill-wave nav-icon "></i>
                                     <p> Transactions </p>
                                 </a>
                             </li>
+                            <?php } ?>
+                            <?php if (has_permissions('read', 'transactions')) { ?>
                             <li class="nav-item">
                                 <a href="<?= base_url('admin/transaction/customer-wallet') ?>" class="nav-link">
                                     <i class="fas fa-wallet nav-icon "></i>
                                     <p>Wallet Transactions</p>
                                 </a>
                             </li>
+                            <?php } ?>
 
                         </ul>
                     </li>
@@ -554,7 +579,8 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
                         </a>
                     </li>
                 <?php } ?>
-                <?php if (has_permissions('read', 'settings')) { ?>
+                <?php // Was gated on 'settings' - admin/Custom_notification.php gates on its own module. ?>
+                <?php if (has_permissions('read', 'custom_notifications')) { ?>
                     <li class="nav-item has-treeview">
                         <a href="<?= base_url('admin/custom_notification') ?>" class="nav-link">
                             <i class="nav-icon fas fa-bell text-info"></i>
@@ -564,7 +590,24 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
                         </a>
                     </li>
                 <?php } ?>
-                <?php if (has_permissions('read', 'settings')) { ?>
+                <?php
+                // The "System" group used to be gated on 'settings' alone while each page
+                // inside it is gated on its own module by its own controller. That cut both
+                // ways: a user with only settings:read was shown ~18 links that all bounced
+                // them straight back to the dashboard, and a user granted, say, only
+                // email_settings:read could not see the group at all even though the one page
+                // they were entitled to lives in it. The group now appears when at least one
+                // of its entries does, and each entry carries its own guard below.
+                $system_group_modules = ['settings', 'email_settings', 'payment_settings', 'shipping_settings',
+                    'time_slots', 'notification_setting', 'sms-gateway-settings', 'contact_us', 'about_us',
+                    'privacy_policy', 'admin_privacy_policy', 'delivery_boy_privacy_policy',
+                    'seller_privacy_policy', 'client_api_keys', 'system_update', 'purchase_code'];
+                $show_system_group = false;
+                foreach ($system_group_modules as $system_group_module) {
+                    if (has_permissions('read', $system_group_module)) { $show_system_group = true; break; }
+                }
+                ?>
+                <?php if ($show_system_group) { ?>
                     <li class="nav-item has-treeview">
                         <a href="#" class="nav-link">
                             <i class="nav-icon fa fa-wrench text-primary"></i>
@@ -574,105 +617,135 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
                             </p>
                         </a>
                         <ul class="nav nav-treeview">
+                            <?php if (has_permissions('read', 'settings')) { ?>
                             <li class="nav-item">
                                 <a href="<?= base_url('admin/setting') ?>" class="nav-link">
                                     <i class="fas fa-store nav-icon "></i>
                                     <p>Store Settings</p>
                                 </a>
                             </li>
+                            <?php } ?>
+                            <?php if (has_permissions('read', 'email_settings')) { ?>
                             <li class="nav-item">
                                 <a href="<?= base_url('admin/email-settings') ?>" class="nav-link">
                                     <i class="fas fa-envelope-open-text nav-icon "></i>
                                     <p>Email Settings</p>
                                 </a>
                             </li>
+                            <?php } ?>
+                            <?php if (has_permissions('read', 'payment_settings')) { ?>
                             <li class="nav-item">
                                 <a href="<?= base_url('admin/payment-settings') ?>" class="nav-link">
                                     <i class="fas fa-rupee-sign nav-icon "></i>
                                     <p>Payment Methods</p>
                                 </a>
                             </li>
+                            <?php } ?>
+                            <?php if (has_permissions('read', 'shipping_settings')) { ?>
                             <li class="nav-item">
                                 <a href="<?= base_url('admin/shipping-settings') ?>" class="nav-link">
                                     <i class="fas fa-rocket nav-icon "></i>
                                     <p>Shipping Methods</p>
                                 </a>
                             </li>
+                            <?php } ?>
+                            <?php if (has_permissions('read', 'time_slots')) { ?>
                             <li class="nav-item">
                                 <a href="<?= base_url('admin/time-slots') ?>" class="nav-link">
                                     <i class="fas fa-calendar-alt nav-icon "></i>
                                     <p>Time Slots</p>
                                 </a>
                             </li>
+                            <?php } ?>
                             <!-- <li class="nav-item">
                                 <a href="<?//= base_url('admin/authentication-settings') ?>" class="nav-link">
                                     <i class="fa fa-bell nav-icon "></i>
                                     <p>Authentication Mode</p>
                                 </a>
                             </li> -->
+                            <?php if (has_permissions('read', 'notification_setting')) { ?>
                             <li class="nav-item">
                                 <a href="<?= base_url('admin/notification-settings') ?>" class="nav-link">
                                     <i class="fa fa-bell nav-icon "></i>
                                     <p>Notification Settings</p>
                                 </a>
                             </li>
+                            <?php } ?>
                             <?//php if (isset($authentication['authentication_method']) && $authentication['authentication_method'] == 'sms') { ?>
+                                <?php if (has_permissions('read', 'sms-gateway-settings')) { ?>
                                 <li class="nav-item">
                                     <a href="<?= base_url('admin/sms-gateway-settings') ?>" class="nav-link">
                                         <i class="fa fa-sms nav-icon "></i>
                                         <p>SMS Gateway Settings</p>
                                     </a>
                                 </li>
+                                <?php } ?>
                             <?//php } ?>
+                            <?php if (has_permissions('read', 'contact_us')) { ?>
                             <li class="nav-item">
                                 <a href="<?= base_url('admin/contact-us') ?>" class="nav-link">
                                     <i class="fa fa-phone-alt nav-icon "></i>
                                     <p>Contact Us</p>
                                 </a>
                             </li>
+                            <?php } ?>
+                            <?php if (has_permissions('read', 'about_us')) { ?>
                             <li class="nav-item">
                                 <a href="<?= base_url('admin/about-us') ?>" class="nav-link">
                                     <i class="fas fa-info-circle nav-icon "></i>
                                     <p>About Us</p>
                                 </a>
                             </li>
+                            <?php } ?>
+                            <?php if (has_permissions('read', 'privacy_policy')) { ?>
                             <li class="nav-item">
                                 <a href="<?= base_url('admin/privacy-policy') ?>" class="nav-link">
                                     <i class="fa fa-user-secret nav-icon "></i>
                                     <p>Privacy Policy</p>
                                 </a>
                             </li>
+                            <?php } ?>
+                            <?php if (has_permissions('read', 'privacy_policy')) { ?>
                             <li class="nav-item">
                                 <a href="<?= base_url('admin/privacy-policy/shipping-policy') ?>" class="nav-link">
                                     <i class="fa fa-shipping-fast nav-icon "></i>
                                     <p>Shipping Policy</p>
                                 </a>
                             </li>
+                            <?php } ?>
+                            <?php if (has_permissions('read', 'privacy_policy')) { ?>
                             <li class="nav-item">
                                 <a href="<?= base_url('admin/privacy-policy/return-policy') ?>" class="nav-link">
                                     <i class="fa fa-undo nav-icon "></i>
                                     <p>Return Policy</p>
                                 </a>
                             </li>
+                            <?php } ?>
+                            <?php if (has_permissions('read', 'admin_privacy_policy')) { ?>
                             <li class="nav-item text-sm">
                                 <a href="<?= base_url('admin/admin-privacy-policy') ?>" class="nav-link">
                                     <i class="fa fa-exclamation-triangle nav-icon  "></i>
                                     <p>Admin Policies</p>
                                 </a>
                             </li>
+                            <?php } ?>
+                            <?php if (has_permissions('read', 'delivery_boy_privacy_policy')) { ?>
                             <li class="nav-item text-sm">
                                 <a href="<?= base_url('admin/delivery-boy-privacy-policy') ?>" class="nav-link">
                                     <i class="fa fa-exclamation-triangle nav-icon  "></i>
                                     <p>Delivery Boy Policies</p>
                                 </a>
                             </li>
+                            <?php } ?>
+                            <?php if (has_permissions('read', 'seller_privacy_policy')) { ?>
                             <li class="nav-item text-sm">
                                 <a href="<?= base_url('admin/seller-privacy-policy') ?>" class="nav-link">
                                     <i class="fa fa-exclamation-triangle nav-icon  "></i>
                                     <p>Seller Policies</p>
                                 </a>
                             </li>
-                            <?php if (isset($doctor_brown_for_app) && !empty($doctor_brown_for_app)) {
+                            <?php } ?>
+                            <?php if (isset($doctor_brown_for_app) && !empty($doctor_brown_for_app) && has_permissions('read', 'client_api_keys')) {
                             ?>
                                 <li class="nav-item text-sm">
                                     <a href="<?= base_url('admin/client-api-keys/') ?>" class="nav-link">
@@ -681,21 +754,30 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
                                     </a>
                                 </li>
                             <?php } ?>
+                            <?php if (has_permissions('read', 'system_update')) { ?>
                             <li class="nav-item">
                                 <a href="<?= base_url('admin/updater') ?>" class="nav-link">
                                     <i class="fas fa-sync nav-icon "></i>
                                     <p>System Updater</p>
                                 </a>
                             </li>
+                            <?php } ?>
+                            <?php if (has_permissions('read', 'purchase_code')) { ?>
                             <li class="nav-item">
                                 <a href="<?= base_url('admin/purchase-code') ?>" class="nav-link">
                                     <i class="fas fa-check nav-icon"></i>
                                     <p>System Registration</p>
                                 </a>
                             </li>
+                            <?php } ?>
                         </ul>
                     </li>
+                <?php } ?>
 
+                <?php // Every page in this group (General Settings, Themes, Languages, Firebase)
+                      // is gated by its controller on 'settings', so the group follows it. It used
+                      // to share the System group's guard, which is now broader than 'settings'. ?>
+                <?php if (has_permissions('read', 'settings')) { ?>
                     <li class="nav-item has-treeview">
                         <a href="#" class="nav-link">
                             <i class="nav-icon fa fa-globe-asia text-warning"></i>
@@ -803,6 +885,9 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
                     </li>
                 <?php } ?>
 
+                <?php // The Reports group had no guard at all, so every restricted admin saw it
+                      // even though both controllers inside it deny on their own module. ?>
+                <?php if (has_permissions('read', 'sales_report') || has_permissions('read', 'sales_inventory')) { ?>
                 <li class="nav-item">
                     <a href="#" class="nav-link">
                         <i class="fas fa-chart-pie nav-icon text-primary"></i>
@@ -811,20 +896,25 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
                         </p>
                     </a>
                     <ul class="nav nav-treeview">
+                        <?php if (has_permissions('read', 'sales_report')) { ?>
                         <li class="nav-item">
                             <a href="<?= base_url('admin/sales-report') ?>" class="nav-link">
                                 <i class="fa fa-chart-line nav-icon "></i>
                                 <p>Sales Report</p>
                             </a>
                         </li>
+                        <?php } ?>
+                        <?php if (has_permissions('read', 'sales_inventory')) { ?>
                         <li class="nav-item">
                             <a href="<?= base_url('admin/sales-inventory') ?>" class="nav-link">
                                 <i class="fa fa-chart-line nav-icon "></i>
                                 <p>Sale Inventory Reports</p>
                             </a>
                         </li>
+                        <?php } ?>
                     </ul>
                 </li>
+                <?php } ?>
 
                 <?php if (has_permissions('read', 'faq')) { ?>
                     <li class="nav-item">

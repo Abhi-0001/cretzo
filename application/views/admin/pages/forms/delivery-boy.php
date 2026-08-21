@@ -25,26 +25,26 @@
                         <!-- form start -->
                         <form class="form-horizontal form-submit-event" action="<?= base_url('admin/delivery_boys/add_delivery_boy'); ?>" method="POST" id="add_product_form">
                             <?php if (isset($fetched_data[0]['id'])) { ?>
-                                <input type="hidden" name="edit_delivery_boy" value="<?= $fetched_data[0]['id'] ?>">
+                                <input type="hidden" name="edit_delivery_boy" value="<?= html_escape($fetched_data[0]['id']) ?>">
                             <?php
                             } ?>
                             <div class="card-body">
                                 <div class="form-group row">
                                     <label for="name" class="col-sm-2 col-form-label">Name <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="name" placeholder="Delivery Boy Name" name="name" value="<?= @$fetched_data[0]['username'] ?>">
+                                        <input type="text" class="form-control" id="name" placeholder="Delivery Boy Name" name="name" value="<?= html_escape(@$fetched_data[0]['username']) ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row">
                                     <label for="mobile" class="col-sm-2 col-form-label">Mobile <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="number" class="form-control" id="mobile" placeholder="Enter Mobile" name="mobile" value="<?= @$fetched_data[0]['mobile'] ?>">
+                                        <input type="number" class="form-control" id="mobile" placeholder="Enter Mobile" name="mobile" value="<?= html_escape(@$fetched_data[0]['mobile']) ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row">
                                     <label for="email" class="col-sm-2 col-form-label">Email <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="email" class="form-control" id="email" placeholder="Enter Email" name="email" value="<?= @$fetched_data[0]['email'] ?>">
+                                        <input type="email" class="form-control" id="email" placeholder="Enter Email" name="email" value="<?= html_escape(@$fetched_data[0]['email']) ?>">
                                     </div>
                                 </div>
                                 <?php
@@ -53,7 +53,7 @@
                                     <div class="form-group row ">
                                         <label for="password" class="col-sm-2 col-form-label">Password <span class='text-danger text-sm'>*</span></label>
                                         <div class="col-sm-10">
-                                            <input type="password" class="form-control" id="password" placeholder="Enter Password" name="password" value="<?= @$fetched_data[0]['password'] ?>">
+                                            <input type="password" class="form-control" id="password" placeholder="Enter Password" name="password" value="<?= html_escape(@$fetched_data[0]['password']) ?>">
                                         </div>
                                     </div>
                                     <div class="form-group row ">
@@ -68,7 +68,7 @@
                                 <div class="form-group row">
                                     <label for="address" class="col-sm-2 col-form-label">Address <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="address" placeholder="Enter Address" name="address" value="<?= @$fetched_data[0]['address'] ?>">
+                                        <input type="text" class="form-control" id="address" placeholder="Enter Address" name="address" value="<?= html_escape(@$fetched_data[0]['address']) ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row">
@@ -90,13 +90,13 @@
                                 <div class="form-group row fixed_amount_per_order <?= (isset($fetched_data[0]['id'])  && $fetched_data[0]['bonus_type'] == 'fixed_amount_per_order_item') ? '' : 'd-none' ?>">
                                     <label for="bonus" class="col-sm-2 col-form-label">Amount <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="number" class="form-control" id="bonus_amount" placeholder="Enter amount to be given to the delivery boy on successful order delivery" name="bonus_amount" value="<?= @$fetched_data[0]['bonus'] ?>">
+                                        <input type="number" class="form-control" id="bonus_amount" placeholder="Enter amount to be given to the delivery boy on successful order delivery" name="bonus_amount" value="<?= html_escape(@$fetched_data[0]['bonus']) ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row percentage_per_order <?= (isset($fetched_data[0]['id'])  && $fetched_data[0]['bonus_type'] == 'percentage_per_order_item') ? '' : 'd-none' ?>">
                                     <label for="bonus" class="col-sm-2 col-form-label">Bonus(%) <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="number" class="form-control" id="bonus_percentage" placeholder="Enter Bonus(%) to be given to the delivery boy on successful order delivery" name="bonus_percentage" value="<?= @$fetched_data[0]['bonus'] ?>">
+                                        <input type="number" class="form-control" id="bonus_percentage" placeholder="Enter Bonus(%) to be given to the delivery boy on successful order delivery" name="bonus_percentage" value="<?= html_escape(@$fetched_data[0]['bonus']) ?>">
                                     </div>
                                 </div>
                                 <?php

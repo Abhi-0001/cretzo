@@ -15,71 +15,119 @@ class Setting_model extends CI_Model
 
     public function update_system_setting($post)
     {
-        $post = escape_array($post);
+        // NOT escape_array()'d - $system_data is json_encode()'d below and the resulting blob
+        // is written through the query builder, which already parameter-escapes it. Pre-escaping
+        // each field first and then letting the builder escape the encoded blob again
+        // double-escapes quotes and backslashes, and the damage COMPOUNDS on every save: an app
+        // name of O'Brien becomes O\'Brien, then O\\\'Brien, and so on. Same root cause already
+        // fixed for update_web_setting() below and for Faq_model::add_faq().
+
+        // Every field below used to be read straight out of $post with no isset() guard, so a
+        // request that omitted any of them (an older cached copy of the form, a field the
+        // browser did not submit, the near-duplicate Web_setting::update_system_settings
+        // endpoint which validates a smaller field set, or any partial API-style POST) raised
+        // an "Undefined array key" warning AND silently wrote NULL over the stored value.
+        // Verified live: a POST carrying only the fields Web_setting validates wiped 26
+        // settings in one shot - tax_name, tax_number, current_version_ios, whatsapp_number,
+        // every refer-and-earn value, all four maintenance messages, supported_locals and
+        // decimal_point - with nothing shown to the admin, because display_errors is off in
+        // production so the warnings are invisible there. Anything not present in this request
+        // now keeps whatever is already stored.
+        $stored = get_settings('system_settings', true);
+        $stored = is_array($stored) ? $stored : [];
+
+        // Free-text / numeric field: take the submitted value, else keep what is stored, else
+        // fall back to $default.
+        $keep = function ($key, $default = '') use ($post, $stored) {
+            if (array_key_exists($key, $post)) {
+                return $post[$key];
+            }
+            return array_key_exists($key, $stored) ? $stored[$key] : $default;
+        };
+        // Same, but never returns an empty string - used for the numeric fields that other
+        // code divides by or compares against.
+        $keep_non_empty = function ($key, $default) use ($keep) {
+            $value = $keep($key, $default);
+            return ($value === '' || $value === null) ? $default : $value;
+        };
+        // Checkbox: an unchecked box is simply absent from the POST, so "absent" can only be
+        // read as "off" when this really is the settings form. system_configurations is that
+        // form's always-present hidden marker; without it we are looking at a partial payload
+        // and must not silently switch every toggle off.
+        $is_full_form = array_key_exists('system_configurations', $post);
+        $toggle = function ($key) use ($post, $stored, $is_full_form) {
+            if (isset($post[$key]) && $post[$key] !== '' && $post[$key] !== '0') {
+                return '1';
+            }
+            if ($is_full_form) {
+                return '0';
+            }
+            return (isset($stored[$key]) && $stored[$key] == '1') ? '1' : '0';
+        };
 
         $system_data = [
 
-            'system_configurations' => $post['system_configurations'],
-            'system_timezone_gmt' => $post['system_timezone_gmt'],
-            'system_configurations_id' => $post['system_configurations_id'],
-            'app_name' => $post['app_name'],
-            'support_number' => $post['support_number'],
-            'support_email' => $post['support_email'],
-            'current_version' => $post['current_version'],
-            'current_version_ios' => $post['current_version_ios'],
-            'is_version_system_on' => (isset($post['is_version_system_on'])) ? '1' : '0',
-            'area_wise_delivery_charge' => (isset($post['area_wise_delivery_charge'])) ? '1' : '0',
-            'currency' => $post['currency'],
-            'delivery_charge' => $post['delivery_charge'],
-            'min_amount' => $post['min_amount'],
-            'system_timezone' => $post['system_timezone'],
-            'is_refer_earn_on' => (isset($post['is_refer_earn_on'])) ? '1' : '0',
-            'min_refer_earn_order_amount' => $post['min_refer_earn_order_amount'],
-            'refer_earn_bonus' => $post['refer_earn_bonus'],
-            'refer_earn_method' => $post['refer_earn_method'],
-            'max_refer_earn_amount' => $post['max_refer_earn_amount'],
-            'refer_earn_bonus_times' => $post['refer_earn_bonus_times'],
-            'welcome_wallet_balance_on' => (isset($post['welcome_wallet_balance_on'])) ? '1' : '0',
-            'wallet_balance_amount' => $post['wallet_balance_amount'],
-            'allow_order_attachments' => (isset($post['allow_order_attachments'])) ? '1' : '0',
-            'upload_limit' => $post['upload_limit'],
-            'minimum_cart_amt' => $post['minimum_cart_amt'],
-            'low_stock_limit' => (isset($post['low_stock_limit'])) ? $post['low_stock_limit'] : '5',
+            'system_configurations' => $keep('system_configurations', '1'),
+            'system_timezone_gmt' => $keep('system_timezone_gmt', '+05:30'),
+            'system_configurations_id' => $keep('system_configurations_id', '13'),
+            'app_name' => $keep('app_name'),
+            'support_number' => $keep('support_number'),
+            'support_email' => $keep('support_email'),
+            'current_version' => $keep('current_version'),
+            'current_version_ios' => $keep('current_version_ios'),
+            'is_version_system_on' => $toggle('is_version_system_on'),
+            'area_wise_delivery_charge' => $toggle('area_wise_delivery_charge'),
+            'currency' => $keep('currency'),
+            'delivery_charge' => $keep('delivery_charge'),
+            'min_amount' => $keep('min_amount'),
+            'system_timezone' => $keep('system_timezone'),
+            'is_refer_earn_on' => $toggle('is_refer_earn_on'),
+            'min_refer_earn_order_amount' => $keep('min_refer_earn_order_amount'),
+            'refer_earn_bonus' => $keep('refer_earn_bonus'),
+            'refer_earn_method' => $keep('refer_earn_method'),
+            'max_refer_earn_amount' => $keep('max_refer_earn_amount'),
+            'refer_earn_bonus_times' => $keep('refer_earn_bonus_times'),
+            'welcome_wallet_balance_on' => $toggle('welcome_wallet_balance_on'),
+            'wallet_balance_amount' => $keep('wallet_balance_amount'),
+            'allow_order_attachments' => $toggle('allow_order_attachments'),
+            'upload_limit' => $keep('upload_limit'),
+            'minimum_cart_amt' => $keep('minimum_cart_amt'),
+            'low_stock_limit' => $keep_non_empty('low_stock_limit', '5'),
             // Statutory deductions taken at settlement. Kept here rather than in a config file
             // so they can be set by whoever has the answer (an accountant, alongside an admin)
             // without a developer editing code. Blank means "not applicable" and is stored as
             // 0, which withholds nothing.
-            'commission_gst_percent' => (isset($post['commission_gst_percent']) && $post['commission_gst_percent'] !== '') ? $post['commission_gst_percent'] : '0',
-            'tcs_percent' => (isset($post['tcs_percent']) && $post['tcs_percent'] !== '') ? $post['tcs_percent'] : '0',
-            'tds_percent' => (isset($post['tds_percent']) && $post['tds_percent'] !== '') ? $post['tds_percent'] : '0',
-            'max_items_cart' => $post['max_items_cart'],
-            'delivery_boy_bonus_percentage' => $post['delivery_boy_bonus_percentage'],
-            'max_product_return_days' => $post['max_product_return_days'],
-            'is_delivery_boy_otp_setting_on' => (isset($post['is_delivery_boy_otp_setting_on'])) ? '1' : '0',
-            'is_single_seller_order' => (isset($post['is_single_seller_order'])) ? '1' : '0',
-            'is_customer_app_under_maintenance' => (isset($post['is_customer_app_under_maintenance'])) ? '1' : '0',
-            'inspect_element' => (isset($post['inspect_element'])) ? '1' : '0',
-            'is_seller_app_under_maintenance' => (isset($post['is_seller_app_under_maintenance'])) ? '1' : '0',
-            'is_delivery_boy_app_under_maintenance' => (isset($post['is_delivery_boy_app_under_maintenance'])) ? '1' : '0',
-            'is_web_under_maintenance' => (isset($post['is_web_under_maintenance'])) ? '1' : '0',
-            'message_for_customer_app' => $post['message_for_customer_app'],
-            'message_for_seller_app' => $post['message_for_seller_app'],
-            'message_for_delivery_boy_app' => $post['message_for_delivery_boy_app'],
-            'message_for_web' => $post['message_for_web'],
-            'cart_btn_on_list' => (isset($post['cart_btn_on_list'])) ? '1' : '0',
-            'google_login' => (isset($post['google_login'])) ? '1' : '0',
-            'facebook_login' => (isset($post['facebook_login'])) ? '1' : '0',
-            'apple_login' => (isset($post['apple_login'])) ? '1' : '0',
-            'whatsapp_status' => (isset($post['whatsapp_status']) && !empty($post['whatsapp_status'])) ? '1' : '0',
-            'whatsapp_number' => (isset($post['whatsapp_number'])  && !empty($post['whatsapp_number'])) ? $post['whatsapp_number'] : '',
+            'commission_gst_percent' => $keep_non_empty('commission_gst_percent', '0'),
+            'tcs_percent' => $keep_non_empty('tcs_percent', '0'),
+            'tds_percent' => $keep_non_empty('tds_percent', '0'),
+            'max_items_cart' => $keep('max_items_cart'),
+            'delivery_boy_bonus_percentage' => $keep('delivery_boy_bonus_percentage'),
+            'max_product_return_days' => $keep('max_product_return_days'),
+            'is_delivery_boy_otp_setting_on' => $toggle('is_delivery_boy_otp_setting_on'),
+            'is_single_seller_order' => $toggle('is_single_seller_order'),
+            'is_customer_app_under_maintenance' => $toggle('is_customer_app_under_maintenance'),
+            'inspect_element' => $toggle('inspect_element'),
+            'is_seller_app_under_maintenance' => $toggle('is_seller_app_under_maintenance'),
+            'is_delivery_boy_app_under_maintenance' => $toggle('is_delivery_boy_app_under_maintenance'),
+            'is_web_under_maintenance' => $toggle('is_web_under_maintenance'),
+            'message_for_customer_app' => $keep('message_for_customer_app'),
+            'message_for_seller_app' => $keep('message_for_seller_app'),
+            'message_for_delivery_boy_app' => $keep('message_for_delivery_boy_app'),
+            'message_for_web' => $keep('message_for_web'),
+            'cart_btn_on_list' => $toggle('cart_btn_on_list'),
+            'google_login' => $toggle('google_login'),
+            'facebook_login' => $toggle('facebook_login'),
+            'apple_login' => $toggle('apple_login'),
+            'whatsapp_status' => $toggle('whatsapp_status'),
+            'whatsapp_number' => $keep('whatsapp_number'),
 
-            'expand_product_images' => (isset($post['expand_product_images'])) ? '1' : '0',
-            'tax_name' => $post['tax_name'],
-            'tax_number' => $post['tax_number'],
-            'company_name' => (isset($post['company_name'])) ?  $post['company_name'] : '',
-            'company_url' => (isset($post['company_url'])) ?  $post['company_url'] : '',
-            'supported_locals' => (isset($post['supported_locals'])) ?  $post['supported_locals'] : '',
-            'decimal_point' => (isset($post['decimal_point'])) ?  $post['decimal_point'] : '',
+            'expand_product_images' => $toggle('expand_product_images'),
+            'tax_name' => $keep('tax_name'),
+            'tax_number' => $keep('tax_number'),
+            'company_name' => $keep('company_name'),
+            'company_url' => $keep('company_url'),
+            'supported_locals' => $keep('supported_locals'),
+            'decimal_point' => $keep('decimal_point'),
         ];
 
 
@@ -87,8 +135,11 @@ class Setting_model extends CI_Model
             $system_data['whatsapp_number'] = '';
         }
 
-        $main_image_name = $post['logo'];
-        $favicon_image_name = $post['favicon'];
+        // Same guard as the fields above: an absent logo/favicon means "not part of this
+        // request", and both writes below are already skipped when the value is empty.
+        $main_image_name = isset($post['logo']) ? $post['logo'] : '';
+        $favicon_image_name = isset($post['favicon']) ? $post['favicon'] : '';
+        $currency = isset($post['currency']) ? $post['currency'] : '';
 
         $system_data = json_encode($system_data);
         $query = $this->db->get_where('settings', array(
@@ -129,10 +180,15 @@ class Setting_model extends CI_Model
             // so the very first save on a fresh install (before any settings rows exist) would
             // fail to insert a usable currency row, leaving every currency lookup broken until
             // someone fixed it directly in the database.
-            $this->db->insert('settings', ['variable' => 'currency', 'value' => $post['currency']]);
+            $this->db->insert('settings', ['variable' => 'currency', 'value' => $currency]);
         } else {
             $this->db->set('value', $system_data)->where('variable', 'system_settings')->update('settings');
-            $this->db->set('value', $post['currency'])->where('variable', 'currency')->update('settings');
+            // Only rewrite the standalone `currency` row when this request actually carried a
+            // currency. It used to read $post['currency'] unconditionally, so a partial POST
+            // blanked the row that every price on the storefront is formatted with.
+            if ($currency !== '') {
+                $this->db->set('value', $currency)->where('variable', 'currency')->update('settings');
+            }
         }
 
         $this->db->trans_complete();
@@ -194,84 +250,137 @@ class Setting_model extends CI_Model
     }
     public function update_payment_method($post)
     {
+        // NOT escape_array()'d, and merged over what is already stored rather than rebuilt from
+        // the request. Both matter here more than anywhere else in this file, because this blob
+        // holds every payment gateway's live credentials.
+        //
+        // Rebuilt-from-POST was the dangerous half. Every field defaulted to '' or '0' when the
+        // request did not carry it, so ANY partial submission silently disabled every gateway and
+        // blanked every key and secret - and the store simply stops being able to take money, with
+        // nothing logged and no error shown. Reproduced by accident while probing admin endpoints
+        // with empty payloads: one request wiped all eleven gateway flags and the live Razorpay
+        // key and secret in a single write.
+        //
+        // escape_array() was the quieter half: it ran db->escape_str() over values the query
+        // builder then escapes again, so a gateway secret containing a quote or a backslash was
+        // stored corrupted - and a corrupted secret does not announce itself, it just fails
+        // signature verification later and looks like the gateway rejecting you.
+        $stored = get_settings('payment_method', true);
+        $stored = is_array($stored) ? $stored : [];
 
-        $post = escape_array($post);
+        // Keep the stored value when this request does not carry the field.
+        $keep = function ($key) use ($post, $stored) {
+            if (isset($post[$key]) && $post[$key] !== '') {
+                return $post[$key];
+            }
+            return isset($stored[$key]) ? $stored[$key] : '';
+        };
+        // A checkbox is absent when off, so "absent" only means off for a real form submission.
+        // The settings form always posts this marker; without it we are looking at a partial
+        // payload and must not switch every gateway off.
+        $is_full_form = array_key_exists('payment_method_form', $post)
+            || array_key_exists('currency_code', $post);
+        $toggle = function ($key) use ($post, $stored, $is_full_form) {
+            if (isset($post[$key])) {
+                return '1';
+            }
+            if ($is_full_form) {
+                return '0';
+            }
+            return (isset($stored[$key]) && $stored[$key] == '1') ? '1' : '0';
+        };
+
+
 
         $payment_data = array();
-        $payment_data['paypal_payment_method'] = isset($post['paypal_payment_method']) ? '1' : '0';
-        $payment_data['paypal_mode'] = isset($post['paypal_mode']) && !empty($post['paypal_mode']) ? $post['paypal_mode'] : '';
-        $payment_data['paypal_business_email'] = isset($post['paypal_business_email']) && !empty($post['paypal_business_email']) ? $post['paypal_business_email'] : '';
-        $payment_data['currency_code'] = isset($post['currency_code']) && !empty($post['currency_code']) ? $post['currency_code'] : '';
+        $payment_data['paypal_payment_method'] = $toggle('paypal_payment_method');
+        $payment_data['paypal_mode'] = $keep('paypal_mode');
+        $payment_data['paypal_business_email'] = $keep('paypal_business_email');
+        $payment_data['currency_code'] = $keep('currency_code');
 
-        $payment_data['razorpay_payment_method'] = isset($post['razorpay_payment_method']) ? '1' : '0';
-        $payment_data['razorpay_key_id'] = isset($post['razorpay_key_id']) && !empty($post['razorpay_key_id']) ? $post['razorpay_key_id'] : '';
-        $payment_data['razorpay_secret_key'] = isset($post['razorpay_secret_key']) && !empty($post['razorpay_secret_key']) ? $post['razorpay_secret_key'] : '';
-        $payment_data['refund_webhook_secret_key'] = isset($post['refund_webhook_secret_key']) && !empty($post['refund_webhook_secret_key']) ? $post['refund_webhook_secret_key'] : '';
-
-
-        $payment_data['paystack_payment_method'] = isset($post['paystack_payment_method']) ? '1' : '0';
-        $payment_data['paystack_key_id'] = isset($post['paystack_key_id']) && !empty($post['paystack_key_id']) ? $post['paystack_key_id'] : '';
-        $payment_data['paystack_secret_key'] = isset($post['paystack_secret_key']) && !empty($post['paystack_secret_key']) ? $post['paystack_secret_key'] : '';
+        $payment_data['razorpay_payment_method'] = $toggle('razorpay_payment_method');
+        $payment_data['razorpay_key_id'] = $keep('razorpay_key_id');
+        $payment_data['razorpay_secret_key'] = $keep('razorpay_secret_key');
+        $payment_data['refund_webhook_secret_key'] = $keep('refund_webhook_secret_key');
 
 
-        $payment_data['stripe_payment_method'] = isset($post['stripe_payment_method']) ? '1' : '0';
-        $payment_data['stripe_payment_mode'] = isset($post['stripe_payment_mode']) ? $post['stripe_payment_mode'] : 'test';
-        $payment_data['stripe_publishable_key'] = isset($post['stripe_publishable_key']) && !empty($post['stripe_publishable_key']) ? $post['stripe_publishable_key'] : '';
-        $payment_data['stripe_secret_key'] = isset($post['stripe_secret_key']) && !empty($post['stripe_secret_key']) ? $post['stripe_secret_key'] : '';
-        $payment_data['stripe_webhook_secret_key'] = isset($post['stripe_webhook_secret_key']) && !empty($post['stripe_webhook_secret_key']) ? $post['stripe_webhook_secret_key'] : '';
-        $payment_data['stripe_currency_code'] = isset($post['stripe_currency_code']) && !empty($post['stripe_currency_code']) ? $post['stripe_currency_code'] : '';
+        $payment_data['paystack_payment_method'] = $toggle('paystack_payment_method');
+        $payment_data['paystack_key_id'] = $keep('paystack_key_id');
+        $payment_data['paystack_secret_key'] = $keep('paystack_secret_key');
 
-        $payment_data['flutterwave_payment_method'] = isset($post['flutterwave_payment_method']) ? '1' : '0';
-        $payment_data['flutterwave_public_key'] = isset($post['flutterwave_public_key']) && !empty($post['flutterwave_public_key']) ? $post['flutterwave_public_key'] : '';
-        $payment_data['flutterwave_secret_key'] = isset($post['flutterwave_secret_key']) && !empty($post['flutterwave_secret_key']) ? $post['flutterwave_secret_key'] : '';
-        $payment_data['flutterwave_encryption_key'] = isset($post['flutterwave_encryption_key']) && !empty($post['flutterwave_encryption_key']) ? $post['flutterwave_encryption_key'] : '';
-        $payment_data['flutterwave_webhook_secret_key'] = isset($post['flutterwave_webhook_secret_key']) && !empty($post['flutterwave_webhook_secret_key']) ? $post['flutterwave_webhook_secret_key'] : '';
-        $payment_data['flutterwave_currency_code'] = isset($post['flutterwave_currency_code']) && !empty($post['flutterwave_currency_code']) ? $post['flutterwave_currency_code'] : '';
 
-        $payment_data['paytm_payment_method'] = isset($post['paytm_payment_method']) ? '1' : '0';
-        $payment_data['paytm_payment_mode'] = isset($post['paytm_payment_mode']) && !empty($post['paytm_payment_mode']) ? $post['paytm_payment_mode'] : '';
-        $payment_data['paytm_merchant_key'] = isset($post['paytm_merchant_key']) && !empty($post['paytm_merchant_key']) ? $post['paytm_merchant_key'] : '';
-        $payment_data['paytm_merchant_id'] = isset($post['paytm_merchant_id']) && !empty($post['paytm_merchant_id']) ? $post['paytm_merchant_id'] : '';
-        $payment_data['paytm_website'] = isset($post['paytm_payment_mode']) && $post['paytm_payment_mode'] == 'production' ? $post['paytm_website'] : 'WEBSTAGING';
-        $payment_data['paytm_industry_type_id'] = isset($post['paytm_payment_mode']) && $post['paytm_payment_mode'] == 'production' ? $post['paytm_industry_type_id'] : 'Retail';
+        $payment_data['stripe_payment_method'] = $toggle('stripe_payment_method');
+        // Defaulted to 'test' when absent, which would quietly drop a LIVE Stripe account back to
+        // test mode on any partial save - payments would appear to succeed and take no money.
+        $payment_data['stripe_payment_mode'] = $keep('stripe_payment_mode') !== '' ? $keep('stripe_payment_mode') : 'test';
+        $payment_data['stripe_publishable_key'] = $keep('stripe_publishable_key');
+        $payment_data['stripe_secret_key'] = $keep('stripe_secret_key');
+        $payment_data['stripe_webhook_secret_key'] = $keep('stripe_webhook_secret_key');
+        $payment_data['stripe_currency_code'] = $keep('stripe_currency_code');
 
-        $payment_data['midtrans_payment_mode'] = isset($post['midtrans_payment_mode']) && !empty($post['midtrans_payment_mode']) ? $post['midtrans_payment_mode'] : '';
-        $payment_data['midtrans_payment_method'] = isset($post['midtrans_payment_method']) ? '1' : '0';
-        $payment_data['midtrans_client_key'] = isset($post['midtrans_client_key']) && !empty($post['midtrans_client_key']) ? $post['midtrans_client_key'] : '';
-        $payment_data['midtrans_merchant_id'] = isset($post['midtrans_merchant_id']) && !empty($post['midtrans_merchant_id']) ? $post['midtrans_merchant_id'] : '';
-        $payment_data['midtrans_server_key'] = isset($post['midtrans_server_key']) && !empty($post['midtrans_server_key']) ? $post['midtrans_server_key'] : '';
+        $payment_data['flutterwave_payment_method'] = $toggle('flutterwave_payment_method');
+        $payment_data['flutterwave_public_key'] = $keep('flutterwave_public_key');
+        $payment_data['flutterwave_secret_key'] = $keep('flutterwave_secret_key');
+        $payment_data['flutterwave_encryption_key'] = $keep('flutterwave_encryption_key');
+        $payment_data['flutterwave_webhook_secret_key'] = $keep('flutterwave_webhook_secret_key');
+        $payment_data['flutterwave_currency_code'] = $keep('flutterwave_currency_code');
 
-        $payment_data['direct_bank_transfer'] = isset($post['direct_bank_transfer']) ? '1' : '0';
-        $payment_data['account_name'] = isset($post['account_name']) && !empty($post['account_name']) ? $post['account_name'] : '';
-        $payment_data['account_number'] = isset($post['account_number']) && !empty($post['account_number']) ? $post['account_number'] : '';
-        $payment_data['bank_name'] = isset($post['bank_name']) && !empty($post['bank_name']) ? $post['bank_name'] : '';
-        $payment_data['bank_code'] = isset($post['bank_code']) && !empty($post['bank_code']) ? $post['bank_code'] : '';
-        $payment_data['notes'] = isset($post['notes']) && !empty($post['notes']) ? $post['notes'] : '';
+        $payment_data['paytm_payment_method'] = $toggle('paytm_payment_method');
+        $payment_data['paytm_payment_mode'] = $keep('paytm_payment_mode');
+        $payment_data['paytm_merchant_key'] = $keep('paytm_merchant_key');
+        $payment_data['paytm_merchant_id'] = $keep('paytm_merchant_id');
+        // Both were forced to Paytm's STAGING values whenever paytm_payment_mode was absent from
+        // the request - so a partial save silently moved a live Paytm account onto the staging
+        // website/industry id, where real payments cannot complete. And when the mode WAS
+        // production they read paytm_website / paytm_industry_type_id unguarded, warning if the
+        // request carried the mode but not those two. Only apply the staging fallback when this
+        // request is genuinely telling us the mode is not production.
+        $paytm_mode = $keep('paytm_payment_mode');
+        if ($paytm_mode === 'production') {
+            $payment_data['paytm_website'] = $keep('paytm_website') !== '' ? $keep('paytm_website') : 'DEFAULT';
+            $payment_data['paytm_industry_type_id'] = $keep('paytm_industry_type_id') !== '' ? $keep('paytm_industry_type_id') : 'Retail';
+        } else {
+            $payment_data['paytm_website'] = 'WEBSTAGING';
+            $payment_data['paytm_industry_type_id'] = 'Retail';
+        }
 
-        $payment_data['myfaoorah_payment_method'] = isset($post['myfaoorah_payment_method']) && !empty($post['myfaoorah_payment_method']) ? '1' : '0';
-        $payment_data['myfatoorah_token'] = isset($post['myfatoorah_token']) && !empty($post['myfatoorah_token']) ? $post['myfatoorah_token'] : '0';
-        $payment_data['myfatoorah_payment_mode'] = isset($post['myfatoorah_payment_mode']) && !empty($post['myfatoorah_payment_mode']) ? $post['myfatoorah_payment_mode'] : '';
-        $payment_data['myfatoorah__successUrl'] = isset($post['myfatoorah__successUrl']) && !empty($post['myfatoorah__successUrl']) ? $post['myfatoorah__successUrl'] : '';
-        $payment_data['myfatoorah__errorUrl'] = isset($post['myfatoorah__errorUrl']) && !empty($post['myfatoorah__errorUrl']) ? $post['myfatoorah__errorUrl'] : '';
-        $payment_data['myfatoorah_language'] = isset($post['myfatoorah_language']) && !empty($post['myfatoorah_language']) ? $post['myfatoorah_language'] : '';
-        $payment_data['myfatoorah_country'] = isset($post['myfatoorah_country']) && !empty($post['myfatoorah_country']) ? $post['myfatoorah_country'] : '';
-        $payment_data['myfatoorah__secret_key'] = isset($post['myfatoorah__secret_key']) && !empty($post['myfatoorah__secret_key']) ? $post['myfatoorah__secret_key'] : '';
+        $payment_data['midtrans_payment_mode'] = $keep('midtrans_payment_mode');
+        $payment_data['midtrans_payment_method'] = $toggle('midtrans_payment_method');
+        $payment_data['midtrans_client_key'] = $keep('midtrans_client_key');
+        $payment_data['midtrans_merchant_id'] = $keep('midtrans_merchant_id');
+        $payment_data['midtrans_server_key'] = $keep('midtrans_server_key');
 
-        $payment_data['instamojo_payment_method'] = isset($post['instamojo_payment_method']) && !empty($post['instamojo_payment_method']) ? '1' : '0';
-        $payment_data['instamojo_payment_mode'] = isset($post['instamojo_payment_mode']) && !empty($post['instamojo_payment_mode']) ? $post['instamojo_payment_mode'] : '';
-        $payment_data['instamojo_client_id'] = isset($post['instamojo_client_id']) && !empty($post['instamojo_client_id']) ? $post['instamojo_client_id'] : '';
-        $payment_data['instamojo_client_secret'] = isset($post['instamojo_client_secret']) && !empty($post['instamojo_client_secret']) ? $post['instamojo_client_secret'] : '';
-        $payment_data['instamojo_webhook_url'] = isset($post['instamojo_webhook_url']) && !empty($post['instamojo_webhook_url']) ? $post['instamojo_webhook_url'] : '';
+        $payment_data['direct_bank_transfer'] = $toggle('direct_bank_transfer');
+        $payment_data['account_name'] = $keep('account_name');
+        $payment_data['account_number'] = $keep('account_number');
+        $payment_data['bank_name'] = $keep('bank_name');
+        $payment_data['bank_code'] = $keep('bank_code');
+        $payment_data['notes'] = $keep('notes');
 
-        $payment_data['phonepe_payment_method'] = isset($post['phonepe_payment_method']) && !empty($post['phonepe_payment_method']) ? '1' : '0';
-        $payment_data['phonepe_payment_mode'] = isset($post['phonepe_payment_mode']) && !empty($post['phonepe_payment_mode']) ? $post['phonepe_payment_mode'] : '';
-        $payment_data['phonepe_marchant_id'] = isset($post['phonepe_marchant_id']) && !empty($post['phonepe_marchant_id']) ? $post['phonepe_marchant_id'] : '';
-        $payment_data['phonepe_app_id'] = isset($post['phonepe_app_id']) && !empty($post['phonepe_app_id']) ? $post['phonepe_app_id'] : '';
-        $payment_data['phonepe_salt_key'] = isset($post['phonepe_salt_key']) && !empty($post['phonepe_salt_key']) ? $post['phonepe_salt_key'] : '';
-        $payment_data['phonepe_salt_index'] = isset($post['phonepe_salt_index']) && !empty($post['phonepe_salt_index']) ? $post['phonepe_salt_index'] : '';
-        $payment_data['phonepe_webhook_url'] = isset($post['phonepe_webhook_url']) && !empty($post['phonepe_webhook_url']) ? $post['phonepe_webhook_url'] : '';
+        $payment_data['myfaoorah_payment_method'] = $toggle('myfaoorah_payment_method');
+        $payment_data['myfatoorah_token'] = $keep('myfatoorah_token');
+        $payment_data['myfatoorah_payment_mode'] = $keep('myfatoorah_payment_mode');
+        $payment_data['myfatoorah__successUrl'] = $keep('myfatoorah__successUrl');
+        $payment_data['myfatoorah__errorUrl'] = $keep('myfatoorah__errorUrl');
+        $payment_data['myfatoorah_language'] = $keep('myfatoorah_language');
+        $payment_data['myfatoorah_country'] = $keep('myfatoorah_country');
+        $payment_data['myfatoorah__secret_key'] = $keep('myfatoorah__secret_key');
 
-        $payment_data['cod_method'] = isset($post['cod_method']) ? '1' : '0';
+        $payment_data['instamojo_payment_method'] = $toggle('instamojo_payment_method');
+        $payment_data['instamojo_payment_mode'] = $keep('instamojo_payment_mode');
+        $payment_data['instamojo_client_id'] = $keep('instamojo_client_id');
+        $payment_data['instamojo_client_secret'] = $keep('instamojo_client_secret');
+        $payment_data['instamojo_webhook_url'] = $keep('instamojo_webhook_url');
+
+        $payment_data['phonepe_payment_method'] = $toggle('phonepe_payment_method');
+        $payment_data['phonepe_payment_mode'] = $keep('phonepe_payment_mode');
+        $payment_data['phonepe_marchant_id'] = $keep('phonepe_marchant_id');
+        $payment_data['phonepe_app_id'] = $keep('phonepe_app_id');
+        $payment_data['phonepe_salt_key'] = $keep('phonepe_salt_key');
+        $payment_data['phonepe_salt_index'] = $keep('phonepe_salt_index');
+        $payment_data['phonepe_webhook_url'] = $keep('phonepe_webhook_url');
+
+        $payment_data['cod_method'] = $toggle('cod_method');
 
         $payment_data = json_encode($payment_data);
 
@@ -904,16 +1013,51 @@ class Setting_model extends CI_Model
 
     public function update_shipping_method($post)
     {
-        $post = escape_array($post);
+        // NOT escape_array()'d. That ran db->escape_str() over every value and the query builder
+        // then escaped the encoded blob again - the same double-escaping fixed in
+        // update_system_setting() above. It matters more here than most places: the Shiprocket
+        // API password is machine-generated and may contain a quote or a backslash, and a
+        // corrupted password does not announce itself. auth/login simply fails and every shipping
+        // call dies with "authentication failed", which looks like wrong credentials rather than
+        // credentials this code mangled on the way in.
+        $stored = get_settings('shipping_method', true);
+        $stored = is_array($stored) ? $stored : [];
+
+        // Free-text field: use what was submitted, else keep what is already stored. Rebuilt
+        // purely from POST before, so a request that did not carry every field silently blanked
+        // the rest - saving just the credentials wiped minimum_free_delivery_order_amount, and
+        // the same shape would wipe the webhook token.
+        $keep = function ($key, $default = '') use ($post, $stored) {
+            if (array_key_exists($key, $post) && $post[$key] !== '') {
+                return $post[$key];
+            }
+            return array_key_exists($key, $stored) ? $stored[$key] : $default;
+        };
+        // Checkboxes are absent when off, so "absent" can only mean off for a real form
+        // submission. shiprocket_shipping_method is always present on that form (it is the first
+        // control and the controller rejects a save with neither method selected), so use it as
+        // the marker for "this is the whole form".
+        $is_full_form = array_key_exists('shiprocket_shipping_method', $post)
+            || array_key_exists('local_shipping_method', $post);
+        $toggle = function ($key) use ($post, $stored, $is_full_form) {
+            if (isset($post[$key])) {
+                return '1';
+            }
+            if ($is_full_form) {
+                return '0';
+            }
+            return (isset($stored[$key]) && $stored[$key] == '1') ? '1' : '0';
+        };
+
         $shipping_data = array();
 
-        $shipping_data['shiprocket_shipping_method'] = isset($post['shiprocket_shipping_method']) ? '1' : '0';
-        $shipping_data['email'] = isset($post['email']) && !empty($post['email']) ? $post['email'] : '';
-        $shipping_data['password'] = isset($post['password']) && !empty($post['password']) ? $post['password'] : '';
-        $shipping_data['webhook_token'] = isset($post['webhook_token']) && !empty($post['webhook_token']) ? $post['webhook_token'] : '';
-        $shipping_data['local_shipping_method'] = isset($post['local_shipping_method']) ? '1' : '0';
-        $shipping_data['standard_shipping_free_delivery'] = isset($post['standard_shipping_free_delivery']) ? '1' : '0';
-        $shipping_data['minimum_free_delivery_order_amount'] = isset($post['minimum_free_delivery_order_amount']) && !empty($post['minimum_free_delivery_order_amount']) ? $post['minimum_free_delivery_order_amount'] : '';
+        $shipping_data['shiprocket_shipping_method'] = $toggle('shiprocket_shipping_method');
+        $shipping_data['email'] = $keep('email');
+        $shipping_data['password'] = $keep('password');
+        $shipping_data['webhook_token'] = $keep('webhook_token');
+        $shipping_data['local_shipping_method'] = $toggle('local_shipping_method');
+        $shipping_data['standard_shipping_free_delivery'] = $toggle('standard_shipping_free_delivery');
+        $shipping_data['minimum_free_delivery_order_amount'] = $keep('minimum_free_delivery_order_amount');
 
         $shipping_data = json_encode($shipping_data);
 
