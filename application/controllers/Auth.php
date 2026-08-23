@@ -405,7 +405,11 @@ class Auth extends CI_Controller
         $additional_data = [
             'first_name' => $first_name,
             'last_name' => $last_name,
-            'mobile' => generate_unique_placeholder_mobile(),
+            // NULL, not an invented number: Google/Facebook never supply a phone, and the
+            // placeholder this used to generate ('9' + 9 random digits) was indistinguishable
+            // from a real one, so it was shown to the customer as their own number. The column
+            // is nullable as of migration 061 and every display site hides an empty value.
+            'mobile' => null,
             'type' => $provider,
         ];
 
@@ -1282,11 +1286,11 @@ class Auth extends CI_Controller
 
             $additional_data = [
                 'username' => $this->input->post('name'),
-                // 'mobile' is NOT NULL + UNIQUE with no default - a literal '' collided
-                // (raw duplicate-key DB error) on every signup after the first one with
-                // no phone number (social/email-only signups). Placeholder is generated
-                // and checked unique instead.
-                'mobile' => (isset($_POST['mobile']) && !empty($_POST['mobile'])) ? $this->input->post('mobile') : generate_unique_placeholder_mobile(),
+                // A literal '' collided on the UNIQUE index for every signup after the first
+                // one with no phone number. This used to invent a unique placeholder instead,
+                // which then showed up as the customer's real number; the column is nullable
+                // as of migration 061, and MySQL allows any number of NULLs in a unique index.
+                'mobile' => (isset($_POST['mobile']) && !empty($_POST['mobile'])) ? $this->input->post('mobile') : null,
                 'dob' => $this->input->post('dob'),
                 'city' => $this->input->post('city'),
                 'area' => $this->input->post('area'),
