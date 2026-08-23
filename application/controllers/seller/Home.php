@@ -483,7 +483,7 @@ class Home extends CI_Controller
             // adding that restriction, so as written any logged-in seller could flip the
             // active/status flag on an arbitrary row of an arbitrary table (e.g. disable
             // another user's account) just by calling this URL directly.
-            $allowed_tables = ['products'];
+            $allowed_tables = ['products', 'pickup_locations'];
 
             // $user_id was never assigned in this method - the ownership check below and the
             // UPDATE's WHERE both compared seller_id against an undefined variable (NULL), so
@@ -516,6 +516,21 @@ class Home extends CI_Controller
             }
 
             $status = (isset($_GET['status']) && $_GET['status'] == '1') ? 0 : 1;
+
+            // A pickup location only reaches status 1 after Shiprocket has accepted the address
+            // (Pickup_location_model::add_pickup_location) or an admin has verified/imported it.
+            // This toggle is reused from the product publish switch, which flips both ways -
+            // but letting a seller flip a pickup location back to 1 themselves would let them
+            // re-activate one Shiprocket never confirmed, so only the 1 -> 0 direction is
+            // allowed here; re-activating stays an admin-only action.
+            if ($table === 'pickup_locations' && $status == 1) {
+                $this->response['error'] = true;
+                $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                $this->response['message'] = 'Only an admin can re-activate a pickup location.';
+                print_r(json_encode($this->response));
+                return;
+            }
 
             $this->db->trans_start();
             // $this->db->escape() wraps the value in quotes and set() escapes again by default,

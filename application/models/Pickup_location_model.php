@@ -182,6 +182,41 @@ class Pickup_location_model extends CI_Model
         return ['error' => false, 'message' => 'Pickup location added.', 'shiprocket' => $result];
     }
 
+    /**
+     * Deletes a seller's own pickup location, scoped by (id, seller_id) so one seller cannot
+     * delete another's row by guessing an id.
+     *
+     * products.pickup_location stores this row's NICKNAME, not its id (see Product_model), so
+     * deleting the row here would silently orphan any product still pointing at that nickname -
+     * its pickup location would read as a name nothing in `pickup_locations` matches anymore.
+     * Blocked the same way the admin subscription-plan delete guards against deleting a plan
+     * sellers are still on.
+     */
+    public function delete_pickup_location($id, $seller_id)
+    {
+        $location = $this->db->select('pickup_location')
+            ->where(['id' => $id, 'seller_id' => $seller_id])
+            ->get('pickup_locations')->row_array();
+
+        if (empty($location)) {
+            return ['error' => true, 'message' => 'Pickup location not found.'];
+        }
+
+        $products_using_it = $this->db->where(['seller_id' => $seller_id, 'pickup_location' => $location['pickup_location']])
+            ->count_all_results('products');
+
+        if ($products_using_it > 0) {
+            return [
+                'error'   => true,
+                'message' => 'This pickup location is used by ' . $products_using_it . ' product'
+                    . ($products_using_it > 1 ? 's' : '') . '. Change their pickup location before deleting it.',
+            ];
+        }
+
+        $this->db->where(['id' => $id, 'seller_id' => $seller_id])->delete('pickup_locations');
+        return ['error' => false, 'message' => 'Pickup location deleted.'];
+    }
+
     public function get_list($table, $where = NULL, $seller_id = 0, $from_app = false)
     {
 
@@ -291,6 +326,22 @@ class Pickup_location_model extends CI_Model
                     $verify = '<a class="btn btn-danger mr-1 btn-xs update_active_status" data-table="pickup_locations" href="javascript:void(0)" title="Active" data-id="' . $row['id'] . '" data-status="' . $row['status'] . '" ><i class="fas fa-times"></i></a>';
                 }
                 $operate .= '  <a  href="javascript:void(0)" class=" btn action-btn image.png btn-danger btn-xs mr-1 mb-1" title="Delete" id="delete-location" data-table="' . $table . '" data-id="' . $row['id'] . '" ><i class="fa fa-trash"></i></a>';
+            } elseif ($table === 'pickup_locations' && $this->ion_auth->is_seller()) {
+                // Sellers get their own Edit/Delete/Hide set, scoped to rows they own by the
+                // controllers behind these URLs. Re-activating (status 0 -> 1) is deliberately
+                // NOT offered here - only admin's own list can do that, because a pickup
+                // location only reaches status 1 after Shiprocket has accepted the address (see
+                // Pickup_location_model::add_pickup_location), and letting a seller flip it back
+                // on themselves would bypass that check.
+                $seller_operate = '<a href="' . base_url('seller/pickup_location/manage_pickup_locations?edit_id=' . $row['id']) . '" class="btn btn-info btn-xs mr-1 mb-1" title="Edit"><i class="fa fa-pen"></i></a>';
+
+                if ($row['status'] == '1') {
+                    $seller_operate .= ' <a href="javascript:void(0)" class="btn btn-success btn-xs update_active_status mr-1 mb-1" data-table="pickup_locations" title="Deactivate" data-id="' . $row['id'] . '" data-status="' . $row['status'] . '"><i class="fas fa-check-square"></i></a>';
+                } else {
+                    $seller_operate .= ' <span class="badge badge-secondary mr-1" title="Inactive - contact an admin to re-activate it">Inactive</span>';
+                }
+
+                $seller_operate .= ' <a href="javascript:void(0)" class="btn btn-danger btn-xs delete-pickup-location mr-1 mb-1" title="Delete" data-id="' . $row['id'] . '"><i class="fa fa-trash"></i></a>';
             }
             $tempRow['id'] = $row['id'];
             $tempRow['seller_id'] = $row['seller_id'];
@@ -307,6 +358,8 @@ class Pickup_location_model extends CI_Model
             if ($this->ion_auth->is_admin()) {
                 $tempRow['verified'] = $verify;
                 $tempRow['operate'] = $operate;
+            } elseif ($table === 'pickup_locations' && $this->ion_auth->is_seller()) {
+                $tempRow['operate'] = $seller_operate;
             }
             $rows[] = $tempRow;
         }

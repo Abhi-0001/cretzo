@@ -1,3 +1,23 @@
+<style>
+    /* Address/Address2 held long, comma-heavy text that wrapped onto several lines and made
+       every row of this table tall. Truncating to one line with an ellipsis keeps rows compact;
+       the title attribute (set in the post-body handler below) still surfaces the full text
+       on hover. */
+    #pickup_locations_table td,
+    #pickup_locations_table th {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 220px;
+    }
+
+    /* bootstrap-table doesn't put data-field on rendered <td>s, only on the <th> definitions -
+       Actions is always the last column, so target it positionally instead. */
+    #pickup_locations_table td:last-child {
+        overflow: visible;
+        max-width: none;
+    }
+</style>
 <div class="content-wrapper">
     <!-- Content Header (Page header) -->
     <!-- Main content -->
@@ -79,6 +99,7 @@
                                     <div class="col-6">
                                         <label for="area_name" class="control-label col-md-12">Address <span class='text-danger text-xs'>*</span></label>
                                         <textarea class="form-control" name="address" placeholder="Shipper's primary address. Max 80 characters." id="address" value="<?= (isset($fetched_data[0]['address']) ? $fetched_data[0]['address'] : '') ?>"><?= (isset($fetched_data[0]['address']) ? $fetched_data[0]['address'] : '') ?></textarea>
+                                        <small class="form-text text-muted">Must include a house/flat/shop no. and road/street name (e.g. "12, Jamia Nagar Road") - Shiprocket rejects addresses without one.</small>
                                     </div>
 
                                     <div class="col-6">
@@ -136,8 +157,7 @@
                                     <th data-field="address2">Address 2</th>
                                     <th data-field="city" data-sortable="true">City</th>
                                     <th data-field="pin_code" data-sortable="true">Pincode</th>
-                                    <!-- <th data-field="verified">Verified</th> -->
-                                    <!-- <th data-field="operate">Actions</th> -->
+                                    <th data-field="operate">Actions</th>
                                 </tr>
                             </thead>
                         </table>
@@ -175,6 +195,37 @@
 </div>
 
 <script>
+    // Every column is truncated to one line by default (see the <style> block above) to keep
+    // rows compact, but that hid the actual street address behind "..." - the one column
+    // sellers actually need to read in full. Address/Address2 are exempted here (by data-field,
+    // not column position, so this keeps working if columns are reordered) so they size to
+    // their own content instead of being clipped, while everything else stays truncated with a
+    // hover tooltip carrying the full text.
+    $('#pickup_locations_table').on('post-body.bs.table', function () {
+        var $table = $(this);
+        var fullTextFields = ['address', 'address2'];
+
+        $table.find('thead th').each(function (index) {
+            if (fullTextFields.indexOf($(this).data('field')) === -1) {
+                return;
+            }
+            $table.find('tbody tr').each(function () {
+                $(this).find('td').eq(index).css({
+                    'overflow': 'visible',
+                    'text-overflow': 'unset',
+                    'max-width': 'none'
+                });
+            });
+        });
+
+        $table.find('tbody td').each(function () {
+            var text = $(this).text().trim();
+            if (text) {
+                $(this).attr('title', text);
+            }
+        });
+    });
+
     // queryParams normally comes from the admin-only custom.js, which seller pages never
     // load — same reason the .form-submit-event handler below has to live here.
     function queryParams(p) {
@@ -227,6 +278,65 @@
             complete: function () {
                 submit_btn.html(button_text).prop('disabled', false);
             }
+        });
+    });
+
+    // The Deactivate and Delete buttons on each row have no handler for the same reason the
+    // form submit above needs one: seller pages don't load admin custom.js, which is where
+    // .update_active_status and generic delete buttons are normally wired up. Following the
+    // pattern already used in manage-product.php for the same gap.
+    $(document).on('click', '.update_active_status', function () {
+        var id = $(this).data('id');
+        var table = $(this).data('table');
+        var status = $(this).data('status');
+        $.ajax({
+            type: 'GET',
+            url: base_url + 'seller/home/update_status',
+            data: { id: id, table: table, status: status },
+            dataType: 'json'
+        }).done(function (response) {
+            if (response.csrfName && response.csrfHash) {
+                csrfName = response.csrfName;
+                csrfHash = response.csrfHash;
+            }
+            if (response.error === false) {
+                iziToast.success({ message: '<span style="text-transform:capitalize">' + response.message + '</span> Status Updated' });
+            } else {
+                iziToast.error({ message: response.message });
+            }
+            $('#pickup_locations_table').bootstrapTable('refresh');
+        }).fail(function () {
+            iziToast.error({ message: 'Something went wrong. Please try again.' });
+        });
+    });
+
+    $(document).on('click', '.delete-pickup-location', function () {
+        var id = $(this).data('id');
+        Swal.fire({
+            title: 'Are You Sure!',
+            text: "You won't be able to revert this!",
+            type: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Yes, delete it!'
+        }).then(function (result) {
+            if (!result.value) return;
+            $.ajax({
+                type: 'GET',
+                url: base_url + 'seller/pickup_location/delete_pickup_location',
+                data: { id: id },
+                dataType: 'json'
+            }).done(function (response) {
+                if (response.error === false) {
+                    Swal.fire('Deleted!', response.message, 'success');
+                } else {
+                    Swal.fire('Oops...', response.message, 'error');
+                }
+                $('#pickup_locations_table').bootstrapTable('refresh');
+            }).fail(function () {
+                Swal.fire('Oops...', 'Something went wrong!', 'error');
+            });
         });
     });
 </script>

@@ -112,4 +112,24 @@ class Pickup_location extends CI_Controller
             redirect('seller/login', 'refresh');
         }
     }
+
+    public function delete_pickup_location()
+    {
+        if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
+            $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
+            if ($id <= 0) {
+                $this->response['error'] = true;
+                $this->response['message'] = 'Invalid request.';
+                print_r(json_encode($this->response));
+                return;
+            }
+
+            $result = $this->Pickup_location_model->delete_pickup_location($id, $this->ion_auth->get_user_id());
+            $this->response['error'] = $result['error'];
+            $this->response['message'] = $result['message'];
+            print_r(json_encode($this->response));
+        } else {
+            redirect('seller/login', 'refresh');
+        }
+    }
 }
