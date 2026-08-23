@@ -1153,7 +1153,7 @@ class Seller_model extends CI_Model
             // was a stored-XSS route the same as already fixed on get_sellers_list().
             $tempRow['name'] = html_escape($row['username']);
             $tempRow['email'] = $row['email'];
-            $tempRow['mobile'] = $row['mobile'];
+            $tempRow['mobile'] = html_escape((string) $row['mobile']);
             $tempRow['address'] = html_escape($row['address']);
             $tempRow['store_name'] = html_escape($row['shop_name'] ?: $row['store_name']);
             $tempRow['store_url'] = $row['store_url'];
@@ -1278,7 +1278,7 @@ class Seller_model extends CI_Model
             // was a stored-XSS route the same as already fixed on get_sellers_list().
             $tempRow['name'] = html_escape($row['username']);
             $tempRow['email'] = $row['email'];
-            $tempRow['mobile'] = $row['mobile'];
+            $tempRow['mobile'] = html_escape((string) $row['mobile']);
             $tempRow['address'] = html_escape($row['address']);
             $tempRow['store_name'] = html_escape($row['shop_name'] ?: $row['store_name']);
             $tempRow['store_url'] = $row['store_url'];
@@ -1403,7 +1403,7 @@ class Seller_model extends CI_Model
             // was a stored-XSS route the same as already fixed on get_sellers_list().
             $tempRow['name'] = html_escape($row['username']);
             $tempRow['email'] = $row['email'];
-            $tempRow['mobile'] = $row['mobile'];
+            $tempRow['mobile'] = html_escape((string) $row['mobile']);
             $tempRow['address'] = html_escape($row['address']);
             $tempRow['store_name'] = html_escape($row['shop_name'] ?: $row['store_name']);
             $tempRow['store_url'] = $row['store_url'];

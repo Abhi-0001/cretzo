@@ -959,7 +959,10 @@ $logo = get_settings('web_logo');
                                     <!-- <br> -->
                                     <!-- <input class="input ta-c" type="password" placeholder="Enter your Password"> -->
 
-                                    <div class="password-container">
+                                    <?php /* password-field is what theme.js passVisibility() binds the eye
+                                             icon to; password-container only carries the existing login.css
+                                             styling. Without the former the toggle rendered but did nothing. */ ?>
+                                    <div class="password-container password-field">
                                         <input class="form-control input ta-c" type="password" name="password" placeholder="Password" id="loginPassword" value="<?= (ALLOW_MODIFICATION == 0) ? '12345678' : '' ?>">
                                         <span class="password-toggle"><i class="uil uil-eye"></i></span>
                                         <!-- <label for="loginPassword">Password</label> -->
@@ -1178,10 +1181,16 @@ $logo = get_settings('web_logo');
                                     <!-- <br> -->
                                     <input type="email" class='form-input form-control input ta-c' placeholder="Enter your Email" id="email" name="email">
                                     <!-- <br> -->
-                                    <div class="password-container">
+                                    <?php /* Each password gets its own .password-field wrapper and its own
+                                             toggle. theme.js passVisibility() binds per .password-field, so
+                                             a single shared .password-toggle inside one .password-container
+                                             would only ever bind (and toggle) the first input. */ ?>
+                                    <div class="password-field">
                                         <input type="password" class='form-input form-control input ta-c' placeholder="Enter Password" id="password" name="password">
+                                        <span class="password-toggle"><i class="uil uil-eye"></i></span>
+                                    </div>
+                                    <div class="password-field">
                                         <input class="form-input form-control input ta-c" type="password" placeholder="Re-enter Password" id="confirm-password">
-                                        <!-- <span class="password-toggle d-flex"><i class="uil uil-eye mb-4 mr-2"></i></span> -->
                                         <span class="password-toggle"><i class="uil uil-eye"></i></span>
                                     </div>
 
