@@ -36,6 +36,23 @@
                     }
                 }
             }
+
+            /*
+             * Downgrades are blocked while a paid term is running (enforced in
+             * Seller_subscription_model::can_switch_to_plan, which both purchase() and
+             * details() call). Work out the same thing here so the cards say so up front
+             * instead of letting the seller click through to a refusal.
+             *
+             * Only an ACTIVE subscription locks the choice - a seller whose plan lapsed onto
+             * the free tier can pick anything again, which is why this reads
+             * $active_subscription rather than $current_plan_id (that one falls back to the
+             * latest, expired, subscription).
+             */
+            $locked_price = null;
+            if (!empty($active_subscription) && !empty($current_plan) && isset($current_plan['price'])) {
+                $cp = preg_replace('/[^\d.]/', '', (string) $current_plan['price']);
+                $locked_price = is_numeric($cp) ? (float) $cp : 0.0;
+            }
             ?>
 
             <style>
@@ -314,6 +331,10 @@
                                     $price_numeric = preg_replace('/[^\d.]/', '', $price_raw);
                                     $is_free = ($price_raw === '' || (is_numeric($price_numeric) && (float) $price_numeric <= 0));
 
+                                    // Cheaper than the plan currently being paid for -> not selectable yet.
+                                    $this_price = is_numeric($price_numeric) ? (float) $price_numeric : 0.0;
+                                    $is_downgrade = ($locked_price !== null && !$is_active && $this_price < $locked_price);
+
                                     $listings_text = isset($plan['listings_limit']) && $plan['listings_limit'] !== '' ? 'Up to ' . $plan['listings_limit'] . ' Listings' : 'Unlimited Listings';
 
                                     $validity_raw = isset($plan['validity']) ? trim($plan['validity']) : '';
@@ -344,6 +365,9 @@
                                             <button class="upgrade-btn" disabled>Active</button>
                                         <?php elseif ($is_launch_offer) : ?>
                                             <button class="upgrade-btn" disabled title="Automatically granted to the first 100 vendors on sign up">First 100 Vendors Only</button>
+                                        <?php elseif ($is_downgrade) : ?>
+                                            <?php // Named the current plan in the tooltip so it is clear WHY it is unavailable. ?>
+                                            <button class="upgrade-btn" disabled title="You cannot move to a lower plan while <?= html_escape($current_plan['name']) ?> is active<?= !empty($active_subscription['end_date']) ? ' (until ' . date('d M Y', strtotime($active_subscription['end_date'])) . ')' : '' ?>. Upgrades are available any time.">Not Available</button>
                                         <?php else : ?>
                                             <button class="upgrade-btn" onclick="window.location.href= base_url + 'seller/subscription/details/<?= (int) $plan['id']; ?>'">Choose Plan</button>
                                         <?php endif; ?>

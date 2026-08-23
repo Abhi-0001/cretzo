@@ -109,9 +109,27 @@ class Login extends CI_Controller
         if ($identity_column == 'email') {
             $this->form_validation->set_rules('email', 'Email', 'required|xss_clean|trim|valid_email|edit_unique[users.email.' . $user->id . ']');
         } else {
-            $this->form_validation->set_rules('mobile', 'Mobile', 'required|xss_clean|trim|numeric|edit_unique[users.mobile.' . $user->id . ']');
+            // `numeric` alone accepted a number of ANY length - and floats and signs with it -
+            // so the profile form happily saved a 30-digit "mobile number". Every mobile this
+            // store deals with is a 10-digit Indian number: signup, the Firebase OTP step and
+            // the seller registration form all already require exactly that.
+            $this->form_validation->set_rules(
+                'mobile',
+                'Mobile',
+                'required|xss_clean|trim|regex_match[/^[0-9]{10}$/]|edit_unique[users.mobile.' . $user->id . ']',
+                ['regex_match' => 'The Mobile number must be exactly 10 digits.']
+            );
         }
         $this->form_validation->set_rules('username', 'Username', 'required|xss_clean|trim');
+
+        // Both optional: an empty submission clears the stored value rather than failing.
+        $this->form_validation->set_rules(
+            'gender',
+            'Gender',
+            'xss_clean|trim|in_list[,male,female,other]',
+            ['in_list' => 'Please choose a valid Gender.']
+        );
+        $this->form_validation->set_rules('dob', 'Date of Birth', 'xss_clean|trim|callback_valid_dob');
 
         if (!empty($_POST['old']) || !empty($_POST['new']) || !empty($_POST['new_confirm'])) {
             $this->form_validation->set_rules('old', $this->lang->line('change_password_validation_old_password_label'), 'required');
@@ -147,13 +165,109 @@ class Login extends CI_Controller
                     return false;
                 }
             }
-            $user_details = ['username' => $this->input->post('username'), 'email' => $this->input->post('email'), 'mobile' => $this->input->post('mobile')];
-            $user_details = escape_array($user_details);
+            $user_details = [
+                'username' => $this->input->post('username'),
+                'email'    => $this->input->post('email'),
+                'mobile'   => $this->input->post('mobile'),
+                // Optional fields. Posted-but-empty is stored as NULL so "not answered" stays
+                // distinguishable from an answer, and clearing the field actually clears it.
+                'gender'   => ($this->input->post('gender', true) !== '' && $this->input->post('gender', true) !== null)
+                    ? strtolower($this->input->post('gender', true)) : null,
+                'dob'      => ($this->input->post('dob', true) !== '' && $this->input->post('dob', true) !== null)
+                    ? $this->input->post('dob', true) : null,
+            ];
+
+            $new_image = $this->_upload_profile_image($user_id);
+            if ($new_image === false) {
+                // _upload_profile_image() has already emitted the JSON error.
+                return false;
+            }
+            if ($new_image !== null) {
+                $user_details['image'] = $new_image;
+            }
+
+            // NOT escape_array(): every value here is written through CodeIgniter's query
+            // builder, which parameter-escapes on its own, so pre-escaping added a layer of
+            // backslashes that COMPOUNDED on each save - a username of "D'Souza" came back as
+            // "D\'Souza", then "D\\\'Souza". This view renders the username raw, so no
+            // read-side unescaping was masking it either.
             $this->db->set($user_details)->where($identity_column, $identity)->update($tables['login_users']);
             $this->response['error'] = false;
             $this->response['message'] = 'Profile Update Succesfully';
             echo json_encode($this->response);
             return false;
         }
+    }
+
+    /**
+     * Validation callback for the optional date of birth.
+     *
+     * Empty passes - the field is not mandatory. Anything present must be a real calendar date
+     * in the Y-m-d that the date input posts, and must not be in the future.
+     */
+    public function valid_dob($dob)
+    {
+        if ($dob === '' || $dob === null) {
+            return true;
+        }
+
+        $parsed = DateTime::createFromFormat('Y-m-d', $dob);
+        if (!$parsed || $parsed->format('Y-m-d') !== $dob) {
+            $this->form_validation->set_message('valid_dob', 'Please enter a valid Date of Birth.');
+            return false;
+        }
+        if ($parsed > new DateTime('today')) {
+            $this->form_validation->set_message('valid_dob', 'Date of Birth cannot be in the future.');
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Store an uploaded avatar for $user_id and return its new file name.
+     *
+     * Returns NULL when no file was submitted (leave `users`.`image` alone) and FALSE when the
+     * upload was rejected, having already sent the JSON error response.
+     *
+     * Mirrors the mobile app's update_user_profile: the file lands in USER_IMG_PATH and only
+     * its bare name goes in the column, so both clients read the same rows the same way.
+     */
+    private function _upload_profile_image($user_id)
+    {
+        if (empty($_FILES['image']['name'])) {
+            return null;
+        }
+
+        if (!file_exists(FCPATH . USER_IMG_PATH)) {
+            mkdir(FCPATH . USER_IMG_PATH, 0777, true);
+        }
+
+        $this->upload->initialize([
+            'upload_path'   => FCPATH . USER_IMG_PATH,
+            'allowed_types' => 'jpeg|jpg|png|gif',
+            'max_size'      => 4096,
+            'encrypt_name'  => true,
+        ]);
+
+        if (!$this->upload->do_upload('image')) {
+            $this->response['error'] = true;
+            $this->response['message'] = 'Profile Photo: ' . strip_tags($this->upload->display_errors());
+            echo json_encode($this->response);
+            return false;
+        }
+
+        $image_data = $this->upload->data();
+        resize_image($image_data, FCPATH . USER_IMG_PATH);
+
+        // Drop the file the account was using, otherwise every change leaves the old avatar
+        // (plus the thumb/cropped variants resize_image makes) behind forever.
+        $previous = fetch_details('users', ['id' => $user_id], 'image');
+        if (!empty($previous[0]['image'])) {
+            // delete_images() prepends FCPATH itself, so it takes the RELATIVE path.
+            delete_images(USER_IMG_PATH, $previous[0]['image']);
+        }
+
+        return $image_data['file_name'];
     }
 }

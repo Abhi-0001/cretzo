@@ -6,25 +6,47 @@
         <div class="swiper-container swiper-slide-container overflow-hidden" data-margin="30" data-nav="true" data-dots="true" data-items-xl="3" data-items-md="2" data-items-xs="1">
             <div class="swiper-wrapper">
                 <?php if (isset($sliders) && !empty($sliders)) { ?>
-                    <?php foreach ($sliders as $row) { ?>
+                    <?php foreach ($sliders as $slide_index => $row) { ?>
+                        <?php
+                            /* Was a single src of get_image_url($row['image'], 'thumb', 'md'). thumb-md
+                               is capped at 800px wide by resize_image(), but this slider is full-bleed,
+                               so on a 1920px screen the browser was upscaling an 800px file ~2.4x - that
+                               is the blurry banner. hero_image_srcset() offers every derivative that
+                               exists WITH its real width, so the browser downloads one that matches the
+                               space: phones keep the small file, desktops get the full-size original.
+
+                               (An earlier revision moved off base_url($row['image']) to stop shipping
+                               2.3MB originals to phones and to get an existence check; both still hold -
+                               get_image_url() underpins the candidates, and small screens still receive
+                               a small file.)
+
+                               width/height are emitted so the browser reserves the right space instead
+                               of reflowing the page, and they let the CSS height:auto follow the banner's
+                               own aspect ratio rather than cropping it into a fixed letterbox.
+
+                               $row['link'] is '' for a plain image banner, in which case there is nothing
+                               to link to - render the image without an anchor rather than an
+                               <a href=""> that reloads the page on click. */
+                            $hero = hero_image_srcset($row['image']);
+                            $hero_attrs = 'src="' . $hero['src'] . '"';
+                            if ($hero['srcset'] !== '') {
+                                $hero_attrs .= ' srcset="' . $hero['srcset'] . '" sizes="100vw"';
+                            }
+                            if ($hero['width'] > 0) {
+                                $hero_attrs .= ' width="' . $hero['width'] . '" height="' . $hero['height'] . '"';
+                            }
+                            // The first slide is the page's largest visible element; the rest are
+                            // off-screen until the user swipes.
+                            $hero_attrs .= ($slide_index === 0) ? ' fetchpriority="high"' : ' loading="lazy"';
+                        ?>
                         <div class="swiper-slide">
                             <div class="slide-img">
-                                <?php /* Was base_url($row['image']) - the ORIGINAL upload, with no
-                                   existence check: a deleted file gave a broken hero image, and the
-                                   full-size original was being shipped on every page load (the live
-                                   slider images are ~2.3MB each) even though thumb-md/cropped-md
-                                   derivatives are generated at upload time. get_image_url() picks the
-                                   derivative and falls back to the placeholder, like every other
-                                   image render in the app.
-                                   $row['link'] is '' for a plain image banner, in which case there is
-                                   nothing to link to - render the image without an anchor rather than
-                                   an <a href=""> that reloads the page on click. */ ?>
                                 <?php if (!empty($row['link'])) { ?>
                                     <a href="<?= $row['link'] ?>">
-                                        <img src="<?= get_image_url($row['image'], 'thumb', 'md') ?>" alt="Offer Slider" style="object-fit: cover;">
+                                        <img <?= $hero_attrs ?> alt="Offer Slider">
                                     </a>
                                 <?php } else { ?>
-                                    <img src="<?= get_image_url($row['image'], 'thumb', 'md') ?>" alt="Offer Slider" style="object-fit: cover;">
+                                    <img <?= $hero_attrs ?> alt="Offer Slider">
                                 <?php } ?>
                             </div>
                         </div>
@@ -574,7 +596,7 @@
                 <div class="row justify-content-center instagram-items-container">
                     
                     <!-- Place <div> tag where you want the feed to appear -->
-                    <div id="curator-feed-default-feed-layout"><a href="https://curator.io" target="_blank" class="crt-logo crt-tag">Powered by Curator.io</a></div>
+                    <!-- <div id="curator-feed-default-feed-layout"><a href="https://curator.io" target="_blank" class="crt-logo crt-tag">Powered by Curator.io</a></div> -->
 
                     <!-- The Javascript can be moved to the end of the html page before the </body> tag -->
                     <script type="text/javascript">

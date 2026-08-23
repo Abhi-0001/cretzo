@@ -731,3 +731,97 @@ body:not(.swal2-toast-shown) .swal2-container{
 @media (max-width: 400px) {
   .mini-cart-offcanvas { width: 100vw; max-width: 100vw; }
 }
+
+
+/* ============================================================
+   STATIC / POLICY PAGE PROSE
+   Shipping Policy, Return & Refund Policy, Privacy Policy, Terms & Conditions, About Us.
+   The body of each page is HTML entered in the admin panel and printed into
+   .policy-content, so it has to be styled here rather than in the markup.
+
+   The problem this solves: style.css sets `hr { margin: 4.5rem 0 }` globally - 72px above
+   and below, which is right for a divider between whole page sections but not for a rule
+   between clauses of a policy. These documents use a lot of them:
+
+       shipping policy   11 <hr>   ->  1,584px of blank space
+       privacy policy    12 <hr>   ->  1,728px
+       return policy     20 <hr>   ->  2,880px
+       terms & cond.     25 <hr>   ->  3,600px
+
+   which is what made the pages look like they were mostly empty. Heading and paragraph
+   rhythm is set alongside it so the sections still read as separate without the voids.
+============================================================ */
+.policy-content {
+    text-align: left;
+    line-height: 1.75;
+    /* A long legal document is hard to read across a 1400px measure; cap the line length
+       but keep it flush left so it still sits under the page heading. */
+    max-width: 1000px;
+}
+
+.policy-content hr {
+    margin: 1.75rem 0;
+    border-top: 1px solid rgba(164, 174, 198, 0.35);
+    opacity: 1;
+}
+
+/* No rule or margin hanging above the first line, or below the last. */
+.policy-content > *:first-child,
+.policy-content > div > *:first-child {
+    margin-top: 0;
+}
+
+.policy-content > hr:first-child,
+.policy-content > div > hr:first-child,
+.policy-content > hr:last-child,
+.policy-content > div > hr:last-child {
+    display: none;
+}
+
+.policy-content h1 {
+    margin: 0 0 0.4rem;
+    font-size: 1.75rem;
+    line-height: 1.3;
+}
+
+.policy-content h2 {
+    margin: 2.25rem 0 0.6rem;
+    font-size: 1.3rem;
+    line-height: 1.35;
+}
+
+.policy-content h3,
+.policy-content h4 {
+    margin: 1.5rem 0 0.5rem;
+    font-size: 1.1rem;
+    line-height: 1.4;
+}
+
+.policy-content p {
+    margin: 0 0 0.85rem;
+}
+
+.policy-content ul,
+.policy-content ol {
+    margin: 0 0 1rem;
+    padding-left: 1.35rem;
+}
+
+.policy-content li {
+    margin-bottom: 0.4rem;
+}
+
+.policy-content table {
+    width: 100%;
+    margin-bottom: 1rem;
+}
+
+@media (max-width: 768px) {
+    .policy-content hr {
+        margin: 1.25rem 0;
+    }
+
+    .policy-content h2 {
+        margin: 1.75rem 0 0.5rem;
+    }
+}

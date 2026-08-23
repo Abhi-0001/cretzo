@@ -93,12 +93,20 @@ $auth_settings = get_settings('authentication_settings', true);
                     <a class="text-decoration-none" data-toggle="dropdown" href="#" aria-label="profile">
                         <?php
                             // Default avatar placeholder; use the user's own photo when available.
+                            // get_user_avatar_url() turns the bare file name in `users`.`image`
+                            // into a real URL - using the column value directly made every
+                            // uploaded photo 404 into the onerror fallback below.
                             $default_avatar = base_url('assets/front_end/cretzo/img/new_cretzo/user.png');
-                            $user_avatar = (is_object($user) && !empty($user->image)) ? $user->image : $default_avatar;
+                            $user_photo = get_user_avatar_url((is_object($user) && isset($user->image)) ? $user->image : '');
+                            $user_avatar = ($user_photo !== '') ? $user_photo : $default_avatar;
                             $is_default_avatar = ($user_avatar === $default_avatar);
                         ?>
-                        <img class="icon-img<?= $is_default_avatar ? ' icon-img--brand' : '' ?>" src="<?= $user_avatar ?>" alt="profile"
-                             onerror="this.onerror=null;this.src='<?= $default_avatar ?>';this.classList.add('icon-img--brand');">
+                        <?php // icon-img--photo: a real photo has to be cropped to a circle, because
+                              // .icon-img is `height:26px; width:auto` - right for the line icons beside
+                              // it, but it left an uploaded portrait rendering as a rectangle. Only the
+                              // photo gets it; the fallback stays the plain tinted icon. ?>
+                        <img class="icon-img<?= $is_default_avatar ? ' icon-img--brand' : ' icon-img--photo' ?>" src="<?= $user_avatar ?>" alt="profile"
+                             onerror="this.onerror=null;this.src='<?= $default_avatar ?>';this.classList.remove('icon-img--photo');this.classList.add('icon-img--brand');">
                     </a>
 
                     <div class="dropdown-menu dropdown-menu-lg profile-menu-loggedin">
@@ -259,12 +267,13 @@ $auth_settings = get_settings('authentication_settings', true);
                             <?php
                                 // Match the desktop avatar (P1.4): user photo if set, else default, with fallback.
                                 $default_avatar_m = base_url('assets/front_end/cretzo/img/new_cretzo/user.png');
-                                $user_avatar_m = (is_object($user) && !empty($user->image)) ? $user->image : $default_avatar_m;
+                                $user_photo_m = get_user_avatar_url((is_object($user) && isset($user->image)) ? $user->image : '');
+                                $user_avatar_m = ($user_photo_m !== '') ? $user_photo_m : $default_avatar_m;
                                 // Brand-tint the default icon when logged in (see desktop note above).
                                 $is_default_avatar_m = ($user_avatar_m === $default_avatar_m);
                             ?>
-                            <img class="icon-img-m<?= $is_default_avatar_m ? ' icon-img--brand' : '' ?>" src="<?= $user_avatar_m ?>" alt="profile"
-                                 onerror="this.onerror=null;this.src='<?= $default_avatar_m ?>';this.classList.add('icon-img--brand');">
+                            <img class="icon-img-m<?= $is_default_avatar_m ? ' icon-img--brand' : ' icon-img--photo' ?>" src="<?= $user_avatar_m ?>" alt="profile"
+                                 onerror="this.onerror=null;this.src='<?= $default_avatar_m ?>';this.classList.remove('icon-img--photo');this.classList.add('icon-img--brand');">
                         </a>
 
                         <div class="dropdown-menu dropdown-menu-lg">

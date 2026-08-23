@@ -471,6 +471,8 @@ class Seller_subscription_model extends CI_Model
             'credit'         => 0.0,
             'payable'        => $full,
             'days_remaining' => 0,
+            'days_used'      => 0,
+            'term_days'      => 0,
             'from_plan'      => '',
         ];
 
@@ -497,22 +499,46 @@ class Seller_subscription_model extends CI_Model
             return $result;
         }
 
-        $total_days = $this->parse_validity_days($old_plan['validity']);
-        if ($total_days === null || $total_days <= 0) {
-            return $result;
-        }
-
         $days_remaining = (int) ceil((strtotime($current['end_date']) - time()) / 86400);
         if ($days_remaining <= 0) {
             return $result;
         }
-        // Guard against a hand-edited end_date further out than the plan's own length,
-        // which would otherwise generate a credit larger than was ever paid.
-        if ($days_remaining > $total_days) {
-            $days_remaining = $total_days;
+
+        // The term is measured from the seller's OWN subscription row (start_date -> end_date),
+        // not from the plan's current `validity`.
+        //
+        // Why it matters: the credit used to be prorated against parse_validity_days() of the
+        // plan as it stands TODAY, then clamped with `if ($days_remaining > $total_days)`. If the
+        // plan's validity was edited after the seller subscribed - say a "1 Year" Standard was
+        // later changed to "1 Month" - that clamp cut 345 remaining days down to 30 out of 30,
+        // so the credit came out as the FULL 399 and the days already used were not deducted at
+        // all: upgrading to the 999 plan asked for exactly 600. Measuring the term the seller
+        // actually bought makes the consumed days always count, and no later edit to the plan
+        // can inflate the credit.
+        $term_days = null;
+        if (!empty($current['start_date'])) {
+            $start = strtotime($current['start_date']);
+            $end   = strtotime($current['end_date']);
+            if ($start !== false && $end !== false && $end > $start) {
+                $term_days = (int) round(($end - $start) / 86400);
+            }
         }
 
-        $credit = round($old_price * ($days_remaining / $total_days), 2);
+        // No usable start_date (older rows predate it being set): fall back to the plan length.
+        if ($term_days === null || $term_days <= 0) {
+            $term_days = $this->parse_validity_days($old_plan['validity']);
+        }
+        if ($term_days === null || $term_days <= 0) {
+            return $result;
+        }
+
+        // Still clamp, but now against the seller's real term - this only bites when end_date
+        // has been hand-edited beyond the term itself.
+        if ($days_remaining > $term_days) {
+            $days_remaining = $term_days;
+        }
+
+        $credit = round($old_price * ($days_remaining / $term_days), 2);
         if ($credit > $full) {
             $credit = $full; // discount only, never a refund
         }
@@ -520,9 +546,68 @@ class Seller_subscription_model extends CI_Model
         $result['credit']         = $credit;
         $result['payable']        = round($full - $credit, 2);
         $result['days_remaining'] = $days_remaining;
+        $result['days_used']      = max(0, $term_days - $days_remaining);
+        $result['term_days']      = $term_days;
         $result['from_plan']      = isset($old_plan['name']) ? $old_plan['name'] : '';
 
         return $result;
+    }
+
+    /**
+     * May this seller switch to $new_plan right now?
+     *
+     * Sellers can move UP or renew, but not DOWN while a paid term is still running: a
+     * downgrade mid-cycle would hand back listing capacity they have already been billed for
+     * and, with proration crediting the unused days, could even net them money. The plan they
+     * paid for runs to its end date, and the cheaper plan becomes selectable once it lapses.
+     *
+     * Compared on price, which is the only ordering these plans have - there is no rank column.
+     * Same plan is a renewal, and is always allowed (assign_subscription carries the unused days
+     * forward). A seller with no active term - including one sitting on the free tier after a
+     * plan lapsed - can pick anything.
+     *
+     * @return array{allowed: bool, reason: string}
+     */
+    public function can_switch_to_plan($seller_id, $new_plan)
+    {
+        $allow = ['allowed' => true, 'reason' => ''];
+
+        if (empty($new_plan['id'])) {
+            return $allow;
+        }
+
+        $current = $this->get_active_subscription($seller_id);
+        if (empty($current) || empty($current['subscription_id'])) {
+            return $allow; // nothing active - free to choose
+        }
+
+        // A subscription with no end_date never lapses, but it is still "active", so it has to
+        // be checked like any other.
+        if ((int) $current['subscription_id'] === (int) $new_plan['id']) {
+            return $allow; // renewal of the same plan
+        }
+
+        $old_plan = $this->db->where('id', $current['subscription_id'])->get('subscriptions')->row_array();
+        if (empty($old_plan)) {
+            return $allow; // current plan row is gone; nothing to compare against
+        }
+
+        $old_price = $this->price_to_number($old_plan['price']);
+        $new_price = $this->price_to_number(isset($new_plan['price']) ? $new_plan['price'] : 0);
+
+        if ($new_price >= $old_price) {
+            return $allow; // upgrade, or a same-priced sideways move
+        }
+
+        $until = !empty($current['end_date'])
+            ? ' Your ' . $old_plan['name'] . ' plan runs until ' . date('d M Y', strtotime($current['end_date'])) . '.'
+            : ' Your ' . $old_plan['name'] . ' plan is still active.';
+
+        return [
+            'allowed' => false,
+            'reason'  => 'You cannot move to a lower plan while ' . $old_plan['name'] . ' is active.' . $until
+                . ' You can upgrade at any time, or choose ' . $new_plan['name'] . ' once the current plan expires.',
+        ];
     }
 
     /**
@@ -1180,5 +1265,53 @@ class Seller_subscription_model extends CI_Model
         return $who . ' reached ' . $whos . ' listing limit of ' . $quota['limit'] . ' products' . $plan_label
             . ' (currently used ' . $quota['used'] . '). Please upgrade the subscription plan to add more products.';
     }
-}
 
+    /**
+     * Sellers whose CURRENT plan is $plan_id - i.e. the ones a deletion would actually affect.
+     *
+     * The admin delete-guard used to count raw `seller_subscriptions` rows for the plan, which
+     * made a plan permanently undeletable once anybody had ever been on it: expired rows and
+     * rows superseded by a later plan change kept the count above zero forever, with no way out
+     * of the admin panel. On this database "Premium" showed 4 blocking rows and 0 live
+     * subscriptions.
+     *
+     * The row count is the wrong question. What matters is whether the plan is what
+     * get_current_plan() would resolve for some seller, because that is the value feeding the
+     * listing limit (and a missing plan row there reads as "unlimited", which is the reason the
+     * guard exists at all). Note that this is NOT the same as "has an active subscription":
+     * get_current_plan() falls back to the seller's LATEST row when none is active, so an
+     * expired row can still be a seller's effective plan.
+     *
+     * So rather than restate that precedence in SQL - where it would silently drift out of step
+     * with the model - this asks get_current_plan() itself, once per seller who has ever held
+     * the plan. That candidate set is small by construction.
+     *
+     * @param  int $plan_id
+     * @return int Number of distinct sellers currently on the plan.
+     */
+    public function count_sellers_on_plan($plan_id)
+    {
+        $plan_id = (int) $plan_id;
+        if ($plan_id <= 0) {
+            return 0;
+        }
+
+        $candidates = $this->db
+            ->select('seller_id')
+            ->distinct()
+            ->where('subscription_id', $plan_id)
+            ->where('seller_id IS NOT NULL', null, false)
+            ->get('seller_subscriptions')
+            ->result_array();
+
+        $count = 0;
+        foreach ($candidates as $row) {
+            $current = $this->get_current_plan($row['seller_id']);
+            if (!empty($current['id']) && (int) $current['id'] === $plan_id) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+}

@@ -1,0 +1,202 @@
+/* ============================================================
+   CONTACT US
+   Loaded automatically by include-css.php from $main_page === 'contact-us'.
+   Uses the tokens defined in cretzo-global.css (--color-orange, --color-secondary,
+   the --font-size-* scale) so the page matches the rest of the storefront rather
+   than the purchased template it used to inherit.
+============================================================ */
+
+.contact-page {
+    max-width: 1180px;
+    margin-inline: auto;
+    padding: 10px 20px 70px;
+}
+
+/* ---------- intro ---------- */
+.contact-intro {
+    text-align: center;
+    max-width: 620px;
+    margin: 10px auto 38px;
+}
+
+.contact-intro h1 {
+    margin-bottom: 10px;
+}
+
+/* An orange rule under the heading - the same accent the seller auth pages use. */
+.contact-intro h1::after {
+    content: "";
+    display: block;
+    width: 64px;
+    height: 3px;
+    margin: 12px auto 0;
+    border-radius: 3px;
+    background-color: var(--color-orange, #F2822E);
+}
+
+/* ---------- the three info tiles ---------- */
+.contact-tiles {
+    display: grid;
+    /* auto-fit so a store with only one or two of address/phone/email configured still
+       gets a balanced row instead of a gap where the missing tile would be. */
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 18px;
+    margin-bottom: 34px;
+}
+
+.contact-tile {
+    background-color: #fff;
+    border: 1px solid var(--color-light-grey, rgba(0, 0, 0, 0.06));
+    border-radius: 14px;
+    padding: 26px 22px;
+    text-align: center;
+    transition: 0.3s;
+}
+
+.contact-tile:hover {
+    border-color: var(--color-orange, #F2822E);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+}
+
+.contact-tile h2 {
+    margin: 14px 0 6px;
+}
+
+.contact-tile address {
+    font-style: normal;
+    line-height: 1.6;
+}
+
+.contact-tile-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    font-size: 24px;
+    color: var(--color-orange, #F2822E);
+    background-color: var(--color-secondary, #FDE9C6);
+}
+
+.contact-link {
+    color: inherit;
+    text-decoration: none;
+    word-break: break-word;
+}
+
+.contact-link:hover {
+    color: var(--color-orange, #F2822E);
+    text-decoration: underline;
+}
+
+/* ---------- form + map ---------- */
+.contact-body {
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap: 22px;
+    align-items: stretch;
+}
+
+/* No map configured in the admin panel - let the form use the full width rather than
+   leaving half the row empty. */
+.contact-body-single {
+    grid-template-columns: 1fr;
+    max-width: 760px;
+    margin-inline: auto;
+}
+
+.contact-card {
+    background-color: #fff;
+    border: 1px solid var(--color-light-grey, rgba(0, 0, 0, 0.06));
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+.contact-form-card {
+    padding: 30px 28px;
+}
+
+.contact-card-sub {
+    margin-bottom: 22px;
+}
+
+.contact-field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.contact-field {
+    margin-bottom: 16px;
+}
+
+.contact-field label {
+    display: block;
+    margin-bottom: 6px;
+}
+
+.contact-req {
+    color: var(--color-fail, #ff0000);
+}
+
+/* .input is the global field style; only the focus ring is added here so the page
+   matches the orange accent instead of the browser default. */
+.contact-field .input:focus {
+    border-color: var(--color-orange, #F2822E);
+    box-shadow: 0 0 0 3px rgba(242, 130, 46, 0.12);
+}
+
+.contact-textarea {
+    min-height: 150px;
+    resize: vertical;
+    font-family: inherit;
+}
+
+.contact-submit {
+    width: 100%;
+    margin-top: 6px;
+}
+
+/* ---------- map ---------- */
+.contact-map,
+.contact-map iframe {
+    display: block;
+    width: 100%;
+    height: 100%;
+    min-height: 420px;
+    border: 0;
+}
+
+/* ---------- responsive ---------- */
+@media (max-width: 900px) {
+    .contact-body {
+        grid-template-columns: 1fr;
+    }
+
+    /* Map below the form on narrow screens, and no longer full-height - it would
+       otherwise take over the whole viewport. */
+    .contact-map,
+    .contact-map iframe {
+        min-height: 300px;
+    }
+}
+
+@media (max-width: 560px) {
+    .contact-page {
+        padding: 6px 14px 50px;
+    }
+
+    .contact-field-row {
+        grid-template-columns: 1fr;
+        gap: 0;
+    }
+
+    .contact-form-card {
+        padding: 24px 18px;
+    }
+
+    .contact-tile {
+        padding: 22px 18px;
+    }
+}

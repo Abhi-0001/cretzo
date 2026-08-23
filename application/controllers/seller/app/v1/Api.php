@@ -4566,7 +4566,12 @@ Defined Methods:-
                 'billing_customer_name' =>  $user_data[0]['username'],
                 'billing_last_name' => "",
                 'billing_address' => $address_data[0]['address'],
-                'billing_city' => !empty($city_data[0]['city_name']) ? $city_data[0]['city_name'] : $address_data[0]['city'],
+                // Address text first, `cities` lookup as the fallback - see the note in
+                // seller/Orders.php::create_shiprocket_order(). city_id is a legacy FK into a
+                // demo cities table and answered "Mumbai" for Delhi addresses.
+                'billing_city' => !empty($address_data[0]['city'])
+                    ? $address_data[0]['city']
+                    : (!empty($city_data[0]['city_name']) ? $city_data[0]['city_name'] : ''),
                 'billing_pincode' => $address_data[0]['pincode'],
                 'billing_state' => $address_data[0]['state'],
                 'billing_country' => $address_data[0]['country'],

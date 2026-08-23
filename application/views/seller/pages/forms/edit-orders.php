@@ -365,6 +365,31 @@
                                             <?php
 
                                             $seller_order = $this->Order_model->get_order_details(['o.id' => $order_detls[0]['order_id'], 'oi.seller_id' => $this->session->userdata('user_id')]);
+
+                                            /*
+                                             * Resolve each row's pickup location before grouping.
+                                             *
+                                             * This list came straight from `products`.`pickup_location`, which is BLANK on
+                                             * 278 of the 290 products on this store - and the radio below is only rendered
+                                             * for a non-empty value, so those items offered no pickup option at all and
+                                             * could not be shipped from this screen. The 12 that do carry a name all name
+                                             * the one address Shiprocket has never confirmed.
+                                             *
+                                             * resolve_seller_pickup_location() is what the booking endpoint already uses to
+                                             * match items, and it prefers Shiprocket-confirmed addresses. Rewriting the row
+                                             * value here means this list, the $ids grouping below and the per-item
+                                             * comparison further down all agree with what will actually be booked.
+                                             */
+                                            foreach ($seller_order as $k => $so_row) {
+                                                $resolved_pickup = resolve_seller_pickup_location(
+                                                    isset($so_row['pickup_location']) ? $so_row['pickup_location'] : '',
+                                                    isset($so_row['seller_id']) ? $so_row['seller_id'] : $this->session->userdata('user_id')
+                                                );
+                                                if (!empty($resolved_pickup['pickup_location'])) {
+                                                    $seller_order[$k]['pickup_location'] = $resolved_pickup['pickup_location'];
+                                                }
+                                            }
+
                                             $pickup_location = array_values(array_unique(array_column($seller_order, "pickup_location")));
 
                                             for ($j = 0; $j < count($pickup_location); $j++) {

@@ -267,12 +267,22 @@ class Area extends CI_Controller
             // reference - Seller_subscription_model::get_listing_limit() treats a missing plan
             // row as "no limit configured" and silently grants those sellers UNLIMITED listings,
             // not an error. Same reasoning as the brand delete-guard added earlier this pass.
+            //
+            // This counted raw `seller_subscriptions` rows, which is the wrong question: expired
+            // rows and rows superseded by a later plan change kept the total above zero forever,
+            // so a plan became undeletable the moment anyone had EVER been on it, even with
+            // nobody on it now. count_sellers_on_plan() asks get_current_plan() - the same
+            // resolution that feeds the listing limit - so only a plan that is genuinely somebody's
+            // current plan blocks the delete. Historical rows are left alone: they are a record of
+            // what was billed, and nothing resolves a plan through them.
             if ($table == 'subscriptions') {
-                $this->load->model('Subscription_model');
-                $sellers_on_plan = $this->db->where('subscription_id', $_GET['id'])->count_all_results('seller_subscriptions');
+                $this->load->model('Seller_subscription_model');
+                $sellers_on_plan = $this->Seller_subscription_model->count_sellers_on_plan($_GET['id']);
                 if ($sellers_on_plan > 0) {
                     $response['error'] = true;
-                    $response['message'] = 'This plan is still assigned to ' . $sellers_on_plan . ' seller subscription(s). Move them to another plan before deleting.';
+                    $response['message'] = 'This plan is currently assigned to ' . $sellers_on_plan . ' seller'
+                        . ($sellers_on_plan > 1 ? 's' : '') . '. Move ' . ($sellers_on_plan > 1 ? 'them' : 'that seller')
+                        . ' to another plan before deleting.';
                     echo json_encode($response);
                     return false;
                 }

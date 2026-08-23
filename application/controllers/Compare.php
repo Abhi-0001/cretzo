@@ -32,6 +32,19 @@ class Compare extends CI_Controller
             /* redirect him to the page where he can enter the purchase code */
             redirect(base_url("maintenance"));
         }
+        /*
+         * HIDDEN FEATURE. Product comparison was never finished: this page rendered nothing but
+         * "No items to compare" (the compare list is built client-side in localStorage, and the
+         * buttons that would fill it are deliberately inert - see .compare-soon-btn in
+         * cretzo-fixes.js), so the only thing the URL did was show shoppers an empty page.
+         *
+         * Redirecting rather than 404ing keeps old links and bookmarks landing somewhere useful.
+         * The controller, view and add_to_compare() are all left intact: drop the redirect and
+         * put the footer link in footer.php back to un-hide the whole thing.
+         */
+        redirect(base_url(), 'refresh');
+        return;
+
         $this->data['main_page'] = 'Compare';
         $this->data['title'] = 'Compare | ' . $this->data['web_settings']['site_title'];
         $this->data['keywords'] = 'Compare, ' . $this->data['web_settings']['meta_keywords'];

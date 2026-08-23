@@ -1564,9 +1564,22 @@ class Orders extends CI_Controller
                 // field, so the booking was rejected. Falls back to the city text stored on the
                 // address itself, which is what the customer actually typed.
                 $city_data = fetch_details('cities', ['city_id' => $address_data[0]['city_id']], 'city_name');
-                $billing_city = !empty($city_data[0]['city_name'])
-                    ? $city_data[0]['city_name']
-                    : (isset($address_data[0]['city']) ? $address_data[0]['city'] : '');
+                // The address's OWN city text is preferred over the `cities` lookup.
+                //
+                // `addresses`.`city_id` is a legacy FK into a `cities` table seeded with 18 demo
+                // cities (Mumbai, Pune, Bangalore, ...). The address form is pincode-first: it
+                // fills `addresses`.`city` with the real city and leaves city_id at whatever it
+                // was, so on this database 11 of 14 addresses carry city_id = 1 and 3 carry 0 -
+                // and the join therefore answered "Mumbai" for New Delhi, South Delhi and
+                // Kotdwara addresses, or nothing at all.
+                //
+                // That is the city that went to Shiprocket next to a Delhi pincode, and an empty
+                // required field for the ones whose city_id resolves to nothing. The text column
+                // is what the customer actually entered and what every screen displays, so it
+                // wins; the lookup stays as the fallback for older rows that only have city_id.
+                $billing_city = !empty($address_data[0]['city'])
+                    ? $address_data[0]['city']
+                    : (!empty($city_data[0]['city_name']) ? $city_data[0]['city_name'] : '');
 
                 $availibility_data = [
                     'pickup_postcode' => $pickup_location_pincode[0]['pin_code'],

@@ -53,7 +53,11 @@ $system_settings = get_settings('system_settings', true); ?>
         <?php } ?>
         
         <!-- <li class="footer-list-item"> <a class="text-decoration-none hover" href="#"> Career </a> </li> -->
-        <li class="footer-list-item"> <a class="text-decoration-none hover" href="<?= base_url('compare') ?>"> Compare </a> </li>
+        <?php // Compare is HIDDEN: the feature is unfinished, so /compare only ever rendered
+              // "No items to compare". The product page and quick-view already announce it as
+              // "coming soon" via .compare-soon-btn, and Compare::index() now redirects home -
+              // this link was the last thing sending shoppers to the empty page. Restore the
+              // <li> below when the feature ships. ?>
         <li class="footer-list-item"> <a class="text-decoration-none hover" href="<?= base_url('home/faq') ?>"> FAQ's </a> </li>
     </ul>
 

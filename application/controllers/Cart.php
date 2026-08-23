@@ -697,8 +697,13 @@ class Cart extends CI_Controller
                 if (isset($_POST['product_type']) && $_POST['product_type'] != 'digital_product') {
                     $area_id = fetch_details('addresses', ['id' => $_POST['address_id']], ['area_id', 'area', 'pincode', 'state']);
                     $zipcode = $area_id[0]['pincode'];
-                    $zipcode_id = fetch_details('zipcodes', ['zipcode' => $zipcode], 'id')[0];
-                    $product_delivarable = check_cart_products_delivarable($_POST['user_id'], $area_id[0]['area_id'], $zipcode, $zipcode_id['id']);
+                    // `zipcodes` holds only the pincodes an admin has configured for LOCAL
+                    // delivery zones - 6 rows on this install - so any other pincode returned an
+                    // empty result and this [0] was an undefined offset, then ['id'] a second
+                    // one, on every checkout from an unlisted pincode. Same guard the other two
+                    // call sites in this file already use.
+                    $zipcode_row = fetch_details('zipcodes', ['zipcode' => $zipcode], 'id')[0] ?? [];
+                    $product_delivarable = check_cart_products_delivarable($_POST['user_id'], $area_id[0]['area_id'], $zipcode, $zipcode_row['id'] ?? null);
                     if (!empty($product_delivarable)) {
                         $product_not_delivarable = array_filter($product_delivarable, function ($var) {
                             return ($var['is_deliverable'] == false && $var['product_id'] != null);
@@ -1127,8 +1132,9 @@ class Cart extends CI_Controller
             }
             $area_id = fetch_details('addresses', ['id' => $_POST['address_id']], ['area_id', 'area', 'pincode']);
             $zipcode = $area_id[0]['pincode'];
-            $zipcode_id = fetch_details('zipcodes', ['zipcode' => $zipcode], 'id')[0];
-            $product_delivarable = check_cart_products_delivarable($_POST['user_id'], $area_id[0]['area_id'], $zipcode, $zipcode_id['id']);
+            // See the note in place_order(): an unlisted pincode made this [0] an undefined offset.
+            $zipcode_row = fetch_details('zipcodes', ['zipcode' => $zipcode], 'id')[0] ?? [];
+            $product_delivarable = check_cart_products_delivarable($_POST['user_id'], $area_id[0]['area_id'], $zipcode, $zipcode_row['id'] ?? null);
             if ($product_type != 'digital_product') {
                 if (!empty($product_delivarable)) {
                     $product_not_delivarable = array_filter($product_delivarable, function ($var) {

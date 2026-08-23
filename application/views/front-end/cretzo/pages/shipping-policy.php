@@ -25,11 +25,17 @@
     <div class="text-center">
         <h1 class="display-2"><?= !empty($this->lang->line('shipping_policy')) ? $this->lang->line('shipping_policy') : 'Shipping Policy' ?></h1>
     </div>
-    <div class="text-justify">
-        <div class="hrDiv">
-            <p>
-            <?= $shipping_policy ?>
-            </p>
-        </div>
+    <?php // .policy-content scopes the prose styling for these static pages (see
+          // cretzo-override.css). The theme's global `hr { margin: 4.5rem 0 }` is meant for
+          // full-page section dividers, but these policies use <hr> as a rule between
+          // numbered clauses - 11 of them in the shipping policy, 25 in the terms - which
+          // added 144px of blank space per divider and left the pages full of huge gaps.
+          //
+          // Also no longer wrapped in a <p>: the stored content is block HTML, which is
+          // invalid inside a paragraph and left two empty paragraphs behind. And no longer
+          // .text-justify - justifying prose across the full container width stretched the
+          // spaces between words into visible rivers. ?>
+    <div class="hrDiv policy-content">
+        <?= $shipping_policy ?>
     </div>
 </section>

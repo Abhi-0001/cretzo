@@ -64,11 +64,54 @@ class Pickup_location_model extends CI_Model
         }
 
         if (isset($raw['edit_pickup_location'])) {
+            /*
+             * An edit can make Shiprocket's copy of this address stale.
+             *
+             * Shiprocket holds pickup addresses by nickname on its own side; editing the row
+             * here changed only the local copy, while `shiprocket_verified_at` stayed stamped.
+             * Everything downstream reads that stamp as "Shiprocket has confirmed this address"
+             * (see shiprocket_pickup_is_bookable / resolve_seller_pickup_location), so after an
+             * edit the platform would keep booking against an address Shiprocket no longer
+             * matches - parcels quoted and labelled from the OLD address.
+             *
+             * So: if any field that identifies the address changed, the confirmation no longer
+             * holds and is cleared. Re-syncing it (Admin > Pickup Location > import from
+             * Shiprocket) re-stamps whatever Shiprocket actually has. A cosmetic edit - the
+             * contact name, say - leaves the confirmation alone.
+             */
+            $existing = $this->db->select('address, address_2, city, state, country, pin_code, phone, pickup_location')
+                ->where(['id' => $raw['edit_pickup_location'], 'seller_id' => $pickup_location_data['seller_id']])
+                ->get('pickup_locations')->row_array();
+
+            $address_changed = false;
+            if (!empty($existing)) {
+                foreach (['pickup_location', 'address', 'address_2', 'city', 'state', 'country', 'pin_code', 'phone'] as $field) {
+                    if ((string) $existing[$field] !== (string) $pickup_location_data[$field]) {
+                        $address_changed = true;
+                        break;
+                    }
+                }
+            }
+
+            if ($address_changed && $this->db->field_exists('shiprocket_verified_at', 'pickup_locations')) {
+                $pickup_location_data['shiprocket_verified_at'] = null;
+            }
+
             // Scoped to this seller on the row being matched, not just the seller_id being
             // written — previously the WHERE ignored ownership entirely, so any seller could
             // overwrite another seller's pickup location by id, and since seller_id was part
             // of the SET data, the row was simultaneously reassigned to the caller's account.
             $this->db->set($pickup_location_data)->where(['id' => $raw['edit_pickup_location'], 'seller_id' => $pickup_location_data['seller_id']])->update('pickup_locations');
+
+            if ($address_changed) {
+                return [
+                    'error'   => false,
+                    'message' => 'Pickup location updated. Because the address changed, it needs to be '
+                        . 're-registered with Shiprocket before shipments can be booked from it.',
+                    'shiprocket' => null,
+                ];
+            }
+
             return ['error' => false, 'message' => 'Pickup location updated.', 'shiprocket' => null];
         }
 
@@ -111,6 +154,29 @@ class Pickup_location_model extends CI_Model
                     . '. Shipments booked from it will fail until it is corrected.',
                 'shiprocket' => $result,
             ];
+        }
+
+        /*
+         * Record that Shiprocket accepted it.
+         *
+         * Nothing set this on insert - only the admin's "import from Shiprocket" sync did - so a
+         * pickup location a seller added, and that Shiprocket accepted right here, was still
+         * left with shiprocket_verified_at NULL. Everything that decides whether an address can
+         * be booked from reads that column, so a perfectly good new address counted as
+         * unconfirmed and shipments from it were refused until an admin happened to run the
+         * sync. Stamped from the same response that told us it was accepted.
+         */
+        if ($this->db->field_exists('shiprocket_verified_at', 'pickup_locations')) {
+            $new_id = $this->db->insert_id();
+            if (!empty($new_id)) {
+                $verified = ['shiprocket_verified_at' => date('Y-m-d H:i:s')];
+                // Shiprocket will not schedule a pickup from an address whose phone it has not
+                // verified, and it reports that back on the address it just registered.
+                if (isset($result['address']['phone_verified']) && $this->db->field_exists('phone_verified', 'pickup_locations')) {
+                    $verified['phone_verified'] = ((int) $result['address']['phone_verified'] === 1) ? 1 : 0;
+                }
+                $this->db->set($verified)->where('id', $new_id)->update('pickup_locations');
+            }
         }
 
         return ['error' => false, 'message' => 'Pickup location added.', 'shiprocket' => $result];

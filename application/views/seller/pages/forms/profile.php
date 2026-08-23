@@ -86,6 +86,31 @@
   justify-content: flex-end;
   gap: 8px;
 }
+/* Cancel and Done are two DIFFERENT button classes - .btn-add-categories is the outlined one
+   used for "+ Add Categories" out on the form, .btn-upload-logo the solid one used for the photo
+   pickers - so side by side in this footer they came out different heights: 13px vs 0.9rem font,
+   1px border vs none, and .btn-add-categories additionally carries margin-top:0.5rem for its
+   standalone use, which pushed Cancel out of line. Normalise the box for both, scoped to the
+   footer so both classes keep behaving as before everywhere else. */
+.category-picker-footer .btn-add-categories,
+.category-picker-footer .btn-upload-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0;
+  min-height: 40px;
+  padding: 0.5rem 1.25rem;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  border-radius: 0.6rem;
+  /* A transparent border on the solid button too, so the outlined one's 1px cannot make it
+     the shorter of the two. */
+  border: 1px solid transparent;
+}
+.category-picker-footer .btn-add-categories {
+  border-color: var(--color-orange, #F2822E);
+}
 .category-picker-list {
   padding: 12px 16px;
   overflow-y: auto;
@@ -455,7 +480,10 @@
                           </div>
                           <div class="category-picker-footer">
                             <button type="button" class="btn-add-categories" id="cancel_category_picker_btn">Cancel</button>
-                            <button type="button" class="btn-upload-logo" id="done_category_picker_btn" style="padding:0.5rem 1rem;">Done</button>
+                            <?php // No inline padding: the footer rule in this page's <style> block sizes
+                                  // both buttons together, and an inline style could only ever put them
+                                  // back out of step. ?>
+                            <button type="button" class="btn-upload-logo" id="done_category_picker_btn">Done</button>
                           </div>
                         </div>
                       </div>

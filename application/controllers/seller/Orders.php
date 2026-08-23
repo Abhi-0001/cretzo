@@ -875,6 +875,20 @@ class Orders extends CI_Controller
                 // Scoped to this seller: pickup_location is a client-supplied string, and
                 // without the seller_id filter a seller could dispatch their parcel from
                 // another seller's registered pickup address.
+                // Refuse a pickup location Shiprocket has not confirmed BEFORE building the
+                // booking. Without this the request went out and came back 422 "Wrong Pickup
+                // location entered", which the seller saw as an unexplained shipping failure.
+                $bookable = shiprocket_pickup_is_bookable($_POST['pickup_location'], $seller_id);
+                if (!$bookable['ok']) {
+                    $this->response['error'] = true;
+                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                    $this->response['message'] = $bookable['reason'];
+                    $this->response['data'] = array();
+                    print_r(json_encode($this->response));
+                    return false;
+                }
+
                 $pickup_location_pincode = fetch_details('pickup_locations', ['pickup_location' => $_POST['pickup_location'], 'seller_id' => $seller_id], 'pin_code');
                 if (empty($pickup_location_pincode)) {
                     $this->response['error'] = true;
@@ -898,7 +912,9 @@ class Orders extends CI_Controller
                 }
 
                 $user_data = fetch_details('users', ['id' => $_POST['user_id']], 'username,email');
-                $address_data = fetch_details('addresses', ['id' => $order_data[0]['address_id']], 'address,city_id,pincode,state,country');
+                // `city` added to the select: billing_city's fallback read $address_data[0]['city'],
+                // which was never fetched, so the fallback could only ever produce ''.
+                $address_data = fetch_details('addresses', ['id' => $order_data[0]['address_id']], 'address,city,city_id,pincode,state,country');
                 if (empty($address_data)) {
                     $this->response['error'] = true;
                     $this->response['csrfName'] = $this->security->get_csrf_token_name();
@@ -979,6 +995,23 @@ class Orders extends CI_Controller
                 $order_item_ids = implode(",", $order_item_id);
                 $random_id = '-' . rand(10, 10000);
                 $delivery_charge = (strtoupper($order_data[0]['payment_method']) == 'COD') ? $order_data[0]['delivery_charge'] : 0;
+                // The address's OWN city text is preferred over the `cities` lookup.
+                //
+                // `addresses`.`city_id` is a legacy FK into a `cities` table seeded with 18 demo
+                // cities (Mumbai, Pune, Bangalore, ...). The address form is pincode-first: it
+                // fills `addresses`.`city` with the real city and leaves city_id at whatever it
+                // was, so on this database 11 of 14 addresses carry city_id = 1 and 3 carry 0 -
+                // and the join therefore answered "Mumbai" for New Delhi, South Delhi and
+                // Kotdwara addresses, or nothing at all.
+                //
+                // That is the city that went to Shiprocket next to a Delhi pincode, and an empty
+                // required field for the ones whose city_id resolves to nothing. The text column
+                // is what the customer actually entered and what every screen displays, so it
+                // wins; the lookup stays as the fallback for older rows that only have city_id.
+                $billing_city = !empty($address_data[0]['city'])
+                    ? $address_data[0]['city']
+                    : (!empty($city_data[0]['city_name']) ? $city_data[0]['city_name'] : '');
+
                 $create_order = [
                     'order_id' => $_POST['order_id'] . $order_id . $random_id,
                     'order_date' => $order_data[0]['date_added'],
@@ -988,7 +1021,7 @@ class Orders extends CI_Controller
                     'billing_address' => $address_data[0]['address'],
                     // Falls back to the city typed on the address when the lookup finds nothing,
                     // rather than sending Shiprocket an empty required field.
-                    'billing_city' => !empty($city_data[0]['city_name']) ? $city_data[0]['city_name'] : (isset($address_data[0]['city']) ? $address_data[0]['city'] : ''),
+                    'billing_city' => $billing_city,
                     'billing_pincode' => $address_data[0]['pincode'],
                     'billing_state' => $address_data[0]['state'],
                     'billing_country' => $address_data[0]['country'],
