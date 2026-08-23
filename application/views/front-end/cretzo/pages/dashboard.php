@@ -12,7 +12,17 @@ die(); */
         <div class="overview-upper">
             <div class="profile-info">
                 <div class="profile-avatar">
-                    <img src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/user.png') ?>" alt="profile">
+                    <?php // Show the account's own photo here too; this was hardcoded to the
+                          // default icon, so an uploaded avatar never appeared on the dashboard.
+                          //
+                          // .has-photo matters: .profile-avatar img is sized to 62px inside the
+                          // 92px circle at 0.75 opacity, which suits the grey placeholder glyph but
+                          // showed a real photo as a small faded inset instead of a filled circle.
+                          $dashboard_photo = get_user_avatar_url(isset($users->image) ? $users->image : '');
+                          $dashboard_avatar = ($dashboard_photo !== '')
+                              ? $dashboard_photo
+                              : base_url('assets/front_end/cretzo/img/new_cretzo/user.png'); ?>
+                    <img src="<?= $dashboard_avatar ?>" alt="profile" class="<?= ($dashboard_photo !== '') ? 'has-photo' : '' ?>">
                 </div>
                 <div class="profile-meta">
                     <h1 class="heading-b profile-name"><?= $users->username ?></h1>

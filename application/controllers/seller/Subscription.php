@@ -52,6 +52,21 @@ class Subscription extends CI_Controller
         $settings = get_settings('system_settings', true);
         $plan = $this->Subscription_model->get_plan($id);
 
+        // Don't let a downgrade even reach the checkout screen - purchase() would refuse it
+        // after the seller had filled the page in.
+        if (!empty($plan)) {
+            $switch = $this->Seller_subscription_model->can_switch_to_plan(
+                $this->session->userdata('user_id'),
+                $plan
+            );
+            if (!$switch['allowed']) {
+                $this->session->set_flashdata('message', $switch['reason']);
+                $this->session->set_flashdata('message_type', 'error');
+                redirect('seller/subscription/manage_subscriptions', 'refresh');
+                return;
+            }
+        }
+
         $this->data['main_page'] = VIEW . 'subscription_details';
         $this->data['title'] = 'Subscription Detail | ' . $settings['app_name'];
         $this->data['meta_description'] = 'Subscription Detail | ' . $settings['app_name'];
@@ -105,11 +120,28 @@ class Subscription extends CI_Controller
             return;
         }
 
-        // Upgrades and downgrades are both allowed and take effect immediately. Switching
-        // to a DIFFERENT plan now credits the unused portion of the current paid plan
-        // against the new plan's price (see calculate_proration), so a mid-cycle upgrade no
-        // longer means paying twice for the overlapping days. Re-buying the SAME plan is a
-        // renewal instead, and carries the unused days forward.
+        // Upgrades and renewals only. A seller on an active paid plan cannot drop to a cheaper
+        // one mid-term - they keep what they paid for until it expires, and the cheaper plan
+        // becomes selectable then. Enforced here rather than only on the plan cards, because
+        // this endpoint is what actually creates the Razorpay order.
+        $switch = $this->Seller_subscription_model->can_switch_to_plan($seller_id, $plan);
+        if (!$switch['allowed']) {
+            $response = [
+                'error' => true,
+                'requires_payment' => false,
+                'csrfName' => $this->security->get_csrf_token_name(),
+                'csrfHash' => $this->security->get_csrf_hash(),
+                'message' => $switch['reason'],
+            ];
+            echo json_encode($response);
+            return;
+        }
+
+        // Switching to a DIFFERENT plan credits the unused portion of the current paid plan
+        // against the new plan's price (see calculate_proration), so a mid-cycle upgrade does
+        // not mean paying twice for the overlapping days - and the days already consumed are
+        // deducted from that credit. Re-buying the SAME plan is a renewal instead, and carries
+        // the unused days forward.
         $proration    = $this->Seller_subscription_model->calculate_proration($seller_id, $plan);
         $full_price   = $proration['full_price'];
         $amount_value = $proration['payable'];

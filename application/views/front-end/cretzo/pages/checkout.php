@@ -7,6 +7,14 @@
     $total_discount_on_mrp = !empty($cart['discount_on_mrp']) ? $cart['discount_on_mrp'] : 0;
 
     /* Re-arrange addresses array to put the default address (if any) at first index */
+    // Declared up front because a customer with no saved address skips the block below
+    // entirely, and the hidden #input_address_id / #mobile fields further down read both
+    // unconditionally. Without these, reaching checkout before adding an address emitted
+    // "Undefined variable $selected_address_id" INSIDE a value="" attribute, which broke
+    // the markup and leaked a stray "> onto the page.
+    $selected_address = NULL;
+    $selected_address_id = '';
+
     if (!empty($addresses['rows'])) {
 
         // Set first address as selected by default.
@@ -32,7 +40,7 @@
     }
 
     // Check if an 'id' is provided in the query parameter and find and set the selected address to the matching id 
-    if (!empty($_GET['id'])) {
+    if (!empty($_GET['id']) && !empty($addresses['rows'])) {
         $query_id = (int)$_GET['id']; // Sanitize input to avoid issues
 
         // Search for the matching address ID
@@ -179,7 +187,9 @@
                                 </li>
                             </ul>
                 <?php   }
-                    }
+                    } else { ?>
+                        <p class="text-n">You have no saved delivery addresses yet. Add one below to continue.</p>
+                <?php   }
                 ?>
             </div>
 

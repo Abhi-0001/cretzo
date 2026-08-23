@@ -50,6 +50,15 @@
     object-fit: contain;
     opacity: 0.75;
 }
+/* A real photo fills the circle instead of sitting inset and faded like the placeholder
+   glyph above. The container already has border-radius:50% + overflow:hidden, so covering
+   it edge to edge is what makes the photo read as a circle. */
+.profile-avatar img.has-photo{
+    height: 100%;
+    width: 100%;
+    object-fit: cover;
+    opacity: 1;
+}
 .profile-meta{
     min-width: 0;
 }

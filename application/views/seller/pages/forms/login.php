@@ -63,8 +63,8 @@
             <form action="<?= base_url('/seller/auth/login') ?>" class='form-submit-event' method="post">
                 <div class="mb-3">
                     <input type='hidden' name='<?= $this->security->get_csrf_token_name() ?>' value='<?= $this->security->get_csrf_hash() ?>'>
-                    <label for="mobile" class="form-label text-dark">Mobile </label>
-                    <input type="<?= $identity_column ?>" class="form-control form-input" name="identity" id="mobile" placeholder="Enter Your <?= ucfirst($identity_column)  ?>" value="<?= (ALLOW_MODIFICATION == 0) ? '9988776655' : '' ?>">
+                    <label for="mobile" class="form-label text-dark">Email or Mobile </label>
+                    <input type="text" class="form-control form-input" name="identity" id="mobile" placeholder="Enter Your Email or Mobile Number" value="<?= (ALLOW_MODIFICATION == 0) ? '9988776655' : '' ?>">
                 </div>
                 <div class="mb-3">
                     <label for="password" class="form-label text-dark">Password</label>

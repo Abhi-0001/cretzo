@@ -186,18 +186,82 @@ class Category_model extends CI_Model
     }
 
 
+    /**
+     * Delete a category, parking any products it holds in "Uncategorised".
+     *
+     * This used to be a soft delete: `UPDATE categories SET status = NULL`, with the admin list
+     * filtering `status IS NOT NULL` to hide the row. That stopped working when migration 050
+     * made `categories.status` NOT NULL DEFAULT 0 - and it stopped working SILENTLY, because
+     * MySQL is not in strict mode here, so the NULL was coerced to 0 instead of raising.
+     * "Delete" therefore degraded into "deactivate": the category dropped off the storefront
+     * (which requires status = 1) but stayed in the admin list forever, while the endpoint
+     * reported "Deleted Successfully".
+     *
+     * Re-allowing NULL is not the answer - 050 removed that state deliberately, because a
+     * NULL-status category silently swallowed every product filed under it (the storefront
+     * product reads filter on `c.status = '1' OR c.status = '0'`). So this is a real DELETE
+     * now, following the same shape as Brand_model::delete_brand().
+     *
+     * @return array{success: bool, message: string}
+     */
     public function delete_category($id)
     {
-        $this->db->trans_start();
         $id = escape_array($id);
-        $this->db->set('status', NULL)->where('id', $id)->update('categories');
-        $this->db->trans_complete();
-        $response = FALSE;
-        if ($this->db->trans_status() === TRUE) {
-            $response = TRUE;
-            $this->db->set('category_id', '1')->where('category_id', $id)->update('products');
+
+        $category = fetch_details('categories', ['id' => $id], 'id,name');
+        if (empty($category)) {
+            return ['success' => false, 'message' => 'Category does not exist!'];
         }
-        return $response;
+
+        // Subcategories first. Deleting a parent out from under its children leaves them
+        // pointing at a parent_id that no longer resolves, and orphaned category references
+        // have already broken this storefront once (see migrations 056 / 057, which had to
+        // rescue 177 products whose category_id pointed at a category that did not exist).
+        // Blocking is also what the brand and subscription-plan deletes do with dependents.
+        $children = $this->db->where('parent_id', $id)->count_all_results('categories');
+        if ($children > 0) {
+            return [
+                'success' => false,
+                'message' => 'This category still has ' . $children . ' subcategor' . ($children > 1 ? 'ies' : 'y')
+                    . '. Delete or move ' . ($children > 1 ? 'them' : 'it') . ' before deleting this category.',
+            ];
+        }
+
+        // Products have to land somewhere that exists and is browsable. The old code moved
+        // them to a hardcoded category_id of 1, which on this database is a leftover named
+        // "test" with status 0 - i.e. it parked them somewhere deactivated and invisible.
+        // "Uncategorised" is the category migrations 056/057 established for exactly this.
+        $products_held = $this->db->where('category_id', $id)->count_all_results('products');
+        $fallback = fetch_details('categories', ['slug' => 'uncategorised'], 'id');
+        if ($products_held > 0 && empty($fallback[0]['id'])) {
+            return [
+                'success' => false,
+                'message' => 'This category holds ' . $products_held . ' product(s) and there is no '
+                    . '"Uncategorised" category to move them to. Reassign them before deleting.',
+            ];
+        }
+
+        $this->db->trans_start();
+
+        if ($products_held > 0) {
+            $this->db->set('category_id', $fallback[0]['id'])->where('category_id', $id)->update('products');
+        }
+        $this->db->delete('categories', ['id' => $id]);
+        $deleted = ($this->db->affected_rows() > 0);
+
+        $this->db->trans_complete();
+
+        // Both statements share one transaction so a failure can never leave the products
+        // moved with the category still sitting there (or the reverse).
+        if ($this->db->trans_status() === FALSE || !$deleted) {
+            return ['success' => false, 'message' => 'Failed to delete category'];
+        }
+
+        $moved = ($products_held > 0)
+            ? ' ' . $products_held . ' product(s) moved to Uncategorised.'
+            : '';
+
+        return ['success' => true, 'message' => 'Deleted Successfully.' . $moved];
     }
 
 
@@ -206,6 +270,9 @@ class Category_model extends CI_Model
         $offset = 0;
         $limit = 10;
         $multipleWhere = '';
+        // CI renders this as `status IS NOT NULL`, which has matched every row since migration
+        // 050 made the column NOT NULL. It is kept only because it is harmless: there is no
+        // soft-deleted state to hide any more - delete_category() removes the row outright.
         $where = ['status !=' => NULL];
 
         if (isset($_GET['id']))
@@ -330,7 +397,17 @@ class Category_model extends CI_Model
 
     public function add_category($data)
     {
-        $data = escape_array($data);
+        // NOT escape_array(): every value below is written through CodeIgniter's query builder
+        // (->set()/->insert()), which parameter-escapes on its own. Pre-escaping added a layer
+        // of backslashes that COMPOUNDED on each save, so a category named "Men's Wear" was
+        // stored as "Men\'s Wear" and re-editing it produced "Men\\\'s Wear".
+        //
+        // It showed up as "Men/s Wear" in the seller profile's secondary-category picker, which
+        // prints the name with htmlspecialchars() and nothing else. The admin category list
+        // happened to hide it because that one read path runs output_escaping() (really
+        // stripcslashes), which peels exactly one layer back off.
+        //
+        // Migration 059 repairs the names already damaged in the database.
 
         // create_unique_slug() must be told which row we're editing, otherwise it finds THIS
         // category's own existing slug, treats it as a collision and mints "name-1", "name-2",

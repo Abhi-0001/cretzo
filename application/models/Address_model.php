@@ -64,21 +64,70 @@ class Address_model extends CI_Model
         //     $address_data['area_id'] = isset($data['area_id']) && !empty($data['area_id']) ? $data['area_id'] : 0;
         //     $address_data['area'] = isset($area) && !empty($area) ?$area[0]['name'] : '';
         // }
-        if (isset($data['city_id'])) {
-            $address_data['city_id'] = (isset($data['city_id']) & !empty($data['city_id'])) ? $data['city_id'] : 0;
-            $address_data['city'] = isset($city) && !empty($city) ? $city[0]['city_name'] : '';
+        /*
+         * city / city_id.
+         *
+         * Two things were wrong here.
+         *
+         * 1. `city_id` was written straight from the POST with no check that the id exists. The
+         *    address form is pincode-first: it fills the `city_name` text box from the pincode
+         *    lookup and leaves the hidden city_id field at whatever it already held. `cities` is
+         *    seeded with 18 demo cities (Mumbai, Pune, Bangalore, ...) and holds no South Delhi
+         *    or Kotdwara, so the lookup could not set it and a stale 1 was saved instead - 11 of
+         *    the 14 addresses on this database point at Mumbai, and 3 at a city_id of 0.
+         *    Everything that joins on it (admin order filtering by city, the local-delivery zone
+         *    lookup, the invoice city) therefore read the wrong city or none.
+         *
+         *    So the id is now validated, and preferably DERIVED from the city text the customer
+         *    actually gave - which keeps the two columns telling the same story. A city that is
+         *    not in the table stores 0 rather than a wrong id: honestly absent beats wrong, and
+         *    every read path falls back to the `city` text.
+         *
+         * 2. Four of these lines fell back to $city[0]['city_name'] / $area[0]['name'] without
+         *    checking the lookup found anything - the exact case that happens whenever city_id
+         *    is 0 or stale - so an empty city_name posted alongside an unresolvable city_id
+         *    raised "Undefined array key 0". Also `&` (bitwise) where `&&` was meant.
+         */
+        $city_text = '';
+        if (isset($data['city_name']) && trim((string) $data['city_name']) !== '') {
+            $city_text = trim((string) $data['city_name']);
+        } elseif (isset($data['other_city']) && trim((string) $data['other_city']) !== '') {
+            $city_text = trim((string) $data['other_city']);
+        } elseif (!empty($city)) {
+            $city_text = $city[0]['city_name'];
         }
-        if (isset($data['city_name'])) {
-            $address_data['city'] = (isset($data['city_name']) & !empty($data['city_name'])) ? $data['city_name'] : $city[0]['city_name'];
+
+        if ($city_text !== '') {
+            $address_data['city'] = $city_text;
         }
+
+        if (isset($data['city_id']) || $city_text !== '') {
+            $resolved_city_id = 0;
+
+            // The city TEXT is authoritative whenever there is one: derive the id from it so the
+            // two columns can never disagree. Checking only that a posted id exists is not
+            // enough - a stale hidden city_id of 1 does resolve (to Mumbai), which is exactly
+            // how "New Delhi" ended up filed under Mumbai on 11 addresses.
+            if ($city_text !== '') {
+                $matched = $this->db->select('city_id')
+                    ->where('LOWER(city_name)', strtolower($city_text))
+                    ->get('cities')->row_array();
+                $resolved_city_id = !empty($matched['city_id']) ? (int) $matched['city_id'] : 0;
+            } elseif (!empty($data['city_id']) && !empty($city)) {
+                // No text supplied at all - an existing posted id is the only thing to go on.
+                $resolved_city_id = (int) $data['city_id'];
+            }
+
+            $address_data['city_id'] = $resolved_city_id;
+        }
+
         if (isset($data['area_name']) && !empty($data['area_name'])) {
-            $address_data['area'] = (isset($data['area_name']) & !empty($data['area_name'])) ? $data['area_name'] : $area[0]['name'];
-        }
-        if (isset($data['other_city']) && !empty($data['other_city'])) {
-            $address_data['city'] = (isset($data['other_city']) && !empty($data['other_city'])) ? $data['other_city'] : $city[0]['city_name'];
+            $address_data['area'] = $data['area_name'];
+        } elseif (isset($data['area_name']) && !empty($area)) {
+            $address_data['area'] = $area[0]['name'];
         }
         if (isset($data['other_areas']) && !empty($data['other_areas'])) {
-            $address_data['area'] = (isset($data['other_areas']) && !empty($data['other_areas'])) ? $data['other_areas'] : $area[0]['name'];
+            $address_data['area'] = $data['other_areas'];
         }
         if (isset($data['pincode_name']) || isset($data['pincode'])) {
             $address_data['system_pincode'] = (isset($data['pincode_name']) && !empty($data['pincode_name'])) ? 0 : 1 ;

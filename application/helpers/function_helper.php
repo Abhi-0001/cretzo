@@ -9526,6 +9526,70 @@ function store_uses_delivery_boys()
  * @return array  ['pickup_location' => string, 'pin_code' => string] or [] when the seller has
  *                registered no usable pickup address at all
  */
+/**
+ * Is this pickup location one Shiprocket will actually accept for a booking?
+ *
+ * Shiprocket books a pickup by NICKNAME and rejects any nickname the account does not hold
+ * ("Wrong Pickup location entered"). The rejection lands late: serviceability only needs a
+ * pincode, so the shop happily quotes a delivery charge and takes the order, and the failure
+ * only appears when a seller tries to ship it.
+ *
+ * `shiprocket_verified_at` is stamped by the pickup-location sync (migration 055 and
+ * admin/seller Pickup_location) when Shiprocket confirms the address, so a NULL there means
+ * the row was typed in locally and Shiprocket has never heard of it.
+ *
+ * Returns ['ok' => bool, 'reason' => string]. Only meaningful when Shiprocket shipping is the
+ * active method - a store on local delivery has no Shiprocket to confirm anything, so this
+ * says ok there.
+ *
+ * @param string $pickup_name  the nickname to book with
+ * @param int    $seller_id    owner of the address; nicknames are not unique across sellers
+ */
+function shiprocket_pickup_is_bookable($pickup_name, $seller_id)
+{
+    $t = &get_instance();
+
+    $shipping = get_settings('shipping_method', true);
+    if (empty($shipping['shiprocket_shipping_method']) || $shipping['shiprocket_shipping_method'] != 1) {
+        return ['ok' => true, 'reason' => ''];
+    }
+
+    $pickup_name = trim((string) $pickup_name);
+    $seller_id = (int) $seller_id;
+
+    if ($pickup_name === '' || $seller_id <= 0) {
+        return ['ok' => false, 'reason' => 'No pickup location was selected for this shipment.'];
+    }
+
+    $row = $t->db->select('id, pickup_location, shiprocket_verified_at, phone_verified')
+        ->where('seller_id', $seller_id)
+        ->where('pickup_location', $pickup_name)
+        ->get('pickup_locations')->row_array();
+
+    if (empty($row)) {
+        return [
+            'ok'     => false,
+            'reason' => 'Pickup location "' . $pickup_name . '" is not registered against this seller.',
+        ];
+    }
+
+    // Older installs may not have the column yet; do not block on something we cannot check.
+    if (!$t->db->field_exists('shiprocket_verified_at', 'pickup_locations')) {
+        return ['ok' => true, 'reason' => ''];
+    }
+
+    if (empty($row['shiprocket_verified_at'])) {
+        return [
+            'ok'     => false,
+            'reason' => 'Pickup location "' . $pickup_name . '" has not been confirmed by Shiprocket, so a '
+                . 'shipment booked from it would be rejected. Add it under Pickup Location (it is then '
+                . 'registered with Shiprocket), or pick one that has been confirmed.',
+        ];
+    }
+
+    return ['ok' => true, 'reason' => ''];
+}
+
 function resolve_seller_pickup_location($product_pickup_location, $seller_id)
 {
     static $cache = [];
@@ -9545,12 +9609,29 @@ function resolve_seller_pickup_location($product_pickup_location, $seller_id)
     //    not a unique key, and two sellers can both call one "Warehouse" - an unscoped lookup
     //    returns whichever row comes first and can quote from a different seller's pincode.
     if ($named !== '' && $seller_id > 0) {
-        $row = $t->db->select('pickup_location, pin_code')
+        $row = $t->db->select('pickup_location, pin_code, shiprocket_verified_at')
             ->where('seller_id', $seller_id)
             ->where('pickup_location', $named)
             ->where('pin_code !=', '')
             ->get('pickup_locations')->row_array();
-        if (!empty($row)) {
+
+        // Honouring the product's named location only helps if Shiprocket can actually book
+        // from it. On this store the 12 products that name one all name the single address
+        // Shiprocket has never confirmed, so taking it at face value dead-ended those items:
+        // the booking was refused ("Wrong Pickup location entered") and there was nothing else
+        // to fall back to. When Shiprocket is the shipping method and the named row is not
+        // confirmed, fall through to the preference-ordered pick below - which is the same
+        // address a blank product resolves to, and one that can actually ship.
+        $named_is_usable = !empty($row);
+        if ($named_is_usable && $t->db->field_exists('shiprocket_verified_at', 'pickup_locations')) {
+            $shipping = get_settings('shipping_method', true);
+            $shiprocket_on = !empty($shipping['shiprocket_shipping_method']) && $shipping['shiprocket_shipping_method'] == 1;
+            if ($shiprocket_on && empty($row['shiprocket_verified_at'])) {
+                $named_is_usable = false;
+            }
+        }
+
+        if ($named_is_usable) {
             $resolved = ['pickup_location' => $row['pickup_location'], 'pin_code' => $row['pin_code']];
         }
     }
@@ -9647,3 +9728,96 @@ function shiprocket_parcel_weight($weight)
     $weight = (float) $weight;
     return ($weight > 0) ? $weight : SHIPROCKET_NOMINAL_WEIGHT_KG;
 }
+
+/**
+ * Public URL for a customer's profile photo, or '' when there isn't a usable one.
+ *
+ * `users`.`image` stores only the BARE FILE NAME inside USER_IMG_PATH - that is how the
+ * mobile app's update_user_profile has always written it, and how My Account > Profile
+ * writes it now. The storefront header was using the column value directly as an <img
+ * src>, so a stored "a1b2c3.png" resolved against the current page URL, 404'd, and the
+ * avatar silently fell back to the default icon for every user who had a photo.
+ *
+ * Returns '' rather than a placeholder so each caller keeps its own theme-specific default
+ * icon (the path differs per theme). A row naming a file that is no longer on disk is
+ * treated as having no photo.
+ */
+/**
+ * Responsive-image data for a full-width hero/banner image.
+ *
+ * The homepage slider used to render get_image_url($image, 'thumb', 'md') as a single src.
+ * thumb-md is capped at 800px on its long edge by resize_image(), while the slider is
+ * full-bleed - so on a 1920px screen an 800px file was being upscaled ~2.4x and the banner
+ * looked visibly blurry. Handing the browser a srcset lets it pick per viewport and DPR:
+ * phones still get the small derivative, desktops get the full-size file.
+ *
+ * Returns:
+ *   src    - fallback URL for browsers without srcset (the largest available file)
+ *   srcset - "url 450w, url 800w, url 1535w" built only from files that exist
+ *   width  - intrinsic pixel width of `src` (0 if it could not be read)
+ *   height - intrinsic pixel height of `src` (0 if it could not be read)
+ *
+ * Every candidate is measured rather than assumed, so a portrait or an unusually sized
+ * banner gets honest width descriptors, and width/height on the tag lets the browser
+ * reserve the right space instead of reflowing the page once the image lands.
+ */
+function hero_image_srcset($image)
+{
+    $full = get_image_url($image);
+
+    // Keyed by URL: get_image_url() falls back to the original when a derivative is
+    // missing, and the same file must not appear twice with two different descriptors.
+    $candidates = [
+        get_image_url($image, 'thumb', 'sm') => true,
+        get_image_url($image, 'thumb', 'md') => true,
+        $full                                => true,
+    ];
+
+    $srcset = [];
+    $width = $height = 0;
+
+    foreach (array_keys($candidates) as $url) {
+        // base_url()-relative -> path on disk, so the size can be read locally.
+        $path = FCPATH . ltrim(str_replace(base_url(), '', $url), '/');
+        $size = @getimagesize($path);
+
+        if (!$size || empty($size[0])) {
+            continue;
+        }
+
+        $srcset[] = $url . ' ' . (int) $size[0] . 'w';
+
+        if ($url === $full) {
+            $width = (int) $size[0];
+            $height = (int) $size[1];
+        }
+    }
+
+    return [
+        'src'    => $full,
+        'srcset' => implode(', ', $srcset),
+        'width'  => $width,
+        'height' => $height,
+    ];
+}
+
+function get_user_avatar_url($image)
+{
+    $image = trim((string) $image);
+
+    if ($image === '') {
+        return '';
+    }
+
+    // Rows written by older/social-login paths can already hold an absolute URL.
+    if (preg_match('#^https?://#i', $image)) {
+        return $image;
+    }
+
+    if (!file_exists(FCPATH . USER_IMG_PATH . $image)) {
+        return '';
+    }
+
+    return base_url(USER_IMG_PATH . $image);
+}
+

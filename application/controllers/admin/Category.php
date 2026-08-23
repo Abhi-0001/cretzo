@@ -158,19 +158,18 @@ class Category extends CI_Controller
             // 'error' was hardcoded to true on the SUCCESS branch, and there was no response
             // at all on failure - so a successful delete showed the JS's "Oops..." warning
             // dialog with the text "Deleted Succesfully", and a failed delete showed nothing.
-            if ($this->category_model->delete_category($_GET['id']) == TRUE) {
-                $this->response['error'] = false;
-                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = 'Deleted Successfully';
-                print_r(json_encode($this->response));
-            } else {
-                $this->response['error'] = true;
-                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = 'Failed to delete category';
-                print_r(json_encode($this->response));
-            }
+            //
+            // The model now returns why it refused rather than a bare boolean, so the admin
+            // sees the actual reason ("still has 3 subcategories", "does not exist") instead of
+            // the old blanket "Deleted Successfully" - which it reported even for an id that had
+            // never existed, because the UPDATE it ran matched zero rows without failing.
+            $result = $this->category_model->delete_category($_GET['id']);
+
+            $this->response['error'] = empty($result['success']);
+            $this->response['csrfName'] = $this->security->get_csrf_token_name();
+            $this->response['csrfHash'] = $this->security->get_csrf_hash();
+            $this->response['message'] = !empty($result['message']) ? $result['message'] : 'Failed to delete category';
+            print_r(json_encode($this->response));
         } else {
             redirect('admin/login', 'refresh');
         }

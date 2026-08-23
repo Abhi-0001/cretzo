@@ -69,7 +69,16 @@
                                     <th data-field="id" data-sortable="true" data-visible='false'>ID</th>
                                     <th data-field="name" data-sortable="true" data-align='center'>Name</th>
                                     <th data-field="image" data-sortable="false" data-align='center'>Image</th>
-                                    <th data-field="banner" data-sortable="false" data-align='center'>Banner</th>
+                                    <?php // Banner column removed: `categories`.`banner` is not rendered by ANY
+                                          // storefront theme (checked cretzo, classic and modern), so the column was
+                                          // a wall of NO IMAGE placeholders for a picture nothing displays. Only the
+                                          // <th> is gone - the column is what bootstrap-table builds from - so no
+                                          // data was touched: 32 categories still have a banner stored, the upload
+                                          // field is still on the add/edit form, and Category_model still puts
+                                          // `banner` in the payload (the mobile app's get_categories response
+                                          // carries it). Re-add this one <th> to bring the column back.
+                                          // NOTE: blog categories are a separate screen (tables/manage-categories.php,
+                                          // via admin/Blogs.php) and keep their own banner column. ?>
                                     <th data-field="status" data-sortable="true" data-align='center'>Status</th>
                                     <th data-field="operate" data-sortable="false" data-align='center'>Action</th>
                                 </tr>

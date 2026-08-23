@@ -134,6 +134,21 @@ body{
 .icon-img-m.icon-img--brand{
     filter: invert(61%) sepia(22%) saturate(3344%) hue-rotate(341deg) brightness(99%) contrast(92%);
 }
+/* A real uploaded photo, cropped to a circle.
+   .icon-img / .icon-img-m are `width:auto` with a fixed height, which is what the line
+   icons beside them want - but it made a portrait photo render as a rectangle in the
+   header. aspect-ratio squares it off against whichever height is in force, so the one
+   rule covers the desktop size and both mobile breakpoints without repeating any of them.
+   object-fit:cover crops rather than squashes, so faces stay in proportion. */
+.icon-img.icon-img--photo,
+.icon-img-m.icon-img--photo{
+    width: auto;
+    aspect-ratio: 1 / 1;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    background-color: #fff;
+}
 /* .icon-num{
     position: absolute;
     top: -6px;

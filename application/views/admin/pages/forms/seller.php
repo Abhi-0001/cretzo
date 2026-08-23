@@ -74,11 +74,29 @@ $fetched_data = isset($fetched_data) && is_array($fetched_data) ? $fetched_data 
                                     <div class="col-sm-10 d-flex align-items-center gap-3">
                                         <input type="file" class="hidden" name="seller_photo" id="personalPhotoInput" accept="image/*,application/pdf" style="display:none;">
                                         <input type="hidden" name="old_seller_photo" value="<?= html_escape(htmlspecialchars($fetched_data[0]['image'] ?? '', ENT_QUOTES, 'UTF-8')) ?>">
+                                        <?php
+                                            /* Reuses get_user_avatar_url() (function_helper) instead of
+                                               base_url(USER_IMG_PATH . image): `users`.`image` can name a file that is
+                                               no longer on disk, and the raw concatenation rendered that as a broken
+                                               image. '' means "no usable photo", which is what drives both the
+                                               placeholder icon and whether the thumbnail is clickable below. */
+                                            $seller_photo_url = get_user_avatar_url($fetched_data[0]['image'] ?? '');
+                                            $has_seller_photo = ($seller_photo_url !== '');
+                                        ?>
                                         <div class="personal-photo-preview" id="personalPhotoContainer">
-                                            <svg class="personal-photo-icon" id="personalPhotoIcon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="<?= !empty($fetched_data[0]['image']) ? 'display:none;' : '' ?>">
+                                            <svg class="personal-photo-icon" id="personalPhotoIcon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="<?= $has_seller_photo ? 'display:none;' : '' ?>">
                                                 <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6m2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0m4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4m-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10s-3.516.68-4.168 1.332c-.678.678-.83 1.418-.832 1.664z" />
                                             </svg>
-                                            <img id="personalPhotoPreview" src="<?= !empty($fetched_data[0]['image']) ? base_url(USER_IMG_PATH . $fetched_data[0]['image']) : '' ?>" class="<?= empty($fetched_data[0]['image']) ? 'hidden' : '' ?>" style="<?= empty($fetched_data[0]['image']) ? 'display:none;' : '' ?>">
+                                            <?php /* With a photo on file the thumbnail is a lightbox link so it opens the
+                                                     full-size image, instead of the file dialog it used to open - uploading
+                                                     is the button beside it. data-toggle="lightbox" is picked up by the
+                                                     global ekko-lightbox handler in assets/admin/custom/custom.js, the same
+                                                     way the seller document previews further down this form work. Its own
+                                                     gallery name keeps the arrows from wandering into those documents. */ ?>
+                                            <a href="<?= $seller_photo_url ?>" id="personalPhotoLink" class="personal-photo-link<?= $has_seller_photo ? '' : ' d-none' ?>"
+                                               <?= $has_seller_photo ? 'data-toggle="lightbox" data-gallery="seller_photo" data-title="Seller Photo"' : '' ?>>
+                                                <img id="personalPhotoPreview" src="<?= $seller_photo_url ?>" alt="Seller photo" class="<?= $has_seller_photo ? '' : 'hidden' ?>" style="<?= $has_seller_photo ? '' : 'display:none;' ?>">
+                                            </a>
                                         </div>
                                         <label for="personalPhotoInput" class="btn btn-outline-primary btn-sm mb-0">Upload Photo</label>
                                     </div>
@@ -587,14 +605,29 @@ $fetched_data = isset($fetched_data) && is_array($fetched_data) ? $fetched_data 
         });
     });
 
-    // ── Personal photo preview ──────────────────────────────────────────
+    // ── Personal photo: click to enlarge when one is on file, click to upload
+    //    when there isn't ──────────────────────────────────────────────────
     (function() {
         var input = document.getElementById('personalPhotoInput');
         var container = document.getElementById('personalPhotoContainer');
         var preview = document.getElementById('personalPhotoPreview');
         var icon = document.getElementById('personalPhotoIcon');
+        var link = document.getElementById('personalPhotoLink');
         if (!input || !preview) return;
-        if (container) container.addEventListener('click', function() { input.click(); });
+
+        if (container) {
+            container.addEventListener('click', function(e) {
+                // A saved photo makes the thumbnail a lightbox link; let that click through
+                // to the ekko-lightbox handler rather than opening the file dialog on top of
+                // it. Everything else on the circle still opens the dialog, so an empty
+                // avatar behaves exactly as before.
+                if (link && link.hasAttribute('data-toggle') && e.target.closest('#personalPhotoLink')) {
+                    return;
+                }
+                input.click();
+            });
+        }
+
         input.addEventListener('change', function() {
             var file = this.files[0];
             if (file && file.type.startsWith('image/')) {
@@ -602,7 +635,18 @@ $fetched_data = isset($fetched_data) && is_array($fetched_data) ? $fetched_data 
                 reader.onload = function(e) {
                     preview.src = e.target.result;
                     preview.style.display = '';
+                    preview.classList.remove('hidden');
                     if (icon) icon.style.display = 'none';
+                    if (link) {
+                        link.classList.remove('d-none');
+                        // The picked file is not saved yet, and the lightbox resolves its
+                        // type from the href - a data: URL is not something it handles. So
+                        // the thumbnail stays a plain preview until the form is saved, and
+                        // a click falls through to the dialog again in case the wrong file
+                        // was chosen. Reloading after save restores the enlarge link.
+                        link.removeAttribute('data-toggle');
+                        link.removeAttribute('href');
+                    }
                 };
                 reader.readAsDataURL(file);
             }
@@ -1075,6 +1119,33 @@ $fetched_data = isset($fetched_data) && is_array($fetched_data) ? $fetched_data 
         overflow-y: auto;
     }
 
+    /* Cancel and Done are two DIFFERENT button classes - .btn-add-categories is the outlined
+       one used for "+ Add Categories" out on the form, .btn-upload-logo the solid one used for
+       the photo pickers - so side by side in this footer they came out different heights:
+       13px vs 0.9rem font, 1px border vs none, and .btn-add-categories additionally carries
+       margin-top:0.5rem for its standalone use, which pushed Cancel out of line. Normalise the
+       box for both, only inside the footer, so the classes keep behaving as before elsewhere. */
+    .category-picker-footer .btn-add-categories,
+    .category-picker-footer .btn-upload-logo {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: 0;
+        min-height: 40px;
+        padding: 0.5rem 1.25rem;
+        font-size: 14px;
+        font-weight: 600;
+        line-height: 1.4;
+        border-radius: 0.6rem;
+        /* A transparent border on the solid button too, so the outlined one's 1px cannot
+           make it the shorter of the two. */
+        border: 1px solid transparent;
+    }
+
+    .category-picker-footer .btn-add-categories {
+        border-color: var(--color-orange, #F2822E);
+    }
+
     .category-picker-item {
         display: flex;
         align-items: center;
@@ -1128,6 +1199,25 @@ $fetched_data = isset($fetched_data) && is_array($fetched_data) ? $fetched_data 
         width: 100%;
         height: 100%;
         object-fit: cover;
+    }
+
+    /* Fills the circle so the whole thumbnail is the click target for the lightbox. */
+    .personal-photo-link {
+        display: block;
+        width: 100%;
+        height: 100%;
+        line-height: 0;
+    }
+
+    /* Only hint at zooming while the link is live - once a new file is picked the
+       data-toggle comes off and the thumbnail goes back to being upload-on-click. */
+    .personal-photo-link[data-toggle="lightbox"] {
+        cursor: zoom-in;
+    }
+
+    .personal-photo-link[data-toggle="lightbox"]:hover img {
+        transform: scale(1.08);
+        transition: transform 0.15s ease;
     }
 
     .personal-photo-icon {

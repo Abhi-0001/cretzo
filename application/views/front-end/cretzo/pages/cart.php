@@ -1298,7 +1298,11 @@ $logo = get_settings('web_logo');
                 <button class="m-0 add_to_cart mt-1 btn btn-sm btn-yellow rounded-pill w-100" id="modal-add-to-cart-button">&nbsp;<i class="uil uil-shopping-bag fs-16"></i> <?= !empty($this->lang->line('add_to_cart')) ? $this->lang->line('add_to_cart') : 'Add To Cart' ?></button>
                 <!-- </div>
                 <div> -->
-                <button type="button" name="compare" class="btn btn-sm btn-outline-blue rounded-pill h-9 m-0 mt-1 compare" id="compare"><i class="uil uil-exchange-alt fs-20"></i></button>
+                <?php // .compare-soon-btn, NOT .compare: this quick-view button was the last one
+                      // still firing the real compare AJAX, which added the product to a compare
+                      // list whose page is now hidden. Shows the same "coming soon" dialog the
+                      // product page and the main quick-view already show. ?>
+                <button type="button" name="compare" class="btn btn-sm btn-outline-blue rounded-pill h-9 m-0 mt-1 compare-soon-btn" id="compare" aria-label="Compare product" title="Compare"><i class="uil uil-exchange-alt fs-20"></i></button>
                 <!-- </div>
                 <div> -->
                 <button class="btn btn-sm btn-outline-red rounded-pill h-9 m-0 add-fav mt-1" id="add_to_favorite_btn"><i class="fa fa-heart fs-20"></i></button>

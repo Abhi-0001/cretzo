@@ -612,7 +612,16 @@ class Webhook extends CI_Controller
     public function spr_webhook()
     {
         $shiprocket_settings = get_settings('shipping_method', true);
-        $token = $shiprocket_settings['webhook_token'];
+        // Read unguarded before: with no webhook_token configured this raised an undefined-index
+        // warning into the response body AND then compared against '', so every Shiprocket
+        // callback was rejected and tracking silently stopped updating. Fail loudly in the log
+        // instead of half-working.
+        $token = isset($shiprocket_settings['webhook_token']) ? (string) $shiprocket_settings['webhook_token'] : '';
+        if ($token === '') {
+            log_message('error', 'Shiprocket webhook rejected: no webhook_token is configured under Admin > Shipping Settings.');
+            echo json_encode(['error' => true, 'message' => 'webhook token is not configured']);
+            return false;
+        }
         $this->load->library(['Shiprocket']);
         $request = file_get_contents('php://input');
 

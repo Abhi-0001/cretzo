@@ -1220,7 +1220,12 @@ if (!empty($sections)) {
         if ($mail['error'] == true) {
             $this->response['error'] = true;
             $this->response['message'] = "Cannot send mail. Please try again later.";
-            $this->response['data'] = $mail['message'];
+            // Was $mail['message'], which is CI's email print_debugger() output - the whole SMTP
+            // transcript, including the base64 AUTH LOGIN lines that carry the mailbox password.
+            // This endpoint is the PUBLIC contact form, so any visitor could read it back simply
+            // by making a send fail. send_mail() already logs the redacted reason server-side
+            // (via redact_smtp_debug), which is where that detail belongs.
+            $this->response['data'] = array();
             echo json_encode($this->response);
             return false;
         } else {

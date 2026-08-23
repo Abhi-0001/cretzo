@@ -352,6 +352,50 @@ class Auth extends CI_Controller
         $this->output->set_content_type('application/json')->set_output(json_encode($response));
     }
 
+    /**
+     * Resolve whatever the seller typed into the "Email and Mobile" box to the mobile
+     * number of their seller account.
+     *
+     * $config['identity'] in config/ion_auth.php is 'mobile', so ion_auth->login() only
+     * ever matches on `users`.`mobile`. Signup collects an email AND a mobile, so sellers
+     * reasonably try either - but the email was passed straight through to a mobile-keyed
+     * lookup, matched nothing, and every email login failed. Resolving to the mobile here
+     * keeps ion_auth (and the session `identity` the rest of the panel reads) unchanged.
+     *
+     * Returns the seller row (id + mobile), or NULL when no seller account matches.
+     */
+    private function _resolve_seller_login($identity)
+    {
+        $rows = fetch_details('users', ['mobile' => $identity], 'id,mobile');
+
+        // Only try email when the input cannot be a mobile number at all, so a normal
+        // mobile login does not pay for a second, pointless query.
+        if (empty($rows) && filter_var($identity, FILTER_VALIDATE_EMAIL)) {
+            $rows = fetch_details('users', ['email' => $identity], 'id,mobile');
+        }
+
+        if (empty($rows)) {
+            return NULL;
+        }
+
+        // `users`.`email` carries no unique index and customers share the table, so an
+        // email can return several rows - take the one that actually holds the seller
+        // role rather than assuming it is the first.
+        //
+        // in_group() rather than reading the first `users_groups` row: every seller also
+        // carries the customer group (2) now that one account can both sell and buy, and
+        // MySQL returns those rows in index order on (user_id, group_id), so the customer
+        // row comes back first for every dual-role seller. Reading row 0 rejected every
+        // seller who could also shop.
+        foreach ($rows as $row) {
+            if (!empty($row['mobile']) && $this->ion_auth_model->in_group('seller', $row['id'])) {
+                return $row;
+            }
+        }
+
+        return NULL;
+    }
+
     public function login(){
         try {
             $identity = $this->input->post('identity', true);
@@ -364,34 +408,16 @@ class Auth extends CI_Controller
                 return;
             }
 
-            // Check if user exists and is a seller
-            $user_data = fetch_details('users', ['mobile' => $identity]);
-            
-            if (empty($user_data)) {
+            // Accepts either the registered mobile number or the registered email.
+            $seller = $this->_resolve_seller_login($identity);
+
+            if (empty($seller)) {
                 redirect('seller/login?error=true');
                 return;
             }
 
-            // Check user group.
-            //
-            // This used to read ONLY the first row returned for the user
-            // ($group[0]['group_id'] != 4) out of an unordered query. Every seller also
-            // carries the customer group (2) now that one account can both sell and buy,
-            // and MySQL returns those rows in index order on (user_id, group_id) - so the
-            // customer row, group 2, comes back first for every dual-role seller. The
-            // check therefore rejected EVERY seller who could also shop, which since the
-            // buyer+seller change is every seller registered through this app. Verified
-            // directly against this database: the first row is group 2 for all of them.
-            //
-            // in_group() asks the right question - does this account hold the seller role
-            // at all - regardless of row order or how many roles it has.
-            if (!$this->ion_auth_model->in_group('seller', $user_data[0]['id'])) {
-                redirect('seller/login?error=true');
-                return;
-            }
-
-            // Attempt login
-            $login_result = $this->ion_auth->login($identity, $password, $remember);
+            // Attempt login with the identity column ion_auth understands.
+            $login_result = $this->ion_auth->login($seller['mobile'], $password, $remember);
             
             if ($login_result) {
                 redirect('seller/home', 'refresh');

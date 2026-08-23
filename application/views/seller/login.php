@@ -130,8 +130,11 @@ $is_forgot_password = (isset($main_page) && strpos($main_page, 'forgot-password'
                 <form action="<?= base_url('/seller/auth/login') ?>" class='form-submit-event' method="post">
                 <input type='hidden' name='<?= $this->security->get_csrf_token_name() ?>' value='<?= $this->security->get_csrf_hash() ?>'>   
                 <div class="input-group">
-                        <label>Email and Mobile</label>
-                        <input type="<?= $identity_column ?>" name="identity" id="mobile" placeholder="Enter Your <?= ucfirst($identity_column)  ?>" value="<?= (ALLOW_MODIFICATION == 0) ? '9988776655' : '' ?>" required>
+                        <label>Email or Mobile</label>
+                        <?php // Always type="text": $identity_column is 'mobile' (config/ion_auth.php),
+                              // which is not a valid input type, and the box accepts either an email
+                              // or a mobile number - see seller/Auth::_resolve_seller_login(). ?>
+                        <input type="text" name="identity" id="mobile" placeholder="Enter Your Email or Mobile Number" value="<?= (ALLOW_MODIFICATION == 0) ? '9988776655' : '' ?>" required>
                         <span class="error-message error_identity"></span>
                     </div>
 

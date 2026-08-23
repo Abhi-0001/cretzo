@@ -17,17 +17,32 @@
     max-width: 100% !important;
 }
 
-/* Constrain hero banner height so it doesn't take over the viewport */
+/* Hero banner height.
+   height:100% into a short letterbox forced the banner into whatever box the slide happened
+   to be, and with object-fit:cover that threw away the top and bottom of the artwork - at
+   full-bleed width the 1535x1023 banners were losing about half their height.
+
+   height:auto lets the image keep its OWN aspect ratio (the width/height attributes that
+   home.php now emits supply it), so nothing is cropped until max-height actually clamps.
+   The clamp is what stops a 3:2 banner from pushing the rest of the page below the fold;
+   raised from 68vh so much less is cut on wide screens. */
 .slider .slide-img img{
     width: 100% !important;
-    height: 100% !important;
-    max-height: 68vh !important;
+    height: auto !important;
+    max-height: 82vh !important;
     object-fit: cover !important;
 }
 
+/* The wrappers were pinned to height:100%, which fights an auto-height image. */
+.slider .swiper-slide, .slider .slide-img{
+    height: auto !important;
+}
+
 @media (max-width: 768px){
+    /* Phones: also ratio-driven now (was a hard 280px, which cut the artwork the same way),
+       still capped so the banner cannot fill the whole screen. */
     .slider .slide-img img{
-        height: 280px !important;
+        height: auto !important;
         max-height: 50vh !important;
     }
 }
