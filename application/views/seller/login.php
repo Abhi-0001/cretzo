@@ -7,7 +7,7 @@ $is_forgot_password = (isset($main_page) && strpos($main_page, 'forgot-password'
 <?php if ($is_forgot_password) { ?>
     <?php $this->load->view('admin/include-head.php'); ?>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="<?= base_url('assets/admin/css/seller-auth.css') ?>?v=<?= @filemtime(FCPATH . 'assets/admin/css/seller-auth.css') ?>">
+    <link rel="stylesheet" href="<?= add_ver(base_url('assets/admin/css/seller-auth.css')) ?>">
     <style>
         body {
             background-color: #fef8e8 !important;
@@ -41,7 +41,7 @@ $is_forgot_password = (isset($main_page) && strpos($main_page, 'forgot-password'
     <title>Cretzo - Seller Login</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="<?= base_url('assets/admin/css/seller-auth.css') ?>?v=<?= @filemtime(FCPATH . 'assets/admin/css/seller-auth.css') ?>">
+    <link rel="stylesheet" href="<?= add_ver(base_url('assets/admin/css/seller-auth.css')) ?>">
     <?php // This branch builds its own <head> and does not pull in admin/include-head.php,
           // so the CSRF token has to be emitted here too or the login POST is rejected.
           // csrf-guard.js installs its jQuery hooks lazily, so loading it before jQuery

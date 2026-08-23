@@ -12,12 +12,19 @@
           // csrf-guard.js stamps those. ?>
     <meta name="csrf-token-name" content="<?= $this->security->get_csrf_token_name() ?>">
     <meta name="csrf-token-hash" content="<?= $this->security->get_csrf_hash() ?>">
-    <script src="<?= base_url('assets/csrf-guard.js') ?>"></script>
+    <script src="<?= add_ver(base_url('assets/csrf-guard.js')) ?>"></script>
 
     <link
         href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=Poppins:wght@300;400&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="<?= base_url('assets/admin/css/seller-auth.css') ?>">
+    <?php // add_ver() appends ?v=<filemtime>. WITHOUT it the browser kept serving the copy of
+          // seller-auth.css it had cached before the multi-step redesign - which already
+          // carried the card and button styling, so the page looked fine while the rules that
+          // arrived with the redesign silently did nothing: .step1/.step2/.step3 {display:none}
+          // and .step-indicator {display:flex}. Every step rendered at once and the indicator
+          // came out as the bare text "1Details 2Verify 3Password". seller/login.php was
+          // already cache-busting this same file; this page was the one that wasn't. ?>
+    <link rel="stylesheet" href="<?= add_ver(base_url('assets/admin/css/seller-auth.css')) ?>">
 </head>
 
 <body>
