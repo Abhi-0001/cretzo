@@ -185,13 +185,173 @@ body {
 }
 
 .step1,
-.step2 {
+.step2,
+.step3 {
     display: none;
 }
 
 .step1.active,
-.step2.active {
+.step2.active,
+.step3.active {
     display: block;
+}
+
+/* ---------- Step indicator ---------- */
+.step-indicator {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 26px;
+}
+
+.step-dot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.step-dot span {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    background: #fffdf8;
+    border: 1.5px solid var(--cz-border);
+    color: var(--cz-muted);
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.step-dot label {
+    font-size: 11px;
+    color: var(--cz-muted);
+    font-weight: 500;
+}
+
+.step-dot.active span {
+    background: linear-gradient(135deg, var(--cz-orange) 0%, var(--cz-orange-dark) 100%);
+    border-color: var(--cz-orange-dark);
+    color: #ffffff;
+}
+
+.step-dot.active label {
+    color: var(--cz-orange-dark);
+    font-weight: 700;
+}
+
+.step-dot.done span {
+    background: #fff3e3;
+    border-color: var(--cz-orange);
+    color: var(--cz-orange-dark);
+}
+
+.step-line {
+    width: 40px;
+    height: 2px;
+    background: var(--cz-border);
+    margin-top: 14px;
+}
+
+/* ---------- OTP verification screen ---------- */
+.otp-visual {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 30px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #fff3e3 0%, #ffe7cc 100%);
+    border: 1px solid rgba(224, 122, 72, 0.28);
+}
+
+.otp-heading {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    font-weight: 600;
+    text-align: center;
+    margin: 0 0 6px;
+    color: var(--cz-ink);
+}
+
+.otp-subtext {
+    text-align: center;
+    font-size: 14px;
+    color: var(--cz-muted);
+    margin: 0;
+}
+
+.otp-subtext strong {
+    color: var(--cz-ink);
+}
+
+.otp-boxes {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin: 22px 0 6px;
+}
+
+.otp-box {
+    width: 46px;
+    height: 54px;
+    padding: 0;
+    text-align: center;
+    font-size: 22px;
+    font-weight: 600;
+    border: 1.5px solid var(--cz-border);
+    border-radius: 12px;
+    background: #fffdf8;
+    color: var(--cz-ink);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.otp-box:focus {
+    outline: none;
+    border-color: var(--cz-orange);
+    background: #ffffff;
+    box-shadow: 0 0 0 4px rgba(224, 122, 72, 0.14);
+}
+
+.otp-resend-row {
+    text-align: center;
+    margin-top: 10px;
+}
+
+.otp-resend-row .send-otp.disabled {
+    color: #b8b0a2;
+    cursor: default;
+    pointer-events: none;
+}
+
+.resend-timer {
+    display: block;
+    font-size: 12px;
+    color: var(--cz-muted);
+    margin-top: 4px;
+}
+
+.step-back {
+    text-align: center;
+    margin-top: 14px;
+    margin-bottom: 0;
+}
+
+.step-back a {
+    font-size: 13px;
+    color: var(--cz-muted);
+    text-decoration: none;
+}
+
+.step-back a:hover {
+    color: var(--cz-orange);
+    text-decoration: underline;
 }
 
 .input-group input {
