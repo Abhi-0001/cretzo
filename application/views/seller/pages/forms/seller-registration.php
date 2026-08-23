@@ -45,10 +45,18 @@
         <div class="form-section">
             <h2 class="form-title">Create Seller Account </h2>
 
+            <div class="step-indicator" aria-hidden="true">
+                <div class="step-dot active" id="step_dot_1" data-step="1"><span>1</span><label>Details</label></div>
+                <div class="step-line"></div>
+                <div class="step-dot" id="step_dot_2" data-step="2"><span>2</span><label>Verify</label></div>
+                <div class="step-line"></div>
+                <div class="step-dot" id="step_dot_3" data-step="3"><span>3</span><label>Password</label></div>
+            </div>
+
             <form class="form-submit-event" action="<?= base_url('seller/auth/ajax_signup') ?>" method="post">
             <input type='hidden' name='<?= $this->security->get_csrf_token_name() ?>' value='<?= $this->security->get_csrf_hash() ?>'>
 
-            <!-- STEP 1 -->
+            <!-- STEP 1: account details -->
             <div class="step1 active">
 
                 <div class="input-group">
@@ -66,31 +74,51 @@
                 <div class="input-group">
                     <label for="mobile">Mobile Number</label>
                     <input type="tel" name="mobile" id="mobile" placeholder="Mobile Number" maxlength="10" pattern="[0-9]*" inputmode="numeric">
-                    <div style="display: flex; gap: 10px; margin-top: 8px;">
-                        <span class="send-otp" id="send_otp" style="flex: 1;">Send OTP</span>
-                    </div>
                     <span class="error-message error_mobile"></span>
-                    <span class="success-message success_mobile"></span>
                 </div>
 
-                <div class="input-group" style="display:none;" id="div_otp">
-                    <label for="otp">Enter OTP</label>
-                    <input type="text" name="otp" id="otp" placeholder="Enter OTP" maxlength="6" pattern="[0-9]*" inputmode="numeric">
-                    <span class="error-message error_otp"></span>
-                    <span class="success-message success_otp"></span>
-                </div>
+                <input type="hidden" name="phone_verified" id="phone_verified" value="0">
+                <input type="hidden" name="firebase_uid" id="firebase_uid" value="">
+                <?php // Server-verifiable proof of phone ownership - see _owns_existing_account(). ?>
+                <input type="hidden" name="firebase_id_token" id="firebase_id_token" value="">
+                <input type="hidden" name="firebase_phone" id="firebase_phone" value="">
+                <div id="recaptcha-registration"></div>
 
-                    <input type="hidden" name="phone_verified" id="phone_verified" value="0">
-                    <input type="hidden" name="firebase_uid" id="firebase_uid" value="">
-                    <?php // Server-verifiable proof of phone ownership - see _owns_existing_account(). ?>
-                    <input type="hidden" name="firebase_id_token" id="firebase_id_token" value="">
-                    <input type="hidden" name="firebase_phone" id="firebase_phone" value="">
-                    <div id="recaptcha-registration"></div>
-                <button type="button" class="btn" id="verify_otp" style="margin-top: 15px;">Next</button>
+                <button type="button" class="btn" id="send_otp" style="margin-top: 15px;">Send OTP</button>
             </div>
 
-            <!-- STEP 2 -->
+            <!-- STEP 2: OTP verification -->
             <div class="step2">
+
+                <div class="otp-visual" aria-hidden="true">&#128241;</div>
+                <h3 class="otp-heading">Verify your mobile number</h3>
+                <p class="otp-subtext">We've sent a 6-digit code to <strong id="otp_mobile_display"></strong></p>
+
+                <div class="otp-boxes" id="otp_boxes">
+                    <input type="text" class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code">
+                    <input type="text" class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]*">
+                    <input type="text" class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]*">
+                    <input type="text" class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]*">
+                    <input type="text" class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]*">
+                    <input type="text" class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]*">
+                </div>
+                <input type="hidden" name="otp" id="otp">
+
+                <span class="error-message error_otp" style="text-align:center;"></span>
+                <span class="success-message success_otp" style="text-align:center;"></span>
+
+                <div class="otp-resend-row">
+                    <span class="send-otp" id="resend_otp">Resend OTP</span>
+                    <span class="resend-timer" id="resend_timer"></span>
+                </div>
+
+                <button type="button" class="btn" id="verify_otp" style="margin-top: 15px;">Verify OTP</button>
+
+                <p class="step-back"><a href="#" id="back_to_step1">&larr; Change mobile number</a></p>
+            </div>
+
+            <!-- STEP 3: password -->
+            <div class="step3">
 
                 <div class="input-group">
                     <label for="password">Create Password</label>
@@ -118,6 +146,7 @@
                     <span class="error-message error_confirm_password"></span>
                 </div>
 
+                <span class="success-message success_signup" style="text-align:center;"></span>
                 <button type="submit" class="btn" style="margin-top: 15px;">Sign Up</button>
             </div>
 
@@ -162,6 +191,8 @@ $(document).ready(function () {
         console.warn('Firebase not initialized');
     }
 
+    var resendTimerInterval = null;
+
     /* Restrict mobile field to digits */
     $("#mobile").on('keydown', function(e) {
         if ($.inArray(e.keyCode, [46, 8, 9, 27, 13, 110, 190]) !== -1 ||
@@ -188,14 +219,14 @@ $(document).ready(function () {
     function createRecaptcha() {
         $('#recaptcha-registration').html('');
         if (window.recaptchaVerifier) {
-            try { 
-                window.recaptchaVerifier.clear(); 
+            try {
+                window.recaptchaVerifier.clear();
             } catch(e) { }
             window.recaptchaVerifier = null;
         }
         if (window.grecaptcha && window.recaptchaWidgetId !== undefined) {
-            try { 
-                grecaptcha.reset(window.recaptchaWidgetId); 
+            try {
+                grecaptcha.reset(window.recaptchaWidgetId);
             } catch(ex) { }
         }
         window.recaptchaWidgetId = undefined;
@@ -264,74 +295,197 @@ $(document).ready(function () {
         return !hasError;
     }
 
-    /* SEND OTP via Firebase */
+    /* Mask a 10-digit mobile number for display: 98******76 */
+    function maskMobile(mobile) {
+        if (mobile.length !== 10) return '+91 ' + mobile;
+        return '+91 ' + mobile.slice(0, 2) + '••••••' + mobile.slice(-2);
+    }
+
+    function setActiveStep(step) {
+        $('.step-dot').each(function () {
+            var dotStep = parseInt($(this).data('step'), 10);
+            $(this).toggleClass('active', dotStep === step).toggleClass('done', dotStep < step);
+        });
+    }
+
+    function resetOtpBoxes() {
+        $('.otp-box').val('');
+        $('#otp').val('');
+    }
+
+    function syncOtpHidden() {
+        var otp = '';
+        $('.otp-box').each(function () { otp += $(this).val(); });
+        $('#otp').val(otp);
+    }
+
+    function startResendCooldown(seconds) {
+        seconds = seconds || 30;
+        var $resend = $("#resend_otp");
+        $resend.addClass('disabled').text('Resend OTP');
+        if (resendTimerInterval) clearInterval(resendTimerInterval);
+        var remaining = seconds;
+        $("#resend_timer").text('Resend available in ' + remaining + 's');
+        resendTimerInterval = setInterval(function () {
+            remaining--;
+            if (remaining <= 0) {
+                clearInterval(resendTimerInterval);
+                resendTimerInterval = null;
+                $("#resend_timer").text('');
+                $resend.removeClass('disabled');
+            } else {
+                $("#resend_timer").text('Resend available in ' + remaining + 's');
+            }
+        }, 1000);
+    }
+
+    /* Request an OTP via Firebase, retrying once on a stale recaptcha verifier */
+    function requestOtp(phoneNumber, isResend) {
+        var authResetPromise = isResend ? firebase.auth().signOut() : Promise.resolve();
+
+        return authResetPromise.then(function () {
+            return createRecaptcha().then(function (appVerifier) {
+                return firebase.auth().signInWithPhoneNumber(phoneNumber, appVerifier);
+            });
+        }).catch(function (error) {
+            var msg = error && error.message ? error.message : '';
+            if (msg.toLowerCase().indexOf('invalid application verifier') !== -1) {
+                return createRecaptcha().then(function (appVerifier) {
+                    return firebase.auth().signInWithPhoneNumber(phoneNumber, appVerifier);
+                });
+            }
+            throw error;
+        }).then(function (confirmationResult) {
+            window.confirmationResult = confirmationResult;
+            return confirmationResult;
+        });
+    }
+
+    /* Surface a send-OTP failure next to the given error element */
+    function showOtpSendError($errorTarget, error, $btn, btnDefaultText) {
+        var code = error && error.code;
+        var msg = error && error.message ? error.message : 'Failed to send OTP';
+
+        if (code === 'auth/too-many-requests' || msg.toLowerCase().indexOf('unusual activity') !== -1) {
+            $errorTarget.addClass('show').text("Too many attempts. Please wait a few minutes.");
+            if ($btn) {
+                $btn.prop('disabled', true).text('Please wait');
+                setTimeout(function () {
+                    $btn.prop('disabled', false).text(btnDefaultText);
+                }, 60000);
+            }
+            return;
+        }
+
+        $errorTarget.addClass('show').text(msg);
+    }
+
+    /* STEP 1 -> STEP 2: send OTP, then move to the verification screen */
     $("#send_otp").click(function (e) {
         e.preventDefault();
-        
+
         if (!validateStep1()) return;
 
         let mobile = $("#mobile").val().trim().replace(/\D/g, '');
         let phoneNumber = '+91' + mobile;
-        
-        $(this).prop('disabled', true).text('Sending...');
+        let $btn = $(this);
 
-        var isResend = $("#send_otp").text().includes('Resend');
-        var authResetPromise = isResend ? firebase.auth().signOut() : Promise.resolve();
+        $btn.prop('disabled', true).text('Sending...');
 
-        authResetPromise.then(function() {
-            return createRecaptcha().then(function(appVerifier) {
-                return firebase.auth().signInWithPhoneNumber(phoneNumber, appVerifier);
-            });
-        }).then(function (confirmationResult) {
-            window.confirmationResult = confirmationResult;
-            $("#div_otp").show();
-            $("#send_otp").text("Resend OTP").prop('disabled', false);
-            $(".success_mobile").addClass('show').text("OTP sent to " + phoneNumber);
-            $("#otp").focus();
+        requestOtp(phoneNumber, false).then(function () {
+            $btn.prop('disabled', false).text('Send OTP');
+            clearErrors();
+            resetOtpBoxes();
+            $("#otp_mobile_display").text(maskMobile(mobile));
+
+            $(".step1").removeClass("active");
+            $(".step2").addClass("active");
+            setActiveStep(2);
+            startResendCooldown();
+            setTimeout(function () { $('.otp-box').first().focus(); }, 50);
         }).catch(function (error) {
-            $("#send_otp").prop('disabled', false).text('Send OTP');
-            var code = error && error.code;
-            var msg = error && error.message ? error.message : 'Failed to send OTP';
-            
-            if (code === 'auth/too-many-requests' || msg.toLowerCase().includes('unusual activity')) {
-                var message = "Too many attempts. Please wait a few minutes.";
-                $(".error_mobile").addClass('show').text(message);
-                $("#send_otp").prop('disabled', true).text('Please wait');
-                setTimeout(function(){
-                    $("#send_otp").prop('disabled', false).text('Send OTP');
-                }, 60000);
-                return;
-            }
-
-            if (msg && msg.toLowerCase().indexOf('invalid application verifier') !== -1) {
-                createRecaptcha().then(function(appVerifier) {
-                    return firebase.auth().signInWithPhoneNumber(phoneNumber, appVerifier);
-                }).then(function(confirmationResult) {
-                    window.confirmationResult = confirmationResult;
-                    $("#div_otp").show();
-                    $("#send_otp").text("Resend OTP").prop('disabled', false);
-                    $(".success_mobile").addClass('show').text("OTP sent to " + phoneNumber);
-                    $("#otp").focus();
-                }).catch(function(err2){
-                    $(".error_mobile").addClass('show').text(err2.message || msg);
-                });
-            } else {
-                $(".error_mobile").addClass('show').text(msg);
-            }
+            $btn.prop('disabled', false).text('Send OTP');
+            showOtpSendError($(".error_mobile"), error, $btn, 'Send OTP');
         });
     });
 
-    /* VERIFY OTP and Move to Step 2 */
-    $("#verify_otp").click(function (e) {
+    /* Resend OTP from the verification screen */
+    $("#resend_otp").click(function (e) {
+        e.preventDefault();
+        if ($(this).hasClass('disabled')) return;
+
+        let mobile = $("#mobile").val().trim().replace(/\D/g, '');
+        let phoneNumber = '+91' + mobile;
+        let $resend = $(this);
+
+        $(".error_otp, .success_otp").removeClass('show').text('');
+        $resend.addClass('disabled').text('Sending...');
+
+        requestOtp(phoneNumber, true).then(function () {
+            $resend.text('Resend OTP');
+            resetOtpBoxes();
+            $(".success_otp").addClass('show').text('OTP resent to ' + phoneNumber);
+            startResendCooldown();
+            $('.otp-box').first().focus();
+        }).catch(function (error) {
+            $resend.removeClass('disabled').text('Resend OTP');
+            showOtpSendError($(".error_otp"), error);
+        });
+    });
+
+    /* OTP box behaviour: auto-advance, backspace to previous box, paste-to-fill */
+    $(document).on('input', '.otp-box', function () {
+        this.value = this.value.replace(/\D/g, '').slice(0, 1);
+        if (this.value) {
+            $(this).next('.otp-box').focus();
+        }
+        syncOtpHidden();
+    });
+
+    $(document).on('keydown', '.otp-box', function (e) {
+        if (e.key === 'Backspace' && !this.value) {
+            $(this).prev('.otp-box').focus();
+        }
+    });
+
+    $(document).on('paste', '.otp-box', function (e) {
+        var clipboard = e.originalEvent && e.originalEvent.clipboardData ? e.originalEvent.clipboardData : window.clipboardData;
+        var text = clipboard ? clipboard.getData('text').replace(/\D/g, '') : '';
+        if (!text) return;
+        e.preventDefault();
+
+        var $boxes = $('.otp-box');
+        $boxes.each(function (i) { $(this).val(text[i] || ''); });
+        syncOtpHidden();
+        $boxes.eq(Math.min(text.length, $boxes.length - 1)).focus();
+    });
+
+    /* Change mobile number: back to step 1 */
+    $("#back_to_step1").click(function (e) {
         e.preventDefault();
         clearErrors();
+        if (resendTimerInterval) { clearInterval(resendTimerInterval); resendTimerInterval = null; }
+        $("#resend_timer").text('');
+        $("#resend_otp").removeClass('disabled').text('Resend OTP');
+        window.confirmationResult = null;
 
-        let otp = $("#otp").val().trim().replace(/\D/g, '');
-        $("#otp").val(otp);
+        $(".step2").removeClass("active");
+        $(".step1").addClass("active");
+        setActiveStep(1);
+        $("#mobile").focus();
+    });
+
+    /* STEP 2 -> STEP 3: verify OTP */
+    $("#verify_otp").click(function (e) {
+        e.preventDefault();
+        $(".error_otp, .success_otp").removeClass('show').text('');
+        syncOtpHidden();
+
+        let otp = $("#otp").val().trim();
 
         if (otp.length !== 6) {
             $(".error_otp").addClass('show').text("Enter valid 6-digit OTP");
-            $("#otp").focus();
+            $('.otp-box').filter(function () { return !this.value; }).first().focus();
             return;
         }
 
@@ -356,19 +510,22 @@ $(document).ready(function () {
                 $("#firebase_id_token").val(idToken);
             }).catch(function () { /* password fallback still applies */ });
 
+            if (resendTimerInterval) { clearInterval(resendTimerInterval); resendTimerInterval = null; }
+            $("#resend_timer").text('');
 
-            $(".step1").removeClass("active");
-            $(".step2").addClass("active");
-            $("#verify_otp").prop('disabled', false).text('Next');
+            $(".step2").removeClass("active");
+            $(".step3").addClass("active");
+            setActiveStep(3);
+            $("#verify_otp").prop('disabled', false).text('Verify OTP');
             $("#password").focus();
         }).catch(function (error) {
-            $("#verify_otp").prop('disabled', false).text('Next');
+            $("#verify_otp").prop('disabled', false).text('Verify OTP');
             $(".error_otp").addClass('show').text(error.message || 'Invalid OTP');
         });
     });
 
-    /* Validate Step 2 Fields */
-    function validateStep2() {
+    /* Validate Step 3 (password) fields */
+    function validateStep3() {
         clearErrors();
         let password = $("#password").val();
         let confirm = $("#confirm_password").val();
@@ -393,7 +550,7 @@ $(document).ready(function () {
     $(".form-submit-event").submit(function (e) {
         e.preventDefault();
 
-        if (!validateStep2()) return;
+        if (!validateStep3()) return;
 
         let $btn = $(this).find('button[type="submit"]');
         $btn.prop('disabled', true).text('Creating Account...');
@@ -401,7 +558,7 @@ $(document).ready(function () {
         $.post(base_url + "seller/auth/ajax_signup", $(this).serialize(), function (res) {
             try {
                 if (res.status === "success") {
-                    $(".success_mobile").addClass('show').text("Account created successfully! Redirecting...");
+                    $(".success_signup").addClass('show').text("Account created successfully! Redirecting...");
                     setTimeout(function() {
                         window.location.href = base_url + "seller/home";
                     }, 1500);

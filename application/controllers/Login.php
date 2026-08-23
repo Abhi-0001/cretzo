@@ -191,7 +191,14 @@ class Login extends CI_Controller
             // backslashes that COMPOUNDED on each save - a username of "D'Souza" came back as
             // "D\'Souza", then "D\\\'Souza". This view renders the username raw, so no
             // read-side unescaping was masking it either.
-            $this->db->set($user_details)->where($identity_column, $identity)->update($tables['login_users']);
+            //
+            // NOT ->where($identity_column, $identity): mobile is nullable now (social signups
+            // have none), and ->where('mobile', null) compiles to "WHERE mobile IS NULL", which
+            // matches every such user, not just this one. The first matching row's update would
+            // succeed and the next would collide on the mobile unique index, 500ing - or, with a
+            // non-colliding value, silently overwrite a different account. Keying on the row's
+            // own id is the only way to target exactly one user.
+            $this->db->set($user_details)->where('id', $user_id)->update($tables['login_users']);
             $this->response['error'] = false;
             $this->response['message'] = 'Profile Update Succesfully';
             echo json_encode($this->response);
