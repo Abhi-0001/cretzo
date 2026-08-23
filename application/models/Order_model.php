@@ -2172,8 +2172,13 @@ class Order_model extends CI_Model
             $tempRow['id'] = $row['id'];
             $tempRow['order_id'] = $row['order_id'];
             $tempRow['order_item_id'] = $row['order_item_id'];
-            $tempRow['courier_agency'] = $row['courier_agency'];
-            $tempRow['tracking_id'] = $row['tracking_id'];
+            // Courier name and tracking id are free text a seller types in, and bootstrap-table
+            // renders cell values as HTML. Escaped here, where every other list in this app
+            // escapes: the admin dashboard's copy of this table was the only one asking
+            // bootstrap-table to escape (data-escape), so the three other tables fed by this
+            // endpoint were rendering the raw value.
+            $tempRow['courier_agency'] = html_escape((string) $row['courier_agency']);
+            $tempRow['tracking_id'] = html_escape((string) $row['tracking_id']);
             $tempRow['url'] = $row['url'];
             $tempRow['date'] = $row['date_created'];
             $tempRow['operate'] = $operate;

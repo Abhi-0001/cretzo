@@ -24,7 +24,7 @@
                             <span class="header-icon bg-set mr-2"><i class="fas fa-images"></i></span>
                             <h5 class="mb-0"><?= (isset($fetched_data[0]['id'])) ? 'Edit Slider' : 'Add Slider' ?></h5>
                         </div>
-                        <form class="form-horizontal form-submit-event" action="<?= base_url('admin/slider/add_slider'); ?>" method="POST" id="payment_setting_form" enctype="multipart/form-data">
+                        <form class="form-horizontal form-submit-event" action="<?= base_url('admin/slider/add_slider'); ?>" method="POST" id="payment_setting_form" enctype="multipart/form-data" data-redirect-url="<?= base_url('admin/slider/manage-slider') ?>">
                             <div class="card-body">
 
                                 <div class="form-group">

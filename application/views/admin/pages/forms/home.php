@@ -214,6 +214,9 @@ $low_stock_limit = isset($settings['low_stock_limit']) ? $settings['low_stock_li
             </div>
 
             <!-- ============ TOP SELLERS / TOP CATEGORIES ============ -->
+            <!-- Cell values arrive already HTML-escaped from the model, as everywhere else in
+                 this panel. Do not add data-escape="true" here: bootstrap-table would escape
+                 them a second time and a name like Women's Wear renders as Women&amp;#039;s Wear. -->
             <div class="row">
                 <div class="col-lg-6 col-12 mb-3">
                     <div class="card attribute-card h-100">
@@ -226,7 +229,7 @@ $low_stock_limit = isset($settings['low_stock_limit']) ? $settings['low_stock_li
                                 data-url="<?= base_url('admin/sellers/top_seller') ?>"
                                 data-side-pagination="server" data-pagination="false" data-search="false"
                                 data-show-columns="false" data-show-refresh="true" data-mobile-responsive="true"
-                                data-escape="true" data-query-params="queryParams">
+                                data-query-params="queryParams">
                                 <thead>
                                     <tr>
                                         <th data-field="seller_id">ID</th>
@@ -250,7 +253,7 @@ $low_stock_limit = isset($settings['low_stock_limit']) ? $settings['low_stock_li
                                 data-url="<?= base_url('admin/Category/top_category') ?>"
                                 data-side-pagination="server" data-pagination="false" data-search="false"
                                 data-show-columns="false" data-show-refresh="true" data-mobile-responsive="true"
-                                data-escape="true" data-query-params="queryParams">
+                                data-query-params="queryParams">
                                 <thead>
                                     <tr>
                                         <th data-field="id">ID</th>
@@ -427,8 +430,8 @@ $low_stock_limit = isset($settings['low_stock_limit']) ? $settings['low_stock_li
                                 <th data-field="id" data-sortable="true">ID</th>
                                 <th data-field="order_id" data-sortable="true">Order ID</th>
                                 <th data-field="order_item_id" data-sortable="false">Order Item ID</th>
-                                <th data-field="courier_agency" data-sortable="false" data-escape="true">Courier Agency</th>
-                                <th data-field="tracking_id" data-sortable="false" data-escape="true">Tracking ID</th>
+                                <th data-field="courier_agency" data-sortable="false">Courier Agency</th>
+                                <th data-field="tracking_id" data-sortable="false">Tracking ID</th>
                                 <th data-field="url" data-sortable="false">URL</th>
                                 <th data-field="date" data-sortable="false">Date</th>
                                 <th data-field="operate" data-sortable="false">Actions</th>
@@ -462,8 +465,8 @@ $low_stock_limit = isset($settings['low_stock_limit']) ? $settings['low_stock_li
                     <thead>
                         <tr>
                             <th data-field="id" data-sortable="true">ID</th>
-                            <th data-field="name" data-sortable="false" data-escape="true">Name</th>
-                            <th data-field="mobile" data-sortable="false" data-escape="true">Mobile No</th>
+                            <th data-field="name" data-sortable="false">Name</th>
+                            <th data-field="mobile" data-sortable="false">Mobile No</th>
                             <th data-field="date" data-sortable="false">Date</th>
                             <th data-field="operate">Actions</th>
                         </tr>
@@ -494,8 +497,8 @@ $low_stock_limit = isset($settings['low_stock_limit']) ? $settings['low_stock_li
                     <thead>
                         <tr>
                             <th data-field="id" data-sortable="true">ID</th>
-                            <th data-field="name" data-sortable="false" data-escape="true">Name</th>
-                            <th data-field="mobile" data-sortable="false" data-escape="true">Mobile No</th>
+                            <th data-field="name" data-sortable="false">Name</th>
+                            <th data-field="mobile" data-sortable="false">Mobile No</th>
                             <th data-field="date" data-sortable="false">Date</th>
                             <th data-field="operate">Actions</th>
                         </tr>
@@ -526,8 +529,8 @@ $low_stock_limit = isset($settings['low_stock_limit']) ? $settings['low_stock_li
                     <thead>
                         <tr>
                             <th data-field="id" data-sortable="true">ID</th>
-                            <th data-field="name" data-sortable="false" data-escape="true">Name</th>
-                            <th data-field="mobile" data-sortable="false" data-escape="true">Mobile No</th>
+                            <th data-field="name" data-sortable="false">Name</th>
+                            <th data-field="mobile" data-sortable="false">Mobile No</th>
                             <th data-field="date" data-sortable="false">Date</th>
                             <th data-field="operate">Actions</th>
                         </tr>

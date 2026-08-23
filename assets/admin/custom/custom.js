@@ -1735,6 +1735,7 @@ $(document).on('hidden.bs.modal', '.edit-modal-lg', function () {
 //form-submit-event
 $(document).on('submit', '.container-fluid .form-submit-event', function (e) {
     e.preventDefault();
+    var redirectUrl = $(this).data('redirect-url');
     var formData = new FormData(this);
     var update_id = $('#update_id').val();
     if (update_id == '1') {
@@ -1804,7 +1805,11 @@ $(document).on('submit', '.container-fluid .form-submit-event', function (e) {
                 }
 
                 setTimeout(function () {
-                    location.reload();
+                    if (redirectUrl) {
+                        window.location.href = redirectUrl;
+                    } else {
+                        location.reload();
+                    }
                 }, 1000);
             }
         },
