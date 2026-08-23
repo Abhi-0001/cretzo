@@ -85,6 +85,7 @@
                                     <div class="col-md-6">
                                         <label for="area_name" class="control-label col-md-12">Address <span class='text-danger text-xs'>*</span></label>
                                         <textarea class="form-control" name="address" placeholder="Shipper's primary address. Max 80 characters." id="address"><?= (isset($fetched_data[0]['address'])) ? html_escape($fetched_data[0]['address']) : '' ?></textarea>
+                                        <small class="form-text text-muted">Must include a house/flat/shop no. and road/street name (e.g. "12, Jamia Nagar Road") - Shiprocket rejects addresses without one.</small>
                                     </div>
 
                                     <div class="col-md-6">

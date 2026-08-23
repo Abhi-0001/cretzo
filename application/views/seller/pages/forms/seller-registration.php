@@ -97,7 +97,7 @@
             <!-- STEP 2: OTP verification -->
             <div class="step2">
 
-                <div class="otp-visual" aria-hidden="true">&#128241;</div>
+                <!-- <div class="otp-visual" aria-hidden="true">&#128241;</div> -->
                 <h3 class="otp-heading">Verify your mobile number</h3>
                 <p class="otp-subtext">We've sent a 6-digit code to <strong id="otp_mobile_display"></strong></p>
 

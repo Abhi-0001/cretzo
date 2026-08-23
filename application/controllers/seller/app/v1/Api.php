@@ -4356,9 +4356,14 @@ Defined Methods:-
             return false;
         } else {
             $this->load->model('Pickup_location_model');
-            $this->Pickup_location_model->add_pickup_location($_POST);
-            $this->response['error'] = false;
-            $this->response['message'] = 'Pickup Location added successfully';
+            // The web flow (seller/Pickup_location::add_pickup_location) already surfaces
+            // Shiprocket's rejection of an address instead of reporting success regardless -
+            // this endpoint still discarded that same result, so the app told the seller their
+            // pickup location was added even when Shiprocket refused it and every shipment
+            // booked from it would fail later with no way to trace it back to this step.
+            $result = $this->Pickup_location_model->add_pickup_location($_POST);
+            $this->response['error'] = !empty($result['error']);
+            $this->response['message'] = isset($result['message']) ? $result['message'] : 'Pickup Location added successfully';
             print_r(json_encode($this->response));
         }
     }
