@@ -851,7 +851,10 @@ if (!empty($sections)) {
         if (empty($user_data)) {
             $additional_data = [
                 'username'     => !empty($name) ? $name : 'Member',
-                'mobile'       => generate_unique_placeholder_mobile(),
+                // NULL rather than an invented number - see migration 061. A social login
+                // carries no phone number, and the placeholder that used to be generated here
+                // was rendered to the customer as though they had given it.
+                'mobile'       => null,
                 'country_code' => 0,
                 'active'       => 1,
                 'type'         => $type,

@@ -26,9 +26,13 @@ die(); */
                 </div>
                 <div class="profile-meta">
                     <h1 class="heading-b profile-name"><?= $users->username ?></h1>
-                    <p class="text-b profile-detail">
-                        <i class="uil uil-phone"></i> +91 <?= $users->mobile ?>
-                    </p>
+                    <?php // Social signups have no phone number at all - show nothing rather
+                          // than a bare "+91" or an invented one (see migration 061). ?>
+                    <?php if (!empty($users->mobile)) { ?>
+                        <p class="text-b profile-detail">
+                            <i class="uil uil-phone"></i> +91 <?= $users->mobile ?>
+                        </p>
+                    <?php } ?>
                     <p class="text-b profile-detail">
                         <i class="uil uil-envelope"></i> <?= $users->email ?>
                     </p>
