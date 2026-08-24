@@ -5739,6 +5739,79 @@ if ($('#google_pay_currency_code').length) {
     });
 }
 
+/* ------------------------------------------------------------------ ticket thread render
+ * One builder for both callers (the reply-sent handler and load_messages). They each carried
+ * their own copy of this markup and the copies had already drifted apart.
+ *
+ * Attachments carry a `type` from Ticket_model::get_messages() - image / video / document /
+ * archive - and it was ignored: every attachment, a photo included, rendered as the same red
+ * "Attachment N" button, so an admin had to open a tab to see what a customer had sent.
+ */
+function tkt_attachment_html(attachments) {
+    if (!attachments || !attachments.length) {
+        return '';
+    }
+    var html = '';
+    attachments.forEach(function (atch, idx) {
+        var url = atch.media;
+        if (atch.type == 'image') {
+            html += '<a class="tkt-atch-thumb" href="' + url + '" target="_blank" rel="noopener" title="Open image">' +
+                '<img src="' + url + '" alt="Attachment ' + (idx + 1) + '"></a>';
+            return;
+        }
+        var icon = 'fa-paperclip';
+        if (atch.type == 'video') { icon = 'fa-file-video'; }
+        else if (atch.type == 'document') { icon = 'fa-file-alt'; }
+        else if (atch.type == 'archive') { icon = 'fa-file-archive'; }
+        html += '<a class="tkt-atch-file" href="' + url + '" target="_blank" rel="noopener">' +
+            '<i class="fas ' + icon + '"></i>Attachment ' + (idx + 1) + '</a>';
+    });
+    return '<div class="tkt-atch">' + html + '</div>';
+}
+
+function tkt_message_html(message) {
+    // user_type 'user' is whoever raised the ticket; anything else is us answering.
+    var side = (message.user_type == 'user') ? 'in' : 'out';
+    // name and message are html_escape()d server-side (Ticket_model::get_messages).
+    return '<div class="tkt-msg tkt-msg--' + side + '">' +
+        '<div class="tkt-bubble">' +
+        '<div class="tkt-bubble-head">' +
+        '<span class="tkt-msg-name">' + message.name + '</span>' +
+        '<span class="tkt-msg-time">' + message.last_updated + '</span>' +
+        '</div>' +
+        '<div class="tkt-msg-text">' + message.message + '</div>' +
+        tkt_attachment_html(message.attachments) +
+        '</div></div>';
+}
+
+/* The status badge was built by two separate if/else chains - and they disagreed: this panel is
+ * Bootstrap 4 / AdminLTE 3, but the chain in the status-change handler emitted Bootstrap 5
+ * `bg-*` classes, so changing a status left the badge unstyled until the modal was reopened. */
+function tkt_status_badge(status) {
+    var map = {
+        '1': ['badge-secondary', 'PENDING'],
+        '2': ['badge-info', 'OPENED'],
+        '3': ['badge-success', 'RESOLVED'],
+        '4': ['badge-danger', 'CLOSED'],
+        '5': ['badge-warning', 'REOPENED']
+    };
+    var meta = map[String(status)];
+    if (!meta) {
+        return '';
+    }
+    return '<label class="badge ' + meta[0] + '">' + meta[1] + '</label>';
+}
+
+/* Keeps the status <select> showing the status the ticket is actually in. It used to sit on
+ * "Change Ticket Status" for ever, and after a change - or after CANCELLING the confirm - it
+ * kept whatever had last been picked, so the control disagreed with the badge next to it. */
+function tkt_sync_status_select(status) {
+    var $sel = $('.change_ticket_status');
+    var value = String(status);
+    $sel.data('current_status', value);
+    $sel.val($sel.find('option[value="' + value + '"]').length ? value : '');
+}
+
 var ticket_id = "";
 var scrolled = 0;
 $(document).on('click', '.view_ticket', function (e, row) {
@@ -5752,6 +5825,7 @@ $(document).on('click', '.view_ticket', function (e, row) {
     var status = $(this).data("status");
     var ticket_type = $(this).data("ticket_type");
     var raised_by = $(this).data("raised_by");
+    var description = $(this).data("description");
     $('input[name="ticket_id"]').val(ticket_id);
     // Tickets from sellers and from customers land in the same list and the same modal; the
     // reply is worded very differently for the two, so say which one this is.
@@ -5762,20 +5836,21 @@ $(document).on('click', '.view_ticket', function (e, row) {
     $('#date_created').html(date_created);
     $('#subject').html(subject);
     $('.change_ticket_status').data('ticket_id', ticket_id);
-    if (status == 1) {
-        $('#status').html('<label class="badge badge-secondary ml-2">PENDING</label>');
-    } else if (status == 2) {
-        $('#status').html('<label class="badge badge-info ml-2">OPENED</label>');
-    } else if (status == 3) {
-        $('#status').html('<label class="badge badge-success ml-2">RESOLVED</label>');
-    } else if (status == 4) {
-        $('#status').html('<label class="badge badge-danger ml-2">CLOSED</label>');
-    } else if (status == 5) {
-        $('#status').html('<label class="badge badge-warning ml-2">REOPENED</label>');
-    }
+    $('#status').html(tkt_status_badge(status));
+    tkt_sync_status_select(status);
     $('#ticket_type').html(ticket_type);
+    // .text(), not .html(): the description is free text typed by a customer, and reading it back
+    // out of the data attribute has already undone the server's html_escape().
+    $('#ticket_description').text(description ? description : '');
+    $('#tkt_brief').toggle(!!(description && String(description).trim() !== ''));
+    // A previous reply's leftovers: the picked-file previews sat in the composer still looking
+    // attached, and any half-typed message stayed behind on the next ticket opened.
+    $('#ticket_modal .image-upload-section').empty();
+    $('#message_input').val('');
     $('.ticket_msg').html("");
-    $('.ticket_msg').data('limit', 5);
+    // data-limit is declared on the element in the view (15). Overwriting it with 5 here meant a
+    // thread always opened five messages deep however tall the panel was.
+    $('.ticket_msg').data('limit', 15);
     $('.ticket_msg').data('offset', 0);
     load_messages($('.ticket_msg'), ticket_id);
 });
@@ -5810,7 +5885,9 @@ $('#ticket_send_msg_form').on('submit', function (e) {
         url: $(this).attr('action'),
         data: formdata,
         beforeSend: function () {
-            $('#submit_btn').html('Sending..').attr('disabled', true);
+            // Was html('Sending..') / html('Send'), which threw the button's icon away after the
+            // first reply of the session.
+            $('#submit_btn').html('<i class="fas fa-circle-notch fa-spin mr-1"></i>Sending').attr('disabled', true);
         },
         cache: false,
         contentType: false,
@@ -5820,36 +5897,17 @@ $('#ticket_send_msg_form').on('submit', function (e) {
 
             csrfName = result.csrfName;
             csrfHash = result.csrfHash;
-            $('#submit_btn').html('Send').attr('disabled', false);
+            $('#submit_btn').html('<i class="fas fa-paper-plane mr-1"></i>Send').attr('disabled', false);
             if (result.error == false) {
                 if (result.data.id > 0) {
-                    var message = result.data;
-                    var is_left = (message.user_type == 'user') ? 'left' : 'right';
-                    var message_html = "";
-                    var atch_html = "";
-                    var i = 1;
-                    if (message.attachments.length > 0) {
-                        message.attachments.forEach(atch => {
-                            atch_html += "<div class='container-fluid image-upload-section'>" +
-                                "<a class='btn btn-danger btn-xs mr-1 mb-1' href='" + atch.media + "'  target='_blank' alt='Attachment Not Found'>Attachment " + i + "</a>" +
-                                "<div class='col-md-3 col-sm-12 shadow p-3 mb-5 bg-white rounded m-4 text-center grow image d-none'></div>" +
-                                "</div>";
-                            i++;
-                        });
-                    }
-                    message_html += "<div class='direct-chat-msg " + is_left + "'>" +
-                        "<div class='direct-chat-infos clearfix'>" +
-                        "<span class='direct-chat-name float-" + is_left + "' id='name'>" + message.name + "</span>" +
-                        "<span class='direct-chat-timestamp float-" + is_left + "' id='last_updated'>" + message.last_updated + "</span>" +
-                        "</div>" +
-                        "<div class='direct-chat-text' id='message'>" + message.message + "</br>" + atch_html + "</div>" +
-                        "</div>";
-
-                    $('.ticket_msg').append(message_html);
+                    $('.ticket_msg').find('.tkt-empty').remove();
+                    $('.ticket_msg').append(tkt_message_html(result.data));
                     $("#message_input").val('');
 
                     $("#element").scrollTop($("#element")[0].scrollHeight);
-                    $('input[name="attachments[]"]').val('');
+                    // Blanking the hidden input's value left its thumbnail on screen, so the next
+                    // reply looked like it still carried the last one's attachment. Clear both.
+                    $('#ticket_modal .image-upload-section').empty();
                 }
             } else {
                 $("#element").data('max-loaded', true);
@@ -5862,6 +5920,15 @@ $('#ticket_send_msg_form').on('submit', function (e) {
                 message: '<span style="text-transform:capitalize">' + result.message + '</span> ',
             });
 
+        },
+        error: function () {
+            // There was no error branch at all: a rejected reply (expired session, 500, dropped
+            // connection) left the button disabled on "Sending.." with nothing said, and the only
+            // way out was reloading the page - losing the typed reply with it.
+            $('#submit_btn').html('<i class="fas fa-paper-plane mr-1"></i>Send').attr('disabled', false);
+            iziToast.error({
+                message: '<span>Could not send the reply. Please try again.</span>',
+            });
         }
     });
 });
@@ -5909,53 +5976,53 @@ $(document).on('click', '#delete-ticket', function () {
 
 $(document).on('change', '.change_ticket_status', function () {
     var status = $(this).val();
-    if (status != '') {
-        if (confirm("Are you sure you want to mark the ticket as " + $(".change_ticket_status option:selected").text() + "? ")) {
-            var id = $(this).data('ticket_id');
-            var dataString = {
-                ticket_id: id,
-                status: status,
-                [csrfName]: csrfHash
-            };
-            $.ajax({
-                type: 'post',
-                url: base_url + 'admin/tickets/edit-ticket-status',
-                data: dataString,
-                dataType: 'json',
-                success: function (result) {
-                    csrfHash = result.csrfHash;
-                    if (result.error == false) {
-                        $('#ticket_table').bootstrapTable('refresh');
-                        if (status == 1) {
-                            $('#status').html(
-                                '<label class="badge bg-secondary ml-2">PENDING</label>'
-                            )
-                        } else if (status == 2) {
-                            $('#status').html('<label class="badge bg-info ml-2">OPENED</label>')
-                        } else if (status == 3) {
-                            $('#status').html(
-                                '<label class="badge bg-success ml-2">RESOLVED</label>'
-                            )
-                        } else if (status == 4) {
-                            $('#status').html('<label class="badge bg-danger ml-2">CLOSED</label>')
-                        } else if (status == 5) {
-                            $('#status').html(
-                                '<label class="badge bg-warning ml-2">REOPENED</label>'
-                            )
-                        }
-                        iziToast.success({
-                            message: '<span style="text-transform:capitalize">' + result.message + '</span> ',
-                        });
-
-                    } else {
-                        iziToast.error({
-                            message: '<span>' + result.message + '</span> ',
-                        });
-                    }
-                }
+    // What the ticket is actually set to, so the control can be put back if this does not go
+    // through - cancelling the confirm used to leave the select showing a status that was never
+    // applied, and so did a failed request.
+    var previous = $(this).data('current_status');
+    if (status == '') {
+        return;
+    }
+    if (!confirm("Are you sure you want to mark the ticket as " + $(".change_ticket_status option:selected").text() + "? ")) {
+        tkt_sync_status_select(previous);
+        return;
+    }
+    var id = $(this).data('ticket_id');
+    var dataString = {
+        ticket_id: id,
+        status: status,
+        [csrfName]: csrfHash
+    };
+    $.ajax({
+        type: 'post',
+        url: base_url + 'admin/tickets/edit-ticket-status',
+        data: dataString,
+        dataType: 'json',
+        success: function (result) {
+            csrfHash = result.csrfHash;
+            if (result.error == false) {
+                $('#ticket_table').bootstrapTable('refresh');
+                $('#status').html(tkt_status_badge(status));
+                tkt_sync_status_select(status);
+                iziToast.success({
+                    message: '<span style="text-transform:capitalize">' + result.message + '</span> ',
+                });
+            } else {
+                tkt_sync_status_select(previous);
+                iziToast.error({
+                    message: '<span>' + result.message + '</span> ',
+                });
+            }
+        },
+        error: function () {
+            // No failure branch at all before: a rejected request (an expired session, a 500)
+            // left the select showing the new status as though it had been saved.
+            tkt_sync_status_select(previous);
+            iziToast.error({
+                message: '<span>Could not update the ticket status. Please try again.</span>',
             });
         }
-    }
+    });
 });
 
 $(document).on('click', '.delete-ticket-type', function () {
@@ -6025,31 +6092,14 @@ function load_messages(element, ticket_id) {
             processData: false,
             success: function (result) {
                 if (result.error == false) {
-                    if (result.error == false && result.data.length > 0) {
+                    if (result.data.length > 0) {
                         var messages_html = "";
-                        var is_left = "";
-                        var is_right = "";
-                        var atch_html = "";
-                        var i = 1;
-                        result.data.reverse().forEach(messages => {
-                            is_left = (messages.user_type == 'user') ? 'left' : 'right';
-                            is_right = (messages.user_type == 'user') ? 'right' : 'left';
-                            if (messages.attachments.length > 0) {
-                                messages.attachments.forEach(atch => {
-                                    atch_html += "<div class='container-fluid image-upload-section'>" +
-                                        "<a class='btn btn-danger btn-xs mr-1 mb-1' href='" + atch.media + "'  target='_blank' alt='Attachment Not Found'>Attachment " + i + "</a>" +
-                                        "<div class='col-md-3 col-sm-12 shadow p-3 mb-5 bg-white rounded m-4 text-center grow image d-none'></div>" +
-                                        "</div>";
-                                    i++;
-                                });
-                            }
-                            messages_html += "<div class='direct-chat-msg " + is_left + "'>" +
-                                "<div class='direct-chat-infos clearfix'>" +
-                                "<span class='direct-chat-name float-" + is_left + "' id='name'>" + messages.name + "</span>" +
-                                "<span class='direct-chat-timestamp float-" + is_left + "' id='last_updated'>" + messages.last_updated + "</span>" +
-                                "</div>" +
-                                "<div class='direct-chat-text' id='message'>" + messages.message + "</br>" + atch_html + "</div>" +
-                                "</div>";
+                        // The attachment html and its counter used to be declared out here,
+                        // OUTSIDE this loop, and were never reset - so message 3's bubble also
+                        // carried messages 1 and 2's attachments, message 4's carried three, and
+                        // the "Attachment N" numbering ran away with it.
+                        result.data.reverse().forEach(function (messages) {
+                            messages_html += tkt_message_html(messages);
                         });
                         $('.ticket_msg').prepend(messages_html);
                         $('.ticket_msg').find('.loader').remove();
@@ -6061,7 +6111,15 @@ function load_messages(element, ticket_id) {
                     element.data('offset', offset);
                     element.data('max-loaded', true);
                     $('.ticket_msg').find('.loader').remove();
-                    $('.ticket_msg').prepend('<div class="text-center"> <p>You have reached the top most message!</p></div>');
+                    // One response ("no messages") covers two different situations: a ticket with
+                    // nothing on it, and the top of a thread that is already fully loaded. Saying
+                    // "you have reached the top most message" on an empty ticket read as a bug.
+                    if ($('.ticket_msg').find('.tkt-msg').length === 0) {
+                        $('.ticket_msg').html('<div class="tkt-empty"><i class="far fa-comment-dots"></i>' +
+                            'No messages on this ticket yet. Send the first reply below.</div>');
+                    } else {
+                        $('.ticket_msg').prepend('<div class="tkt-notice">Start of the conversation</div>');
+                    }
                 }
                 $('#element').scrollTop(20); // Scroll alittle way down, to allow user to scroll more
                 $(element).animate({

@@ -14,6 +14,10 @@ defined('BASEPATH') or exit('No direct script access allowed');
  * This reads the same `notifications` table the customer side reads, scoped through
  * Notification_model::get_user_inbox() so a seller sees broadcasts addressed to all users or to
  * sellers, plus anything addressed to them by id - and nothing else.
+ *
+ * Every call below passes the 'seller' panel explicitly. It is not optional: seller accounts are
+ * also in the `members` group, so without it the model resolves 'all_customers' for them too and
+ * buyer broadcasts leak into this panel.
  */
 class Notifications extends CI_Controller
 {
@@ -69,7 +73,7 @@ class Notifications extends CI_Controller
 
         $result = $this->notification_model->get_user_inbox($user_id, $limit, $offset, $unread_only, 'seller');
         $result['error'] = false;
-        $result['unread'] = $this->notification_model->count_user_unread($user_id);
+        $result['unread'] = $this->notification_model->count_user_unread($user_id, 'seller');
         $this->notification_json($result);
     }
 
@@ -82,7 +86,7 @@ class Notifications extends CI_Controller
         }
         $this->notification_json([
             'error'  => false,
-            'unread' => $this->notification_model->count_user_unread((int) $this->session->userdata('user_id')),
+            'unread' => $this->notification_model->count_user_unread((int) $this->session->userdata('user_id'), 'seller'),
         ]);
     }
 
@@ -98,11 +102,11 @@ class Notifications extends CI_Controller
         $id = $this->input->post('notification_id');
         $id = (is_numeric($id) && (int) $id > 0) ? (int) $id : null;
 
-        $ok = $this->notification_model->mark_user_read($user_id, $id);
+        $ok = $this->notification_model->mark_user_read($user_id, $id, 'seller');
         $this->notification_json([
             'error'   => !$ok,
             'message' => $ok ? 'Marked as read.' : 'Could not update the notification.',
-            'unread'  => $this->notification_model->count_user_unread($user_id),
+            'unread'  => $this->notification_model->count_user_unread($user_id, 'seller'),
         ]);
     }
 }

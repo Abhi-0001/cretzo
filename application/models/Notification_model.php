@@ -330,8 +330,22 @@ class Notification_model extends CI_Model
      * unrecognised (including NULL) means everyone, which is what every pre-existing row
      * relies on. 'all_customers' / 'all_sellers' are the new role-targeted audiences - before
      * them an admin had no way to notify sellers as a group at all.
+     *
+     * $panel is which surface is asking, and it matters because EVERY seller account is also in
+     * the `members` group (registration puts them there; sellers shop too). Resolving audiences
+     * from group membership alone therefore handed a seller 'all_customers' as well, so an
+     * admin broadcast addressed to All Customers showed up in the seller dashboard's own
+     * notification list - contradicting what that panel says on the tin ("Announcements from
+     * the platform team"). Each panel now sees only its own role audience:
+     *
+     *   panel 'seller'   -> all_users + all_sellers
+     *   panel 'customer' -> all_users + all_customers
+     *
+     * plus, in both cases, anything addressed to the user by id. A seller who is also shopping
+     * still receives All Customers broadcasts - on the storefront bell / My Account page, which
+     * is where a message written for buyers belongs.
      */
-    public function audiences_for_user($user_id)
+    public function audiences_for_user($user_id, $panel = 'customer')
     {
         $user_id = (int) $user_id;
         $audiences = ['all_users'];
@@ -346,11 +360,12 @@ class Notification_model extends CI_Model
             ->result_array();
         $names = array_column($groups, 'name');
 
-        if (in_array('members', $names, true)) {
+        if ($panel === 'seller') {
+            if (in_array('seller', $names, true)) {
+                $audiences[] = 'all_sellers';
+            }
+        } elseif (in_array('members', $names, true)) {
             $audiences[] = 'all_customers';
-        }
-        if (in_array('seller', $names, true)) {
-            $audiences[] = 'all_sellers';
         }
         return $audiences;
     }
@@ -384,8 +399,13 @@ class Notification_model extends CI_Model
         return $builder;
     }
 
-    /** Unread count for the bell. Unread == no matching notification_reads row. */
-    public function count_user_unread($user_id)
+    /**
+     * Unread count for the bell. Unread == no matching notification_reads row.
+     *
+     * $panel must match the bell being drawn, or the badge counts notifications the list below
+     * it will not show - see audiences_for_user().
+     */
+    public function count_user_unread($user_id, $panel = 'customer')
     {
         $user_id = (int) $user_id;
         if ($user_id < 1) {
@@ -393,7 +413,7 @@ class Notification_model extends CI_Model
         }
 
         // Resolved before the outer query is staged - see scope_to_user().
-        $audiences = $this->audiences_for_user($user_id);
+        $audiences = $this->audiences_for_user($user_id, $panel);
 
         $this->db->select('COUNT(n.id) as total', false)
             ->join('notification_reads nr', 'nr.notification_id = n.id AND nr.user_id = ' . $user_id, 'left')
@@ -418,7 +438,7 @@ class Notification_model extends CI_Model
         $limit  = ($limit > 0 && $limit <= 100) ? (int) $limit : 10;
         $offset = ($offset > 0) ? (int) $offset : 0;
 
-        $audiences = $this->audiences_for_user($user_id);
+        $audiences = $this->audiences_for_user($user_id, $panel);
 
         // Count and data queries must apply identical conditions or the pager lies.
         $count_builder = $this->db->select('COUNT(n.id) as total', false)
@@ -510,14 +530,16 @@ class Notification_model extends CI_Model
      * INSERT IGNORE against the unique (user_id, notification_id) key, so re-marking is a no-op
      * rather than a duplicate-key error - the bell fires this on every open.
      */
-    public function mark_user_read($user_id, $notification_id = null)
+    public function mark_user_read($user_id, $notification_id = null, $panel = 'customer')
     {
         $user_id = (int) $user_id;
         if ($user_id < 1) {
             return false;
         }
 
-        $audiences = $this->audiences_for_user($user_id);
+        // Same panel scope as the list the button sits under: "mark all as read" must clear
+        // exactly what that page shows, not the user's other panel too.
+        $audiences = $this->audiences_for_user($user_id, $panel);
 
         if ($notification_id !== null) {
             $notification_id = (int) $notification_id;

@@ -251,7 +251,7 @@ class Ticket_model extends CI_Model
             // anything - both together meant a subject/username containing a space or quote
             // broke the markup, and one containing HTML was a stored-XSS route straight into
             // the ticket-view modal's JS (which reads these via .data()/.html()).
-            $operate = '<a href="javascript:void(0)" class="view_ticket btn btn-success action-btn btn-xs mr-1 mb-1 ml-1" data-id="' . $row['id'] . '" data-username="' . html_escape($row['username']) . '" data-date_created="' . html_escape($row['date_created']) . '" data-subject="' . html_escape($row['subject']) . '" data-status="' . html_escape($row['status']) . '" data-ticket_type="' . html_escape($row['title']) . '" data-raised_by="' . html_escape((string) (isset($row['raised_by']) ? $row['raised_by'] : 'customer')) . '" title="View" data-target="#ticket_modal" data-toggle="modal" ><i class="fa fa-eye"></i></a>';
+            $operate = '<a href="javascript:void(0)" class="view_ticket btn btn-success action-btn btn-xs mr-1 mb-1 ml-1" data-id="' . $row['id'] . '" data-username="' . html_escape($row['username']) . '" data-date_created="' . html_escape($row['date_created']) . '" data-subject="' . html_escape($row['subject']) . '" data-status="' . html_escape($row['status']) . '" data-ticket_type="' . html_escape($row['title']) . '" data-raised_by="' . html_escape((string) (isset($row['raised_by']) ? $row['raised_by'] : 'customer')) . '" data-description="' . html_escape((string) $row['description']) . '" title="View" data-target="#ticket_modal" data-toggle="modal" ><i class="fa fa-eye"></i></a>';
             $operate .= ' <a href="javascript:void(0)" id="delete-ticket" data-id="' . $row['id'] . '" class="btn btn-danger action-btn mr-1 mb-1 ml-1 btn-xs"><i class="fa fa-trash"></i></a>';
 
             $tempRow['id'] = $row['id'];
@@ -370,7 +370,12 @@ class Ticket_model extends CI_Model
                     $attachments = json_decode($row['attachments'], 1);
                     $counter = 0;
                     foreach ($attachments as $row1) {
-                        $tmpRow['media'] = get_image_url($row1);
+                        // $tmpRow was declared once for the whole method and reused here without
+                        // being reset, and nothing set a type when the extension matched none of
+                        // the configured lists - so an unrecognised file silently inherited the
+                        // PREVIOUS attachment's type. The thread renders by type, so one odd file
+                        // could show up as the wrong kind of attachment entirely.
+                        $tmpRow = ['media' => get_image_url($row1), 'type' => 'other'];
                         $file = new SplFileInfo($row1);
                         $ext  = $file->getExtension();
                         if (in_array($ext, $data['image']['types'])) {
@@ -544,7 +549,12 @@ class Ticket_model extends CI_Model
                     $attachments = json_decode($row['attachments'], 1);
                     $counter = 0;
                     foreach ($attachments as $row1) {
-                        $tmpRow['media'] = get_image_url($row1);
+                        // $tmpRow was declared once for the whole method and reused here without
+                        // being reset, and nothing set a type when the extension matched none of
+                        // the configured lists - so an unrecognised file silently inherited the
+                        // PREVIOUS attachment's type. The thread renders by type, so one odd file
+                        // could show up as the wrong kind of attachment entirely.
+                        $tmpRow = ['media' => get_image_url($row1), 'type' => 'other'];
                         $file = new SplFileInfo($row1);
                         $ext  = $file->getExtension();
                         if (in_array($ext, $data['image']['types'])) {
