@@ -158,28 +158,60 @@
                                         <input type="number" class="form-control" name="low_stock_limit" value="<?= (isset($settings['low_stock_limit'])) ? html_escape($settings['low_stock_limit']) : '5' ?>" placeholder='Product low stock limit' min='1' />
                                     </div>
                                     <div class="form-group col-12">
-                                        <div class="alert alert-warning mb-2">
-                                            <strong><i class="fas fa-balance-scale mr-1"></i>Statutory deductions on seller settlements</strong>
+                                        <div class="alert alert-info mb-2">
+                                            <strong><i class="fas fa-balance-scale mr-1"></i>Statutory deductions on seller settlements (TCS &amp; TDS)</strong>
                                             <div class="small mt-1">
-                                                These are withheld from every seller payout and shown as separate lines on their
-                                                settlement statement. <strong>Leave them at 0 unless your accountant has confirmed
-                                                they apply to you</strong> &mdash; withholding the wrong amount from sellers is worse
-                                                than withholding nothing. Typical Indian marketplace figures, for reference only,
-                                                are 18 / 1 / 1.
+                                                Withheld from every seller payout and itemised on their settlement statement.
+                                                The rates below are the <strong>statutory Indian marketplace figures</strong> and
+                                                are applied automatically &mdash; the system decides per seller which one is due:
+                                                <ul class="mb-1 mt-1 pl-3">
+                                                    <li><strong>TDS u/s 194-O</strong> &mdash; 0.1% for a seller with a valid PAN.
+                                                        A proprietor / individual / HUF (PAN 4th letter <code>P</code> or
+                                                        <code>H</code>) pays nothing until their sales for the financial year
+                                                        cross the threshold below. A firm, LLP or company (<code>F</code> /
+                                                        <code>L</code> / <code>C</code>) has no threshold and is deducted from the
+                                                        first rupee. No valid PAN on file means 5% under s.206AA.</li>
+                                                    <li><strong>GST TCS u/s 52</strong> &mdash; 0.5% from GSTIN-registered sellers
+                                                        only, collected as IGST for an inter-state delivery or as CGST + SGST for
+                                                        an intra-state one. Sellers on an Enrollment ID are not collected from,
+                                                        and are restricted to deliveries within their own state.</li>
+                                                </ul>
+                                                Both are charged on the <strong>ex-GST</strong> value: the GST on the goods belongs
+                                                to the seller to remit, so it is never part of the deduction base.
                                             </div>
                                         </div>
                                     </div>
-                                    <div class="form-group col-md-4">
+                                    <div class="form-group col-md-6 col-sm-12">
+                                        <label for="statutory_deductions_enabled">Apply TCS &amp; TDS on settlements</label>
+                                        <div class="card-body">
+                                            <input type="checkbox" name="statutory_deductions_enabled" <?= (!isset($settings['statutory_deductions_enabled']) || $settings['statutory_deductions_enabled'] == '1') ? 'Checked' : ''  ?> data-bootstrap-switch data-off-color="danger" data-on-color="success">
+                                        </div>
+                                    </div>
+                                    <div class="form-group col-md-6 col-sm-12">
+                                        <label for="enforce_intrastate_unregistered">Restrict unregistered sellers to their own state</label>
+                                        <div class="card-body">
+                                            <input type="checkbox" name="enforce_intrastate_unregistered" <?= (!isset($settings['enforce_intrastate_unregistered']) || $settings['enforce_intrastate_unregistered'] == '1') ? 'Checked' : ''  ?> data-bootstrap-switch data-off-color="danger" data-on-color="success">
+                                        </div>
+                                    </div>
+                                    <div class="form-group col-md-3">
                                         <label for="commission_gst_percent">GST on Commission (%) <small>(charged on the commission)</small></label>
-                                        <input type="number" step="0.01" min="0" max="100" class="form-control" name="commission_gst_percent" value="<?= (isset($settings['commission_gst_percent'])) ? html_escape($settings['commission_gst_percent']) : '0' ?>" placeholder='0' />
+                                        <input type="number" step="0.01" min="0" max="100" class="form-control" name="commission_gst_percent" value="<?= (isset($settings['commission_gst_percent'])) ? html_escape($settings['commission_gst_percent']) : '18' ?>" placeholder='18' />
                                     </div>
-                                    <div class="form-group col-md-4">
-                                        <label for="tcs_percent">TCS (%) <small>(on the ex-tax order value)</small></label>
-                                        <input type="number" step="0.01" min="0" max="100" class="form-control" name="tcs_percent" value="<?= (isset($settings['tcs_percent'])) ? html_escape($settings['tcs_percent']) : '0' ?>" placeholder='0' />
+                                    <div class="form-group col-md-3">
+                                        <label for="tcs_percent">GST TCS (%) <small>(s.52, GSTIN sellers, on ex-GST value)</small></label>
+                                        <input type="number" step="0.01" min="0" max="100" class="form-control" name="tcs_percent" value="<?= (isset($settings['tcs_percent'])) ? html_escape($settings['tcs_percent']) : '0.5' ?>" placeholder='0.5' />
                                     </div>
-                                    <div class="form-group col-md-4">
-                                        <label for="tds_percent">TDS u/s 194-O (%) <small>(on the gross order value)</small></label>
-                                        <input type="number" step="0.01" min="0" max="100" class="form-control" name="tds_percent" value="<?= (isset($settings['tds_percent'])) ? html_escape($settings['tds_percent']) : '0' ?>" placeholder='0' />
+                                    <div class="form-group col-md-3">
+                                        <label for="tds_percent">TDS u/s 194-O (%) <small>(valid PAN, on ex-GST value)</small></label>
+                                        <input type="number" step="0.01" min="0" max="100" class="form-control" name="tds_percent" value="<?= (isset($settings['tds_percent'])) ? html_escape($settings['tds_percent']) : '0.1' ?>" placeholder='0.1' />
+                                    </div>
+                                    <div class="form-group col-md-3">
+                                        <label for="tds_percent_no_pan">TDS without PAN (%) <small>(s.206AA)</small></label>
+                                        <input type="number" step="0.01" min="0" max="100" class="form-control" name="tds_percent_no_pan" value="<?= (isset($settings['tds_percent_no_pan'])) ? html_escape($settings['tds_percent_no_pan']) : '5' ?>" placeholder='5' />
+                                    </div>
+                                    <div class="form-group col-md-6">
+                                        <label for="tds_threshold_amount">TDS threshold per financial year (&#8377;) <small>(individual / HUF sellers only)</small></label>
+                                        <input type="number" step="1" min="0" class="form-control" name="tds_threshold_amount" value="<?= (isset($settings['tds_threshold_amount'])) ? html_escape($settings['tds_threshold_amount']) : '500000' ?>" placeholder='500000' />
                                     </div>
                                     <div class="form-group col-md-6">
                                         <label for="">Max days to return item</label>

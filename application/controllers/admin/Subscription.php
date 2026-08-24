@@ -118,9 +118,13 @@ class Subscription extends CI_Controller
                 $row['usage'] = $usage;
             }
 
+            // Kept as a raw sortable value for the hidden "Last Payment Date" column - the
+            // visible cell below is HTML, so it cannot be sorted on.
+            $row['last_paid_on'] = html_escape((string) $row['last_paid_on']);
+
             $row['last_payment'] = ($row['last_payment'] === '' || $row['last_payment'] === null)
                 ? '<span class="text-muted">-</span>'
-                : html_escape($row['last_payment']) . '<br><small class="text-muted">' . html_escape((string) $row['last_paid_on']) . '</small>';
+                : html_escape($row['last_payment']) . '<br><small class="text-muted">' . $row['last_paid_on'] . '</small>';
 
             $row['operate'] = '<button type="button" class="btn btn-primary-theme btn-xs manage-subscription-btn" data-seller-id="' . $row['seller_id'] . '" data-shop-name="' . $row['shop_name'] . '"><i class="fa fa-cog"></i> Manage</button>';
 

@@ -50,6 +50,40 @@ class Login extends CI_Controller
         }
     }
 
+    /**
+     * Live "is this contact free?" check for the profile form, so the seller finds out while
+     * typing instead of after a full multi-step submit. Authoritative validation still runs
+     * in update_user() - this endpoint only mirrors it.
+     * POST: field (phone|shop_phone|email), value, and optionally phone (so shop_phone can be
+     * compared against the seller's own personal number, which is allowed to match).
+     */
+    public function check_contact()
+    {
+        $out = ['valid' => true, 'message' => ''];
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_seller()) {
+            $this->output->set_content_type('application/json')->set_output(json_encode($out));
+            return;
+        }
+        $field = $this->input->post('field', true);
+        $value = trim((string) $this->input->post('value', true));
+        if (!in_array($field, ['phone', 'shop_phone', 'email'], true) || $value === '') {
+            $this->output->set_content_type('application/json')->set_output(json_encode($out));
+            return;
+        }
+        $values = [$field => $value];
+        if ($field === 'shop_phone') {
+            $values['phone'] = trim((string) $this->input->post('phone', true));
+        }
+        $message = seller_contact_validation_message($values, $this->session->userdata('user_id'));
+        // A clash reported against the OTHER field (the personal number posted for context)
+        // is not this field's problem - only surface messages about the field being checked.
+        if ($message !== '' && $field === 'shop_phone' && stripos($message, 'Shop Phone') === false) {
+            $message = '';
+        }
+        $out = ['valid' => ($message === ''), 'message' => $message];
+        $this->output->set_content_type('application/json')->set_output(json_encode($out));
+    }
+
     public function update_user()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
@@ -142,6 +176,23 @@ class Login extends CI_Controller
                         print_r(json_encode($this->response));
                         return;
                     }
+                }
+
+                // Phone / Shop Phone / Email: exact 10-digit mobiles and a well-formed email,
+                // and none of them already in use by another account. A seller may reuse their
+                // own personal number as the shop number - only OTHER accounts clash.
+                $contact_error = seller_contact_validation_message([
+                    'phone' => $this->input->post('phone', true),
+                    'shop_phone' => $this->input->post('shop_phone', true),
+                    'email' => $this->input->post('email', true),
+                ], $duplicate_user_id);
+                if ($contact_error !== '') {
+                    $this->response['error'] = true;
+                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                    $this->response['message'] = $contact_error;
+                    print_r(json_encode($this->response));
+                    return;
                 }
 
                 // PAN / GSTIN / GST Enrollment ID / bank account number belong to exactly one

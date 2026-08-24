@@ -365,7 +365,11 @@ class Category_model extends CI_Model
                 }
 
                 $tempRow['id'] = $row['id'];
-                $tempRow['name'] = '<a href="' . base_url() . 'admin/category?id=' . $row['id'] . '">' . output_escaping($row['name']) . '</a>';
+                // This list is served to both portals. The link was hard-coded to admin/category,
+                // so a seller clicking a category name was sent to an admin URL their role cannot
+                // open - it bounced them out of the page they were on.
+                $category_drill_url = $this->ion_auth->is_seller() ? 'seller/category?id=' : 'admin/category?id=';
+                $tempRow['name'] = '<a href="' . base_url() . $category_drill_url . $row['id'] . '">' . output_escaping($row['name']) . '</a>';
 
                 if (empty($row['image']) || file_exists(FCPATH  . $row['image']) == FALSE) {
                     $row['image'] = base_url() . NO_IMAGE;

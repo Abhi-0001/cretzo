@@ -98,6 +98,14 @@
     </section>
 </div>
 
+<?php
+// Checkout approval gate. The seller sees the whole plan - price, inclusions, commission
+// slabs - and only meets this popup when they click Proceed to Pay, which is the point at
+// which an unapproved account must be stopped. seller/Subscription::purchase() enforces the
+// same rule server-side.
+$this->load->view('seller/include-approval-modals', ['approval_modal_mode' => 'checkout']);
+?>
+
 <style>
     .subscription-payment-page .text-primary-theme { color: var(--color-orange); }
     .subscription-payment-page .btn-primary-theme {
@@ -181,7 +189,16 @@
             if (e.persisted) resetButton();
         });
 
+        // Seller approval stage, from seller_approval_state(). Anything other than
+        // 'approved' means no payment may be started - previously an unapproved seller could
+        // pay for a plan before the admin had even looked at their profile.
+        var approvalStage = <?= json_encode(isset($seller_approval['stage']) ? $seller_approval['stage'] : 'incomplete') ?>;
+
         $btn.addEventListener('click', function () {
+            if (approvalStage !== 'approved' && typeof window.czShowApprovalGate === 'function' && window.czShowApprovalGate()) {
+                return;
+            }
+
             $btn.disabled = true;
             $btn.textContent = 'Please wait...';
 
@@ -244,6 +261,14 @@
                 } else if (result.error === false && !result.requires_payment) {
                     // free plan activated
                     window.location.href = base_url + 'seller/subscription/payment_success?subscription_id=' + planId + '&payment_id=free';
+                } else if (result.approval_required) {
+                    // The server refused on approval grounds (direct POST, or the seller's
+                    // status changed while this page was open) - show the same popup rather
+                    // than a bare alert, so the copy and the next step match.
+                    resetButton();
+                    if (!(typeof window.czShowApprovalGate === 'function' && window.czShowApprovalGate())) {
+                        alert(result.message || 'Admin approval is required before subscribing.');
+                    }
                 } else {
                     alert(result.message || 'Unable to create order'); resetButton();
                 }

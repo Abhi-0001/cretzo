@@ -250,7 +250,22 @@ class Seller_settlement_model extends CI_Model
                 'commission_amount' => $row['commission_amount'],
                 'commission_gst_amount' => isset($row['commission_gst_amount']) ? $row['commission_gst_amount'] : '0.00',
                 'tcs_amount' => isset($row['tcs_amount']) ? $row['tcs_amount'] : '0.00',
+                // The IGST / CGST+SGST split is what the quarterly GSTR-8 return is filed on,
+                // so it is reported per settlement rather than only as a combined figure.
+                'tcs_igst_amount' => isset($row['tcs_igst_amount']) ? $row['tcs_igst_amount'] : '0.00',
+                'tcs_cgst_amount' => isset($row['tcs_cgst_amount']) ? $row['tcs_cgst_amount'] : '0.00',
+                'tcs_sgst_amount' => isset($row['tcs_sgst_amount']) ? $row['tcs_sgst_amount'] : '0.00',
+                'tcs_percent' => isset($row['tcs_percent']) ? $row['tcs_percent'] : '0.00',
                 'tds_amount' => isset($row['tds_amount']) ? $row['tds_amount'] : '0.00',
+                'tds_percent' => isset($row['tds_percent']) ? $row['tds_percent'] : '0.00',
+                // Which rule produced each deduction. Without this a 0.00 TDS line is
+                // ambiguous - it could be a threshold-exempt proprietor or a seller the
+                // engine simply failed to classify, and those need opposite responses.
+                'tds_basis' => $this->describe_tds_basis(isset($row['tds_basis']) ? $row['tds_basis'] : null),
+                'tcs_basis' => $this->describe_tcs_basis(isset($row['tcs_basis']) ? $row['tcs_basis'] : null),
+                'seller_entity_class' => isset($row['seller_entity_class']) ? html_escape((string) $row['seller_entity_class']) : '',
+                'place_of_supply' => isset($row['place_of_supply']) ? html_escape((string) $row['place_of_supply']) : '',
+                'financial_year' => isset($row['financial_year']) ? html_escape((string) $row['financial_year']) : '',
                 'net_payable' => $row['net_payable'],
                 'settlement_status' => isset($status_badge[$row['settlement_status']]) ? $status_badge[$row['settlement_status']] : html_escape($row['settlement_status']),
                 'created_at' => $row['created_at'],
@@ -310,5 +325,40 @@ class Seller_settlement_model extends CI_Model
             'reversed_amount'   => (float) $rev['amt'],
             'reversed_commission' => (float) $rev['comm'],
         ];
+    }
+
+    /**
+     * Plain-English label for the rule that set the TDS on a settlement.
+     *
+     * A bare 0.00 in the TDS column means two completely different things - a proprietor
+     * still inside their Rs. 5 lakh annual threshold (correct, nothing to do) or deductions
+     * switched off platform-wide (a compliance gap). Labelling it removes the guesswork.
+     */
+    public function describe_tds_basis($basis)
+    {
+        $labels = [
+            'threshold_exempt'   => '<span class="badge badge-light" title="Individual / HUF seller still within the Rs. 5,00,000 threshold for this financial year.">Under threshold</span>',
+            'sec_194o'           => '<span class="badge badge-info" title="Deducted under Income Tax s.194-O at the standard rate.">194-O</span>',
+            'sec_206aa_no_pan'   => '<span class="badge badge-danger" title="No valid PAN on file, so the higher s.206AA rate applies. Collect the seller\'s PAN to reduce this.">206AA (no PAN)</span>',
+            'deductions_disabled' => '<span class="badge badge-warning" title="Statutory deductions are switched off in Settings.">Disabled</span>',
+            'flat_rate'          => '<span class="badge badge-secondary" title="Recorded before per-seller classification existed, using the flat configured rate.">Flat rate</span>',
+        ];
+
+        return isset($labels[$basis]) ? $labels[$basis] : '<span class="text-muted">-</span>';
+    }
+
+    /** Same, for the GST TCS side. */
+    public function describe_tcs_basis($basis)
+    {
+        $labels = [
+            'unregistered'        => '<span class="badge badge-light" title="Seller has no GSTIN (Enrollment ID only), so no TCS is collected and they may only supply within their own state.">Unregistered</span>',
+            'intra_state'         => '<span class="badge badge-info" title="Intra-state supply: collected as CGST + SGST.">CGST + SGST</span>',
+            'inter_state'         => '<span class="badge badge-info" title="Inter-state supply: collected as IGST.">IGST</span>',
+            'inter_state_assumed' => '<span class="badge badge-warning" title="The delivery state could not be resolved, so this was collected as IGST. The total withheld is unaffected.">IGST (state unknown)</span>',
+            'deductions_disabled' => '<span class="badge badge-warning" title="Statutory deductions are switched off in Settings.">Disabled</span>',
+            'flat_rate'           => '<span class="badge badge-secondary" title="Recorded before per-seller classification existed, using the flat configured rate.">Flat rate</span>',
+        ];
+
+        return isset($labels[$basis]) ? $labels[$basis] : '<span class="text-muted">-</span>';
     }
 }

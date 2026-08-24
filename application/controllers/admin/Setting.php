@@ -74,6 +74,9 @@ class Setting extends CI_Controller
             $this->form_validation->set_rules('commission_gst_percent', 'GST on Commission (%)', 'trim|numeric|greater_than_equal_to[0]|less_than_equal_to[100]|xss_clean');
             $this->form_validation->set_rules('tcs_percent', 'TCS (%)', 'trim|numeric|greater_than_equal_to[0]|less_than_equal_to[100]|xss_clean');
             $this->form_validation->set_rules('tds_percent', 'TDS (%)', 'trim|numeric|greater_than_equal_to[0]|less_than_equal_to[100]|xss_clean');
+            $this->form_validation->set_rules('tds_percent_no_pan', 'TDS without PAN (%)', 'trim|numeric|greater_than_equal_to[0]|less_than_equal_to[100]|xss_clean');
+            // No upper bound: the threshold is a rupee amount, not a percentage.
+            $this->form_validation->set_rules('tds_threshold_amount', 'TDS threshold', 'trim|numeric|greater_than_equal_to[0]|xss_clean');
             $this->form_validation->set_rules('max_items_cart', 'Max items Allowed In Cart', 'trim|required|numeric|xss_clean');
             $this->form_validation->set_rules('cart_btn_on_list', 'Cart Button on Products List', 'trim|xss_clean');
             $this->form_validation->set_rules('expand_product_images', 'Expand Product Images', 'trim|xss_clean');

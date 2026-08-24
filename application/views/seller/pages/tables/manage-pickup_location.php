@@ -253,6 +253,9 @@
             dataType: 'json',
             data: $(this).serialize() + '&' + csrfName + '=' + csrfHash,
             beforeSend: function () {
+                // Cleared on every attempt - the old block stayed on screen after a retry, so a
+                // stale rejection looked like it applied to the address just typed.
+                error_box.addClass('d-none').empty();
                 submit_btn.html('Please Wait..').prop('disabled', true);
             },
             success: function (response) {
@@ -261,8 +264,9 @@
                     csrfHash = response.csrfHash;
                 }
                 if (response.error) {
-                    error_box.removeClass('d-none msg_success').addClass('msg_error rounded p-3').html(response.message);
-                    iziToast.error({ message: $('<div>').html(response.message).text(), position: 'topRight' });
+                    // One toast only. The same text used to be printed into the page as well,
+                    // so every failure appeared twice and the page copy never went away.
+                    iziToast.error({ message: $('<div>').html(response.message).text(), position: 'topRight', timeout: 6000 });
                 } else {
                     error_box.addClass('d-none');
                     iziToast.success({ message: response.message, position: 'topRight' });
@@ -273,7 +277,7 @@
                 }
             },
             error: function () {
-                error_box.removeClass('d-none msg_success').addClass('msg_error rounded p-3').text('Something went wrong. Please try again.');
+                iziToast.error({ message: 'Something went wrong. Please try again.', position: 'topRight' });
             },
             complete: function () {
                 submit_btn.html(button_text).prop('disabled', false);

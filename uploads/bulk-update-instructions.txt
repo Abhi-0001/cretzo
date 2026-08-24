@@ -1,100 +1,113 @@
 Instructions for bulk update
-  * Data till column AA is for product rest for product variant(s)
-  * You can update more variants by repeating variants data in sequence for ex. in sample file first row have 1 variant and second product have no any variants
-  * You can keep fields blank if you don't want to change
--------------------------------------------------------------------
-products data
--------------------------------------------------------------------
-1. product id - ID of the product which you want to update. You can find from manage products section - mandatory
+===================================================================
 
-2. category id - You can find from categories section
+Start from the sample file and only change the values, not the columns.
 
-3. tax - You can find from products >> tax section
-
-4. product type - It must be simple_product or variable_product
-
-5. stock type -   If you don't want stock management leave it blank. else
-
-		Case 1 - if product type is simple_product it must be 0 (Stock will be managed product wise)
-
-		Case 2 - if product type is variable_product and you want to manage stock product wise stock type should be 1
-
-		Case 3 - if product type is variable_product and you want to manage stock variant wise stock type should be 2
-
-6. name - Name of the product
-
-7. short description - Short descriotion about product
-
-8. indicator - 0 -> none | 1 -> veg | 2 -> non-veg
-
-9. cod allowed - 0 if COD not allowed  - 1 if COD allowed - (default will be 1)
-
-10. minimum order quantity - (default will be 1)
-
-11. quantity step size - (default will be 1)
-
-12. total allowed quantity
-
-13. is prices inclusive tax - 0 if prices are not inclusive tax  - 1 if prices are inclusive tax - (default will be 0)
-
-14. is returnable - 0 if product is not returnable  - 1 if product is returnable - (default will be 0)
-
-15. is cancelable - 0 if product is not cancelable  - 1 if product is cancelable - (default will be 0)
-
-16. cancelable till - It must be received, processed or shipped (case sensitive) if product is cancelable otherwise leave it blank
-
-17. image - You can copy relative path from media section - (for ex. uploads/media/2021/07.jpg)
-
-18. video type - It must be youtube or vimeo(case sensitive)
-
-19. video - Video link
-
-20. tags - It must be comma separated for ex. TV,AC,Cooler etc.
-
-21. warranty period - For ex. 6 months
-
-22. guarantee period - For ex. 1 year
-
-23. made in
-
-24. sku - set it if stock type is 0 or 1
-
-25. stock - set it if stock type is 0 or 1
-
-26. availability - set it if stock type is 0 -> 0 - not available 1 - available
-
-27. description - long description about product
-
-28. deliverable_type -  add one of the following value as required to your product.
-                            "0" - for product is not ready to delivarable in zipcodes which are in Database.
-                            "1" - for product is delivarable in all zipcodes which are in Database.
-                            "2" - for product is delivarable in these included zipcodes which are in Database.
-                            "3" - for product is delivarable except this zipcodes which are in Database.
-
-29. deliverable_zipcodes - List as per the above option(Deliverable_Type) you selected. And it should be comma separated like 1,2,3
-
-30. seller_id - Set Seller ID
-
+  * Every cell you leave blank is left as it is on the product. Fill in only what you want to
+    change - that is the whole point of an update.
+  * The file has 27 product columns (A to AA) followed by a block of 6 variant columns (AB to AG).
+    So a file is 33 columns wide for one variant, 39 for two, 45 for three, and so on.
+  * Do not add or remove columns. Every column is read by its position, so one extra or missing
+    column shifts everything after it. The upload is refused if the count does not fit.
+  * Comma, semicolon and tab separated files are all accepted.
+  * Leave any optional column blank if it does not apply. Blank is always safe.
+  * The whole file is checked before anything is saved. If one row is wrong, nothing is
+    imported and the row number is reported.
 
 -------------------------------------------------------------------
-variants data
+Settings you never have to decode
 -------------------------------------------------------------------
-28. variant id - ID of the product which you want to update. You can find from your database product variants table - mandatory
+Columns U to AA used to be number codes. They are written in plain words now - the same words the
+upload template uses. Leave one blank and that setting is left exactly as it is.
 
-29. price - Price of the product. it must be greater than special price
+Availability is worked out for you: fill in a stock column and the product or variant is marked
+available unless the figure is 0.
 
-30. special price - Discounted price of the product. it must be smaller than price - default will be 0 means no discounted price
+There is no seller_id column. An update never moves a product to a different seller - the product
+already has an owner.
 
-31. sku - set it if stock type is 2
+-------------------------------------------------------------------
+Product columns
+-------------------------------------------------------------------
 
-32. stock - set it if stock type is 2
+A.  product_id - mandatory. The ID of the product you are changing, from
+      Products > Manage Products.
 
-34. availability - set it if stock type is 2 -> 0 - not available 1 - available - optional
+B.  category_id - the Category ID from the Categories page. Blank leaves the category as it is.
 
+C.  product_type - exactly simple_product or variable_product, or blank to leave it as it is.
+      simple_product   - one price, no options. Fill one variant block.
+      variable_product - has options such as size or colour. Fill one variant block per option
+                         and give attribute_value_ids on each.
 
+D.  name - the product name. Changing it also updates the product's web address.
 
+E.  short_description - optional. One line shown next to the product.
 
+F.  description - optional. The full description.
 
+G.  image - the main image. Copy the path from the Media page,
+      for example uploads/media/2021/07.jpg
 
+H.  other_images - optional. More image paths, separated with commas.
 
+I.  tags - optional. Search words, separated with commas.
 
+J.  sku - optional. Your own code for the product.
+
+K.  stock - optional. How many you have. Fill this when you keep one stock figure for the whole
+      product. Leave it blank and use the variant stock column instead when each option has its
+      own stock. Leave both blank if you do not track stock.
+
+L.  tax - optional. The tax ID from Products > Tax.
+
+M.  made_in - optional. For example India.
+
+N.  warranty_period - optional. Free text, for example 6 months.
+
+O.  guarantee_period - optional. Free text, for example 1 year.
+
+P.  video_type - optional. Exactly youtube or vimeo, or blank.
+
+Q.  video - optional. The video link.
+
+R.  minimum_order_quantity - optional. The fewest a customer can buy. Blank means 1.
+
+S.  quantity_step_size - optional. Customers buy in multiples of this. Blank means 1.
+
+T.  total_allowed_quantity - optional. The most one customer may buy. Blank means no limit.
+
+U.  cod_allowed - Yes or No. Whether customers can pay cash on delivery.
+
+V.  prices_include_tax - Yes or No. Whether the prices you typed already include tax.
+
+W.  returnable - Yes or No.
+
+X.  cancellable_until - No, Until received, Until processed, or Until shipped.
+
+Y.  food_type - Not a food product, Vegetarian, or Non-vegetarian.
+
+Z.  delivery_area - Everywhere, Only these pincodes, Except these pincodes, or
+      Not deliverable yet.
+
+AA. pincodes - only needed when delivery_area is "Only these pincodes" or "Except these
+      pincodes". Separate them with commas or spaces.
+
+-------------------------------------------------------------------
+Variant columns - repeat these 6 for every extra variant
+-------------------------------------------------------------------
+
+AB. variant_id - the ID of the variant you are changing, from the product edit screen. This is
+      what marks a variant block as filled in, so leave the whole block blank to change nothing
+      about the variants. The variant must belong to the product in column A.
+
+AC. attribute_value_ids - the IDs from Products > Attribute Values, for example 3,4.
+      Blank leaves them as they are.
+
+AD. price - numbers only, no currency symbol. Blank leaves the price as it is.
+
+AE. special_price - the discounted price. It must be lower than the price.
+
+AF. sku_variant - your own code for this variant.
+
+AG. stock_variant - stock for this variant.

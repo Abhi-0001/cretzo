@@ -246,6 +246,16 @@ class Auth extends CI_Controller
                 return;
             }
 
+            // Same rule the profile form and the admin seller form enforce: one email
+            // address per seller account. Checked here too, otherwise signup could create
+            // the exact clash that the profile save would then refuse to let anyone fix.
+            $email_clash = duplicate_seller_contacts(['email' => $email], 0);
+            if (!empty($email_clash)) {
+                $response['message'] = implode(' ', $email_clash);
+                $this->output->set_content_type('application/json')->set_output(json_encode($response));
+                return;
+            }
+
             if ($phone_verified != '1') {
                 $response['message'] = 'Please verify your phone number with OTP';
                 $this->output->set_content_type('application/json')->set_output(json_encode($response));

@@ -27,32 +27,42 @@ $config['default_commission_percent'] = 8;
 
 /*
 |--------------------------------------------------------------------------
-| Statutory deductions - ALL DISABLED BY DEFAULT
+| Statutory deductions - TCS (GST s.52) and TDS (Income Tax s.194-O)
 |--------------------------------------------------------------------------
 |
-| The settlement engine computes, stores and displays each of these as its own line
-| on the seller's statement, but they are set to 0 so that nothing is withheld until
-| you have confirmed with your accountant that they apply to you. Withholding the
-| wrong amount is considerably worse than not withholding at all, and applicability
-| depends on your GST registration and turnover - which is not something that can be
-| decided from the code.
+| These are the LAST-RESORT defaults. The live values come from the admin settings
+| screen (Settings > Statutory deductions), and the per-sale rate is then decided by
+| Tax_compliance_model from facts about the seller - so what is written here is only
+| read when a setting is missing entirely.
 |
-| When your accountant confirms, set the values below. Typical Indian marketplace
-| figures are given for reference only:
+| They used to ship at 0 with an instruction to leave them alone until an accountant
+| confirmed, which in practice meant a live marketplace collected nothing at all.
+| Both collections are compulsory for an e-commerce operator, so the statutory rates
+| are now the defaults and the master switch (statutory_deductions_enabled) is what
+| turns them off.
 |
-|   commission_gst_percent : GST on the platform's own commission (typically 18).
-|                            The platform must also issue the seller a tax invoice
-|                            for the commission charged.
-|   tcs_percent            : TCS collected under GST on the net taxable value of
-|                            supplies (typically 1), deposited against the seller's
-|                            GSTIN.
-|   tds_percent            : TDS deducted under Income Tax s.194-O on the gross
-|                            sale value (typically 1), deposited against the
-|                            seller's PAN.
+| How each is applied - see Seller_model::calculate_settlement_breakdown():
 |
-| Each is charged on the base named in the comment, matching the settlement ladder
-| in Seller_model::calculate_settlement_breakdown().
+|   commission_gst_percent : GST on the platform's own commission (18). The platform
+|                            issues the seller a tax invoice for the commission.
+|   tcs_percent            : GST TCS u/s 52 (0.5), collected from GSTIN-registered
+|                            sellers only, on the ex-GST taxable value, and split into
+|                            IGST (inter-state) or CGST + SGST (intra-state). A seller
+|                            on an Enrollment ID is unregistered: nothing is collected
+|                            and they may only supply within their own state.
+|   tds_percent            : TDS u/s 194-O (0.1) for a seller with a valid PAN, on the
+|                            ex-GST taxable value. An individual / HUF (PAN 4th letter
+|                            P or H) pays none until cumulative sales for the financial
+|                            year exceed tds_threshold_amount; a firm / LLP / company
+|                            (F / L / C) has no threshold at all.
+|   tds_percent_no_pan     : TDS u/s 206AA (5) where no valid PAN is on file.
+|   tds_threshold_amount   : the s.194-O annual exemption (500000), individual / HUF only.
+|
+| GST charged on the goods is excluded from both the TDS and the TCS base: the seller
+| invoices and remits that themselves, so the marketplace never deducts against it.
 */
-$config['commission_gst_percent'] = 0; // charged on the commission amount
-$config['tcs_percent']            = 0; // charged on the taxable (ex-GST) value
-$config['tds_percent']            = 0; // charged on the gross (incl-GST) value
+$config['commission_gst_percent'] = 18;     // charged on the commission amount
+$config['tcs_percent']            = 0.5;    // GST s.52, on the ex-GST taxable value
+$config['tds_percent']            = 0.1;    // s.194-O with a valid PAN, ex-GST base
+$config['tds_percent_no_pan']     = 5;      // s.206AA, no valid PAN on file
+$config['tds_threshold_amount']   = 500000; // per financial year, individual / HUF only

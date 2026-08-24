@@ -1,102 +1,116 @@
 Instructions for bulk upload
-  * Data till column AA is for product rest for product variant(s)
-  * You can add more variants by repeating variants data in sequence for ex. in sample file first product have 1 variants and second product have 2 variants
-  * Atleast one variant is mandatory and for type simple_product only one variant is allowed
-  * You can keep fields blank which are optional
--------------------------------------------------------------------
-products data
--------------------------------------------------------------------
-1. category id - You can find from categories section - mandatory
+===================================================================
 
-2. tax - You can find from products >> tax section - optional
+Start from the sample file and only change the values, not the columns.
 
-3. product type - It must be simple_product or variable_product - mandatory
-
-4. stock type -   If you don't want stock management leave it blank. else
-
-		Case 1 - if product type is simple_product it must be 0 (Stock will be managed product wise)
-
-		Case 2 - if product type is variable_product and you want to manage stock product wise stock type should be 1
-
-		Case 3 - if product type is variable_product and you want to manage stock variant wise stock type should be 2
-
-5. name - Name of the product - mandatory
-
-6. short description - Short descriotion about product - optional
-
-7. indicator - 0 -> none | 1 -> veg | 2 -> non-veg - optional
-
-8. cod allowed - 0 if COD not allowed  - 1 if COD allowed - optional (default will be 1)
-
-9. minimum order quantity - optional (default will be 1)
-
-10. quantity step size - optional (default will be 1)
-
-11. total allowed quantity - optional (Leave it blank if no such restrictions)
-
-12. is prices inclusive tax - 0 if prices are not inclusive tax  - 1 if prices are inclusive tax - optional (default will be 0)
-
-13. is returnable - 0 if product is not returnable  - 1 if product is returnable - optional (default will be 0)
-
-14. is cancelable - 0 if product is not cancelable  - 1 if product is cancelable - optional (default will be 0)
-
-15. cancelable till - It must be received, processed or shipped (case sensitive) if product is cancelable otherwise leave it blank
-
-16. image - You can copy relative path from media section - mandatory (for ex. uploads/media/2021/07.jpg)
-
-17. other images - You can copy relative path from media section. in case of multiple images paths must be separated with ,(comma) - optional (for ex. uploads/media/2021/07.jpg,uploads/media/2021/07.jpg)
-
-18. video type - It must be youtube or vimeo(case sensitive) - optional
-
-19. video - Video link - optional
-
-20. tags - It must be comma separated for ex. TV,AC,Cooler etc. - optional
-
-21. warranty period - For ex. 6 months - optional
-
-22. guarantee period - For ex. 1 year - optional
-
-23. made in - optional
-
-24. sku - set it if stock type is 0 or 1- optional
-
-25. stock - set it if stock type is 0 or 1 - optional
-
-26. availability - set it if stock type is 0 -> 0 - not available 1 - available - optional
-
-27. description - long description about product - optional
-
-28. deliverable_type -  add one of the following value as required to your product. - mandatory
-                            "0" - for product is not ready to delivarable in zipcodes which are in Database.
-                            "1" - for product is delivarable in all zipcodes which are in Database.
-                            "2" - for product is delivarable in these included zipcodes which are in Database.
-                            "3" - for product is delivarable except this zipcodes which are in Database.
-
-29. deliverable_zipcodes - List as per the above option(Deliverable_Type) you selected. And it should be comma separated like 1,2,3 - mandatory
-
+  * Easiest route: set the six settings on the upload page, then press "Download template with
+    these settings". You get a file with those columns already filled in on every row and the
+    rest blank, so all you type is the product's own details.
+  * The file has 26 product columns (A to Z) followed by a block of 5 variant columns (AA to AE).
+    So a file is 31 columns wide for one variant, 36 for two, 41 for three, and so on.
+  * Do not add or remove columns. Every column is read by its position, so one extra or missing
+    column shifts everything after it. The upload is refused if the count does not fit.
+  * Comma, semicolon and tab separated files are all accepted.
+  * Leave any optional column blank if it does not apply. Blank is always safe.
+  * The whole file is checked before anything is saved. If one row is wrong, nothing is
+    imported and the row number is reported.
 
 -------------------------------------------------------------------
-variants data
+Settings you never have to decode
+-------------------------------------------------------------------
+Columns T to Z used to be number codes. They are written in plain words now, and the template
+you download from the upload page arrives with them already filled in from the choices you made
+there. You only touch them if you want one product to differ from the rest.
+
+If you leave one of those cells blank, the setting chosen on the upload page is used instead.
+
+Two more are worked out for you and are never asked for:
+
+  * Stock tracking level - filling the product stock column tracks stock for the product;
+    filling the variant stock columns tracks it per variant; leaving both blank means stock is
+    not tracked at all.
+  * Availability - a product is available unless you set its stock to 0.
+
+There is no seller_id column. Products are always created under the account you are logged in
+with.
+
+-------------------------------------------------------------------
+Product columns
 -------------------------------------------------------------------
 
-28. attribute value ids - You can find from products >> attribute values section. it must be in format 3,4,5 - optional
+A.  category_id - mandatory. The Category ID shown on the Categories page.
 
-29. price - Price of the product. it must be greater than special price - mandatory
+B.  product_type - mandatory. Exactly simple_product or variable_product.
+      simple_product   - one price, no options. Fill one variant block.
+      variable_product - has options such as size or colour. Fill one variant block per option
+                         and give attribute_value_ids on each.
 
-30. special price - Discounted price of the product. it must be smaller than price - optional - default will be 0 means no discounted price
+C.  name - mandatory. The product name.
 
-31. sku - set it if stock type is 2 - optional
+D.  short_description - optional. One line shown next to the product.
 
-32. stock - set it if stock type is 2 - optional
+E.  description - optional. The full description.
 
-33. images - You can copy relative path from media section. in case of multiple images paths must be separated with ,(comma) - optional (for ex. uploads/media/2021/07.jpg,uploads/media/2021/07.jpg)
+F.  image - mandatory. The main image. Copy the path from the Media page,
+      for example uploads/media/2021/07.jpg
 
-34. availability - set it if stock type is 2 -> 0 - not available 1 - available - optional
+G.  other_images - optional. More image paths, separated with commas.
 
+H.  tags - optional. Search words, separated with commas.
 
+I.  sku - optional. Your own code for the product.
 
+J.  stock - optional. How many you have. Fill this when you keep one stock figure for the whole
+      product. Leave it blank and use the variant stock column instead when each option has its
+      own stock. Leave both blank if you do not track stock.
 
+K.  tax - optional. The tax ID from Products > Tax.
 
+L.  made_in - optional. For example India.
 
+M.  warranty_period - optional. Free text, for example 6 months.
 
+N.  guarantee_period - optional. Free text, for example 1 year.
 
+O.  video_type - optional. Exactly youtube or vimeo, or blank.
+
+P.  video - optional. The video link.
+
+Q.  minimum_order_quantity - optional. The fewest a customer can buy. Blank means 1.
+
+R.  quantity_step_size - optional. Customers buy in multiples of this. Blank means 1.
+
+S.  total_allowed_quantity - optional. The most one customer may buy. Blank means no limit.
+
+T.  cod_allowed - Yes or No. Whether customers can pay cash on delivery.
+
+U.  prices_include_tax - Yes or No. Whether the prices you typed already include tax.
+
+V.  returnable - Yes or No.
+
+W.  cancellable_until - No, Until received, Until processed, or Until shipped.
+
+X.  food_type - Not a food product, Vegetarian, or Non-vegetarian.
+
+Y.  delivery_area - Everywhere, Only these pincodes, Except these pincodes, or
+      Not deliverable yet.
+
+Z.  pincodes - only needed when delivery_area is "Only these pincodes" or "Except these
+      pincodes". Separate them with commas or spaces.
+
+-------------------------------------------------------------------
+Variant columns - repeat these 5 for every extra variant
+-------------------------------------------------------------------
+
+AA. attribute_value_ids - required for variable_product, leave blank for simple_product. The
+      IDs from Products > Attribute Values, for example 3,4
+
+AB. price - mandatory. Numbers only, no currency symbol. A variant counts as filled in when
+      this column has a value, so this is the column that decides how many variants a row has.
+
+AC. special_price - optional. The discounted price. It must be lower than the price.
+
+AD. sku_variant - optional. Your own code for this variant.
+
+AE. stock_variant - optional. Stock for this variant. Use this instead of the product stock
+      column when each variant has its own stock.

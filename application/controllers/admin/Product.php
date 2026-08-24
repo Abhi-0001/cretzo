@@ -778,6 +778,90 @@ class Product extends CI_Controller
         }
     }
 
+    /**
+     * Stream a bulk upload template with the page's settings already filled in.
+     *
+     * A blank sample left the admin to work out which of 51 columns mattered and what to write
+     * in the coded ones. This writes the settings columns on every row from the choices made on
+     * the page, in words, and leaves the product columns empty - so the file that arrives back
+     * only ever needed the name, image and price typing in, and cannot be wrong about the parts
+     * that used to cause the failures.
+     */
+    public function bulk_upload_template()
+    {
+        if (!($this->ion_auth->logged_in() && $this->ion_auth->is_admin())) {
+            redirect('admin/login', 'refresh');
+            return;
+        }
+
+        $defaults = collect_bulk_upload_defaults();
+        $vocab = bulk_setting_vocabulary();
+
+        $variants = (int) $this->input->post('template_variants');
+        $variants = ($variants >= 1 && $variants <= 10) ? $variants : 1;
+        $blank_rows = (int) $this->input->post('template_rows');
+        $blank_rows = ($blank_rows >= 1 && $blank_rows <= 200) ? $blank_rows : 10;
+
+        $header = [
+            'seller_id', 'category_id', 'product_type', 'name', 'short_description', 'description', 'image',
+            'other_images', 'tags', 'sku', 'stock', 'tax', 'made_in', 'warranty_period',
+            'guarantee_period', 'video_type', 'video', 'minimum_order_quantity',
+            'quantity_step_size', 'total_allowed_quantity', 'cod_allowed', 'prices_include_tax',
+            'returnable', 'cancellable_until', 'food_type', 'delivery_area', 'pincodes',
+        ];
+        for ($v = 1; $v <= $variants; $v++) {
+            $suffix = ($variants > 1) ? '_' . $v : '';
+            $header[] = 'attribute_value_ids' . $suffix;
+            $header[] = 'price' . $suffix;
+            $header[] = 'special_price' . $suffix;
+            $header[] = 'sku_variant' . $suffix;
+            $header[] = 'stock_variant' . $suffix;
+        }
+
+        // The words for the settings the seller picked, so the file reads back as English.
+        $cancelable_key = ($defaults['is_cancelable'] == 1) ? $defaults['cancelable_till'] : '';
+        // One higher than the seller sheet's, because seller_id sits in front of them.
+        $prefilled = [
+            20 => ($defaults['cod_allowed'] == 1) ? 'Yes' : 'No',
+            21 => ($defaults['is_prices_inclusive_tax'] == 1) ? 'Yes' : 'No',
+            22 => ($defaults['is_returnable'] == 1) ? 'Yes' : 'No',
+            23 => $vocab['cancellable_until']['labels'][$cancelable_key] ?? 'No',
+            24 => $vocab['food_type']['labels'][(string) $defaults['indicator']] ?? 'Not a food product',
+            25 => $vocab['delivery_area']['labels'][$defaults['deliverable_type']] ?? 'Everywhere',
+            26 => $defaults['deliverable_zipcodes'],
+        ];
+
+        $row_template = array_fill(0, count($header), '');
+        foreach ($prefilled as $index => $value) {
+            $row_template[$index] = $value;
+        }
+        // Two hints the seller cannot get wrong by leaving them: quantities default to 1 anyway,
+        // and product_type is the one column with only two legal spellings.
+        $row_template[2] = 'simple_product';
+        $row_template[17] = '1';
+        $row_template[18] = '1';
+
+        $filename = 'cretzo-admin-bulk-upload-template.csv';
+        $this->output
+            ->set_content_type('text/csv')
+            ->set_header('Content-Disposition: attachment; filename="' . $filename . '"')
+            ->set_header('Cache-Control: no-store, no-cache, must-revalidate');
+
+        // No byte-order mark: CI's output layer re-encodes the response, so a BOM written here
+        // came back double-encoded and showed as three junk characters glued to the first column
+        // heading. A plain UTF-8 body is read correctly by Excel, Sheets and LibreOffice alike.
+        $handle = fopen('php://temp', 'r+');
+        fputcsv($handle, $header);
+        for ($i = 0; $i < $blank_rows; $i++) {
+            fputcsv($handle, $row_template);
+        }
+        rewind($handle);
+        $csv = stream_get_contents($handle);
+        fclose($handle);
+
+        $this->output->set_output($csv);
+    }
+
     public function process_bulk_upload()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
@@ -874,758 +958,510 @@ class Product extends CI_Controller
                 $video_types = array("youtube", "vimeo");
                 $this->response['message'] = '';
                 $type = $_POST['type'];
+
+                // Excel on a non-US locale writes tab- or semicolon-separated files. Reading one
+                // of those with a hard-coded "," collapsed every row into a single column, so the
+                // importer rejected valid data with a message about column 2 - and the PHP
+                // "Undefined array key" warnings it printed ahead of the JSON reply left the page
+                // unable to read the response at all.
+                $delimiter = detect_csv_delimiter($csv);
+                // Widest index any branch below reads: 30 + (49 * 7) = 373.
+                $row_width = 380;
+
+                // A file whose columns do not line up with the layout the code indexes would have
+                // its variant block read off-by-one - price landing in attribute_value_ids and so
+                // on - and silently import corrupt products. The upload sheet is the simple
+                // layout: seller_id then the same product columns the seller page uses, with the
+                // settings written as words. The update sheet is the same shape with product_id
+                // in front and a variant_id at the head of each variant block.
+                $fixed_columns = ($type == 'upload') ? ADMIN_SIMPLE_FIXED_COLUMNS : UPDATE_SIMPLE_FIXED_COLUMNS;
+                $variant_block = ($type == 'upload') ? SIMPLE_VARIANT_COLUMNS : UPDATE_SIMPLE_VARIANT_COLUMNS;
+                $header_row = fgetcsv($handle, 10000, $delimiter);
+                $header_count = ($header_row === FALSE) ? 0 : count($header_row);
+                if (!is_valid_bulk_header_width($header_count, $fixed_columns, $variant_block)) {
+                    fclose($handle);
+                    $this->response['error'] = true;
+                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                    $this->response['message'] = bulk_header_width_message($header_count, $fixed_columns, $variant_block);
+                    echo json_encode($this->response);
+                    return false;
+                }
+                rewind($handle);
+
                 if ($type == 'upload') {
-                    while (($row = fgetcsv($handle, 10000, ",")) != FALSE) //get row values
-                    {
-                      
-                        if ($temp != 0) {
-                            if (empty($row[0])) {
-                                $this->response['error'] = true;
-                                $this->response['message'] = 'Category id is empty at row ' . $temp;
-                                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                print_r(json_encode($this->response));
-                                return false;
-                            }
-
-                            if ($row[2] != 'simple_product' && $row[2] != 'variable_product') {
-                                $this->response['error'] = true;
-                                $this->response['message'] = 'Product type is invalid at row ' . $temp;
-                                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                print_r(json_encode($this->response));
-                                return false;
-                            }
-
-                            if (empty($row[4])) {
-                                $this->response['error'] = true;
-                                $this->response['message'] = 'Name is empty at row ' . $temp;
-                                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                print_r(json_encode($this->response));
-                                return false;
-                            }
-
-
-                            if (!empty($row[7]) && $row[7] != 1) {
-                                $this->response['error'] = true;
-                                $this->response['message'] = 'COD allowed is invalid at row ' . $temp;
-                                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                print_r(json_encode($this->response));
-                                return false;
-                            }
-
-                            if (!empty($row[11]) && $row[11] != 1) {
-                                $this->response['error'] = true;
-                                $this->response['message'] = 'Is prices inclusive tax is invalid at row ' . $temp;
-                                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                print_r(json_encode($this->response));
-                                return false;
-                            }
-
-                            if (!empty($row[12]) && $row[12] != 1) {
-                                $this->response['error'] = true;
-                                $this->response['message'] = 'Is Returnable is invalid at row ' . $temp;
-                                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                print_r(json_encode($this->response));
-                                return false;
-                            }
-
-                            if (!empty($row[13]) && $row[13] != 1) {
-                                $this->response['error'] = true;
-                                $this->response['message'] = 'Is Cancelable is invalid at row ' . $temp;
-                                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                print_r(json_encode($this->response));
-                                return false;
-                            }
-
-                            if (!empty($row[13]) && $row[13] == 1 && (empty($row[14]) || !in_array($row[14], $allowed_status))) {
-                                $this->response['error'] = true;
-                                $this->response['message'] = 'Cancelable till is invalid at row ' . $temp;
-                                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                print_r(json_encode($this->response));
-                                return false;
-                            }
-
-                            if (empty($row[13]) && !(empty($row[14]))) {
-                                $this->response['error'] = true;
-                                $this->response['message'] = 'Cancelable till is invalid at row ' . $temp;
-                                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                print_r(json_encode($this->response));
-                                return false;
-                            }
-
-                            if (empty($row[15])) {
-                                $this->response['error'] = true;
-                                $this->response['message'] = 'Image is empty at row ' . $temp;
-                                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                print_r(json_encode($this->response));
-                                return false;
-                            }
-
-                            if (!empty($row[17]) && !in_array($row[17], $video_types)) {
-                                $this->response['error'] = true;
-                                $this->response['message'] = 'Video type is invalid at row ' . $temp;
-                                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                print_r(json_encode($this->response));
-                                return false;
-                            }
-
-                            if ($row[27] != 0 && $row[27] != 1 && $row[27] != 2 && $row[27] != 3 && $row[27] == "") {
-                                $this->response['error'] = true;
-                                $this->response['message'] = 'Not valid value for deliverable_type at row ' . $temp;
-                                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                print_r(json_encode($this->response));
-                                return false;
-                            }
-
-                            if ($row[27] == INCLUDED || $row[27] == EXCLUDED) {
-                                if (empty($row[28])) {
-                                    $this->response['error'] = true;
-                                    $this->response['message'] = 'Deliverable_zipcodes is empty at row ' . $temp;
-                                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                    print_r(json_encode($this->response));
-                                    return false;
-                                }
-                            }
-
-                            if (empty($row[29])) {
-                                $this->response['error'] = true;
-                                $this->response['message'] = 'Seller ID is empty at row ' . $temp;
-                                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                print_r(json_encode($this->response));
-                                return false;
-                            }
-                            $seller_id = $row[29];
-                            $seller_data = fetch_details('seller_data', ['user_id' => $seller_id], 'category_ids');
-
-                            if (!in_array($row[0], explode(',', $seller_data[0]['category_ids']))) {
-                                $this->response['error'] = true;
-                                $this->response['message'] = 'This Category ID : ' . $row[0] . ' is not assign to seller id:' . $seller_id . ' at row ' . $temp;
-                                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                print_r(json_encode($this->response));
-                                return false;
-                            }
-
-                            $index1 = 30;
-                            $total_variants = 0;
-                            for ($j = 0; $j < 50; $j++) {
-
-                                if (!empty($row[$index1])) {
-                                    $total_variants++;
-                                }
-                                $index1 = $index1 + 7;
-                            }
-                            $variant_index = 30;
-                            for ($k = 0; $k < $total_variants; $k++) {
-                                if ($row[2] == 'variable_product') {
-                                    if (empty($row[$variant_index])) {
-                                        $this->response['error'] = true;
-                                        $this->response['message'] = 'Attribute value ids is empty at row  ' . $temp;
-                                        $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                        $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                        print_r(json_encode($this->response));
-                                        return false;
-                                    }
-                                    $variant_index = $variant_index + 7;
-                                }
-                            }
-                            if ($total_variants == 0) {
-                                $this->response['error'] = true;
-                                $this->response['message'] = 'Variants not found at row ' . $temp;
-                                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                print_r(json_encode($this->response));
-                                return false;
-                            } elseif ($row[2] == 'simple_product' && $total_variants > 1) {
-                                $this->response['error'] = true;
-                                $this->response['message'] = 'You can not add variants more than one for simple prodcuct at row  ' . $temp;
-                                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                print_r(json_encode($this->response));
-                                return false;
-                            }
-                        }
-                        $temp++;
-                    }
-
-                    fclose($handle);
-                    $handle = fopen($csv, "r");
-                    // Every row is written in one transaction. Previously each product was
-                    // committed as it was read, so any failure part-way through a file left the
-                    // catalogue holding a partial import with no record of where it stopped and
-                    // no way to safely re-run the same file.
-                    $this->db->trans_start();
-                    while (($row = fgetcsv($handle, 10000, ",")) != FALSE) //get row vales
-                    {
-                        if ($temp1 != 0) {
-                            $data['category_id'] = $row[0];
-                            if (!empty($row[1])) {
-                                $data['tax'] = $row[1];
-                            }
-                            $data['type'] = $row[2];
-                            if ($row[3] != '') {
-                                // CSV cells were written straight into the column, so a blank, a negative or an
-                                // unrecognised marker went in unchecked - bypassing every guard
-                                // update_stock() applies. Normalised on the way in.
-                                $data['stock_type'] = normalise_stock_type($row[3]);
-                            }
-
-                            $data['name'] = $row[4];
-                            $data['short_description'] = $row[5];
-                            $data['slug'] = create_unique_slug($row[4], 'products');
-                            if ($row[6] != '') {
-                                $data['indicator'] = $row[6];
-                            }
-                            if ($row[7] != '') {
-                                $data['cod_allowed'] = $row[7];
-                            }
-
-                            if ($row[8] != '') {
-                                $data['minimum_order_quantity'] = $row[8];
-                            }
-                            if ($row[9] != '') {
-                                $data['quantity_step_size'] = $row[9];
-                            }
-                            if ($row[10] != '') {
-                                $data['total_allowed_quantity'] = $row[10];
-                            }
-                            if ($row[11] != '') {
-                                $data['is_prices_inclusive_tax'] = $row[11];
-                            }
-                            if ($row[12] != '') {
-                                $data['is_returnable'] = $row[12];
-                            }
-                            if ($row[13] != '') {
-                                $data['is_cancelable'] = $row[13];
-                            }
-                            $data['cancelable_till'] = $row[14];
-                            $data['image'] = $row[15];
-                            if (isset($row[16]) && $row[16] != '') {
-                                $other_images = explode(',', $row[16]);
-                                $data['other_images'] = json_encode($other_images, 1);
-                            } else {
-                                $data['other_images'] = '[]';
-                            }
-                            $data['video_type'] = $row[17];
-                            $data['video'] = $row[18];
-                            $data['tags'] = $row[19];
-                            $data['warranty_period'] = $row[20];
-                            $data['guarantee_period'] = $row[21];
-                            $data['made_in'] = $row[22];
-
-                            if (!empty($row[23])) {
-                                $data['sku'] = $row[23];
-                            }
-                            if (!empty($row[24])) {
-                                $data['stock'] = sanitise_import_stock($row[24]);
-                            }
-                            if ($row[25] != '') {
-                                $data['availability'] = $row[25];
-                            }
-
-                            $data['description'] = $row[26];
-                            $data['deliverable_type'] = $row[27]; //in csv its 28th
-                            $data['deliverable_zipcodes'] = $row[28]; // in csv its 29th
-                            $data['seller_id'] = $row[29]; // in csv its 29th
-                            // $data['brand'] = isset($row[37]) ? $row[37] : '';
-                            // $data['hsn_code'] = isset($row[38]) ? $row[38] : '';
-                            // $data['pickup_location'] = isset($row[39]) ? $row[39] : '';
-                            // $data['extra_description'] = isset($row[40]) ? $row[40] : '';
-                           
-
-                            $this->db->insert('products', $data);
-                            $product_id = $this->db->insert_id();
-
-                            $index1 = 31;
-                            $total_variants = 0;
-                            for ($j = 0; $j < 50; $j++) {
-                                if (!empty($row[$index1])) {
-                                    $total_variants++;
-                                }
-                                $index1 = $index1 + 7;
-                            }
-
-                            $index1 = 30;
-                            $attribute_value_ids = '';
-                            for ($j = 0; $j < $total_variants; $j++) {
-                                if (!empty($row[$index1])) {
-                                    if (!empty($attribute_value_ids)) {
-                                        $attribute_value_ids .= ',' . strval($row[$index1]);
-                                    } else {
-                                        $attribute_value_ids = strval($row[$index1]);
-                                    }
-                                }
-                                $index1 = $index1 + 7;
-                            }
-                            $attribute_value_ids = !empty($attribute_value_ids) ? $attribute_value_ids : '';
-                            $pro_attr_data = [
-
-                                'product_id' => $product_id,
-                                'attribute_value_ids' => $attribute_value_ids,
-
-                            ];
-                            $this->db->insert('product_attributes', $pro_attr_data);
-                            $index = 30;
-                            for ($i = 0; $i < $total_variants; $i++) {
-                                $variant_data[$i]['images'] = '[]';
-                                $variant_data[$i]['product_id'] = $product_id;
-                                // $variant_data[$i]['attribute_value_ids'] = $row[$index];
-                                if (strval($data['type']) == 'variable_product') {
-                                    $variant_data[$i]['attribute_value_ids'] = $row[$index];
-                                } else {
-                                    $variant_data[$i]['attribute_value_ids'] = null;
-                                }
-                                $index++;
-                                $variant_data[$i]['price'] = $row[$index];
-                                $index++;
-                                if (isset($row[$index]) && !empty($row[$index])) {
-                                    $variant_data[$i]['special_price'] = $row[$index];
-                                } else {
-                                    $variant_data[$i]['special_price'] = 0;
-                                }
-
-                                $index++;
-                                if (isset($row[$index]) && !empty($row[$index])) {
-                                    $variant_data[$i]['sku'] = $row[$index];
-                                }
-                                $index++;
-                                if (isset($row[$index]) && !empty($row[$index])) {
-                                    $variant_data[$i]['stock'] = sanitise_import_stock($row[$index]);
-                                }
-
-                                $index++;
-                                if (isset($row[$index]) && $row[$index] != '' && !empty($row[$index])) {
-                                    $images = explode(',', $row[$index]);
-                                    $variant_data[$i]['images'] = json_encode($images, 1);
-                                }
-
-                                $index++;
-                                if (isset($row[$index]) && $row[$index] != '') {
-                                    $variant_data[$i]['availability'] = $row[$index];
-                                }
-
-                                $index++;
-                                $this->db->insert('product_variants', $variant_data[$i]);
-                            }
-                        }
-                        $temp1++;
-                    }
-                    fclose($handle);
-                    $this->db->trans_complete();
-
-                    if ($this->db->trans_status() === false) {
+                    // The upload sheet used to be 51 columns wide, carrying every product setting
+                    // as a numeric code -
+                    // stock_type 0/1/2, indicator 0/1/2, deliverable_type 0..3, cod_allowed,
+                    // is_returnable, is_cancelable, cancelable_till - which sellers had no way to
+                    // read off a spreadsheet. Those settings are the same for every row of a
+                    // typical upload, so they now come from labelled inputs on the page and the
+                    // sheet is reduced to the product columns that genuinely differ per product,
+                    // plus a short variant block.
+                    $defaults = collect_bulk_upload_defaults();
+                    if ($defaults['error'] !== '') {
                         $this->response['error'] = true;
                         $this->response['csrfName'] = $this->security->get_csrf_token_name();
                         $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                        $this->response['message'] = 'The import failed and no products were added. Please check the file and try again.';
+                        $this->response['message'] = $defaults['error'];
                         echo json_encode($this->response);
                         return false;
                     }
 
-                    $this->response['error'] = false;
-                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                    // The message gave no indication of how much had actually been imported.
-                    $this->response['message'] = max(0, $temp1 - 1) . ' product(s) uploaded successfully!';
-                    echo json_encode($this->response);
-                    return false;
-                } else { // bulk_update
-                    while (($row = fgetcsv($handle, 10000, ",")) != FALSE) //get row vales
+                    // Column map for the simple sheet. Variant blocks start at
+                    // SIMPLE_FIXED_COLUMNS and repeat every SIMPLE_VARIANT_COLUMNS.
+                    // Same layout as the seller sheet with seller_id in front, so both pages teach
+                    // the same file and the shared helpers apply unchanged.
+                    $C = [
+                        'seller_id' => 0,
+                        'category_id' => 1, 'product_type' => 2, 'name' => 3, 'short_description' => 4,
+                        'description' => 5, 'image' => 6, 'other_images' => 7, 'tags' => 8,
+                        'sku' => 9, 'stock' => 10, 'tax' => 11, 'made_in' => 12,
+                        'warranty_period' => 13, 'guarantee_period' => 14, 'video_type' => 15, 'video' => 16,
+                        'minimum_order_quantity' => 17, 'quantity_step_size' => 18, 'total_allowed_quantity' => 19,
+                        // Written as words by the generated template; blank falls back to the form.
+                        'cod_allowed' => 20, 'prices_include_tax' => 21, 'returnable' => 22,
+                        'cancellable_until' => 23, 'food_type' => 24, 'delivery_area' => 25, 'pincodes' => 26,
+                    ];
+                    $rows_data = [];
+                    while (($row = fgetcsv($handle, 10000, $delimiter)) != FALSE) //get row values
                     {
-                        
+                        // Short rows used to raise an "Undefined array key" warning per read; those warnings
+                        // were echoed ahead of the JSON reply and left the caller unable to parse it.
+                        $row = pad_csv_row($row, $row_width);
+
                         if ($temp != 0) {
-                            if (empty($row[0])) {
-                                $this->response['error'] = true;
-                                $this->response['message'] = 'Product id is empty at row ' . $temp;
-                                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                print_r(json_encode($this->response));
-                                return false;
+                            $line = $temp;
+
+                            if (trim($row[$C['seller_id']]) === '') {
+                                return bulk_upload_row_error('Seller is empty at row ' . $line . '. Put the numeric seller user id from Sellers > Manage Sellers in the first column.');
+                            }
+                            $seller_row = fetch_details('seller_data', ['user_id' => $row[$C['seller_id']]], 'user_id');
+                            if (empty($seller_row)) {
+                                return bulk_upload_row_error('Seller ID "' . $row[$C['seller_id']] . '" at row ' . $line . ' does not match any seller. Use the numeric user id from Sellers > Manage Sellers, not a store name or code.');
                             }
 
-                            if (!empty($row[3]) && $row[3] != 'simple_product' && $row[3] != 'variable_product') {
-                                $this->response['error'] = true;
-                                $this->response['message'] = 'Product type is invalid at row ' . $temp;
-                                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                print_r(json_encode($this->response));
-                                return false;
+                            if (trim($row[$C['category_id']]) === '') {
+                                return bulk_upload_row_error('Category is empty at row ' . $line . '. Put the Category ID from the Categories page in the first column.');
+                            }
+                            $category = fetch_details('categories', ['id' => $row[$C['category_id']]], 'id');
+                            if (empty($category)) {
+                                return bulk_upload_row_error('Category ID "' . $row[$C['category_id']] . '" at row ' . $line . ' does not exist. Copy the ID from the Categories page.');
                             }
 
-
-                            if (!empty($row[8]) && $row[8] != 1) {
-                                $this->response['error'] = true;
-                                $this->response['message'] = 'COD allowed is invalid at row ' . $temp;
-                                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                print_r(json_encode($this->response));
-                                return false;
+                            $product_type = trim($row[$C['product_type']]);
+                            if ($product_type != 'simple_product' && $product_type != 'variable_product') {
+                                return bulk_upload_row_error('Product type at row ' . $line . ' must be simple_product or variable_product.');
                             }
 
-                            if (!empty($row[12]) && $row[12] != 1) {
-                                $this->response['error'] = true;
-                                $this->response['message'] = 'Is prices inclusive tax is invalid at row ' . $temp;
-                                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                print_r(json_encode($this->response));
-                                return false;
+                            if (trim($row[$C['name']]) === '') {
+                                return bulk_upload_row_error('Name is empty at row ' . $line . '.');
                             }
 
-                            if (!empty($row[13]) && $row[13] != 1) {
-                                $this->response['error'] = true;
-                                $this->response['message'] = 'Is Returnable is invalid at row ' . $temp;
-                                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                print_r(json_encode($this->response));
-                                return false;
+                            if (trim($row[$C['image']]) === '') {
+                                return bulk_upload_row_error('Image is empty at row ' . $line . '. Copy the image path from the Media page.');
                             }
 
-                            if (!empty($row[14]) && $row[14] != 1) {
-                                $this->response['error'] = true;
-                                $this->response['message'] = 'Is Cancelable is invalid at row ' . $temp;
-                                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                print_r(json_encode($this->response));
-                                return false;
+                            $video_type = trim($row[$C['video_type']]);
+                            if ($video_type !== '' && !in_array($video_type, $video_types)) {
+                                return bulk_upload_row_error('Video type at row ' . $line . ' must be youtube or vimeo (or left blank).');
                             }
 
-                            if (!empty($row[14]) && $row[14] == 1 && (empty($row[15]) || !in_array($row[15], $allowed_status))) {
-                                $this->response['error'] = true;
-                                $this->response['message'] = 'Cancelable till is invalid at row ' . $temp;
-                                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                print_r(json_encode($this->response));
-                                return false;
+                            // A variant is present when its price cell has a value. Counting on
+                            // attribute value ids instead would make every simple_product - which
+                            // legitimately has none - look like it had no variants at all.
+                            $variants = [];
+                            for ($v = 0; $v < 50; $v++) {
+                                $base = ADMIN_SIMPLE_FIXED_COLUMNS + ($v * SIMPLE_VARIANT_COLUMNS);
+                                if (trim($row[$base + 1]) === '') {
+                                    continue;
+                                }
+                                $variants[] = [
+                                    'attribute_value_ids' => trim($row[$base]),
+                                    'price'               => trim($row[$base + 1]),
+                                    'special_price'       => trim($row[$base + 2]),
+                                    'sku'                 => trim($row[$base + 3]),
+                                    'stock'               => trim($row[$base + 4]),
+                                ];
                             }
 
-                            if (empty($row[14]) && !(empty($row[15]))) {
-                                $this->response['error'] = true;
-                                $this->response['message'] = 'Cancelable till is invalid at row ' . $temp;
-                                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                print_r(json_encode($this->response));
-                                return false;
+                            if (empty($variants)) {
+                                return bulk_upload_row_error('Price is empty at row ' . $line . '. Every product needs at least a price.');
+                            }
+                            if ($product_type == 'simple_product' && count($variants) > 1) {
+                                return bulk_upload_row_error('Row ' . $line . ' is a simple_product but has ' . count($variants) . ' prices. Use variable_product for more than one variant.');
                             }
 
-                            // Checked column 18 for a value but then validated column 17 against
-                            // the permitted video types, so in update mode an invalid video type
-                            // passed unchecked while a valid one could be rejected because of
-                            // whatever happened to sit in the neighbouring column.
-                            if (!empty($row[18]) && !in_array($row[18], $video_types)) {
-                                $this->response['error'] = true;
-                                $this->response['message'] = 'Video type is invalid at row ' . $temp;
-                                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                print_r(json_encode($this->response));
-                                return false;
-                            }
-                            if ($row[27] != "") {
-                                if ($row[27] != 0 && $row[27] != 1 && $row[27] != 2 && $row[27] != 3) {
-                                    $this->response['error'] = true;
-                                    $this->response['message'] = 'Not valid value for deliverable_type at row ' . $temp;
-                                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                    print_r(json_encode($this->response));
-                                    return false;
+                            foreach ($variants as $n => $variant) {
+                                if (!is_numeric($variant['price'])) {
+                                    return bulk_upload_row_error('Price "' . $variant['price'] . '" at row ' . $line . ' is not a number.');
+                                }
+                                if ($variant['special_price'] !== '' && !is_numeric($variant['special_price'])) {
+                                    return bulk_upload_row_error('Special price "' . $variant['special_price'] . '" at row ' . $line . ' is not a number.');
+                                }
+                                if ($variant['special_price'] !== '' && (float) $variant['special_price'] > (float) $variant['price']) {
+                                    return bulk_upload_row_error('Special price is higher than the price at row ' . $line . '. The special price is the discounted one.');
+                                }
+                                if ($product_type == 'variable_product' && $variant['attribute_value_ids'] === '') {
+                                    return bulk_upload_row_error('Attribute value ids are empty for variant ' . ($n + 1) . ' at row ' . $line . '. A variable_product needs them on every variant.');
                                 }
                             }
 
-                            if ($row[27] != "" && ($row[27] == INCLUDED || $row[27] == EXCLUDED)) {
-                                if (empty($row[28])) {
-                                    $this->response['error'] = true;
-                                    $this->response['message'] = 'Deliverable_zipcodes is empty at row ' . $temp;
-                                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                    print_r(json_encode($this->response));
-                                    return false;
-                                }
-                            }
-
-                            if (!empty($row[1])) {
-                                if (empty($row[29])) {
-                                    $this->response['error'] = true;
-                                    $this->response['message'] = 'Seller ID is empty at row ' . $temp;
-                                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                    print_r(json_encode($this->response));
-                                    return false;
-                                }
-                                $seller_id = $row[29];
-                                $seller_data = fetch_details('seller_data', ['user_id' => $seller_id], 'category_ids');
-
-                                if (!in_array($row[1], explode(',', $seller_data[0]['category_ids']))) {
-                                    $this->response['error'] = true;
-                                    $this->response['message'] = 'This Category ID : ' . $row[1] . ' is not assign to seller id:' . $seller_id . ' at row ' . $temp;
-                                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                    print_r(json_encode($this->response));
-                                    return false;
-                                }
-                                if (empty($row[30])) {
-                                    $this->response['error'] = true;
-                                    $this->response['message'] = 'Variant ID is empty at row ' . $temp;
-                                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                                    print_r(json_encode($this->response));
-                                    return false;
-                                }
-                            }
+                            $rows_data[] = ['row' => $row, 'type' => $product_type, 'variants' => $variants];
                         }
                         $temp++;
                     }
 
                     fclose($handle);
-                    $handle = fopen($csv, "r");
+
+                    if (empty($rows_data)) {
+                        $this->response['error'] = true;
+                        $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                        $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                        $this->response['message'] = 'The file has a header row but no products.';
+                        echo json_encode($this->response);
+                        return false;
+                    }
+
+                    // No plan-quota check here: this is the admin importer, and an admin adding
+                    // listings on a seller's behalf is not spending that seller's own allowance.
+                    $rows_to_add = count($rows_data);
+
+                    $this->db->trans_start();
+                    foreach ($rows_data as $entry) {
+                        $row = $entry['row'];
+                        $variants = $entry['variants'];
+
+                        // stock_type is derived, never asked for: a seller cannot be expected to
+                        // know that 0 means product-level on a simple product while 2 means
+                        // variant-level on a variable one. Whichever stock column they filled in
+                        // says which level they meant, and no stock at all means untracked.
+                        $variant_stock_given = false;
+                        foreach ($variants as $variant) {
+                            if ($variant['stock'] !== '') {
+                                $variant_stock_given = true;
+                                break;
+                            }
+                        }
+                        $product_stock_given = (trim($row[$C['stock']]) !== '');
+                        if ($entry['type'] == 'simple_product') {
+                            $stock_type = $product_stock_given ? 0 : null;
+                        } elseif ($variant_stock_given) {
+                            $stock_type = 2;
+                        } elseif ($product_stock_given) {
+                            $stock_type = 1;
+                        } else {
+                            $stock_type = null;
+                        }
+
+                        $data = [];
+                        $data['category_id'] = $row[$C['category_id']];
+                        if (trim($row[$C['tax']]) !== '') {
+                            $data['tax'] = $row[$C['tax']];
+                        }
+                        $data['type'] = $entry['type'];
+                        if ($stock_type !== null) {
+                            $data['stock_type'] = $stock_type;
+                        }
+                        $data['name'] = $row[$C['name']];
+                        $data['short_description'] = $row[$C['short_description']];
+                        $data['slug'] = create_unique_slug($row[$C['name']], 'products');
+                        $data['description'] = $row[$C['description']];
+                        $data['image'] = $row[$C['image']];
+                        if (trim($row[$C['other_images']]) !== '') {
+                            $data['other_images'] = json_encode(array_map('trim', explode(',', $row[$C['other_images']])), 1);
+                        } else {
+                            $data['other_images'] = '[]';
+                        }
+                        $data['video_type'] = $row[$C['video_type']];
+                        $data['video'] = $row[$C['video']];
+                        $data['tags'] = $row[$C['tags']];
+                        $data['warranty_period'] = $row[$C['warranty_period']];
+                        $data['guarantee_period'] = $row[$C['guarantee_period']];
+                        $data['made_in'] = $row[$C['made_in']];
+                        if (trim($row[$C['sku']]) !== '') {
+                            $data['sku'] = $row[$C['sku']];
+                        }
+                        if ($product_stock_given) {
+                            $data['stock'] = sanitise_import_stock($row[$C['stock']]);
+                        }
+
+                        // Plain numbers stay in the sheet - they need no decoding, and a seller may
+                        // well want a different minimum order per product. Blank means the column
+                        // default (1 / 1 / no cap).
+                        if (trim($row[$C['minimum_order_quantity']]) !== '') {
+                            $data['minimum_order_quantity'] = $row[$C['minimum_order_quantity']];
+                        }
+                        if (trim($row[$C['quantity_step_size']]) !== '') {
+                            $data['quantity_step_size'] = $row[$C['quantity_step_size']];
+                        }
+                        if (trim($row[$C['total_allowed_quantity']]) !== '') {
+                            $data['total_allowed_quantity'] = $row[$C['total_allowed_quantity']];
+                        }
+
+                        // availability is derived rather than asked for: it only ever meant "is
+                        // there stock", so a seller answering it separately could contradict the
+                        // stock column they just filled in.
+                        $availability = ($product_stock_given && (int) $row[$C['stock']] <= 0) ? 0 : 1;
+                        $data['availability'] = $availability;
+
+                        // The settings that used to be numeric codes. The template the upload page
+                        // generates writes them as words on every row, so the file normally answers
+                        // them; a blank cell falls back to what was chosen on the form. Either way
+                        // the seller never types a code.
+                        $settings = resolve_bulk_row_settings($row, $C, $defaults);
+                        $data['indicator'] = $settings['indicator'];
+                        $data['cod_allowed'] = $settings['cod_allowed'];
+                        $data['is_prices_inclusive_tax'] = $settings['is_prices_inclusive_tax'];
+                        $data['is_returnable'] = $settings['is_returnable'];
+                        $data['is_cancelable'] = $settings['is_cancelable'];
+                        $data['cancelable_till'] = $settings['cancelable_till'];
+                        $data['deliverable_type'] = $settings['deliverable_type'];
+                        $data['deliverable_zipcodes'] = $settings['deliverable_zipcodes'];
+                        // An admin imports on behalf of a seller, so ownership is the row's own
+                        // seller_id - already checked to exist during validation.
+                        $data['seller_id'] = $row[$C['seller_id']];
+
+                        $this->db->insert('products', $data);
+                        $product_id = $this->db->insert_id();
+
+                        $attribute_value_ids = [];
+                        foreach ($variants as $variant) {
+                            if ($variant['attribute_value_ids'] !== '') {
+                                $attribute_value_ids[] = $variant['attribute_value_ids'];
+                            }
+                        }
+                        $this->db->insert('product_attributes', [
+                            'product_id' => $product_id,
+                            'attribute_value_ids' => implode(',', $attribute_value_ids),
+                        ]);
+
+                        foreach ($variants as $variant) {
+                            $variant_data = [
+                                'product_id' => $product_id,
+                                'attribute_value_ids' => $variant['attribute_value_ids'],
+                                'price' => $variant['price'],
+                                'special_price' => ($variant['special_price'] !== '') ? $variant['special_price'] : 0,
+                                'images' => '[]',
+                                'availability' => ($variant['stock'] !== '' && (int) $variant['stock'] <= 0) ? 0 : $availability,
+                            ];
+                            if ($variant['sku'] !== '') {
+                                $variant_data['sku'] = $variant['sku'];
+                            }
+                            if ($variant['stock'] !== '') {
+                                $variant_data['stock'] = sanitise_import_stock($variant['stock']);
+                            }
+                            $this->db->insert('product_variants', $variant_data);
+                        }
+                    }
+                    $this->db->trans_complete();
+                    $this->response['error'] = ($this->db->trans_status() === false);
+                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                    $this->response['message'] = ($this->db->trans_status() === false)
+                        ? 'Upload failed, no products were added. Please check your file and try again.'
+                        : $rows_to_add . ' product(s) uploaded successfully!';
+                    echo json_encode($this->response);
+                    return false;
+                } else { // bulk_update
+                    // The update sheet used to be 36 columns of the same numeric codes as the old
+                    // upload sheet, plus a seller_id that could silently move a product between
+                    // sellers. It is now the upload layout with product_id in front and variant_id
+                    // at the head of each variant block, and every setting is written in words.
+                    // Ownership is never touched here: the product already has an owner.
+                    //
+                    // A blank cell means "leave this as it is" - that is the whole point of an
+                    // update - so unlike the upload branch there are no form defaults to fall back
+                    // to, and the settings panel is hidden for this action.
+                    $C = [
+                        'product_id' => 0,
+                        'category_id' => 1, 'product_type' => 2, 'name' => 3, 'short_description' => 4,
+                        'description' => 5, 'image' => 6, 'other_images' => 7, 'tags' => 8,
+                        'sku' => 9, 'stock' => 10, 'tax' => 11, 'made_in' => 12,
+                        'warranty_period' => 13, 'guarantee_period' => 14, 'video_type' => 15, 'video' => 16,
+                        'minimum_order_quantity' => 17, 'quantity_step_size' => 18, 'total_allowed_quantity' => 19,
+                        'cod_allowed' => 20, 'prices_include_tax' => 21, 'returnable' => 22,
+                        'cancellable_until' => 23, 'food_type' => 24, 'delivery_area' => 25, 'pincodes' => 26,
+                    ];
+                    // Plain text and number columns that are copied across untouched when filled.
+                    $plain_columns = [
+                        'name' => 'name', 'short_description' => 'short_description',
+                        'description' => 'description', 'image' => 'image', 'tags' => 'tags',
+                        'sku' => 'sku', 'tax' => 'tax', 'made_in' => 'made_in',
+                        'warranty_period' => 'warranty_period', 'guarantee_period' => 'guarantee_period',
+                        'video_type' => 'video_type', 'video' => 'video',
+                        'minimum_order_quantity' => 'minimum_order_quantity',
+                        'quantity_step_size' => 'quantity_step_size',
+                        'total_allowed_quantity' => 'total_allowed_quantity',
+                    ];
+
+                    $rows_data = [];
+                    while (($row = fgetcsv($handle, 10000, $delimiter)) != FALSE) //get row values
+                    {
+                        // Short rows used to raise an "Undefined array key" warning per read; those warnings
+                        // were echoed ahead of the JSON reply and left the page unable to parse it.
+                        $row = pad_csv_row($row, $row_width);
+
+                        if ($temp != 0) {
+                            $line = $temp;
+
+                            if (trim($row[$C['product_id']]) === '') {
+                                return bulk_upload_row_error('Product ID is empty at row ' . $line . '. Put the ID from Products > Manage Products in the first column.');
+                            }
+                            $product = fetch_details('products', ['id' => $row[$C['product_id']]], 'id,seller_id');
+                            if (empty($product)) {
+                                return bulk_upload_row_error('Product ID "' . $row[$C['product_id']] . '" at row ' . $line . ' does not exist. Copy the ID from Products > Manage Products.');
+                            }
+
+                            if (trim($row[$C['category_id']]) !== '') {
+                                $category = fetch_details('categories', ['id' => $row[$C['category_id']]], 'id');
+                                if (empty($category)) {
+                                    return bulk_upload_row_error('Category ID "' . $row[$C['category_id']] . '" at row ' . $line . ' does not exist. Copy the ID from the Categories page.');
+                                }
+                            }
+
+                            $product_type = trim($row[$C['product_type']]);
+                            if ($product_type !== '' && $product_type != 'simple_product' && $product_type != 'variable_product') {
+                                return bulk_upload_row_error('Product type at row ' . $line . ' must be simple_product or variable_product, or left blank to keep it as it is.');
+                            }
+
+                            $video_type = trim($row[$C['video_type']]);
+                            if ($video_type !== '' && !in_array($video_type, $video_types)) {
+                                return bulk_upload_row_error('Video type at row ' . $line . ' must be youtube or vimeo (or left blank).');
+                            }
+
+                            // A variant block counts as present when it names a variant_id. Price
+                            // cannot be the marker here the way it is on upload, because changing
+                            // only a variant's stock is a perfectly ordinary update.
+                            $variants = [];
+                            for ($v = 0; $v < 50; $v++) {
+                                $base = UPDATE_SIMPLE_FIXED_COLUMNS + ($v * UPDATE_SIMPLE_VARIANT_COLUMNS);
+                                if (trim($row[$base]) === '') {
+                                    continue;
+                                }
+                                $variant_id = trim($row[$base]);
+                                $variant_row = fetch_details('product_variants', ['id' => $variant_id], 'id,product_id');
+                                if (empty($variant_row)) {
+                                    return bulk_upload_row_error('Variant ID "' . $variant_id . '" at row ' . $line . ' does not exist. Copy it from the product edit screen.');
+                                }
+                                // Without this a variant id typed one digit out would be rewritten
+                                // with another product's prices, and nothing would look wrong.
+                                if ($variant_row[0]['product_id'] != $row[$C['product_id']]) {
+                                    return bulk_upload_row_error('Variant ID "' . $variant_id . '" at row ' . $line . ' belongs to product ' . $variant_row[0]['product_id'] . ', not product ' . $row[$C['product_id']] . '.');
+                                }
+                                $variants[] = [
+                                    'id'                  => $variant_id,
+                                    'attribute_value_ids' => trim($row[$base + 1]),
+                                    'price'               => trim($row[$base + 2]),
+                                    'special_price'       => trim($row[$base + 3]),
+                                    'sku'                 => trim($row[$base + 4]),
+                                    'stock'               => trim($row[$base + 5]),
+                                ];
+                            }
+
+                            foreach ($variants as $variant) {
+                                if ($variant['price'] !== '' && !is_numeric($variant['price'])) {
+                                    return bulk_upload_row_error('Price "' . $variant['price'] . '" at row ' . $line . ' is not a number.');
+                                }
+                                if ($variant['special_price'] !== '' && !is_numeric($variant['special_price'])) {
+                                    return bulk_upload_row_error('Special price "' . $variant['special_price'] . '" at row ' . $line . ' is not a number.');
+                                }
+                                if ($variant['price'] !== '' && $variant['special_price'] !== '' && (float) $variant['special_price'] > (float) $variant['price']) {
+                                    return bulk_upload_row_error('Special price is higher than the price at row ' . $line . '. The special price is the discounted one.');
+                                }
+                            }
+
+                            $rows_data[] = ['row' => $row, 'type' => $product_type, 'variants' => $variants];
+                        }
+                        $temp++;
+                    }
+
+                    fclose($handle);
+
+                    if (empty($rows_data)) {
+                        $this->response['error'] = true;
+                        $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                        $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                        $this->response['message'] = 'The file has a header row but no products.';
+                        echo json_encode($this->response);
+                        return false;
+                    }
+
                     // As with the upload branch, all updates are applied in one transaction so a
                     // failure cannot leave half the products updated and half untouched.
                     $this->db->trans_start();
-                    while (($row = fgetcsv($handle, 10000, ",")) != FALSE) //get row values
-                    {
-                        if ($temp1 != 0) {
-                            $product_id = $row[0];
-                            $product = fetch_details('products', ['id' => $product_id], '*');
-                            if (isset($product[0]) && !empty($product[0])) {
-                                if (!empty($row[1])) {
-                                    $data['category_id'] = $row[1];
-                                } else {
-                                    $data['category_id'] = $product[0]['category_id'];
-                                }
-                                if (!empty($row[2])) {
-                                    $data['tax'] = $row[2];
-                                } else {
-                                    $data['tax'] = $product[0]['tax'];
-                                }
-                                if (!empty($row[3])) {
-                                    $data['type'] = $row[3];
-                                } else {
-                                    $data['type'] = $product[0]['type'];
-                                }
-                                if ($row[4] != '') {
-                                    $data['stock_type'] = normalise_stock_type($row[4]);
-                                } else {
-                                    $data['stock_type'] = $product[0]['stock_type'];
-                                }
-                                if (!empty($row[5])) {
-                                    $data['name'] = $row[5];
-                                    $data['slug'] = create_unique_slug($row[5], 'products');
-                                } else {
-                                    $data['name'] = $product[0]['name'];
-                                }
-                                if (!empty($row[6])) {
-                                    $data['short_description'] = $row[6];
-                                } else {
-                                    $data['short_description'] = $product[0]['short_description'];
-                                }
-                                if ($row[7] != '') {
-                                    $data['indicator'] = $row[7];
-                                } else {
-                                    $data['indicator'] = $product[0]['indicator'];
-                                }
-                                if (!empty($row[8])) {
-                                    $data['cod_allowed'] = $row[8];
-                                } else {
-                                    $data['cod_allowed'] = $product[0]['cod_allowed'];
-                                }
+                    foreach ($rows_data as $entry) {
+                        $row = $entry['row'];
+                        $data = [];
 
-                                if (!empty($row[9])) {
-                                    $data['minimum_order_quantity'] = $row[9];
-                                } else {
-                                    $data['minimum_order_quantity'] = $product[0]['minimum_order_quantity'];
-                                }
-                                if (!empty($row[10])) {
-                                    $data['quantity_step_size'] = $row[10];
-                                } else {
-                                    $data['quantity_step_size'] = $product[0]['quantity_step_size'];
-                                }
-                                if ($row[11] != '') {
-                                    $data['total_allowed_quantity'] = $row[11];
-                                } else {
-                                    $data['total_allowed_quantity'] = $product[0]['total_allowed_quantity'];
-                                }
-                                if ($row[12] != '') {
-                                    $data['is_prices_inclusive_tax'] = $row[12];
-                                } else {
-                                    $data['is_prices_inclusive_tax'] = $product[0]['is_prices_inclusive_tax'];
-                                }
-                                if ($row[13] != '') {
-                                    $data['is_returnable'] = $row[13];
-                                } else {
-                                    $data['is_returnable'] = $product[0]['is_returnable'];
-                                }
-                                if ($row[14] != '') {
-                                    $data['is_cancelable'] = $row[14];
-                                } else {
-                                    $data['is_cancelable'] = $product[0]['is_cancelable'];
-                                }
-                                if (!empty($row[15])) {
-                                    $data['cancelable_till'] = $row[15];
-                                } else {
-                                    $data['cancelable_till'] = $product[0]['cancelable_till'];
-                                }
-                                if (!empty($row[16])) {
-                                    $data['image'] = $row[16];
-                                } else {
-                                    $data['image'] = $product[0]['image'];
-                                }
-                                if (!empty($row[17])) {
-                                    $data['video_type'] = $row[17];
-                                } else {
-                                    $data['video_type'] = $product[0]['video_type'];
-                                }
-                                if (!empty($row[18])) {
-                                    $data['video'] = $row[18];
-                                } else {
-                                    $data['video'] = $product[0]['video'];
-                                }
-                                if (!empty($row[19])) {
-                                    $data['tags'] = $row[19];
-                                } else {
-                                    $data['tags'] = $product[0]['tags'];
-                                }
-                                if (!empty($row[20])) {
-                                    $data['warranty_period'] = $row[20];
-                                } else {
-                                    $data['warranty_period'] = $product[0]['warranty_period'];
-                                }
-                                if (!empty($row[21])) {
-                                    $data['guarantee_period'] = $row[21];
-                                } else {
-                                    $data['guarantee_period'] = $product[0]['guarantee_period'];
-                                }
-                                if (!empty($row[22])) {
-                                    $data['made_in'] = $row[22];
-                                } else {
-                                    $data['made_in'] = $product[0]['made_in'];
-                                }
-                                if (!empty($row[23])) {
-                                    $data['sku'] = $row[23];
-                                } else {
-                                    $data['sku'] = $product[0]['sku'];
-                                }
-                                if ($row[24] != '') {
-                                    $data['stock'] = sanitise_import_stock($row[24]);
-                                } else {
-                                    $data['stock'] = $product[0]['stock'];
-                                }
-                                if ($row[25] != '') {
-                                    $data['availability'] = $row[25];
-                                } else {
-                                    $data['availability'] = $product[0]['availability'];
-                                }
-                                if ($row[26] != '') {
-                                    $data['description'] = $row[26];
-                                } else {
-                                    $data['description'] = $product[0]['description'];
-                                }
-                                if ($row[27] != '') {
-                                    $data['deliverable_type'] = $row[27];
-                                } else {
-                                    $data['deliverable_type'] = $product[0]['deliverable_type'];
-                                }
-                                if ($row[27] != '' && ($row[27] == INCLUDED || $row[27] == EXCLUDED)) {
-                                    $data['deliverable_zipcodes'] = $row[28];
-                                } else {
-                                    $data['deliverable_zipcodes'] = $product[0]['deliverable_zipcodes'];
-                                }
-
-
-                                if ($row[29] != '') {
-                                    $data['seller_id'] = $row[29];
-                                } else {
-                                    $data['seller_id'] = $product[0]['seller_id'];
-                                }
-                                // if ($row[36] != '') {
-                                //     $data['brand'] = $row[36];
-                                // } else {
-                                //     $data['brand'] = $product[0]['brand'];
-                                // }
-                                // if ($row[37] != '') {
-                                //     $data['hsn_code'] = $row[37];
-                                // } else {
-                                //     $data['hsn_code'] = $product[0]['hsn_code'];
-                                // }
-                                // if ($row[38] != '') {
-                                //     $data['pickup_location'] = $row[38];
-                                // } else {
-                                //     $data['pickup_location'] = $product[0]['pickup_location'];
-                                // }
-                                // if ($row[39] != '') {
-                                //     $data['extra_description'] = $row[39];
-                                // } else {
-                                //     $data['extra_description'] = $product[0]['extra_description'];
-                                // }
-                               
-                               
-
-                               
-                                $this->db->where('id', $row[0])->update('products', $data);
-                            }
-                            $index1 = 31;
-                            $total_variants = 0;
-                            for ($j = 0; $j < 50; $j++) {
-                                if (!empty($row[$index1])) {
-                                    $total_variants++;
-                                }
-                                $index1 = $index1 + 6;
-                            }
-                            $index = 30;
-                            for ($i = 0; $i < $total_variants; $i++) {
-                                $variant_id = $row[$index];
-                                $variant = fetch_details('product_variants', ['id' => $row[$index]], '*');
-                                if (isset($variant[0]) && !empty($variant[0])) {
-                                    $variant_data[$i]['product_id'] = $variant[0]['product_id'];
-                                    $index++;
-                                    if (isset($row[$index]) && !empty($row[$index])) {
-                                        $variant_data[$i]['price'] = $row[$index];
-                                    } else {
-                                        $variant_data[$i]['price'] = $variant[0]['price'];
-                                    }
-                                    $index++;
-                                    if (isset($row[$index]) && $row[$index] != '') {
-                                        $variant_data[$i]['special_price'] = $row[$index];
-                                    } else {
-                                        $variant_data[$i]['special_price'] = $variant[0]['special_price'];
-                                    }
-                                    $index++;
-                                    if (isset($row[$index]) && !empty($row[$index])) {
-                                        $variant_data[$i]['sku'] = $row[$index];
-                                    } else {
-                                        $variant_data[$i]['sku'] = $variant[0]['sku'];
-                                    }
-                                    $index++;
-                                    if (isset($row[$index]) && $row[$index] != '') {
-                                        $variant_data[$i]['stock'] = sanitise_import_stock($row[$index]);
-                                    } else {
-                                        $variant_data[$i]['stock'] = $variant[0]['stock'];
-                                    }
-
-                                    $index++;
-                                    if (isset($row[$index]) && $row[$index] != '') {
-                                        $variant_data[$i]['availability'] = $row[$index];
-                                    } else {
-                                        $variant_data[$i]['availability'] = $variant[0]['availability'];
-                                    }
-                                    $index++;
-                                    $this->db->where('id', $variant_id)->update('product_variants', $variant_data[$i]);
-                                }
+                        foreach ($plain_columns as $column => $field) {
+                            if (trim($row[$C[$column]]) !== '') {
+                                $data[$field] = $row[$C[$column]];
                             }
                         }
-                        $temp1++;
+                        // The slug is derived from the name, so it has to move with it.
+                        if (trim($row[$C['name']]) !== '') {
+                            $data['slug'] = create_unique_slug($row[$C['name']], 'products');
+                        }
+                        if (trim($row[$C['category_id']]) !== '') {
+                            $data['category_id'] = $row[$C['category_id']];
+                        }
+                        if ($entry['type'] !== '') {
+                            $data['type'] = $entry['type'];
+                        }
+                        if (trim($row[$C['other_images']]) !== '') {
+                            $data['other_images'] = json_encode(array_map('trim', explode(',', $row[$C['other_images']])), 1);
+                        }
+                        if (trim($row[$C['stock']]) !== '') {
+                            $data['stock'] = sanitise_import_stock($row[$C['stock']]);
+                            // Availability follows the stock figure, as it does on upload - a
+                            // separate column for it could only ever contradict this.
+                            $data['availability'] = ((int) $row[$C['stock']] <= 0) ? 0 : 1;
+                        }
+
+                        // resolve_bulk_row_settings() is shared with the upload branch, so it is
+                        // handed an empty set of defaults and the result compared against it: only
+                        // the settings this row actually named are written.
+                        $blank = [
+                            'indicator' => null, 'cod_allowed' => null, 'is_prices_inclusive_tax' => null,
+                            'is_returnable' => null, 'is_cancelable' => null, 'cancelable_till' => null,
+                            'deliverable_type' => null, 'deliverable_zipcodes' => null, 'error' => '',
+                        ];
+                        $settings = resolve_bulk_row_settings($row, $C, $blank);
+                        foreach (['indicator', 'cod_allowed', 'is_prices_inclusive_tax', 'is_returnable',
+                                  'is_cancelable', 'cancelable_till', 'deliverable_type', 'deliverable_zipcodes'] as $key) {
+                            if ($settings[$key] !== null) {
+                                $data[$key] = $settings[$key];
+                            }
+                        }
+
+                        if (!empty($data)) {
+                            $this->db->where('id', $row[$C['product_id']])->update('products', $data);
+                        }
+
+                        foreach ($entry['variants'] as $variant) {
+                            $variant_data = [];
+                            if ($variant['attribute_value_ids'] !== '') {
+                                $variant_data['attribute_value_ids'] = $variant['attribute_value_ids'];
+                            }
+                            if ($variant['price'] !== '') {
+                                $variant_data['price'] = $variant['price'];
+                            }
+                            if ($variant['special_price'] !== '') {
+                                $variant_data['special_price'] = $variant['special_price'];
+                            }
+                            if ($variant['sku'] !== '') {
+                                $variant_data['sku'] = $variant['sku'];
+                            }
+                            if ($variant['stock'] !== '') {
+                                $variant_data['stock'] = sanitise_import_stock($variant['stock']);
+                                $variant_data['availability'] = ((int) $variant['stock'] <= 0) ? 0 : 1;
+                            }
+                            if (!empty($variant_data)) {
+                                $this->db->where('id', $variant['id'])->update('product_variants', $variant_data);
+                            }
+                        }
                     }
-                    fclose($handle);
                     $this->db->trans_complete();
 
                     if ($this->db->trans_status() === false) {
@@ -1640,7 +1476,7 @@ class Product extends CI_Controller
                     $this->response['error'] = false;
                     $this->response['csrfName'] = $this->security->get_csrf_token_name();
                     $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                    $this->response['message'] = max(0, $temp1 - 1) . ' product(s) updated successfully!';
+                    $this->response['message'] = count($rows_data) . ' product(s) updated successfully!';
                     echo json_encode($this->response);
                     return false;
                 }

@@ -9,7 +9,7 @@ class Seller_model extends CI_Model
         $this->load->database();
         $this->load->library(['ion_auth', 'form_validation']);
         $this->load->helper(['url', 'language', 'function_helper', 'sms_helper']);
-        $this->load->model(['Seller_subscription_model', 'Seller_settlement_model']);
+        $this->load->model(['Seller_subscription_model', 'Seller_settlement_model', 'Tax_compliance_model']);
     }
     
      function seller_cereate_user($data){
@@ -599,24 +599,38 @@ class Seller_model extends CI_Model
      *   B  product tax      the GST inside A. Belongs to the government and is remitted by
      *                       the SELLER, who supplies the goods - so it is removed from the
      *                       commission base but still paid out in full at line J.
-     *   C  taxable value    A - B. The commission base.
+     *   C  taxable value    A - B. The base for EVERY deduction below. GST is excluded from
+     *                       the TDS and TCS bases because the seller, not the marketplace,
+     *                       accounts for it.
      *   D  commission       C x rate. Previously charged on A, i.e. the platform took its
      *                       percentage of the GST as well as of the sale.
      *   E  commission GST   D x rate. The commission is a service the platform supplies.
-     *   F  TCS              C x rate. Collected under GST, deposited for the seller.
-     *   G  TDS              A x rate. Deducted under s.194-O, deposited for the seller.
+     *   F  TCS  (GST s.52)  C x rate, and only for a GSTIN-registered seller. Split into
+     *                       IGST, or CGST + SGST, by place of supply.
+     *   G  TDS  (s.194-O)   C x rate, at whatever rate the seller's PAN class and their
+     *                       year-to-date turnover produce - 0% under the Rs. 5 lakh
+     *                       threshold for an individual / HUF, 0.1% otherwise, 5% with no
+     *                       valid PAN.
      *   J  net payable      A - D - E - F - G - shipping - gateway fee.
      *
-     * E, F and G are configured to 0 by default (see config/commission.php) so nothing is
-     * withheld until an accountant confirms they apply.
+     * F and G used to be one flat admin-typed percentage applied to every seller alike, and
+     * shipped at 0 - so a live marketplace collected nothing at all, and when it did collect
+     * it took the same rate from a company as from a threshold-exempt individual. They now
+     * come from Tax_compliance_model, which reads the seller's PAN, GSTIN and turnover. G was
+     * also charged on the GST-inclusive gross, over-deducting on every taxed item.
      *
      * The tax is derived from sub_total and tax_percent rather than read from
      * order_items.tax_amount, because that column was computed as
      * `sub_total x tax_percent` on a sub_total that ALREADY includes the tax - overstating
      * it (a 1,000 item at 18% stored 212.40 instead of 180.00). Deriving it here means the
      * commission base is right for historic rows too, whatever is stored beside them.
+     *
+     * @param array $context Optional. ['seller_id' => int, 'order_id' => int] switches the
+     *                       statutory lines from flat rates onto the per-seller rules. Absent
+     *                       (a what-if preview with no seller in hand), the configured flat
+     *                       percentages are used, as before.
      */
-    public function calculate_settlement_breakdown($gross, $tax_percent, $commission_rate, $shipping = 0, $gateway_fee = 0)
+    public function calculate_settlement_breakdown($gross, $tax_percent, $commission_rate, $shipping = 0, $gateway_fee = 0, $context = [])
     {
         // Read from the admin settings screen first, falling back to config/commission.php.
         // These were config-file-only, which meant enabling them required a developer - the
@@ -633,8 +647,6 @@ class Seller_model extends CI_Model
         };
 
         $gst_on_commission = $setting_or_config('commission_gst_percent');
-        $tcs_percent = $setting_or_config('tcs_percent');
-        $tds_percent = $setting_or_config('tds_percent');
 
         $gross = round((float) $gross, 2);
         $tax_percent = (float) $tax_percent;
@@ -649,26 +661,86 @@ class Seller_model extends CI_Model
 
         $commission = round($taxable_value * $commission_rate / 100, 2);
         $commission_gst = round($commission * $gst_on_commission / 100, 2);
-        $tcs = round($taxable_value * $tcs_percent / 100, 2);
-        $tds = round($gross * $tds_percent / 100, 2);
         $shipping = round((float) $shipping, 2);
         $gateway_fee = round((float) $gateway_fee, 2);
 
-        $net = round($gross - $commission - $commission_gst - $tcs - $tds - $shipping - $gateway_fee, 2);
+        $seller_id = isset($context['seller_id']) ? (int) $context['seller_id'] : 0;
+        $order_id  = isset($context['order_id']) ? (int) $context['order_id'] : 0;
 
-        return [
+        if ($seller_id > 0) {
+            $profile = $this->Tax_compliance_model->get_seller_tax_profile($seller_id);
+            $fy      = $this->Tax_compliance_model->financial_year();
+            // Turnover BEFORE this line. Read per item rather than once per run, because each
+            // settled item is committed before the next is priced - so a seller who crosses
+            // the threshold mid-run is deducted from exactly the sale that crosses it onward.
+            $turnover = isset($context['fy_turnover'])
+                ? (float) $context['fy_turnover']
+                : $this->Tax_compliance_model->get_fy_turnover($seller_id, $fy);
+
+            $place_of_supply = ($order_id > 0)
+                ? $this->Tax_compliance_model->resolve_place_of_supply($order_id, $profile['state'])
+                : 'unknown';
+
+            $tds_line = $this->Tax_compliance_model->calculate_tds($profile, $taxable_value, $turnover);
+            $tcs_line = $this->Tax_compliance_model->calculate_tcs($profile, $taxable_value, $place_of_supply);
+
+            $statutory = [
+                'tcs_amount'          => $tcs_line['amount'],
+                'tcs_percent'         => $tcs_line['percent'],
+                'tcs_igst_amount'     => $tcs_line['igst'],
+                'tcs_cgst_amount'     => $tcs_line['cgst'],
+                'tcs_sgst_amount'     => $tcs_line['sgst'],
+                'tcs_basis'           => $tcs_line['basis'],
+                'tds_amount'          => $tds_line['amount'],
+                'tds_percent'         => $tds_line['percent'],
+                'tds_basis'           => $tds_line['basis'],
+                'seller_entity_class' => $profile['entity_class'],
+                'place_of_supply'     => $place_of_supply,
+                'financial_year'      => $fy,
+                'cumulative_turnover' => round($turnover, 2),
+            ];
+        } else {
+            // No seller in hand: fall back to the flat configured percentages on the same
+            // ex-GST base, and record that no classification was made.
+            $tcs = round($taxable_value * $setting_or_config('tcs_percent') / 100, 2);
+            $tds = round($taxable_value * $setting_or_config('tds_percent') / 100, 2);
+            $statutory = [
+                'tcs_amount'          => $tcs,
+                'tcs_percent'         => $setting_or_config('tcs_percent'),
+                'tcs_igst_amount'     => $tcs,
+                'tcs_cgst_amount'     => 0,
+                'tcs_sgst_amount'     => 0,
+                'tcs_basis'           => 'flat_rate',
+                'tds_amount'          => $tds,
+                'tds_percent'         => $setting_or_config('tds_percent'),
+                'tds_basis'           => 'flat_rate',
+                'seller_entity_class' => null,
+                'place_of_supply'     => null,
+                'financial_year'      => $this->Tax_compliance_model->financial_year(),
+                'cumulative_turnover' => 0,
+            ];
+        }
+
+        // Net payout = gross order base - marketplace fees - GST TCS - TDS 194-O.
+        $net = round(
+            $gross - $commission - $commission_gst
+                - $statutory['tcs_amount'] - $statutory['tds_amount']
+                - $shipping - $gateway_fee,
+            2
+        );
+
+        return array_merge([
             'order_amount'          => $gross,
             'product_tax_amount'    => $product_tax,
             'taxable_value'         => $taxable_value,
             'commission_percent'    => round((float) $commission_rate, 2),
             'commission_amount'     => $commission,
             'commission_gst_amount' => $commission_gst,
-            'tcs_amount'            => $tcs,
-            'tds_amount'            => $tds,
             'shipping_deduction'    => $shipping,
             'gateway_fee'           => $gateway_fee,
+        ], $statutory, [
             'net_payable'           => $net,
-        ];
+        ]);
     }
 
     /**
@@ -910,7 +982,19 @@ class Seller_model extends CI_Model
                 // amount, so the platform took its percentage of the government's tax as well
                 // as of the sale. The breakdown below charges it on the ex-GST taxable value and
                 // itemises every other deduction as its own line.
-                $breakdown = $this->calculate_settlement_breakdown($row['sub_total'], $row['tax_percent'], $commission_pr);
+                // The seller and the order are passed through so the statutory lines are the
+                // ones that actually apply to THIS seller: their PAN class decides the TDS
+                // rate and whether the Rs. 5 lakh threshold shields the sale, their GSTIN
+                // decides whether TCS is collected at all, and the delivery state decides
+                // whether that collection is IGST or CGST + SGST.
+                $breakdown = $this->calculate_settlement_breakdown(
+                    $row['sub_total'],
+                    $row['tax_percent'],
+                    $commission_pr,
+                    0,
+                    0,
+                    ['seller_id' => $row['seller_id'], 'order_id' => $row['order_id']]
+                );
                 $commission_amt = $breakdown['commission_amount'];
                 $transfer_amt = $breakdown['net_payable'];
 

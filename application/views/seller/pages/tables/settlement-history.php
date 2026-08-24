@@ -84,8 +84,10 @@
                                 <th data-field="commission_percent" data-sortable="false">Commission %</th>
                                 <th data-field="commission_amount" data-sortable="false">Commission</th>
                                 <th data-field="commission_gst_amount" data-sortable="false" data-visible="false">GST on Commission</th>
-                                <th data-field="tcs_amount" data-sortable="false" data-visible="false">TCS</th>
-                                <th data-field="tds_amount" data-sortable="false" data-visible="false">TDS</th>
+                                <th data-field="tcs_amount" data-sortable="false">GST TCS</th>
+                                <th data-field="tcs_basis" data-sortable="false">TCS Head</th>
+                                <th data-field="tds_amount" data-sortable="false">TDS 194-O</th>
+                                <th data-field="tds_basis" data-sortable="false">TDS Basis</th>
                                 <th data-field="net_payable" data-sortable="false">Net Payable</th>
                                 <th data-field="settlement_status" data-sortable="false">Settlement Status</th>
                                 <th data-field="created_at" data-sortable="true">Date</th>

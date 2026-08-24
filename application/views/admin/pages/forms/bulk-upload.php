@@ -51,6 +51,94 @@ $max_post   = ini_get('post_max_size');
                                     </small>
                                 </div>
 
+                                <?php // The seven settings that used to be numeric-coded columns in
+                                      // the sheet. They are the same for every row of a real import,
+                                      // so they are chosen here in words and written into the
+                                      // template as words - the same design as the seller page. The
+                                      // importer reads either the cell or, when it is blank, these.
+                                      // Only shown for Upload; the Update sheet has its own columns. ?>
+                                <div id="upload_defaults" class="bulk-defaults form-group" style="display:none;">
+                                    <label class="mb-1"><i class="fas fa-sliders-h mr-1"></i>Settings applied to every product in this file</label>
+                                    <p class="text-muted small mb-3">These used to be number codes in the CSV. Set them once here, then download a template with them already filled in.</p>
+
+                                    <div class="form-row">
+                                        <div class="col-md-4 form-group">
+                                            <label for="default_cod_allowed">Cash on delivery</label>
+                                            <select class="form-control" name="default_cod_allowed" id="default_cod_allowed">
+                                                <option value="1" selected>Allowed</option>
+                                                <option value="0">Not allowed</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-4 form-group">
+                                            <label for="default_prices_inclusive_tax">Prices in the file</label>
+                                            <select class="form-control" name="default_prices_inclusive_tax" id="default_prices_inclusive_tax">
+                                                <option value="0" selected>Do not include tax</option>
+                                                <option value="1">Already include tax</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-4 form-group">
+                                            <label for="default_is_returnable">Returns</label>
+                                            <select class="form-control" name="default_is_returnable" id="default_is_returnable">
+                                                <option value="0" selected>Not returnable</option>
+                                                <option value="1">Returnable</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div class="form-row">
+                                        <div class="col-md-4 form-group">
+                                            <label for="default_cancelable_till">Cancellation</label>
+                                            <select class="form-control" name="default_cancelable_till" id="default_cancelable_till">
+                                                <option value="" selected>Cannot be cancelled</option>
+                                                <option value="received">Until the order is received</option>
+                                                <option value="processed">Until the order is processed</option>
+                                                <option value="shipped">Until the order is shipped</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-4 form-group">
+                                            <label for="default_indicator">Food type marking</label>
+                                            <select class="form-control" name="default_indicator" id="default_indicator">
+                                                <option value="0" selected>Not a food product</option>
+                                                <option value="1">Vegetarian</option>
+                                                <option value="2">Non-vegetarian</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-4 form-group">
+                                            <label for="default_deliverable_type">Delivery area</label>
+                                            <select class="form-control" name="default_deliverable_type" id="default_deliverable_type">
+                                                <option value="1" selected>Everywhere we ship</option>
+                                                <option value="2">Only these pincodes</option>
+                                                <option value="3">Everywhere except these pincodes</option>
+                                                <option value="0">Not available for delivery yet</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div class="form-row" id="default_zipcodes_wrap" style="display:none;">
+                                        <div class="col-12 form-group">
+                                            <label for="default_deliverable_zipcodes">Pincodes</label>
+                                            <textarea class="form-control" name="default_deliverable_zipcodes" id="default_deliverable_zipcodes" rows="2" placeholder="110001, 400001, 560001"></textarea>
+                                            <small class="text-muted">Separate them with commas or spaces.</small>
+                                        </div>
+                                    </div>
+
+                                    <div class="form-row align-items-end">
+                                        <div class="col-md-3 form-group">
+                                            <label for="template_rows">Rows in template</label>
+                                            <input type="number" class="form-control" name="template_rows" id="template_rows" value="10" min="1" max="200">
+                                        </div>
+                                        <div class="col-md-3 form-group">
+                                            <label for="template_variants">Variants per product</label>
+                                            <input type="number" class="form-control" name="template_variants" id="template_variants" value="1" min="1" max="10">
+                                        </div>
+                                        <div class="col-md-6 form-group">
+                                            <button type="button" class="btn btn-primary-theme btn-block" id="download_template_btn">
+                                                <i class="fas fa-file-download mr-1"></i>Download template with these settings
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <div class="form-group">
                                     <label for="upload_file">CSV File <span class='text-danger'>*</span></label>
                                     <div class="file-drop" id="file_drop">
@@ -87,7 +175,8 @@ $max_post   = ini_get('post_max_size');
                         </div>
                         <div class="card-body">
                             <ul class="guidance-list mb-0">
-                                <li>Download the sample file for your chosen action and keep its column order unchanged.</li>
+                                <li>For a new import, set the settings on the left and press <strong>Download template with these settings</strong> &mdash; those columns come back already filled in.</li>
+                                <li>Otherwise download the sample file for your chosen action and keep its column order unchanged.</li>
                                 <li>Read the instructions file &mdash; it explains every column and its accepted values.</li>
                                 <li>The file must be in <strong>.csv</strong> format.</li>
                                 <li>Image paths can be copied from the <a href="<?= base_url('admin/media') ?>">Media</a> section.</li>
@@ -217,6 +306,12 @@ $max_post   = ini_get('post_max_size');
         margin-bottom: 8px;
     }
     .admin-bulk-upload-page .download-group.is-dimmed { opacity: .45; }
+    .admin-bulk-upload-page .bulk-defaults {
+        background: var(--color-orange-light, #fff6ef);
+        border: 1px solid rgba(0,0,0,0.06);
+        border-radius: 10px;
+        padding: 14px 16px 0;
+    }
 </style>
 
 <script>
@@ -247,11 +342,40 @@ $max_post   = ini_get('post_max_size');
 
         // Dim whichever set of templates does not apply to the selected action, so the wrong
         // sample file is less likely to be downloaded and filled in.
+        // 2 = only these pincodes, 3 = everywhere except these. The other two choices need no
+        // list, so showing the box for them would only make an empty field look required.
+        function syncZipcodeVisibility() {
+            var choice = $('#default_deliverable_type').val();
+            $('#default_zipcodes_wrap').toggle(choice === '2' || choice === '3');
+        }
+        $('#default_deliverable_type').on('change', syncZipcodeVisibility);
+        syncZipcodeVisibility();
+
+        // Submitted as a throwaway form rather than fetched: the response is a file download, so
+        // the browser handles Content-Disposition itself. It has to be a form separate from
+        // #bulk_upload_form, whose own submit handler is the AJAX import.
+        $('#download_template_btn').on('click', function () {
+            var fields = ['default_cod_allowed', 'default_prices_inclusive_tax', 'default_is_returnable',
+                          'default_cancelable_till', 'default_indicator', 'default_deliverable_type',
+                          'default_deliverable_zipcodes', 'template_rows', 'template_variants'];
+            var form = $('<form>', {
+                method: 'POST',
+                action: '<?= base_url('admin/product/bulk_upload_template') ?>'
+            }).appendTo('body');
+            $('<input>', {type: 'hidden', name: csrfName, value: csrfHash}).appendTo(form);
+            fields.forEach(function (id) {
+                $('<input>', {type: 'hidden', name: id, value: $('#' + id).val()}).appendTo(form);
+            });
+            form.trigger('submit').remove();
+        });
+
         $('#type').on('change', function () {
             var type = $(this).val();
             $('.download-group').each(function () {
                 $(this).toggleClass('is-dimmed', type !== '' && $(this).data('for') !== type);
             });
+            // The defaults panel replaces columns that only exist in the upload sheet.
+            $('#upload_defaults').toggle(type === 'upload');
         });
     });
 </script>

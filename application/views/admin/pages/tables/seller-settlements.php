@@ -127,6 +127,112 @@ $money = function ($amount) use ($currency) {
                 </div>
             <?php } ?>
 
+            <div class="card attribute-card mb-4">
+                <div class="card-header attribute-card-header d-flex justify-content-between align-items-center flex-wrap">
+                    <div class="d-flex align-items-center">
+                        <span class="header-icon bg-set"><i class="fas fa-landmark"></i></span>
+                        <h5 class="mb-0">TCS &amp; TDS Withheld <small class="text-muted">(net of returns)</small></h5>
+                    </div>
+                    <form method="get" class="d-flex align-items-center">
+                        <label for="fy" class="mb-0 mr-2 small text-muted">Financial year</label>
+                        <select class="form-control form-control-sm" name="fy" id="fy" style="width:auto;" onchange="this.form.submit()">
+                            <?php foreach ($financial_years as $year) { ?>
+                                <option value="<?= html_escape($year) ?>" <?= ($year === $financial_year) ? 'selected' : '' ?>><?= html_escape($year) ?></option>
+                            <?php } ?>
+                        </select>
+                    </form>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small">
+                        What has actually been withheld from each seller this financial year and is
+                        payable to the government. <strong>Reversed settlements are subtracted</strong>, so a
+                        returned order removes its own TCS and TDS from the total rather than leaving it
+                        payable. TCS is split into IGST / CGST / SGST because the quarterly GSTR-8 return
+                        is filed on that split; TDS is deposited against the seller's PAN.
+                    </p>
+                    <?php if (empty($tax_compliance)) { ?>
+                        <p class="mb-0 text-muted"><i class="fas fa-info-circle mr-1"></i>No settlements recorded in <?= html_escape($financial_year) ?>.</p>
+                    <?php } else {
+                        $t = ['taxable' => 0, 'tds' => 0, 'tcs' => 0, 'igst' => 0, 'cgst' => 0, 'sgst' => 0];
+                    ?>
+                        <div style="overflow-x:auto;">
+                            <table class="table table-sm mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Seller</th>
+                                        <th>PAN</th>
+                                        <th>GSTIN</th>
+                                        <th class="text-right">Taxable Value</th>
+                                        <th class="text-right">TDS 194-O</th>
+                                        <th class="text-right">GST TCS</th>
+                                        <th class="text-right">IGST</th>
+                                        <th class="text-right">CGST</th>
+                                        <th class="text-right">SGST</th>
+                                        <th class="text-right">Items</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($tax_compliance as $row) {
+                                        $t['taxable'] += $row['taxable_value'];
+                                        $t['tds'] += $row['tds_amount'];
+                                        $t['tcs'] += $row['tcs_amount'];
+                                        $t['igst'] += $row['tcs_igst'];
+                                        $t['cgst'] += $row['tcs_cgst'];
+                                        $t['sgst'] += $row['tcs_sgst'];
+                                    ?>
+                                        <tr>
+                                            <td>
+                                                <?= html_escape($row['seller_name']) ?>
+                                                <span class="text-muted small">#<?= (int) $row['seller_id'] ?></span>
+                                            </td>
+                                            <td>
+                                                <?php if ($row['pan_valid']) { ?>
+                                                    <span class="text-monospace small"><?= html_escape($row['pan']) ?></span>
+                                                    <span class="badge badge-light"><?= html_escape(str_replace('_', ' ', $row['entity_class'])) ?></span>
+                                                <?php } else { ?>
+                                                    <span class="badge badge-danger" title="No valid PAN on file. TDS is deducted at the higher s.206AA rate until one is provided.">No valid PAN</span>
+                                                <?php } ?>
+                                            </td>
+                                            <td>
+                                                <?php if ($row['gst_registered']) { ?>
+                                                    <span class="text-monospace small"><?= html_escape($row['gstin']) ?></span>
+                                                <?php } else { ?>
+                                                    <span class="badge badge-secondary" title="Unregistered seller (Enrollment ID). No TCS is collected and they may only deliver within their own state.">Unregistered</span>
+                                                <?php } ?>
+                                            </td>
+                                            <td class="text-right"><?= $money($row['taxable_value']) ?></td>
+                                            <td class="text-right"><?= $money($row['tds_amount']) ?></td>
+                                            <td class="text-right"><?= $money($row['tcs_amount']) ?></td>
+                                            <td class="text-right text-muted"><?= $money($row['tcs_igst']) ?></td>
+                                            <td class="text-right text-muted"><?= $money($row['tcs_cgst']) ?></td>
+                                            <td class="text-right text-muted"><?= $money($row['tcs_sgst']) ?></td>
+                                            <td class="text-right">
+                                                <?= (int) $row['settled_items'] ?>
+                                                <?php if ($row['returned_items'] > 0) { ?>
+                                                    <span class="text-danger small" title="Reversed settlements, already subtracted from the amounts on this row.">&minus;<?= (int) $row['returned_items'] ?></span>
+                                                <?php } ?>
+                                            </td>
+                                        </tr>
+                                    <?php } ?>
+                                </tbody>
+                                <tfoot>
+                                    <tr class="font-weight-bold">
+                                        <td colspan="3">Total payable for <?= html_escape($financial_year) ?></td>
+                                        <td class="text-right"><?= $money($t['taxable']) ?></td>
+                                        <td class="text-right"><?= $money($t['tds']) ?></td>
+                                        <td class="text-right"><?= $money($t['tcs']) ?></td>
+                                        <td class="text-right"><?= $money($t['igst']) ?></td>
+                                        <td class="text-right"><?= $money($t['cgst']) ?></td>
+                                        <td class="text-right"><?= $money($t['sgst']) ?></td>
+                                        <td></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    <?php } ?>
+                </div>
+            </div>
+
             <div class="card attribute-card">
                 <div class="card-header attribute-card-header d-flex justify-content-between align-items-center flex-wrap">
                     <div class="d-flex align-items-center">
@@ -169,8 +275,16 @@ $money = function ($amount) use ($currency) {
                                 <th data-field="commission_percent" data-sortable="true">Commission %</th>
                                 <th data-field="commission_amount" data-sortable="true">Commission (Deduction)</th>
                                 <th data-field="commission_gst_amount" data-sortable="false" data-visible="false">GST on Commission</th>
-                                <th data-field="tcs_amount" data-sortable="false" data-visible="false">TCS</th>
-                                <th data-field="tds_amount" data-sortable="false" data-visible="false">TDS</th>
+                                <th data-field="tcs_amount" data-sortable="false">GST TCS</th>
+                                <th data-field="tcs_basis" data-sortable="false">TCS Head</th>
+                                <th data-field="tcs_igst_amount" data-sortable="false" data-visible="false">TCS IGST</th>
+                                <th data-field="tcs_cgst_amount" data-sortable="false" data-visible="false">TCS CGST</th>
+                                <th data-field="tcs_sgst_amount" data-sortable="false" data-visible="false">TCS SGST</th>
+                                <th data-field="tds_amount" data-sortable="false">TDS 194-O</th>
+                                <th data-field="tds_basis" data-sortable="false">TDS Basis</th>
+                                <th data-field="seller_entity_class" data-sortable="false" data-visible="false">Entity Class</th>
+                                <th data-field="place_of_supply" data-sortable="false" data-visible="false">Place of Supply</th>
+                                <th data-field="financial_year" data-sortable="false" data-visible="false">FY</th>
                                 <th data-field="net_payable" data-sortable="true">Net Seller Amount</th>
                                 <th data-field="settlement_status" data-sortable="true">Status</th>
                                 <th data-field="created_at" data-sortable="true">Settled On</th>

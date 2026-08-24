@@ -166,6 +166,12 @@ class Sellers extends CI_Controller
                 }
             }
 
+            // Removing a seller un-approves them; clear the acknowledgement so a later
+            // restore announces the approval again. (See acknowledge_approval_popup().)
+            if ($status == 7 && $this->db->field_exists('approval_popup_seen_at', 'seller_data')) {
+                $this->db->where('user_id', $id)->update('seller_data', ['approval_popup_seen_at' => null]);
+            }
+
             if (update_details(['status' => $status], ['user_id' => $id], 'seller_data') == TRUE) {
                 $this->response['error'] = false;
                 $this->response['message'] = 'Seller removed succesfully';
@@ -345,6 +351,36 @@ class Sellers extends CI_Controller
     }
 
 
+    /**
+     * Live contact availability check for the admin seller form (same rules add_seller()
+     * enforces on save). POST: field (phone|shop_phone|email), value, edit_seller (the id of
+     * the seller being edited, omitted/0 when adding), and phone for shop_phone context.
+     */
+    public function check_contact()
+    {
+        $out = ['valid' => true, 'message' => ''];
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {
+            $this->output->set_content_type('application/json')->set_output(json_encode($out));
+            return;
+        }
+        $field = $this->input->post('field', true);
+        $value = trim((string) $this->input->post('value', true));
+        if (!in_array($field, ['phone', 'shop_phone', 'email'], true) || $value === '') {
+            $this->output->set_content_type('application/json')->set_output(json_encode($out));
+            return;
+        }
+        $values = [$field => $value];
+        if ($field === 'shop_phone') {
+            $values['phone'] = trim((string) $this->input->post('phone', true));
+        }
+        $message = seller_contact_validation_message($values, (int) $this->input->post('edit_seller', true));
+        if ($message !== '' && $field === 'shop_phone' && stripos($message, 'Shop Phone') === false) {
+            $message = '';
+        }
+        $out = ['valid' => ($message === ''), 'message' => $message];
+        $this->output->set_content_type('application/json')->set_output(json_encode($out));
+    }
+
     public function add_seller()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
@@ -358,7 +394,6 @@ class Sellers extends CI_Controller
                     return true;
                 }
             }
-            $user = $this->ion_auth->user()->row();
             $is_edit = isset($_POST['edit_seller']);
 
             $this->form_validation->set_rules('first_name', 'First Name', 'trim|required|xss_clean');
@@ -370,7 +405,7 @@ class Sellers extends CI_Controller
             $this->form_validation->set_rules('district', 'District', 'trim|required|xss_clean');
             $this->form_validation->set_rules('city', 'City', 'trim|required|xss_clean');
             $this->form_validation->set_rules('shop_name', 'Shop Name', 'trim|required|xss_clean');
-            $this->form_validation->set_rules('shop_phone', 'Shop Phone', 'trim|required|numeric|xss_clean');
+            $this->form_validation->set_rules('shop_phone', 'Shop Phone', 'trim|required|numeric|xss_clean|exact_length[10]');
             $this->form_validation->set_rules('pickup_address1', 'Pickup Address', 'trim|required|xss_clean');
             $this->form_validation->set_rules('pickup_pin', 'Pickup PIN Code', 'trim|required|numeric|xss_clean');
             $this->form_validation->set_rules('primary_category_id', 'Primary Category', 'trim|required|xss_clean');
@@ -395,11 +430,11 @@ class Sellers extends CI_Controller
             $this->form_validation->set_rules('status', 'Status', 'trim|required|xss_clean|in_list[0,1,2,7]');
 
             if (!$is_edit) {
-                $this->form_validation->set_rules('phone', 'Phone', 'trim|required|numeric|xss_clean|min_length[5]|edit_unique[users.mobile.' . $user->id . ']');
+                $this->form_validation->set_rules('phone', 'Phone', 'trim|required|numeric|xss_clean|exact_length[10]');
                 $this->form_validation->set_rules('password', 'Password', 'trim|required|xss_clean');
                 $this->form_validation->set_rules('confirm_password', 'Confirm password', 'trim|required|matches[password]|xss_clean');
             } else {
-                $this->form_validation->set_rules('phone', 'Phone', 'trim|required|numeric|xss_clean');
+                $this->form_validation->set_rules('phone', 'Phone', 'trim|required|numeric|xss_clean|exact_length[10]');
             }
 
             // GST vs GST-enrollment requirement mirrors the "We are not GST registered"
@@ -419,16 +454,23 @@ class Sellers extends CI_Controller
                 return;
             }
 
-            // Duplicate email/phone check (add mode only - an existing seller keeps their own).
-            if (!$is_edit) {
-                if (!$this->form_validation->is_unique($_POST['phone'], 'users.mobile') || !$this->form_validation->is_unique($_POST['email'], 'users.email')) {
-                    $this->response['error'] = true;
-                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                    $this->response['message'] = "Email or Phone already exists !";
-                    print_r(json_encode($this->response));
-                    return;
-                }
+            // Phone / Shop Phone / Email: exact 10-digit mobiles, a well-formed email, and
+            // none of them already used by another account. Runs on edit too (it previously
+            // only ran when adding, so an admin edit could duplicate another seller's number
+            // or email). A seller may reuse their own personal number as the shop number.
+            $editing_user_id = $is_edit ? (int) $this->input->post('edit_seller', true) : 0;
+            $contact_error = seller_contact_validation_message([
+                'phone' => $this->input->post('phone', true),
+                'shop_phone' => $this->input->post('shop_phone', true),
+                'email' => $this->input->post('email', true),
+            ], $editing_user_id);
+            if ($contact_error !== '') {
+                $this->response['error'] = true;
+                $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                $this->response['message'] = $contact_error;
+                print_r(json_encode($this->response));
+                return;
             }
 
             // Shop Name / Store URL must be unique across sellers (excluding the seller's own
@@ -671,6 +713,16 @@ class Sellers extends CI_Controller
                     'status' => $this->input->post('status', true),
                     'permissions' => json_encode($permmissions),
                 ], ['user_id' => $target_user_id], 'seller_data');
+
+                // Re-arm the seller's one-time "account approved" popup whenever this save
+                // takes them out of the approved state, so a later re-approval announces
+                // itself again instead of being swallowed by a stale acknowledgement. Written
+                // directly rather than through update_details(), which escape_array()s a NULL
+                // into an empty string - not a value a DATETIME column accepts.
+                if ((string) $this->input->post('status', true) !== '1' && $this->db->field_exists('approval_popup_seen_at', 'seller_data')) {
+                    $this->db->where('user_id', $target_user_id)
+                        ->update('seller_data', ['approval_popup_seen_at' => null]);
+                }
             };
 
             if ($is_edit) {

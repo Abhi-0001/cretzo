@@ -60,7 +60,12 @@ class Pickup_location extends CI_Controller
                 $this->response['error'] = true;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = validation_errors();
+                // One short line instead of the full <p>-wrapped list of every rule that
+                // failed - the seller only needs the first field to fix.
+                $errors = array_values(array_filter(array_map('trim', explode("
+", strip_tags(validation_errors('', "
+"))))));
+                $this->response['message'] = !empty($errors) ? $errors[0] : 'Please fill in all the required fields.';
                 print_r(json_encode($this->response));
             } else {
                 $_POST['seller_id'] = $this->session->userdata('user_id');
