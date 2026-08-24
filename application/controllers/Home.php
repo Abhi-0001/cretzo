@@ -884,13 +884,21 @@ if (!empty($sections)) {
             echo json_encode($this->response);
             return false;
         }
-        if ($group = fetch_details('users_groups', ['user_id' => $user_row['id']])) {
-            if ($group[0]['group_id'] != 2) {
-                $this->response['error'] = true;
-                $this->response['message'] = 'Invalid user';
-                echo json_encode($this->response);
-                return false;
-            }
+        // Membership, not "whatever the first users_groups row happens to be" - the same
+        // correction already applied to the password path above. Sellers hold the buyer role
+        // on the same account (migration 028) and their seller row is usually inserted first,
+        // so $group[0] was group 4 and a seller who also shops was rejected here as an
+        // "Invalid user" when signing in with Google, despite holding a valid buyer role.
+        // Kept conditional on the user actually having group rows, exactly as before: a
+        // chunk of legacy accounts predate consistent group assignment and have none at
+        // all, and they must not be locked out (the missing group 2 row is inserted a few
+        // lines below anyway).
+        if (fetch_details('users_groups', ['user_id' => $user_row['id']], 'id')
+            && !user_has_role($user_row['id'], 'customer')) {
+            $this->response['error'] = true;
+            $this->response['message'] = 'Invalid user';
+            echo json_encode($this->response);
+            return false;
         }
 
         $user = $this->db->where('id', $user_row['id'])->get($tables['login_users'])->row();
@@ -903,6 +911,15 @@ if (!empty($sections)) {
 
         // Skip password verification - identity is already verified client-side via
         // Firebase OAuth (same trust model the old code path used).
+        //
+        // NOTE: identity_column is deliberately left at its config default here. An account
+        // created through Google/Facebook has no phone number (users.mobile is NULL by
+        // design - migration 061), so set_session() used to store `identity => NULL` and
+        // ion_auth reported the user as logged out on the very next page load, which is why
+        // the site kept asking them to sign in again. set_session() now falls back to the
+        // email for exactly that case, and ONLY that case - a social account that does have
+        // a mobile keeps its mobile as the session identity, the same as before, so every
+        // other flow that reads userdata('identity') against the config column is unchanged.
         $this->ion_auth_model->set_session($user);
         $this->ion_auth_model->update_last_login($user->id);
         $this->ion_auth_model->clear_login_attempts($email);
