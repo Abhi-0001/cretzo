@@ -124,7 +124,7 @@ class Home extends CI_Controller
     {
         $verification_requested_at_column = $this->db->field_exists('verification_request_at', 'seller_data');
 
-        $select_fields = 'sd.first_name, sd.last_name, sd.phone, sd.email, sd.district, sd.city, sd.state, sd.pin, sd.shop_name, sd.social, sd.shop_phone, sd.pickup_address1, sd.pickup_address2, sd.pickup_district, sd.pickup_state, sd.pickup_pin, sd.entity_type, sd.pan, sd.gst, sd.account_number, sd.account_holder_name, sd.ifsc, sd.branch, sd.bank_name, sd.status, sd.primary_category_id';
+        $select_fields = 'sd.first_name, sd.last_name, sd.phone, sd.email, sd.district, sd.city, sd.state, sd.pin, sd.shop_name, sd.social, sd.shop_phone, sd.pickup_address1, sd.pickup_address2, sd.pickup_district, sd.pickup_state, sd.pickup_pin, sd.entity_type, sd.pan, sd.gst, sd.is_gst_registered, sd.gst_enrollment_number, sd.account_number, sd.account_holder_name, sd.ifsc, sd.branch, sd.bank_name, sd.status, sd.primary_category_id';
         if ($verification_requested_at_column) {
             $select_fields .= ', sd.verification_request_at';
         }
@@ -147,37 +147,17 @@ class Home extends CI_Controller
             ];
         }
 
-        $sections = [
-            'personal' => [
-                'weight' => 30,
-                'label' => 'Complete Personal Details',
-                'fields' => ['first_name', 'last_name', 'phone', 'email', 'district', 'state', 'pin'],
-                'link' => base_url('seller/home/profile?section=personal'),
-            ],
-            'store' => [
-                'weight' => 25,
-                'label' => 'Complete Store Details',
-                'fields' => ['shop_name', 'shop_phone', 'pickup_address1', 'entity_type', 'pan', 'gst', 'primary_category_id'],
-                'link' => base_url('seller/home/profile?section=store'),
-            ],
-            'account' => [
-                'weight' => 20,
-                'label' => 'Add Bank Account Details',
-                'fields' => ['account_number', 'account_holder_name', 'ifsc', 'branch', 'bank_name'],
-                'link' => base_url('seller/home/profile?section=account'),
-            ],
-            
-            
-        ];
-
+        // Section definitions and the per-field "is it filled?" rule both live in
+        // seller_profile_sections() / seller_profile_field_filled() so this meter, the
+        // profile page's missing-section list and the verification gate agree exactly.
         $completed_weight = 0;
         $missing_sections = [];
 
-        foreach ($sections as $section) {
+        foreach (seller_profile_sections() as $key => $section) {
             $is_complete = true;
 
             foreach ($section['fields'] as $field) {
-                if (!$this->is_profile_value_present($profile_data, $field)) {
+                if (!seller_profile_field_filled($profile_data, $field)) {
                     $is_complete = false;
                     break;
                 }
@@ -189,19 +169,31 @@ class Home extends CI_Controller
             }
 
             $missing_sections[] = [
-                'label' => $section['label'],
-                'link' => $section['link'],
+                'label' => 'Complete ' . $section['label'],
+                'link' => base_url('seller/home/profile?section=' . $key),
             ];
         }
+
         // Admin Verification Page setup
         $is_admin_verified = isset($profile_data['status']) && (string) $profile_data['status'] === '1';
         if ($is_admin_verified) {
             $completed_weight += 25;
         } else {
-            $verification_label = !empty($profile_data['verification_request_at']) ? 'Admin Verification Pending Approval' : 'Request Admin Verification';
+            // No "request verification" action to offer any more - saving a complete profile
+            // files the request by itself - so this row only ever reports where the seller is.
+            if (!empty($profile_data['verification_request_at'])) {
+                $verification_label = 'Admin Verification Pending Approval';
+                $verification_link = base_url('seller/home/profile?section=admin');
+            } elseif (empty($missing_sections)) {
+                $verification_label = 'Save your profile to send it for admin verification';
+                $verification_link = base_url('seller/home/profile?section=personal');
+            } else {
+                $verification_label = 'Admin Verification (unlocks once your profile is complete)';
+                $verification_link = base_url('seller/home/profile?section=personal');
+            }
             $missing_sections[] = [
                 'label' => $verification_label,
-                'link' => base_url('seller/home/profile?section=admin'),
+                'link' => $verification_link,
             ];
         }
 
@@ -211,6 +203,16 @@ class Home extends CI_Controller
         ];
     }
 
+    /**
+     * Legacy endpoint for "send my profile for verification".
+     *
+     * The profile page no longer has a Request Admin Verification button - the admin cannot
+     * review a half-filled profile, so saving a complete one files the request by itself (see
+     * seller_file_verification_request()). This is kept only so a seller sitting on a cached
+     * copy of the old page gets the same behaviour instead of an error, and it no longer asks
+     * for a note: nothing ever showed that note to the admin except a varchar(40) column that
+     * truncated it.
+     */
     public function request_admin_verification()
     {
         if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0))) {
@@ -227,49 +229,25 @@ class Home extends CI_Controller
             return;
         }
 
-        $this->form_validation->set_rules('verification_note', 'Verification note', 'trim|required|min_length[10]|xss_clean');
-        if (!$this->form_validation->run()) {
+        $verification = seller_file_verification_request($this->session->userdata('user_id'));
+
+        if ($verification['filed'] || $verification['already_requested']) {
+            $this->response['error'] = false;
+            $this->response['message'] = $verification['filed']
+                ? 'Your profile has been sent to the admin for verification.'
+                : 'Your profile is already awaiting admin verification.';
+        } elseif ($verification['approved']) {
+            $this->response['error'] = false;
+            $this->response['message'] = 'Your account is already admin verified.';
+        } elseif (!empty($verification['missing_sections'])) {
+            $labels = array_unique(array_column($verification['missing_sections'], 'label'));
             $this->response['error'] = true;
-            $this->response['message'] = validation_errors();
-            $this->response['csrfName'] = $this->security->get_csrf_token_name();
-            $this->response['csrfHash'] = $this->security->get_csrf_hash();
-            print_r(json_encode($this->response));
-            return;
-        }
-
-        $user_id = $this->session->userdata('user_id');
-        $payload = [];
-        if ($this->db->field_exists('verification_request_note', 'seller_data')) {
-            $payload['verification_request_note'] = $this->input->post('verification_note', true);
-        }
-        if ($this->db->field_exists('verification_request_at', 'seller_data')) {
-            $payload['verification_request_at'] = date('Y-m-d H:i:s');
-        }
-
-        if (empty($payload)) {
+            $this->response['message'] = 'Complete these sections first: ' . implode(', ', $labels) . '.';
+        } else {
             $this->response['error'] = true;
-            $this->response['message'] = 'Verification request columns are not available yet. Please run latest database migration.';
-            $this->response['csrfName'] = $this->security->get_csrf_token_name();
-            $this->response['csrfHash'] = $this->security->get_csrf_hash();
-            print_r(json_encode($this->response));
-            return;
+            $this->response['message'] = 'Unable to send your profile for verification. Please try again.';
         }
 
-        $updated = $this->db->where('user_id', $user_id)->update('seller_data', $payload);
-        if ($updated) {
-            $seller_user = $this->db->select('username')->where('id', $user_id)->get('users')->row_array();
-            $seller_name = isset($seller_user['username']) ? $seller_user['username'] : ('Seller #' . $user_id);
-            $admin_notification = [
-                'title' => 'Seller verification request received',
-                'message' => $seller_name . ' has requested admin verification. Please review and approve/reject from seller management.',
-                'type' => 'seller_verification_request',
-                'type_id' => $user_id,
-                'read_by' => 0,
-            ];
-            $this->db->insert('system_notification', $admin_notification);
-        }
-        $this->response['error'] = !$updated;
-        $this->response['message'] = $updated ? 'Verification request submitted. Admin approval is required to unlock product management.' : 'Unable to submit verification request. Please try again.';
         $this->response['csrfName'] = $this->security->get_csrf_token_name();
         $this->response['csrfHash'] = $this->security->get_csrf_hash();
         print_r(json_encode($this->response));
@@ -308,15 +286,6 @@ class Home extends CI_Controller
         echo json_encode($this->response);
     }
 
-    private function is_profile_value_present($profile_data, $key)
-    {
-        if (!isset($profile_data[$key])) {
-            return false;
-        }
-
-        return trim((string) $profile_data[$key]) !== '';
-    }
-   
     public function profile()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
@@ -329,6 +298,9 @@ class Home extends CI_Controller
             $this->data['title'] = 'Seller Profile | ' . $settings['app_name'];
             $this->data['meta_description'] = 'Seller Profile | ' . $settings['app_name'];
             $this->data['current_profile_section'] = $this->input->get('section', true) ?? 'personal';
+            // Drives the review step's checklist: the seller sees exactly what is still
+            // missing, since saving a complete profile is what sends it to the admin.
+            $this->data['profile_missing_sections'] = seller_profile_incomplete_sections($user_id);
             // $this->data['fetched_data'] = $this->db->select(' u.*,sd.* ')
             //     ->join('users_groups ug', ' ug.user_id = u.id ')
             //     ->join('seller_data sd', ' sd.user_id = u.id ')

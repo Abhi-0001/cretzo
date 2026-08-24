@@ -1631,7 +1631,16 @@ class Orders extends CI_Controller
                 // Initialised so "nothing matched" doesn't reach implode() with an undefined
                 // variable, which is a fatal TypeError on PHP 8 (the AJAX caller then gets an
                 // HTML error page instead of JSON).
+
+                // Items already carrying a live forward shipment must not be booked again.
+                // The order is handed to Shiprocket automatically at placement now
+                // (create_shiprocket_forward_shipment()), so this button is a RETRY, not the
+                // only path - and without this filter clicking it on an already-shipped order
+                // raised a second Shiprocket order for the same goods.
+                $already_booked = shiprocket_booked_order_items($_POST['order_id']);
+
                 $order_item_id = [];
+                $skipped_booked = 0;
                 foreach ($order_items as $row) {
                     // Compared the product's RAW pickup_location column against the chosen
                     // location. That column is an optional per-product override and is blank on
@@ -1646,6 +1655,10 @@ class Orders extends CI_Controller
                     $row_pickup_name = isset($row_pickup['pickup_location']) ? $row_pickup['pickup_location'] : '';
 
                     if ($row_pickup_name == $_POST['pickup_location'] && $row['seller_id'] == $_POST['shiprocket_seller_id']) {
+                        if (isset($already_booked[(int) $row['id']])) {
+                            $skipped_booked++;
+                            continue;
+                        }
                         $order_item_id[] = $row['id'];
                         $order_id .= '-' . $row['id'];
                         $order_item_data = fetch_details('order_items', ['id' => $row['id']], 'sub_total');
@@ -1676,7 +1689,9 @@ class Orders extends CI_Controller
                     $this->response['error'] = true;
                     $this->response['csrfName'] = $this->security->get_csrf_token_name();
                     $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                    $this->response['message'] = 'No items were found for this pickup location. Please reload the order and try again.';
+                    $this->response['message'] = ($skipped_booked > 0)
+                        ? 'These items are already booked with Shiprocket - check the shipment on this order instead of creating another one.'
+                        : 'No items were found for this pickup location. Please reload the order and try again.';
                     $this->response['data'] = array();
                     print_r(json_encode($this->response));
                     return false;

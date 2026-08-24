@@ -58,11 +58,11 @@ die; */
                         <li class="ordered-product-list-item">
                             <a href="<?= base_url('my-account/order-details/' . $row['id'] . '/' . $item['id']) ?>" class='card-url text-decoration-none'></a>
                             <div class="delivered-icon-container">
-                                <img class="delivered-icon" src="<?= base_url("assets/front_end/cretzo/img/new_cretzo/{$item['active_status']}.png") ?>">
+                                <img class="delivered-icon" src="<?= order_status_icon_url($item['active_status']) ?>">
                                 <div>
 
                                     <!-- <h1 class="sub-heading delivered-text"><?= ucwords($item['status'][array_key_last($item['status'])][0]) ?></h1> -->
-                                    <h1 class="sub-heading delivered-text"><?= ucwords($item['active_status']) ?></h1>
+                                    <h1 class="sub-heading delivered-text"><?= order_status_label($item['active_status']) ?></h1>
                                     
                                     <p class="text-s delivered-date">On <?= orderStatusTimeToHumanReadableString($item['status'][array_key_last($item['status'])][1]) ?></p>
                                 </div>
@@ -121,10 +121,14 @@ die; */
                                     <?php } ?>
 
                                     <?php
-                                        $delivered_index = array_search('delivered', $item['status']);
-                                        $delivered_date = $item['status'][$delivered_index][1];
-                                        
-                                        if ($row['is_returnable'] && !$row['is_already_returned'] && isset($delivered_date) && !empty($delivered_date)) { ?>
+                                        // The date the item was actually DELIVERED - '' until it has been.
+                                        // See order_status_history_date(): the array_search() this replaces
+                                        // could never match, and its false silently read as index 0, so the
+                                        // return window ran from the order date and "Return Order" showed on
+                                        // items that were never delivered.
+                                        $delivered_date = order_status_history_date($item['status'], 'delivered');
+
+                                        if ($row['is_returnable'] && !$row['is_already_returned'] && !empty($delivered_date)) { ?>
                                             <?php
                                             $settings = get_settings('system_settings', true);
                                             $today = date('Y-m-d');

@@ -718,11 +718,26 @@ class Login extends CI_Controller
 
                     if ($this->Seller_model->add_seller($seller_data, $seller_profile)) {
 
+                        // Saving a complete profile IS the request for admin verification -
+                        // there is no separate "Request Admin Verification" button, because
+                        // the admin has nothing to review until every section is filled in.
+                        // An incomplete save is still kept; it just doesn't raise a review.
+                        $verification = seller_file_verification_request($user_id);
+                        if ($verification['filed']) {
+                            $message = 'Profile saved and sent to the admin for verification.';
+                        } elseif (!empty($verification['missing_sections'])) {
+                            $labels = array_unique(array_column($verification['missing_sections'], 'label'));
+                            $message = 'Profile saved. Still to complete before it can go for admin verification: ' . implode(', ', $labels) . '.';
+                        } else {
+                            $message = 'Profile updated successfully.';
+                        }
+
                         $this->response = [
                             'error'    => false,
                             'csrfName' => $this->security->get_csrf_token_name(),
                             'csrfHash' => $this->security->get_csrf_hash(),
-                            'message'  => 'Seller updated successfully'
+                            'message'  => $message,
+                            'verification_filed' => $verification['filed']
                         ];
                     
                         echo json_encode($this->response);

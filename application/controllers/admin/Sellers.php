@@ -87,6 +87,12 @@ class Sellers extends CI_Controller
                 if (!empty($this->data['fetched_data'])) {
                     $this->data['fetched_data'][0] = output_escaping($this->data['fetched_data'][0]);
                 }
+
+                // Feeds the verification panel. The admin should not have to open the seller's
+                // own profile page to find out whether there is a complete set of details to
+                // review - a request is only filed once every section is filled in, but an
+                // older seller can be sitting on a stale request from before that rule.
+                $this->data['seller_missing_sections'] = seller_profile_incomplete_sections($_GET['edit_id']);
             }
             $this->load->view('admin/template', $this->data);
         } else {
@@ -702,7 +708,7 @@ class Sellers extends CI_Controller
             // the shared Seller_model::add_seller() whitelist predates these columns and
             // silently drops them, and it's shared with the seller's own profile-save path
             // (seller/Login::update_user()), so it's safer to fix this here only rather than
-            // touch that whitelist. Same direct-update pattern as save_verification_note().
+            // touch that whitelist.
             $persist_admin_only_fields = function ($target_user_id) use ($permmissions) {
                 // seller_data.commission is no longer written here. It is dead config - the
                 // settlement engine takes its rate from the seller's subscription plan slabs,
@@ -931,44 +937,6 @@ class Sellers extends CI_Controller
                     print_r(json_encode($this->response));
                 }
             }
-        } else {
-            redirect('admin/login', 'refresh');
-        }
-    }
-
-    // Kept deliberately separate from add_seller()'s huge legacy save flow - that method
-    // rewrites almost every seller_data column from a giant hidden-field/file-upload form
-    // that has no idea about the newer KYC schema. This just needs to persist the admin's
-    // review note against a specific seller without touching anything else.
-    public function save_verification_note()
-    {
-        if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
-            if (print_msg(!has_permissions('update', 'seller'), PERMISSION_ERROR_MSG, 'seller', false)) {
-                return false;
-            }
-
-            $this->form_validation->set_rules('user_id', 'Seller', 'trim|required|numeric|xss_clean');
-            $this->form_validation->set_rules('verification_note', 'Verification note', 'trim|required|xss_clean');
-
-            $this->response['csrfName'] = $this->security->get_csrf_token_name();
-            $this->response['csrfHash'] = $this->security->get_csrf_hash();
-
-            if (!$this->form_validation->run()) {
-                $this->response['error'] = true;
-                $this->response['message'] = validation_errors();
-                print_r(json_encode($this->response));
-                return;
-            }
-
-            $updated = update_details(
-                ['verification_note' => $this->input->post('verification_note', true)],
-                ['user_id' => $this->input->post('user_id', true)],
-                'seller_data'
-            );
-
-            $this->response['error'] = !$updated;
-            $this->response['message'] = $updated ? 'Verification note saved.' : 'Could not save the verification note.';
-            print_r(json_encode($this->response));
         } else {
             redirect('admin/login', 'refresh');
         }

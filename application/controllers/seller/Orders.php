@@ -838,7 +838,31 @@ class Orders extends CI_Controller
             redirect('seller/login', 'refresh');
         }
     }
+    /**
+     * Sellers do not book Shiprocket shipments.
+     *
+     * Removing the "Create Shiprocket Order" button from the view is not enforcement - this
+     * endpoint still accepted a POST from anyone with a seller session and raised a real
+     * shipment. Booking now happens automatically at checkout
+     * (create_shiprocket_forward_shipment()), and the manual control stays with the admin, so
+     * the seller side is refused here rather than left reachable by hand.
+     *
+     * The implementation below is left intact rather than deleted: if the owner decides to give
+     * sellers this back, drop this guard and restore the button and the parcel modal in
+     * views/seller/pages/forms/edit-orders.php.
+     */
     public function create_shiprocket_order()
+    {
+        $this->response['error'] = true;
+        $this->response['csrfName'] = $this->security->get_csrf_token_name();
+        $this->response['csrfHash'] = $this->security->get_csrf_hash();
+        $this->response['message'] = 'Shipments are booked automatically when the order is placed. Please contact the admin if a shipment is missing.';
+        $this->response['data'] = array();
+        print_r(json_encode($this->response));
+        return false;
+    }
+
+    private function create_shiprocket_order_disabled()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
 
@@ -943,7 +967,16 @@ class Orders extends CI_Controller
                 // pickup location" doesn't reach implode() with an undefined variable, which
                 // is a fatal TypeError on PHP 8 - the AJAX caller got an HTML error page
                 // instead of JSON.
+
+                // Items already carrying a live forward shipment must not be booked again.
+                // The order is handed to Shiprocket automatically at placement now
+                // (create_shiprocket_forward_shipment()), so this button is a RETRY, not the
+                // only path - and without this filter clicking it on an already-shipped order
+                // raised a second Shiprocket order for the same goods.
+                $already_booked = shiprocket_booked_order_items($_POST['order_id']);
+
                 $order_item_id = [];
+                $skipped_booked = 0;
                 foreach ($order_items as $row) {
                     // Matched the RAW per-product pickup_location column, which is blank on 278 of
                     // the 290 live products - those items matched nothing and the shipment was
@@ -960,6 +993,10 @@ class Orders extends CI_Controller
                         // JSON, but the id itself must check out against the database.
                         $owned_item = fetch_details('order_items', ['id' => $row['id'], 'order_id' => $_POST['order_id'], 'seller_id' => $seller_id], 'id');
                         if (empty($owned_item)) {
+                            continue;
+                        }
+                        if (isset($already_booked[(int) $row['id']])) {
+                            $skipped_booked++;
                             continue;
                         }
                         $order_item_id[] = $row['id'];
@@ -986,7 +1023,9 @@ class Orders extends CI_Controller
                     $this->response['error'] = true;
                     $this->response['csrfName'] = $this->security->get_csrf_token_name();
                     $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                    $this->response['message'] = 'No items of yours were found for this pickup location. Please reload the order and try again.';
+                    $this->response['message'] = ($skipped_booked > 0)
+                        ? 'These items are already booked with Shiprocket - check the shipment on this order instead of creating another one.'
+                        : 'No items of yours were found for this pickup location. Please reload the order and try again.';
                     $this->response['data'] = array();
                     print_r(json_encode($this->response));
                     return false;

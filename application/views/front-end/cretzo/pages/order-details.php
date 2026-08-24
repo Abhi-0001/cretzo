@@ -77,9 +77,9 @@ if(empty($order_item)){
                         <p class="mb-1"></p>
 
                         <div class="delivery-date <?=$order_item['active_status']?>">
-                            <img class="delivered-icon" src="<?= base_url("assets/front_end/cretzo/img/new_cretzo/{$order_item['active_status']}.png") ?>">
+                            <img class="delivered-icon" src="<?= order_status_icon_url($order_item['active_status']) ?>">
                             <div class="ml-2" style="text-align: start;">
-                                <p class="text-s"><?= ucfirst($order_item['active_status']) ?></p>
+                                <p class="text-s"><?= order_status_label($order_item['active_status']) ?></p>
                                 <!-- <p class="sub-heading delivered-text"><?= ucwords($order_item['active_status']) ?></h1>                                     -->
                                 <p class="text-es delivered-date">On <?= orderStatusTimeToHumanReadableString($order_item['status'][array_key_last($order_item['status'])][1]) ?></p>
                             </div>
@@ -94,10 +94,11 @@ if(empty($order_item)){
                     <div class="order-details-three">
                         <ul>
                             <?php
-                            $delivered_index = array_search('delivered', $order_item['status']);
-                            if($delivered_index !== false){
-                                $delivered_date = $order_item['status'][$delivered_index][1];
-                            }
+                            // See order_status_history_date(). The array_search() this replaces
+                            // searched a list of [status, timestamp] PAIRS for the bare string
+                            // 'delivered', which never matches - so $delivered_date was never set and
+                            // the return-window line below could not render for any order.
+                            $delivered_date = order_status_history_date($order_item['status'], 'delivered');
 
                             if (!$order_item['is_returnable'] || $order_item['type'] == 'digital_product') { ?>
                                 <li class="text-n">Return not available for this product.</li>

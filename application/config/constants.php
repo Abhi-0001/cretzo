@@ -188,10 +188,13 @@ define('EXCLUDED', '3');
 // Layout of the seller "simple" bulk upload sheet: a block of product columns followed by one
 // repeating block of variant columns. A valid file is SIMPLE_FIXED_COLUMNS + (n * SIMPLE_VARIANT_COLUMNS)
 // wide. The settings that used to be numeric-coded columns (cod_allowed, is_returnable,
-// is_cancelable, deliverable_type, indicator, is_prices_inclusive_tax) are written as words in
-// columns 20-26, pre-filled by the template the upload page generates from its own inputs, so a
-// seller never has to type or decode them. A blank cell falls back to the form's setting.
-defined("SIMPLE_FIXED_COLUMNS") || define("SIMPLE_FIXED_COLUMNS", 26);
+// deliverable_type, indicator, is_prices_inclusive_tax) are written as words in columns 20-25,
+// pre-filled by the template the upload page generates from its own inputs, so a seller never has
+// to type or decode them. A blank cell falls back to the form's setting.
+// 26 -> 25: the cancellable_until column is gone. Cancellation is an admin policy per product,
+// not a seller setting, so the seller sheet no longer carries it (the admin sheet still does).
+// A template downloaded before that change is one column too wide and has to be re-downloaded.
+defined("SIMPLE_FIXED_COLUMNS") || define("SIMPLE_FIXED_COLUMNS", 25);
 defined("SIMPLE_VARIANT_COLUMNS") || define("SIMPLE_VARIANT_COLUMNS", 5);
 // The admin sheet is the same layout with seller_id as its first column, because an admin is
 // importing on behalf of a seller rather than as one.
@@ -212,3 +215,9 @@ defined("SHORT_DESCRIPTION_WORD_LIMIT") || define("SHORT_DESCRIPTION_WORD_LIMIT"
 | the product shipping fields. See shiprocket_parcel_weight() in function_helper.php.
 */
 defined('SHIPROCKET_NOMINAL_WEIGHT_KG') or define('SHIPROCKET_NOMINAL_WEIGHT_KG', 0.5);
+
+/*
+| Fallback parcel dimension (cm) per axis, for the same reason as the weight above: Shiprocket
+| rejects a shipment whose length, breadth or height is 0. See shiprocket_parcel_dimension().
+*/
+defined('SHIPROCKET_NOMINAL_DIMENSION_CM') or define('SHIPROCKET_NOMINAL_DIMENSION_CM', 10);

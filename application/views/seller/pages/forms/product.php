@@ -263,11 +263,14 @@
                                                 <label for="is_returnable" class="col-form-label">IS Returnable ?</label>
                                                 <input type="checkbox" name="is_returnable" <?= (isset($product_details[0]['is_returnable']) && $product_details[0]['is_returnable'] == '1') ? 'Checked' : '' ?> data-bootstrap-switch data-off-color="danger" data-on-color="success" data-on-text="Yes" data-off-text="No">
                                             </div>
-                                            <div class="col-md-3 col-6 toggle-field is_cancelable <?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
-                                                <label for="is_cancelable" class="col-form-label">Is cancelable ? </label>
-                                                <input type="checkbox" name="is_cancelable" id="is_cancelable" class="switch" <?= (isset($product_details[0]['is_cancelable']) && $product_details[0]['is_cancelable'] == '1') ? 'Checked' : ''; ?> data-bootstrap-switch data-off-color="danger" data-on-color="success" data-on-text="Yes" data-off-text="No">
-                                            </div>
-                                            <?php /* Moved up from its own row so all five switches share one grid.
+                                            <?php /* No "Is cancelable ?" switch here, and no "Till which
+                                                     status ?" select that used to appear beside it: whether an
+                                                     order can still be cancelled after it is placed is a platform
+                                                     policy, not something each seller sets per product. The admin
+                                                     product form keeps both. seller/Product::add_product() carries
+                                                     the stored values through on an edit so a seller's save cannot
+                                                     clear what the admin chose. */ ?>
+                                            <?php /* Moved up from its own row so the remaining switches share one grid.
                                                      The class list used to read "justify-content-between<?= ... ?>",
                                                      with no space before the PHP tag - for a saved digital product that
                                                      produced "justify-content-betweend-none", so the field never
@@ -275,14 +278,6 @@
                                             <div class="col-md-3 col-6 toggle-field is_attachment_required <?= (isset($product_details[0]['type']) && $product_details[0]['type'] == 'digital_product') ? 'd-none' : '' ?>">
                                                 <label for="is_attachment_required" class="col-form-label">Is Attachment Required ?</label>
                                                 <input type="checkbox" class="form-check-input" role="switch" name="is_attachment_required" <?= (isset($product_details[0]['is_attachment_required']) && $product_details[0]['is_attachment_required'] == '1') ? 'Checked' : '' ?> data-bootstrap-switch data-off-color="danger" data-on-color="success" data-on-text="Yes" data-off-text="No">
-                                            </div>
-                                            <div class="col-md-3 col-6 toggle-field <?= (isset($product_details[0]['is_cancelable']) && $product_details[0]['is_cancelable'] == 1) ? '' : 'collapse' ?>" id='cancelable_till'>
-                                                <label for="cancelable_till" class="col-form-label">Till which status ? <span class='text-danger text-sm'>*</span></label>
-                                                <select class='form-control' name="cancelable_till">
-                                                    <option value='received' <?= (isset($product_details[0]['cancelable_till']) && $product_details[0]['cancelable_till'] == 'received') ? 'selected' : '' ?>>Received</option>
-                                                    <option value='processed' <?= (isset($product_details[0]['cancelable_till']) && $product_details[0]['cancelable_till'] == 'processed') ? 'selected' : '' ?>>Processed</option>
-                                                    <option value='shipped' <?= (isset($product_details[0]['cancelable_till']) && $product_details[0]['cancelable_till'] == 'shipped') ? 'selected' : '' ?>>Shipped</option>
-                                                </select>
                                             </div>
                                         </div>
 

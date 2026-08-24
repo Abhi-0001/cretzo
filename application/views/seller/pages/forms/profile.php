@@ -166,11 +166,36 @@
   left: auto !important;
   transform: none !important;
   margin: 1rem auto !important;
-  /* No forced height here - .form-step is position:absolute (form.css) so it
-     doesn't size this box on its own; syncStepHeight() below sets an explicit
-     height matching whichever step is actually visible. This min-height is
-     just a floor so the box doesn't look cramped before that JS runs. */
-  min-height: 400px !important;
+  /* form.css pins this card to height:100vh (a leftover from the standalone signup
+     screen it was written for). Inside the seller panel that made every step a full
+     viewport tall, so a short step - Personal Details, Review & Submit - ended in a
+     few hundred pixels of blank white under its buttons. Size to content instead:
+     .form-step is position:absolute so this box cannot measure the step itself,
+     syncStepHeight() below gives .form-container the exact height of the visible
+     one, and the min-height is only a floor for the moment before that JS runs. */
+  height: auto !important;
+  min-height: 320px !important;
+}
+/* Must come after form.css (linked above) - same specificity, later wins.
+   form.css gives this box `flex: 1`, i.e. flex-basis 0, so in a now content-sized
+   column card it contributed zero height and the card collapsed onto its min-height,
+   clipping the step. `flex: 0 0 auto` + `height: auto` lets the explicit pixel height
+   syncStepHeight() writes inline actually count. Do NOT mark the height !important
+   here: that would beat the inline style and break the sizing again. */
+.form-container {
+  flex: 0 0 auto;
+  height: auto;
+}
+/* Pin every step to the width it has when it is the visible one. .form-step is
+   position:absolute with no width, so a step parked off-screen (left: 120%/500%)
+   gets shrink-to-fit width inside what is left of its containing block - almost
+   nothing - and its text wraps onto far more lines. Measuring such a step reported
+   1895px for what renders as 1175px, and that inflated number is what syncStepHeight()
+   wrote onto the card: hundreds of pixels of blank white under the buttons. With a
+   fixed width the measurement is the same wherever the step is parked.
+   The 2.4rem is form.css's `margin: 0.8rem 1.2rem` on .form-step. */
+.seller-form form .form-step {
+  width: calc(100% - 2.4rem);
 }
 .personal-photo-preview {
   border-radius: 50%;
@@ -245,6 +270,78 @@
 .doc-remove-btn:hover {
   background: #bb2d3b;
 }
+
+/* ── Review & Submit step ──────────────────────────────────────────────────
+   The old step held a free-text note plus its own "Request Admin Verification"
+   button. Both are gone: the admin has nothing to review until every section is
+   filled in, so saving a complete profile files the request. What is left is a
+   status card and a checklist, which need their own spacing. */
+.cz-verify-card {
+  border: 1px solid #f0d6c4;
+  border-left: 4px solid #ef7f1a;
+  background: #fff8f2;
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+}
+.cz-verify-card h6 {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #b45309;
+}
+.cz-verify-card p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: #5b5b5b;
+}
+.cz-verify-card.is-approved {
+  border-color: #c9e6d0;
+  border-left-color: #22a45d;
+  background: #f3fbf6;
+}
+.cz-verify-card.is-approved h6 { color: #17794a; }
+.cz-verify-card.is-pending {
+  border-color: #cfe0f5;
+  border-left-color: #2f6fd0;
+  background: #f4f8ff;
+}
+.cz-verify-card.is-pending h6 { color: #24568f; }
+
+.cz-verify-checklist {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+}
+.cz-verify-checklist li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  border: 1px solid #ececec;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  font-size: 14px;
+  background: #fff;
+}
+.cz-verify-checklist li span { flex: 1 1 auto; }
+.cz-verify-checklist li i { font-size: 15px; }
+.cz-verify-checklist li.is-done i { color: #22a45d; }
+.cz-verify-checklist li.is-done small { color: #22a45d; font-weight: 600; }
+.cz-verify-checklist li.is-todo i { color: #ef7f1a; }
+.cz-verify-checklist li.is-todo a {
+  color: #ef7f1a;
+  font-weight: 600;
+  text-decoration: underline;
+  white-space: nowrap;
+}
+.cz-verify-note {
+  font-size: 12.5px;
+  color: #7a7a7a;
+  margin: 0;
+}
+.cz-verify-note i { color: #ef7f1a; }
 </style>
 </head>
 <body>
@@ -271,7 +368,7 @@
                               </div>
                               <div class="completion-line completion-line-3"></div>
                               <div class="form-indicator form-indicator-4">
-                                          <p class="text-n text-capitalize">admin verification</p>
+                                          <p class="text-n text-capitalize">review &amp; submit</p>
                               </div>
                   </div>
               </div>
@@ -677,21 +774,61 @@
                     </div>
 
                     <div class="form-step form4">
-                      <h3 class="mb-3">Admin Verification</h3>
-                      <?php $is_admin_verified = isset($fetched_data[0]['status']) && (string)$fetched_data[0]['status'] === '1'; ?>
+                      <h3 class="mb-3">Review &amp; Submit</h3>
+                      <?php
+                        $is_admin_verified = isset($fetched_data[0]['status']) && (string)$fetched_data[0]['status'] === '1';
+                        $verification_requested_at = !empty($fetched_data[0]['verification_request_at']) ? $fetched_data[0]['verification_request_at'] : '';
+                        $missing_sections = isset($profile_missing_sections) && is_array($profile_missing_sections) ? $profile_missing_sections : [];
+                        $missing_keys = array_column($missing_sections, 'key');
+                      ?>
+
                       <?php if ($is_admin_verified): ?>
-                        <p class="text-success mb-0"><i class="fa fa-check-circle"></i> Your seller account is admin verified. Product management is unlocked.</p>
-                      <?php else: ?>
-                        <p class="mb-2 text-muted">Submit this form to request admin verification. This step contributes <strong>20%</strong> to profile completion.</p>
-                        <label for="verification_note" class="form-label">Verification note <span class="text-danger">*</span></label>
-                        <textarea id="verification_note" name="verification_note" class="input" rows="3" placeholder="Write a short note for admin review..."><?= isset($fetched_data[0]['verification_request_note']) ? htmlspecialchars($fetched_data[0]['verification_request_note']) : '' ?></textarea>
-                        <div class="mt-2">
-                          <button type="button" id="request_verification_btn" class="btn btn-primary btn-sm">Request Admin Verification</button>
-                          <?php if (!empty($fetched_data[0]['verification_request_at'])): ?>
-                            <small class="text-muted d-block mt-2">Last requested at: <?= htmlspecialchars($fetched_data[0]['verification_request_at']) ?></small>
-                          <?php endif; ?>
-                          <div id="verification_response" class="small mt-2"></div>
+                        <div class="cz-verify-card is-approved">
+                          <h6><i class="fa fa-check-circle"></i> Your seller account is admin verified</h6>
+                          <p>Product management is unlocked. You can keep your details up to date here at any time.</p>
                         </div>
+
+                      <?php elseif ($verification_requested_at !== ''): ?>
+                        <div class="cz-verify-card is-pending">
+                          <h6><i class="fa fa-hourglass-half"></i> Your details are with the admin team</h6>
+                          <p>
+                            Sent for review on <strong><?= html_escape(date('d M Y, h:i A', strtotime($verification_requested_at))) ?></strong>.
+                            Product listing and subscription unlock as soon as your account is approved &mdash; you will be
+                            notified by email. You can still correct your details below and save them again.
+                          </p>
+                        </div>
+
+                      <?php else: ?>
+                        <div class="cz-verify-card">
+                          <h6><i class="fa fa-paper-plane"></i> Submitting sends your profile for admin verification</h6>
+                          <p>
+                            Press <strong>Submit</strong> below to save your profile. Once every section is filled in, your
+                            details go to the Cretzo team automatically &mdash; there is nothing else to click. Product
+                            listing and subscription unlock after the admin approves your account.
+                          </p>
+                        </div>
+
+                        <ul class="cz-verify-checklist">
+                          <?php foreach (seller_profile_sections() as $section_key => $section): ?>
+                            <?php $is_done = !in_array($section_key, $missing_keys, true); ?>
+                            <li class="<?= $is_done ? 'is-done' : 'is-todo' ?>">
+                              <i class="fa <?= $is_done ? 'fa-check-circle' : 'fa-exclamation-circle' ?>"></i>
+                              <span><?= html_escape($section['label']) ?></span>
+                              <?php if ($is_done): ?>
+                                <small>Complete</small>
+                              <?php else: ?>
+                                <a href="javascript:void(0)" onclick="openProfileSection('<?= $section_key ?>')">Fill this in</a>
+                              <?php endif; ?>
+                            </li>
+                          <?php endforeach; ?>
+                        </ul>
+
+                        <?php if (!empty($missing_sections)): ?>
+                          <p class="cz-verify-note">
+                            <i class="fa fa-info-circle"></i>
+                            Your profile is saved either way, but it is only sent for verification once the sections above are complete.
+                          </p>
+                        <?php endif; ?>
                       <?php endif; ?>
 
                       <div class="mt-4 w-100 d-flex justify-content-between align-items-center">
@@ -951,7 +1088,7 @@ function validateForm3() {
   updateEntityTypeUI();
 })();
 
-function openProfileSection(section) {
+function openProfileSection(section, scrollToTop) {
   const sectionMap = { personal: 1, store: 2, account: 3, admin: 4};
   const target = sectionMap[section] || 1;
 
@@ -979,30 +1116,83 @@ function openProfileSection(section) {
     }
   });
 
-  syncStepHeight();
+  syncStepHeightSoon();
+
+  // Default is to scroll: every caller except the initial render and the
+  // jump-to-the-invalid-field one is a deliberate step switch by the seller.
+  if (scrollToTop !== false) scrollFormToTop();
 }
 
-// .form-container-main has no forced height (see the inline .form-container-main
-// rule above) because .form-step is position:absolute and never sizes it - a
-// short step (Personal Details, Admin Verification) left a large blank gap
-// below the fields otherwise. Instead, size .form-container to whichever step
-// is actually showing (style.left === '0'), so the box always matches its
-// visible content. Called after every section switch, and again shortly after
-// a Next/Back click since fields can toggle visibility mid-step (e.g. GST).
+// .form-container-main is content-sized (see the inline rule above, which undoes
+// form.css's height:100vh) but .form-step is position:absolute, so nothing measures
+// the step on its own - a short step left a large blank gap below its buttons.
+// Size .form-container to whichever step is actually showing (style.left === '0')
+// so the card always matches its visible content. Called after every section switch,
+// again shortly after a Next/Back click since fields can toggle visibility mid-step
+// (e.g. GST), and on resize.
+function activeStepEl() {
+  return document.querySelector('.form-step[style*="left: 0"]') || document.querySelector('.form-step[style*="left:0"]');
+}
+
 function syncStepHeight() {
   var container = document.querySelector('.form-container');
-  var activeStep = document.querySelector('.form-step[style*="left: 0"]') || document.querySelector('.form-step[style*="left:0"]');
+  var activeStep = activeStepEl();
   if (!container || !activeStep) return;
-  container.style.height = activeStep.scrollHeight + 40 + 'px';
+  container.style.height = activeStep.scrollHeight + 16 + 'px';
 }
 
-document.addEventListener('click', function (e) {
-  if (e.target.closest('.btn-next-1, .btn-next-2, .btn-next-3, .btn-back-1, .btn-back-2, .btn-back-3')) {
-    setTimeout(syncStepHeight, 50);
+// .form-step animates `left` over 0.5s (form.css), and a late-loading font or an
+// image can still change the wrap after that. One measurement now, one once
+// everything has settled.
+function syncStepHeightSoon() {
+  syncStepHeight();
+  clearTimeout(window.czStepSettleTimer);
+  window.czStepSettleTimer = setTimeout(syncStepHeight, 560);
+}
+
+// Steps differ a lot in height, so pressing Next at the bottom of a long one used to
+// land the seller halfway down the next step with its first fields scrolled off above.
+// Every step switch now goes back to the top of the form card.
+function scrollFormToTop() {
+  var container = document.querySelector('.form-container');
+  if (container) container.scrollTop = 0;
+
+  var card = document.querySelector('.form-container-main');
+  var target = card ? Math.max(0, card.getBoundingClientRect().top + window.pageYOffset - 16) : 0;
+  try {
+    window.scrollTo({ top: target, behavior: 'smooth' });
+  } catch (e) {
+    window.scrollTo(0, target);
   }
+}
+
+// The Next/Back handlers live in assets/seller/js/cretzo/form.js, which owns the slide
+// itself; this only reacts to the result. Scrolling is conditional on the step actually
+// having changed - a Next that failed validation stays put, and its field errors have to
+// stay where the seller is looking.
+document.addEventListener('click', function (e) {
+  if (!e.target.closest('.btn-next-1, .btn-next-2, .btn-next-3, .btn-back-1, .btn-back-2, .btn-back-3')) return;
+  var stepBefore = activeStepEl();
+  setTimeout(function () {
+    syncStepHeightSoon();
+    if (activeStepEl() !== stepBefore) scrollFormToTop();
+  }, 50);
 });
 
-openProfileSection(initialSection);
+// A resize (or an orientation change) can reflow the visible step onto more or fewer
+// lines, which the stored pixel height would otherwise ignore.
+window.addEventListener('resize', function () {
+  clearTimeout(window.czStepHeightTimer);
+  window.czStepHeightTimer = setTimeout(syncStepHeight, 120);
+});
+
+// GST / entity-type toggles and the document pickers add and remove rows inside the
+// current step, which changes its height without any step switch.
+document.addEventListener('change', function () { syncStepHeightSoon(); });
+
+// No scroll on load: the seller is already at the top, and a deep-linked section
+// (?section=account) should not yank the page around while it is still rendering.
+openProfileSection(initialSection, false);
 
 
 function setPincodeStatus(statusElement, message, type) {
@@ -1403,8 +1593,11 @@ submitBtn.addEventListener('click', function(e) {
       const toast = document.getElementById('toast-msg');
       if (data.error == false) {
         toast.style.cssText = 'display:block; background:#d4edda; color:#155724; border:1px solid #c3e6cb;';
-        toast.innerText = '✅ Updated successfully! Redirecting...';
-        setTimeout(function() { window.location.href = base_url + 'seller/home'; }, 2000);
+        // The server says whether this save also sent the profile for admin verification, and
+        // which sections are still holding it back - that is worth reading, so a save that did
+        // not go for review lingers a little longer before the redirect.
+        toast.innerText = '✅ ' + (data.message || 'Updated successfully!');
+        setTimeout(function() { window.location.href = base_url + 'seller/home'; }, data.verification_filed === false && data.message ? 4000 : 2000);
         return;
       }
       toast.style.cssText = 'display:block; background:#f8d7da; color:#721c24; border:1px solid #f5c6cb;';
@@ -1422,67 +1615,6 @@ submitBtn.addEventListener('click', function(e) {
 });
 
 
-const requestVerificationBtn = document.getElementById('request_verification_btn');
-if (requestVerificationBtn) {
-  requestVerificationBtn.addEventListener('click', function () {
-    const responseBox = document.getElementById('verification_response');
-    if (responseBox) {
-      responseBox.className = 'small mt-2 text-muted';
-      responseBox.innerText = 'Submitting verification request...';
-    }
-    const verificationNote = document.getElementById('verification_note');
-    if (!verificationNote || verificationNote.value.trim().length < 10) {
-      const toast = document.getElementById('toast-msg');
-      toast.style.cssText = 'display:block; background:#f8d7da; color:#721c24; border:1px solid #f5c6cb;';
-      toast.innerText = '❌ Verification note must be at least 10 characters.';
-      setTimeout(function () { toast.style.display = 'none'; }, 5000);
-      if (responseBox) {
-        responseBox.className = 'small mt-2 text-danger';
-        responseBox.innerText = 'Verification note must be at least 10 characters.';
-      }
-      return;
-    }
-    const verificationData = new FormData();
-    verificationData.append('verification_note', verificationNote.value.trim());
-    requestVerificationBtn.disabled = true;
-    fetch(base_url + 'seller/home/request_admin_verification', {
-      method: 'POST',
-      body: verificationData
-    })
-      .then(function (res) { return res.json(); })
-      .then(function (data) {
-        const toast = document.getElementById('toast-msg');
-        if (data.error) {
-          toast.style.cssText = 'display:block; background:#f8d7da; color:#721c24; border:1px solid #f5c6cb;';
-          toast.innerText = '❌ ' + (data.message || 'Unable to submit request.');
-          if (responseBox) {
-            responseBox.className = 'small mt-2 text-danger';
-            responseBox.innerText = data.message || 'Unable to submit request.';
-          }
-        } else {
-          toast.style.cssText = 'display:block; background:#d4edda; color:#155724; border:1px solid #c3e6cb;';
-          toast.innerText = '✅ ' + data.message;
-          if (responseBox) {
-            responseBox.className = 'small mt-2 text-success';
-            responseBox.innerText = data.message;
-          }
-        }
-        requestVerificationBtn.disabled = false;
-        setTimeout(function () { toast.style.display = 'none'; }, 5000);
-      })
-      .catch(function () {
-        const toast = document.getElementById('toast-msg');
-        toast.style.cssText = 'display:block; background:#f8d7da; color:#721c24; border:1px solid #f5c6cb;';
-        toast.innerText = '❌ Unable to submit verification request.';
-        if (responseBox) {
-          responseBox.className = 'small mt-2 text-danger';
-          responseBox.innerText = 'Unable to submit verification request.';
-        }
-        requestVerificationBtn.disabled = false;
-        setTimeout(function () { toast.style.display = 'none'; }, 5000);
-      });
-  });
-}
 // ── Contact validation: Phone / Shop Phone / Email ────────────────────────────
 // Format checked while typing, uniqueness confirmed against the server on blur.
 // seller/Login::update_user() re-runs both on save - this only surfaces the answer
@@ -1500,30 +1632,32 @@ function contactFormatError(field, value) {
   return '';
 }
 
-function setContactMessage(field, message, isError) {
+// Errors only. A value that is well formed and unused shows nothing at all - the
+// field should stay quiet until there is something the seller has to act on.
+function setContactError(field, message) {
   var span = document.getElementById(field + '_error');
   var input = document.getElementById(field);
   if (span) {
     span.innerText = message || '';
-    span.style.color = isError ? '#dc3545' : '#28a745';
+    span.style.color = '#dc3545';
   }
-  if (input) input.classList.toggle('is-invalid', !!isError);
+  if (input) input.classList.toggle('is-invalid', !!message);
 }
 
 function checkContactAvailability(field) {
   var input = document.getElementById(field);
   if (!input) return;
   var value = input.value.trim();
-  if (!value) { setContactMessage(field, '', false); contactCheckState[field] = null; return; }
+  if (!value) { setContactError(field, ''); contactCheckState[field] = null; return; }
 
   var formatError = contactFormatError(field, value);
   if (formatError) {
-    setContactMessage(field, formatError, true);
+    setContactError(field, formatError);
     contactCheckState[field] = { value: value, valid: false, message: formatError };
     return;
   }
 
-  setContactMessage(field, 'Checking…', false);
+  setContactError(field, '');
   var body = new FormData();
   body.append('field', field);
   body.append('value', value);
@@ -1536,9 +1670,9 @@ function checkContactAvailability(field) {
     .then(function (data) {
       if (input.value.trim() !== value) return; // the seller kept typing; this answer is stale
       contactCheckState[field] = { value: value, valid: !!data.valid, message: data.message || '' };
-      setContactMessage(field, data.valid ? 'Available' : data.message, !data.valid);
+      setContactError(field, data.valid ? '' : data.message);
     })
-    .catch(function () { setContactMessage(field, '', false); contactCheckState[field] = null; });
+    .catch(function () { setContactError(field, ''); contactCheckState[field] = null; });
 }
 
 ['phone', 'shop_phone', 'email'].forEach(function (field) {
@@ -1557,7 +1691,7 @@ function checkContactAvailability(field) {
 
   input.addEventListener('input', function () {
     var err = contactFormatError(field, this.value.trim());
-    setContactMessage(field, err, !!err);
+    setContactError(field, err);
     contactCheckState[field] = null;
   });
 
@@ -1580,14 +1714,14 @@ function contactFieldsValid() {
     if (!value) return; // "required" is the shared validator's job
     var err = contactFormatError(field, value);
     if (err) {
-      setContactMessage(field, err, true);
+      setContactError(field, err);
       ok = false;
       if (!firstBadField) firstBadField = field;
       return;
     }
     var state = contactCheckState[field];
     if (state && state.value === value && !state.valid) {
-      setContactMessage(field, state.message, true);
+      setContactError(field, state.message);
       ok = false;
       if (!firstBadField) firstBadField = field;
     }
@@ -1595,7 +1729,7 @@ function contactFieldsValid() {
   // Jump to the step the bad field actually lives on - shop_phone is on Store Details,
   // phone/email on Personal Details - otherwise the error scrolls by unseen.
   if (firstBadField) {
-    openProfileSection(firstBadField === 'shop_phone' ? 'store' : 'personal');
+    openProfileSection(firstBadField === 'shop_phone' ? 'store' : 'personal', false);
     var badInput = document.getElementById(firstBadField);
     if (badInput) setTimeout(function () { badInput.focus(); }, 50);
   }

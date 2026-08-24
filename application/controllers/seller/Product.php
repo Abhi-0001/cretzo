@@ -518,12 +518,6 @@ class Product extends CI_Controller
         }
         }
     
-        // Cancelable validation — required once checked, now that the form has a real
-        // "Cancelable till" select (it used to be checkbox-only with no matching input).
-        if (isset($_POST['is_cancelable']) && $_POST['is_cancelable'] == '1') {
-            $this->form_validation->set_rules('cancelable_till', 'Cancelable till', 'trim|required|xss_clean');
-        }
-    
         if (isset($_POST['cod_allowed'])) {
             $this->form_validation->set_rules('cod_allowed', 'COD allowed', 'trim|xss_clean');
         }
@@ -620,6 +614,23 @@ class Product extends CI_Controller
          // row's existing status (new products) or the admin-configured approval rule, which
          // is what should decide this.
          unset($_POST['status']);
+
+         // The seller's form has no "Is cancelable ?" switch (nor its "Till which status ?"
+         // select) any more - cancellation is a platform policy, not a per-seller choice.
+         // Product_model::add_product() reads both straight out of this array and writes
+         // is_cancelable = 0 / cancelable_till = '' whenever the keys are missing, so an
+         // ordinary seller edit would silently clear whatever the admin had set. Ignore
+         // anything posted under those names and hand back the stored values instead; a new
+         // product gets the model's default of not cancelable, exactly what the unticked
+         // switch used to produce.
+         unset($_POST['is_cancelable'], $_POST['cancelable_till']);
+         if (!empty($_POST['edit_product_id'])) {
+             $stored_cancelable = fetch_details('products', ['id' => $_POST['edit_product_id']], 'is_cancelable,cancelable_till');
+             if (!empty($stored_cancelable)) {
+                 $_POST['is_cancelable'] = $stored_cancelable[0]['is_cancelable'];
+                 $_POST['cancelable_till'] = $stored_cancelable[0]['cancelable_till'];
+             }
+         }
 
          // Save product
          $new_product_id = $this->product_model->add_product($_POST);
@@ -954,7 +965,7 @@ class Product extends CI_Controller
             'other_images', 'tags', 'sku', 'stock', 'tax', 'made_in', 'warranty_period',
             'guarantee_period', 'video_type', 'video', 'minimum_order_quantity',
             'quantity_step_size', 'total_allowed_quantity', 'cod_allowed', 'prices_include_tax',
-            'returnable', 'cancellable_until', 'food_type', 'delivery_area', 'pincodes',
+            'returnable', 'food_type', 'delivery_area', 'pincodes',
         ];
         for ($v = 1; $v <= $variants; $v++) {
             $suffix = ($variants > 1) ? '_' . $v : '';
@@ -966,15 +977,15 @@ class Product extends CI_Controller
         }
 
         // The words for the settings the seller picked, so the file reads back as English.
-        $cancelable_key = ($defaults['is_cancelable'] == 1) ? $defaults['cancelable_till'] : '';
+        // No cancellable_until column: that is the admin's call, so the seller is neither
+        // asked for it on the page nor given a column to answer it in.
         $prefilled = [
             19 => ($defaults['cod_allowed'] == 1) ? 'Yes' : 'No',
             20 => ($defaults['is_prices_inclusive_tax'] == 1) ? 'Yes' : 'No',
             21 => ($defaults['is_returnable'] == 1) ? 'Yes' : 'No',
-            22 => $vocab['cancellable_until']['labels'][$cancelable_key] ?? 'No',
-            23 => $vocab['food_type']['labels'][(string) $defaults['indicator']] ?? 'Not a food product',
-            24 => $vocab['delivery_area']['labels'][$defaults['deliverable_type']] ?? 'Everywhere',
-            25 => $defaults['deliverable_zipcodes'],
+            22 => $vocab['food_type']['labels'][(string) $defaults['indicator']] ?? 'Not a food product',
+            23 => $vocab['delivery_area']['labels'][$defaults['deliverable_type']] ?? 'Everywhere',
+            24 => $defaults['deliverable_zipcodes'],
         ];
 
         $row_template = array_fill(0, count($header), '');
@@ -1101,8 +1112,10 @@ class Product extends CI_Controller
                         'warranty_period' => 12, 'guarantee_period' => 13, 'video_type' => 14, 'video' => 15,
                         'minimum_order_quantity' => 16, 'quantity_step_size' => 17, 'total_allowed_quantity' => 18,
                         // Written as words by the generated template; blank falls back to the form.
+                        // No 'cancellable_until' key - the column is gone from the seller sheet,
+                        // and resolve_bulk_row_settings() skips it when the map does not name it.
                         'cod_allowed' => 19, 'prices_include_tax' => 20, 'returnable' => 21,
-                        'cancellable_until' => 22, 'food_type' => 23, 'delivery_area' => 24, 'pincodes' => 25,
+                        'food_type' => 22, 'delivery_area' => 23, 'pincodes' => 24,
                     ];
                     $rows_data = [];
                     while (($row = fgetcsv($handle, 10000, $delimiter)) != FALSE) //get row values
@@ -1295,8 +1308,12 @@ class Product extends CI_Controller
                         $data['cod_allowed'] = $settings['cod_allowed'];
                         $data['is_prices_inclusive_tax'] = $settings['is_prices_inclusive_tax'];
                         $data['is_returnable'] = $settings['is_returnable'];
-                        $data['is_cancelable'] = $settings['is_cancelable'];
-                        $data['cancelable_till'] = $settings['cancelable_till'];
+                        // Fixed, not taken from $settings: neither the page nor the sheet asks the
+                        // seller about cancellation any more, and a hand-crafted POST of
+                        // default_cancelable_till must not become a way around that. The admin can
+                        // switch it on afterwards from the product form.
+                        $data['is_cancelable'] = 0;
+                        $data['cancelable_till'] = '';
                         $data['deliverable_type'] = $settings['deliverable_type'];
                         $data['deliverable_zipcodes'] = $settings['deliverable_zipcodes'];
                         // Ownership always comes from the login. There is deliberately no
@@ -1543,16 +1560,11 @@ class Product extends CI_Controller
                                 } else {
                                     $data['is_returnable'] = $product[0]['is_returnable'];
                                 }
-                                if ($row[14] != '') {
-                                    $data['is_cancelable'] = $row[14];
-                                } else {
-                                    $data['is_cancelable'] = $product[0]['is_cancelable'];
-                                }
-                                if (!empty($row[15])) {
-                                    $data['cancelable_till'] = $row[15];
-                                } else {
-                                    $data['cancelable_till'] = $product[0]['cancelable_till'];
-                                }
+                                // Columns 14 and 15 of the update sheet are ignored on purpose:
+                                // cancellation is the admin's setting, so a seller's update always
+                                // keeps what the product already has, whatever the file says.
+                                $data['is_cancelable'] = $product[0]['is_cancelable'];
+                                $data['cancelable_till'] = $product[0]['cancelable_till'];
                                 if (!empty($row[16])) {
                                     $data['image'] = $row[16];
                                 } else {

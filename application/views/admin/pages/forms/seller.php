@@ -533,27 +533,58 @@ $fetched_data = isset($fetched_data) && is_array($fetched_data) ? $fetched_data 
                                     </div>
                                 </div>
 
-                                <?php if (isset($fetched_data[0]['id'])) { ?>
-                                    <h5 class="mt-3">Seller's Verification Request</h5>
+                                <?php if (isset($fetched_data[0]['id'])) {
+                                    // Read-only on purpose. The admin's own "verification note"
+                                    // textarea that used to live here was write-only - nothing
+                                    // ever showed it to the seller, and its column is a
+                                    // varchar(40) that truncated anything worth writing. What
+                                    // the admin actually needs here is whether there is a
+                                    // complete profile waiting, and where to approve it.
+                                    $verification_requested_at = !empty($fetched_data[0]['verification_request_at']) ? $fetched_data[0]['verification_request_at'] : '';
+                                    $seller_is_approved = isset($fetched_data[0]['status']) && (string) $fetched_data[0]['status'] === '1';
+                                    $seller_missing = isset($seller_missing_sections) && is_array($seller_missing_sections) ? $seller_missing_sections : [];
+                                    $seller_missing_labels = array_unique(array_column($seller_missing, 'label'));
+                                ?>
+                                    <h5 class="mt-4">Verification Request</h5>
                                     <div class="form-group row">
-                                        <div class="col-sm-10 offset-2">
-                                            <p class="mb-1"><strong>Seller's note:</strong> <?= !empty($fetched_data[0]['verification_request_note']) ? html_escape($fetched_data[0]['verification_request_note']) : '<span class="text-muted">&mdash;</span>' ?></p>
-                                            <p class="text-muted small mb-0">Requested at: <?= !empty($fetched_data[0]['verification_request_at']) ? html_escape($fetched_data[0]['verification_request_at']) : '&mdash;' ?></p>
+                                        <div class="col-sm-10 offset-sm-2">
+                                            <?php if ($seller_is_approved) { ?>
+                                                <div class="alert alert-success mb-2 py-2">
+                                                    <i class="fas fa-check-circle mr-1"></i>
+                                                    This seller is <strong>approved</strong> and can list products.
+                                                </div>
+                                            <?php } elseif ($verification_requested_at !== '') { ?>
+                                                <div class="alert alert-warning mb-2 py-2">
+                                                    <i class="fas fa-hourglass-half mr-1"></i>
+                                                    Awaiting your review since
+                                                    <strong><?= html_escape(date('d M Y, h:i A', strtotime($verification_requested_at))) ?></strong>.
+                                                </div>
+                                            <?php } else { ?>
+                                                <div class="alert alert-secondary mb-2 py-2">
+                                                    <i class="fas fa-info-circle mr-1"></i>
+                                                    Not submitted for verification yet. The seller's profile is sent here
+                                                    automatically once they have filled in every section.
+                                                </div>
+                                            <?php } ?>
+
+                                            <?php if (empty($seller_missing)) { ?>
+                                                <p class="mb-1 text-success"><i class="fas fa-check mr-1"></i>All profile sections are complete (personal, store and bank details).</p>
+                                            <?php } else { ?>
+                                                <p class="mb-1 text-danger">
+                                                    <i class="fas fa-exclamation-triangle mr-1"></i>
+                                                    Still incomplete: <strong><?= html_escape(implode(', ', $seller_missing_labels)) ?></strong>.
+                                                </p>
+                                            <?php } ?>
+                                            <p class="text-muted small mb-0">
+                                                To verify this seller, set <strong>Status</strong> above to
+                                                <strong>Approved</strong> and press <strong>Update Seller</strong>.
+                                            </p>
                                         </div>
                                     </div>
-                                    <form id="verification_note_form" class="form-group row">
-                                        <input type="hidden" name="user_id" value="<?= html_escape($fetched_data[0]['user_id']) ?>">
-                                        <label for="verification_note_input" class="col-sm-2 col-form-label">Admin verification note</label>
-                                        <div class="col-sm-10">
-                                            <textarea name="verification_note" id="verification_note_input" class="form-control" rows="3" placeholder="Write a note back to the seller about their verification review..."><?= html_escape($fetched_data[0]['verification_note'] ?? '') ?></textarea>
-                                            <button type="submit" class="btn btn-primary btn-sm mt-2">Save Verification Note</button>
-                                            <span id="verification_note_result" class="ml-2"></span>
-                                        </div>
-                                    </form>
                                 <?php } ?>
 
-                                <div class="form-group">
-                                    <button type="reset" class="btn btn-warning">Reset</button>
+                                <div class="form-group border-top pt-3 mt-4 mb-2">
+                                    <button type="reset" class="btn btn-warning mr-2">Reset</button>
                                     <button type="submit" class="btn btn-success" id="submit_btn"><?= (isset($fetched_data[0]['id'])) ? 'Update Seller' : 'Add Seller' ?></button>
                                 </div>
                             </div>
@@ -577,34 +608,6 @@ $fetched_data = isset($fetched_data) && is_array($fetched_data) ? $fetched_data 
 </div>
 
 <script>
-    $(document).on('submit', '#verification_note_form', function(e) {
-        e.preventDefault();
-        var $form = $(this);
-        var $result = $('#verification_note_result');
-        var $btn = $form.find('button[type="submit"]');
-        $.ajax({
-            type: 'POST',
-            url: '<?= base_url('admin/sellers/save_verification_note') ?>',
-            data: $form.serialize() + '&' + csrfName + '=' + csrfHash,
-            dataType: 'json',
-            beforeSend: function() {
-                $btn.attr('disabled', true);
-            },
-            success: function(result) {
-                if (result.csrfName && result.csrfHash) {
-                    csrfName = result.csrfName;
-                    csrfHash = result.csrfHash;
-                }
-                $result.text(result.message).css('color', result.error ? '#dc3545' : '#28a745');
-                $btn.attr('disabled', false);
-            },
-            error: function() {
-                $result.text('Something went wrong. Please try again.').css('color', '#dc3545');
-                $btn.attr('disabled', false);
-            }
-        });
-    });
-
     // ── Personal photo: click to enlarge when one is on file, click to upload
     //    when there isn't ──────────────────────────────────────────────────
     (function() {

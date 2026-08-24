@@ -1888,8 +1888,8 @@ Defined Methods:-
             pro_input_zip:file              //when download type is self_hosted add file for download
             download_link : url             //{URL of download file}
             is_returnable:1             // { 1:returnable | 0:not-returnable } 
-            is_cancelable:1             //{1:cancelable | 0:not-cancelable}
-            cancelable_till:            //{received,processed,shipped}
+            (is_cancelable / cancelable_till are NOT accepted here - cancellation is an admin
+             setting on the product; anything sent under those names is ignored)
             pro_input_image:file
             other_images: files
             video_type:                 // {values: vimeo | youtube}
@@ -2015,9 +2015,11 @@ Defined Methods:-
         $_POST['variant_images'] = (isset($_POST['variant_images']) && !empty($_POST['variant_images'])) ? json_decode($_POST['variant_images'], true) : [];
         $_POST['status'] = (isset($_POST['status']) && ($_POST['status'] != '')) ? $this->input->post('status', true) : 1;
 
-        if (isset($_POST['is_cancelable']) && $_POST['is_cancelable'] == '1') {
-            $this->form_validation->set_rules('cancelable_till', 'Till which status', 'trim|required|xss_clean|in_list[received,processed,shipped]');
-        }
+        // Cancellation is not the seller's setting - the seller product form has no switch for
+        // it either. Product_model::add_product() reads these two straight out of $_POST, so
+        // dropping them leaves the model's default of not cancelable; the admin turns it on
+        // from the admin product form afterwards.
+        unset($_POST['is_cancelable'], $_POST['cancelable_till']);
 
         if (isset($_POST['cod_allowed'])) {
             $this->form_validation->set_rules('cod_allowed', 'COD allowed', 'trim|xss_clean');
@@ -2754,8 +2756,8 @@ Defined Methods:-
             pro_input_zip:file              //when download type is self_hosted add file for download
             download_link : url             //{URL of download file}
             is_returnable:1             // { 1:returnable | 0:not-returnable } 
-            is_cancelable:1             //{1:cancelable | 0:not-cancelable}
-            cancelable_till:            //{received,processed,shipped}
+            (is_cancelable / cancelable_till are NOT accepted here - cancellation is an admin
+             setting on the product; anything sent under those names is ignored)
             pro_input_image:file  
             other_images: files
             video_type:                 // {values: vimeo | youtube}
@@ -2886,10 +2888,19 @@ Defined Methods:-
         // whatever the row already has; admin approval is the only thing that changes it.
         $_POST['status'] = $require_products_approval;
 
-
-        if (isset($_POST['is_cancelable']) && $_POST['is_cancelable'] == '1') {
-            $this->form_validation->set_rules('cancelable_till', 'Till which status', 'trim|required|xss_clean|in_list[received,processed,shipped]');
+        // Same reasoning as `status` above: cancellation belongs to the admin, so a seller's
+        // update must neither set it nor clear it. Product_model::add_product() writes
+        // is_cancelable = 0 whenever the key is absent, so the stored values are handed back
+        // in rather than simply unset.
+        unset($_POST['is_cancelable'], $_POST['cancelable_till']);
+        if (!empty($posted_edit_product_id)) {
+            $stored_cancelable = fetch_details('products', ['id' => $posted_edit_product_id], 'is_cancelable,cancelable_till');
+            if (!empty($stored_cancelable)) {
+                $_POST['is_cancelable'] = $stored_cancelable[0]['is_cancelable'];
+                $_POST['cancelable_till'] = $stored_cancelable[0]['cancelable_till'];
+            }
         }
+
 
         if (isset($_POST['cod_allowed'])) {
             $this->form_validation->set_rules('cod_allowed', 'COD allowed', 'trim|xss_clean');
@@ -4528,6 +4539,13 @@ Defined Methods:-
 
             $check_deliveribility = $this->shiprocket->check_serviceability($availibility_data);
             $get_currier_id = shiprocket_recomended_data($check_deliveribility);
+
+            // Items already carrying a live forward shipment must not be booked again. Orders
+            // are handed to Shiprocket automatically at placement now
+            // (create_shiprocket_forward_shipment()), so this endpoint is a RETRY - without
+            // this filter it raised a second Shiprocket order for the same goods.
+            $already_booked = shiprocket_booked_order_items($_POST['order_id']);
+
             foreach ($order_items as $row) {
 
                 // Matched the RAW per-product pickup_location column, which is blank on 278 of
@@ -4540,6 +4558,9 @@ Defined Methods:-
                 );
                 $row_pickup_name = isset($row_pickup['pickup_location']) ? $row_pickup['pickup_location'] : '';
                 if ($row_pickup_name == $_POST['pickup_location'] && $row['seller_id'] == $_POST['seller_id']) {
+                    if (isset($already_booked[(int) $row['id']])) {
+                        continue;
+                    }
                     $order_item_id[] = $row['id'];
                     $order_id .= '-' . $row['id'];
                     $order_item_data = fetch_details('order_items', ['id' => $row['id']], 'sub_total');

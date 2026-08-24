@@ -56,6 +56,7 @@ class Order_model extends CI_Model
             }
             if (count($res) >= 1) {
                 $i = 0;
+                $shipment_attempted = [];
                 foreach ($res  as $row) {
                     $set = array();
                     $temp = array();
@@ -136,6 +137,39 @@ class Order_model extends CI_Model
                             ->where('id', $row['id'])
                             ->where('delivered_at IS NULL', null, false)
                             ->update('order_items');
+                    }
+
+                    /*
+                     * An order that was 'awaiting' payment at checkout (bank transfer, a
+                     * part-paid wallet) is deliberately NOT handed to Shiprocket at placement -
+                     * the money is not confirmed yet. Confirming it lands here, so the shipment
+                     * is booked at that point instead.
+                     *
+                     * This is the funnel: admin/Orders and seller/Orders both change an item's
+                     * status by calling this method, and update_order_status() calls it in a
+                     * loop too, so hooking it here covers every path rather than one of them.
+                     *
+                     * 'processed' is included as a second chance: if Shiprocket was down or
+                     * refused the parcel at placement, the seller marking it packed is the
+                     * natural moment to try again.
+                     *
+                     * Idempotent - create_shiprocket_forward_shipment() skips items that already
+                     * carry a live forward shipment, so an order booked at placement and then
+                     * advanced to processed is not booked a second time - and non-fatal for the
+                     * same reason as at placement: the money is already taken.
+                     */
+                    if (in_array($current_status, ['received', 'processed'], true)
+                        && $table == 'order_items' && $response === TRUE
+                        && !isset($shipment_attempted[$row['order_id']])) {
+                        // Once per order, not once per item: this loop runs per order item and
+                        // the helper books the whole order's parcels on the first call.
+                        $shipment_attempted[$row['order_id']] = true;
+                        $shipment = create_shiprocket_forward_shipment($row['order_id']);
+                        if (!empty($shipment['error'])) {
+                            log_message('error', 'update_order: order ' . $row['order_id'] . ' was confirmed'
+                                . ' but no Shiprocket shipment could be booked - '
+                                . (isset($shipment['message']) ? $shipment['message'] : 'no reason given'));
+                        }
                     }
 
                     /* give commission to the delivery boy if the order is delivered */
@@ -634,7 +668,12 @@ class Order_model extends CI_Model
                 $order_data['delivery_time'] = $data['delivery_time'];
             }
             if (isset($data['address_id']) && !empty($data['address_id'])) {
-                $address_data = $CI->address_model->get_address('', $data['address_id'], true);
+                // $CI->Address_model, matching the load->model('Address_model') at the top of this
+                // method. PHP property names are case-sensitive, so $CI->address_model only
+                // resolved because Cart.php and app/v1/Api.php happen to load it in lowercase -
+                // Point_of_sale.php does not load it at all, and a POS sale carrying an address_id
+                // would have died here on "Call to a member function get_address() on null".
+                $address_data = $CI->Address_model->get_address('', $data['address_id'], true);
                 if (!empty($address_data)) {
                     $order_data['latitude'] = $address_data[0]['latitude'];
                     $order_data['longitude'] = $address_data[0]['longitude'];
@@ -905,6 +944,36 @@ class Order_model extends CI_Model
 
             $this->cart_model->remove_from_cart($data);
             $user_balance = fetch_details('users', ['id' => $data['user_id']], 'balance');
+
+            /*
+             * Hand the order to Shiprocket now.
+             *
+             * Until this call existed, placing an order did everything EXCEPT arrange the
+             * shipment: the row was written, stock deducted, notifications sent, and the
+             * customer told "Order Placed Successfully" - while Shiprocket knew nothing about
+             * it. The only way a parcel ever reached Shiprocket was a seller or admin opening
+             * the order edit screen and clicking "Create Shiprocket Order" by hand, so on this
+             * database `order_tracking` is empty and no order has ever actually been shipped.
+             *
+             * Every checkout path funnels through this method - web, mobile API and POS - so
+             * this is the one place it belongs.
+             *
+             * Deliberately non-fatal and deliberately last: the order is already committed and
+             * paid for, so a Shiprocket outage, a missing pickup address or an unserviceable
+             * pincode must not turn into a failed checkout. Failures are logged and the seller's
+             * manual button stays available as the retry, which is now idempotent.
+             *
+             * An 'awaiting' order (bank transfer, part-paid wallet) is skipped - payment is not
+             * confirmed yet. Confirming it later books the shipment then, from update_order().
+             */
+            if ($status != 'awaiting' && !empty($data['address_id'])) {
+                $shipment = create_shiprocket_forward_shipment($last_order_id);
+                if (!empty($shipment['error'])) {
+                    log_message('error', 'place_order: order ' . $last_order_id
+                        . ' was placed but no Shiprocket shipment could be booked - '
+                        . (isset($shipment['message']) ? $shipment['message'] : 'no reason given'));
+                }
+            }
 
             $response['error'] = false;
             $response['message'] = 'Order Placed Successfully';

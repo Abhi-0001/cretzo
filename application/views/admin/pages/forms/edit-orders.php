@@ -1,4 +1,4 @@
-<div class="content-wrapper admin-view-order-page">
+<div class="content-wrapper admin-view-order-page view-order-page">
     <!-- Content Header (Page header) -->
     <!-- Main content -->
     <section class="content-header">
@@ -311,12 +311,30 @@
 
                                         ?>
 
+                                            <?php
+                                            /*
+                                             * The "Select Delivery Boy" dropdown that used to sit next to the status
+                                             * select is gone.
+                                             *
+                                             * This store ships through Shiprocket and has no delivery-boy accounts at
+                                             * all, so the control could only ever offer an empty list - and it was
+                                             * marked `required`, which made it look like a step someone had to complete
+                                             * before the order could move. Nothing server-side needs it: the endpoint
+                                             * reads `deliver_by` only when it is non-empty, and the "pick a delivery boy
+                                             * before marking this shipped" rule already lifts itself when the store does
+                                             * not run its own delivery staff (store_uses_delivery_boys()).
+                                             *
+                                             * The delivery-boy feature itself is untouched - the model, the endpoint and
+                                             * the Delivery Boys screen all still work. Only this control is removed. If
+                                             * the store ever does start running its own riders, put the select back here.
+                                             */
+                                            ?>
                                             <p>
-                                                <lable class="badge badge-success " style="font-size:13px;">Select status, delivery boy and radio button of seller which you want to update</lable>
+                                                <lable class="badge badge-success " style="font-size:13px;">Select a status and the radio button of the seller you want to update</lable>
                                             </p>
-                                            <div class="row delivery_boy ">
+                                            <div class="row">
 
-                                                <div class="col-md-3">
+                                                <div class="col-md-4">
                                                     <select name="status" class="form-control status">
                                                         <option value=''>Select Status</option>
                                                         <option value="processed">Processed</option>
@@ -326,15 +344,7 @@
                                                         <option value="returned">Returned</option>
                                                     </select>
                                                 </div>
-                                                <div class="col-md-3">
-                                                    <select id='deliver_by' name='deliver_by' class='form-control' required>
-                                                        <option value=''>Select Delivery Boy</option>
-                                                        <?php foreach ($delivery_res as $row) { ?>
-                                                            <option value="<?= $row['user_id'] ?>"><?= $row['username'] ?></option>
-                                                        <?php  } ?>
-                                                    </select>
-                                                </div>
-                                                <div class="col-md-6">
+                                                <div class="col-md-8">
                                                     <?php
                                                     // A leftover, HTML-commented copy of the line below it - PHP still evaluates
                                                     // short-echo tags inside an HTML comment, so this raised "Undefined variable $i" /
@@ -391,6 +401,34 @@
                                             $order_caharges_data = fetch_details('order_charges', ['order_id' => $order_detls[0]['order_id'], 'seller_id' => $sellers[$i]]);
                                             $this->load->model('Order_model');
                                             $seller_order = $this->Order_model->get_order_details(['o.id' => $order_detls[0]['order_id'], 'oi.seller_id' => $sellers[$i]]);
+
+                                            /*
+                                             * Resolve each row's pickup location before grouping on it.
+                                             *
+                                             * This list came straight from `products`.`pickup_location`, which is blank
+                                             * on 278 of the 290 products on this store - while the CONTROLLER already
+                                             * resolves the same column to the seller's registered address when it builds
+                                             * $items. The two therefore compared '' against 'Clayya' in the item loop
+                                             * below and never matched, so `order-item-grid` rendered EMPTY: this page
+                                             * showed the seller, the OTP and the order totals but not one of the items,
+                                             * and there was nothing to tick to cancel or return a line. Confirmed live on
+                                             * every order in this database.
+                                             *
+                                             * resolve_seller_pickup_location() is what the booking endpoint uses to match
+                                             * items, so rewriting the row here means this list, the $ids grouping below,
+                                             * the per-item comparison and what actually gets booked all agree. Same fix as
+                                             * in the seller copy of this page.
+                                             */
+                                            foreach ($seller_order as $so_key => $so_row) {
+                                                $resolved_pickup = resolve_seller_pickup_location(
+                                                    isset($so_row['pickup_location']) ? $so_row['pickup_location'] : '',
+                                                    isset($so_row['seller_id']) ? $so_row['seller_id'] : $sellers[$i]
+                                                );
+                                                if (!empty($resolved_pickup['pickup_location'])) {
+                                                    $seller_order[$so_key]['pickup_location'] = $resolved_pickup['pickup_location'];
+                                                }
+                                            }
+
                                             $pickup_location = array_values(array_unique(array_column($seller_order, "pickup_location")));
 
                                         ?>
@@ -542,7 +580,15 @@
                                                                         $total += $subtotal = $tax_amount;
                                                                     ?>
                                                                         <?php if ($sellers[$i] == $item['seller_id']) {
-                                                                            if ($pickup_location[$j] == $item['pickup_location']) {
+                                                                            // $items['pickup_location'] is ALREADY resolved by the controller;
+                                                                            // $pickup_location is resolved above. The raw comparison stays as an
+                                                                            // alternative for rows where resolution finds nothing.
+                                                                            $item_pickup = resolve_seller_pickup_location(
+                                                                                isset($item['pickup_location']) ? $item['pickup_location'] : '',
+                                                                                isset($item['seller_id']) ? $item['seller_id'] : $sellers[$i]
+                                                                            );
+                                                                            $item_pickup_name = isset($item_pickup['pickup_location']) ? $item_pickup['pickup_location'] : '';
+                                                                            if ($pickup_location[$j] == $item['pickup_location'] || $pickup_location[$j] == $item_pickup_name) {
                                                                                 $order_tracking_data = get_shipment_id($item['id'], $order_detls[0]['id']); ?>
                                                                                 <div class="order-item-card">
                                                                                     <?php
@@ -870,133 +916,4 @@
     </div>
 </div>
 
-<style>
-    .admin-view-order-page .text-primary-theme { color: var(--color-orange); }
-
-    .admin-view-order-page .attribute-card { border: none; border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,0.06); }
-    .admin-view-order-page .attribute-card-header {
-        background: #fff;
-        border-bottom: 1px solid rgba(0,0,0,0.06);
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        border-radius: 10px 10px 0 0;
-    }
-    .admin-view-order-page .header-icon {
-        width: 34px; height: 34px; border-radius: 8px;
-        display: flex; align-items: center; justify-content: center;
-        color: #fff; font-size: 14px; flex: none;
-    }
-    .admin-view-order-page .header-icon.bg-set { background: var(--color-orange); }
-
-    /* The order summary is a label/value table, not a header+rows list table, so it gets its
-       own treatment rather than the uppercase-header style used on this page's list tables. */
-    .admin-view-order-page .order-detail-table th {
-        border-top: none;
-        border-bottom: 1px solid rgba(0,0,0,0.05);
-        color: var(--color-grey);
-        font-weight: 600;
-        width: 220px;
-        white-space: nowrap;
-        vertical-align: top;
-        padding-top: 14px;
-    }
-    .admin-view-order-page .order-detail-table td {
-        border-top: none;
-        border-bottom: 1px solid rgba(0,0,0,0.05);
-        vertical-align: top;
-        padding-top: 14px;
-    }
-    .admin-view-order-page .order-detail-table tr:last-child th,
-    .admin-view-order-page .order-detail-table tr:last-child td { border-bottom: none; }
-
-    /* Per-seller and per-item cards used the default AdminLTE "info" skin (a blue accent bar) -
-       restyled to the same soft shadow/rounded look used everywhere else in the redesigned panel. */
-    .admin-view-order-page .card-info {
-        border: none;
-        border-radius: 10px;
-        box-shadow: 0 1px 6px rgba(0,0,0,0.06);
-    }
-    .admin-view-order-page .card-info.card-outline { border-top: 3px solid var(--color-orange); }
-
-    .admin-view-order-page .form-control:focus { border-color: var(--color-orange); box-shadow: 0 0 0 .15rem var(--color-orange-light); }
-
-    /* Same action-button spacing fix applied on every other page this engagement - these rows
-       carry several icons (Order Tracking / View Product / Refund / Send Mail) that would
-       otherwise crowd or wrap unpredictably. */
-    .admin-view-order-page .action-btn { display: inline-block; vertical-align: middle; }
-    .admin-view-order-page .grow { transition: box-shadow .15s ease; }
-    .admin-view-order-page .grow:hover { box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
-
-    /* Per-item cards. Deliberately NOT using Bootstrap's .card class here - .card is a flex
-       container by default, so a stray direct-child link (the old Refund button) stretched to
-       fill the full card width instead of sizing to its own content. */
-    .admin-view-order-page .order-item-grid {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 14px;
-        margin: 0;
-    }
-    .admin-view-order-page .order-item-card {
-        display: flex;
-        flex-direction: column;
-        width: 260px;
-        background: #fff;
-        border: 1px solid rgba(0,0,0,0.06);
-        border-radius: 10px;
-        box-shadow: 0 1px 6px rgba(0,0,0,0.06);
-        padding: 14px;
-        transition: box-shadow .15s ease;
-    }
-    .admin-view-order-page .order-item-card:hover { box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
-    .admin-view-order-page .order-item-card-top {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 10px;
-    }
-    .admin-view-order-page .order-item-select input { width: 16px; height: 16px; margin: 0; cursor: pointer; }
-    .admin-view-order-page .order-item-media {
-        text-align: center;
-        background: #fafafa;
-        border-radius: 8px;
-        padding: 10px;
-        margin-bottom: 10px;
-    }
-    .admin-view-order-page .order-item-media img { max-height: 110px; max-width: 100%; object-fit: contain; }
-    .admin-view-order-page .order-item-name {
-        font-weight: 600;
-        font-size: 14px;
-        color: #2b2f33;
-        margin-bottom: 8px;
-        line-height: 1.3;
-    }
-    .admin-view-order-page .order-item-meta { margin-bottom: 10px; }
-    .admin-view-order-page .oi-row {
-        display: flex;
-        justify-content: space-between;
-        gap: 8px;
-        padding: 4px 0;
-        border-bottom: 1px solid rgba(0,0,0,0.04);
-        font-size: 13px;
-    }
-    .admin-view-order-page .oi-row:last-child { border-bottom: none; }
-    .admin-view-order-page .oi-label { color: var(--color-grey); }
-    .admin-view-order-page .oi-value { color: #2b2f33; font-weight: 500; text-align: right; }
-    .admin-view-order-page .order-item-mail-status {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        margin-bottom: 10px;
-    }
-    .admin-view-order-page .order-item-mail-status select { flex: 1; }
-    .admin-view-order-page .order-item-actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-        margin-top: auto;
-        padding-top: 10px;
-        border-top: 1px solid rgba(0,0,0,0.05);
-    }
-    .admin-view-order-page .order-item-actions .btn { white-space: nowrap; }
-</style>
+<?php $this->load->view('shared/view-order-styles'); ?>

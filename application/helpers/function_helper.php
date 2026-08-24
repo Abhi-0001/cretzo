@@ -9917,6 +9917,550 @@ function shiprocket_parcel_weight($weight)
 }
 
 /**
+ * A parcel dimension Shiprocket will accept, in centimetres.
+ *
+ * Companion to shiprocket_parcel_weight() above, and for the same reason: Shiprocket rejects a
+ * shipment whose length, breadth or height is 0 on any axis, and the product shipping fields
+ * were added to this catalogue after most of it was entered, so the variants carry 0 in all
+ * four. build_shiprocket_return_payload() already open-coded this fallback; the forward paths
+ * need the identical one, so it lives in one place.
+ */
+/**
+ * One line of address text, fit to print on a courier label.
+ *
+ * Two things wrong with sending these columns straight through, both visible in what this
+ * store would have shipped:
+ *
+ *  - The backslashes are compounded. `escape_array()` runs on the way IN at several call sites
+ *    and the escapes stack up on every edit, so address 14 holds the literal text
+ *    "Noida Sector 57\\\\r\\\\nA-56". One stripcslashes() - which is all output_escaping() does -
+ *    leaves "\\r\\n" sitting in the middle of the street name. Unescaping until it stops
+ *    changing gets back the real line break.
+ *  - A label field is one line, not a textarea. The real line break is then folded into a
+ *    comma so the courier prints "Noida Sector 57, A-56" rather than losing it.
+ *
+ * Bounded at four passes so a pathological value cannot spin, and left alone once stable.
+ */
+function shiprocket_address_text($value)
+{
+    $value = (string) $value;
+
+    for ($i = 0; $i < 4; $i++) {
+        $unescaped = stripcslashes($value);
+        if ($unescaped === $value) {
+            break;
+        }
+        $value = $unescaped;
+    }
+
+    $value = preg_replace('/\s*[\r\n]+\s*/', ', ', $value);
+    $value = preg_replace('/\s+/', ' ', $value);
+    $value = preg_replace('/(,\s*){2,}/', ', ', $value);
+
+    return trim($value, " ,\t");
+}
+
+function shiprocket_parcel_dimension($value)
+{
+    $value = (float) $value;
+    return ($value > 0) ? $value : SHIPROCKET_NOMINAL_DIMENSION_CM;
+}
+
+/**
+ * Order item ids on an order that already belong to a live FORWARD Shiprocket shipment.
+ *
+ * `order_tracking`.`order_item_id` is a comma-separated list, not an id, so this cannot be a
+ * WHERE clause - the rows are read and the lists exploded. Returns an id => true map.
+ *
+ * is_return = 0 because a reverse pickup is booked against the same order item and must not
+ * make the forward leg look done; is_canceled = 0 so a cancelled shipment can be rebooked.
+ */
+function shiprocket_booked_order_items($order_id)
+{
+    $t = &get_instance();
+
+    $rows = $t->db->select('order_item_id')
+        ->where('order_id', (int) $order_id)
+        ->where('is_return', 0)
+        ->where('is_canceled', 0)
+        ->get('order_tracking')->result_array();
+
+    $booked = [];
+    foreach ($rows as $row) {
+        foreach (explode(',', (string) $row['order_item_id']) as $id) {
+            $id = (int) trim($id);
+            if ($id > 0) {
+                $booked[$id] = true;
+            }
+        }
+    }
+    return $booked;
+}
+
+/**
+ * Books the FORWARD Shiprocket shipment(s) for an order - seller -> customer.
+ *
+ * Nothing did this. Shiprocket::create_order() had exactly two callers, both of them a
+ * seller/admin clicking "Create Shiprocket Order" on the order edit screen and typing the
+ * parcel weight and dimensions in by hand. So a customer could place an order, be told it was
+ * received, and the shipment simply never existed at Shiprocket until somebody remembered to
+ * go and raise it. On this database that is every order ever placed: `order_tracking` holds 0
+ * rows against 43 order items, 18 of which are still sitting at "received".
+ *
+ * This is that missing step, run automatically when the order is placed (and again if an
+ * awaiting order is later confirmed). Design notes:
+ *
+ *  - One shipment PER SELLER PER PICKUP LOCATION, which is how the parcel already splits in
+ *    `order_charges` and how the manual screen splits it. A two-seller order becomes two
+ *    Shiprocket orders, each collected from its own seller.
+ *  - Idempotent. Items already carrying a live forward shipment are skipped, so re-running
+ *    this - a retry, an awaiting order being confirmed, the manual button afterwards - cannot
+ *    double-book a parcel.
+ *  - NON-FATAL, always. Shiprocket being down, unconfigured, or refusing one parcel must never
+ *    fail a checkout the customer has already paid for: the failure is logged and the order
+ *    stands, and the seller's manual "Create Shiprocket Order" button remains the retry path.
+ *  - Digital products are skipped - there is nothing to ship - as are cancelled and returned
+ *    items, and anything still 'awaiting' (payment unconfirmed).
+ *
+ * Booking here creates the order in the Shiprocket panel only. Generating the AWB and
+ * requesting the pickup stay deliberately manual: those commit the seller to a courier and
+ * cost money.
+ *
+ * @param  int      $order_id
+ * @param  int|null $only_seller_id  restrict to one seller's parcel
+ * @return array    ['error' => bool, 'message' => string, 'data' => [per-parcel results]]
+ */
+function create_shiprocket_forward_shipment($order_id, $only_seller_id = null)
+{
+    $t = &get_instance();
+    $order_id = (int) $order_id;
+
+    $shipping_settings = get_settings('shipping_method', true);
+    if (empty($shipping_settings['shiprocket_shipping_method']) || $shipping_settings['shiprocket_shipping_method'] != 1) {
+        return ['error' => true, 'message' => 'Shiprocket shipping is not enabled.', 'data' => []];
+    }
+
+    $order = fetch_details('orders', ['id' => $order_id], 'id,user_id,address_id,mobile,date_added,payment_method,delivery_charge');
+    if (empty($order)) {
+        return ['error' => true, 'message' => 'Order not found.', 'data' => []];
+    }
+    $order = $order[0];
+
+    if (empty($order['address_id'])) {
+        // Digital-only orders carry no address at all; there is nothing to ship.
+        return ['error' => true, 'message' => 'This order has no delivery address, so there is nothing to ship.', 'data' => []];
+    }
+
+    $address = fetch_details('addresses', ['id' => $order['address_id']], 'address,city,city_id,state,country,pincode,mobile,name');
+    if (empty($address) || empty($address[0]['pincode'])) {
+        log_message('error', 'create_shiprocket_forward_shipment: order ' . $order_id . ' has no usable delivery address.');
+        return ['error' => true, 'message' => 'The delivery address on this order is incomplete, so a shipment cannot be booked.', 'data' => []];
+    }
+    $address = $address[0];
+
+    // The address's own city text wins over the `cities` lookup - see the long note in
+    // seller/Orders::create_shiprocket_order(); city_id is a legacy FK into 18 demo cities and
+    // answers "Mumbai" for Delhi addresses.
+    $city = !empty($address['city']) ? $address['city'] : '';
+    if (empty($city) && !empty($address['city_id'])) {
+        $city_row = fetch_details('cities', ['city_id' => $address['city_id']], 'city_name');
+        $city = !empty($city_row) ? $city_row[0]['city_name'] : '';
+    }
+
+    $customer = fetch_details('users', ['id' => $order['user_id']], 'username,email,mobile');
+    $customer_name  = !empty($address['name']) ? $address['name'] : (!empty($customer[0]['username']) ? $customer[0]['username'] : 'Customer');
+    $customer_phone = !empty($address['mobile']) ? $address['mobile'] : (!empty($order['mobile']) ? $order['mobile'] : (isset($customer[0]['mobile']) ? $customer[0]['mobile'] : ''));
+    $customer_email = isset($customer[0]['email']) ? $customer[0]['email'] : '';
+
+    $is_cod = (strtoupper((string) $order['payment_method']) === 'COD');
+
+    $booked = shiprocket_booked_order_items($order_id);
+
+    $t->db->select('oi.id, oi.seller_id, oi.quantity, oi.price, oi.sub_total, oi.tax_amount, oi.active_status,
+                    p.name as product_name, p.slug as product_slug, p.sku as product_sku, p.type as product_type,
+                    p.pickup_location, pv.sku as variant_sku, pv.weight, pv.length, pv.breadth, pv.height')
+        ->join('product_variants pv', 'pv.id = oi.product_variant_id', 'left')
+        ->join('products p', 'p.id = pv.product_id', 'left')
+        ->where('oi.order_id', $order_id)
+        ->where_not_in('oi.active_status', ['awaiting', 'cancelled', 'returned']);
+    if (!empty($only_seller_id)) {
+        $t->db->where('oi.seller_id', (int) $only_seller_id);
+    }
+    $items = $t->db->get('order_items oi')->result_array();
+
+    if (empty($items)) {
+        return ['error' => true, 'message' => 'No shippable items on this order.', 'data' => []];
+    }
+
+    /* Group into parcels: one per seller per pickup location, as order_charges already splits. */
+    $parcels = [];
+    foreach ($items as $item) {
+        if (isset($item['product_type']) && $item['product_type'] == 'digital_product') {
+            continue;
+        }
+        if (isset($booked[(int) $item['id']])) {
+            continue;
+        }
+
+        $pickup = resolve_seller_pickup_location(
+            isset($item['pickup_location']) ? $item['pickup_location'] : '',
+            $item['seller_id']
+        );
+        $pickup_name = isset($pickup['pickup_location']) ? $pickup['pickup_location'] : '';
+        if ($pickup_name === '') {
+            log_message('error', 'create_shiprocket_forward_shipment: seller ' . $item['seller_id']
+                . ' has no usable pickup location, so order item ' . $item['id'] . ' on order '
+                . $order_id . ' could not be booked.');
+            continue;
+        }
+
+        $key = $item['seller_id'] . '|' . $pickup_name;
+        if (!isset($parcels[$key])) {
+            $parcels[$key] = [
+                'seller_id'       => (int) $item['seller_id'],
+                'pickup_location' => $pickup_name,
+                'pickup_pincode'  => isset($pickup['pin_code']) ? $pickup['pin_code'] : '',
+                'item_ids'        => [],
+                'items'           => [],
+                'sub_total'       => 0,
+                'weight'          => 0,
+                'length'          => 0,
+                'breadth'         => 0,
+                'height'          => 0,
+            ];
+        }
+
+        $qty = max(1, (int) $item['quantity']);
+        $sku = !empty($item['variant_sku'])
+            ? $item['variant_sku']
+            : (!empty($item['product_sku']) ? $item['product_sku'] : $item['product_slug']);
+
+        $parcels[$key]['item_ids'][] = (int) $item['id'];
+        $parcels[$key]['sub_total'] += (float) $item['sub_total'];
+        // Weight is cumulative across the parcel; the box only has to be as large as its
+        // largest item on each axis.
+        $parcels[$key]['weight']  += shiprocket_parcel_weight($item['weight']) * $qty;
+        $parcels[$key]['length']   = max($parcels[$key]['length'], shiprocket_parcel_dimension($item['length']));
+        $parcels[$key]['breadth']  = max($parcels[$key]['breadth'], shiprocket_parcel_dimension($item['breadth']));
+        $parcels[$key]['height']   = max($parcels[$key]['height'], shiprocket_parcel_dimension($item['height']));
+        $parcels[$key]['items'][]  = [
+            'name'          => shiprocket_address_text($item['product_name']),
+            'sku'           => !empty($sku) ? $sku : ('ITEM-' . $item['id']),
+            'units'         => $qty,
+            'selling_price' => (float) $item['price'],
+            'discount'      => 0,
+            'tax'           => (float) $item['tax_amount'],
+        ];
+    }
+
+    if (empty($parcels)) {
+        return ['error' => false, 'message' => 'Every shippable item on this order is already booked with Shiprocket.', 'data' => []];
+    }
+
+    $t->load->library(['Shiprocket']);
+    $results = [];
+    $booked_any = false;
+
+    foreach ($parcels as $parcel) {
+        $result = [
+            'seller_id'       => $parcel['seller_id'],
+            'pickup_location' => $parcel['pickup_location'],
+            'order_item_ids'  => implode(',', $parcel['item_ids']),
+            'error'           => true,
+            'message'         => '',
+        ];
+
+        // Refuse a pickup address Shiprocket has not confirmed BEFORE the request goes out -
+        // it would come back 422 "Wrong Pickup location entered".
+        $bookable = shiprocket_pickup_is_bookable($parcel['pickup_location'], $parcel['seller_id']);
+        if (!$bookable['ok']) {
+            $result['message'] = $bookable['reason'];
+            log_message('error', 'create_shiprocket_forward_shipment: order ' . $order_id . ' seller '
+                . $parcel['seller_id'] . ' - ' . $bookable['reason']);
+            $results[] = $result;
+            continue;
+        }
+
+        // Per-seller delivery charge, as split across the parcels at checkout. Only a COD
+        // parcel collects it from the customer, which is what Shiprocket's sub_total means.
+        $charge_row = fetch_details('order_charges', ['order_id' => $order_id, 'seller_id' => $parcel['seller_id']], 'delivery_charge');
+        $delivery_charge = !empty($charge_row) ? (float) $charge_row[0]['delivery_charge'] : (float) $order['delivery_charge'];
+        if (!$is_cod) {
+            $delivery_charge = 0;
+        }
+
+        // Best-effort: a recommended courier for this pickup -> delivery leg. Unserviceable or
+        // unreachable simply means no preference is recorded and Shiprocket picks at AWB time.
+        $courier_company_id = 0;
+        if (!empty($parcel['pickup_pincode'])) {
+            $serviceability = $t->shiprocket->check_serviceability([
+                'pickup_postcode'   => $parcel['pickup_pincode'],
+                'delivery_postcode' => $address['pincode'],
+                'cod'               => $is_cod ? '1' : '0',
+                'weight'            => $parcel['weight'],
+            ]);
+            $recommended = shiprocket_recomended_data($serviceability);
+            $courier_company_id = isset($recommended['courier_company_id']) ? (int) $recommended['courier_company_id'] : 0;
+        }
+
+        // Deterministic reference, so a retry of the same parcel reuses it rather than raising
+        // a second Shiprocket order for the same goods. Kept short - Shiprocket caps this
+        // field - and readable back to the order and the seller.
+        $reference = $order_id . '-' . $parcel['seller_id'] . '-' . substr(sha1(implode(',', $parcel['item_ids'])), 0, 6);
+
+        $payload = [
+            'order_id'              => $reference,
+            'order_date'            => date('Y-m-d H:i', strtotime($order['date_added'])),
+            'pickup_location'       => $parcel['pickup_location'],
+            'billing_customer_name' => shiprocket_address_text($customer_name),
+            'billing_last_name'     => '',
+            'billing_address'       => shiprocket_address_text($address['address']),
+            'billing_city'          => shiprocket_address_text($city),
+            'billing_pincode'       => $address['pincode'],
+            'billing_state'         => shiprocket_address_text($address['state']),
+            'billing_country'       => shiprocket_address_text($address['country']),
+            'billing_email'         => $customer_email,
+            'billing_phone'         => $customer_phone,
+            'shipping_is_billing'   => true,
+            'order_items'           => $parcel['items'],
+            'payment_method'        => $is_cod ? 'COD' : 'Prepaid',
+            'sub_total'             => round($parcel['sub_total'] + $delivery_charge, 2),
+            'length'                => $parcel['length'],
+            'breadth'               => $parcel['breadth'],
+            'height'                => $parcel['height'],
+            'weight'                => round($parcel['weight'], 3),
+        ];
+
+        $response = $t->shiprocket->create_order($payload);
+
+        if (!is_array($response) || empty($response['order_id'])) {
+            $reason = 'Shiprocket did not accept the shipment.';
+            if (method_exists($t->shiprocket, 'last_error') && !empty($t->shiprocket->last_error())) {
+                $reason = (string) $t->shiprocket->last_error();
+            } elseif (is_array($response) && !empty($response['message'])) {
+                $reason = is_array($response['message']) ? implode(' ', array_map('strval', $response['message'])) : $response['message'];
+            }
+            $result['message'] = $reason;
+            log_message('error', 'create_shiprocket_forward_shipment: order ' . $order_id . ' seller '
+                . $parcel['seller_id'] . ' rejected - ' . $reason);
+            $results[] = $result;
+            continue;
+        }
+
+        $t->db->insert('order_tracking', [
+            'order_id'              => $order_id,
+            'order_item_id'         => implode(',', $parcel['item_ids']),
+            'shiprocket_order_id'   => $response['order_id'],
+            'shipment_id'           => isset($response['shipment_id']) ? $response['shipment_id'] : 0,
+            'courier_company_id'    => $courier_company_id,
+            'is_return'             => 0,
+            'pickup_status'         => 0,
+            'pickup_scheduled_date' => '',
+            'pickup_token_number'   => '',
+            'status'                => 0,
+            'others'                => '',
+            'pickup_generated_date' => '',
+            'data'                  => '',
+            'date'                  => '',
+            'manifest_url'          => '',
+            'label_url'             => '',
+            'invoice_url'           => '',
+            'is_canceled'           => 0,
+            'tracking_id'           => '',
+            'url'                   => '',
+        ]);
+
+        $booked_any = true;
+        $result['error']   = false;
+        $result['message'] = 'Shipment booked with Shiprocket.';
+        $result['shiprocket_order_id'] = $response['order_id'];
+        $result['shipment_id'] = isset($response['shipment_id']) ? $response['shipment_id'] : 0;
+        $results[] = $result;
+    }
+
+    $failed = array_values(array_filter($results, function ($r) {
+        return $r['error'] === true;
+    }));
+
+    if ($booked_any) {
+        $message = empty($failed)
+            ? 'Shipment booked with Shiprocket.'
+            : 'Some parcels were booked with Shiprocket; ' . $failed[0]['message'];
+    } else {
+        $message = !empty($failed) ? $failed[0]['message'] : 'No shipment could be booked with Shiprocket.';
+    }
+
+    return ['error' => !$booked_any, 'message' => $message, 'data' => $results];
+}
+
+/**
+ * Parcel weight and dimensions to pre-fill the manual "Create Shiprocket Order" form with.
+ *
+ * custom.js has always POSTed to `{seller|admin}/shiprocket/parcel-defaults` to fill those four
+ * required fields the moment a pickup location is picked - but no such controller existed, so
+ * the request 404'd, the jQuery `.done()` handler never ran (an HTML error page does not parse
+ * as JSON) and the seller was left with four empty required fields and no explanation. Nothing
+ * logged it either, because the AJAX call had no error handler.
+ *
+ * Same arithmetic as create_shiprocket_forward_shipment(): weight is cumulative across the
+ * parcel, the box only has to be as large as its largest item on each axis, and the nominal
+ * fallbacks cover the variants whose shipping fields were never filled in.
+ *
+ * Read from the database, not from the order_items JSON the browser posts, which is
+ * client-controlled - the seller can still overtype the values in the form, which is the point
+ * of the form.
+ */
+function shiprocket_parcel_defaults($order_id, $seller_id, $pickup_location)
+{
+    $t = &get_instance();
+
+    $items = $t->db->select('oi.id, oi.seller_id, oi.quantity, p.pickup_location, p.type as product_type,
+                             pv.weight, pv.length, pv.breadth, pv.height')
+        ->join('product_variants pv', 'pv.id = oi.product_variant_id', 'left')
+        ->join('products p', 'p.id = pv.product_id', 'left')
+        ->where('oi.order_id', (int) $order_id)
+        ->where('oi.seller_id', (int) $seller_id)
+        ->where_not_in('oi.active_status', ['cancelled', 'returned'])
+        ->get('order_items oi')->result_array();
+
+    $weight = 0;
+    $length = 0;
+    $breadth = 0;
+    $height = 0;
+    $matched = 0;
+
+    foreach ($items as $item) {
+        if (isset($item['product_type']) && $item['product_type'] == 'digital_product') {
+            continue;
+        }
+        $resolved = resolve_seller_pickup_location(
+            isset($item['pickup_location']) ? $item['pickup_location'] : '',
+            $item['seller_id']
+        );
+        $resolved_name = isset($resolved['pickup_location']) ? $resolved['pickup_location'] : '';
+        if ($resolved_name !== trim((string) $pickup_location)) {
+            continue;
+        }
+
+        $matched++;
+        $weight += shiprocket_parcel_weight($item['weight']) * max(1, (int) $item['quantity']);
+        $length  = max($length, shiprocket_parcel_dimension($item['length']));
+        $breadth = max($breadth, shiprocket_parcel_dimension($item['breadth']));
+        $height  = max($height, shiprocket_parcel_dimension($item['height']));
+    }
+
+    if ($matched === 0) {
+        return ['error' => true, 'message' => 'No items of this seller ship from that pickup location.', 'data' => []];
+    }
+
+    return [
+        'error'   => false,
+        'message' => 'Parcel defaults calculated.',
+        'data'    => [
+            'parcel_weight'  => round($weight, 3),
+            'parcel_length'  => $length,
+            'parcel_breadth' => $breadth,
+            'parcel_height'  => $height,
+        ],
+    ];
+}
+
+/**
+ * Customer-facing name for an order status.
+ *
+ * The storefront printed ucwords() of the raw column - so the moment an order was placed the
+ * customer saw "Received", which reads as "you have received this", and the store was fielding
+ * "why does it say received when nothing has arrived?". These are internal fulfilment states:
+ * 'received' means the STORE received the order. Nothing about the underlying ladder changes
+ * here - only the words shown to the customer.
+ */
+function order_status_label($status)
+{
+    $labels = [
+        'awaiting'                => 'Payment Pending',
+        'received'                => 'Order Placed',
+        'processed'               => 'Packed',
+        'shipped'                 => 'Shipped',
+        'delivered'               => 'Delivered',
+        'cancelled'               => 'Cancelled',
+        'returned'                => 'Returned',
+        'return_request_pending'  => 'Return Requested',
+        'return_request_approved' => 'Return Approved',
+        'return_request_decline'  => 'Return Declined',
+    ];
+
+    $status = trim(strtolower((string) $status));
+    return isset($labels[$status]) ? $labels[$status] : ucwords(str_replace('_', ' ', $status));
+}
+
+/**
+ * When an order item reached a given status, or '' if it never did.
+ *
+ * `order_items`.`status` is the status HISTORY: a list of [status, timestamp] PAIRS. Both
+ * storefront order screens were searching it with array_search('delivered', $history), which
+ * compares the needle against each PAIR and so can never match - it always returned false.
+ *
+ * On the order list that false was then used as an index, and PHP reads false as 0, so
+ * $history[false][1] handed back the timestamp of the FIRST entry - the moment the order was
+ * placed. The return window was therefore measured from the order date instead of the
+ * delivery date, and "Return Order" was offered on items that had not been delivered at all.
+ * On the detail page the same call was guarded with !== false, so the opposite happened: the
+ * return-window line could never render for anyone.
+ *
+ * Searches from the END so a redelivery after a failed return reports the latest date, which
+ * is the one the return window should run from.
+ */
+function order_status_history_date($history, $status)
+{
+    if (!is_array($history)) {
+        $history = json_decode((string) $history, true);
+    }
+    if (!is_array($history)) {
+        return '';
+    }
+
+    $status = trim(strtolower((string) $status));
+    foreach (array_reverse($history) as $entry) {
+        if (is_array($entry) && isset($entry[0]) && trim(strtolower((string) $entry[0])) === $status) {
+            return isset($entry[1]) ? $entry[1] : '';
+        }
+    }
+    return '';
+}
+
+/**
+ * Icon URL for an order status on the storefront order screens.
+ *
+ * Both screens built this as base_url(".../new_cretzo/{$active_status}.png") straight from the
+ * column. Seven icons exist - received, processed, shipped, delivered, cancelled, returned -
+ * but `active_status` also legitimately holds 'awaiting' and the three return_request_* states,
+ * and each of those rendered a broken image. There is already a return_request_approved item on
+ * this database, so it is not hypothetical.
+ *
+ * Statuses without an icon of their own borrow the nearest one that exists, and anything
+ * unrecognised falls back to received rather than to a 404.
+ */
+function order_status_icon_url($status)
+{
+    $status = trim(strtolower((string) $status));
+
+    $aliases = [
+        'awaiting'                => 'received',
+        'return_request_pending'  => 'returned',
+        'return_request_approved' => 'returned',
+        'return_request_decline'  => 'delivered',
+    ];
+    $icon = isset($aliases[$status]) ? $aliases[$status] : $status;
+
+    $dir = 'assets/front_end/' . THEME . '/img/new_cretzo/';
+    if ($icon === '' || !file_exists(FCPATH . $dir . $icon . '.png')) {
+        $icon = 'received';
+    }
+
+    return base_url($dir . $icon . '.png');
+}
+
+/**
  * Public URL for a customer's profile photo, or '' when there isn't a usable one.
  *
  * `users`.`image` stores only the BARE FILE NAME inside USER_IMG_PATH - that is how the
@@ -10326,10 +10870,15 @@ function resolve_bulk_row_settings($row, $C, $defaults)
         $settings['is_returnable'] = $returnable;
     }
 
-    $until = bulk_parse_choice($row[$C['cancellable_until']], $vocab['cancellable_until']['map']);
-    if ($until !== null) {
-        $settings['is_cancelable'] = ($until === '') ? 0 : 1;
-        $settings['cancelable_till'] = $until;
+    // Only the admin sheet carries this column. The seller sheet dropped it - cancellation
+    // is an admin policy per product - so its column map does not name it and there is
+    // nothing to read here.
+    if (isset($C['cancellable_until'])) {
+        $until = bulk_parse_choice($row[$C['cancellable_until']], $vocab['cancellable_until']['map']);
+        if ($until !== null) {
+            $settings['is_cancelable'] = ($until === '') ? 0 : 1;
+            $settings['cancelable_till'] = $until;
+        }
     }
 
     $food = bulk_parse_choice($row[$C['food_type']], $vocab['food_type']['map']);
@@ -10422,4 +10971,195 @@ function seller_approval_state($user_id)
     $state['stage'] = !empty($state['requested_at']) ? 'pending' : 'incomplete';
 
     return $state;
+}
+
+/**
+ * The canonical seller-profile sections.
+ *
+ * One definition feeds three consumers that must never disagree: the dashboard completion
+ * meter, the "what is still missing?" list on the profile page, and the gate that decides
+ * whether a saved profile is complete enough to be sent to the admin for verification. When
+ * these lived apart, a seller could be shown 100% complete and still be refused review.
+ */
+function seller_profile_sections()
+{
+    return [
+        'personal' => [
+            'weight' => 30,
+            'label'  => 'Personal Details',
+            'fields' => ['first_name', 'last_name', 'phone', 'email', 'district', 'state', 'pin'],
+        ],
+        'store' => [
+            'weight' => 25,
+            'label'  => 'Store Details',
+            'fields' => ['shop_name', 'shop_phone', 'pickup_address1', 'entity_type', 'pan', 'gst', 'primary_category_id'],
+        ],
+        'account' => [
+            'weight' => 20,
+            'label'  => 'Bank Account Details',
+            'fields' => ['account_number', 'account_holder_name', 'ifsc', 'branch', 'bank_name'],
+        ],
+    ];
+}
+
+/**
+ * Is one profile field filled in?
+ *
+ * GST is the exception: a seller who ticked "We are not GST registered" files a GST
+ * enrollment id instead, so demanding a GSTIN from them left their profile permanently
+ * incomplete - stuck at 75% on the dashboard, and (now that submission is gated on
+ * completeness) unable to ever reach the admin.
+ */
+function seller_profile_field_filled($row, $field)
+{
+    $value = isset($row[$field]) ? trim((string) $row[$field]) : '';
+
+    // A zero id is the "nothing chosen" state of the category dropdown, not a category.
+    if ($field === 'primary_category_id') {
+        return (int) $value > 0;
+    }
+
+    if ($field === 'gst' && $value === '') {
+        $is_registered = !isset($row['is_gst_registered']) || (string) $row['is_gst_registered'] === '1';
+        if (!$is_registered) {
+            return isset($row['gst_enrollment_number']) && trim((string) $row['gst_enrollment_number']) !== '';
+        }
+    }
+
+    return $value !== '';
+}
+
+/**
+ * The seller_data row the completeness rules read, with the two fields that can legitimately
+ * live on the users table instead (email / mobile) folded in - exactly the way the profile
+ * form itself resolves them, so a filled-in form is never reported as missing.
+ */
+function seller_profile_row($user_id)
+{
+    $CI = &get_instance();
+
+    if (empty($user_id) || !$CI->db->table_exists('seller_data')) {
+        return [];
+    }
+
+    $row = $CI->db
+        ->select('sd.*, COALESCE(NULLIF(sd.email, ""), u.email) as email, COALESCE(NULLIF(sd.phone, ""), u.mobile) as phone')
+        ->from('seller_data sd')
+        ->join('users u', 'u.id = sd.user_id', 'left')
+        ->where('sd.user_id', $user_id)
+        ->get()
+        ->row_array();
+
+    return is_array($row) ? $row : [];
+}
+
+/**
+ * Which profile sections the seller still has to fill in.
+ *
+ * Pass $row to reuse a seller_data row you already have (the admin seller form does); leave
+ * it null and the row is fetched. An empty list means the profile is submission-ready.
+ */
+function seller_profile_incomplete_sections($user_id, $row = null)
+{
+    // No row at all simply means nothing is filled in - every section comes back as
+    // missing, which is the honest answer.
+    if ($row === null) {
+        $row = seller_profile_row($user_id);
+    }
+    if (!is_array($row)) {
+        $row = [];
+    }
+
+    $missing = [];
+    foreach (seller_profile_sections() as $key => $section) {
+        foreach ($section['fields'] as $field) {
+            if (!seller_profile_field_filled($row, $field)) {
+                $missing[] = [
+                    'key'   => $key,
+                    'label' => $section['label'],
+                    'link'  => base_url('seller/home/profile?section=' . $key),
+                ];
+                break;
+            }
+        }
+    }
+
+    return $missing;
+}
+
+/**
+ * Sends a seller's profile to the admin for verification.
+ *
+ * There is deliberately no seller-facing "Request Admin Verification" button any more: the
+ * admin cannot review a half-filled profile, so the request is filed automatically when the
+ * seller saves a profile that has every section complete. Saving an incomplete profile is
+ * still allowed - it just does not raise a review the admin would have to bounce.
+ *
+ * Returns:
+ *   filed             - true only when this call stamped a new request (i.e. notify the seller)
+ *   already_requested - the profile was already awaiting review
+ *   approved          - already approved, nothing to file
+ *   missing_sections  - why nothing was filed, when it wasn't
+ */
+function seller_file_verification_request($user_id)
+{
+    $CI = &get_instance();
+
+    $result = [
+        'filed'             => false,
+        'already_requested' => false,
+        'approved'          => false,
+        'missing_sections'  => [],
+    ];
+
+    if (empty($user_id) || !$CI->db->table_exists('seller_data')) {
+        return $result;
+    }
+
+    $row = seller_profile_row($user_id);
+    if (empty($row)) {
+        return $result;
+    }
+
+    if (isset($row['status']) && (string) $row['status'] === '1') {
+        $result['approved'] = true;
+        return $result;
+    }
+
+    // Added by a later migration: on a database that has not caught up there is nowhere to
+    // record the request, so stay silent rather than fail the seller's profile save.
+    if (!$CI->db->field_exists('verification_request_at', 'seller_data')) {
+        return $result;
+    }
+
+    if (!empty($row['verification_request_at'])) {
+        $result['already_requested'] = true;
+        return $result;
+    }
+
+    $result['missing_sections'] = seller_profile_incomplete_sections($user_id, $row);
+    if (!empty($result['missing_sections'])) {
+        return $result;
+    }
+
+    $stamped = (bool) $CI->db->where('user_id', $user_id)
+        ->update('seller_data', ['verification_request_at' => date('Y-m-d H:i:s')]);
+
+    if (!$stamped) {
+        return $result;
+    }
+
+    $result['filed'] = true;
+
+    $seller_user = $CI->db->select('username')->where('id', $user_id)->get('users')->row_array();
+    $seller_name = !empty($seller_user['username']) ? $seller_user['username'] : ('Seller #' . $user_id);
+    $CI->db->insert('system_notification', [
+        'title'    => 'Seller verification request received',
+        'message'  => $seller_name . ' has completed their profile and is awaiting admin verification. Review and approve/reject from seller management.',
+        'type'     => 'seller_verification_request',
+        'type_id'  => $user_id,
+        'read_by'  => 0,
+    ]);
+
+    return $result;
 }
