@@ -52,12 +52,14 @@
                             </div>
                         </div>
 
-                        <?php // These six settings used to be numeric-coded columns in the sheet
-                              // (cod_allowed, is_prices_inclusive_tax, is_returnable,
-                              // is_cancelable + cancelable_till, indicator, deliverable_type). They
-                              // are the same for every product in a real upload, so they are asked
-                              // for once here in words instead. Only shown for Upload - the Update
-                              // sheet still carries its own columns. ?>
+                        <?php // These settings used to be numeric-coded columns in the sheet
+                              // (cod_allowed, is_prices_inclusive_tax, is_returnable, indicator,
+                              // deliverable_type). They are the same for every product in a real
+                              // upload, so they are asked for once here in words instead. Only
+                              // shown for Upload - the Update sheet still carries its own columns.
+                              // Cancellation is deliberately absent: whether an order can still be
+                              // cancelled is a platform policy, set by the admin per product, not
+                              // something a seller chooses - same as the add/update product form. ?>
                         <div id="upload_defaults" class="bulk-defaults mb-3" style="display:none;">
                             <strong><i class="fas fa-sliders-h mr-1"></i>Settings applied to every product in this file</strong>
                             <p class="text-muted small mb-3">These used to be number codes in the CSV. Set them once here and leave them out of your file.</p>
@@ -87,15 +89,6 @@
                             </div>
 
                             <div class="form-row">
-                                <div class="col-md-4 form-group">
-                                    <label for="default_cancelable_till">Cancellation</label>
-                                    <select class="form-control" name="default_cancelable_till" id="default_cancelable_till">
-                                        <option value="" selected>Cannot be cancelled</option>
-                                        <option value="received">Until the order is received</option>
-                                        <option value="processed">Until the order is processed</option>
-                                        <option value="shipped">Until the order is shipped</option>
-                                    </select>
-                                </div>
                                 <div class="col-md-4 form-group">
                                     <label for="default_indicator">Food type marking</label>
                                     <select class="form-control" name="default_indicator" id="default_indicator">
@@ -435,7 +428,7 @@
     // separate form from #bulk_upload_form, whose submit handler is an AJAX upload.
     $('#download_template_btn').on('click', function () {
         var fields = ['default_cod_allowed', 'default_prices_inclusive_tax', 'default_is_returnable',
-                      'default_cancelable_till', 'default_indicator', 'default_deliverable_type',
+                      'default_indicator', 'default_deliverable_type',
                       'default_deliverable_zipcodes', 'template_rows', 'template_variants'];
         var form = $('<form>', {
             method: 'POST',

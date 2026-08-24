@@ -75,11 +75,13 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 12px;
-            max-width: 760px;
-            margin: 10px auto 20px;
-            padding: 14px 20px;
-            border-radius: 14px;
+            /* Sized down: at 60px emoji / 23px title this one note was taller than the
+               plan cards it introduces. */
+            gap: 10px;
+            max-width: 560px;
+            margin: 8px auto 14px;
+            padding: 10px 14px;
+            border-radius: 12px;
             /* background: linear-gradient(135deg, var(--orange) 0%, #d96d1a 100%);
             color: #ffffff;
             box-shadow: 0 12px 26px -12px rgba(242, 140, 56, 0.8); */
@@ -90,9 +92,9 @@
             color: var(--cz-ink);
             box-shadow: 0 8px 18px -12px rgba(224, 122, 72, 0.45);
         }
-        .subscription-launch-banner .slb-icon { font-size: 60px; line-height: 1; flex-shrink: 0; }
-        .subscription-launch-banner .slb-title { font-weight: bold; font-size: 23px; display: block; }
-        .subscription-launch-banner .slb-sub { font-size: 22px; opacity: 0.95; }
+        .subscription-launch-banner .slb-icon { font-size: 28px; line-height: 1; flex-shrink: 0; }
+        .subscription-launch-banner .slb-title { font-weight: bold; font-size: 15px; display: block; }
+        .subscription-launch-banner .slb-sub { font-size: 13px; opacity: 0.95; }
 
         .subscription-header { padding: 10px 5px; }
         h1 { font-size: 32px; margin-bottom: 5px; }
@@ -247,13 +249,15 @@
             <div class="card">
                 <div class="card-body subscription-page-body">
                     <style>
-                        .cretzo-progress { display:flex; align-items:center; justify-content:center; gap:12px; margin-bottom:50px; font-size:20px }
-                        .cretzo-progress .step { color:#111; font-weight:600; padding:0 6px; }
+                        /* Scaled down from 20px text / 160px connectors / 50px gap below - as a
+                           three-word wayfinder it should not out-shout the plan cards. */
+                        .cretzo-progress { display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:22px; font-size:14px }
+                        .cretzo-progress .step { color:#111; font-weight:600; padding:0 4px; }
                         .cretzo-progress .step.active { color:#F28C38; font-weight:600; }
-                        .cretzo-progress .connector { width:160px; border:dashed 1.5px #222; }
-                        .cretzo-progress .connector.orange { background: repeating-linear-gradient(90deg, #F28C38 0 12px, transparent 12px 24px); }
-                        .cretzo-progress .connector.dark { background: repeating-linear-gradient(90deg, #222 0 12px, transparent 12px 24px); }
-                        @media(max-width:800px){ .cretzo-progress .connector{ width:80px } }
+                        .cretzo-progress .connector { width:90px; border:dashed 1px #222; }
+                        .cretzo-progress .connector.orange { background: repeating-linear-gradient(90deg, #F28C38 0 8px, transparent 8px 16px); }
+                        .cretzo-progress .connector.dark { background: repeating-linear-gradient(90deg, #222 0 8px, transparent 8px 16px); }
+                        @media(max-width:800px){ .cretzo-progress .connector{ width:44px } }
                     </style>
 
                     <div class="cretzo-progress" aria-hidden="true">

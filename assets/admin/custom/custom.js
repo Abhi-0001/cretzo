@@ -9097,6 +9097,14 @@ $(document).on('change', '.check_create_order', function (e) {
                 message: result.message
             });
         }
+    }).fail(function () {
+        // There was no fail handler at all, and the endpoint this calls did not exist - so a
+        // 404 left the four required parcel fields silently empty and the seller only found
+        // out on submit, as "Parcel Weight is required" with nothing explaining why.
+        iziToast.warning({
+            title: 'Shiprocket',
+            message: 'Could not calculate the parcel size automatically. Please enter the weight and dimensions.'
+        });
     });
 });
 

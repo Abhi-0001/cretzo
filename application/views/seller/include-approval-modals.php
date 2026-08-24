@@ -16,7 +16,11 @@ $approval_state       = isset($seller_approval) && is_array($seller_approval) ? 
 $approval_stage       = isset($approval_state['stage']) ? $approval_state['stage'] : 'incomplete';
 $approval_requested   = !empty($approval_state['requested_at']) ? $approval_state['requested_at'] : null;
 $show_approved_popup  = !empty($approval_state['show_approval_popup']);
-$approval_profile_url = base_url('seller/home/profile?section=admin');
+// Start the seller at the FIRST step of the profile form, not the last (admin verification)
+// tab: the point of this popup is to get an empty profile filled in, so the CTA must land
+// on the beginning of the form. The admin/verification tab is only where they finish.
+$approval_profile_url = base_url('seller/home/profile?section=personal');
+$approval_status_url  = base_url('seller/home/profile?section=admin');
 ?>
 <link rel="stylesheet" href="<?= add_ver(base_url('assets/admin/css/cretzo/seller-approval-modal.css')) ?>">
 
@@ -53,7 +57,7 @@ $approval_profile_url = base_url('seller/home/profile?section=admin');
                                 <span class="cz-step-icon"><i class="fas fa-paper-plane"></i></span>
                                 <div>
                                     <h6>Submit for admin approval</h6>
-                                    <p>Send your details to the Cretzo team for verification from the profile page.</p>
+                                    <p>Saving a complete profile sends it to the Cretzo team automatically &mdash; there is no separate request to file.</p>
                                 </div>
                             </li>
                             <li class="is-locked">
@@ -120,7 +124,7 @@ $approval_profile_url = base_url('seller/home/profile?section=admin');
                         <button type="button" class="btn btn-cz-primary" data-dismiss="modal">
                             <i class="fas fa-check mr-2"></i>Got it
                         </button>
-                        <a href="<?= $approval_profile_url ?>" class="btn btn-cz-ghost">Review my details</a>
+                        <a href="<?= $approval_status_url ?>" class="btn btn-cz-ghost">Review my details</a>
                     </div>
                 <?php endif; ?>
 

@@ -1,17 +1,37 @@
-<div class="content-wrapper">
+<?php
+/*
+| This page is the seller's copy of the admin order-detail screen and now shares its look:
+| the same header treatment, the same "Order Summary" card and the same per-item cards, via
+| the .view-order-page rules in views/shared/view-order-styles.php. It was still stock
+| AdminLTE while the admin copy had been redesigned, so the two screens showed identical
+| information in two different visual languages.
+|
+| Two controls are deliberately NOT carried over from the admin copy:
+|   * the "Select Delivery Boy" dropdown - this store ships through Shiprocket and has no
+|     delivery-boy accounts, so it could only ever offer an empty list;
+|   * the "Create Shiprocket Order" button and its parcel modal - booking a shipment is not
+|     the seller's to do. Orders are booked automatically at checkout
+|     (create_shiprocket_forward_shipment()) and the admin panel keeps the manual control. The
+|     seller updates the order status and works the shipment that already exists (AWB, label,
+|     invoice, tracking).
+*/
+?>
+<div class="content-wrapper seller-view-order-page view-order-page">
     <!-- Content Header (Page header) -->
     <!-- Main content -->
     <section class="content-header">
         <div class="container-fluid">
-            <div class="row mb-2">
+            <div class="row mb-2 align-items-center">
                 <div class="col-sm-6">
-                    <h4>View Order</h4>
+                    <h4 class="mb-0"><i class="fas fa-receipt mr-2 text-primary-theme"></i>View Order #<?= (int) $order_detls[0]['id'] ?></h4>
+                    <p class="text-muted mb-0 small">Order status, courier tracking and item details for this order.</p>
                 </div>
 
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">
                         <li class="breadcrumb-item"><a href="<?= base_url('seller/home') ?>">Home</a></li>
-                        <li class="breadcrumb-item active">Orders</li>
+                        <li class="breadcrumb-item"><a href="<?= base_url('seller/orders/manage-orders') ?>">Orders</a></li>
+                        <li class="breadcrumb-item active">View Order</li>
                     </ol>
                 </div>
             </div>
@@ -133,97 +153,20 @@
                     </div>
                 </div>
 
-                <!-- modal for create shiprocket order -->
-                <div class="modal fade" tabindex="-1" role="dialog" aria-hidden="true" id="order_parcel_modal" data-backdrop="static" data-keyboard="false">
-                    <div class="modal-dialog modal-lg">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title">Create Shipprocket Order Parcel</h5>
-                                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                    <span aria-hidden="true">&times;</span>
-                                </button>
-                            </div>
-                            <div class="modal-body">
-                                <div class="row">
-                                    <div class="col-md-12">
-                                        <div class="card card-info">
-                                            <!-- form start -->
-                                            <form class="form-horizontal " id="shiprocket_order_parcel_form" action="" method="POST">
-
-                                                <?php
-                                                $total_items = count($items);
-                                                ?>
-                                                <div class="card-body pad">
-                                                    <div class="form-group">
-                                                        <input type="hidden" name=" <?php echo $this->security->get_csrf_token_name(); ?>" value="<?php echo $this->security->get_csrf_hash(); ?>" />
-                                                        <input type="hidden" id="order_id" name="order_id" value="<?php print_r($order_detls[0]['id']); ?>" />
-                                                        <input type="hidden" name="user_id" id="user_id" value="<?php echo $order_detls[0]['user_id']; ?>" />
-                                                        <input type="hidden" name="total_order_items" id="total_order_items" value="<?php echo $total_items; ?>" />
-                                                        <input type="hidden" name="shiprocket_seller_id" value="" />
-                                                        <input type="hidden" name="fromseller" value="1" id="fromseller" />
-                                                        <textarea id="order_items" name="order_items[]" hidden><?= json_encode($items, JSON_FORCE_OBJECT); ?></textarea>
-                                                    </div>
-                                                    <div class="mt-1 p-2 bg-danger text-white rounded">
-                                                        <p><b>Note:</b> Make your pickup location associated with the order is verified from <a href="https://app.shiprocket.in/company-pickup-location?redirect_url=" target="_blank" style="text-decoration: underline;color: white;"> Shiprocket Dashboard </a> and then in <a href="<?php base_url('admin/Pickup_location/manage-pickup-locations'); ?>" target="_blank" style="text-decoration: underline;color: white;"> admin panel </a>. If it is not verified you will not be able to generate AWB later on.</p>
-                                                    </div>
-                                                    <div class="form-group row mt-4">
-                                                        <div class="col-4">
-                                                            <label for="txn_amount">Pickup location</label>
-                                                        </div>
-                                                        <div class="col-8">
-                                                            <input type="text" class="form-control" name="pickup_location" id="pickup_location" placeholder="Pickup Location" value="" readonly />
-                                                        </div>
-                                                    </div>
-                                                    <div class="form-group row mt-3">
-                                                        <div class="col-6">
-                                                            <label for="txn_amount">Total Weight of Box</label>
-                                                        </div>
-                                                    </div>
-                                                    <div class="form-group row mt-4">
-                                                        <div class="col-3">
-                                                            <label for="parcel_weight" class="control-label col-md-12">Weight <small>(kg)</small> <span class='text-danger text-xs'>*</span></label>
-                                                            <input type="number" class="form-control" name="parcel_weight" placeholder="Parcel Weight" id="parcel_weight" value="" step=".01">
-                                                        </div>
-                                                        <div class="col-3">
-                                                            <label for="parcel_height" class="control-label col-md-12">Height <small>(cms)</small> <span class='text-danger text-xs'>*</span></label>
-                                                            <input type="number" class="form-control" name="parcel_height" placeholder="Parcel Height" id="parcel_height" value="" min="1">
-                                                        </div>
-                                                        <div class="col-3">
-                                                            <label for="parcel_breadth" class="control-label col-md-12">Breadth <small>(cms)</small> <span class='text-danger text-xs'>*</span></label>
-                                                            <input type="number" class="form-control" name="parcel_breadth" placeholder="Parcel Breadth" id="parcel_breadth" value="" min="1">
-                                                        </div>
-                                                        <div class="col-3">
-                                                            <label for="parcel_length" class="control-label col-md-12">Length <small>(cms)</small> <span class='text-danger text-xs'>*</span></label>
-                                                            <input type="number" class="form-control" name="parcel_length" placeholder="Parcel Length" id="parcel_length" value="" min="1">
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div class="modal-footer">
-                                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-                                                    <button type="submit" class="btn btn-success create_shiprocket_parcel">Create Order</button>
-                                                </div>
-
-                                                <div class="d-flex justify-content-center">
-                                                    <div class="form-group" id="error_box">
-                                                    </div>
-                                                </div>
-                                                <!-- /.card-body -->
-
-                                            </form>
-                                        </div>
-                                        <!--/.card-->
-                                    </div>
-                                    <!--/.col-md-12-->
-                                </div>
-                                <!-- /.row -->
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <?php
+                /* The "Create Shipprocket Order Parcel" modal used to sit here. Sellers no longer
+                   book shipments - see the note at the top of this file - so the modal, its
+                   #shiprocket_order_parcel_form and the parcel weight/dimension fields are gone
+                   along with the button that opened it. The admin panel keeps all of it. */
+                ?>
                 <div class="col-md-12">
-                    <div class="card card-info">
+                    <div class="card attribute-card">
+                        <div class="card-header attribute-card-header">
+                            <span class="header-icon bg-set"><i class="fas fa-receipt"></i></span>
+                            <h5 class="mb-0">Order Summary</h5>
+                        </div>
                         <div class="card-body">
-                            <table class="table">
+                            <table class="table order-detail-table">
                                 <?php
                                 $mobile_data = fetch_details('addresses', ['id' => $order_detls[0]['address_id']], 'mobile');
                                 ?>
@@ -299,20 +242,30 @@
                                                     <lable class="badge badge-warning mt-2" style="font-size:13px;">Note : Select square box of item only when you want to cancel it. Returns are handled through the customer's return request and the courier pickup.</lable>
                                                 </p>
                                             <?php } else { ?>
+                                                <?php
+                                                /*
+                                                 * "Shipped" is no longer gated on the assign_delivery_boy permission.
+                                                 *
+                                                 * That gate existed because marking an order shipped used to mean handing
+                                                 * it to a delivery boy. Here the courier is Shiprocket, so a seller with
+                                                 * that permission off could not reach "Shipped" at all and had to jump
+                                                 * straight from Processed to Delivered - which silently skips the "your
+                                                 * order has shipped" notification to the customer. The endpoint agrees:
+                                                 * its own "pick a delivery boy before shipping" rule already lifts itself
+                                                 * when the store does not run its own delivery staff.
+                                                 */
+                                                ?>
                                                 <div class="row">
                                                     <div class="col-md-12 mb-2">
-                                                        <lable class="badge badge-success">Select status <?= get_seller_permission($seller_id, 'assign_delivery_boy') ? 'and delivery boy' : '' ?> which you want to update</lable>
+                                                        <lable class="badge badge-success">Select the status you want to update</lable>
                                                     </div>
 
-                                                    <div class="col-md-3">
+                                                    <div class="col-md-4">
                                                         <select name="status" class="form-control status">
                                                             <option value=''>Select Status</option>
                                                             <option value="received">Received</option>
                                                             <option value="processed">Processed</option>
-                                                            <?php if (get_seller_permission($seller_id, 'assign_delivery_boy')) {
-                                                            ?>
-                                                                <option value="shipped">Shipped</option>
-                                                            <?php } ?>
+                                                            <option value="shipped">Shipped</option>
                                                             <?php if (get_seller_permission($seller_id, 'view_order_otp') == true) { ?>
                                                                 <option value="delivered">Delivered</option>
                                                             <?php } ?>
@@ -323,35 +276,22 @@
                                                                  result in the item's status badge. -->
                                                         </select>
                                                     </div>
-                                                    <?php if (get_seller_permission($seller_id, 'assign_delivery_boy')) {
-                                                    ?>
-                                                        <div class="col-md-3">
-                                                            <select id='deliver_by' name='deliver_by' class='form-control'>
-                                                                <option value=''>Select Delivery Boy</option>
-                                                                <?php foreach ($delivery_res as $row) { ?>
-                                                                    <option value="<?= $row['user_id'] ?>"><?= $row['username'] ?></option>
-                                                                <?php  } ?>
-                                                            </select>
-                                                        </div>
-                                                    <?php } ?>
-                                                    <div class="col-md-6">
-                                                        <a href="javascript:void(0)" class="edit_order_tracking btn btn-success btn-xl col-md-1" title="Order Tracking" data-order_id=' <?= $order_detls[0]['id']; ?>' data-seller_id="<?= $items[0]['seller_id'] ?>" data-target="#transaction_modal" data-toggle="modal" style="height:35px;width:38px;"><i class="fa fa-map-marker-alt"></i></a>
-                                                        <a href="javascript:void(0);" title="Bulk Update" data-seller_id="<?= $items[0]['seller_id'] ?>" class="btn btn-primary col-md-3 ml-1 update_status_admin_bulk">
+                                                    <div class="col-md-8">
+                                                        <a href="javascript:void(0)" class="edit_order_tracking btn btn-success btn-xl" title="Order Tracking" data-order_id=' <?= $order_detls[0]['id']; ?>' data-seller_id="<?= $items[0]['seller_id'] ?>" data-target="#transaction_modal" data-toggle="modal" style="height:35px;width:38px;"><i class="fa fa-map-marker-alt"></i></a>
+                                                        <a href="javascript:void(0);" title="Bulk Update" data-seller_id="<?= $items[0]['seller_id'] ?>" class="btn btn-primary ml-3 col-md-4 update_status_admin_bulk">
                                                             Update
                                                         </a>
-                                                        <?php if ($shipping_method['shiprocket_shipping_method'] == 1) { ?>
-                                                            <button type="button" disabled class="btn btn-primary ml-1 col-md-6 create_shiprocket_order" data-target="#order_parcel_modal" data-toggle="modal"> Create Shiprocket Order</button>
-                                                        <?php } ?>
                                                     </div>
                                                 </div>
                                                 <p>
                                                     <lable class="badge badge-warning mt-4" style="font-size:13px;">Note : Select square box of item only when you want to cancel it. Returns are handled through the customer's return request and the courier pickup.</lable>
                                                 </p>
-                                                <?php if ($shipping_method['shiprocket_shipping_method'] == 1) { ?>
-                                                    <p>
-                                                        <button type="button" class="btn btn-sm btn-primary" data-toggle="modal" data-target="#ShiprocketOrderFlow">How to manage shiprocket order </button>
-                                                    </p>
-                                                <?php } ?>
+                                                <?php
+                                                /* The "How to manage shiprocket order" walkthrough is not shown here any
+                                                   more: every step in it starts from creating the Shiprocket order, which
+                                                   is not something the seller does. The modal markup is left in place at
+                                                   the bottom of this file so the guide can be re-linked if that changes. */
+                                                ?>
 
                                                 <?php
                                                 if (get_seller_permission($seller_id, 'view_order_otp') == true) {
@@ -434,15 +374,11 @@
                                             ?>
                                                 <?php if ($shipping_method['shiprocket_shipping_method'] == 1 && isset($pickup_location[$j]) && !empty($pickup_location[$j]) && $pickup_location[$j] != 'NULL') { ?>
                                                     <div class="row">
-                                                        <div class="col-sm-0 ml-4 m-2 text-left mt-3">
-                                                            <?php // $item belongs to the item loop further down this page and is not in
-                                                            // scope yet - undefined on the first pickup location, and a stale leftover
-                                                            // from the previous one after that. The order's product type is what is
-                                                            // actually meant here.
-                                                            if (isset($items[0]['product_type']) && $items[0]['product_type'] != 'digital_product' && empty($order_tracking_data[0]['shipment_id'])) { ?>
-                                                                <input type="radio" name="pickup_location" class="check_create_order" data-id="<?= $this->session->userdata('user_id') ?>" id="<?php print_r($pickup_location[$j]); ?>" />
-                                                            <?php } ?>
-                                                        </div>
+                                                        <?php
+                                                        /* The pickup-location radio button that used to sit here existed only to
+                                                           choose which parcel to book with Shiprocket. Sellers no longer book
+                                                           shipments, so the location is shown as plain text. */
+                                                        ?>
                                                         <div class="col-md-6 m-2 text-left mt-3">
                                                             <strong>
 
@@ -507,7 +443,7 @@
 
                                                 $total = 0;
                                                 $tax_amount = 0;
-                                                echo '<div class="container-fluid row">';
+                                                echo '<div class="order-item-grid">';
                                                 foreach ($items as $item) {
 
                                                     $selected = "";
@@ -516,18 +452,49 @@
                                                     $tax_amount += $item['tax_amount'];
                                                     $total += $subtotal = $tax_amount;
                                                     // $total += $subtotal;
-                                                    if ($pickup_location[$j] == $item['pickup_location']) {
+
+                                                    /*
+                                                     * Compare on the RESOLVED pickup location, not the raw column.
+                                                     *
+                                                     * $pickup_location is built from $seller_order AFTER the loop above
+                                                     * rewrites each row to its resolved address, but $items is a separate
+                                                     * array from the controller that still carries the raw
+                                                     * products.pickup_location - blank on 278 of the 290 products here. So
+                                                     * the two sides could never match and this whole loop rendered nothing:
+                                                     * the seller saw an EMPTY item grid on every order, with no way to see
+                                                     * what they had sold or to tick an item for cancellation. Verified
+                                                     * against the admin copy of this page, which does not rewrite its list
+                                                     * and renders all three cards for the same order.
+                                                     *
+                                                     * The raw comparison is kept as an alternative rather than replaced, so
+                                                     * an item whose column already names the right address still matches even
+                                                     * if resolution comes back empty (Shiprocket off, no pickup rows).
+                                                     */
+                                                    $item_pickup = resolve_seller_pickup_location(
+                                                        isset($item['pickup_location']) ? $item['pickup_location'] : '',
+                                                        isset($item['seller_id']) ? $item['seller_id'] : $seller_id
+                                                    );
+                                                    $item_pickup_name = isset($item_pickup['pickup_location']) ? $item_pickup['pickup_location'] : '';
+                                                    if ($pickup_location[$j] == $item_pickup_name || $pickup_location[$j] == $item['pickup_location']) {
                                                 ?>
-                                                        <div class="  card col-md-3 col-sm-12 p-3 mb-2 bg-white rounded m-1 grow">
-                                                            <div class="mb-2">
+                                                        <?php
+                                                        $badges = ["awaiting" => "secondary", "received" => "primary", "processed" => "info", "shipped" => "warning", "delivered" => "success", "returned" => "danger", "cancelled" => "danger", "return_request_approved" => "success", "return_request_decline" => "danger", "return_request_pending" => "warning"];
+                                                        $item_badge = isset($badges[$item['active_status']]) ? $badges[$item['active_status']] : 'secondary';
+                                                        ?>
+                                                        <div class="order-item-card">
+                                                            <div class="order-item-card-top">
                                                                 <?php // $sellers/$i exist only in the admin copy of this page, where the
                                                                 // outer loop walks every seller on the order. In the seller panel there
                                                                 // is exactly one seller - the logged-in one. ?>
-                                                                <input type="checkbox" id="<?= $seller_id ?>" name="order_item_id" value=' <?= $item['id'] ?> '>
+                                                                <label class="order-item-select" title="Select to mark as cancelled">
+                                                                    <input type="checkbox" id="<?= $seller_id ?>" name="order_item_id" value=' <?= $item['id'] ?> '>
+                                                                </label>
+                                                                <span class="badge badge-<?= $item_badge ?>"><?= str_replace('_', ' ', $item['active_status']) ?></span>
                                                             </div>
-                                                            <div class="order-product-image">
-                                                                <a href='<?= base_url() . $item['product_image'] ?>' data-toggle='lightbox' data-gallery='order-images'> <img src='<?= base_url() . $item['product_image'] ?>' class='h-75'></a>
+                                                            <div class="order-item-media">
+                                                                <a href='<?= base_url() . $item['product_image'] ?>' data-toggle='lightbox' data-gallery='order-images'> <img src='<?= base_url() . $item['product_image'] ?>'></a>
                                                             </div>
+                                                            <div class="order-item-name"><?= $item['pname'] ?></div>
 
                                                             <!-- <?php if (isset($item['product_type']) && $item['product_type'] != 'digital_product') {
                                                                         if (get_seller_permission($seller_id, 'view_order_otp') == true) {
@@ -538,56 +505,52 @@
                                                     <?php }
                                                                         }
                                                                     } ?> -->
-                                                            <div><span class="text-bold">Product Type : </span><small><?= ucwords(str_replace('_', ' ', $item['product_type'])); ?> </small></div>
-                                                            <div><span class="text-bold">Variant ID : </span><?= $item['product_variant_id'] ?> </div>
-                                                            <?php if (isset($item['product_variants']) && !empty($item['product_variants'])) { ?>
-                                                                <div><span class="text-bold">Variants : </span><?= str_replace(',', ' | ', $item['product_variants'][0]['variant_values']) ?> </div>
-                                                            <?php } ?>
-                                                            <div><span class="text-bold">Name : </span><small><?= $item['pname'] ?> </small></div>
-                                                            <div><span class="text-bold">Quantity : </span><?= $item['quantity'] ?> </div>
-                                                            <div><span class="text-bold">Price : </span><?= $item['price'] + $item['tax_amount'] ?></div>
-                                                            <div><span class="text-bold">Discounted Price : </span> <?= $item['discounted_price'] ?> </div>
-                                                            <div><span class="text-bold">Subtotal : </span><?= $item['price'] * $item['quantity'] ?> </div>
-                                                            <?php
-                                                            $badges = ["awaiting" => "secondary", "received" => "primary", "processed" => "info", "shipped" => "warning", "delivered" => "success", "returned" => "danger", "cancelled" => "danger", "return_request_approved" => "danger", "return_request_decline" => "danger", "return_request_pending" => "danger"]
-                                                            ?>
-                                                            <?php if (isset($item['updated_by'])) { ?>
-                                                                <div><span class="text-bold">Updated By : </span><?= $item['updated_by'] ?> </div>
-                                                            <?php } ?>
-                                                            <?php if (isset($item['deliver_by'])) { ?>
-                                                                <div><span class="text-bold">Deliver By : </span><?= $item['deliver_by'] ?> </div>
-                                                            <?php } ?>
-                                                            <div><span class="text-bold">Active Status : </span> <span class="badge badge-<?= $badges[$item['active_status']] ?>"> <small><?= str_replace('_', ' ', $item['active_status']) ?></small></span></div>
-                                                            <div><span class="text-bold">View Product : </span> <a href=" <?= BASE_URL('seller/product/view-product?edit_id=' . $item['product_id'] . '') ?> " title="View Product" class="btn btn-primary btn-xs">
-                                                                    <i class="fa fa-eye"></i>
-                                                                </a></div>
+                                                            <div class="order-item-meta">
+                                                                <div class="oi-row"><span class="oi-label">Type</span><span class="oi-value"><?= ucwords(str_replace('_', ' ', $item['product_type'])); ?></span></div>
+                                                                <div class="oi-row"><span class="oi-label">Variant ID</span><span class="oi-value"><?= $item['product_variant_id'] ?></span></div>
+                                                                <?php if (isset($item['product_variants']) && !empty($item['product_variants'])) { ?>
+                                                                    <div class="oi-row"><span class="oi-label">Variants</span><span class="oi-value"><?= str_replace(',', ' | ', $item['product_variants'][0]['variant_values']) ?></span></div>
+                                                                <?php } ?>
+                                                                <div class="oi-row"><span class="oi-label">Quantity</span><span class="oi-value"><?= $item['quantity'] ?></span></div>
+                                                                <div class="oi-row"><span class="oi-label">Price</span><span class="oi-value"><?= $item['price'] + $item['tax_amount'] ?></span></div>
+                                                                <div class="oi-row"><span class="oi-label">Discounted Price</span><span class="oi-value"><?= $item['discounted_price'] ?></span></div>
+                                                                <div class="oi-row"><span class="oi-label">Subtotal</span><span class="oi-value"><?= $item['price'] * $item['quantity'] ?></span></div>
+                                                                <?php if (isset($item['product_type']) && $item['product_type'] != 'digital_product') { ?>
+                                                                    <div class="oi-row"><span class="oi-label">Pickup Location</span><span class="oi-value"><?= $item['pickup_location'] ?></span></div>
+                                                                    <?php if (!empty($order_tracking_data[0]['shipment_id'])) { ?>
+                                                                        <div class="oi-row"><span class="oi-label">Shipment Id</span><span class="oi-value"><?= $order_tracking_data[0]['shipment_id'] ?></span></div>
+                                                                <?php  }
+                                                                } ?>
+                                                                <?php if (isset($item['updated_by']) && !empty($item['updated_by'])) { ?>
+                                                                    <div class="oi-row"><span class="oi-label">Updated By</span><span class="oi-value"><?= $item['updated_by'] ?></span></div>
+                                                                <?php } ?>
+                                                                <?php if (isset($item['deliver_by']) && !empty($item['deliver_by'])) { ?>
+                                                                    <div class="oi-row"><span class="oi-label">Deliver By</span><span class="oi-value"><?= $item['deliver_by'] ?></span></div>
+                                                                <?php } ?>
+                                                            </div>
 
                                                             <?php if ($item['product_type'] == "digital_product" && $item['download_allowed'] == 0 && $item['is_sent'] == 0) { ?>
-                                                                <div class="row mb-1 mt-1 order_item_mail_status">
-
-                                                                    <div class="col-md-7 text-center">
-                                                                        <select class="form-control-sm w-100">
-                                                                            <option value="1">Mail Sent</option>
-                                                                        </select>
-                                                                    </div>
-                                                                    <div class="col-md-1 mr-1 d-flex align-items-center">
-                                                                        <a href="javascript:void(0);" title="Update status" data-id=' <?= $item['id'] ?> ' class="btn btn-primary btn-xs action-btn ml-1 update_mail_status_admin mr-1">
-                                                                            <i class="far fa-arrow-alt-circle-up"></i>
-                                                                        </a>
-                                                                    </div>
-                                                                    <div class="col-md-1 d-flex ml-1 align-items-center">
-                                                                        <a href="javascript:void(0)" class=" btn action-btn btn-warning btn-xs" data-target="#sendMailModal" data-toggle="modal" title="Edit" data-id="<?= $item['id'] ?>" data-url="seller/orders/">
-                                                                            <i class="fas fa-paper-plane"></i>
-                                                                        </a>
-                                                                    </div>
-                                                                    <div class="col-md-1 d-flex ml-1 align-items-center">
-                                                                        <a href="https://mail.google.com/mail/?view=cm&fs=1&tf=1&to=<?= $item['user_email'] ?>" class="btn action-btn btn-danger btn-xs" target="_blank">
-                                                                            <i class="fab fa-google"></i>
-                                                                        </a>
-                                                                    </div>
+                                                                <div class="order-item-mail-status order_item_mail_status">
+                                                                    <select class="form-control form-control-sm">
+                                                                        <option value="1">Mail Sent</option>
+                                                                    </select>
+                                                                    <a href="javascript:void(0);" title="Update status" data-id=' <?= $item['id'] ?> ' class="btn btn-primary btn-xs action-btn update_mail_status_admin">
+                                                                        <i class="far fa-arrow-alt-circle-up"></i>
+                                                                    </a>
+                                                                    <a href="javascript:void(0)" class="btn btn-warning btn-xs action-btn" data-target="#sendMailModal" data-toggle="modal" title="Edit" data-id="<?= $item['id'] ?>" data-url="seller/orders/">
+                                                                        <i class="fas fa-paper-plane"></i>
+                                                                    </a>
+                                                                    <a href="https://mail.google.com/mail/?view=cm&fs=1&tf=1&to=<?= $item['user_email'] ?>" class="btn btn-danger btn-xs action-btn" target="_blank">
+                                                                        <i class="fab fa-google"></i>
+                                                                    </a>
                                                                 </div>
                                                             <?php } ?>
 
+                                                            <div class="order-item-actions">
+                                                                <a href=" <?= BASE_URL('seller/product/view-product?edit_id=' . $item['product_id'] . '') ?> " title="View Product" class="btn btn-primary btn-xs">
+                                                                    <i class="fa fa-eye"></i> View Product
+                                                                </a>
+                                                            </div>
                                                         </div>
                                             <?php
                                                     }
@@ -689,36 +652,12 @@
     </section>
     <!-- /.content -->
 </div>
-<div class="modal fade" id="ShiprocketOrderFlow" tabindex="-1" role="dialog" aria-labelledby="myLargeModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg" role="document">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="myModalLabel">How to manage shiprocket order</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <div class="modal-body ">
-                <h6><b>Steps:</b></h6>
-                <ol>
-                    <li> Select Pickup Location for which you want to create parcel and click on <b>Create Shiprocket Order</b> button.</li>
-                    <img src="<?= BASE_URL("assets/admin/images/create_order.png") ?>" class="img-fluid" alt="Responsive image"><br><br>
-                    <li> After create order generate AWB code(its unique number use for identify order) like this.</li>
-                    <img src="<?= BASE_URL("assets/admin/images/generate_awb.png") ?>" class="img-fluid" alt="Responsive image"><br><br>
-                    <li> After generate AWB Send pickup request for scheduled you shipping.</li>
-                    <img src="<?= BASE_URL("assets/admin/images/send_pickup_request.png") ?>" class="img-fluid" alt="Responsive image"><br><br>
-                    <li> Generate and download Label.</li>
-                    <img src="<?= BASE_URL("assets/admin/images/generate_label.png") ?>" class="img-fluid" alt="Responsive image"><br><br>
-                    <img src="<?= BASE_URL("assets/admin/images/download_label.png") ?>" class="img-fluid" alt="Responsive image"><br><br>
-                    <li> Generate and download Invoice.</li>
-                    <img src="<?= BASE_URL("assets/admin/images/generate_invoice.png") ?>" class="img-fluid" alt="Responsive image"><br><br>
-                    <img src="<?= BASE_URL("assets/admin/images/download_invoice.png") ?>" class="img-fluid" alt="Responsive image"><br><br>
-                    <li> Cancel shiprocket order.</li>
-                    <img src="<?= BASE_URL("assets/admin/images/cancel_order.png") ?>" class="img-fluid" alt="Responsive image"><br><br>
-                    <li> shiprocket order traking.</li>
-                    <img src="<?= BASE_URL("assets/admin/images/order_tracking.png") ?>" class="img-fluid" alt="Responsive image"><br><br>
-                </ol>
-            </div>
-        </div>
-    </div>
-</div>
+<?php $this->load->view('shared/view-order-styles'); ?>
+<?php
+/* The "How to manage shiprocket order" walkthrough modal used to sit here.
+
+   Every step in it starts from clicking "Create Shiprocket Order", which sellers no longer
+   do - so with the button gone the guide was both unreachable (nothing opened it) and wrong
+   (it described a control that is not on the page). The admin copy of this page still has
+   the guide, and that is where booking now happens. */
+?>
