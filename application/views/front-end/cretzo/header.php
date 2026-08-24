@@ -10,6 +10,13 @@ if (!empty($cookie_lang)) {
     $language_index = array_search($cookie_lang, array_column($language, "language"));
 }
 $auth_settings = get_settings('authentication_settings', true);
+
+/* The bell in both the desktop and the mobile header was a static image with a hardcoded "0":
+ * not a link, no count, and no way for a customer to reach my-account/notifications at all.
+ * Computed once here so both bells read the same number. */
+$notif_unread = $this->ion_auth->logged_in()
+    ? user_unread_notification_count($this->session->userdata('user_id'))
+    : 0;
 ?>
 <?php $current_url = current_url(); ?>
 <input type="hidden" id="currency" class="form-control" value="<?= $settings['currency'] ?>">
@@ -200,10 +207,17 @@ $auth_settings = get_settings('authentication_settings', true);
                 <p id="cart-count" class="icon-num"><?= ($cartCount != "0" && $cartCount != "" ? $cartCount : '0'); ?></p>
             </li>
 
+            <?php /* Opens the notifications page, or the login modal when signed out - matching
+                     how the wishlist and cart icons already behave. */ ?>
             <li class="icon">
-                <!-- <img class="icon-img" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/bell-icon.png') ?>"> -->
-                <img class="icon-img" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/bell.png') ?>">
-                <p class="icon-num">0</p>
+                <?php if ($this->ion_auth->logged_in()) { ?>
+                    <a href="<?= base_url('my-account/notifications') ?>" aria-label="Notifications">
+                <?php } else { ?>
+                    <a href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#modal-signin" aria-label="Notifications">
+                <?php } ?>
+                    <img class="icon-img" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/bell.png') ?>">
+                </a>
+                <p class="icon-num js-notif-count"><?= $notif_unread > 99 ? '99+' : $notif_unread ?></p>
             </li>
         </ul>
     </section>
@@ -327,9 +341,14 @@ $auth_settings = get_settings('authentication_settings', true);
 
 
                 <li class="icon">
-                    <!-- <img class="icon-img-m" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/bell-icon.png') ?>"> -->
-                    <img class="icon-img-m" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/bell.png') ?>">
-                    <p class="icon-num-m">0</p>
+                    <?php if ($this->ion_auth->logged_in()) { ?>
+                        <a href="<?= base_url('my-account/notifications') ?>" aria-label="Notifications">
+                    <?php } else { ?>
+                        <a href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#modal-signin" aria-label="Notifications">
+                    <?php } ?>
+                        <img class="icon-img-m" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/bell.png') ?>">
+                    </a>
+                    <p class="icon-num-m js-notif-count"><?= $notif_unread > 99 ? '99+' : $notif_unread ?></p>
                 </li>
 
                 <!-- <li class="icon" onclick="openSideMenuFn()">

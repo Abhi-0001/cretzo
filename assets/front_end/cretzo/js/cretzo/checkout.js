@@ -475,6 +475,17 @@ function place_order() {
     })
 }
 
+/*
+ * The success page has to know WHICH order it is confirming: Cash on Delivery, a wallet
+ * payment and a Razorpay payment all land here, and the page's wording differs (a COD order
+ * has not been paid for yet). Payment::success() falls back to the user's newest order when no
+ * id is passed, but passing it is exact.
+ */
+function payment_success_url(result) {
+    var order_id = (result && result.data && result.data.order_id) ? result.data.order_id : '';
+    return base_url + 'payment/success' + (order_id ? '?order_id=' + encodeURIComponent(order_id) : '');
+}
+
 function razorpay_setup(key, amount, app_name, logo, razorpay_order_id, username, user_email, user_contact) {
     var options = {
         "key": key, // Enter the Key ID generated from the Dashboard
@@ -490,7 +501,7 @@ function razorpay_setup(key, amount, app_name, logo, razorpay_order_id, username
             place_order().done(function (result) {
                 if (result.error == false) {
                     setTimeout(function () {
-                        location.href = base_url + 'payment/success';
+                        location.href = payment_success_url(result);
                     }, 3000);
                 }
             });
@@ -620,7 +631,7 @@ function setupClickEvents(){
             place_order().done(function (result) {
                 if (result.error == false) {
                     setTimeout(function () {
-                        location.href = base_url + 'payment/success';
+                        location.href = payment_success_url(result);
                     }, 3000);
                 } else {
                     Toast.fire({
@@ -634,7 +645,7 @@ function setupClickEvents(){
 
             place_order().done(function (result) {
                 if (result.error == false) {
-                    location.href = base_url + 'payment/success';
+                    location.href = payment_success_url(result);
                     // window.location.reload();
                 } else {
                     Toast.fire({

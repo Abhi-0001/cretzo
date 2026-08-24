@@ -1101,9 +1101,17 @@ function ticket_queryParams(p) {
         sort: p.sort,
         order: p.order,
         offset: p.offset,
-        search: p.search
+        search: p.search,
+        // Customer vs seller tickets, and status - both filtered server-side so the
+        // pagination total stays correct.
+        raised_by: $('#ticket_raised_by_filter').val() || '',
+        status: $('#ticket_status_filter').val() || ''
     };
 }
+
+$(document).on('change', '#ticket_raised_by_filter, #ticket_status_filter', function () {
+    $('#ticket_table').bootstrapTable('refresh');
+});
 
 function customer_wallet_query_params(p) {
     return {
@@ -5743,8 +5751,14 @@ $(document).on('click', '.view_ticket', function (e, row) {
     var subject = $(this).data("subject");
     var status = $(this).data("status");
     var ticket_type = $(this).data("ticket_type");
+    var raised_by = $(this).data("raised_by");
     $('input[name="ticket_id"]').val(ticket_id);
-    $('#user_name').html(username);
+    // Tickets from sellers and from customers land in the same list and the same modal; the
+    // reply is worded very differently for the two, so say which one this is.
+    var raiser_badge = (raised_by == 'seller')
+        ? ' <span class="badge badge-light text-dark ml-2">SELLER</span>'
+        : ' <span class="badge badge-light text-dark ml-2">CUSTOMER</span>';
+    $('#user_name').html(username + raiser_badge);
     $('#date_created').html(date_created);
     $('#subject').html(subject);
     $('.change_ticket_status').data('ticket_id', ticket_id);
@@ -7388,11 +7402,24 @@ $(document).on('click', '#notification_count', function (e, rows) {
                 $.each(result.notifications, function (i, a) {
                     beep = (a.read_by && a.read_by == 0) ? '<span><i class="fa fa-certificate ml-3 orange text-sm"></i></span>' : "";
                     seconds_ago = a.date_sent;
+                    // Everything that was not a verification request fell through to the ORDER
+                    // edit page - so a ticket notification opened admin/orders/edit_orders with a
+                    // ticket id as edit_id, and a "new seller registered" notification did the
+                    // same. Route by type instead.
                     var noti_url;
-                    if (a.type === 'seller_verification_request' || a.type === 'verification_request') {
-                        noti_url = base_url + 'admin/sellers/manage-seller' + '?edit_id=' + a.type_id + '&noti_id=' + a.id;
+                    var noti_suffix = '&noti_id=' + a.id;
+                    if (a.type === 'seller_verification_request' || a.type === 'verification_request' || a.type === 'seller_registered') {
+                        noti_url = base_url + 'admin/sellers/manage-seller?edit_id=' + a.type_id + noti_suffix;
+                    } else if (a.type === 'ticket_message' || a.type === 'ticket_status' || a.type === 'ticket_created') {
+                        noti_url = base_url + 'admin/tickets?noti_id=' + a.id;
+                    } else if (a.type === 'withdrawal_request' || a.type === 'payment_request') {
+                        noti_url = base_url + 'admin/payment-request/withdrawal-requests?noti_id=' + a.id;
+                    } else if (a.type === 'place_order' || (a.type && a.type.indexOf('order') !== -1)) {
+                        noti_url = base_url + 'admin/orders/edit_orders?edit_id=' + a.type_id + noti_suffix;
                     } else {
-                        noti_url = base_url + 'admin/orders/edit_orders' + '?edit_id=' + a.type_id + '&noti_id=' + a.id;
+                        // Unknown type: the notification log is a real page and is never wrong,
+                        // whereas guessing the order editor produces a broken deep link.
+                        noti_url = base_url + 'admin/Notification_settings/manage_system_notifications?noti_id=' + a.id;
                     }
                 
                     html += '  <a href="' + noti_url + '" class="dropdown-item">\

@@ -1816,7 +1816,7 @@ function send_notification($fcmMsg, $registrationIDs_chunks)
  * events produced no trace anywhere the customer could see. This writes the same `notifications`
  * row shape the admin "Send Notification" screen produces, scoped to a single user.
  */
-function add_user_notification($user_id, $title, $message, $type = 'default', $link = '')
+function add_user_notification($user_id, $title, $message, $type = 'default', $link = '', $type_id = '')
 {
     $t = &get_instance();
     $user_id = (int) $user_id;
@@ -1832,7 +1832,10 @@ function add_user_notification($user_id, $title, $message, $type = 'default', $l
         // were truncated mid-word on insert so nothing downstream could match on them.
         // Migration 047 widens the column to 64; keep the guard in step with it.
         'type'     => mb_substr((string) $type, 0, 64),
-        'type_id'  => '',
+        // Was hardcoded to '', so the row recorded WHAT happened but not to which ticket or
+        // order - which made every notification a dead end: the recipient's list could not
+        // build a link back to the thing the notification was about.
+        'type_id'  => mb_substr((string) $type_id, 0, 128),
         'send_to'  => 'specific_user',
         // Stored in the same shape the admin screen uses (json array of id strings) so
         // Notification_model's per-user filter matches both.
@@ -1852,6 +1855,26 @@ function add_user_notification($user_id, $title, $message, $type = 'default', $l
  * default) that is an "Undefined array key 0" warning printed straight into the JSON response
  * body, corrupting it for the caller.
  */
+/**
+ * Unread notification count for a user, for the storefront and seller-panel bells.
+ *
+ * Lives in a helper rather than being called straight from the view: inside a CI view `$this`
+ * is the CI_Loader, and `$this->load->model(...)` followed by `$this->notification_model->...`
+ * in the same view resolves through CI_Loader::__get() and comes back null ("Call to a member
+ * function count_user_unread() on null", which 500s the whole page). get_instance() from a
+ * helper has no such ambiguity.
+ */
+function user_unread_notification_count($user_id)
+{
+    $user_id = (int) $user_id;
+    if ($user_id < 1) {
+        return 0;
+    }
+    $t = &get_instance();
+    $t->load->model('notification_model');
+    return (int) $t->notification_model->count_user_unread($user_id);
+}
+
 function get_custom_notification_template($type, $default_title, $default_message)
 {
     $settings = get_settings('system_settings', true);
@@ -1909,6 +1932,17 @@ function notify_ticket_event($ticket_id, $event, $actor)
     $status_label = isset($status_map[(string) $ticket['status']]) ? $status_map[(string) $ticket['status']] : 'Updated';
     $subject      = (string) $ticket['subject'];
 
+    // Sellers raise tickets from their own panel (seller/Support) and customers from
+    // my-account, but both are rows in the same table with the same owner column - only
+    // tickets.raised_by separates them. It decides two things below: which panel URL the
+    // notification links to (a seller cannot use the customer my-account page, and vice
+    // versa) and whether the admin-facing wording says "customer" or "seller".
+    $is_seller_ticket = (isset($ticket['raised_by']) && $ticket['raised_by'] === 'seller');
+    $raiser_word      = $is_seller_ticket ? 'seller' : 'customer';
+    $ticket_url       = $is_seller_ticket
+        ? base_url('seller/support?ticket_id=' . $ticket_id)
+        : base_url('my-account/support?ticket_id=' . $ticket_id);
+
     if ($actor === 'admin') {
         /* ---------------- notify the customer ---------------- */
         $owner_id = (int) $ticket['user_id'];
@@ -1930,7 +1964,7 @@ function notify_ticket_event($ticket_id, $event, $actor)
             );
         }
 
-        add_user_notification($owner_id, $tpl['title'], $tpl['message'], $event === 'status' ? 'ticket_status' : 'ticket_message');
+        add_user_notification($owner_id, $tpl['title'], $tpl['message'], $event === 'status' ? 'ticket_status' : 'ticket_message', $ticket_url, $ticket_id);
 
         $owner = fetch_details('users', ['id' => $owner_id], 'fcm_id,email,username', 1);
         if (!empty($owner)) {
@@ -1953,7 +1987,7 @@ function notify_ticket_event($ticket_id, $event, $actor)
                     . '<p><strong>Ticket #' . $ticket_id . '</strong> &mdash; ' . html_escape($subject) . '<br>'
                     . 'Status: ' . html_escape($status_label) . '</p>'
                     . '<p>You can view the full conversation here: '
-                    . '<a href="' . base_url('my-account/support?ticket_id=' . $ticket_id) . '">View ticket</a></p>'
+                    . '<a href="' . $ticket_url . '">View ticket</a></p>'
                     . '<p>&mdash; ' . html_escape($app_name) . '</p>';
                 send_mail($to, $tpl['title'] . ' - ' . $app_name, $body);
             }
@@ -1964,14 +1998,14 @@ function notify_ticket_event($ticket_id, $event, $actor)
 
     /* ---------------- notify the admins ---------------- */
     if ($event === 'created') {
-        $title = 'New support ticket #' . $ticket_id;
-        $body  = 'A customer raised ticket #' . $ticket_id . ' (' . $subject . ').';
+        $title = 'New ' . $raiser_word . ' ticket #' . $ticket_id;
+        $body  = 'A ' . $raiser_word . ' raised ticket #' . $ticket_id . ' (' . $subject . ').';
     } elseif ($event === 'status') {
         $title = 'Ticket #' . $ticket_id . ' is now ' . $status_label;
-        $body  = 'The customer set ticket #' . $ticket_id . ' (' . $subject . ') to ' . $status_label . '.';
+        $body  = 'The ' . $raiser_word . ' set ticket #' . $ticket_id . ' (' . $subject . ') to ' . $status_label . '.';
     } else {
         $title = 'New ticket message #' . $ticket_id;
-        $body  = 'A customer replied to ticket #' . $ticket_id . ' (' . $subject . ').';
+        $body  = 'A ' . $raiser_word . ' replied to ticket #' . $ticket_id . ' (' . $subject . ').';
     }
 
     // The admin bell reads `system_notification`; ticket activity never wrote there, so a reply
@@ -8330,7 +8364,8 @@ function notify_customer_order_status($order_id, $status, $order_item_ids = null
         $title,
         $message,
         'order_' . $status,
-        base_url('my-account/orders')
+        base_url('my-account/orders'),
+        $order_id
     );
 
     if (!empty($user_res[0]['fcm_id'])) {
@@ -8357,10 +8392,19 @@ function notify_customer_order_status($order_id, $status, $order_item_ids = null
         if (empty($seller)) {
             continue;
         }
+        $seller_body = 'Order status updated to ' . $status . ' for order ID #' . $order_id . '.';
+
+        // The seller half of this was push + email ONLY, and on this deployment both of those
+        // channels are down at the same time (placeholder FCM key, Gmail rejecting the SMTP
+        // password) - so a seller whose order was shipped, delivered or cancelled was told
+        // nothing anywhere. The customer already gets an in-app record above; the seller panel
+        // now has a notification list to read one from, so write it.
+        add_user_notification($seller_id, $title, $seller_body, 'order_' . $status, base_url('seller/orders'), $order_id);
+
         if (!empty($seller[0]['fcm_id'])) {
             send_notification([
                 'title'    => $title,
-                'body'     => 'Order status updated to ' . $status . ' for order ID #' . $order_id . '.',
+                'body'     => $seller_body,
                 'type'     => 'order',
                 'order_id' => $order_id,
             ], [[$seller[0]['fcm_id']]]);

@@ -167,6 +167,24 @@
                 </li>
 
                 <li class="nav-item">
+                    <a href="<?= base_url('seller/notifications') ?>" class="nav-link">
+                        <i class="nav-icon fas fa-bell text-info"></i>
+                        <p>
+                            Notifications
+                        </p>
+                    </a>
+                </li>
+
+                <li class="nav-item">
+                    <a href="<?= base_url('seller/support') ?>" class="nav-link">
+                        <i class="nav-icon fas fa-life-ring text-danger"></i>
+                        <p>
+                            Support Tickets
+                        </p>
+                    </a>
+                </li>
+
+                <li class="nav-item">
                     <a href="<?= base_url('seller/media/') ?>" class="nav-link">
                         <i class="nav-icon fas fa-icons text-success"></i>
                         <p>

@@ -672,8 +672,8 @@
                                     </div>
                                     <div class="col-md-6">
                                         <div class="form-group">
-                                            <label for="payment_completed_message" class="control-checkbox">Payment Completed Succesfully</label>
-                                            <input type="text" name="payment_completed_message" class="form-control" value="<?= html_escape((isset($lang_labels['payment_completed_message']) && !empty($lang_labels['payment_completed_message'])) ? $lang_labels['payment_completed_message'] : 'Payment Completed Succesfully') ?>" />
+                                            <label for="payment_completed_message" class="control-checkbox">Payment Completed Successfully</label>
+                                            <input type="text" name="payment_completed_message" class="form-control" value="<?= html_escape((isset($lang_labels['payment_completed_message']) && !empty($lang_labels['payment_completed_message'])) ? $lang_labels['payment_completed_message'] : 'Payment Completed Successfully') ?>" />
                                         </div>
                                     </div>
                                     <div class="col-md-6">
