@@ -116,13 +116,24 @@
 
     /* ------------------------------------------------------------------ jQuery */
 
-    function installJqueryHooks() {
-        if (!window.jQuery || installJqueryHooks.done) {
-            return !!installJqueryHooks.done;
-        }
-        installJqueryHooks.done = true;
+    // The storefront themes load jquery.min.js TWICE - once in the <head> (before this file)
+    // and again from include-script.php at the bottom of the page. The second load builds a
+    // brand new jQuery object, so a prefilter registered on the first one is gone by the time
+    // page scripts fire their requests: that is how "Mark all as read" on My Account >
+    // Notifications ended up POSTing with no token and getting a 403. So track WHICH jQuery
+    // was hooked rather than just whether one was, and re-hook when it is replaced.
+    var hookedJquery = null;
 
-        var $ = window.jQuery;
+    function installJqueryHooks() {
+        if (!window.jQuery) {
+            return false;
+        }
+        if (hookedJquery === window.jQuery) {
+            return true; // this exact instance already carries our hooks
+        }
+        hookedJquery = window.jQuery;
+
+        var $ = hookedJquery;
 
         $.ajaxPrefilter(function (options) {
             if (!needsToken(options.type) || !isSameOrigin(options.url)) {
@@ -180,11 +191,13 @@
 
     // Not every layout loads jQuery before this file - the seller login page, for one,
     // has a branch with its own <head>. Retry at the usual milestones so the prefilter is
-    // always registered before page scripts start firing requests.
-    if (!installJqueryHooks()) {
-        document.addEventListener('DOMContentLoaded', installJqueryHooks);
-        window.addEventListener('load', installJqueryHooks);
-    }
+    // always registered before page scripts start firing requests. These listeners are
+    // registered unconditionally: a jQuery loaded LATER (see hookedJquery above) needs
+    // hooking too, and this listener was added from the <head>, so it runs before the ready
+    // callbacks of any jQuery that loads further down the page.
+    installJqueryHooks();
+    document.addEventListener('DOMContentLoaded', installJqueryHooks);
+    window.addEventListener('load', installJqueryHooks);
 
     /* ------------------------------------------------------------------ fetch */
 

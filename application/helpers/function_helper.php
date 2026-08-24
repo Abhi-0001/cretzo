@@ -1864,7 +1864,7 @@ function add_user_notification($user_id, $title, $message, $type = 'default', $l
  * function count_user_unread() on null", which 500s the whole page). get_instance() from a
  * helper has no such ambiguity.
  */
-function user_unread_notification_count($user_id)
+function user_unread_notification_count($user_id, $panel = 'customer')
 {
     $user_id = (int) $user_id;
     if ($user_id < 1) {
@@ -1872,7 +1872,9 @@ function user_unread_notification_count($user_id)
     }
     $t = &get_instance();
     $t->load->model('notification_model');
-    return (int) $t->notification_model->count_user_unread($user_id);
+    // $panel keeps the badge in step with the list it belongs to - a seller is also a `members`
+    // user, so an unscoped count adds their buyer broadcasts to the seller navbar bell.
+    return (int) $t->notification_model->count_user_unread($user_id, $panel);
 }
 
 function get_custom_notification_template($type, $default_title, $default_message)

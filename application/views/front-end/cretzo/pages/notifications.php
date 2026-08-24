@@ -139,13 +139,31 @@
             $('.js-notif-count').text(unread > 99 ? '99+' : unread);
         }
 
+        // The failure branches matter: with no .fail() a rejected POST (a 403 from a missing
+        // CSRF token, an expired session) left the button looking dead - nothing changed and
+        // nothing was said. Surface it instead.
+        function notifError(msg) {
+            var box = $('#cs-notif-error');
+            if (!box.length) {
+                box = $('<div class="cs-notif__error" id="cs-notif-error"></div>').prependTo('#cs-notif-list');
+            }
+            box.text(msg).show();
+        }
+
         function markRead(id) {
             $.ajax({ url: readUrl, type: 'POST', dataType: 'json', data: id ? { notification_id: id } : {} })
                 .done(function (res) {
                     if (res && !res.error) {
                         updateBell(res.unread);
                         load();
+                    } else {
+                        notifError(res && res.message ? res.message : 'Could not update the notification.');
                     }
+                })
+                .fail(function (xhr) {
+                    notifError(xhr.status === 403
+                        ? 'Your session expired. Please reload the page and try again.'
+                        : 'Could not update the notification. Please try again.');
                 });
         }
 
@@ -209,6 +227,16 @@
         cursor: pointer;
     }
     .cs-notif__primary:hover { background: var(--color-orange-dark); }
+
+    .cs-notif__error {
+        border: 1px solid rgba(220, 53, 69, .35);
+        background: rgba(220, 53, 69, .07);
+        color: #b02a37;
+        border-radius: 10px;
+        padding: 10px 14px;
+        margin-bottom: 10px;
+        font-size: 14px;
+    }
 
     .cs-notif__item {
         display: flex;

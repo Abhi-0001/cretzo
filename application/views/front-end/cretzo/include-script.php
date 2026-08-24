@@ -1,7 +1,10 @@
 <!-- plugins -->
 <script src="<?= add_ver(THEME_ASSETS_URL . 'js/plugins.js') ?>"></script>
-<!-- Jquery min -->
-<script src="<?= add_ver(THEME_ASSETS_URL . 'js/jquery.min.js') ?>"></script>
+<?php // jQuery is already loaded from include-css.php in the <head>, immediately before
+      // assets/csrf-guard.js hooks it. Loading it a SECOND time here replaced window.jQuery
+      // with a fresh object that carried no CSRF prefilter, so every jQuery POST fired by a
+      // page script (e.g. My Account > Notifications "Mark all as read") was rejected with a
+      // 403 "The action you have requested is not allowed". Do not re-add it. ?>
 <!-- theme -->
 <script src="<?= add_ver(THEME_ASSETS_URL . 'js/theme.js') ?>"></script>
 <script src="<?= add_ver(THEME_ASSETS_URL . 'js/theme.min.js') ?>"></script>
