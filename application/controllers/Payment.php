@@ -570,16 +570,128 @@
             }
         }
 
+        /**
+         * Resolves which order this success page is about.
+         *
+         * The page used to be a single hardcoded "Payment Complete" panel, so a Cash on
+         * Delivery order - where nothing has been paid yet and the customer pays the courier -
+         * was told its payment had completed. That is not a cosmetic problem: a customer who
+         * reads "Payment Completed Successfully" reasonably believes they owe nothing on
+         * delivery, and refuses to pay the delivery agent.
+         *
+         * `order_id` is honoured when the redirect carries it (checkout.js now does), and is
+         * always re-checked against the logged-in user so the querystring cannot be edited to
+         * read somebody else's order. Every other caller - the other two themes' checkout JS
+         * and the gateway return handlers above, ~20 call sites in total - redirects without
+         * it, so we fall back to this user's most recent order, which is by definition the one
+         * just placed.
+         */
+        private function resolve_success_order()
+        {
+            $user_id = (int) $this->session->userdata('user_id');
+            if ($user_id < 1) {
+                return null;
+            }
+
+            $columns = 'id, payment_method, final_total, total_payable, wallet_balance, date_added';
+            $order_id = (int) $this->input->get('order_id');
+
+            if ($order_id > 0) {
+                $order = $this->db->select($columns)
+                    ->where('id', $order_id)
+                    ->where('user_id', $user_id)
+                    ->get('orders')
+                    ->row_array();
+                if (!empty($order)) {
+                    return $order;
+                }
+                // A mismatched id means a tampered or stale link; fall through to the newest
+                // order rather than showing the wrong order's payment wording.
+            }
+
+            $order = $this->db->select($columns)
+                ->where('user_id', $user_id)
+                ->order_by('id', 'DESC')
+                ->limit(1)
+                ->get('orders')
+                ->row_array();
+
+            return !empty($order) ? $order : null;
+        }
+
+        /**
+         * Payment/status wording for the resolved order, as the views consume it.
+         *
+         * `payment_method` is the authoritative signal: COD and bank_transfer are both
+         * "placed but not paid", wallet and every gateway are "paid". `total_payable` is the
+         * amount still owed after any wallet deduction, which is what a COD customer actually
+         * hands over - final_total would overstate it on a part-wallet COD order.
+         */
+        private function success_wording($order)
+        {
+            $currency = isset($this->data['settings']['currency']) ? $this->data['settings']['currency'] : '';
+            $method   = !empty($order['payment_method']) ? strtolower((string) $order['payment_method']) : '';
+            $payable  = isset($order['total_payable']) ? (float) $order['total_payable'] : 0;
+            $amount   = $currency . number_format($payable, 2);
+
+            if ($method === 'cod') {
+                return [
+                    'is_paid'  => false,
+                    'icon'     => 'uil uil-check-circle',
+                    'heading'  => 'Order Placed Successfully',
+                    'message'  => ($payable > 0)
+                        ? 'Your Cash on Delivery order is confirmed. Please keep ' . $amount . ' ready to pay when it is delivered.'
+                        : 'Your Cash on Delivery order is confirmed.',
+                ];
+            }
+
+            if ($method === 'bank_transfer') {
+                return [
+                    'is_paid'  => false,
+                    'icon'     => 'uil uil-clock',
+                    'heading'  => 'Order Placed Successfully',
+                    'message'  => 'Your order is confirmed. We will start processing it as soon as your bank transfer is verified.',
+                ];
+            }
+
+            $paid = $currency . number_format(isset($order['final_total']) ? (float) $order['final_total'] : 0, 2);
+
+            if ($method === 'wallet') {
+                return [
+                    'is_paid'  => true,
+                    'icon'     => 'uil uil-check-circle',
+                    'heading'  => 'Order Placed Successfully',
+                    'message'  => 'Payment of ' . $paid . ' received from your wallet.',
+                ];
+            }
+
+            // Razorpay / Paypal / Paytm / PhonePe / MyFatoorah - money actually moved.
+            return [
+                'is_paid'  => true,
+                'icon'     => 'uil uil-check-circle',
+                'heading'  => 'Order Placed Successfully',
+                'message'  => 'Payment of ' . $paid . ' completed successfully.',
+            ];
+        }
+
         public function success()
         {
             if (!$this->ion_auth->logged_in()) {
                 redirect(base_url());
             }
 
+            $order = $this->resolve_success_order();
+            // No order at all (a bookmarked URL on a brand-new account) keeps the neutral
+            // "order placed" wording rather than claiming a payment that never happened.
+            $this->data['order'] = $order;
+            $this->data['success_state'] = ($order === null)
+                ? ['is_paid' => false, 'icon' => 'uil uil-check-circle', 'heading' => 'Order Placed Successfully', 'message' => '']
+                : $this->success_wording($order);
+
             $this->data['main_page'] = 'payment-success';
-            $this->data['title'] = 'Payment Success | ' . $this->data['web_settings']['site_title'];
-            $this->data['keywords'] = 'Payment Success, ' . $this->data['web_settings']['meta_keywords'];
-            $this->data['description'] = 'Payment Success | ' . $this->data['web_settings']['meta_description'];
+            $this->data['title'] = 'Order Placed | ' . $this->data['web_settings']['site_title'];
+            $this->data['keywords'] = 'Order Placed, ' . $this->data['web_settings']['meta_keywords'];
+            $this->data['description'] = 'Order Placed | ' . $this->data['web_settings']['meta_description'];
             $this->data['meta_description'] = '';
             $this->load->view('front-end/' . THEME . '/template', $this->data);
         }

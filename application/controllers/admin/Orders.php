@@ -1059,35 +1059,72 @@ class Orders extends CI_Controller
                         ["customer" => [$user_res[0]['mobile']]],
                         ["orders.id" => $order_item_res[0]['order_id']]
                     );
+
+                    /*
+                     * In-app record. This whole block reached the customer through push and
+                     * email ONLY, and on this deployment both are down at the same time: push
+                     * needs an FCM server key (still the placeholder "your_fcm_server_key") and
+                     * email needs working SMTP (Gmail rejects the configured password). With
+                     * both unavailable, an admin marking an order processed/shipped/delivered
+                     * told the customer NOTHING, anywhere - there was no in-app record at all,
+                     * so My Account > Notifications could not show it either.
+                     */
+                    add_user_notification(
+                        $user_id,
+                        (!empty($custom_notification)) ? $custom_notification[0]['title'] : 'Order status updated',
+                        $customer_msg,
+                        'order_' . $_POST['status'],
+                        base_url('my-account/orders'),
+                        $order_item_res[0]['order_id']
+                    );
                 }
 
                 $seller_res = fetch_details('users', ['id' => $order_item_res[0]['seller_id']], 'username,fcm_id,mobile,email');
                 $fcm_ids = array();
-                if (!empty($seller_res[0]['fcm_id'])) {
+                if (!empty($seller_res)) {
+                    // The seller message used to be built INSIDE the `if fcm_id` guard below, so
+                    // with no device token registered it was never composed at all - and there
+                    // was no in-app record for the seller either way. Composed here so both the
+                    // notification list and the optional push read the same text.
                     $hashtag_cutomer_name = '< cutomer_name >';
                     $hashtag_order_id = '< order_item_id >';
                     $hashtag_application_name = '< application_name >';
-                    $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
+                    $string = json_encode(isset($custom_notification[0]['message']) ? $custom_notification[0]['message'] : '', JSON_UNESCAPED_UNICODE);
                     $hashtag = html_entity_decode($string);
                     $data = str_replace(array($hashtag_cutomer_name, $hashtag_order_id, $hashtag_application_name), array($seller_res[0]['username'], $order_item_res[0]['id'], $app_name), $hashtag);
                     $message = output_escaping(trim($data, '"'));
-                    $customer_msg = (!empty($custom_notification)) ? $message :  'Hello Dear ' . $seller_res[0]['username'] . ' Order status updated to' . $_POST['status'] . ' for your order ID #' . $order_item_res[0]['id'] . ' please take note of it! Regards ' . $app_name . '';
-                    $fcmMsg = array(
-                        'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : " Order status updated",
-                        'body' => $customer_msg,
-                        'type' => "order",
-                        'order_id' => $order_item_res[0]['order_id'],
+                    $seller_msg = (!empty($custom_notification)) ? $message :  'Hello Dear ' . $seller_res[0]['username'] . ' Order status updated to' . $_POST['status'] . ' for your order ID #' . $order_item_res[0]['id'] . ' please take note of it! Regards ' . $app_name . '';
+                    $seller_title = (!empty($custom_notification)) ? $custom_notification[0]['title'] : 'Order status updated';
+
+                    add_user_notification(
+                        $order_item_res[0]['seller_id'],
+                        $seller_title,
+                        $seller_msg,
+                        'order_' . $_POST['status'],
+                        base_url('seller/orders'),
+                        $order_item_res[0]['order_id']
                     );
 
-                    $fcm_ids[0][] = $seller_res[0]['fcm_id'];
-                    send_notification($fcmMsg, $fcm_ids);
+                    if (!empty($seller_res[0]['fcm_id'])) {
+                        $fcmMsg = array(
+                            'title' => $seller_title,
+                            'body' => $seller_msg,
+                            'type' => "order",
+                            'order_id' => $order_item_res[0]['order_id'],
+                        );
+
+                        $fcm_ids[0][] = $seller_res[0]['fcm_id'];
+                        send_notification($fcmMsg, $fcm_ids);
+                    }
                 }
-                notify_event(
-                    $type['type'],
-                    ["seller" => [$seller_res[0]['email']]],
-                    ["seller" => [$seller_res[0]['mobile']]],
-                    ["orders.id" => $order_item_res[0]['id']]
-                );
+                if (!empty($seller_res)) {
+                    notify_event(
+                        $type['type'],
+                        ["seller" => [$seller_res[0]['email']]],
+                        ["seller" => [$seller_res[0]['mobile']]],
+                        ["orders.id" => $order_item_res[0]['id']]
+                    );
+                }
 
                 $this->response['error'] = false;
                 $this->response['message'] = 'Status Updated Successfully';

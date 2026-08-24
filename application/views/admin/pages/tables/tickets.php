@@ -121,6 +121,27 @@
                     <h5 class="mb-0">Tickets</h5>
                 </div>
                 <div class="card-body">
+                    <div class="row mb-3 ticket-filters">
+                        <div class="col-md-3 col-sm-6 mb-2">
+                            <label class="small text-muted mb-1" for="ticket_raised_by_filter">Raised By</label>
+                            <select class="form-control form-control-sm" id="ticket_raised_by_filter">
+                                <option value="">Customers &amp; Sellers</option>
+                                <option value="customer">Customers only</option>
+                                <option value="seller">Sellers only</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 col-sm-6 mb-2">
+                            <label class="small text-muted mb-1" for="ticket_status_filter">Status</label>
+                            <select class="form-control form-control-sm" id="ticket_status_filter">
+                                <option value="">All statuses</option>
+                                <option value="<?= PENDING ?>">Pending</option>
+                                <option value="<?= OPENED ?>">Opened</option>
+                                <option value="<?= RESOLVED ?>">Resolved</option>
+                                <option value="<?= CLOSED ?>">Closed</option>
+                                <option value="<?= REOPEN ?>">Reopened</option>
+                            </select>
+                        </div>
+                    </div>
                     <table class='table-striped' id="ticket_table" data-toggle="table" data-url="<?= base_url('admin/tickets/view_ticket_list') ?>" data-click-to-select="true" data-side-pagination="server" data-pagination="true" data-page-list="[5, 10, 20, 50, 100, 200]" data-search="true" data-show-columns="true" data-show-refresh="true" data-trim-on-search="false" data-sort-name="t.id" data-sort-order="desc" data-mobile-responsive="true" data-toolbar="" data-show-export="true" data-maintain-selected="true" data-query-params="ticket_queryParams">
                         <thead>
                             <tr>
@@ -129,6 +150,7 @@
                                 <th data-field="ticket_type" data-sortable="false" data-align='center'>Ticket Type</th>
                                 <th data-field="user_id" data-sortable="true" data-visible="false" data-align='center'>User Id</th>
                                 <th data-field="username" data-sortable="true" data-align='center'>User Name</th>
+                                <th data-field="raised_by" data-sortable="false" data-align='center'>Raised By</th>
                                 <th data-field="subject" data-sortable="true" data-align='center'>Subject</th>
                                 <th data-field="email" data-sortable="false" data-align='center'>Email</th>
                                 <th data-field="description" data-sortable="false" data-align='center'>Description</th>

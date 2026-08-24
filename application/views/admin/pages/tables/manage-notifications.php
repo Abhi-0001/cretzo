@@ -31,8 +31,12 @@
                             <div class="card-body">
                                 <div class="form-group">
                                     <label for="type" class="control-label">Send to <span class='text-danger text-sm'>*</span></label>
+                                    <?php // "All Users" resolved to the `members` group only, so there was no way
+                                          // to notify sellers as a group at all. The two role audiences are new. ?>
                                     <select name="send_to" id="send_to" class="form-control type_event_trigger" required="">
-                                        <option value="all_users">All Users</option>
+                                        <option value="all_users">All Users (customers &amp; sellers)</option>
+                                        <option value="all_customers">All Customers</option>
+                                        <option value="all_sellers">All Sellers</option>
                                         <option value="specific_user">Specific User</option>
                                     </select>
                                 </div>

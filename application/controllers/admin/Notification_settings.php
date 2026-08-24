@@ -165,6 +165,50 @@ class Notification_settings extends CI_Controller
         }
     }
 
+    /**
+     * Resolves the FCM device tokens for an audience.
+     *
+     * Push is a best-effort side channel here, NOT the notification itself - see
+     * send_notifications(). This only decides who gets a device push on top of the in-app
+     * record that is always written.
+     */
+    private function fcm_tokens_for($send_to, $user_ids = [])
+    {
+        $tokens = [];
+
+        if ($send_to === 'specific_user') {
+            if (empty($user_ids)) {
+                return [];
+            }
+            // Was looping with an off-by-one bound and, on every matching iteration, re-merging
+            // the ENTIRE result array (empty/'NULL' fcm_id rows included) instead of appending
+            // the one qualifying row - so the filter never actually filtered anything.
+            $rows = fetch_details('users', null, 'fcm_id', 10000, 0, '', '', 'id', $user_ids);
+        } elseif ($send_to === 'all_sellers' || $send_to === 'all_customers') {
+            // Role-targeted: only devices belonging to that group.
+            $group = ($send_to === 'all_sellers') ? 'seller' : 'members';
+            $rows = $this->db->select('u.fcm_id')
+                ->join('users_groups ug', 'ug.user_id = u.id', 'inner')
+                ->join('groups g', 'g.id = ug.group_id', 'inner')
+                ->where('g.name', $group)
+                ->get('users u')
+                ->result_array();
+        } else {
+            // Everybody: registered app devices plus every user row holding a token.
+            $rows = array_merge(
+                fetch_details('user_fcm', NULL, 'fcm_id'),
+                $this->db->select('fcm_id')->get('users')->result_array()
+            );
+        }
+
+        foreach ($rows as $row) {
+            if (!empty($row['fcm_id']) && $row['fcm_id'] !== 'NULL') {
+                $tokens[] = $row['fcm_id'];
+            }
+        }
+        return array_values(array_unique($tokens));
+    }
+
     public function send_notifications()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
@@ -177,7 +221,10 @@ class Notification_settings extends CI_Controller
                 $this->form_validation->set_rules('image', 'Image', 'trim|required|xss_clean', array('required' => 'Image is required'));
             }
             $this->form_validation->set_rules('title', 'Title', 'trim|required|xss_clean');
-            $this->form_validation->set_rules('send_to', 'Send To', 'trim|required|xss_clean');
+            // send_to was only checked 'required', so any string at all was written to the
+            // column - and an unrecognised audience is treated as "everyone" by the inbox
+            // scope, which is the worst possible way to get it wrong.
+            $this->form_validation->set_rules('send_to', 'Send To', 'trim|required|xss_clean|in_list[all_users,all_customers,all_sellers,specific_user]');
             $this->form_validation->set_rules('type', 'Type', 'trim|required|xss_clean');
             $this->form_validation->set_rules('message', 'Message', 'trim|required|xss_clean');
 
@@ -204,81 +251,43 @@ class Notification_settings extends CI_Controller
                 print_r(json_encode($this->response));
                 return;
             }
-            $fcm_key = get_settings('fcm_server_key');
 
-            if (empty($fcm_key)) {
-                $this->response['error'] = true;
-                $this->response['message'] = "No FCM Key Found";
-                print_r(json_encode($this->response));
-                return;
-            }
-
-            //creating a new push
-            $data = $this->input->post(null, true);
-            $title = $this->input->post('title', true);
-            $send_to = $this->input->post('send_to', true);
-            $type = $this->input->post('type', true);
-            $message = $this->input->post('message', true);
-            $users = 'all';
+            $data     = $this->input->post(null, true);
+            $title    = $this->input->post('title', true);
+            $send_to  = $this->input->post('send_to', true);
+            $type     = $this->input->post('type', true);
+            $message  = $this->input->post('message', true);
             $type_ids = '';
-            if (isset($_POST['type']) && $_POST['type'] == 'categories') {
+            if ($type === 'categories') {
                 $type_ids = $this->input->post('category_id', true);
-            } elseif (isset($_POST['type']) && $_POST['type'] == 'products') {
+            } elseif ($type === 'products') {
                 $type_ids = $this->input->post('product_id', true);
-            } else {
-                $type_id = '';
-                $type_ids = '';
             }
 
-            if (isset($send_to) && $send_to == 'specific_user') {
-                /* select user's FCM IDs */
-                $user_ids = $this->input->post("select_user_id[]", true);
-                $results = fetch_details('users', null, 'fcm_id', 10000, 0, '', '', "id", $user_ids);
-                // Was looping with an off-by-one bound (count($results), not count($results)-1)
-                // and, on every matching iteration, re-merging the ENTIRE $results array (with
-                // empty/'NULL' fcm_id rows still included) instead of appending just the one
-                // qualifying row - the filter never actually filtered anything.
-                $res = array();
-                foreach ($results as $result_row) {
-                    if (isset($result_row['fcm_id']) && !empty($result_row['fcm_id']) && ($result_row['fcm_id'] != 'NULL')) {
-                        $res[] = $result_row;
-                    }
-                }
-            } else {
-                /* To all users */
-                $this->ion_auth->select(["fcm_id"]);
-                $user_fcm1 = fetch_details('user_fcm', NULL, 'fcm_id');
-                $user_fcm2 = $this->ion_auth->users('members')->result_array();
-                $res = array_merge($user_fcm1, $user_fcm2);
-            }
-
-            if (empty($res)) {
-                $this->response['notification'] = [];
-                $this->response['data'] = [];
-                $this->response['error'] = true;
-                $this->response['message'] = 'There is no users to send notification.';
-                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                echo json_encode($this->response);
-                return;
-            }
-
-            $fcm_ids = array();
-            foreach ($res as $fcm_id) {
-                if (!empty($fcm_id)) {
-                    $fcm_ids[] = $fcm_id['fcm_id'];
-                }
-            }
-            $registrationIDs = $fcm_ids;
-            if (isset($_POST['send_to']) && $_POST['send_to'] == 'specific_user') {
-                $data['select_user_id'] = (isset($data['select_user_id'])) ? json_encode($data['select_user_id']) : json_encode([]);
+            $user_ids = ($send_to === 'specific_user') ? (array) $this->input->post('select_user_id', true) : [];
+            if ($send_to === 'specific_user') {
+                $data['select_user_id'] = json_encode(array_values(array_map('strval', $user_ids)));
             }
             if ($is_image_included) {
-                $notification_image_name =  $_POST['image'];
                 $data['image'] = $_POST['image'];
             }
-            // Was never checked - a failed insert still fell through and reported the push as
-            // sent successfully, with no record of it ever appearing in this log.
+
+            /* ------------------------------------------------------------------------------
+             * Write the in-app notification FIRST. This is the whole point of the feature and
+             * it used to be the part that never happened.
+             *
+             * The method previously aborted before this point with "No FCM Key Found" whenever
+             * push was unconfigured (the shipped default IS unconfigured - the key is the
+             * literal string "your_fcm_server_key"), and aborted again with "There is no users
+             * to send notification" whenever no account held a device token. fcm_id is only
+             * ever written by the mobile app, so on a website-only deployment that second
+             * condition is ALWAYS true. Between the two, an admin could not deliver a single
+             * notification to the site, and nothing was recorded either - the compose form
+             * reported an error and the message vanished.
+             *
+             * Push is now what it should always have been: a best-effort extra on top of a
+             * record that is always saved and always readable in the buyer/seller panels.
+             * ---------------------------------------------------------------------------- */
             if (!$this->notification_model->add_notification($data)) {
                 $this->response['error'] = true;
                 $this->response['message'] = 'Something went wrong saving the notification.';
@@ -287,39 +296,46 @@ class Notification_settings extends CI_Controller
                 echo json_encode($this->response);
                 return;
             }
-            //first check if the push has an image with it
-            if ($is_image_included) {
-                $fcmMsg = array(
-                    'content_available' => true,
-                    'title' => "$title",
-                    'body' => "$message",
-                    'type' => "$type",
-                    'type_id' => "$type_ids",
-                    'image' => base_url()  . $notification_image_name,
-                    'link' => (isset($data['link']) && !empty($data['link']) ? $data['link'] : ''),
-                    'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
-                );
+
+            /* ---- best-effort push ---- */
+            $fcm_key   = get_settings('fcm_server_key');
+            $push_note = '';
+            $fcmFields = ['notification' => [], 'data' => []];
+
+            $fcmMsg = array(
+                'content_available' => true,
+                'title'        => (string) $title,
+                'body'         => (string) $message,
+                'image'        => $is_image_included ? base_url() . $_POST['image'] : '',
+                'type'         => (string) $type,
+                'type_id'      => (string) $type_ids,
+                'link'         => (isset($data['link']) && !empty($data['link'])) ? $data['link'] : '',
+                'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
+            );
+
+            if (empty($fcm_key) || $fcm_key === 'your_fcm_server_key') {
+                $push_note = ' Push notifications are not configured, so app devices were not alerted.';
             } else {
-                //if the push don't have an image give null in place of image
-                $fcmMsg = array(
-                    'content_available' => true,
-                    'title' => "$title",
-                    'body' => "$message",
-                    'image' => '',
-                    'type' => "$type",
-                    'type_id' => "$type_ids",
-                    'link' => (isset($data['link']) && !empty($data['link']) ? $data['link'] : ''),
-                    'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
-                );
+                $registrationIDs = $this->fcm_tokens_for($send_to, $user_ids);
+                if (empty($registrationIDs)) {
+                    $push_note = ' No app devices are registered for this audience, so only the in-app notification was delivered.';
+                } else {
+                    $fcmFields = send_notification($fcmMsg, array_chunk($registrationIDs, 1000));
+                    $push_note = ' Pushed to ' . count($registrationIDs) . ' device(s).';
+                }
             }
 
-            $registrationIDs_chunks = array_chunk($registrationIDs, 1000);
-            $fcmFields = send_notification($fcmMsg, $registrationIDs_chunks);
+            $audience_label = [
+                'all_users'     => 'all users',
+                'all_customers' => 'all customers',
+                'all_sellers'   => 'all sellers',
+                'specific_user' => count($user_ids) . ' selected user(s)',
+            ];
 
-            $this->response['notification'] = $fcmFields['notification'];
-            $this->response['data'] = $fcmFields['data'];
+            $this->response['notification'] = isset($fcmFields['notification']) ? $fcmFields['notification'] : [];
+            $this->response['data'] = isset($fcmFields['data']) ? $fcmFields['data'] : [];
             $this->response['error'] = false;
-            $this->response['message'] = 'Notification Sended Successfully';
+            $this->response['message'] = 'Notification sent to ' . (isset($audience_label[$send_to]) ? $audience_label[$send_to] : $send_to) . '.' . $push_note;
             $this->response['csrfName'] = $this->security->get_csrf_token_name();
             $this->response['csrfHash'] = $this->security->get_csrf_hash();
             echo json_encode($this->response);

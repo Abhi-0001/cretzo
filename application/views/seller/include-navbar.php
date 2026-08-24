@@ -12,6 +12,28 @@
 
     <!-- Right navbar links -->
     <ul class="navbar-nav ml-auto">
+        <?php
+        // Support is reachable from the sidebar too, but a seller who needs help is usually
+        // mid-task on some other page - this keeps it one click away from everywhere.
+        if (!$this->ion_auth->is_admin()) {
+            // The seller panel had no notification surface at all: order, settlement and
+            // ticket notifications were push-only, and push is unconfigured here.
+            $seller_unread = user_unread_notification_count($this->session->userdata('user_id'));
+        ?>
+            <li class="nav-item">
+                <a class="nav-link position-relative" href="<?= base_url('seller/notifications') ?>" title="Notifications">
+                    <i class="fas fa-bell"></i>
+                    <span class="badge badge-danger navbar-badge" id="seller-notif-badge"
+                          style="<?= $seller_unread > 0 ? '' : 'display:none;' ?>"><?= $seller_unread > 99 ? '99+' : $seller_unread ?></span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="<?= base_url('seller/support') ?>" title="Support Tickets">
+                    <i class="fas fa-life-ring"></i>
+                    <span class="d-none d-md-inline ml-1">Support</span>
+                </a>
+            </li>
+        <?php } ?>
         <?php if (ALLOW_MODIFICATION == 0) { ?>
             <li class="nav-item">
                 <a class="nav-link" data-widget="control-sidebar" data-slide="true" href="#" role="button">

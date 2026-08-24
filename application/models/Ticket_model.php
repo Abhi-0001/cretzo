@@ -31,6 +31,12 @@ class Ticket_model extends CI_Model
                 // filters, so the ticket becomes effectively invisible.
                 'status' =>  in_array((string) $data['status'], [PENDING, OPENED, RESOLVED, CLOSED, REOPEN], true) ? $data['status'] : PENDING,
             ];
+            // Which panel the ticket was raised from. Customers and sellers share the `users`
+            // table, so without this the admin list cannot tell the two apart (and the
+            // notification email would send a seller to the customer my-account page).
+            // Anything unrecognised is treated as a customer ticket, which is what every
+            // caller that predates this column is.
+            $ticket_data['raised_by'] = (isset($data['raised_by']) && $data['raised_by'] === 'seller') ? 'seller' : 'customer';
         }
         if (isset($data['edit_ticket'])) {
             return $this->db->set($ticket_data)->where('id', $data['edit_ticket'])->update('tickets');
@@ -185,6 +191,18 @@ class Ticket_model extends CI_Model
             ];
         }
 
+        // Both blocks below already tested `isset($where)`, but nothing ever set it - the
+        // filters the admin list needs (customer vs seller tickets, and by status) had no way
+        // in. Now that sellers raise tickets from their own panel the two kinds arrive in one
+        // undifferentiated list, so filtering by raiser is what makes the page usable.
+        $where = array();
+        if (isset($_GET['raised_by']) && in_array($_GET['raised_by'], ['customer', 'seller'], true)) {
+            $where['t.raised_by'] = $_GET['raised_by'];
+        }
+        if (isset($_GET['status']) && in_array((string) $_GET['status'], [PENDING, OPENED, RESOLVED, CLOSED, REOPEN], true)) {
+            $where['t.status'] = $_GET['status'];
+        }
+
         // COUNT(u.id) undercounts here: u.id comes from a LEFT JOIN, so a ticket whose user
         // account was since deleted has a NULL u.id, and COUNT() ignores NULLs - that ticket
         // would be in the data results but missing from the total. t.id (the tickets table's
@@ -194,8 +212,12 @@ class Ticket_model extends CI_Model
         // Was or_where() here (exact match) while the data query below uses or_like() (partial
         // match) - a partial search term matched real rows in the data query but zero rows in
         // the count query, breaking the pagination footer.
+        //
+        // Grouped, too: an ungrouped or_like() next to a where() produces
+        // "a OR b OR c AND filter", so a search combined with the new raised_by/status filter
+        // would return every row matching the search with the filter effectively ignored.
         if (isset($multipleWhere) && !empty($multipleWhere)) {
-            $count_res->or_like($multipleWhere);
+            $count_res->group_start()->or_like($multipleWhere)->group_end();
         }
         if (isset($where) && !empty($where)) {
             $count_res->where($where);
@@ -209,7 +231,7 @@ class Ticket_model extends CI_Model
         $search_res = $this->db->select('t.*,tty.title,u.username')->join('ticket_types tty', 'tty.id=t.ticket_type_id', 'left')->join('users u', 'u.id=t.user_id', 'left');
 
         if (isset($multipleWhere) && !empty($multipleWhere)) {
-            $search_res->or_like($multipleWhere);
+            $search_res->group_start()->or_like($multipleWhere)->group_end();
         }
         if (isset($where) && !empty($where)) {
             $search_res->where($where);
@@ -229,7 +251,7 @@ class Ticket_model extends CI_Model
             // anything - both together meant a subject/username containing a space or quote
             // broke the markup, and one containing HTML was a stored-XSS route straight into
             // the ticket-view modal's JS (which reads these via .data()/.html()).
-            $operate = '<a href="javascript:void(0)" class="view_ticket btn btn-success action-btn btn-xs mr-1 mb-1 ml-1" data-id="' . $row['id'] . '" data-username="' . html_escape($row['username']) . '" data-date_created="' . html_escape($row['date_created']) . '" data-subject="' . html_escape($row['subject']) . '" data-status="' . html_escape($row['status']) . '" data-ticket_type="' . html_escape($row['title']) . '" title="View" data-target="#ticket_modal" data-toggle="modal" ><i class="fa fa-eye"></i></a>';
+            $operate = '<a href="javascript:void(0)" class="view_ticket btn btn-success action-btn btn-xs mr-1 mb-1 ml-1" data-id="' . $row['id'] . '" data-username="' . html_escape($row['username']) . '" data-date_created="' . html_escape($row['date_created']) . '" data-subject="' . html_escape($row['subject']) . '" data-status="' . html_escape($row['status']) . '" data-ticket_type="' . html_escape($row['title']) . '" data-raised_by="' . html_escape((string) (isset($row['raised_by']) ? $row['raised_by'] : 'customer')) . '" title="View" data-target="#ticket_modal" data-toggle="modal" ><i class="fa fa-eye"></i></a>';
             $operate .= ' <a href="javascript:void(0)" id="delete-ticket" data-id="' . $row['id'] . '" class="btn btn-danger action-btn mr-1 mb-1 ml-1 btn-xs"><i class="fa fa-trash"></i></a>';
 
             $tempRow['id'] = $row['id'];
@@ -253,6 +275,14 @@ class Ticket_model extends CI_Model
             $tempRow['last_updated'] = $row['last_updated'];
             $tempRow['date_created'] = $row['date_created'];
             $tempRow['username'] = html_escape($row['username']);
+            // Deleted account: the LEFT JOIN leaves username NULL, which rendered as a blank
+            // cell with no hint the ticket still belongs to somebody.
+            if (trim((string) $row['username']) === '') {
+                $tempRow['username'] = '<span class="text-muted">(deleted user #' . (int) $row['user_id'] . ')</span>';
+            }
+            $tempRow['raised_by'] = (isset($row['raised_by']) && $row['raised_by'] === 'seller')
+                ? '<label class="badge badge-primary">SELLER</label>'
+                : '<label class="badge badge-light border">CUSTOMER</label>';
             $tempRow['ticket_type'] = html_escape($row['title']);
             $tempRow['operate'] = $operate;
             $rows[] = $tempRow;

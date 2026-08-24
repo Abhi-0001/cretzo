@@ -312,4 +312,243 @@ class Notification_model extends CI_Model
         }
         print_r(json_encode($response_data));
     }
+
+    /* ==================== per-user notification inbox ====================
+     *
+     * `notifications` is a broadcast log, not a per-user mailbox: one row can be addressed to
+     * everybody, to a role, or to a list of user ids (`send_to` + `users_id`). Nothing here
+     * existed before - the storefront bell was a static image with a hardcoded 0, the seller
+     * panel had no bell at all, and the only reader was a bootstrap-table that the customer
+     * notifications page pointed at an ADMIN url. These methods are the shared inbox the buyer
+     * page, the buyer bell and the seller panel all now read through.
+     */
+
+    /**
+     * Which broadcast audiences this user is in.
+     *
+     * Backward compatible with the two values already in the table: 'all_users' and anything
+     * unrecognised (including NULL) means everyone, which is what every pre-existing row
+     * relies on. 'all_customers' / 'all_sellers' are the new role-targeted audiences - before
+     * them an admin had no way to notify sellers as a group at all.
+     */
+    public function audiences_for_user($user_id)
+    {
+        $user_id = (int) $user_id;
+        $audiences = ['all_users'];
+        if ($user_id < 1) {
+            return $audiences;
+        }
+
+        $groups = $this->db->select('g.name')
+            ->join('groups g', 'g.id = ug.group_id', 'inner')
+            ->where('ug.user_id', $user_id)
+            ->get('users_groups ug')
+            ->result_array();
+        $names = array_column($groups, 'name');
+
+        if (in_array('members', $names, true)) {
+            $audiences[] = 'all_customers';
+        }
+        if (in_array('seller', $names, true)) {
+            $audiences[] = 'all_sellers';
+        }
+        return $audiences;
+    }
+
+    /**
+     * Restricts the active query builder to the notifications $user_id may see: any broadcast to
+     * an audience they belong to, plus anything addressed to them by id.
+     *
+     * $audiences is passed in rather than looked up here on purpose: `$this->db` is a single
+     * shared query builder, so running audiences_for_user()'s own SELECT partway through
+     * building the outer query merged the two together ("Unknown column 'n.id'"). Callers
+     * resolve the audience list BEFORE they start staging their query.
+     *
+     * `users_id` holds a json array of id strings (e.g. ["4","7"]), so the LIKE matches on the
+     * QUOTED id - otherwise user 4 would also receive everything addressed to 14 and 41.
+     */
+    private function scope_to_user($builder, $user_id, $audiences)
+    {
+        $user_id = (int) $user_id;
+        $quoted_id = '"' . $user_id . '"';
+
+        $builder->group_start()
+            ->where_in('send_to', $audiences)
+            ->or_where('send_to IS NULL')
+            ->or_group_start()
+                ->where('send_to', 'specific_user')
+                ->like('users_id', $quoted_id)
+            ->group_end()
+        ->group_end();
+
+        return $builder;
+    }
+
+    /** Unread count for the bell. Unread == no matching notification_reads row. */
+    public function count_user_unread($user_id)
+    {
+        $user_id = (int) $user_id;
+        if ($user_id < 1) {
+            return 0;
+        }
+
+        // Resolved before the outer query is staged - see scope_to_user().
+        $audiences = $this->audiences_for_user($user_id);
+
+        $this->db->select('COUNT(n.id) as total', false)
+            ->join('notification_reads nr', 'nr.notification_id = n.id AND nr.user_id = ' . $user_id, 'left')
+            ->where('nr.id IS NULL');
+        $this->scope_to_user($this->db, $user_id, $audiences);
+
+        $row = $this->db->get('notifications n')->row_array();
+        return !empty($row) ? (int) $row['total'] : 0;
+    }
+
+    /**
+     * This user's notifications, newest first, each flagged read/unread.
+     *
+     * $only_unread powers the bell dropdown; the full list page passes false.
+     */
+    public function get_user_inbox($user_id, $limit = 10, $offset = 0, $only_unread = false, $panel = 'customer')
+    {
+        $user_id = (int) $user_id;
+        if ($user_id < 1) {
+            return ['total' => 0, 'rows' => []];
+        }
+        $limit  = ($limit > 0 && $limit <= 100) ? (int) $limit : 10;
+        $offset = ($offset > 0) ? (int) $offset : 0;
+
+        $audiences = $this->audiences_for_user($user_id);
+
+        // Count and data queries must apply identical conditions or the pager lies.
+        $count_builder = $this->db->select('COUNT(n.id) as total', false)
+            ->join('notification_reads nr', 'nr.notification_id = n.id AND nr.user_id = ' . $user_id, 'left');
+        if ($only_unread) {
+            $count_builder->where('nr.id IS NULL');
+        }
+        $this->scope_to_user($count_builder, $user_id, $audiences);
+        $count = $count_builder->get('notifications n')->row_array();
+        $total = !empty($count) ? (int) $count['total'] : 0;
+
+        $builder = $this->db->select('n.*, nr.id as read_marker', false)
+            ->join('notification_reads nr', 'nr.notification_id = n.id AND nr.user_id = ' . $user_id, 'left');
+        if ($only_unread) {
+            $builder->where('nr.id IS NULL');
+        }
+        $this->scope_to_user($builder, $user_id, $audiences);
+        $records = $builder->order_by('n.id', 'DESC')->limit($limit, $offset)->get('notifications n')->result_array();
+
+        $rows = [];
+        foreach ($records as $row) {
+            $row = output_escaping($row);
+
+            $image = '';
+            if (!empty($row['image'])) {
+                $image = (file_exists(FCPATH . $row['image']) === false) ? base_url() . NO_IMAGE : base_url() . $row['image'];
+            }
+
+            $rows[] = [
+                'id' => (int) $row['id'],
+                // output_escaping() only strips backslash-escaping, it does not HTML-encode.
+                'title'      => html_escape((string) $row['title']),
+                'message'    => html_escape((string) $row['message']),
+                'type'       => html_escape((string) $row['type']),
+                'type_label' => html_escape(ucwords(str_replace('_', ' ', (string) $row['type']))),
+                'type_id'    => (string) $row['type_id'],
+                'image'      => $image,
+                'link'       => $this->inbox_link($row, $panel),
+                'is_read'    => !empty($row['read_marker']),
+                'date_sent'  => $row['date_sent'],
+            ];
+        }
+
+        return ['total' => $total, 'rows' => $rows];
+    }
+
+    /**
+     * Where a notification should take the recipient.
+     *
+     * Without this every notification was a dead end: the row carries a type and a type_id but
+     * nothing ever turned them into a destination, so a "your order shipped" notification could
+     * not be clicked through to the order.
+     *
+     * $panel selects the audience's own panel - a seller must not be sent to the customer
+     * my-account pages, which is the same mistake the ticket emails used to make.
+     */
+    private function inbox_link($row, $panel = 'customer')
+    {
+        $type    = (string) $row['type'];
+        $type_id = trim((string) $row['type_id']);
+        $is_seller = ($panel === 'seller');
+
+        if ($type === 'notification_url' && !empty($row['link'])) {
+            return (string) $row['link'];
+        }
+        if (in_array($type, ['ticket_message', 'ticket_status'], true)) {
+            $base = $is_seller ? 'seller/support' : 'my-account/support';
+            return base_url($base . ($type_id !== '' ? '?ticket_id=' . urlencode($type_id) : ''));
+        }
+        if (strpos($type, 'order') !== false) {
+            return base_url($is_seller ? 'seller/orders' : 'my-account/orders');
+        }
+        if ($is_seller) {
+            // A seller has no storefront product/category destination worth linking to.
+            return '';
+        }
+        if ($type === 'products' && $type_id !== '') {
+            return base_url('products?id=' . urlencode($type_id));
+        }
+        if ($type === 'categories' && $type_id !== '') {
+            return base_url('products?category=' . urlencode($type_id));
+        }
+        return '';
+    }
+
+    /**
+     * Marks one notification, or every notification currently visible to the user, as read.
+     *
+     * INSERT IGNORE against the unique (user_id, notification_id) key, so re-marking is a no-op
+     * rather than a duplicate-key error - the bell fires this on every open.
+     */
+    public function mark_user_read($user_id, $notification_id = null)
+    {
+        $user_id = (int) $user_id;
+        if ($user_id < 1) {
+            return false;
+        }
+
+        $audiences = $this->audiences_for_user($user_id);
+
+        if ($notification_id !== null) {
+            $notification_id = (int) $notification_id;
+            if ($notification_id < 1) {
+                return false;
+            }
+            // Only mark something this user can actually see, so an arbitrary id cannot be used
+            // to create read-markers for notifications addressed to somebody else.
+            $this->scope_to_user($this->db, $user_id, $audiences);
+            $exists = $this->db->where('id', $notification_id)->count_all_results('notifications');
+            if ($exists < 1) {
+                return false;
+            }
+            $ids = [$notification_id];
+        } else {
+            $builder = $this->db->select('n.id')
+                ->join('notification_reads nr', 'nr.notification_id = n.id AND nr.user_id = ' . $user_id, 'left')
+                ->where('nr.id IS NULL');
+            $this->scope_to_user($builder, $user_id, $audiences);
+            $ids = array_column($builder->get('notifications n')->result_array(), 'id');
+        }
+
+        if (empty($ids)) {
+            return true;
+        }
+
+        $values = [];
+        foreach ($ids as $id) {
+            $values[] = '(' . $user_id . ',' . (int) $id . ')';
+        }
+        $this->db->query('INSERT IGNORE INTO `notification_reads` (`user_id`, `notification_id`) VALUES ' . implode(',', $values));
+        return true;
+    }
 }

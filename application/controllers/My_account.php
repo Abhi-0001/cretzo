@@ -396,6 +396,80 @@ class My_account extends CI_Controller
         }
     }
 
+    /* ============================ notifications ============================
+     *
+     * The storefront bell was a static image with a hardcoded "0" - not a link, no count, no
+     * click target - and the notifications page it should have opened fed a bootstrap-table
+     * from an ADMIN url (admin/Notification_settings/get_notification_list). These endpoints
+     * give the customer side its own read path with real per-user read state.
+     */
+
+    private function notification_json($payload)
+    {
+        $payload['csrfName'] = $this->security->get_csrf_token_name();
+        $payload['csrfHash'] = $this->security->get_csrf_hash();
+        $this->output->set_content_type('application/json')->set_output(json_encode($payload));
+    }
+
+    /** Paginated list of this customer's notifications. */
+    public function get_notifications()
+    {
+        if (!$this->data['is_logged_in']) {
+            $this->notification_json(['error' => true, 'message' => 'Please log in.', 'total' => 0, 'rows' => []]);
+            return;
+        }
+
+        $this->load->model('notification_model');
+        $limit  = (is_numeric($this->input->get('limit')) && (int) $this->input->get('limit') > 0) ? min((int) $this->input->get('limit'), 50) : 10;
+        $offset = (is_numeric($this->input->get('offset')) && (int) $this->input->get('offset') > 0) ? (int) $this->input->get('offset') : 0;
+        $unread_only = ($this->input->get('unread') === '1');
+
+        $result = $this->notification_model->get_user_inbox(
+            (int) $this->session->userdata('user_id'),
+            $limit,
+            $offset,
+            $unread_only,
+            'customer'
+        );
+
+        $result['error'] = false;
+        $result['unread'] = $this->notification_model->count_user_unread((int) $this->session->userdata('user_id'));
+        $this->notification_json($result);
+    }
+
+    /** Unread badge for the header bell. */
+    public function notification_count()
+    {
+        if (!$this->data['is_logged_in']) {
+            $this->notification_json(['error' => true, 'unread' => 0]);
+            return;
+        }
+        $this->load->model('notification_model');
+        $this->notification_json([
+            'error'  => false,
+            'unread' => $this->notification_model->count_user_unread((int) $this->session->userdata('user_id')),
+        ]);
+    }
+
+    /** Marks one notification read, or all of them when no id is given. */
+    public function mark_notification_read()
+    {
+        if (!$this->data['is_logged_in']) {
+            $this->notification_json(['error' => true, 'message' => 'Please log in.']);
+            return;
+        }
+        $this->load->model('notification_model');
+        $id = $this->input->post('notification_id');
+        $id = (is_numeric($id) && (int) $id > 0) ? (int) $id : null;
+
+        $ok = $this->notification_model->mark_user_read((int) $this->session->userdata('user_id'), $id);
+        $this->notification_json([
+            'error'   => !$ok,
+            'message' => $ok ? 'Marked as read.' : 'Could not update the notification.',
+            'unread'  => $this->notification_model->count_user_unread((int) $this->session->userdata('user_id')),
+        ]);
+    }
+
     public function manage_address()
     {
         $web_doctor_brown = get_settings('web_doctor_brown', true);
