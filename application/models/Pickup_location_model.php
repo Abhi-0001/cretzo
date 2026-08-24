@@ -115,6 +115,25 @@ class Pickup_location_model extends CI_Model
             return ['error' => false, 'message' => 'Pickup location updated.', 'shiprocket' => null];
         }
 
+        /*
+         * Shiprocket keys pickup addresses by nickname across the whole account, and rejects a
+         * repeat with "Address name already exists". Reusing a name we already hold locally can
+         * only ever end in that rejection, so it is caught here instead of after the row is
+         * written and the API call spent.
+         */
+        $duplicate = $this->db->select('id')
+            ->where('seller_id', $pickup_location_data['seller_id'])
+            ->where('pickup_location', $pickup_location_data['pickup_location'])
+            ->get('pickup_locations')->row_array();
+        if (!empty($duplicate)) {
+            return [
+                'error'      => true,
+                'message'    => 'You already have a pickup location named "' . $pickup_location_data['pickup_location']
+                    . '". Edit that one, or use a different name.',
+                'shiprocket' => null,
+            ];
+        }
+
         if (!$this->db->insert('pickup_locations', $pickup_location_data)) {
             return ['error' => true, 'message' => 'Could not save the pickup location.', 'shiprocket' => null];
         }
@@ -147,11 +166,28 @@ class Pickup_location_model extends CI_Model
             log_message('error', 'Shiprocket rejected pickup location "' . $pickup_location_data['pickup_location']
                 . '": ' . ($reason !== '' ? $reason : json_encode($result)));
 
+            /*
+             * A rejection Shiprocket will give again for the same input (duplicate name, bad
+             * field) leaves a local row the courier has never heard of - selectable on products
+             * and guaranteed to fail at booking. Those are rolled back so the seller can simply
+             * re-enter the address. A transport or credentials failure is not the address's
+             * fault and may succeed on the next sync, so that row is kept.
+             */
+            $retryable = $this->shiprocket->last_status() === null
+                || $this->shiprocket->last_status() >= 500
+                || $this->shiprocket->last_status() === 401;
+            if (!$retryable) {
+                $new_id = $this->db->insert_id();
+                if (!empty($new_id)) {
+                    $this->db->where(['id' => $new_id, 'seller_id' => $pickup_location_data['seller_id']])
+                        ->delete('pickup_locations');
+                }
+            }
+
             return [
                 'error'      => true,
-                'message'    => 'Saved here, but Shiprocket did not accept this pickup address'
-                    . ($reason ? ' (' . $reason . ')' : '')
-                    . '. Shipments booked from it will fail until it is corrected.',
+                'message'    => $this->shiprocket_reject_message($reason, $pickup_location_data['pickup_location'])
+                    . ($retryable ? '' : ' It was not saved.'),
                 'shiprocket' => $result,
             ];
         }
@@ -369,5 +405,43 @@ class Pickup_location_model extends CI_Model
         } else {
             print_r(json_encode($bulkData));
         }
+    }
+
+    /**
+     * Turns Shiprocket's rejection into one short sentence the seller can act on.
+     *
+     * The raw reason was pasted straight into the page, so the seller saw the courier's own
+     * JSON/validation wording ("Address name already exists and is inactive. Kindly activate
+     * it...") which reads as a system error and says nothing about which field to change. The
+     * full reason is still written to the log for support.
+     */
+    private function shiprocket_reject_message($reason, $nickname)
+    {
+        $reason = (string) $reason;
+        $name = $nickname !== '' ? '"' . $nickname . '"' : 'this name';
+
+        if (stripos($reason, 'already exists') !== false || stripos($reason, 'already been taken') !== false) {
+            return 'The pickup location name ' . $name . ' is already used on the shipping account. Enter a different name.';
+        }
+        if (stripos($reason, 'pin') !== false && (stripos($reason, 'serv') !== false || stripos($reason, 'invalid') !== false)) {
+            return 'The pincode is not valid for pickup. Check it and try again.';
+        }
+        if (stripos($reason, 'phone') !== false) {
+            return 'The phone number was not accepted. Enter a 10-digit mobile number.';
+        }
+        if (stripos($reason, 'email') !== false) {
+            return 'The email address was not accepted. Check it and try again.';
+        }
+        if (stripos($reason, 'address') !== false) {
+            return 'The address was not accepted. Include a house/flat/shop number and a road or street name.';
+        }
+        if (stripos($reason, 'authentication') !== false || stripos($reason, 'credential') !== false) {
+            return 'Saved, but it could not be registered for shipping right now. Our team has been notified.';
+        }
+        if (stripos($reason, 'reach') !== false || stripos($reason, 'unreadable') !== false) {
+            return 'Saved, but the shipping service could not be reached. Please try saving it again in a few minutes.';
+        }
+
+        return 'Saved, but the shipping service did not accept this pickup address. Please check the details and try again.';
     }
 }

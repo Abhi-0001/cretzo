@@ -1,0 +1,225 @@
+/*
+ * Seller admin-approval modals.
+ *
+ * Shared by the dashboard gate popups (profile not submitted / pending review / approved)
+ * and the subscription checkout gate. Kept in one stylesheet so the three states cannot
+ * drift apart visually - they are the same conversation at different stages.
+ */
+
+.cz-approve-modal .modal-dialog {
+    max-width: 560px;
+}
+
+.cz-approve-modal .modal-content {
+    border: none;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 24px 60px rgba(17, 17, 17, 0.28);
+}
+
+.cz-approve-hero {
+    position: relative;
+    padding: 30px 30px 26px;
+    color: #fff;
+    text-align: center;
+    background: linear-gradient(135deg, #f2822e 0%, #d8611a 100%);
+}
+
+.cz-approve-hero.is-pending {
+    background: linear-gradient(135deg, #2e78e8 0%, #17509f 100%);
+}
+
+.cz-approve-hero.is-approved {
+    background: linear-gradient(135deg, #2fa25c 0%, #16713c 100%);
+}
+
+/* Soft radial wash so the flat gradient reads as a designed panel rather than a colour block. */
+.cz-approve-hero::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 22% 8%, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0) 58%);
+    pointer-events: none;
+}
+
+.cz-approve-hero > * {
+    position: relative;
+    z-index: 1;
+}
+
+.cz-approve-badge {
+    width: 66px;
+    height: 66px;
+    margin: 0 auto 14px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 27px;
+    background: rgba(255, 255, 255, 0.18);
+    border: 2px solid rgba(255, 255, 255, 0.45);
+}
+
+.cz-approve-hero h4 {
+    margin: 0;
+    font-weight: 700;
+    font-size: 22px;
+    line-height: 1.25;
+}
+
+.cz-approve-hero p {
+    margin: 8px auto 0;
+    max-width: 420px;
+    font-size: 14px;
+    line-height: 1.6;
+    opacity: 0.93;
+}
+
+.cz-approve-eyebrow {
+    display: inline-block;
+    margin-bottom: 10px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.cz-approve-body {
+    padding: 24px 30px 8px;
+}
+
+.cz-approve-steps {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.cz-approve-steps li {
+    display: flex;
+    gap: 14px;
+    padding: 11px 0;
+}
+
+.cz-approve-steps li + li {
+    border-top: 1px dashed rgba(0, 0, 0, 0.09);
+}
+
+.cz-approve-steps .cz-step-icon {
+    flex: none;
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    background: #fdf1e7;
+    color: #d8611a;
+}
+
+.cz-approve-steps li.is-done .cz-step-icon {
+    background: #e6f5ec;
+    color: #1d8047;
+}
+
+.cz-approve-steps li.is-locked .cz-step-icon {
+    background: #f1f2f4;
+    color: #8a9099;
+}
+
+.cz-approve-steps h6 {
+    margin: 0 0 2px;
+    font-size: 14.5px;
+    font-weight: 700;
+    color: #222;
+}
+
+.cz-approve-steps p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #6b7280;
+}
+
+.cz-approve-note {
+    margin: 16px 0 0;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border-left: 3px solid #f2822e;
+    background: #fdf6f0;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #5b4636;
+}
+
+.cz-approve-note.is-pending {
+    border-left-color: #2e78e8;
+    background: #eff5fd;
+    color: #274a75;
+}
+
+.cz-approve-note.is-approved {
+    border-left-color: #2fa25c;
+    background: #f0f8f3;
+    color: #235c3c;
+}
+
+.cz-approve-note i {
+    margin-right: 7px;
+}
+
+.cz-approve-footer {
+    border-top: none;
+    padding: 12px 30px 26px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.cz-approve-footer .btn {
+    font-weight: 700;
+    border-radius: 9px;
+    padding: 10px 22px;
+}
+
+.cz-approve-footer .btn-cz-primary {
+    background: #f2822e;
+    border-color: #f2822e;
+    color: #fff;
+    flex: 1 1 auto;
+}
+
+.cz-approve-footer .btn-cz-primary:hover,
+.cz-approve-footer .btn-cz-primary:focus {
+    background: #d8611a;
+    border-color: #d8611a;
+    color: #fff;
+}
+
+.cz-approve-footer .btn-cz-ghost {
+    background: #fff;
+    border: 1px solid rgba(0, 0, 0, 0.14);
+    color: #5b6068;
+}
+
+.cz-approve-footer .btn-cz-ghost:hover {
+    background: #f6f7f8;
+    color: #33383e;
+}
+
+.cz-approve-meta {
+    width: 100%;
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: #8a9099;
+}
+
+@media (max-width: 575.98px) {
+    .cz-approve-hero { padding: 26px 20px 22px; }
+    .cz-approve-body { padding: 20px 20px 6px; }
+    .cz-approve-footer { padding: 10px 20px 20px; }
+    .cz-approve-footer .btn { width: 100%; }
+}

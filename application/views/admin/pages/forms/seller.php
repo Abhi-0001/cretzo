@@ -1037,6 +1037,105 @@ $fetched_data = isset($fetched_data) && is_array($fetched_data) ? $fetched_data 
     bindPincodeAutofill({ pinId: 'pin', stateInputId: 'state', districtInputId: 'district', cityInputId: 'city', statusId: 'pin_lookup_status' });
     bindPincodeAutofill({ pinId: 'pickup_pin', stateInputId: 'pickup_state', districtInputId: 'pickup_district', cityInputId: 'pickup_city', statusId: 'pickup_pin_lookup_status' });
     bindPincodeAutofill({ pinId: 'business_pin', stateInputId: 'business_state', districtInputId: 'business_district', cityInputId: 'business_city', statusId: 'business_pin_lookup_status' });
+
+    // ── Contact validation: Phone / Shop Phone / Email ────────────────────────────
+    // Format is checked as the admin types; uniqueness is confirmed against the server
+    // on blur. add_seller() re-runs both on save, so this is purely a faster signal.
+    (function() {
+        var CONTACT_FIELDS = ['phone', 'shop_phone', 'email'];
+
+        function digitsOnly(el) {
+            el.value = el.value.replace(/\D/g, '').slice(0, 10);
+        }
+
+        function setMsg(id, text, isError) {
+            var $help = $('#' + id + '_contact_msg');
+            if (!$help.length) {
+                $help = $('<small class="d-block mt-1" id="' + id + '_contact_msg"></small>');
+                $('#' + id).after($help);
+            }
+            $help.text(text || '').css('color', isError ? '#dc3545' : '#28a745');
+            $('#' + id).toggleClass('is-invalid', !!isError);
+        }
+
+        function formatError(field, value) {
+            if (!value) return '';
+            if (field === 'email') {
+                if (value.length > 254) return 'Email must be 254 characters or less.';
+                return /^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(value) ? '' : 'Enter a valid email (example: name@example.com).';
+            }
+            if (!/^\d{10}$/.test(value)) return 'Must be exactly 10 digits.';
+            if (!/^[6-9]/.test(value)) return 'Must start with 6, 7, 8 or 9.';
+            return '';
+        }
+
+        CONTACT_FIELDS.forEach(function(field) {
+            var $el = $('#' + field);
+            if (!$el.length) return;
+
+            if (field !== 'email') {
+                $el.attr('maxlength', 10).attr('inputmode', 'numeric');
+                $el.on('input', function() { digitsOnly(this); });
+            }
+
+            $el.on('input', function() {
+                var err = formatError(field, $.trim(this.value));
+                setMsg(field, err, !!err);
+            });
+
+            $el.on('blur', function() {
+                var value = $.trim(this.value);
+                if (!value) { setMsg(field, '', false); return; }
+                var err = formatError(field, value);
+                if (err) { setMsg(field, err, true); return; }
+                setMsg(field, 'Checking…', false);
+                var payload = {
+                    field: field,
+                    value: value,
+                    phone: $.trim($('#phone').val() || ''),
+                    edit_seller: $('input[name="edit_seller"]').val() || 0
+                };
+                payload[csrfName] = csrfHash; // built by key so the CSRF field name stays dynamic
+                $.ajax({
+                    type: 'POST',
+                    url: '<?= base_url('admin/sellers/check_contact') ?>',
+                    data: payload,
+                    dataType: 'json',
+                    success: function(res) {
+                        setMsg(field, res.valid ? 'Available' : res.message, !res.valid);
+                    },
+                    error: function() { setMsg(field, '', false); }
+                });
+            });
+        });
+
+        // Block the submit on a known-bad format so the admin is not sent round-trip for
+        // something the browser already knows is wrong. Uniqueness stays server-side.
+        // Bound directly on the form (not delegated on document) so it runs BEFORE the
+        // delegated .form-submit-event AJAX handler in custom.js and can stop it.
+        $('#add_product_form').on('submit', function(e) {
+            var bad = null;
+            CONTACT_FIELDS.forEach(function(field) {
+                var $el = $('#' + field);
+                if (!$el.length) return;
+                var err = formatError(field, $.trim($el.val()));
+                if (err) {
+                    setMsg(field, err, true);
+                    if (!bad) bad = $el;
+                }
+            });
+            if (bad) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                if (typeof iziToast !== 'undefined') {
+                    iziToast.error({ message: 'Please correct the highlighted phone/email fields.' });
+                }
+                bad.focus();
+            }
+        });
+    })();
+
 </script>
 
 <style>

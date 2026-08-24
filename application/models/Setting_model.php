@@ -97,9 +97,16 @@ class Setting_model extends CI_Model
             // so they can be set by whoever has the answer (an accountant, alongside an admin)
             // without a developer editing code. Blank means "not applicable" and is stored as
             // 0, which withholds nothing.
-            'commission_gst_percent' => $keep_non_empty('commission_gst_percent', '0'),
-            'tcs_percent' => $keep_non_empty('tcs_percent', '0'),
-            'tds_percent' => $keep_non_empty('tds_percent', '0'),
+            // Statutory defaults, not zeros: the rates below are what the law prescribes, and
+            // an install that never opens this screen still has to deduct correctly. The
+            // master switch is what turns deductions off, not a rate of 0.
+            'statutory_deductions_enabled' => $toggle('statutory_deductions_enabled'),
+            'enforce_intrastate_unregistered' => $toggle('enforce_intrastate_unregistered'),
+            'commission_gst_percent' => $keep_non_empty('commission_gst_percent', '18'),
+            'tcs_percent' => $keep_non_empty('tcs_percent', '0.5'),
+            'tds_percent' => $keep_non_empty('tds_percent', '0.1'),
+            'tds_percent_no_pan' => $keep_non_empty('tds_percent_no_pan', '5'),
+            'tds_threshold_amount' => $keep_non_empty('tds_threshold_amount', '500000'),
             'max_items_cart' => $keep('max_items_cart'),
             'delivery_boy_bonus_percentage' => $keep('delivery_boy_bonus_percentage'),
             'max_product_return_days' => $keep('max_product_return_days'),

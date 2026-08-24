@@ -423,6 +423,28 @@ class Order_model extends CI_Model
                     return $response;
                 }
             }
+            /* A seller trading on a GST Enrollment ID instead of a GSTIN is not registered,
+               and an unregistered supplier may not make an inter-state supply - doing so
+               makes registration compulsory from that very supply. Nothing checked this, so
+               the marketplace would happily accept an out-of-state order that the seller
+               cannot lawfully fulfil, and by the time it showed up in a return the goods had
+               already moved. Refused here, at the one point every checkout path funnels
+               through (web, mobile API and POS all call this method). */
+            if (!empty($data['address_id'])) {
+                $CI->load->model('Tax_compliance_model');
+                $delivery_state = $this->db->select('state')->where('id', (int) $data['address_id'])
+                    ->get('addresses')->row_array();
+                $delivery_state = isset($delivery_state['state']) ? $delivery_state['state'] : '';
+
+                foreach ($seller_ids as $check_seller_id) {
+                    if ($CI->Tax_compliance_model->is_interstate_supply_blocked($check_seller_id, $delivery_state)) {
+                        $response['error'] = true;
+                        $response['message'] = 'One or more sellers in this order can only deliver within their own state. Please choose a delivery address in the same state, or remove those items.';
+                        return $response;
+                    }
+                }
+            }
+
             $delivery_charge = isset($data['delivery_charge']) && !empty($data['delivery_charge']) ? $data['delivery_charge'] : 0;
             $discount = isset($data['discount']) && !empty($data['discount']) ? $data['discount'] : 0;
             $gross_total = 0;

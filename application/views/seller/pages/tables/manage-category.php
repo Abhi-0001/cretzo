@@ -36,10 +36,19 @@
                         }'>
                             <thead>
                                 <tr>
-                                    <th data-field="id" data-sortable="true" data-visible='false' data-align='center'>ID</th>
+                                    <?php // Shown rather than hidden: the category id is what the bulk
+                                          // upload CSV's category_id column needs, and this table is
+                                          // where a seller looks it up. ?>
+                                    <th data-field="id" data-sortable="true" data-align='center'>Category ID</th>
                                     <th data-field="name" data-sortable="false" data-align='center'>Name</th>
                                     <th data-field="image" data-sortable="true" data-align='center'>Image</th>
-                                    <th data-field="banner" data-sortable="true" data-align='center'>Banner</th>
+                                    <?php // Banner column removed: `categories`.`banner` is not rendered by any
+                                          // storefront theme, so this was a wall of NO IMAGE placeholders for a
+                                          // picture nothing displays - the same removal already made on the admin
+                                          // screen. Only the <th> is gone (the column is what bootstrap-table
+                                          // builds from), so no data was touched and Category_model still puts
+                                          // `banner` in the payload for the mobile app. Re-add this one <th> to
+                                          // bring the column back. ?>
                                     <th data-field="status" data-sortable="true" data-align='center'>Status</th>
                                 </tr>
                             </thead>

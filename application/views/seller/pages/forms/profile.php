@@ -406,7 +406,8 @@
                         </div>
                         <div class="col-md-6 mb-3">
                           <label class="form-label">Shop Phone Number <span class="text-danger">*</span></label>
-                          <input name="shop_phone" type="text" class="input" placeholder="Enter shop Phone Number" value="<?=$fetched_data[0]['shop_phone']?>" required maxlength="10" onkeypress="if ( isNaN(this.value + String.fromCharCode(event.keyCode) )) return false;">
+                          <input name="shop_phone" type="text" id="shop_phone" class="input" placeholder="Enter shop Phone Number" value="<?=$fetched_data[0]['shop_phone']?>" required maxlength="10" onkeypress="if ( isNaN(this.value + String.fromCharCode(event.keyCode) )) return false;">
+                          <span id="shop_phone_error" class="text-danger"></span>
                         </div>
                         <div class="col-md-6 mb-3">
                           <label class="form-label">Pickup Address Lane 1 <span class="text-danger">*</span></label>
@@ -1384,7 +1385,9 @@ function bindDocPreviewFlexible(fieldName) {
 submitBtn.addEventListener('click', function(e) {
   e.preventDefault();
   document.getElementById('response').innerHTML = '';
-  if (!validateForm3()) return;
+  // contactFieldsValid() runs first and, on failure, opens the step holding the bad field.
+  var form3Ok = validateForm3();
+  if (!contactFieldsValid() || !form3Ok) return;
   const formData = new FormData(document.getElementById('seller_form'));
   submitBtn.disabled = true;
   submitBtn.innerText = 'Submitting...';
@@ -1480,10 +1483,130 @@ if (requestVerificationBtn) {
       });
   });
 }
+// ── Contact validation: Phone / Shop Phone / Email ────────────────────────────
+// Format checked while typing, uniqueness confirmed against the server on blur.
+// seller/Login::update_user() re-runs both on save - this only surfaces the answer
+// earlier, before the seller has walked through all four steps.
+var contactCheckState = { phone: null, shop_phone: null, email: null };
+
+function contactFormatError(field, value) {
+  if (!value) return '';
+  if (field === 'email') {
+    if (value.length > 254) return 'Email must be 254 characters or less';
+    return /^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(value) ? '' : 'Enter a valid email address (example: name@example.com)';
+  }
+  if (!/^\d{10}$/.test(value)) return 'Must be exactly 10 digits';
+  if (!/^[6-9]/.test(value)) return 'Must start with 6, 7, 8 or 9';
+  return '';
+}
+
+function setContactMessage(field, message, isError) {
+  var span = document.getElementById(field + '_error');
+  var input = document.getElementById(field);
+  if (span) {
+    span.innerText = message || '';
+    span.style.color = isError ? '#dc3545' : '#28a745';
+  }
+  if (input) input.classList.toggle('is-invalid', !!isError);
+}
+
+function checkContactAvailability(field) {
+  var input = document.getElementById(field);
+  if (!input) return;
+  var value = input.value.trim();
+  if (!value) { setContactMessage(field, '', false); contactCheckState[field] = null; return; }
+
+  var formatError = contactFormatError(field, value);
+  if (formatError) {
+    setContactMessage(field, formatError, true);
+    contactCheckState[field] = { value: value, valid: false, message: formatError };
+    return;
+  }
+
+  setContactMessage(field, 'Checking…', false);
+  var body = new FormData();
+  body.append('field', field);
+  body.append('value', value);
+  // Sent so the server knows this seller's own personal number - reusing it as the
+  // shop number is explicitly allowed, only OTHER accounts count as a clash.
+  body.append('phone', (document.getElementById('phone') || {}).value || '');
+
+  fetch("<?php echo base_url('seller/login/check_contact') ?>", { method: 'POST', body: body })
+    .then(function (res) { return res.json(); })
+    .then(function (data) {
+      if (input.value.trim() !== value) return; // the seller kept typing; this answer is stale
+      contactCheckState[field] = { value: value, valid: !!data.valid, message: data.message || '' };
+      setContactMessage(field, data.valid ? 'Available' : data.message, !data.valid);
+    })
+    .catch(function () { setContactMessage(field, '', false); contactCheckState[field] = null; });
+}
+
+['phone', 'shop_phone', 'email'].forEach(function (field) {
+  var input = document.getElementById(field);
+  if (!input) return;
+
+  if (field !== 'email') {
+    input.setAttribute('maxlength', '10');
+    input.setAttribute('inputmode', 'numeric');
+    // Strips anything a paste (or the Android keyboard, which ignores onkeypress) sneaks in.
+    input.addEventListener('input', function () {
+      var cleaned = this.value.replace(/\D/g, '').slice(0, 10);
+      if (cleaned !== this.value) this.value = cleaned;
+    });
+  }
+
+  input.addEventListener('input', function () {
+    var err = contactFormatError(field, this.value.trim());
+    setContactMessage(field, err, !!err);
+    contactCheckState[field] = null;
+  });
+
+  input.addEventListener('blur', function () { checkContactAvailability(field); });
+
+  // Anything already on file gets checked once on load, so a seller editing an old
+  // profile sees the problem before touching the field.
+  if (input.value.trim()) checkContactAvailability(field);
+});
+
+// Submit gate. validateForm3() only covers step 3, so the contact fields (steps 1 and 2)
+// are gated here - a seller can open the form on any section and press Submit.
+function contactFieldsValid() {
+  var ok = true;
+  var firstBadField = null;
+  ['phone', 'shop_phone', 'email'].forEach(function (field) {
+    var input = document.getElementById(field);
+    if (!input) return;
+    var value = input.value.trim();
+    if (!value) return; // "required" is the shared validator's job
+    var err = contactFormatError(field, value);
+    if (err) {
+      setContactMessage(field, err, true);
+      ok = false;
+      if (!firstBadField) firstBadField = field;
+      return;
+    }
+    var state = contactCheckState[field];
+    if (state && state.value === value && !state.valid) {
+      setContactMessage(field, state.message, true);
+      ok = false;
+      if (!firstBadField) firstBadField = field;
+    }
+  });
+  // Jump to the step the bad field actually lives on - shop_phone is on Store Details,
+  // phone/email on Personal Details - otherwise the error scrolls by unseen.
+  if (firstBadField) {
+    openProfileSection(firstBadField === 'shop_phone' ? 'store' : 'personal');
+    var badInput = document.getElementById(firstBadField);
+    if (badInput) setTimeout(function () { badInput.focus(); }, 50);
+  }
+  return ok;
+}
+
 </script>
 
 
-  <script src="<?= base_url('assets/seller/js/cretzo/form.js') ?>?v=<?= @filemtime(FCPATH . 'assets/seller/js/cretzo/form.js') ?: time() ?>"></script>
+  <script src="<?= base_url('assets/seller/js/cretzo/form.js') ?>?v=<?= @filemtime(FCPATH . 'assets/seller/js/cretzo/form.js') ?: time() ?>">
+</script>
 
 </body>
 </html>

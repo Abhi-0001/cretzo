@@ -306,6 +306,13 @@
     </section>
 </div>
 
+<?php
+// Approval-gate popups: nags until the profile is submitted for review, reassures while it
+// is pending, and congratulates exactly once after the admin approves. See
+// seller_approval_state().
+$this->load->view('seller/include-approval-modals', ['approval_modal_mode' => 'dashboard']);
+?>
+
 <style>
     .seller-dashboard-page .text-primary-theme { color: var(--color-orange); }
     .seller-dashboard-page .btn-primary-theme {

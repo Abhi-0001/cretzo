@@ -67,6 +67,11 @@ class Subscription extends CI_Controller
             }
         }
 
+        // Drives the checkout approval gate. Deliberately NOT a redirect: the seller is
+        // meant to be able to read the plan's commission slabs and inclusions first, and
+        // only meets the gate when they actually try to pay.
+        $this->data['seller_approval'] = seller_approval_state($this->session->userdata('user_id'));
+
         $this->data['main_page'] = VIEW . 'subscription_details';
         $this->data['title'] = 'Subscription Detail | ' . $settings['app_name'];
         $this->data['meta_description'] = 'Subscription Detail | ' . $settings['app_name'];
@@ -94,6 +99,25 @@ class Subscription extends CI_Controller
 
         $seller_id = $this->session->userdata('user_id');
         $subscription_id = $this->input->post('subscription_id', true);
+
+        // Hard gate, not just the popup on the checkout page: an unapproved seller could
+        // otherwise buy a plan by posting straight to this endpoint, and end up paying for
+        // listings they are not yet allowed to create.
+        $approval = seller_approval_state($seller_id);
+        if (!$approval['is_approved']) {
+            $response = [
+                'error' => true,
+                'approval_required' => true,
+                'approval_stage' => $approval['stage'],
+                'csrfName' => $this->security->get_csrf_token_name(),
+                'csrfHash' => $this->security->get_csrf_hash(),
+                'message' => $approval['stage'] === 'pending'
+                    ? 'Your profile is awaiting admin approval. You can subscribe once your account is approved.'
+                    : 'Please complete your profile and submit it for admin approval before subscribing.',
+            ];
+            echo json_encode($response);
+            return;
+        }
 
         $plan = $this->db->where('id', $subscription_id)->get('subscriptions')->row_array();
         if (empty($plan)) {

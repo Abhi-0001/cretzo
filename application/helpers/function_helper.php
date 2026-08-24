@@ -192,6 +192,147 @@ function duplicate_seller_identifiers_message($duplicate_labels)
     return $list . ' ' . ($count === 1 ? 'is' : 'are') . ' already registered with another seller account. Each seller account must use its own ' . ($count === 1 ? 'value' : 'values') . '.';
 }
 
+/**
+ * Contact-field format rules shared by the seller profile form and the admin seller form.
+ * Returns an array of human-readable error messages (empty array = everything is fine).
+ *
+ * Only fields present in $values are checked, so callers can validate a single field
+ * (the live availability check) or the whole form with the same rules.
+ *
+ * Phone rules: exactly 10 digits, first digit 6-9 (Indian mobile series). Anything
+ * shorter/longer, or carrying spaces, +91, dashes etc., is rejected rather than silently
+ * trimmed - the columns feed Shiprocket and OTP delivery, both of which need a clean 10-digit number.
+ */
+function seller_contact_format_errors($values)
+{
+    $labels = [
+        'phone' => 'Phone Number',
+        'shop_phone' => 'Shop Phone Number',
+        'email' => 'Email ID',
+    ];
+    $errors = [];
+
+    foreach (['phone', 'shop_phone'] as $field) {
+        if (!array_key_exists($field, $values)) {
+            continue;
+        }
+        $value = trim((string) $values[$field]);
+        if ($value === '') {
+            continue; // "required" is handled by the form validation rules, not here
+        }
+        if (!preg_match('/^[0-9]{10}$/', $value)) {
+            $errors[] = $labels[$field] . ' must be exactly 10 digits (no spaces, +91 or symbols).';
+        } elseif (!preg_match('/^[6-9]/', $value)) {
+            $errors[] = $labels[$field] . ' must be a valid mobile number starting with 6, 7, 8 or 9.';
+        }
+    }
+
+    if (array_key_exists('email', $values)) {
+        $email = trim((string) $values['email']);
+        if ($email !== '') {
+            if (strlen($email) > 254) {
+                $errors[] = $labels['email'] . ' must be 254 characters or less.';
+            } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL) || !preg_match('/^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/', $email)) {
+                $errors[] = 'Enter a valid ' . $labels['email'] . ' (example: name@example.com).';
+            }
+        }
+    }
+
+    return $errors;
+}
+
+/**
+ * Cross-account uniqueness for the seller contact fields.
+ *
+ * A seller may reuse their OWN personal number as the shop number (or use a different one),
+ * so numbers are only ever compared against OTHER accounts - never against the seller's own
+ * rows. Returns an array of human-readable messages (empty = no clash).
+ *
+ * $values keys: phone, shop_phone, email. $exclude_user_id is the users.id of the account
+ * being edited (0 when adding a brand-new seller, which excludes nothing).
+ */
+function duplicate_seller_contacts($values, $exclude_user_id = 0)
+{
+    $t = &get_instance();
+    $exclude_user_id = (int) $exclude_user_id;
+    $messages = [];
+
+    $phone = isset($values['phone']) ? trim((string) $values['phone']) : '';
+    $shop_phone = isset($values['shop_phone']) ? trim((string) $values['shop_phone']) : '';
+    $email = isset($values['email']) ? trim((string) $values['email']) : '';
+
+    // A number is "taken" if any other login uses it as its identity (users.mobile is the
+    // login identity and is UNIQUE), or if any other seller has it as their personal or
+    // shop number. Removed sellers (status 7) release their numbers.
+    $number_taken = function ($number) use ($t, $exclude_user_id) {
+        if ($number === '') {
+            return false;
+        }
+        $in_users = $t->db
+            ->where('id !=', $exclude_user_id)
+            ->where('mobile', $number)
+            ->count_all_results('users') > 0;
+        if ($in_users) {
+            return true;
+        }
+        return $t->db
+            ->where('user_id !=', $exclude_user_id)
+            ->where('status !=', 7)
+            ->group_start()
+            ->where('TRIM(phone)', $number)
+            ->or_where('TRIM(shop_phone)', $number)
+            ->group_end()
+            ->count_all_results('seller_data') > 0;
+    };
+
+    if ($phone !== '' && $number_taken($phone)) {
+        $messages[] = 'Phone Number ' . $phone . ' is already registered with another account. Please use a different number.';
+    }
+    // Only flag the shop number against other accounts - matching this seller's own personal
+    // number is explicitly allowed.
+    if ($shop_phone !== '' && $shop_phone !== $phone && $number_taken($shop_phone)) {
+        $messages[] = 'Shop Phone Number ' . $shop_phone . ' is already registered with another account. Please use a different number.';
+    }
+
+    if ($email !== '') {
+        // Compared against other SELLER accounts only (users.email is not unique app-wide:
+        // customers and delivery boys may legitimately share an address with a seller).
+        $email_taken = $t->db
+            ->where('user_id !=', $exclude_user_id)
+            ->where('status !=', 7)
+            ->where('LOWER(TRIM(email))', strtolower($email))
+            ->count_all_results('seller_data') > 0;
+        if (!$email_taken) {
+            $email_taken = $t->db
+                ->from('users u')
+                ->join('users_groups ug', 'ug.user_id = u.id')
+                ->where('ug.group_id', 4) // seller group
+                ->where('u.id !=', $exclude_user_id)
+                ->where('LOWER(TRIM(u.email))', strtolower($email))
+                ->count_all_results() > 0;
+        }
+        if ($email_taken) {
+            $messages[] = 'Email ID ' . $email . ' is already registered with another seller account. Please use a different email.';
+        }
+    }
+
+    return $messages;
+}
+
+/**
+ * Format + uniqueness in one call, for the two save paths (seller profile save and admin
+ * seller add/edit) so both reject exactly the same inputs. Returns '' when valid.
+ */
+function seller_contact_validation_message($values, $exclude_user_id = 0)
+{
+    $errors = seller_contact_format_errors($values);
+    if (!empty($errors)) {
+        return implode(' ', $errors);
+    }
+    $duplicates = duplicate_seller_contacts($values, $exclude_user_id);
+    return empty($duplicates) ? '' : implode(' ', $duplicates);
+}
+
 function get_settings($type = 'system_settings', $is_json = false)
 {
     $t = &get_instance();
@@ -9821,3 +9962,418 @@ function get_user_avatar_url($image)
     return base_url(USER_IMG_PATH . $image);
 }
 
+
+/**
+ * Work out which character actually separates the columns of an uploaded CSV.
+ *
+ * The bulk importers hard-coded "," as the delimiter. Excel on a non-US locale (and every
+ * "export as CSV" that really writes TSV) hands the seller a tab- or semicolon-separated
+ * file, which fgetcsv then reads as ONE giant column - so $row[2], $row[27] and friends do
+ * not exist, the row fails validation for a reason that has nothing to do with the data, and
+ * the PHP "Undefined array key" warnings printed ahead of the JSON reply broke the response
+ * outright. Sniffing the header line costs nothing and makes those files importable.
+ *
+ * @param string $csv_path path to the uploaded temp file
+ * @return string one of , ; \t |  - defaults to "," when nothing looks better
+ */
+function detect_csv_delimiter($csv_path)
+{
+    $candidates = array(',', ';', "\t", '|');
+    $handle = @fopen($csv_path, 'r');
+    if ($handle === false) {
+        return ',';
+    }
+    $header = fgets($handle, 100000);
+    fclose($handle);
+    if ($header === false || $header === '') {
+        return ',';
+    }
+
+    $best = ',';
+    $best_count = 0;
+    foreach ($candidates as $delimiter) {
+        $count = count(str_getcsv($header, $delimiter));
+        if ($count > $best_count) {
+            $best_count = $count;
+            $best = $delimiter;
+        }
+    }
+
+    return $best;
+}
+
+/**
+ * Pad a CSV row out to the expected column count.
+ *
+ * Every bulk importer addresses cells by fixed index ($row[27] is deliverable_type, and so
+ * on). A short row - a trailing column the seller's editor dropped, or a delimiter we guessed
+ * wrong - used to raise an "Undefined array key" warning per read. Those warnings are echoed
+ * into the response body, so the AJAX caller could not parse the JSON that followed and every
+ * such upload reported the useless "Something went wrong while uploading" instead of the real
+ * per-row reason. Padding with '' keeps the reads quiet and the validation messages truthful.
+ *
+ * @param array $row
+ * @param int   $width minimum number of columns the caller indexes into
+ * @return array
+ */
+function pad_csv_row($row, $width)
+{
+    if (!is_array($row)) {
+        return array_fill(0, $width, '');
+    }
+    for ($i = 0; $i < $width; $i++) {
+        if (!isset($row[$i])) {
+            $row[$i] = '';
+        }
+    }
+    return $row;
+}
+
+/**
+ * Check that a bulk-import header row has a workable number of columns.
+ *
+ * Every importer reads a fixed block of product columns and then repeats a fixed-width variant
+ * block for as many variants as the file carries, so the only valid widths are
+ * $fixed + (n * $block) for n >= 1. Anything else means the columns do not line up with what
+ * the code indexes: one spare column (a hand-added seller_id in a seller file, say) shifts the
+ * whole variant block along, so price lands in attribute_value_ids and the import silently
+ * writes corrupt products. Refusing the file is the only safe answer.
+ *
+ * @param int $count  columns found in the header row
+ * @param int $fixed  columns before the first variant block
+ * @param int $block  width of one variant block
+ * @return bool
+ */
+function is_valid_bulk_header_width($count, $fixed, $block)
+{
+    $count = (int) $count;
+    if ($count < $fixed + $block) {
+        return false;
+    }
+    return (($count - $fixed) % $block) === 0;
+}
+
+/**
+ * The message shown when is_valid_bulk_header_width() rejects a file.
+ *
+ * Spells out both numbers, because "the upload could not be completed" told the user nothing
+ * about what to change.
+ *
+ * @return string
+ */
+function bulk_header_width_message($count, $fixed, $block)
+{
+    $minimum = $fixed + $block;
+    return 'Your file has ' . (int) $count . ' column(s), which does not match the expected layout: '
+        . $fixed . ' product columns followed by one block of ' . $block . ' columns per variant '
+        . '(so ' . $minimum . ' columns for one variant, ' . ($minimum + $block) . ' for two, and so on). '
+        . 'Please start from the sample CSV and do not add or remove columns.';
+}
+
+/**
+ * Read a yes/no cell from a bulk upload sheet.
+ *
+ * These columns used to accept only 0 and 1, which is unreadable on a spreadsheet. The
+ * generated template writes words, and a seller typing their own answer is very likely to write
+ * one of these instead of a digit, so all of them are accepted.
+ *
+ * @param string $value cell contents
+ * @return int|null 1, 0, or null when the cell is blank/unrecognised so the caller can fall
+ *                  back to the setting chosen on the upload form
+ */
+function bulk_parse_yes_no($value)
+{
+    $value = strtolower(trim((string) $value));
+    if ($value === '') {
+        return null;
+    }
+    if (in_array($value, ['1', 'yes', 'y', 'true', 'allowed', 'returnable', 'included', 'inclusive'], true)) {
+        return 1;
+    }
+    if (in_array($value, ['0', 'no', 'n', 'false', 'not allowed', 'not returnable', 'excluded', 'exclusive'], true)) {
+        return 0;
+    }
+    return null;
+}
+
+/**
+ * Read a cell that must be one of a fixed set of choices, by word or by code.
+ *
+ * @param string $value cell contents
+ * @param array  $map   lower-cased accepted spelling => value to store
+ * @return mixed|null the mapped value, or null when the cell is blank/unrecognised
+ */
+function bulk_parse_choice($value, $map)
+{
+    $value = strtolower(trim((string) $value));
+    if ($value === '') {
+        return null;
+    }
+    return array_key_exists($value, $map) ? $map[$value] : null;
+}
+
+
+/*
+ * ---------------------------------------------------------------------------
+ * Bulk upload: settings shared by the seller and admin importers
+ * ---------------------------------------------------------------------------
+ * These live here rather than in either controller because both importers must agree on the
+ * spellings they write into a template and accept back out of one. When the same table was
+ * duplicated per controller the two drifted, and a file generated on one page failed on the
+ * other.
+ */
+/**
+ * Emit a per-row bulk upload failure and stop.
+ *
+ * Every one of these used to be six repeated lines. Wording matters more than the count
+ * here: the message is the only thing a seller has to work out what to change, so each
+ * caller says which column and what to put in it.
+ *
+ * @return bool always false, so callers can `return bulk_upload_row_error(...)`
+ */
+function bulk_upload_row_error($message)
+{
+    $ci = &get_instance();
+    $response = [];
+    $response['error'] = true;
+    $response['message'] = $message;
+    $response['csrfName'] = $ci->security->get_csrf_token_name();
+    $response['csrfHash'] = $ci->security->get_csrf_hash();
+    print_r(json_encode($response));
+    return false;
+}
+
+/**
+ * Read the settings that apply to every row of a bulk upload from the form.
+ *
+ * These are the columns sellers could not read: cod_allowed, is_prices_inclusive_tax,
+ * is_returnable, is_cancelable + cancelable_till, indicator and deliverable_type were all
+ * numeric codes in the sheet, and all of them are the same for every product in a real
+ * upload. Asking once, with words, removes six code columns from the file. Plain-number
+ * settings (minimum order quantity and friends) stay in the sheet - they need no decoding.
+ *
+ * @return array the values to write on every row, plus 'error' ('' when the form is valid)
+ */
+function collect_bulk_upload_defaults()
+{
+    $ci = &get_instance();
+    $defaults = [
+        'indicator'               => 0,
+        'cod_allowed'             => 1,
+        'is_prices_inclusive_tax' => 0,
+        'is_returnable'           => 0,
+        'is_cancelable'           => 0,
+        'cancelable_till'         => '',
+        'deliverable_type'        => ALL,
+        'deliverable_zipcodes'    => '',
+        'error'                   => '',
+    ];
+
+    $indicator = $ci->input->post('default_indicator');
+    if (in_array($indicator, ['0', '1', '2'], true)) {
+        $defaults['indicator'] = (int) $indicator;
+    }
+
+    // Only overridden when the field is actually present. Treating an absent field as "0"
+    // silently flipped cod_allowed to Not allowed for any caller that did not post it,
+    // contradicting the default declared above.
+    foreach (['default_cod_allowed' => 'cod_allowed',
+              'default_prices_inclusive_tax' => 'is_prices_inclusive_tax',
+              'default_is_returnable' => 'is_returnable'] as $field => $key) {
+        $posted = $ci->input->post($field);
+        if ($posted !== null && $posted !== '') {
+            $defaults[$key] = ($posted == '1') ? 1 : 0;
+        }
+    }
+
+    // One control instead of two: "cancellable until X" carries both the flag and the stage,
+    // so the pair can no longer contradict each other the way two loose columns could.
+    $cancelable_till = $ci->input->post('default_cancelable_till');
+    if (in_array($cancelable_till, ['received', 'processed', 'shipped'], true)) {
+        $defaults['is_cancelable'] = 1;
+        $defaults['cancelable_till'] = $cancelable_till;
+    }
+
+    $deliverable_type = $ci->input->post('default_deliverable_type');
+    if (!in_array($deliverable_type, [NONE, ALL, INCLUDED, EXCLUDED], true)) {
+        $deliverable_type = ALL;
+    }
+    $defaults['deliverable_type'] = $deliverable_type;
+
+    if ($deliverable_type == INCLUDED || $deliverable_type == EXCLUDED) {
+        // Only digits and separators survive: the field is a free-text box, and a stray
+        // label pasted in with the pincodes would be stored as a deliverable zipcode.
+        $zipcodes = preg_split('/[^0-9]+/', (string) $ci->input->post('default_deliverable_zipcodes'), -1, PREG_SPLIT_NO_EMPTY);
+        if (empty($zipcodes)) {
+            $defaults['error'] = 'Please list the pincodes for the delivery area you chose.';
+            return $defaults;
+        }
+        $defaults['deliverable_zipcodes'] = implode(',', array_unique($zipcodes));
+    }
+
+    return $defaults;
+}
+
+/**
+ * The word spellings the generated template writes, and everything else it will accept.
+ *
+ * Kept in one place so the template writer and the importer can never drift apart: the
+ * template picks the first spelling, the importer accepts any key.
+ */
+function bulk_setting_vocabulary()
+{
+    return [
+        'cancellable_until' => [
+            'labels' => ['' => 'No', 'received' => 'Until received', 'processed' => 'Until processed', 'shipped' => 'Until shipped'],
+            'map'    => [
+                'no' => '', 'none' => '', 'not cancellable' => '', 'not cancelable' => '',
+                'until received' => 'received', 'received' => 'received',
+                'until processed' => 'processed', 'processed' => 'processed',
+                'until shipped' => 'shipped', 'shipped' => 'shipped',
+            ],
+        ],
+        'food_type' => [
+            'labels' => ['0' => 'Not a food product', '1' => 'Vegetarian', '2' => 'Non-vegetarian'],
+            'map'    => [
+                'not a food product' => 0, 'none' => 0, 'no' => 0, '0' => 0,
+                'vegetarian' => 1, 'veg' => 1, '1' => 1,
+                'non-vegetarian' => 2, 'non vegetarian' => 2, 'non-veg' => 2, 'nonveg' => 2, '2' => 2,
+            ],
+        ],
+        'delivery_area' => [
+            'labels' => [NONE => 'Not deliverable yet', ALL => 'Everywhere', INCLUDED => 'Only these pincodes', EXCLUDED => 'Except these pincodes'],
+            'map'    => [
+                'everywhere' => ALL, 'all' => ALL, '1' => ALL,
+                'only these pincodes' => INCLUDED, 'only these' => INCLUDED, 'included' => INCLUDED, '2' => INCLUDED,
+                'except these pincodes' => EXCLUDED, 'everywhere except these pincodes' => EXCLUDED, 'except these' => EXCLUDED, 'excluded' => EXCLUDED, '3' => EXCLUDED,
+                'not deliverable yet' => NONE, 'not deliverable' => NONE, 'none' => NONE, '0' => NONE,
+            ],
+        ],
+    ];
+}
+
+/**
+ * Work out one row's settings: the cell if it says something, otherwise the form.
+ *
+ * Both sources exist on purpose. The template writes every one of these columns, so a
+ * downloaded-and-filled file is self-describing and can be re-uploaded months later without
+ * remembering which switches were set. A seller who deletes the columns' contents, or who
+ * built the file by hand, still gets the form's answers rather than a validation error.
+ *
+ * @return array ready to write onto the products row
+ */
+function resolve_bulk_row_settings($row, $C, $defaults)
+{
+    $vocab = bulk_setting_vocabulary();
+    $settings = $defaults;
+
+    $cod = bulk_parse_yes_no($row[$C['cod_allowed']]);
+    if ($cod !== null) {
+        $settings['cod_allowed'] = $cod;
+    }
+    $inclusive = bulk_parse_yes_no($row[$C['prices_include_tax']]);
+    if ($inclusive !== null) {
+        $settings['is_prices_inclusive_tax'] = $inclusive;
+    }
+    $returnable = bulk_parse_yes_no($row[$C['returnable']]);
+    if ($returnable !== null) {
+        $settings['is_returnable'] = $returnable;
+    }
+
+    $until = bulk_parse_choice($row[$C['cancellable_until']], $vocab['cancellable_until']['map']);
+    if ($until !== null) {
+        $settings['is_cancelable'] = ($until === '') ? 0 : 1;
+        $settings['cancelable_till'] = $until;
+    }
+
+    $food = bulk_parse_choice($row[$C['food_type']], $vocab['food_type']['map']);
+    if ($food !== null) {
+        $settings['indicator'] = $food;
+    }
+
+    $area = bulk_parse_choice($row[$C['delivery_area']], $vocab['delivery_area']['map']);
+    if ($area !== null) {
+        $settings['deliverable_type'] = $area;
+        // Pincodes belong to whichever area the row asked for, so they are re-read here
+        // rather than inherited from the form's (possibly different) choice.
+        $settings['deliverable_zipcodes'] = '';
+        if ($area == INCLUDED || $area == EXCLUDED) {
+            $zipcodes = preg_split('/[^0-9]+/', (string) $row[$C['pincodes']], -1, PREG_SPLIT_NO_EMPTY);
+            $settings['deliverable_zipcodes'] = !empty($zipcodes)
+                ? implode(',', array_unique($zipcodes))
+                : $defaults['deliverable_zipcodes'];
+        }
+    }
+
+    return $settings;
+}
+
+
+/**
+ * Where a seller stands in the admin-approval journey.
+ *
+ * Three gates share this: the dashboard popup that nags until the profile is submitted, the
+ * one-time approval congratulation, and the subscription checkout guard. They were each
+ * reading seller_data directly with slightly different rules, which is how a seller could be
+ * told "pending approval" on one screen and still be allowed to pay on another.
+ *
+ * Returns:
+ *   stage        - 'incomplete' (profile not submitted for review), 'pending' (submitted,
+ *                  awaiting the admin) or 'approved'
+ *   is_approved  - convenience boolean for stage === 'approved'
+ *   requested_at - when the seller submitted, if ever
+ *   show_approval_popup - true only on the first load after approval, until acknowledged
+ */
+function seller_approval_state($user_id)
+{
+    $CI = &get_instance();
+
+    $state = [
+        'stage'               => 'incomplete',
+        'is_approved'         => false,
+        'requested_at'        => null,
+        'show_approval_popup' => false,
+    ];
+
+    if (empty($user_id) || !$CI->db->table_exists('seller_data')) {
+        return $state;
+    }
+
+    // Every column here was added by a later migration, so a database that has not caught up
+    // must degrade to "incomplete" rather than throw an unknown-column error on the dashboard.
+    $select = ['status'];
+    $has_requested_at = $CI->db->field_exists('verification_request_at', 'seller_data');
+    $has_popup_flag   = $CI->db->field_exists('approval_popup_seen_at', 'seller_data');
+    if ($has_requested_at) {
+        $select[] = 'verification_request_at';
+    }
+    if ($has_popup_flag) {
+        $select[] = 'approval_popup_seen_at';
+    }
+
+    $row = $CI->db->select(implode(',', $select))
+        ->where('user_id', $user_id)
+        ->get('seller_data')
+        ->row_array();
+
+    if (empty($row)) {
+        return $state;
+    }
+
+    $state['requested_at'] = $has_requested_at && !empty($row['verification_request_at'])
+        ? $row['verification_request_at']
+        : null;
+
+    if ((string) $row['status'] === '1') {
+        $state['stage'] = 'approved';
+        $state['is_approved'] = true;
+        // No flag column yet means we cannot tell "already seen" from "never shown"; staying
+        // silent is better than congratulating the same seller on every page load.
+        $state['show_approval_popup'] = $has_popup_flag && empty($row['approval_popup_seen_at']);
+        return $state;
+    }
+
+    $state['stage'] = !empty($state['requested_at']) ? 'pending' : 'incomplete';
+
+    return $state;
+}

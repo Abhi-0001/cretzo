@@ -5526,6 +5526,31 @@ $('#area_wise_delivery_charge').on('switchChange.bootstrapSwitch', function (eve
     }
 });
 
+// The bulk endpoints echo JSON, but a PHP warning printed in front of it (a short CSV row
+// raising "Undefined array key", say) used to fail jQuery's own JSON parse. That sent a
+// perfectly well-explained failure to the error handler, which could only say "The upload
+// could not be completed." - hiding the real per-row reason sitting in the same body. Take the
+// last JSON object out of the response so the server's message always reaches the user.
+function parseBulkUploadResponse(raw) {
+    if (raw === null || raw === undefined) {
+        return null;
+    }
+    var text = String(raw).trim();
+    try {
+        return JSON.parse(text);
+    } catch (e) { /* fall through to the salvage below */ }
+
+    var start = text.lastIndexOf('{');
+    while (start !== -1) {
+        try {
+            return JSON.parse(text.slice(start));
+        } catch (e2) {
+            start = text.lastIndexOf('{', start - 1);
+        }
+    }
+    return null;
+}
+
 $('#bulk_upload_form').on('submit', function (e) {
     e.preventDefault();
 
@@ -5550,7 +5575,8 @@ $('#bulk_upload_form').on('submit', function (e) {
         type: 'POST',
         data: formdata,
         url: $(this).attr('action'),
-        dataType: 'json',
+        // 'text', not 'json': see parseBulkUploadResponse above.
+        dataType: 'text',
         cache: false,
         contentType: false,
         processData: false,
@@ -5558,9 +5584,14 @@ $('#bulk_upload_form').on('submit', function (e) {
             $('#submit_btn').html('Please Wait...').attr('disabled', true);
             $('#upload_result').hide().stop(true, true);
         },
-        success: function (result) {
-            csrfName = result.csrfName;
-            csrfHash = result.csrfHash;
+        success: function (raw) {
+            var result = parseBulkUploadResponse(raw);
+            if (!result) {
+                $('#upload_result').removeClass('msg_success').addClass('msg_error').html('The upload failed and the server response could not be read. Please try again.').show();
+                return;
+            }
+            if (result.csrfName) { csrfName = result.csrfName; }
+            if (result.csrfHash) { csrfHash = result.csrfHash; }
             // The result used to fade out after three seconds. Import failures are reported per
             // row ("Category id is empty at row 47"), so the one piece of information needed to
             // fix the file disappeared before it could be read or copied. The message now stays
@@ -5613,7 +5644,8 @@ $('#location_bulk_upload_form').on('submit', function (e) {
             type: 'POST',
             data: formdata,
             url: $(this).attr('action'),
-            dataType: 'json',
+            // 'text', not 'json': see parseBulkUploadResponse above.
+            dataType: 'text',
             cache: false,
             contentType: false,
             processData: false,
@@ -5621,9 +5653,14 @@ $('#location_bulk_upload_form').on('submit', function (e) {
                 $('#submit_btn').html('Please Wait...').attr('disabled', true);
                 $('#upload_result').hide().stop(true, true);
             },
-            success: function (result) {
-                csrfName = result.csrfName;
-                csrfHash = result.csrfHash;
+            success: function (raw) {
+                var result = parseBulkUploadResponse(raw);
+                if (!result) {
+                    $('#upload_result').removeClass('msg_success').addClass('msg_error').html('The upload failed and the server response could not be read. Please try again.').show();
+                    return;
+                }
+                if (result.csrfName) { csrfName = result.csrfName; }
+                if (result.csrfHash) { csrfHash = result.csrfHash; }
                 // The result used to fade out after three seconds. Import failures are
                 // reported per row ("City id is empty at row 47"), so the one piece of
                 // information needed to fix the file disappeared before it could be read or

@@ -185,6 +185,23 @@ define('NONE', '0');
 define('ALL', '1');
 define('INCLUDED', '2');
 define('EXCLUDED', '3');
+// Layout of the seller "simple" bulk upload sheet: a block of product columns followed by one
+// repeating block of variant columns. A valid file is SIMPLE_FIXED_COLUMNS + (n * SIMPLE_VARIANT_COLUMNS)
+// wide. The settings that used to be numeric-coded columns (cod_allowed, is_returnable,
+// is_cancelable, deliverable_type, indicator, is_prices_inclusive_tax) are written as words in
+// columns 20-26, pre-filled by the template the upload page generates from its own inputs, so a
+// seller never has to type or decode them. A blank cell falls back to the form's setting.
+defined("SIMPLE_FIXED_COLUMNS") || define("SIMPLE_FIXED_COLUMNS", 26);
+defined("SIMPLE_VARIANT_COLUMNS") || define("SIMPLE_VARIANT_COLUMNS", 5);
+// The admin sheet is the same layout with seller_id as its first column, because an admin is
+// importing on behalf of a seller rather than as one.
+defined("ADMIN_SIMPLE_FIXED_COLUMNS") || define("ADMIN_SIMPLE_FIXED_COLUMNS", 27);
+// The update sheet leads with product_id instead of seller_id (an update never changes who owns a
+// product) and each variant block leads with the variant_id it is updating, so the block is one
+// column wider than the upload one.
+defined("UPDATE_SIMPLE_FIXED_COLUMNS") || define("UPDATE_SIMPLE_FIXED_COLUMNS", 27);
+defined("UPDATE_SIMPLE_VARIANT_COLUMNS") || define("UPDATE_SIMPLE_VARIANT_COLUMNS", 6);
+
 defined("WORD_LIMIT") || define("WORD_LIMIT", 12);
 defined("DESCRIPTION_WORD_LIMIT") || define("DESCRIPTION_WORD_LIMIT", 150);
 defined("SHORT_DESCRIPTION_WORD_LIMIT") || define("SHORT_DESCRIPTION_WORD_LIMIT", 22);

@@ -238,14 +238,18 @@ function validateForm(form) {
         if (!RE_NAME.test(val)) { showError(input, 'Name may contain only letters'); valid = false; }
         break;
       case 'email':
-        if (!RE_EMAIL.test(val)) { showError(input, 'Enter a valid email address'); valid = false; }
+        if (val.length > 254) { showError(input, 'Email must be 254 characters or less'); valid = false; }
+        else if (!RE_EMAIL.test(val) || !/\.[A-Za-z]{2,}$/.test(val)) { showError(input, 'Enter a valid email address (example: name@example.com)'); valid = false; }
         break;
       case 'phone':
-        if (!RE_MOBILE.test(val)) { showError(input, 'Enter a valid 10-digit mobile number'); valid = false; }
+      case 'shop_phone': {
+        // Split length vs series so the message says which rule was broken - "enter a valid
+        // 10-digit number" is unhelpful when the number is 10 digits but starts with a 4.
+        const phoneLabel = (name === 'phone') ? 'Phone number' : 'Shop phone number';
+        if (!/^[0-9]{10}$/.test(val)) { showError(input, phoneLabel + ' must be exactly 10 digits'); valid = false; }
+        else if (!RE_MOBILE.test(val)) { showError(input, phoneLabel + ' must start with 6, 7, 8 or 9'); valid = false; }
         break;
-      case 'shop_phone':
-        if (!RE_MOBILE.test(val)) { showError(input, 'Enter a valid 10-digit shop phone number'); valid = false; }
-        break;
+      }
       case 'pin':
       case 'pickup_pin':
       case 'business_pin':

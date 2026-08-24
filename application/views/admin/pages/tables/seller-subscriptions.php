@@ -105,13 +105,14 @@
                                 data-query-params="mssQueryParams"
                                 data-side-pagination="client" data-pagination="true"
                                 data-page-list="[10, 20, 50, 100, 200]" data-search="true"
-                                data-show-columns="true" data-show-refresh="true" data-mobile-responsive="true">
+                                data-show-columns="true" data-show-refresh="true" data-mobile-responsive="true"
+                                data-sort-name="last_paid_on" data-sort-order="desc">
                                 <thead>
                                     <tr>
                                         <th data-field="seller_id" data-sortable="true">ID</th>
                                         <th data-field="shop_name" data-sortable="true">Seller</th>
                                         <th data-field="email" data-sortable="true" data-visible="false">Email</th>
-                                        <th data-field="mobile" data-sortable="true" data-visible="false">Mobile</th>
+                                        <th data-field="mobile" data-sortable="true">Mobile</th>
                                         <th data-field="plan_name" data-sortable="true">Plan</th>
                                         <th data-field="plan_type" data-sortable="true">Type</th>
                                         <th data-field="price" data-sortable="true">Plan Price</th>
@@ -123,6 +124,11 @@
                                         <th data-field="expiry" data-sortable="true">Expiry</th>
                                         <th data-field="days_left" data-sortable="true">Days Left</th>
                                         <th data-field="last_payment" data-sortable="true">Last Payment</th>
+                                        <!-- Raw payment timestamp: the visible "Last Payment" cell is HTML (amount + date),
+                                             so it cannot be sorted meaningfully. This hidden column carries the plain
+                                             `Y-m-d H:i:s` value and is what the table sorts on by default (newest first);
+                                             sellers who never paid have an empty value and fall to the bottom. -->
+                                        <th data-field="last_paid_on" data-sortable="true" data-visible="false">Last Payment Date</th>
                                         <th data-field="operate" data-sortable="false">Manage</th>
                                     </tr>
                                 </thead>

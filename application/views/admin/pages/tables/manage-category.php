@@ -66,7 +66,10 @@
                             data-query-params="category_query_params">
                             <thead>
                                 <tr>
-                                    <th data-field="id" data-sortable="true" data-visible='false'>ID</th>
+                                    <?php // Shown rather than hidden: the category id is what the bulk
+                                          // upload CSV's category_id column needs, and this table is where it
+                                          // gets looked up. ?>
+                                    <th data-field="id" data-sortable="true" data-align='center'>Category ID</th>
                                     <th data-field="name" data-sortable="true" data-align='center'>Name</th>
                                     <th data-field="image" data-sortable="false" data-align='center'>Image</th>
                                     <?php // Banner column removed: `categories`.`banner` is not rendered by ANY

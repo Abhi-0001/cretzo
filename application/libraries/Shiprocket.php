@@ -267,9 +267,9 @@ class Shiprocket
             $message = '';
             if (is_array($decoded)) {
                 if (!empty($decoded['message'])) {
-                    $message = is_string($decoded['message']) ? $decoded['message'] : json_encode($decoded['message']);
+                    $message = $this->flatten_message($decoded['message']);
                 } elseif (!empty($decoded['errors'])) {
-                    $message = json_encode($decoded['errors']);
+                    $message = $this->flatten_message($decoded['errors']);
                 }
             }
             $this->last_error = ($message !== '') ? $message : ('Shiprocket request failed (http ' . $status . ').');
@@ -277,6 +277,28 @@ class Shiprocket
         }
 
         return $decoded;
+    }
+
+    /**
+     * Shiprocket reports validation failures as {"field": ["sentence", ...]}. json_encode()-ing
+     * that put raw JSON in front of the seller ({"pickup_location":["Address name already
+     * exists..."]}), so flatten it to the sentences only.
+     */
+    private function flatten_message($message)
+    {
+        if (is_string($message)) {
+            return trim($message);
+        }
+        if (!is_array($message)) {
+            return '';
+        }
+        $parts = [];
+        array_walk_recursive($message, function ($value) use (&$parts) {
+            if (is_string($value) && trim($value) !== '') {
+                $parts[] = trim($value);
+            }
+        });
+        return implode(' ', array_unique($parts));
     }
 
     /** Human-readable reason the last call failed, or null if it did not. */

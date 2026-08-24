@@ -107,6 +107,13 @@ class Home extends CI_Controller
                 }
             }
 
+            // Approval gate state drives the dashboard popups: nag until the profile is
+            // submitted for review, reassure while it is pending, and congratulate exactly
+            // once when the admin approves it.
+            $approval = seller_approval_state($user_id);
+            $this->data['seller_approval'] = $approval;
+            $this->data['show_approval_success_popup'] = $approval['show_approval_popup'];
+
             $this->load->view('seller/template', $this->data);
         } else {
             redirect('seller/login', 'refresh');
@@ -266,6 +273,39 @@ class Home extends CI_Controller
         $this->response['csrfName'] = $this->security->get_csrf_token_name();
         $this->response['csrfHash'] = $this->security->get_csrf_hash();
         print_r(json_encode($this->response));
+    }
+
+    /**
+     * Marks the one-time "your account is approved" popup as seen.
+     *
+     * Stamped in the database rather than the session so the congratulation does not come
+     * back on the seller's next login. Deliberately forgiving: if the column is missing or
+     * the stamp fails, the popup simply shows again - it is informational, so a repeat is
+     * better than blocking the dashboard on it.
+     */
+    public function acknowledge_approval_popup()
+    {
+        $this->response = [];
+
+        if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller())) {
+            $this->response['error'] = true;
+            $this->response['message'] = 'Unauthorized access.';
+            echo json_encode($this->response);
+            return;
+        }
+
+        $user_id = $this->session->userdata('user_id');
+        $acknowledged = false;
+
+        if ($this->db->field_exists('approval_popup_seen_at', 'seller_data')) {
+            $acknowledged = (bool) $this->db->where('user_id', $user_id)
+                ->update('seller_data', ['approval_popup_seen_at' => date('Y-m-d H:i:s')]);
+        }
+
+        $this->response['error'] = !$acknowledged;
+        $this->response['csrfName'] = $this->security->get_csrf_token_name();
+        $this->response['csrfHash'] = $this->security->get_csrf_hash();
+        echo json_encode($this->response);
     }
 
     private function is_profile_value_present($profile_data, $key)
