@@ -959,9 +959,21 @@ class Ion_auth_model extends CI_Model
         if ($recheck !== 0) {
             $last_login = $this->session->userdata('last_check');
             if ($last_login + $recheck < time()) {
+                // Look the identity up in the column it was actually stored from, recorded
+                // by set_session(). Using $this->identity_column here (the config default,
+                // 'mobile') meant every email-identity session - social sign-in, and the
+                // email branch of Home::login() - was re-checked as
+                // `WHERE mobile = 'someone@example.com'`, matched nothing, and was force
+                // logged out the first time a page loaded more than recheck_timer seconds
+                // after signing in. That is the "please log in again" the user sees.
+                $identity_column = $this->session->userdata('identity_column');
+                if (empty($identity_column) || !in_array($identity_column, ['email', 'mobile', 'username'], TRUE)) {
+                    $identity_column = $this->identity_column;
+                }
+
                 $query = $this->db->select('id')
                     ->where([
-                        $this->identity_column => $this->session->userdata('identity'),
+                        $identity_column => $this->session->userdata('identity'),
                         'active' => '1'
                     ])
                     ->limit(1)
@@ -974,7 +986,10 @@ class Ion_auth_model extends CI_Model
 
                     $identity = $this->config->item('identity', 'ion_auth');
 
-                    $this->session->unset_userdata([$identity, 'id', 'user_id']);
+                    // 'identity' itself has to go too. Without it the session kept a stale
+                    // identity while user_id was cleared, leaving a half-logged-out state
+                    // that the next recheck would evaluate all over again.
+                    $this->session->unset_userdata([$identity, $identity_column, 'identity', 'identity_column', 'id', 'user_id']);
 
                     return FALSE;
                 }
@@ -1851,9 +1866,30 @@ class Ion_auth_model extends CI_Model
     {
         $this->trigger_events('pre_set_session');
 
+        // Which column the stored 'identity' actually refers to. It is NOT always the
+        // config default ('mobile'): social sign-in and every other email-identity flow
+        // point $this->identity_column at 'email' for the duration of that request.
+        // recheck_session() runs on the NEXT request, where the model has been rebuilt
+        // with the config default again - so the column has to travel with the session or
+        // the recheck looks the identity up in the wrong column and logs the user out.
+        $identity_column = $this->identity_column;
+        $identity_value  = isset($user->{$identity_column}) ? $user->{$identity_column} : NULL;
+
+        // A social signup has no phone number at all (users.mobile is NULL by design -
+        // migration 061), so with the default 'mobile' column this wrote 'identity' => NULL
+        // and recheck_session()'s empty() guard then reported the user as logged OUT on the
+        // very next page load - the session held a valid user_id (cart and notification
+        // counts rendered for the right account) while the header still offered
+        // "Login / Sign Up". Fall back to the column that does identify them.
+        if (empty($identity_value) && !empty($user->email)) {
+            $identity_column = 'email';
+            $identity_value  = $user->email;
+        }
+
         $session_data = [
-            'identity'                 => $user->{$this->identity_column},
-            $this->identity_column     => $user->{$this->identity_column},
+            'identity'                 => $identity_value,
+            $identity_column           => $identity_value,
+            'identity_column'          => $identity_column,
             'email'                    => $user->email,
             'user_id'                  => $user->id, //everyone likes to overwrite id so we'll use user_id
             'old_last_login'           => $user->last_login,
