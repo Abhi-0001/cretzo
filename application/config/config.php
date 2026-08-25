@@ -204,7 +204,6 @@ $config['directory_trigger'] = 'd';
 $config['allow_get_array'] = TRUE;
 
 
-$config['log_threshold'] = 4; // 1=error, 2=debug, 3=info, 4=all
 /*
 |--------------------------------------------------------------------------
 | Error Logging Threshold
@@ -227,6 +226,19 @@ $config['log_threshold'] = 4; // 1=error, 2=debug, 3=info, 4=all
 | your log files will fill up very fast.
 |
 */
+/*
+ * Errors only (1), in every environment.
+ *
+ * This setting was previously assigned TWICE in this file - `= 4` about twenty
+ * lines above, then `= 1` here. PHP keeps the last assignment, so the effective
+ * value has always been 1; the stray `= 4` was dead, and misleading enough that it
+ * read like the application was logging every message on every request. It has been
+ * removed and this, the assignment that was always in force, is left in place.
+ *
+ * Threshold 4 writes an entry for every debug and informational message, which on a
+ * page issuing hundreds of statements means a synchronous file write per message.
+ * Keep this at 1 in production.
+ */
 $config['log_threshold'] = 1;
 
 /*

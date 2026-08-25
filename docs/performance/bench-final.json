@@ -1,0 +1,100 @@
+{
+    "home": {
+        "code": 200,
+        "queries": 90,
+        "median": 0.890456,
+        "best": 0.656414,
+        "bytes": 259281
+    },
+    "products": {
+        "code": 200,
+        "queries": 52,
+        "median": 0.53837,
+        "best": 0.434197,
+        "bytes": 161779
+    },
+    "product detail": {
+        "code": 200,
+        "queries": 63,
+        "median": 0.428057,
+        "best": 0.341322,
+        "bytes": 196481
+    },
+    "category": {
+        "code": 200,
+        "queries": 36,
+        "median": 0.259009,
+        "best": 0.219777,
+        "bytes": 147149
+    },
+    "category 2": {
+        "code": 200,
+        "queries": 51,
+        "median": 0.369335,
+        "best": 0.262206,
+        "bytes": 148146
+    },
+    "products sorted": {
+        "code": 200,
+        "queries": 52,
+        "median": 0.562635,
+        "best": 0.404544,
+        "bytes": 161899
+    },
+    "products filtered": {
+        "code": 200,
+        "queries": 52,
+        "median": 0.49875,
+        "best": 0.366008,
+        "bytes": 161924
+    },
+    "sellers": {
+        "code": 200,
+        "queries": 30,
+        "median": 0.22112,
+        "best": 0.185437,
+        "bytes": 141523
+    },
+    "seller store": {
+        "code": 200,
+        "queries": 16,
+        "median": 0.099871,
+        "best": 0.091759,
+        "bytes": 25805
+    },
+    "cart": {
+        "code": 200,
+        "queries": 19,
+        "median": 0.192174,
+        "best": 0.121801,
+        "bytes": 79928
+    },
+    "login": {
+        "code": 200,
+        "queries": 16,
+        "median": 0.083623,
+        "best": 0.053979,
+        "bytes": 25805
+    },
+    "contact": {
+        "code": 200,
+        "queries": 25,
+        "median": 0.173885,
+        "best": 0.128316,
+        "bytes": 139945
+    },
+    "about": {
+        "code": 200,
+        "queries": 25,
+        "median": 0.145349,
+        "best": 0.123557,
+        "bytes": 142129
+    },
+    "faq": {
+        "code": 200,
+        "queries": 26,
+        "median": 0.206401,
+        "best": 0.132549,
+        "bytes": 158842
+    }
+}

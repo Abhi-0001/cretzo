@@ -71,7 +71,7 @@ class Migration_normalise_support_number extends CI_Migration
         }
 
         if ($changed) {
-            $this->db->set('value', json_encode($decoded))->where('variable', $variable)->update('settings');
+            settings_write_done($this->db->set('value', json_encode($decoded))->where('variable', $variable)->update('settings'));
         }
     }
 }

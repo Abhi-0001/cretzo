@@ -305,7 +305,7 @@ class Migration_order_attachments extends CI_Migration
                 'value' => '',
             ),
          );
-         $this->db->insert_batch('settings', $data);
+         settings_write_done($this->db->insert_batch('settings', $data));
         // $this->db->query('INSERT INTO `settings` (`variable`, `value`) VALUES ("sms_gateway_method","")');
         // $this->db->query('INSERT INTO `settings` (`variable`, `value`) VALUES ("authentication_settings","")');
         // $this->db->query('INSERT INTO `settings` (`variable`, `value`) VALUES ("vap_id_Key","")');

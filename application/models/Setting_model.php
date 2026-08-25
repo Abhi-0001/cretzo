@@ -161,9 +161,9 @@ class Setting_model extends CI_Model
             ));
             $logo_count = $logo_res->num_rows();
             if ($logo_count == 0) {
-                $this->db->insert('settings', ['value' => $main_image_name, 'variable' => 'logo']);
+                settings_write_done($this->db->insert('settings', ['value' => $main_image_name, 'variable' => 'logo']));
             } else {
-                $this->db->set('value', $main_image_name)->where('variable', 'logo')->update('settings');
+                settings_write_done($this->db->set('value', $main_image_name)->where('variable', 'logo')->update('settings'));
             }
         }
         if ($favicon_image_name != NULL && !empty($favicon_image_name)) {
@@ -172,9 +172,9 @@ class Setting_model extends CI_Model
             ));
             $favicon_count = $favicon_res->num_rows();
             if ($favicon_count == 0) {
-                $this->db->insert('settings', ['value' => $favicon_image_name, 'variable' => 'favicon']);
+                settings_write_done($this->db->insert('settings', ['value' => $favicon_image_name, 'variable' => 'favicon']));
             } else {
-                $this->db->set('value', $favicon_image_name)->where('variable', 'favicon')->update('settings');
+                settings_write_done($this->db->set('value', $favicon_image_name)->where('variable', 'favicon')->update('settings'));
             }
         }
         if ($count === 0) {
@@ -182,19 +182,19 @@ class Setting_model extends CI_Model
                 'variable' => 'system_settings',
                 'value' => $system_data
             );
-            $this->db->insert('settings', $data);
+            settings_write_done($this->db->insert('settings', $data));
             // Was missing the 'variable' key entirely - 'variable' is NOT NULL with no default,
             // so the very first save on a fresh install (before any settings rows exist) would
             // fail to insert a usable currency row, leaving every currency lookup broken until
             // someone fixed it directly in the database.
-            $this->db->insert('settings', ['variable' => 'currency', 'value' => $currency]);
+            settings_write_done($this->db->insert('settings', ['variable' => 'currency', 'value' => $currency]));
         } else {
-            $this->db->set('value', $system_data)->where('variable', 'system_settings')->update('settings');
+            settings_write_done($this->db->set('value', $system_data)->where('variable', 'system_settings')->update('settings'));
             // Only rewrite the standalone `currency` row when this request actually carried a
             // currency. It used to read $post['currency'] unconditionally, so a partial POST
             // blanked the row that every price on the storefront is formatted with.
             if ($currency !== '') {
-                $this->db->set('value', $currency)->where('variable', 'currency')->update('settings');
+                settings_write_done($this->db->set('value', $currency)->where('variable', 'currency')->update('settings'));
             }
         }
 
@@ -229,9 +229,9 @@ class Setting_model extends CI_Model
             ));
             $logo_count = $logo_res->num_rows();
             if ($logo_count == 0) {
-                $this->db->insert('settings', ['value' => $main_image_name, 'variable' => 'web_logo']);
+                settings_write_done($this->db->insert('settings', ['value' => $main_image_name, 'variable' => 'web_logo']));
             } else {
-                $this->db->set('value', $main_image_name)->where('variable', 'web_logo')->update('settings');
+                settings_write_done($this->db->set('value', $main_image_name)->where('variable', 'web_logo')->update('settings'));
             }
         }
         if ($favicon_image_name != NULL && !empty($favicon_image_name)) {
@@ -240,9 +240,9 @@ class Setting_model extends CI_Model
             ));
             $favicon_count = $favicon_res->num_rows();
             if ($favicon_count == 0) {
-                $this->db->insert('settings', ['value' => $favicon_image_name, 'variable' => 'web_favicon']);
+                settings_write_done($this->db->insert('settings', ['value' => $favicon_image_name, 'variable' => 'web_favicon']));
             } else {
-                $this->db->set('value', $favicon_image_name)->where('variable', 'web_favicon')->update('settings');
+                settings_write_done($this->db->set('value', $favicon_image_name)->where('variable', 'web_favicon')->update('settings'));
             }
         }
         if ($count === 0) {
@@ -250,9 +250,9 @@ class Setting_model extends CI_Model
                 'variable' => 'web_settings',
                 'value' => $system_data
             );
-            return $this->db->insert('settings', $data);
+            return settings_write_done($this->db->insert('settings', $data));
         } else {
-            return $this->db->set('value', $system_data)->where('variable', 'web_settings')->update('settings');
+            return settings_write_done($this->db->set('value', $system_data)->where('variable', 'web_settings')->update('settings'));
         }
     }
     public function update_payment_method($post)
@@ -400,9 +400,9 @@ class Setting_model extends CI_Model
                 'variable' => 'payment_method',
                 'value' => $payment_data
             );
-            return $this->db->insert('settings', $data);
+            return settings_write_done($this->db->insert('settings', $data));
         } else {
-            return $this->db->set('value', $payment_data)->where('variable', 'payment_method')->update('settings');
+            return settings_write_done($this->db->set('value', $payment_data)->where('variable', 'payment_method')->update('settings'));
         }
     }
 
@@ -447,9 +447,9 @@ class Setting_model extends CI_Model
                 'variable' => 'time_slot_config',
                 'value' => $config_data
             );
-            return $this->db->insert('settings', $data);
+            return settings_write_done($this->db->insert('settings', $data));
         } else {
-            return $this->db->set('value', $config_data)->where('variable', 'time_slot_config')->update('settings');
+            return settings_write_done($this->db->set('value', $config_data)->where('variable', 'time_slot_config')->update('settings'));
         }
     }
 
@@ -473,9 +473,9 @@ class Setting_model extends CI_Model
                 // 'value' => json_encode($post)
                 'value' => $authentication_data
             );
-            $this->db->insert('settings', $data);
+            settings_write_done($this->db->insert('settings', $data));
         } else {
-            $this->db->set('value', $authentication_data)->where('variable', 'authentication_settings')->update('settings');
+            settings_write_done($this->db->set('value', $authentication_data)->where('variable', 'authentication_settings')->update('settings'));
         }
     }
     public function update_fcm_details($post)
@@ -491,9 +491,9 @@ class Setting_model extends CI_Model
                 'variable' => 'fcm_server_key',
                 'value' => $post['fcm_server_key']
             );
-            return $this->db->insert('settings', $data);
+            return settings_write_done($this->db->insert('settings', $data));
         } else {
-            return $this->db->set('value', $post['fcm_server_key'])->where('variable', 'fcm_server_key')->update('settings');
+            return settings_write_done($this->db->set('value', $post['fcm_server_key'])->where('variable', 'fcm_server_key')->update('settings'));
         }
     }
     public function update_vapkey($post)
@@ -509,9 +509,9 @@ class Setting_model extends CI_Model
                 'variable' => 'vap_id_Key',
                 'value' => $post['vap_id_Key']
             );
-            return $this->db->insert('settings', $data);
+            return settings_write_done($this->db->insert('settings', $data));
         } else {
-            return $this->db->set('value', $post['vap_id_Key'])->where('variable', 'vap_id_Key')->update('settings');
+            return settings_write_done($this->db->set('value', $post['vap_id_Key'])->where('variable', 'vap_id_Key')->update('settings'));
         }
     }
     public function update_smsgateway($post)
@@ -548,9 +548,9 @@ class Setting_model extends CI_Model
             // (the array insert() actually expects) - on the very first save ever (before this
             // settings row existed), the insert failed/produced garbage while the controller
             // still reported success, leaving the SMS gateway silently unconfigured.
-            return $this->db->insert('settings', $data);
+            return settings_write_done($this->db->insert('settings', $data));
         } else {
-            return $this->db->set('value', $smsgateway_data)->where('variable', 'sms_gateway_settings')->update('settings');
+            return settings_write_done($this->db->set('value', $smsgateway_data)->where('variable', 'sms_gateway_settings')->update('settings'));
         }
     }
 
@@ -574,9 +574,9 @@ class Setting_model extends CI_Model
                 'variable' => 'send_notification_settings',
                 'value' => $notification_data
             );
-            return $this->db->insert('settings', $data);
+            return settings_write_done($this->db->insert('settings', $data));
         } else {
-            return $this->db->set('value', $notification_data)->where('variable', 'send_notification_settings')->update('settings');
+            return settings_write_done($this->db->set('value', $notification_data)->where('variable', 'send_notification_settings')->update('settings'));
         }
     }
 
@@ -596,9 +596,9 @@ class Setting_model extends CI_Model
                 'variable' => 'contact_us',
                 'value' => $post['contact_input_description']
             );
-            return $this->db->insert('settings', $data);
+            return settings_write_done($this->db->insert('settings', $data));
         } else {
-            return $this->db->set('value', $post['contact_input_description'])->where('variable', 'contact_us')->update('settings');
+            return settings_write_done($this->db->set('value', $post['contact_input_description'])->where('variable', 'contact_us')->update('settings'));
         }
     }
 
@@ -615,9 +615,9 @@ class Setting_model extends CI_Model
                 'variable' => 'privacy_policy',
                 'value' => $post['privacy_policy_input_description']
             );
-            return $this->db->insert('settings', $data);
+            return settings_write_done($this->db->insert('settings', $data));
         } else {
-            return $this->db->set('value', $post['privacy_policy_input_description'])->where('variable', 'privacy_policy')->update('settings');
+            return settings_write_done($this->db->set('value', $post['privacy_policy_input_description'])->where('variable', 'privacy_policy')->update('settings'));
         }
     }
 
@@ -634,9 +634,9 @@ class Setting_model extends CI_Model
                 'variable' => 'shipping_policy',
                 'value' => $post['shipping_policy_input_description']
             );
-            return $this->db->insert('settings', $data);
+            return settings_write_done($this->db->insert('settings', $data));
         } else {
-            return $this->db->set('value', $post['shipping_policy_input_description'])->where('variable', 'shipping_policy')->update('settings');
+            return settings_write_done($this->db->set('value', $post['shipping_policy_input_description'])->where('variable', 'shipping_policy')->update('settings'));
         }
     }
 
@@ -654,9 +654,9 @@ class Setting_model extends CI_Model
                 'variable' => 'return_policy',
                 'value' => $post['return_policy_input_description']
             );
-            return $this->db->insert('settings', $data);
+            return settings_write_done($this->db->insert('settings', $data));
         } else {
-            return $this->db->set('value', $post['return_policy_input_description'])->where('variable', 'return_policy')->update('settings');
+            return settings_write_done($this->db->set('value', $post['return_policy_input_description'])->where('variable', 'return_policy')->update('settings'));
         }
     }
 
@@ -673,9 +673,9 @@ class Setting_model extends CI_Model
                 'variable' => 'terms_conditions',
                 'value' => $post['terms_n_conditions_input_description']
             );
-            return $this->db->insert('settings', $data);
+            return settings_write_done($this->db->insert('settings', $data));
         } else {
-            return $this->db->set('value', $post['terms_n_conditions_input_description'])->where('variable', 'terms_conditions')->update('settings');
+            return settings_write_done($this->db->set('value', $post['terms_n_conditions_input_description'])->where('variable', 'terms_conditions')->update('settings'));
         }
     }
 
@@ -694,9 +694,9 @@ class Setting_model extends CI_Model
                 'variable' => 'about_us',
                 'value' => $post['about_us_input_description']
             );
-            return $this->db->insert('settings', $data);
+            return settings_write_done($this->db->insert('settings', $data));
         } else {
-            return $this->db->set('value', $post['about_us_input_description'])->where('variable', 'about_us')->update('settings');
+            return settings_write_done($this->db->set('value', $post['about_us_input_description'])->where('variable', 'about_us')->update('settings'));
         }
     }
 
@@ -713,9 +713,9 @@ class Setting_model extends CI_Model
                 'variable' => 'email_settings',
                 'value' => $email_data
             );
-            return $this->db->insert('settings', $data);
+            return settings_write_done($this->db->insert('settings', $data));
         } else {
-            return $this->db->set('value', $email_data)->where('variable', 'email_settings')->update('settings');
+            return settings_write_done($this->db->set('value', $email_data)->where('variable', 'email_settings')->update('settings'));
         }
     }
 
@@ -733,9 +733,9 @@ class Setting_model extends CI_Model
                 'variable' => 'delivery_boy_privacy_policy',
                 'value' => $data['privacy_policy_input_description']
             );
-            return $this->db->insert('settings', $data);
+            return settings_write_done($this->db->insert('settings', $data));
         } else {
-            return $this->db->set('value', $data['privacy_policy_input_description'])->where('variable', 'delivery_boy_privacy_policy')->update('settings');
+            return settings_write_done($this->db->set('value', $data['privacy_policy_input_description'])->where('variable', 'delivery_boy_privacy_policy')->update('settings'));
         }
     }
     public function update_seller_privacy_policy($data)
@@ -750,9 +750,9 @@ class Setting_model extends CI_Model
                 'variable' => 'seller_privacy_policy',
                 'value' => $data['privacy_policy_input_description']
             );
-            return $this->db->insert('settings', $data);
+            return settings_write_done($this->db->insert('settings', $data));
         } else {
-            return $this->db->set('value', $data['privacy_policy_input_description'])->where('variable', 'seller_privacy_policy')->update('settings');
+            return settings_write_done($this->db->set('value', $data['privacy_policy_input_description'])->where('variable', 'seller_privacy_policy')->update('settings'));
         }
     }
 
@@ -768,9 +768,9 @@ class Setting_model extends CI_Model
                 'variable' => 'delivery_boy_terms_conditions',
                 'value' => $data['terms_n_conditions_input_description']
             );
-            return $this->db->insert('settings', $data);
+            return settings_write_done($this->db->insert('settings', $data));
         } else {
-            return $this->db->set('value', $data['terms_n_conditions_input_description'])->where('variable', 'delivery_boy_terms_conditions')->update('settings');
+            return settings_write_done($this->db->set('value', $data['terms_n_conditions_input_description'])->where('variable', 'delivery_boy_terms_conditions')->update('settings'));
         }
     }
     public function update_seller_terms_n_condtions($data)
@@ -785,9 +785,9 @@ class Setting_model extends CI_Model
                 'variable' => 'seller_terms_conditions',
                 'value' => $data['terms_n_conditions_input_description']
             );
-            return $this->db->insert('settings', $data);
+            return settings_write_done($this->db->insert('settings', $data));
         } else {
-            return $this->db->set('value', $data['terms_n_conditions_input_description'])->where('variable', 'seller_terms_conditions')->update('settings');
+            return settings_write_done($this->db->set('value', $data['terms_n_conditions_input_description'])->where('variable', 'seller_terms_conditions')->update('settings'));
         }
     }
     public function update_admin_privacy_policy($data)
@@ -802,9 +802,9 @@ class Setting_model extends CI_Model
                 'variable' => 'admin_privacy_policy',
                 'value' => $data['privacy_policy_input_description']
             );
-            return $this->db->insert('settings', $data);
+            return settings_write_done($this->db->insert('settings', $data));
         } else {
-            return $this->db->set('value', $data['privacy_policy_input_description'])->where('variable', 'admin_privacy_policy')->update('settings');
+            return settings_write_done($this->db->set('value', $data['privacy_policy_input_description'])->where('variable', 'admin_privacy_policy')->update('settings'));
         }
     }
 
@@ -820,9 +820,9 @@ class Setting_model extends CI_Model
                 'variable' => 'admin_terms_conditions',
                 'value' => $data['terms_n_conditions_input_description']
             );
-            return $this->db->insert('settings', $data);
+            return settings_write_done($this->db->insert('settings', $data));
         } else {
-            return $this->db->set('value', $data['terms_n_conditions_input_description'])->where('variable', 'admin_terms_conditions')->update('settings');
+            return settings_write_done($this->db->set('value', $data['terms_n_conditions_input_description'])->where('variable', 'admin_terms_conditions')->update('settings'));
         }
     }
 
@@ -1012,9 +1012,9 @@ class Setting_model extends CI_Model
                 'variable' => 'firebase_settings',
                 'value' => $system_data
             );
-            return $this->db->insert('settings', $data);
+            return settings_write_done($this->db->insert('settings', $data));
         } else {
-            return $this->db->set('value', $system_data)->where('variable', 'firebase_settings')->update('settings');
+            return settings_write_done($this->db->set('value', $system_data)->where('variable', 'firebase_settings')->update('settings'));
         }
     }
 
@@ -1077,9 +1077,9 @@ class Setting_model extends CI_Model
                 'variable' => 'shipping_method',
                 'value' => $shipping_data
             );
-            return $this->db->insert('settings', $data);
+            return settings_write_done($this->db->insert('settings', $data));
         } else {
-            return $this->db->set('value', $shipping_data)->where('variable', 'shipping_method')->update('settings');
+            return settings_write_done($this->db->set('value', $shipping_data)->where('variable', 'shipping_method')->update('settings'));
         }
     }
 }

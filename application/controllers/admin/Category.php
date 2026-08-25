@@ -274,6 +274,8 @@ class Category extends CI_Controller
                 $i++;
             }
             $this->db->trans_complete();
+            // Reordering changes the tree that Category_model caches for the request.
+            $this->category_model->clear_category_cache();
 
             $response['error'] = ($this->db->trans_status() === false);
             $response['csrfName'] = $this->security->get_csrf_token_name();

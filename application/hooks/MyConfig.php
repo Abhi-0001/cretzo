@@ -2,39 +2,28 @@
 
 class MyConfig
 {
-    function get_email_settings()
-    {
-        $t = &get_instance();
-        $res = $t->db->where('variable', 'email_settings')->get('settings');
-        $numRows = $res->num_rows();
-        if ($res->num_rows > 0) {
-            $row = $res->row();
-            $email_settings = json_decode($row->value);
-            if (!empty($email_settings)) {
-                if ($email_settings->smtp_encryption == 'off') {
-                    $smtp_encryption = $email_settings->smtp_host;
-                } else {
-                    $smtp_encryption = $email_settings->smtp_encryption . '://' . $email_settings->smtp_host;
-                }
 
-                $data = array(
-                    'mailtype' => $email_settings->mail_content_type,
-                    'protocol' => 'smtp',
-                    'smtp_host' => $smtp_encryption,
-                    'smtp_port' => $email_settings->smtp_port,
-                    'smtp_user' => $email_settings->email,
-                    'smtp_pass' => $email_settings->password,
-                    'charset' => 'utf-8'
-                );
-                $t->config->set_item('email_config', $data);
-            }
-        }
-    }
+    /**
+     * URIs that are exempt from the purchase-code gate.
+     *
+     * PERFORMANCE: this list was previously written out inline TWICE - once in
+     * verify_doctor_brown() and again in loadSystemResources() - and both of those
+     * hooks run on EVERY request. verify_doctor_brown()'s copy really was rebuilt
+     * every time: 84 base_url() calls purely to feed an in_array() check, repeated
+     * for every page view. (loadSystemResources()'s copy sits behind a
+     * method_exists('MyConfig', 'verify_doctor_brown') guard that is always TRUE, so
+     * that one never actually executed - it was dead weight in the source only.)
+     *
+     * The list is now built at most once per request and shared by both callers.
+     * The entries below are byte-identical, and in the same order, as the two lists
+     * they replace.
+     */
+    private static $exclude_uris = null;
 
-    function loadSystemResources()
+    private static function exclude_uris()
     {
-        if (!method_exists('MyConfig', 'verify_doctor_brown')) {
-            $exclude_uris = array(
+        if (self::$exclude_uris === null) {
+            self::$exclude_uris = array(
                 base_url("admin/purchase-code"),
                 base_url("admin/purchase-code/validator"),
                 base_url("admin/home/logout"),
@@ -120,10 +109,69 @@ class MyConfig
                 base_url("sellers"),
                 base_url("sellers/"),
             );
+        }
+        return self::$exclude_uris;
+    }
+
+    /**
+     * Is the URI currently being served exempt from the purchase-code gate?
+     *
+     * current_url() was evaluated up to six times per request across the two hooks;
+     * it is now resolved once and the verdict memoised.
+     */
+    private static function is_excluded_uri()
+    {
+        static $result = null;
+        if ($result === null) {
+            $result = in_array(current_url(), self::exclude_uris());
+        }
+        return $result;
+    }
+    function get_email_settings()
+    {
+        $t = &get_instance();
+        /*
+         * PERFORMANCE: this used to issue its own `SELECT * FROM settings` on every
+         * request, whether or not the request ever sends mail. It now reads through
+         * get_settings_raw(), which shares the request-scoped settings memo with the
+         * ~700 get_settings() call sites - so on any request that touches settings at
+         * all (i.e. all of them) this costs nothing extra.
+         *
+         * Semantics are unchanged: a missing row yields FALSE here exactly as
+         * num_rows() === 0 did before, and the value is still decoded to an OBJECT
+         * (not an assoc array), which is what the -> accesses below require.
+         */
+        $value = get_settings_raw('email_settings');
+        if ($value !== false) {
+            $email_settings = json_decode($value);
+            if (!empty($email_settings)) {
+                if ($email_settings->smtp_encryption == 'off') {
+                    $smtp_encryption = $email_settings->smtp_host;
+                } else {
+                    $smtp_encryption = $email_settings->smtp_encryption . '://' . $email_settings->smtp_host;
+                }
+
+                $data = array(
+                    'mailtype' => $email_settings->mail_content_type,
+                    'protocol' => 'smtp',
+                    'smtp_host' => $smtp_encryption,
+                    'smtp_port' => $email_settings->smtp_port,
+                    'smtp_user' => $email_settings->email,
+                    'smtp_pass' => $email_settings->password,
+                    'charset' => 'utf-8'
+                );
+                $t->config->set_item('email_config', $data);
+            }
+        }
+    }
+
+    function loadSystemResources()
+    {
+        if (!method_exists('MyConfig', 'verify_doctor_brown')) {
 
             $doctor_brown = get_settings('doctor_brown', true);
             $web_doctor_brown = get_settings('web_doctor_brown', true);
-            if ((empty($doctor_brown) && empty($web_doctor_brown)) && !in_array(current_url(), $exclude_uris)) {
+            if ((empty($doctor_brown) && empty($web_doctor_brown)) && !self::is_excluded_uri()) {
                 /* redirect him to the page where he can enter the purchase code */
                 redirect(base_url("admin/purchase-code"));
             }
@@ -189,100 +237,14 @@ class MyConfig
 
     function verify_doctor_brown()
     {
-        $exclude_uris = array(
-            base_url("admin/purchase-code"),
-            base_url("admin/purchase-code/validator"),
-            base_url("admin/home/logout"),
-            base_url("admin/"),
-            base_url("admin"),
-            base_url("admin/home"),
-            base_url("admin/login"),
-            base_url("auth/login"),
-            base_url("app/v1/api"),
-            base_url(),
-            base_url("products"),
-            base_url("cart"),
-            base_url("cart/manage"),
-            base_url("cart/remove"),
-            base_url("cart/clear"),
-            base_url("cart/get_user_cart"),
-            base_url("cart/checkout"),
-            base_url("cart/place-order"),
-            base_url("cart/validate-promo-code"),
-            base_url("cart/pre-payment-setup"),
-            base_url("cart/get-delivery-charge"),
-            base_url("cart/send-bank-receipt"),
-            base_url("cart/check-product-availability"),
-            base_url("home/contact-us"),
-            base_url("home/categories"),
-            base_url("home/get-products"),
-            base_url("home/address-list"),
-            base_url("home/checkout"),
-            base_url("home/terms-and-conditions"),
-            base_url("home/about-us"),
-            base_url("home/faq"),
-            base_url("home/privacy-policy"),
-            base_url("home/login"),
-            base_url("home/lang"),
-            base_url("home/reset-password"),
-            base_url("home/send-contact-us-email"),
-            base_url("login"),
-            base_url("login/login-check"),
-            base_url("login/logout"),
-            base_url("login/update-user"),
-            base_url("my-account"),
-            base_url("my-account/profile"),
-            base_url("my-account/orders"),
-            base_url("my-account/order_details"),
-            base_url("my-account/order_invoice"),
-            base_url("my-account/update_order_item_status"),
-            base_url("my-account/update_order"),
-            base_url("my-account/notifications"),
-            base_url("my-account/manage_address"),
-            base_url("my-account/wallet"),
-            base_url("my-account/transactions"),
-            base_url("my-account/add_address"),
-            base_url("my-account/edit_address"),
-            base_url("my-account/delete_address"),
-            base_url("my-account/set_default_address"),
-            base_url("my-account/get_address"),
-            base_url("my-account/get_address_list"),
-            base_url("my-account/get_areas"),
-            base_url("my-account/get_zipcode"),
-            base_url("my-account/favorites"),
-            base_url("my-account/manage_favorites"),
-            base_url("my-account/get_transactions"),
-            base_url("my-account/get_wallet_transactions"),
-            base_url("payment"),
-            base_url("payment/paypal"),
-            base_url("payment/paytm"),
-            base_url("payment/initiate_paytm_transaction"),
-            base_url("payment/paytm_response"),
-            base_url("payment/success"),
-            base_url("payment/cancel"),
-            base_url("payment/app_payment_status"),
-            base_url("payment/do_capture"),
-            base_url("products/category"),
-            base_url("products/details"),
-            base_url("products/get_details"),
-            base_url("products/section"),
-            base_url("products/search"),
-            base_url("products/tags"),
-            base_url("products/save_rating"),
-            base_url("products/delete_rating"),
-            base_url("products/get_rating"),
-            base_url("products/check_zipcode"),
-            base_url("sellers"),
-            base_url("sellers/"),
-        );
         $doctor_brown = get_settings('doctor_brown', true);
         $web_doctor_brown = get_settings('web_doctor_brown', true);
 
-        if ((empty($doctor_brown) && empty($web_doctor_brown)) && !in_array(current_url(), $exclude_uris)) {
+        if ((empty($doctor_brown) && empty($web_doctor_brown)) && !self::is_excluded_uri()) {
             /* redirect him to the page where he can enter the purchase code */
             redirect(base_url("admin/purchase-code"));
         } else {
-            if ((!empty($doctor_brown) && !in_array(current_url(), $exclude_uris))) {
+            if ((!empty($doctor_brown) && !self::is_excluded_uri())) {
                 /* redirect him to the page where he can enter the purchase code */
                 $calculated_time_check = $time_check = '';
 
@@ -293,12 +255,12 @@ class MyConfig
                 $str = $code_bravo . "|" . $code_adam . "|" . $dr_firestone;
                 $calculated_time_check = hash('sha256', $str);
                 if (empty($calculated_time_check) || empty($time_check)) {
-                    if (!in_array(current_url(), $exclude_uris)) {
+                    if (!self::is_excluded_uri()) {
                         redirect(base_url("admin/purchase-code"));
                     }
                 }
             }
-            if ((!empty($web_doctor_brown) && !in_array(current_url(), $exclude_uris))) {
+            if ((!empty($web_doctor_brown) && !self::is_excluded_uri())) {
                 /* redirect him to the page where he can enter the purchase code */
                 $calculated_time_check = $time_check = '';
                 $time_check = (isset($web_doctor_brown["time_check"])) ? trim($web_doctor_brown["time_check"]) : "";
@@ -308,7 +270,7 @@ class MyConfig
                 $str = $code_bravo . "|" . $code_adam . "|" . $dr_firestone;
                 $calculated_time_check = hash('sha256', $str);
                 if (empty($calculated_time_check) || empty($time_check)) {
-                    if (!in_array(current_url(), $exclude_uris)) {
+                    if (!self::is_excluded_uri()) {
                         redirect(base_url("admin/purchase-code"));
                     }
                 }

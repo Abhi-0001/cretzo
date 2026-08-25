@@ -100,6 +100,34 @@ class Rating_model extends CI_Model
     {
         $t = &get_instance();
         $where = $images = [];
+
+        /*
+         * PERFORMANCE: fetch_product() calls this once per product, with
+         * $has_images = 1, purely to populate the `review_images` key. On a normal
+         * catalogue hardly any product owns a review that carries images, so for the
+         * overwhelming majority the query is guaranteed to return nothing and the
+         * function falls through to its implicit NULL.
+         *
+         * When a batch prefetch is open it already knows - from one DISTINCT query -
+         * exactly which of the products being listed own such a review. For any
+         * product outside that set the result is known to be empty, so return the
+         * same NULL immediately instead of asking the database again.
+         *
+         * Deliberately narrow: this only applies to the exact call shape used by
+         * fetch_product() (a product-scoped, images-only lookup with no user or
+         * rating filter). Every other call still runs the query.
+         */
+        if ($has_images == 1
+            && !empty($product_id)
+            && empty($user_id)
+            && empty($rating_id)
+            && Product_batch::is_open()
+            && is_array(Product_batch::$rated_with_images)
+            && !isset(Product_batch::$rated_with_images[(string) $product_id])
+        ) {
+            return;
+        }
+
         if (isset($product_id) && !empty($product_id)) {
             $t->db->select('pr.*,u.username as user_name,u.image as user_profile');
             $where['product_id'] = $product_id;

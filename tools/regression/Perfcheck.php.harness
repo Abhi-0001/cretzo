@@ -1,0 +1,207 @@
+<?php
+defined('BASEPATH') or exit('No direct script access allowed');
+
+/**
+ * TEMPORARY performance-verification harness (Phase 2).
+ * Dumps a byte-exact fingerprint of the read paths being refactored so the
+ * "before" and "after" runs can be diffed. Delete once Phase 2 is signed off.
+ * CLI only.
+ */
+class Perfcheck extends CI_Controller
+{
+    public function __construct()
+    {
+        parent::__construct();
+        if (!is_cli()) {
+            show_404();
+        }
+        $this->load->model('rating_model');
+        $this->load->model('order_model');
+    }
+
+    private function stamp($label, $data)
+    {
+        $ser = serialize($data);
+        fwrite(STDOUT, str_pad($label, 52) . ' md5=' . md5($ser) . '  bytes=' . strlen($ser) . "\n");
+    }
+
+    public function snapshot()
+    {
+        $q0 = count($this->db->queries);
+
+        // --- fetch_product: the main storefront read, several shapes ---
+        $cases = [
+            'storefront_default'   => [null, null, null, null, 12, 0, 'p.row_order', 'ASC', null, null, null],
+            'storefront_page2'     => [null, null, null, null, 12, 12, 'p.row_order', 'ASC', null, null, null],
+            'storefront_wide'      => [null, null, null, null, 60, 0, 'p.row_order', 'ASC', null, null, null],
+            'sort_by_price'        => [null, null, null, null, 12, 0, 'pv.price', 'ASC', null, null, null],
+            'new_added_products'   => [null, ['product_type' => 'new_added_products'], null, null, 12, 0, null, null, null, null, null],
+            'top_rated'            => [null, ['product_type' => 'top_rated_products'], null, null, 12, 0, null, null, null, null, null],
+            'on_sale'              => [null, ['product_type' => 'products_on_sale'], null, null, 12, 0, null, null, null, null, null],
+            'most_selling'         => [null, ['product_type' => 'most_selling_products'], null, null, 12, 0, null, null, null, null, null],
+            'search_bag'           => [null, ['search' => 'bag'], null, null, 12, 0, null, null, null, null, null],
+            'admin_all_products'   => [null, ['show_only_active_products' => 0, 'ignore_category_status' => 1], null, null, 40, 0, 'p.id', 'DESC', null, null, null],
+            'return_count'         => [null, null, null, null, null, null, null, null, 1, null, null],
+        ];
+        foreach ($cases as $name => $a) {
+            $out = fetch_product($a[0], $a[1], $a[2], $a[3], $a[4], $a[5], $a[6], $a[7], $a[8], $a[9], $a[10]);
+            $this->stamp('fetch_product/' . $name, $out);
+        }
+
+        // single product by id + by seller
+        $pids = array_column($this->db->select('id')->order_by('id')->limit(6)->get('products')->result_array(), 'id');
+        foreach ($pids as $pid) {
+            $this->stamp('fetch_product/by_id_' . $pid, fetch_product(null, null, $pid, null, null, null, null, null, null, null, null));
+        }
+        // ORDER BY is required for a stable fingerprint: without it the scan order -
+        // and therefore which four sellers get sampled, and in what sequence - changes
+        // as soon as an index is added.
+        $sids = array_column($this->db->select('DISTINCT(seller_id) as seller_id')->order_by('seller_id')->limit(4)->get('products')->result_array(), 'seller_id');
+        foreach ($sids as $sid) {
+            $this->stamp('fetch_product/by_seller_' . $sid, fetch_product(null, null, null, null, 12, 0, null, null, null, null, $sid));
+        }
+
+        // --- the individual helpers being batched ---
+        foreach ($pids as $pid) {
+            $this->stamp('variants_by_pid/' . $pid,   get_variants_values_by_pid($pid));
+            $this->stamp('attributes_by_pid/' . $pid, get_attribute_values_by_pid($pid));
+            $this->stamp('minmax_price/' . $pid,      get_min_max_price_of_product($pid));
+            $this->stamp('stock_product/' . $pid,     get_stock($pid, 'product'));
+            $this->stamp('rating_imgs/' . $pid,       $this->rating_model->fetch_rating($pid, '', 8, 0, 'pr.id', 'desc', '', 1));
+        }
+        $vids = array_column($this->db->select('id')->order_by('id')->limit(6)->get('product_variants')->result_array(), 'id');
+        foreach ($vids as $vid) {
+            $this->stamp('stock_variant/' . $vid, get_stock($vid, 'variant'));
+        }
+
+        // --- get_settings across every variable actually stored ---
+        $vars = array_column($this->db->select('variable')->order_by('variable')->get('settings')->result_array(), 'variable');
+        foreach ($vars as $v) {
+            $this->stamp('get_settings/' . $v,        get_settings($v));
+            $this->stamp('get_settings_json/' . $v,   get_settings($v, true));
+        }
+
+        fwrite(STDOUT, "\nQUERIES EXECUTED: " . (count($this->db->queries) - $q0) . "\n");
+    }
+
+    /**
+     * Proves the cached category tree matches the original query-per-node recursion.
+     *
+     * Re-implements the ORIGINAL algorithm inline (one query per node, exactly as
+     * Category_model::sub_categories() used to do) and compares its output against
+     * the current implementation for EVERY category id in the table, plus the root.
+     */
+    public function categories()
+    {
+        $ids = array_column(
+            $this->db->select('id')->order_by('id')->get('categories')->result_array(),
+            'id'
+        );
+        $ids[] = 0; // the root, which is what the header navigation walks
+
+        $mismatch = 0;
+        foreach ($ids as $id) {
+            $old = $this->legacy_sub_categories($id, 0);
+            $new = $this->category_model->sub_categories($id, 0);
+            if (serialize($old) !== serialize($new)) {
+                $mismatch++;
+                fwrite(STDOUT, "MISMATCH at category id {$id}\n");
+                fwrite(STDOUT, "  old: " . substr(serialize($old), 0, 300) . "\n");
+                fwrite(STDOUT, "  new: " . substr(serialize($new), 0, 300) . "\n");
+            }
+        }
+
+        // Also compare the public entry points that build on it.
+        $this->stamp('get_categories/root', $this->category_model->get_categories('', 12, 0, 'row_order', 'ASC', 'false'));
+        $this->stamp('get_categories/all', $this->category_model->get_categories());
+
+        fwrite(STDOUT, sprintf(
+            "\ncategory nodes compared: %d\nmismatches: %d  => %s\n",
+            count($ids),
+            $mismatch,
+            $mismatch === 0 ? 'IDENTICAL' : 'FAILED'
+        ));
+    }
+
+    /** The pre-optimisation recursion, verbatim, for comparison only. */
+    private function legacy_sub_categories($id, $level)
+    {
+        $level = $level + 1;
+        $this->db->select('c1.*');
+        $this->db->from('categories c1');
+        $this->db->where(['c1.parent_id' => $id, 'c1.status' => 1]);
+        $categories = $this->db->get()->result();
+        $i = 0;
+        foreach ($categories as $p_cat) {
+            $categories[$i]->children = $this->legacy_sub_categories($p_cat->id, $level);
+            $categories[$i]->text = output_escaping($p_cat->name);
+            $categories[$i]->state = ['opened' => true];
+            $categories[$i]->level = $level;
+            $categories[$i]->image = get_image_url($categories[$i]->image, 'thumb', 'md');
+            $categories[$i]->banner = get_image_url($categories[$i]->banner, 'thumb', 'md');
+            $i++;
+        }
+        return $categories;
+    }
+
+    /**
+     * Everything that compares or joins on a brand string.
+     *
+     * Used to prove the brands charset/collation conversion changes no behaviour:
+     * the p.brand = b.name join, brand filtering, brand sorting, and the uniqueness
+     * comparison the admin form validation relies on.
+     */
+    public function brands()
+    {
+        $this->load->model('brand_model');
+
+        // The join that previously could not use an index.
+        $this->stamp('brands/join_products', $this->db
+            ->select('b.id, b.name, b.slug, COUNT(p.id) as product_count')
+            ->join('products p', 'p.brand = b.name', 'left')
+            ->group_by('b.id')->order_by('b.id')
+            ->get('brands b')->result_array());
+
+        // Sorting is collation-dependent, so fingerprint it explicitly.
+        $this->stamp('brands/order_by_name', $this->db
+            ->select('id,name,slug')->order_by('name', 'ASC')->get('brands')->result_array());
+
+        // Case- and accent-folding behaviour, which is what actually differs between
+        // utf8_general_ci and utf8mb4_unicode_ci.
+        $probes = ['Cretzo', 'cretzo', 'CRETZO', 'Adidas', 'adidas', 'Decathlon', 'decathlon', 'Nonexistent'];
+        $eq = [];
+        foreach ($probes as $p) {
+            $eq[$p] = $this->db->where('name', $p)->count_all_results('brands');
+        }
+        $this->stamp('brands/equality_probes', $eq);
+
+        // The same probes against products.brand, the other side of the join.
+        $pe = [];
+        foreach ($probes as $p) {
+            $pe[$p] = $this->db->where('brand', $p)->count_all_results('products');
+        }
+        $this->stamp('brands/product_brand_probes', $pe);
+
+        // Brand-filtered product listings, through the real read path.
+        foreach (['Cretzo', 'Adidas', 'Decathlon'] as $b) {
+            $r = fetch_product(null, ['brand' => $b], null, null, 12, 0, null, null, null, null, null);
+            $this->stamp('brands/filter_' . $b, $r);
+        }
+        // Multi-brand filter (where_in path).
+        $this->stamp('brands/filter_multi', fetch_product(null, ['brands' => 'Cretzo|Adidas'], null, null, 12, 0, null, null, null, null, null));
+
+        $this->stamp('brands/get_brands', $this->brand_model->get_brands('', 12, 0, 'row_order', 'ASC', 'false'));
+
+        fwrite(STDOUT, "\nbrand checks complete\n");
+    }
+
+    /** Order_model N+1 paths, driven the way the admin tables drive them. */
+    public function orders()
+    {
+        $q0 = count($this->db->queries);
+        $_GET = ['limit' => 50, 'offset' => 0];
+        $this->stamp("order_model/get_orders_list", $this->order_model->get_orders_list());
+        $this->stamp("order_model/get_digital_orders_list", $this->order_model->get_digital_product_orders_list());
+        fwrite(STDOUT, "QUERIES EXECUTED: " . (count($this->db->queries) - $q0) . "\n");
+    }
+}
