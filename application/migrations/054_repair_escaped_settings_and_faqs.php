@@ -124,7 +124,7 @@ class Migration_repair_escaped_settings_and_faqs extends CI_Migration
         }
 
         if ($changed) {
-            $this->db->where('variable', $variable)->update('settings', ['value' => json_encode($data)]);
+            settings_write_done($this->db->where('variable', $variable)->update('settings', ['value' => json_encode($data)]));
         }
     }
 

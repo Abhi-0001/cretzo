@@ -48,38 +48,103 @@ Options -Indexes
   </FilesMatch>
 </IfModule>
 
-# NOTE: this value also selects the database credentials in config/database.php,
-# not just error verbosity - setting it to 'production' here points local XAMPP at
-# the Hostinger DB and takes the local site down with a connection error. Hostinger
-# should set CI_ENV=production in its own server/vhost config rather than in this
-# shared, deployed file.
-SetEnv CI_ENV development
+# ===============================
+# APPLICATION ENVIRONMENT
+# ===============================
+# This file previously contained:
+#
+#     SetEnv CI_ENV development
+#
+# and it is DEPLOYED, so the live server was being told it was a development box.
+# That is what made index.php enable display_errors and what made db_debug TRUE -
+# meaning a database error would print the failing SQL to visitors.
+#
+# The line has been removed rather than flipped to 'production', because a single
+# tracked file cannot correctly describe two different machines. The environment is
+# now decided by whichever machine is running the code:
+#
+#   - Production: nothing sets CI_ENV, and index.php now DEFAULTS to 'production'.
+#     Absence of configuration therefore fails safe. (If Hostinger sets CI_ENV
+#     explicitly in hPanel, that still wins - this only changes the fallback.)
+#   - Local dev: the developer's machine carries a gitignored `.env.development`
+#     marker file in the project root; index.php checks for it. A file is used
+#     rather than an Apache SetEnv because SetEnv only reaches web requests, and
+#     CLI tooling (`php index.php admin migrate`) needs the same answer.
+#
+# Local credentials live in application/config/development/database.php, which is
+# gitignored; CodeIgniter loads config/<ENVIRONMENT>/database.php in preference to
+# the base file. So on production, ENVIRONMENT=production finds no such folder and
+# falls back to the tracked config, which holds the production credentials.
+#
+# Do not reintroduce a SetEnv line here.
 
-# COMMENTED BELOW LINES BECAUSE DEFLATE NOT WORKING ON 000WEBHOST for some reason, uncomment whenever possible
-# <IfModule mod_deflate.c>
-# # Compress HTML, CSS, JavaScript, Text, XML and fonts
-# AddOutputFilterByType DEFLATE application/javascript
-# AddOutputFilterByType DEFLATE application/rss+xml 
-# AddOutputFilterByType DEFLATE application/vnd.ms-fontobject
-# AddOutputFilterByType DEFLATE application/x-font 
-# AddOutputFilterByType DEFLATE application/x-font-opentype
-# AddOutputFilterByType DEFLATE application/x-font-otf
-# AddOutputFilterByType DEFLATE application/x-font-truetype
-# AddOutputFilterByType DEFLATE application/x-font-ttf
-# AddOutputFilterByType DEFLATE application/x-javascript
-# AddOutputFilterByType DEFLATE application/xhtml+xml
-# AddOutputFilterByType DEFLATE application/xml 
-# AddOutputFilterByType DEFLATE font/opentype 
-# AddOutputFilterByType DEFLATE font/otf 
-# AddOutputFilterByType DEFLATE font/ttf 
-# AddOutputFilterByType DEFLATE image/svg+xml 
-# AddOutputFilterByType DEFLATE image/x-icon 
-# AddOutputFilterByType DEFLATE text/css 
-# AddOutputFilterByType DEFLATE text/html 
-# AddOutputFilterByType DEFLATE text/javascript 
-# AddOutputFilterByType DEFLATE text/plain 
-# AddOutputFilterByType DEFLATE text/xml 
-# </IfModule>
+# ===============================
+# COMPRESSION
+# ===============================
+# This block was commented out with the note "DEFLATE NOT WORKING ON 000WEBHOST".
+# The site no longer runs on 000webhost, and nothing was being compressed at all -
+# not the HTML, not the CSS, not the JavaScript. The theme ships an 908 KB
+# style.css, an 855 KB eshop-bundle-main.css and a 1.2 MB eshop-bundle-js.js, every
+# byte of which was going over the wire uncompressed. These files are ~90% text and
+# compress to roughly a tenth of their size.
+#
+# Everything is wrapped in <IfModule>, so on a server that genuinely lacks the
+# module this is inert rather than a 500 - which is what made the original blanket
+# comment-out unnecessary.
+
+# NOTE ON THE GUARDS: AddOutputFilterByType is provided by mod_filter, NOT by
+# mod_deflate. Guarding only on mod_deflate.c is therefore not enough - on a server
+# that has mod_deflate but not mod_filter, every request 500s with
+# "Invalid command 'AddOutputFilterByType'". That is exactly what happened when this
+# block was first enabled here, so mod_filter.c is the outer guard.
+
+<IfModule mod_filter.c>
+    # Brotli first where it exists (better ratio than gzip). Apache negotiates per
+    # request and falls back to DEFLATE for clients that do not advertise br.
+    <IfModule mod_brotli.c>
+        AddOutputFilterByType BROTLI_COMPRESS text/html text/plain text/xml text/css text/javascript
+        AddOutputFilterByType BROTLI_COMPRESS application/javascript application/x-javascript
+        AddOutputFilterByType BROTLI_COMPRESS application/json application/xml application/xhtml+xml
+        AddOutputFilterByType BROTLI_COMPRESS application/rss+xml image/svg+xml
+    </IfModule>
+
+    <IfModule mod_deflate.c>
+        # Compress HTML, CSS, JavaScript, Text, XML and fonts
+        AddOutputFilterByType DEFLATE application/javascript
+        AddOutputFilterByType DEFLATE application/json
+        AddOutputFilterByType DEFLATE application/rss+xml
+        AddOutputFilterByType DEFLATE application/vnd.ms-fontobject
+        AddOutputFilterByType DEFLATE application/x-font
+        AddOutputFilterByType DEFLATE application/x-font-opentype
+        AddOutputFilterByType DEFLATE application/x-font-otf
+        AddOutputFilterByType DEFLATE application/x-font-truetype
+        AddOutputFilterByType DEFLATE application/x-font-ttf
+        AddOutputFilterByType DEFLATE application/x-javascript
+        AddOutputFilterByType DEFLATE application/xhtml+xml
+        AddOutputFilterByType DEFLATE application/xml
+        AddOutputFilterByType DEFLATE font/opentype
+        AddOutputFilterByType DEFLATE font/otf
+        AddOutputFilterByType DEFLATE font/ttf
+        AddOutputFilterByType DEFLATE image/svg+xml
+        AddOutputFilterByType DEFLATE image/x-icon
+        AddOutputFilterByType DEFLATE text/css
+        AddOutputFilterByType DEFLATE text/html
+        AddOutputFilterByType DEFLATE text/javascript
+        AddOutputFilterByType DEFLATE text/plain
+        AddOutputFilterByType DEFLATE text/xml
+    </IfModule>
+</IfModule>
+
+# Already-compressed formats gain nothing from a second pass and cost CPU.
+<IfModule mod_setenvif.c>
+    SetEnvIfNoCase Request_URI \.(?:gif|jpe?g|png|webp|avif|ico|zip|gz|bz2|rar|7z|mp4|webm|woff2?)$ no-gzip dont-vary
+</IfModule>
+
+# Proxies must vary their cache on Accept-Encoding, or a compressed response can be
+# handed to a client that cannot decode it.
+<IfModule mod_headers.c>
+    Header append Vary Accept-Encoding
+</IfModule>
 
 # php -- BEGIN cPanel-generated handler, do not edit
 # Set the “ea-php73” package as the default “PHP” programming language.

@@ -87,8 +87,9 @@ class Migration_enable_event_notifications extends CI_Migration
                 'variable' => 'send_notification_settings',
                 'value'    => $value,
             ]);
+            clear_settings_cache();
         } else {
-            $this->db->set('value', $value)->where('variable', 'send_notification_settings')->update('settings');
+            settings_write_done($this->db->set('value', $value)->where('variable', 'send_notification_settings')->update('settings'));
         }
     }
 

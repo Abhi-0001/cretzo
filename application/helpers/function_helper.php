@@ -333,16 +333,99 @@ function seller_contact_validation_message($values, $exclude_user_id = 0)
     return empty($duplicates) ? '' : implode(' ', $duplicates);
 }
 
+/**
+ * Request-scoped memo store for the `settings` table.
+ *
+ * Returned BY REFERENCE so callers can write into it. Keys are the `variable`
+ * column; a value of FALSE means "looked up, no such row" (distinct from a row
+ * whose value happens to be an empty string - the two produce different results
+ * once json_decode() gets involved, so the distinction has to survive caching).
+ *
+ * @return array
+ */
+function &settings_cache_store()
+{
+    static $store = array();
+    return $store;
+}
+
+/**
+ * Drops the memoised settings for this request.
+ *
+ * MUST be called after any write to the `settings` table, otherwise code that
+ * saves a setting and then re-reads it inside the same request would see the
+ * pre-write value. Every write site in the application calls this.
+ *
+ * @param string|null $type Clear just this variable, or NULL for all of them.
+ */
+function clear_settings_cache($type = null)
+{
+    $store = &settings_cache_store();
+    if ($type === null) {
+        $store = array();
+    } else {
+        unset($store[$type]);
+    }
+}
+
+/**
+ * Pass-through wrapper that invalidates the settings memo after a write.
+ *
+ * Wraps the *result* of a settings INSERT/UPDATE so it can be dropped in around
+ * an existing expression - including one in `return` position - without changing
+ * what that expression evaluates to.
+ *
+ *   return settings_write_done($this->db->...->update('settings'));
+ *
+ * @param  mixed $result Whatever the write expression returned.
+ * @return mixed The same value, untouched.
+ */
+function settings_write_done($result = null)
+{
+    clear_settings_cache();
+    return $result;
+}
+
+/**
+ * Raw, un-transformed `settings`.`value` for a variable, memoised per request.
+ *
+ * @return string|false The stored string, or FALSE when the row does not exist.
+ */
+function get_settings_raw($type)
+{
+    $store = &settings_cache_store();
+    if (!array_key_exists($type, $store)) {
+        $t = &get_instance();
+        // Narrowed from `SELECT *` to the one column that is ever read. The policy
+        // rows in this table are large (seller_terms_conditions is 13 KB), so the
+        // discarded columns were real bytes off the wire on every single call.
+        $res = $t->db->select('value')->where('variable', $type)->get('settings')->result_array();
+        $store[$type] = isset($res[0]['value']) ? $res[0]['value'] : false;
+    }
+    return $store[$type];
+}
+
+/**
+ * Reads one row out of the `settings` table.
+ *
+ * PERFORMANCE: this used to issue a fresh `SELECT *` on every call. There are
+ * ~700 call sites in the application and a single storefront listing page was
+ * measured making 121 of them, all for the same handful of variables. The value
+ * is now fetched once per variable per request and reused.
+ *
+ * The return contract is unchanged, including the edge cases:
+ *   - no such row            -> NULL (implicit, as before)
+ *   - $is_json = true        -> json_decode($value, true)
+ *   - $is_json = false       -> output_escaping($value)
+ */
 function get_settings($type = 'system_settings', $is_json = false)
 {
-    $t = &get_instance();
-
-    $res = $t->db->select(' * ')->where('variable', $type)->get('settings')->result_array();
-    if (!empty($res)) {
+    $value = get_settings_raw($type);
+    if ($value !== false) {
         if ($is_json) {
-            return json_decode($res[0]['value'], true);
+            return json_decode($value, true);
         } else {
-            return output_escaping($res[0]['value']);
+            return output_escaping($value);
         }
     }
 }
@@ -940,6 +1023,24 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
     if (!empty($product)) {
 
         $t->load->model('rating_model');
+
+        /*
+         * PERFORMANCE: the loop below used to issue ~8 queries PER PRODUCT (variants
+         * twice over, attributes, min/max price, stock per variant, the seller's
+         * product count, review images, cart quantity). Measured on this database a
+         * single /products render cost 976 queries to show 119 products.
+         *
+         * Everything those queries fetch is now pulled up front in a fixed handful of
+         * WHERE ... IN (...) statements. The loop body is otherwise unchanged: the
+         * same helpers are called with the same arguments and perform the same
+         * transformations - they just read their rows from the prefetch instead of
+         * going back to the database one product at a time.
+         *
+         * The scope is closed in a finally block so an exception raised anywhere in
+         * the loop cannot leave a stale cache visible to the rest of the request.
+         */
+        product_batch_open($product, $user_id);
+        try {
         for ($i = 0; $i < count($product); $i++) {
 
             $rating = $t->rating_model->fetch_rating($product[$i]['id'], '', 8, 0, 'pr.id', 'desc', '', 1);
@@ -950,8 +1051,14 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
             $product[$i]['attributes'] = get_attribute_values_by_pid($product[$i]['id']);
             // print_r($product[$i]['attributes']);
             // die;
+            /*
+             * This called get_variants_values_by_pid() TWICE with identical arguments
+             * and assigned the two identical results to two different variables - one
+             * wasted query per product, 119 of them on a single listing page. The one
+             * result now feeds both.
+             */
             $product[$i]['variants'] = get_variants_values_by_pid($product[$i]['id']);
-            $variants =   get_variants_values_by_pid($product[$i]['id']);
+            $variants = $product[$i]['variants'];
             $total_stock = 0;
             foreach ($variants as $variant) {
                 $stock = (isset($variant['stock']) && !empty($variant['stock'])) ? $variant['stock'] : 0;
@@ -982,7 +1089,17 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
             $product[$i]['download_type'] = isset($product[$i]['download_type']) && !empty($product[$i]['download_type']) ? $product[$i]['download_type'] : '';
             $product[$i]['download_link'] = isset($product[$i]['download_link']) && !empty($product[$i]['download_link']) ? $product[$i]['download_link'] : '';
             $product[$i]['status'] = isset($product[$i]['status']) && !empty($product[$i]['status']) ? $product[$i]['status'] : '';
-            $total_product = $t->db->query("select count(id) as total  from products where products.seller_id=" . $product[$i]['seller_id'] . " AND products.status='1' AND products.listing_visibility=1")->result_array();
+            /*
+             * PERFORMANCE: one COUNT per product, re-counting the SAME seller once for
+             * every product of theirs on the page. The prefetch does it as a single
+             * GROUP BY seller_id. COUNT() returns a string from mysqli and that string
+             * was assigned straight through, so the batch preserves the string type.
+             */
+            if (Product_batch::is_open() && array_key_exists((string) $product[$i]['seller_id'], Product_batch::$seller_product_count)) {
+                $total_product = array(array('total' => Product_batch::$seller_product_count[(string) $product[$i]['seller_id']]));
+            } else {
+                $total_product = $t->db->query("select count(id) as total  from products where products.seller_id=" . $product[$i]['seller_id'] . " AND products.status='1' AND products.listing_visibility=1")->result_array();
+            }
 
             /* outputing escaped data */
             $product[$i]['name'] = output_escaping($product[$i]['name']);
@@ -1053,9 +1170,25 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
             $product[$i]['video'] = (isset($product[$i]['video_type']) && (!empty($product[$i]['video_type']) || $product[$i]['video_type'] != NULL)) ? (($product[$i]['video_type'] == 'youtube' || $product[$i]['video_type'] == 'vimeo') ? $product[$i]['video'] : base_url($product[$i]['video'])) : "";
             $product[$i]['minimum_order_quantity'] = isset($product[$i]['minimum_order_quantity']) && (!empty($product[$i]['minimum_order_quantity'])) ? $product[$i]['minimum_order_quantity'] : 1;
             $product[$i]['quantity_step_size'] = isset($product[$i]['quantity_step_size']) && (!empty($product[$i]['quantity_step_size'])) ? $product[$i]['quantity_step_size'] : 1;
+            /*
+             * These two accumulators used to be declared INSIDE the `if (!empty(...variants))`
+             * block below, but they are consumed unconditionally further down (array_count_values
+             * on $is_purchased_count, array_count_values on $count_stock). A product with no
+             * variant rows therefore reached
+             *   array_count_values(): Argument #1 ($array) must be of type array, null given
+             * which is a fatal TypeError on PHP 8. The storefront never hit it because its WHERE
+             * carries `pv.status = 1`, so variantless products are filtered out - but every
+             * administrative read that passes show_only_active_products = 0 (Manage Stock, the
+             * product exports) does reach them, and 13 active products on this database have no
+             * variant rows.
+             *
+             * Declaring them here preserves the intended semantics exactly: for a variantless
+             * product both stay empty, array_sum([]) is 0, and `is_purchased` resolves to false -
+             * the same value the loop would have produced had it run and pushed nothing.
+             */
+            $count_stock = array();
+            $is_purchased_count = array();
             if (!empty($product[$i]['variants'])) {
-                $count_stock = array();
-                $is_purchased_count = array();
                 for ($k = 0; $k < count($product[$i]['variants']); $k++) {
 
                     $variant_other_images = $variant_other_images_sm = $variant_other_images_md = json_decode((string)$product[$i]['variants'][$k]['images'], 1);
@@ -1115,7 +1248,12 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
                         $product[$i]['variants'][$k]['special_price'] =  strval($product[$i]['variants'][$k]['special_price']);
                     }
                     if (isset($user_id) && $user_id != NULL) {
-                        $user_cart_data = $t->db->select('qty as cart_count')->where(['product_variant_id' => $product[$i]['variants'][$k]['id'], 'user_id' => $user_id, 'is_saved_for_later' => 0])->get('cart')->result_array();
+                        // PERFORMANCE: one cart lookup per variant for a logged-in
+                        // shopper; prefetched in a single query keyed by variant+user.
+                        $user_cart_data = product_batch_get('cart', $product[$i]['variants'][$k]['id'] . '|' . $user_id);
+                        if ($user_cart_data === null) {
+                            $user_cart_data = $t->db->select('qty as cart_count')->where(['product_variant_id' => $product[$i]['variants'][$k]['id'], 'user_id' => $user_id, 'is_saved_for_later' => 0])->get('cart')->result_array();
+                        }
                         if (!empty($user_cart_data)) {
                             $product[$i]['variants'][$k]['cart_count'] = $user_cart_data[0]['cart_count'];
                         } else {
@@ -1131,7 +1269,13 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
                             $product[$i]['variants'][$k]['is_purchased'] = 0;
                         }
 
-                        $user_rating = $t->db->select('rating,comment')->where(['user_id' => $user_id, 'product_id' => $product[$i]['id']])->get('product_rating')->result_array();
+                        // PERFORMANCE: keyed only on (user_id, product_id) yet executed
+                        // once per VARIANT, so a five-variant product ran it five times
+                        // for one answer. Prefetched once per product.
+                        $user_rating = product_batch_get('user_rating', $product[$i]['id'] . '|' . $user_id);
+                        if ($user_rating === null) {
+                            $user_rating = $t->db->select('rating,comment')->where(['user_id' => $user_id, 'product_id' => $product[$i]['id']])->get('product_rating')->result_array();
+                        }
                         if (!empty($user_rating)) {
                             $product[$i]['user']['user_rating'] =   (isset($product[$i]['user']['user_rating']) && (!empty($product[$i]['user']['user_rating']))) ? $user_rating[0]['rating'] : '';
                             $product[$i]['user']['user_comment'] =   (isset($product[$i]['user']['user_comment']) && (!empty($product[$i]['user']['user_comment']))) ? $user_rating[0]['user_comment'] : '';
@@ -1160,7 +1304,15 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
             }
 
             if (isset($user_id) && $user_id != null) {
-                $fav = $t->db->where(['product_id' => $product[$i]['id'], 'user_id' => $user_id])->get('favorites')->num_rows();
+                // PERFORMANCE: one query per product for a logged-in shopper.
+                // Prefetched as a single GROUP BY. num_rows() returned a count, so the
+                // batch stores counts and unfavourited products resolve to 0.
+                $fav_key = $product[$i]['id'] . '|' . $user_id;
+                if (Product_batch::is_open() && array_key_exists($fav_key, Product_batch::$favorites)) {
+                    $fav = Product_batch::$favorites[$fav_key];
+                } else {
+                    $fav = $t->db->where(['product_id' => $product[$i]['id'], 'user_id' => $user_id])->get('favorites')->num_rows();
+                }
                 $product[$i]['is_favorite'] = $fav;
             } else {
                 $product[$i]['is_favorite'] = '0';
@@ -1245,6 +1397,11 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
                 }
             }
             $product[$i]['variant_attributes'] = $variant_attributes;
+        }
+        } finally {
+            // Always closes, so a throw inside the loop cannot leave prefetched rows
+            // visible to unrelated code later in the request.
+            product_batch_close();
         }
 
         if (isset($count_res[0]['cal_discount_percentage'])) {
@@ -2044,10 +2201,19 @@ function get_attribute_values_by_pid($id)
 {
     $t = &get_instance();
     $swatche_type = $swatche_values1 =  array();
-    $attribute_values = $t->db->select(" group_concat(`av`.`id` ORDER BY `av`.`id` ASC) as ids,group_concat(' ', `av`.`value`  ORDER BY `av`.`id` ASC ) as value ,`a`.`name` as attr_name, a.name, GROUP_CONCAT(av.swatche_type ORDER BY av.id ASC ) as swatche_type , GROUP_CONCAT(av.swatche_value  ORDER BY av.id ASC) as swatche_value")
-        ->join('attribute_values av ', 'FIND_IN_SET(av.id, pa.attribute_value_ids ) > 0', 'inner')
-        ->join('attributes a', 'a.id = av.attribute_id', 'inner')
-        ->where('pa.product_id', $id)->group_by('`a`.`name`')->get('product_attributes pa')->result_array();
+    /*
+     * PERFORMANCE: served from the batch prefetch when one is open (see
+     * application/helpers/batch_helper.php), otherwise queried exactly as before.
+     * The rows are identical either way - only the WHERE differs - and the
+     * transformation below is untouched and runs on them all the same.
+     */
+    $attribute_values = product_batch_get('attributes', $id);
+    if ($attribute_values === null) {
+        $attribute_values = $t->db->select(" group_concat(`av`.`id` ORDER BY `av`.`id` ASC) as ids,group_concat(' ', `av`.`value`  ORDER BY `av`.`id` ASC ) as value ,`a`.`name` as attr_name, a.name, GROUP_CONCAT(av.swatche_type ORDER BY av.id ASC ) as swatche_type , GROUP_CONCAT(av.swatche_value  ORDER BY av.id ASC) as swatche_value")
+            ->join('attribute_values av ', 'FIND_IN_SET(av.id, pa.attribute_value_ids ) > 0', 'inner')
+            ->join('attributes a', 'a.id = av.attribute_id', 'inner')
+            ->where('pa.product_id', $id)->group_by('`a`.`name`')->get('product_attributes pa')->result_array();
+    }
     if (!empty($attribute_values)) {
             // print_r($attribute_values);
             // die;
@@ -2111,10 +2277,19 @@ function get_variants_values_by_pid($id, $status = [1])
 {
 
     $t = &get_instance();
-    $varaint_values = $t->db->select("pv.*,pv.`product_id`,group_concat(`av`.`id`  ORDER BY av.id ASC) as variant_ids,group_concat( ' ' ,`a`.`name` ORDER BY av.id ASC) as attr_name, group_concat(`av`.`value` ORDER BY av.id ASC) as variant_values , pv.price as price , GROUP_CONCAT(av.swatche_type ORDER BY av.id ASC ) as swatche_type , GROUP_CONCAT(av.swatche_value ORDER BY av.id ASC ) as swatche_value")
-        ->join('attribute_values av ', 'FIND_IN_SET(av.id, pv.attribute_value_ids ) > 0', 'left')
-        ->join('attributes a', 'a.id = av.attribute_id', 'left')
-        ->where(['pv.product_id' => $id])->where_in('pv.status', $status)->group_by('`pv`.`id`')->order_by('pv.id')->get('product_variants pv')->result_array();
+    /*
+     * PERFORMANCE: served from the batch prefetch when one is open. The bucket is
+     * keyed by product id AND status, so a caller asking for a non-default status
+     * set is never served the default-status rows - it simply misses and queries,
+     * exactly as before.
+     */
+    $varaint_values = product_batch_get('variants', $id . '|' . implode(',', (array) $status));
+    if ($varaint_values === null) {
+        $varaint_values = $t->db->select("pv.*,pv.`product_id`,group_concat(`av`.`id`  ORDER BY av.id ASC) as variant_ids,group_concat( ' ' ,`a`.`name` ORDER BY av.id ASC) as attr_name, group_concat(`av`.`value` ORDER BY av.id ASC) as variant_values , pv.price as price , GROUP_CONCAT(av.swatche_type ORDER BY av.id ASC ) as swatche_type , GROUP_CONCAT(av.swatche_value ORDER BY av.id ASC ) as swatche_value")
+            ->join('attribute_values av ', 'FIND_IN_SET(av.id, pv.attribute_value_ids ) > 0', 'left')
+            ->join('attributes a', 'a.id = av.attribute_id', 'left')
+            ->where(['pv.product_id' => $id])->where_in('pv.status', $status)->group_by('`pv`.`id`')->order_by('pv.id')->get('product_variants pv')->result_array();
+    }
     if (!empty($varaint_values)) {
         for ($i = 0; $i < count($varaint_values); $i++) {
             if ($varaint_values[$i]['swatche_type'] != "") {
@@ -2145,10 +2320,15 @@ function get_variants_values_by_pid($id, $status = [1])
 function get_variants_values_by_id($id)
 {
     $t = &get_instance();
-    $varaint_values = $t->db->select("pv.*,pv.`product_id`,group_concat(`av`.`id` separator ', ') as varaint_ids,group_concat(`a`.`name` separator ', ') as attr_name, group_concat(`av`.`value` separator ', ') as variant_values")
-        ->join('attribute_values av ', 'FIND_IN_SET(av.id, pv.attribute_value_ids ) > 0', 'inner')
-        ->join('attributes a', 'a.id = av.attribute_id', 'inner')
-        ->where('pv.id', $id)->group_by('`pv`.`id`')->order_by('pv.id')->get('product_variants pv')->result_array();
+    // PERFORMANCE: served from a variant batch prefetch when one is open (see
+    // variant_batch_open()); otherwise queried exactly as before.
+    $varaint_values = product_batch_get('variants_by_id', $id);
+    if ($varaint_values === null) {
+        $varaint_values = $t->db->select("pv.*,pv.`product_id`,group_concat(`av`.`id` separator ', ') as varaint_ids,group_concat(`a`.`name` separator ', ') as attr_name, group_concat(`av`.`value` separator ', ') as variant_values")
+            ->join('attribute_values av ', 'FIND_IN_SET(av.id, pv.attribute_value_ids ) > 0', 'inner')
+            ->join('attributes a', 'a.id = av.attribute_id', 'inner')
+            ->where('pv.id', $id)->group_by('`pv`.`id`')->order_by('pv.id')->get('product_variants pv')->result_array();
+    }
     if (!empty($varaint_values)) {
         for ($i = 0; $i < count($varaint_values); $i++) {
             $varaint_values[$i] = output_escaping($varaint_values[$i]);
@@ -4861,11 +5041,19 @@ function output_escaping($array)
 function get_min_max_price_of_product($product_id = '')
 {
     $t = &get_instance();
-    $t->db->join('`product_variants` pv', 'p.id = pv.product_id')->join('`taxes` tax', 'tax.id = p.tax', 'LEFT');
-    if (!empty($product_id)) {
-        $t->db->where('p.id', $product_id);
+    /*
+     * PERFORMANCE: served from the batch prefetch when one is open. Note the miss
+     * path is preserved verbatim, including the no-argument form (which prices the
+     * whole catalogue at once and is never prefetched).
+     */
+    $response = !empty($product_id) ? product_batch_get('minmax', $product_id) : null;
+    if ($response === null) {
+        $t->db->join('`product_variants` pv', 'p.id = pv.product_id')->join('`taxes` tax', 'tax.id = p.tax', 'LEFT');
+        if (!empty($product_id)) {
+            $t->db->where('p.id', $product_id);
+        }
+        $response = $t->db->select('is_prices_inclusive_tax,price,special_price,tax.percentage as tax_percentage')->get('products p')->result_array();
     }
-    $response = $t->db->select('is_prices_inclusive_tax,price,special_price,tax.percentage as tax_percentage')->get('products p')->result_array();
 
     /*
      * The joins above are INNER joins onto product_variants, so a product with no variant rows
@@ -6982,6 +7170,18 @@ function get_user_balance($user_id)
 function get_stock($id, $type)
 {
     $t = &get_instance();
+    /*
+     * PERFORMANCE: served from the batch prefetch when one is open. The buckets
+     * hold the stock value directly rather than a result set, so a hit is checked
+     * with array_key_exists on the id - an id that exists with a NULL stock is
+     * still a hit, and returns NULL, which is what the original returned for it.
+     */
+    if (Product_batch::is_open()) {
+        $bucket = ($type == 'variant') ? Product_batch::$stock_variant : Product_batch::$stock_product;
+        if (array_key_exists((string) $id, $bucket)) {
+            return $bucket[(string) $id];
+        }
+    }
     $t->db->where('id', $id);
     if ($type == 'variant') {
         $response = $t->db->select('stock')->get('product_variants')->result_array();

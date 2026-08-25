@@ -1173,20 +1173,46 @@ class Order_model extends CI_Model
 
         $user_details = $search_res->group_by('o.id')->order_by($sort_column, $sort_dir)->limit($limit, $offset)->get('`orders` o')->result_array();
 
-        $i = 0;
-        foreach ($user_details as $row) {
-
-
-            $user_details[$i]['items'] = $this->db->select('oi.*,p.name as name,p.id as product_id,p.type,p.download_allowed, u.username as uname, us.username as seller ')
+        /*
+         * PERFORMANCE: this loop used to run the item query once PER ORDER, so a
+         * 50-row page of the admin Orders table cost 50 extra queries before a single
+         * row was rendered.
+         *
+         * The same query now runs once for the whole page with the order id widened
+         * to IN(...), and the rows are bucketed back onto their order. Same SELECT,
+         * same joins, and (because the order_id index drives it identically) the same
+         * per-order row ordering. An order with no items still gets an empty array,
+         * exactly as the per-order query returned for it.
+         */
+        $order_ids = array_column($user_details, 'id');
+        $items_by_order = array();
+        if (!empty($order_ids)) {
+            $all_items = $this->db->select('oi.*,p.name as name,p.id as product_id,p.type,p.download_allowed, u.username as uname, us.username as seller ')
                 ->join('product_variants v ', ' oi.product_variant_id = v.id', 'left')
                 ->join('products p ', ' p.id = v.product_id ', 'left')
                 ->join('users u ', ' u.id = oi.user_id', 'left')
                 ->join('users us ', ' us.id = oi.seller_id', 'left')
-                ->where('oi.order_id', $row['id'])
+                ->where_in('oi.order_id', $order_ids)
                 ->get(' `order_items` oi  ')->result_array();
-
-            ++$i;
+            foreach ($all_items as $item) {
+                $items_by_order[$item['order_id']][] = $item;
+            }
         }
+        foreach ($user_details as $i => $row) {
+            $user_details[$i]['items'] = isset($items_by_order[$row['id']]) ? $items_by_order[$row['id']] : array();
+        }
+
+        // The rendering loop below calls get_variants_values_by_id() once per order
+        // LINE - an N+1 nested inside the one just removed. Prefetch the lot.
+        $line_variant_ids = array();
+        foreach ($user_details as $row) {
+            foreach ($row['items'] as $item) {
+                $line_variant_ids[] = $item['product_variant_id'];
+            }
+        }
+        variant_batch_open($line_variant_ids);
+        try {
+
         $bulkData = array();
         $bulkData['total'] = $total;
         $rows = array();
@@ -1327,6 +1353,10 @@ class Order_model extends CI_Model
         }
         $bulkData['rows'] = $rows;
         print_r(json_encode($bulkData));
+
+        } finally {
+            product_batch_close();
+        }
     }
 
     public function get_order_items_list($delivery_boy_id = NULL, $offset = 0, $limit = 10, $sort = " oi.id ", $order = 'ASC', $seller_id = NULL)
@@ -1780,21 +1810,38 @@ class Order_model extends CI_Model
         }
         $user_details = $search_res->group_by('o.id')->order_by($sort, "DESC")->limit($limit, $offset)->get('`orders` o')->result_array();
 
-        $i = 0;
-        foreach ($user_details as $row) {
-
-
-            $user_details[$i]['items'] = $this->db->select('oi.*,p.name as name,p.id as product_id,p.type,p.download_allowed, u.username as uname, us.username as seller ')
+        /*
+         * PERFORMANCE: same per-order N+1 as get_orders_list(), batched the same way.
+         * The `p.type = digital_product` restriction is carried over unchanged, so an
+         * order with no digital lines still ends up with an empty items array.
+         */
+        $order_ids = array_column($user_details, 'id');
+        $items_by_order = array();
+        if (!empty($order_ids)) {
+            $all_items = $this->db->select('oi.*,p.name as name,p.id as product_id,p.type,p.download_allowed, u.username as uname, us.username as seller ')
                 ->join('product_variants v ', ' oi.product_variant_id = v.id', 'left')
                 ->join('products p ', ' p.id = v.product_id ', 'left')
                 ->join('users u ', ' u.id = oi.user_id', 'left')
                 ->join('users us ', ' us.id = oi.seller_id', 'left')
-                ->where('oi.order_id', $row['id'])
+                ->where_in('oi.order_id', $order_ids)
                 ->where('p.type', 'digital_product')
                 ->get(' `order_items` oi  ')->result_array();
-
-            ++$i;
+            foreach ($all_items as $item) {
+                $items_by_order[$item['order_id']][] = $item;
+            }
         }
+        foreach ($user_details as $i => $row) {
+            $user_details[$i]['items'] = isset($items_by_order[$row['id']]) ? $items_by_order[$row['id']] : array();
+        }
+
+        $line_variant_ids = array();
+        foreach ($user_details as $row) {
+            foreach ($row['items'] as $item) {
+                $line_variant_ids[] = $item['product_variant_id'];
+            }
+        }
+        variant_batch_open($line_variant_ids);
+        try {
 
         $bulkData = array();
         $bulkData['total'] = $total;
@@ -1904,6 +1951,10 @@ class Order_model extends CI_Model
         }
         $bulkData['rows'] = $rows;
         print_r(json_encode($bulkData));
+
+        } finally {
+            product_batch_close();
+        }
     }
     public function get_digital_product_order_items_list($delivery_boy_id = NULL, $offset = 0, $limit = 10, $sort = " o.id ", $order = 'ASC', $seller_id = NULL)
     {

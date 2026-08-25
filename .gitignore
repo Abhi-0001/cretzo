@@ -19,3 +19,13 @@ composer.phar
 # Backup/source archives must never be web-servable — they contain application/config/*.php
 # (DB credentials, encryption_key) and were previously being deployed and served publicly.
 *.zip
+# Local developer database credentials. CodeIgniter loads
+# application/config/<ENVIRONMENT>/database.php in preference to the base
+# application/config/database.php, so this is how a developer points at their own
+# MySQL without ever touching the tracked, DEPLOYED config. Must never be committed:
+# the base file holds the production credentials and the live server relies on it.
+application/config/development/
+
+# Marks a machine as a development environment (see index.php). Must never be
+# committed: the live server must resolve to 'production' by virtue of NOT having it.
+.env.development

@@ -163,14 +163,78 @@ class Category_model extends CI_Model
         return  $categories;
     }
 
+    /**
+     * Request-scoped parent_id => child rows index, or NULL when not yet built.
+     *
+     * @var array|null
+     */
+    private $children_index = null;
+
+    /**
+     * Builds (once per request) an index of every active category, grouped by parent.
+     *
+     * PERFORMANCE: sub_categories() below recurses the category tree issuing ONE
+     * QUERY PER NODE. The header navigation walks that tree, so every page on the
+     * site paid for it - measured at 76 queries on a page as simple as /home/faq,
+     * and the single largest remaining query source after the Phase 2 work.
+     *
+     * The whole table is 83 rows. Loading it once and grouping in PHP replaces the
+     * entire recursion with a single query.
+     *
+     * ORDERING: the per-node query had no ORDER BY and was served by the `parent_id`
+     * index, which returns rows in (parent_id, id) order. Ordering the bulk read the
+     * same way means each parent's children arrive in exactly the sequence the
+     * recursive version produced.
+     */
+    private function children_index()
+    {
+        if ($this->children_index === null) {
+            $rows = $this->db->select('c1.*')
+                ->from('categories c1')
+                ->where('c1.status', 1)
+                ->order_by('c1.parent_id')
+                ->order_by('c1.id')
+                ->get()->result();
+
+            $index = array();
+            foreach ($rows as $row) {
+                $index[$row->parent_id][] = $row;
+            }
+            $this->children_index = $index;
+        }
+        return $this->children_index;
+    }
+
+    /**
+     * Drops the cached tree.
+     *
+     * Called after any write to `categories`, so an admin who saves a category and
+     * then re-renders within the same request sees the new tree rather than the one
+     * loaded before the write.
+     */
+    public function clear_category_cache()
+    {
+        $this->children_index = null;
+    }
+
     public function sub_categories($id, $level)
     {
         $level = $level + 1;
-        $this->db->select('c1.*');
-        $this->db->from('categories c1');
-        $this->db->where(['c1.parent_id' => $id, 'c1.status' => 1]);
-        $child = $this->db->get();
-        $categories = $child->result();
+        $index = $this->children_index();
+        $categories = isset($index[$id]) ? $index[$id] : array();
+
+        /*
+         * The loop below MUTATES each row - it sets children/text/level and rewrites
+         * image and banner into full URLs via get_image_url(). The index holds one
+         * shared copy of every row, and the same subtree can legitimately be walked
+         * more than once in a request (and at different depths), so the rows must be
+         * cloned before they are touched. Without this, `level` would leak between
+         * walks and get_image_url() would be applied to an already-converted URL.
+         */
+        $categories = array_map(function ($row) {
+            return clone $row;
+        }, $categories);
+
         $i = 0;
         foreach ($categories as $p_cat) {
 
@@ -247,6 +311,7 @@ class Category_model extends CI_Model
             $this->db->set('category_id', $fallback[0]['id'])->where('category_id', $id)->update('products');
         }
         $this->db->delete('categories', ['id' => $id]);
+        $this->clear_category_cache();
         $deleted = ($this->db->affected_rows() > 0);
 
         $this->db->trans_complete();
@@ -438,6 +503,7 @@ class Category_model extends CI_Model
             $cat_data['banner'] = (isset($data['banner'])) ? $data['banner'] : '';
 
             $this->db->set($cat_data)->where('id', $data['edit_category'])->update('categories');
+            $this->clear_category_cache();
         } else {
             if (!empty($data['category_input_image']) && isset($data['category_input_image'])) {
                 $cat_data['image'] = $data['category_input_image'];
@@ -446,6 +512,7 @@ class Category_model extends CI_Model
                 $cat_data['banner'] = (isset($data['banner']) && !empty($data['banner'])) ? $data['banner'] : '';
             }
             $this->db->insert('categories', $cat_data);
+            $this->clear_category_cache();
         }
     }
 

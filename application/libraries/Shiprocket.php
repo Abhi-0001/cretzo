@@ -156,9 +156,9 @@ class Shiprocket
 
         $exists = $t->db->select('id')->where('variable', self::TOKEN_SETTING)->get('settings')->row_array();
         if (empty($exists)) {
-            $t->db->insert('settings', ['variable' => self::TOKEN_SETTING, 'value' => $payload]);
+            settings_write_done($t->db->insert('settings', ['variable' => self::TOKEN_SETTING, 'value' => $payload]));
         } else {
-            $t->db->set('value', $payload)->where('variable', self::TOKEN_SETTING)->update('settings');
+            settings_write_done($t->db->set('value', $payload)->where('variable', self::TOKEN_SETTING)->update('settings'));
         }
     }
 

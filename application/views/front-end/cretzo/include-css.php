@@ -1,3 +1,31 @@
+<?php
+/*
+ * PERFORMANCE - connection warm-up hints.
+ *
+ * This page pulls render-blocking CSS and JS from three third-party origins:
+ * cdnjs (font-awesome), jsdelivr (the star-rating theme) and, in the footer,
+ * both again for toastr and sweetalert2. Each one costs a fresh DNS lookup, TCP
+ * handshake and TLS negotiation before a single byte of the asset arrives -
+ * typically 100-300ms on a mobile connection, serialised behind the HTML parse
+ * that discovers the tag.
+ *
+ * preconnect starts that handshake as soon as the head is parsed, in parallel
+ * with everything else, so the connection is already open when the tag is
+ * reached. It is a pure hint: it adds no script, changes no styling, and if the
+ * browser ignores it nothing behaves differently.
+ *
+ * Razorpay is included because checkout loads its script, and warming that
+ * connection early shortens the pay flow. `crossorigin` is required on the
+ * font/asset origins because those are fetched in CORS mode - without it the
+ * browser opens a second, unshared connection and the hint is wasted.
+ */
+?>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+<link rel="dns-prefetch" href="https://checkout.razorpay.com">
+
 <!-- <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap" rel="stylesheet"> -->

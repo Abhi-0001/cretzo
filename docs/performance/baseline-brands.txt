@@ -1,0 +1,11 @@
+brands/join_products                                 md5=229cf2ef876fe06e90c1f7b48448651c  bytes=324
+brands/order_by_name                                 md5=e5c52f198dad65cc406e1f2b456d2b5e  bytes=237
+brands/equality_probes                               md5=6d32f7ef382f83afc8113215589d05e8  bytes=154
+brands/product_brand_probes                          md5=65d2c5f8120746a4a1b9503d0f1de4b0  bytes=154
+brands/filter_Cretzo                                 md5=feee929f18940bfa7fb4f78a77c934b9  bytes=82
+brands/filter_Adidas                                 md5=feee929f18940bfa7fb4f78a77c934b9  bytes=82
+brands/filter_Decathlon                              md5=feee929f18940bfa7fb4f78a77c934b9  bytes=82
+brands/filter_multi                                  md5=f62f8c819f7abfa31d8225a219048e31  bytes=83
+brands/get_brands                                    md5=3a8c35edca65ec0b824eb1ab65815357  bytes=481
+
+brand checks complete

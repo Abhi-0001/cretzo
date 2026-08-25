@@ -102,6 +102,7 @@ class Migration_statutory_tax_compliance extends CI_Migration
         if ($changed) {
             $this->db->where('variable', 'system_settings')
                 ->update('settings', ['value' => json_encode($settings)]);
+            clear_settings_cache();
         }
     }
 
