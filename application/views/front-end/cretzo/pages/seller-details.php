@@ -19,11 +19,11 @@
     </div> -->
 
     <div class="aboutus-one">
-        <img class="aboutus-one-img lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= base_url($sellers[0]['store_banner']) ?>">
+        <img class="aboutus-one-img lazy" src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= base_url($sellers[0]['store_banner']) ?>">
     </div>
 
     <div class="aboutus-two">
-        <img class="profile-icon lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= base_url($sellers[0]['logo']) ?>">
+        <img class="profile-icon lazy" src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= base_url($sellers[0]['logo']) ?>">
         
         <p class="heading-b orange"><?= $sellers[0]['store_name'] ?></p>
 
@@ -111,7 +111,7 @@
                     <div class="cretzo-card card-type-four product-card">
                         <a class="card-url" href="<?= base_url('products/details/' . $product_row['slug']) ?>"></a>
                         <div class="card-img">
-                            <img class="card-img-img lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= $product_row['image_sm'] ?>" alt="<?= $product_row['name'] ?>" >
+                            <img class="card-img-img lazy" src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= $product_row['image_sm'] ?>" alt="<?= $product_row['name'] ?>" >
 
                             <?php echo generateStarRatingElement($product_row); ?>
                             <?php echo generateDiscountPercentageElement($product_row); ?>
@@ -183,7 +183,7 @@
                     <div class="cretzo-card card-type-one">
                         <a class="card-url" href="<?= base_url('products/details/' . $product_row['slug']) ?>"></a>
                         <div class="card-img">
-                            <img class="card-img-img lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= $product_row['image_sm'] ?>" alt="<?= $product_row['name'] ?>" >
+                            <img class="card-img-img lazy" src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= $product_row['image_sm'] ?>" alt="<?= $product_row['name'] ?>" >
 
                             <?php echo generateStarRatingElement($product_row); ?>
                         </div>
@@ -225,7 +225,7 @@
                     <div class="cretzo-card card-type-two product-card">
                         <a class="card-url" href="<?= base_url('products/details/' . $product_row['slug']) ?>"></a>
                         <div class="card-img">
-                            <img class="card-img-img lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= $product_row['image_sm'] ?>" alt="<?= $product_row['name'] ?>">
+                            <img class="card-img-img lazy" src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= $product_row['image_sm'] ?>" alt="<?= $product_row['name'] ?>">
 
                             <?php echo generateStarRatingElement($product_row); ?>
                             <?php echo generateDiscountPercentageElement($product_row); ?>

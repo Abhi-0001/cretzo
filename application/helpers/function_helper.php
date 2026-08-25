@@ -762,14 +762,14 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
     }
 
     if (isset($category_id) && !empty($category_id)) {
-        if (is_array($category_id) && !empty($category_id)) {
-            $t->db->group_Start();
-            $t->db->where_in('p.category_id', $category_id);
-            $t->db->or_where_in('c.parent_id', $category_id);
-            $t->db->group_End();
-            $t->db->where($where);
-        } else {
-            $where['p.category_id'] = $category_id;
+        /* A category must list everything filed beneath it, at any depth. This used to match the
+           category itself plus its DIRECT children only (c.parent_id), so a product in a
+           grandchild category (Footwear > Handbags > Tote bags) never showed on the parent's
+           page - and a scalar $category_id matched that single category exactly, hiding every
+           subcategory product. category_descendant_ids() expands the whole subtree. */
+        $descendant_ids = category_descendant_ids($category_id);
+        if (!empty($descendant_ids)) {
+            $t->db->where_in('p.category_id', $descendant_ids);
         }
     }
 
@@ -957,10 +957,10 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
         $product_count->join('`order_items` oi', 'oi.product_variant_id = pv.id', 'LEFT');
     }
     if (isset($category_id) && !empty($category_id)) {
-        if (is_array($category_id) && !empty($category_id)) {
-            $product_count->where_in('p.category_id', $category_id);
-            $product_count->or_where_in('c.parent_id', $category_id);
-            $product_count->where($where);
+        /* Must match the main query above, or the pager count disagrees with the rows shown. */
+        $descendant_ids = category_descendant_ids($category_id);
+        if (!empty($descendant_ids)) {
+            $product_count->where_in('p.category_id', $descendant_ids);
         }
     }
 
@@ -7610,13 +7610,10 @@ function get_filtered_price_range($filter = NULL, $category_id = NULL, $seller_i
         $where['p.seller_id'] = $seller_id;
     }
     if (isset($category_id) && !empty($category_id)) {
-        if (is_array($category_id)) {
-            $t->db->group_Start();
-            $t->db->where_in('p.category_id', $category_id);
-            $t->db->or_where_in('c.parent_id', $category_id);
-            $t->db->group_End();
-        } else {
-            $where['p.category_id'] = $category_id;
+        /* Same subtree as fetch_product(), so the price slider spans the products actually listed. */
+        $descendant_ids = category_descendant_ids($category_id);
+        if (!empty($descendant_ids)) {
+            $t->db->where_in('p.category_id', $descendant_ids);
         }
     }
 
@@ -7672,6 +7669,97 @@ function get_price($type = "max")
         $data = 0;
     }
     return $data;
+}
+
+/**
+ * Ids of every category that has at least one matching product ANYWHERE in its subtree,
+ * including the ancestors of the category the product actually sits in.
+ *
+ * "Beauty" holds no products directly - all of them are filed under Skin care / Makeup /
+ * Bath and Body - so a plain join on products.category_id = categories.id reported it as
+ * empty and hid it from category pickers and shop-by-category strips. Walking up from each
+ * product's own category marks the whole ancestor chain instead.
+ *
+ * @param mixed $seller_id  restrict to one seller's products, or NULL for the whole catalogue
+ * @param bool  $only_live  count only live, listable products (default) or every product
+ * @return array category ids
+ */
+function category_ids_with_products($seller_id = NULL, $only_live = TRUE)
+{
+    $t = &get_instance();
+
+    /* Raw query(), NOT the query builder: these helpers are called in the middle of another
+       query being assembled (fetch_product(), get_categories()), and a builder get() there
+       flushes that half-built select/join state into this query and wrecks both. */
+    static $cache = [];
+    $cache_key = (int) $seller_id . '|' . (int) $only_live;
+    if (isset($cache[$cache_key])) {
+        return $cache[$cache_key];
+    }
+
+    $sql = 'SELECT DISTINCT category_id FROM products WHERE 1 = 1';
+    if ($only_live) {
+        $sql .= ' AND status = 1 AND listing_visibility = 1';
+    }
+    if (!empty($seller_id)) {
+        $sql .= ' AND seller_id = ' . (int) $seller_id;
+    }
+    $rows = $t->db->query($sql)->result_array();
+    $leaf_ids = array_filter(array_map('intval', array_column($rows, 'category_id')));
+    if (empty($leaf_ids)) {
+        return $cache[$cache_key] = [];
+    }
+
+    $parent_of = [];
+    foreach ($t->db->query('SELECT id, parent_id FROM categories')->result_array() as $c) {
+        $parent_of[(int) $c['id']] = (int) $c['parent_id'];
+    }
+
+    $marked = [];
+    foreach ($leaf_ids as $leaf) {
+        $current = $leaf;
+        $depth = 0;
+        /* isset($marked[$current]) also short-circuits chains already walked. The depth cap
+           stops a mis-parented cycle (A -> B -> A) from spinning forever. */
+        while ($current > 0 && !isset($marked[$current]) && $depth++ < 20) {
+            $marked[$current] = TRUE;
+            $current = isset($parent_of[$current]) ? $parent_of[$current] : 0;
+        }
+    }
+    return $cache[$cache_key] = array_map('intval', array_keys($marked));
+}
+
+function category_descendant_ids($category_id)
+{
+    if (empty($category_id)) {
+        return [];
+    }
+    $t = &get_instance();
+    $ids = is_array($category_id) ? $category_id : [$category_id];
+    $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+    if (empty($ids)) {
+        return [];
+    }
+    static $cache = [];
+    $cache_key = implode(',', $ids);
+    if (isset($cache[$cache_key])) {
+        return $cache[$cache_key];
+    }
+
+    $all = $ids;
+    $frontier = $ids;
+    /* Walk down one level at a time. array_diff against what has already been collected keeps a
+       mis-parented cycle (A -> B -> A) from looping forever; the depth cap is a backstop.
+       Raw query() on purpose: this runs while a caller is still assembling its own query on the
+       shared CI query builder, and a builder get() here would swallow that pending state. */
+    $depth = 0;
+    while (!empty($frontier) && $depth++ < 20) {
+        $rows = $t->db->query('SELECT id FROM categories WHERE parent_id IN (' . implode(',', array_map('intval', $frontier)) . ')')->result_array();
+        $children = array_map('intval', array_column($rows, 'id'));
+        $frontier = array_values(array_diff($children, $all));
+        $all = array_merge($all, $frontier);
+    }
+    return $cache[$cache_key] = array_values(array_unique($all));
 }
 
 function check_for_parent_id($category_id)

@@ -29,3 +29,6 @@ application/config/development/
 # Marks a machine as a development environment (see index.php). Must never be
 # committed: the live server must resolve to 'production' by virtue of NOT having it.
 .env.development
+
+# Written at runtime by admin/Webhook.php (MyFatoorah signature logging)
+webhook.log

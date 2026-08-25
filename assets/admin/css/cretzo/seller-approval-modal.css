@@ -7,7 +7,7 @@
  */
 
 .cz-approve-modal .modal-dialog {
-    max-width: 560px;
+    max-width: 430px;
 }
 
 .cz-approve-modal .modal-content {
@@ -19,7 +19,7 @@
 
 .cz-approve-hero {
     position: relative;
-    padding: 30px 30px 26px;
+    padding: 20px 22px 18px;
     color: #fff;
     text-align: center;
     background: linear-gradient(135deg, #f2822e 0%, #d8611a 100%);
@@ -48,14 +48,14 @@
 }
 
 .cz-approve-badge {
-    width: 66px;
-    height: 66px;
-    margin: 0 auto 14px;
+    width: 48px;
+    height: 48px;
+    margin: 0 auto 10px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 27px;
+    font-size: 20px;
     background: rgba(255, 255, 255, 0.18);
     border: 2px solid rgba(255, 255, 255, 0.45);
 }
@@ -63,24 +63,24 @@
 .cz-approve-hero h4 {
     margin: 0;
     font-weight: 700;
-    font-size: 22px;
-    line-height: 1.25;
+    font-size: 18px;
+    line-height: 1.3;
 }
 
 .cz-approve-hero p {
-    margin: 8px auto 0;
-    max-width: 420px;
-    font-size: 14px;
-    line-height: 1.6;
+    margin: 6px auto 0;
+    max-width: 340px;
+    font-size: 12.5px;
+    line-height: 1.5;
     opacity: 0.93;
 }
 
 .cz-approve-eyebrow {
     display: inline-block;
-    margin-bottom: 10px;
-    padding: 4px 12px;
+    margin-bottom: 8px;
+    padding: 3px 10px;
     border-radius: 20px;
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 700;
     letter-spacing: 0.8px;
     text-transform: uppercase;
@@ -88,7 +88,9 @@
 }
 
 .cz-approve-body {
-    padding: 24px 30px 8px;
+    padding: 16px 22px 6px;
+    max-height: calc(100vh - 320px);
+    overflow-y: auto;
 }
 
 .cz-approve-steps {
@@ -99,8 +101,8 @@
 
 .cz-approve-steps li {
     display: flex;
-    gap: 14px;
-    padding: 11px 0;
+    gap: 11px;
+    padding: 8px 0;
 }
 
 .cz-approve-steps li + li {
@@ -109,13 +111,13 @@
 
 .cz-approve-steps .cz-step-icon {
     flex: none;
-    width: 34px;
-    height: 34px;
-    border-radius: 9px;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 14px;
+    font-size: 12px;
     background: #fdf1e7;
     color: #d8611a;
 }
@@ -132,26 +134,26 @@
 
 .cz-approve-steps h6 {
     margin: 0 0 2px;
-    font-size: 14.5px;
+    font-size: 13px;
     font-weight: 700;
     color: #222;
 }
 
 .cz-approve-steps p {
     margin: 0;
-    font-size: 13px;
-    line-height: 1.55;
+    font-size: 12px;
+    line-height: 1.45;
     color: #6b7280;
 }
 
 .cz-approve-note {
-    margin: 16px 0 0;
-    padding: 12px 14px;
-    border-radius: 10px;
+    margin: 12px 0 0;
+    padding: 9px 12px;
+    border-radius: 9px;
     border-left: 3px solid #f2822e;
     background: #fdf6f0;
-    font-size: 13px;
-    line-height: 1.6;
+    font-size: 12px;
+    line-height: 1.5;
     color: #5b4636;
 }
 
@@ -173,16 +175,17 @@
 
 .cz-approve-footer {
     border-top: none;
-    padding: 12px 30px 26px;
+    padding: 10px 22px 18px;
     display: flex;
-    gap: 10px;
+    gap: 8px;
     flex-wrap: wrap;
 }
 
 .cz-approve-footer .btn {
     font-weight: 700;
-    border-radius: 9px;
-    padding: 10px 22px;
+    font-size: 13px;
+    border-radius: 8px;
+    padding: 8px 16px;
 }
 
 .cz-approve-footer .btn-cz-primary {
@@ -213,13 +216,13 @@
 .cz-approve-meta {
     width: 100%;
     margin: 4px 0 0;
-    font-size: 12px;
+    font-size: 11px;
     color: #8a9099;
 }
 
 @media (max-width: 575.98px) {
-    .cz-approve-hero { padding: 26px 20px 22px; }
-    .cz-approve-body { padding: 20px 20px 6px; }
-    .cz-approve-footer { padding: 10px 20px 20px; }
+    .cz-approve-hero { padding: 18px 16px 16px; }
+    .cz-approve-body { padding: 14px 16px 4px; max-height: calc(100vh - 280px); }
+    .cz-approve-footer { padding: 10px 16px 16px; }
     .cz-approve-footer .btn { width: 100%; }
 }

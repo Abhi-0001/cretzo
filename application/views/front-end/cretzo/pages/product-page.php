@@ -57,7 +57,7 @@
                 <div class="swiper-wrapper">
                     <div class="swiper-slide">
                         <figure class="rounded">
-                            <img src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= $product['product'][0]['image'] ?>" alt="" class="lazy big-img product-big-img"> <!-- style="object-fit: cover;width: fit-content;"> -->
+                            <img src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= $product['product'][0]['image'] ?>" alt="" class="lazy big-img product-big-img"> <!-- style="object-fit: cover;width: fit-content;"> -->
                             <a class="item-link text-decoration-none" href="<?= $product['product'][0]['image'] ?>" data-glightbox="" data-gallery="product-group"><i class="uil uil-focus-add"></i></a>
                         </figure>
                     </div>
@@ -70,7 +70,7 @@
                     ?>
                                     <div class="swiper-slide 12345">
                                         <figure class="rounded">
-                                            <img src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= $image ?>" class="lazy big-img product-big-img" alt=""> <!-- style="object-fit: cover;width: fit-content;"> -->
+                                            <img src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= $image ?>" class="lazy big-img product-big-img" alt=""> <!-- style="object-fit: cover;width: fit-content;"> -->
                                             <a class="item-link text-decoration-none" href="<?= $image ?>" data-glightbox="" data-gallery="product-group"><i class="uil uil-focus-add"></i></a>
                                         </figure>
                                     </div>
@@ -85,7 +85,7 @@
                     ?>
                             <div class="swiper-slide">
                                 <figure class="rounded">
-                                    <img src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= $other_image ?>" class="lazy big-img product-big-img" alt="" id="img_01"> <!-- style="object-fit: cover;width: fit-content;"> -->
+                                    <img src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= $other_image ?>" class="lazy big-img product-big-img" alt="" id="img_01"> <!-- style="object-fit: cover;width: fit-content;"> -->
                                     <a class="item-link text-decoration-none" href="<?= $other_image ?>" data-glightbox="" data-gallery="product-group"><i class="uil uil-focus-add"></i></a>
                                 </figure>
                             </div>
@@ -140,7 +140,7 @@
 
                 <div class="swiper-slide mb-1" style="margin-right: 10px;">
                     <div class="swiper-img" style="height: auto !important; margin-right: 10px;">
-                        <img src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= $product['product'][0]['image'] ?>" class="rounded p-1 lazy product-small-img">
+                        <img src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= $product['product'][0]['image'] ?>" class="rounded p-1 lazy product-small-img">
                     </div>
                 </div>
 
@@ -153,7 +153,7 @@
                                 foreach ($variant_images as $image) { ?>
                                     <div class="swiper-slide mb-1" style="margin-right: 10px;">
                                         <div class="swiper-img" style="height: auto !important; margin-right: 10px;">
-                                            <img src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= $image ?>" class="rounded p-1 lazy product-small-img" alt="">
+                                            <img src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= $image ?>" class="rounded p-1 lazy product-small-img" alt="">
                                         </div>
                                     </div>
                     <?php }
@@ -166,7 +166,7 @@
                         foreach ($product['product'][0]['other_images'] as $other_image) { ?>
                             <div class="swiper-slide mb-1" style="margin-right: 10px;">
                                 <div class="swiper-img" style="height: auto !important; margin-right: 10px;">
-                                    <img src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= $other_image ?>" class="rounded p-1 lazy product-small-img" alt="">
+                                    <img src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= $other_image ?>" class="rounded p-1 lazy product-small-img" alt="">
                                 </div>
                             </div>
                     <?php }
@@ -179,7 +179,7 @@
 
                         <div class="swiper-slide mb-1" style="margin-right: 10px;">
                             <div class="swiper-img" style="height: auto !important; margin-right: 10px;">
-                                <img src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= base_url('assets/admin/images/video-file.png') ?>" class="rounded p-1 lazy product-small-img" alt="">
+                                <img src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= base_url('assets/admin/images/video-file.png') ?>" class="rounded p-1 lazy product-small-img" alt="">
                             </div>
                         </div>
                         
@@ -363,7 +363,7 @@
                                                 $variant_color_value = explode(',', $variant['swatche_value']);
                                                 // Check if the current variant has the color_value
                                                 if (in_array($swatche_values[$key], $variant_color_value)) { ?>
-                                                    <img class="lazy product-color-image" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= $variant['images_sm'][0] ?>">
+                                                    <img class="lazy product-color-image" src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= $variant['images_sm'][0] ?>">
                                                 <?php
                                                     break;
                                                 }
@@ -377,7 +377,7 @@
                                     <ul class="p-0">
                                         <li class="list-unstyled">
                                             <label class="product-attr-label btn text-center ">
-                                                <img class="swatche-image lazy category-image-container" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= $swatche_values[$key] ?>">
+                                                <img class="swatche-image lazy category-image-container" src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= $swatche_values[$key] ?>">
                                                 <input type="radio" name="<?= $attribute['attr_name'] ?>" value="<?= $attribute_ids[$key] ?>" autocomplete="off" class="attributes">
                                                 <br>
                                             </label>
@@ -567,7 +567,7 @@
                                     else if($img_count == 3 && $product_ratings['total_images_count'] > 4){
                                     ?>
                                         <div class="more-photo-container">
-                                            <img class="customer-photos-img lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= $image; ?>" alt="Review Image">
+                                            <img class="customer-photos-img lazy" src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= $image; ?>" alt="Review Image">
                                             <a href="#" data-toggle="modal" data-target="#imageGalleryModal">
                                                 <p class="more-photo-btn">+<?= $product_ratings['total_images_count']-3 ?></p>
                                             </a>
@@ -577,7 +577,7 @@
                                     else{
                                     ?>
                                         <a href="<?= $image; ?>" data-lightbox="review-images-all" data-gallery="review-images-all">
-                                            <img class="customer-photos-img lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= $image; ?>" alt="Review Image">
+                                            <img class="customer-photos-img lazy" src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= $image; ?>" alt="Review Image">
                                         </a>
                                     <?php
                                     }
@@ -619,7 +619,7 @@
                                                             else if($img_count == 3 && $product_ratings['total_images_count'] > 4){
                                                             ?>
                                                                 <div class="more-photo-container">
-                                                                    <img class="customer-photos-img lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= $image; ?>" alt="Review Image">
+                                                                    <img class="customer-photos-img lazy" src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= $image; ?>" alt="Review Image">
                                                                     <a href="#" data-toggle="modal" data-target="#imageGalleryModal">
                                                                         <p class="more-photo-btn">+<?= $product_ratings['total_images_count']-3 ?></p>
                                                                     </a>
@@ -629,7 +629,7 @@
                                                             else{
                                                             ?>
                                                                 <a href="<?= $image; ?>" data-lightbox="review-images-<?= $row['user_name'] ?>">
-                                                                    <img class="customer-photos-img lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= $image; ?>" alt="Review Image">
+                                                                    <img class="customer-photos-img lazy" src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= $image; ?>" alt="Review Image">
                                                                 </a>
                                                             <?php
                                                             }
@@ -842,7 +842,7 @@
                                                 <img  src="<?= file_exists(FCPATH . REVIEW_IMG_PATH . $image) ? $image : base_url() . NO_IMAGE; ?>" alt="Review Image">
                                             </a> - ->
                                 <a href="<?= $image; ?>" data-lightbox="review-images">
-                                    <img class="lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= $image; ?>" alt="Review Image">
+                                    <img class="lazy" src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= $image; ?>" alt="Review Image">
                                 </a>
                             </div>
                         </div>
@@ -879,7 +879,7 @@
                                                 <img  src="<?= file_exists(FCPATH . REVIEW_IMG_PATH . $image) ? $image : base_url() . NO_IMAGE; ?>" alt="Review Image">
                                             </a> - ->
                                     <a href="<?= $image; ?>" data-lightbox="review-images">
-                                        <img class="lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= $image; ?>" alt="Review Image">
+                                        <img class="lazy" src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= $image; ?>" alt="Review Image">
                                     </a>
                                 </div>
                             </div>
@@ -987,7 +987,7 @@
             <div class="cretzo-card card-type-four product-card">
                 <a class="card-url" href="<?= base_url('products/details/' . $product_row['slug']) ?>"></a>
                 <div class="card-img">
-                    <img class="card-img-img lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= $product_row['image_sm'] ?>" alt="<?= $product_row['name'] ?>" >
+                    <img class="card-img-img lazy" src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= $product_row['image_sm'] ?>" alt="<?= $product_row['name'] ?>" >
 
                     <?php echo generateStarRatingElement($product_row); ?>
                     <?php echo generateDiscountPercentageElement($product_row); ?>
@@ -1069,7 +1069,7 @@
             <div class="cretzo-card card-type-four product-card">
                 <a class="card-url" href="<?= base_url('products/details/' . $product_row['slug']) ?>"></a>
                 <div class="card-img">
-                    <img class="card-img-img lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= $product_row['image_sm'] ?>" alt="<?= $product_row['name'] ?>" >
+                    <img class="card-img-img lazy" src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= $product_row['image_sm'] ?>" alt="<?= $product_row['name'] ?>" >
 
                     <?php echo generateStarRatingElement($product_row); ?>
                     <?php echo generateDiscountPercentageElement($product_row); ?>

@@ -176,7 +176,7 @@ $config['type'] = array(
     )
 );
 
-$config['default_theme'] = 'classic';
+$config['default_theme'] = 'cretzo';
 $config['supported_locales'] = [
     "af" => "ZAR",
     "am" => "ETB",

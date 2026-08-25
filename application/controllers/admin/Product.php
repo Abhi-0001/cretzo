@@ -308,10 +308,9 @@ class Product extends CI_Controller
 
             $this->db->select('p.id, p.name, p.image, p.row_order, p.status');
             if (is_numeric($cat_id) && (int) $cat_id > 0) {
-                $this->db->group_start();
-                $this->db->where('p.category_id', (int) $cat_id);
-                $this->db->or_where('c.parent_id', (int) $cat_id);
-                $this->db->group_end();
+                // Whole subtree, not just direct children: a product filed under a grandchild
+                // category has to appear when its top-level category is selected.
+                $this->db->where_in('p.category_id', category_descendant_ids((int) $cat_id));
             }
             // Was an inner join. 177 of this database's 290 products reference a category_id
             // that no longer exists in the categories table (a deleted or otherwise orphaned

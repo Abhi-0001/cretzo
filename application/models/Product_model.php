@@ -575,10 +575,9 @@ class Product_model extends CI_Model
         }
 
         if (isset($category_id) && !empty($category_id)) {
-            $count_res->group_Start();
-            $count_res->or_where('p.category_id', $category_id);
-            $count_res->or_where('c.parent_id', $category_id);
-            $count_res->group_End();
+            // Whole subtree: the old pair matched the category and its direct children only, so
+            // products in a grandchild category were missing from the parent's listing.
+            $count_res->where_in('p.category_id', category_descendant_ids($category_id));
         }
 
         $product_count = $count_res->get('products p')->result_array();
@@ -623,11 +622,8 @@ class Product_model extends CI_Model
         }
 
         if (isset($category_id) && !empty($category_id)) {
-            //category select where
-            $search_res->group_Start();
-            $search_res->or_where('p.category_id', $category_id);
-            $search_res->or_where('c.parent_id', $category_id);
-            $search_res->group_End();
+            // Must match the count query above so the pager total agrees with the rows returned.
+            $search_res->where_in('p.category_id', category_descendant_ids($category_id));
         }
 
         if (isset($seller_id) && $seller_id != "") {
@@ -777,6 +773,13 @@ class Product_model extends CI_Model
             $count_res->group_End();
         }
 
+        // $category_id was read from the query string and then never applied - the digital
+        // products list ignored the category filter completely. Applied here (and on the row
+        // query below) over the category's whole subtree.
+        if (isset($category_id) && $category_id != '') {
+            $count_res->where_in('p.category_id', category_descendant_ids($category_id));
+        }
+
         $where = ['p.`type` =' => 'digital_product'];
         if (isset($where) && !empty($where)) {
             $count_res->where($where);
@@ -799,6 +802,10 @@ class Product_model extends CI_Model
             $search_res->group_Start();
             $search_res->or_like($multipleWhere);
             $search_res->group_End();
+        }
+
+        if (isset($category_id) && $category_id != '') {
+            $search_res->where_in('p.category_id', category_descendant_ids($category_id));
         }
 
         if (isset($where) && !empty($where)) {

@@ -10,7 +10,7 @@
                 <div class="cretzo-card card-type-seven">
                     <a class="card-url" href="<?= base_url('products/category/' . html_escape($row['slug'])) ?>"></a>
                     <div class="card-img">
-                        <img class="card-img-img lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= $row['image'] ?>" alt="<?= html_escape($row['name']) ?>" />
+                        <img class="card-img-img lazy" src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= $row['image'] ?>" alt="<?= html_escape($row['name']) ?>" />
                     </div>
                     <div class="card-des">
                         <h1 class="ta-c text-n"><?= output_escaping(str_replace('\r\n', '&#13;&#10;', $row['name'])) ?></h1>

@@ -378,7 +378,7 @@ $notif_unread = $this->ion_auth->logged_in()
     <!-- <?php foreach ($categories as $key => $row) { ?>
         <div class="swiper-slide swiper-slide-category">
             <a href="<?= base_url('products/category/' . html_escape($row['slug'])) ?>" class="text-decoration-none">
-                <img class="lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= $row['image'] ?>" alt="<?= html_escape($row['name']) ?>" />
+                <img class="lazy" src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= $row['image'] ?>" alt="<?= html_escape($row['name']) ?>" />
                 <h6 class="fs-14 mb-0"><?= html_escape($row['name']) ?></h6>
             </a>
         </div>
