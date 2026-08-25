@@ -17,7 +17,7 @@
                                     <div class="card-img">
                                         
                                         <!-- <img class="card-img-img" src="../images/outfit1.png"> -->
-                                        <img class="card-img-img lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= $product_row['image_sm'] ?>" alt="<?= $product_row['name'] ?>">
+                                        <img class="card-img-img lazy" src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= $product_row['image_sm'] ?>" alt="<?= $product_row['name'] ?>">
 
                                         <a class="remove-from-wishlist-btn text-decoration-none" href="#" data-product-id="<?= $product_row['id'] ?>" style="color:red;">
                                             <div class="cross-container">

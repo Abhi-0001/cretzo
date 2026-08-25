@@ -8,6 +8,20 @@ class Category_model extends CI_Model
         $this->load->library(['ion_auth', 'form_validation']);
         $this->load->helper(['url', 'language', 'function_helper']);
     }
+    /**
+     * Restrict the query to $ids. where_in() with an empty array emits `IN ()`, which is a SQL
+     * syntax error, so an empty set has to be expressed as a condition that simply matches
+     * nothing (a seller with no products at all has no categories - that is not an error).
+     */
+    private function restrict_to_category_ids($ids)
+    {
+        if (empty($ids)) {
+            $this->db->where('1 = 0', NULL, FALSE);
+            return;
+        }
+        $this->db->where_in('c1.id', $ids);
+    }
+
     public function get_categories($id = NULL, $limit = '', $offset = '', $sort = 'row_order', $order = 'ASC', $has_child_or_item = 'true', $slug = '', $ignore_status = '', $seller_id = '', $ignore_categories_with_no_products = 'false')
     {
         $level = 0;
@@ -28,7 +42,10 @@ class Category_model extends CI_Model
             $this->db->where('c1.slug', $slug);
         }
         if (!empty($seller_id)) {
-            $this->db->join('products p3', 'p3.category_id = c1.id AND p3.seller_id = ' . $this->db->escape($seller_id), 'inner');
+            // Subtree-aware: a seller whose products all sit in subcategories still counts as
+            // stocking the parent category. The old inner join on p3.category_id = c1.id only
+            // matched products filed DIRECTLY on the category, so parents dropped out.
+            $this->restrict_to_category_ids(category_ids_with_products($seller_id, FALSE));
         }
         if ($has_child_or_item == 'false') {
             $this->db->join('categories c2', 'c2.parent_id = c1.id', 'left');
@@ -38,8 +55,8 @@ class Category_model extends CI_Model
             $this->db->group_End();
         }
         if ($ignore_categories_with_no_products == 'true') {
-            $this->db->join('products p', 'p.category_id = c1.id AND p.status = 1 AND p.listing_visibility = 1', 'left');
-            $this->db->having('COUNT(p.id) > 0');
+            // Same subtree rule as above: keep a category whose products live in its children.
+            $this->restrict_to_category_ids(category_ids_with_products());
         }
         $count_row = $this->db->get('categories c1')->row_array();
         $count_res = $count_row['total'] ?? 0;
@@ -52,7 +69,10 @@ class Category_model extends CI_Model
 
         /* Added for cretzo */
         if (!empty($seller_id)) {
-            $this->db->join('products p3', 'p3.category_id = c1.id AND p3.seller_id = ' . $this->db->escape($seller_id), 'inner');
+            // Subtree-aware: a seller whose products all sit in subcategories still counts as
+            // stocking the parent category. The old inner join on p3.category_id = c1.id only
+            // matched products filed DIRECTLY on the category, so parents dropped out.
+            $this->restrict_to_category_ids(category_ids_with_products($seller_id, FALSE));
         }
 
         if ($has_child_or_item == 'false') {
@@ -65,9 +85,7 @@ class Category_model extends CI_Model
         }
 
         if ($ignore_categories_with_no_products == 'true') {
-            $this->db->join('products p', 'p.category_id = c1.id AND p.status = 1 AND p.listing_visibility = 1', 'left');
-            $this->db->group_by('c1.id');
-            $this->db->having('COUNT(p.id) > 0');
+            $this->restrict_to_category_ids(category_ids_with_products());
         }
 
         if (!empty($limit) || !empty($offset)) {

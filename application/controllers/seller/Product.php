@@ -264,15 +264,21 @@ class Product extends CI_Controller
     public function search_category_wise_products()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
+            $cat_id = (int) $this->input->get('cat_id', true);
             $this->db->select('p.*');
-            if ($_GET['cat_id'] == 0) {
-                $data = "";
-            } else {
-                $this->db->where('p.category_id', $_GET['cat_id']);
-                $this->db->or_where('c.parent_id', $_GET['cat_id']);
+            // Only ever this seller's own products - the filter used to span the whole catalogue.
+            $this->db->where('p.seller_id', $this->ion_auth->get_user_id());
+            if ($cat_id > 0) {
+                // Match the category and everything nested under it, at any depth. The old
+                // p.category_id / c.parent_id pair covered only one level down, and the bare
+                // or_where escaped the seller condition's AND group entirely.
+                $this->db->where_in('p.category_id', category_descendant_ids($cat_id));
             }
 
-            $product_data = json_encode($this->db->order_by('row_order')->join('categories c', 'p.category_id = c.id')->get('products p')->result_array());
+            // Left join: products whose category row was deleted must still be listed under "All".
+            $product_data = json_encode($this->db->order_by('row_order')->join('categories c', 'p.category_id = c.id', 'left')->get('products p')->result_array());
+            // Was computed and thrown away - the endpoint returned an empty body to every caller.
+            $this->output->set_content_type('application/json')->set_output($product_data);
         } else {
             redirect('seller/login', 'refresh');
         }

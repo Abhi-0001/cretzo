@@ -65,7 +65,7 @@
                                                         <div class="product-image">
                                                             <div class="product-image-container">
                                                                 <a href="<?= seller_profile_url($row['slug'] ?? '', $row['seller_id'] ?? '') ?>">
-                                                                    <img class="pic-1 lazy blog-img" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= $row['seller_profile'] ?>">
+                                                                    <img class="pic-1 lazy blog-img" src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= $row['seller_profile'] ?>">
                                                                     <?php $row['seller_profile']; ?>
                                                                 </a>
                                                             </div>
@@ -102,7 +102,7 @@
                                             <!-- <div class="product-image"> -->
                                                 <div class="seller-image-container">
                                                     <a href="<?= seller_profile_url($row['slug'] ?? '', $row['seller_id'] ?? '') ?>">
-                                                        <img class="pic-1 lazy" src="<?= base_url('assets/front_end/modern/img/product-placeholder.jpg') ?>" data-src="<?= $row['seller_profile'] ?>">
+                                                        <img class="pic-1 lazy" src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= $row['seller_profile'] ?>">
                                                     </a>
                                                 </div>
                                             <!-- </div> -->

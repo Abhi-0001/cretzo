@@ -1,0 +1,718 @@
+/* ==========================================================================
+   Seller Profile - multi-step form
+   --------------------------------------------------------------------------
+   Self-contained: this page no longer loads assets/seller/css/cretzo/form.css.
+   form.css laid the steps out as position:absolute boxes slid sideways with
+   `left`, which forced a pile of workarounds into the view (a JS height sync,
+   a width pin so an off-screen step could be measured, and a stack of
+   !important overrides fighting its height:100vh). Steps here are plain block
+   elements toggled with [hidden], so the card is content-sized by the browser
+   and there is nothing to measure.
+   ========================================================================== */
+
+.czp {
+  --czp-orange: #F2822E;
+  --czp-orange-dark: #d96f1d;
+  --czp-orange-soft: #fff4ea;
+  --czp-ink: #23282e;
+  --czp-ink-soft: #5c6570;
+  --czp-muted: #8a939e;
+  --czp-line: #e4e8ed;
+  --czp-line-strong: #cfd6de;
+  --czp-red: #d92d20;
+  --czp-red-soft: #fef3f2;
+  --czp-green: #17794a;
+  --czp-green-soft: #f0faf4;
+  --czp-blue-soft: #f4f8ff;
+  --czp-radius: 12px;
+  --czp-shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 8px 24px rgba(16, 24, 40, .06);
+
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 3rem;
+  color: var(--czp-ink);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.czp *,
+.czp *::before,
+.czp *::after { box-sizing: border-box; }
+
+/* ---- Page header ------------------------------------------------------- */
+.czp-head { margin-bottom: 1.25rem; }
+.czp-head h1 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 .25rem;
+  letter-spacing: -.01em;
+}
+.czp-head p {
+  margin: 0;
+  color: var(--czp-ink-soft);
+  font-size: 13.5px;
+}
+
+/* ---- Step rail -------------------------------------------------------- */
+.czp-rail {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: .5rem;
+  margin-bottom: 1rem;
+}
+.czp-rail-item {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  width: 100%;
+  padding: .7rem .8rem;
+  background: #fff;
+  border: 1px solid var(--czp-line);
+  border-radius: var(--czp-radius);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  transition: border-color .15s, box-shadow .15s;
+}
+.czp-rail-item:hover { border-color: var(--czp-line-strong); }
+.czp-rail-num {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #f1f3f6;
+  color: var(--czp-muted);
+  font-size: 12.5px;
+  font-weight: 700;
+  transition: background .15s, color .15s;
+}
+.czp-rail-txt { min-width: 0; }
+.czp-rail-txt b {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--czp-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.czp-rail-txt small {
+  display: block;
+  font-size: 11.5px;
+  color: var(--czp-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.czp-rail-item.is-active {
+  border-color: var(--czp-orange);
+  box-shadow: 0 0 0 3px rgba(242, 130, 46, .12);
+}
+.czp-rail-item.is-active .czp-rail-num { background: var(--czp-orange); color: #fff; }
+
+/* A step whose fields all pass. The tick replaces the number, so the number
+   itself is wrapped in a <span> the badge can hide. */
+.czp-rail-item.is-done .czp-rail-num { background: var(--czp-green-soft); color: var(--czp-green); }
+.czp-rail-item.is-done .czp-rail-num::before { content: "\2713"; }
+.czp-rail-item.is-done .czp-rail-num span { display: none; }
+
+/* A step the seller has left with errors still on it. */
+.czp-rail-item.is-invalid { border-color: #f4c1bc; }
+.czp-rail-item.is-invalid .czp-rail-num { background: var(--czp-red-soft); color: var(--czp-red); }
+.czp-rail-item.is-invalid .czp-rail-num::before { content: "!"; }
+.czp-rail-item.is-invalid .czp-rail-num span { display: none; }
+
+/* ---- Card + steps ----------------------------------------------------- */
+.czp-card {
+  background: #fff;
+  border: 1px solid var(--czp-line);
+  border-radius: 16px;
+  box-shadow: var(--czp-shadow);
+  overflow: hidden;
+}
+.czp-step { padding: 1.5rem 1.5rem .25rem; }
+.czp-step[hidden] { display: none; }
+
+.czp-step-head {
+  padding-bottom: 1rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid var(--czp-line);
+}
+.czp-step-head h2 {
+  margin: 0 0 .2rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+.czp-step-head p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--czp-ink-soft);
+}
+
+/* ---- Field groups ----------------------------------------------------- */
+.czp-group {
+  border: 0;
+  margin: 0 0 1.5rem;
+  padding: 0;
+  min-width: 0;
+}
+.czp-group > legend {
+  float: none;
+  width: auto;
+  padding: 0;
+  margin: 0 0 .85rem;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--czp-muted);
+  border: 0;
+}
+.czp-group[hidden] { display: none; }
+
+.czp-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 1rem 1.25rem;
+}
+.czp-col-4  { grid-column: span 4; }
+.czp-col-6  { grid-column: span 6; }
+.czp-col-12 { grid-column: span 12; }
+
+@media (max-width: 991px) {
+  .czp-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .czp-col-4 { grid-column: span 6; }
+}
+@media (max-width: 640px) {
+  .czp-rail { grid-template-columns: 1fr; }
+  .czp-rail-txt small { display: none; }
+  .czp-step { padding: 1.1rem 1rem .25rem; }
+  .czp-col-4, .czp-col-6 { grid-column: span 12; }
+}
+
+/* ---- Fields ----------------------------------------------------------- */
+.czp-field { min-width: 0; }
+.czp-field[hidden] { display: none; }
+
+.czp-label {
+  display: block;
+  margin: 0 0 .35rem;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--czp-ink);
+}
+.czp-req { color: var(--czp-red); font-style: normal; margin-left: 2px; }
+
+.czp-input {
+  display: block;
+  width: 100%;
+  min-height: 42px;
+  padding: .5rem .75rem;
+  font: inherit;
+  color: var(--czp-ink);
+  background: #fff;
+  border: 1px solid var(--czp-line-strong);
+  border-radius: 9px;
+  outline: 0;
+  transition: border-color .15s, box-shadow .15s;
+  appearance: none;
+  -webkit-appearance: none;
+}
+select.czp-input {
+  background-image: url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none' stroke='%238a939e' stroke-width='2'%3E%3Cpath d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right .8rem center;
+  padding-right: 2rem;
+}
+textarea.czp-input { min-height: 84px; resize: vertical; }
+.czp-input::placeholder { color: #b3bac3; }
+.czp-input:focus {
+  border-color: var(--czp-orange);
+  box-shadow: 0 0 0 3px rgba(242, 130, 46, .15);
+}
+
+.czp-hint {
+  display: block;
+  margin-top: .3rem;
+  font-size: 11.5px;
+  color: var(--czp-muted);
+}
+.czp-hint[hidden] { display: none; }
+.czp-hint a { color: var(--czp-orange); text-decoration: underline; }
+
+/* Error slot. Always present in the markup, so a message can never be
+   appended into the wrong parent, and always inside the field's own grid
+   cell, so it cannot overlap the field beside it. */
+.czp-error {
+  display: none;
+  margin-top: .3rem;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--czp-red);
+}
+.czp-error.is-shown { display: block; }
+
+.czp-field.has-error .czp-input,
+.czp-field.has-error .czp-drop {
+  border-color: var(--czp-red);
+  background: var(--czp-red-soft);
+}
+.czp-field.has-error .czp-input:focus { box-shadow: 0 0 0 3px rgba(217, 45, 32, .14); }
+
+/* Async status line (pincode lookup). */
+.czp-status { display: block; margin-top: .3rem; font-size: 11.5px; }
+.czp-status.is-info    { color: var(--czp-muted); }
+.czp-status.is-success { color: var(--czp-green); }
+.czp-status.is-error   { color: var(--czp-red); }
+
+/* ---- Checkboxes ------------------------------------------------------- */
+.czp-check {
+  display: flex;
+  align-items: flex-start;
+  gap: .6rem;
+  padding: .8rem .9rem;
+  border: 1px solid var(--czp-line);
+  border-radius: 10px;
+  background: #fbfcfd;
+}
+.czp-check[hidden] { display: none; }
+.czp-check input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+  margin-top: 1px;
+  accent-color: var(--czp-orange);
+  cursor: pointer;
+}
+.czp-check-body { min-width: 0; }
+.czp-check label {
+  display: block;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.czp-check .czp-hint { margin-top: .15rem; }
+.czp-check.has-error { border-color: var(--czp-red); background: var(--czp-red-soft); }
+
+/* ---- Avatar / logo picker -------------------------------------------- */
+/* A solid border, not dashed: dashed reads as "empty dropzone", which is wrong
+   the moment a photo is actually set. */
+.czp-avatar-row {
+  display: flex;
+  align-items: center;
+  gap: .9rem;
+  padding: .85rem 1rem;
+  border: 1px solid var(--czp-line);
+  border-radius: var(--czp-radius);
+  background: #fbfcfd;
+  margin-bottom: 1.25rem;
+}
+.czp-avatar {
+  flex: 0 0 auto;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #f1f3f6;
+  border: 2px solid var(--czp-line-strong);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+}
+.czp-avatar.is-square { border-radius: 12px; }
+.czp-avatar:hover {
+  border-color: var(--czp-orange);
+  box-shadow: 0 0 0 4px rgba(242, 130, 46, .14);
+}
+/* Placeholder and photo share ONE cell rather than taking a grid row each.
+   Only one of the two is ever meant to be visible, but if both ever are, they
+   overlay and the photo simply covers the silhouette - instead of the circle
+   splitting into an icon half and a squashed-photo half. */
+.czp-avatar > * { grid-area: 1 / 1; }
+.czp-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Above the placeholder in the shared cell. */
+  z-index: 1;
+}
+.czp-avatar img[hidden] { display: none; }
+.czp-avatar svg {
+  width: 30px;
+  height: 30px;
+  justify-self: center;
+  align-self: center;
+  color: #b3bac3;
+}
+.czp-avatar svg[hidden] { display: none; }
+
+.czp-avatar-copy { min-width: 0; flex: 1 1 auto; }
+.czp-avatar-copy b { display: block; font-size: 13.5px; }
+.czp-avatar-copy .czp-hint { margin-top: .1rem; }
+
+/* ---- File / document picker ------------------------------------------ */
+.czp-drop {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  width: 100%;
+  min-height: 42px;
+  padding: .55rem .75rem;
+  border: 1px dashed var(--czp-line-strong);
+  border-radius: 9px;
+  background: #fbfcfd;
+  cursor: pointer;
+  margin: 0;
+  transition: border-color .15s, background .15s;
+}
+.czp-drop:hover,
+.czp-drop.is-dragover {
+  border-color: var(--czp-orange);
+  background: var(--czp-orange-soft);
+}
+.czp-drop:focus-within {
+  border-color: var(--czp-orange);
+  box-shadow: 0 0 0 3px rgba(242, 130, 46, .15);
+}
+.czp-drop-icon {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background: #fff;
+  border: 1px solid var(--czp-line);
+  color: var(--czp-orange);
+  font-size: 13px;
+  font-weight: 700;
+}
+.czp-drop-text {
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--czp-ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.czp-drop-text em {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--czp-muted);
+}
+/* The real input stays in the DOM (it is what gets submitted) but is never
+   seen - the whole .czp-drop is its label. */
+.czp-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.czp-doc {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  margin-top: .5rem;
+  padding: .45rem .55rem;
+  border: 1px solid var(--czp-line);
+  border-radius: 9px;
+  background: #fff;
+}
+.czp-doc[hidden] { display: none; }
+.czp-doc-thumb {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 1px solid var(--czp-line);
+  background: #f1f3f6;
+}
+.czp-doc-thumb[hidden] { display: none; }
+.czp-doc-file {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: #fdecec;
+  color: #c0392b;
+  font-size: 10px;
+  font-weight: 700;
+  border: 1px solid #f6d5d1;
+}
+.czp-doc-file[hidden] { display: none; }
+.czp-doc-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--czp-ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.czp-doc-remove {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 0;
+  background: #fdecec;
+  color: var(--czp-red);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+.czp-doc-remove:hover { background: var(--czp-red); color: #fff; }
+
+/* ---- Category pills + picker ----------------------------------------- */
+.czp-pills { display: flex; flex-wrap: wrap; gap: .35rem; margin-bottom: .45rem; }
+.czp-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .2rem .45rem .2rem .6rem;
+  border-radius: 999px;
+  background: var(--czp-orange-soft);
+  border: 1px solid #f6d8bd;
+  color: #a4550f;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.czp-pill button {
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0;
+}
+
+.czp-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10500;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(16, 24, 40, .5);
+  padding: 1rem;
+}
+.czp-modal.is-open { display: flex; }
+.czp-modal-box {
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 100%);
+  max-height: 82vh;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 20px 50px rgba(16, 24, 40, .25);
+  overflow: hidden;
+}
+.czp-modal-head,
+.czp-modal-foot {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .9rem 1.1rem;
+}
+.czp-modal-head { border-bottom: 1px solid var(--czp-line); justify-content: space-between; }
+.czp-modal-head strong { font-size: 14px; }
+.czp-modal-foot { border-top: 1px solid var(--czp-line); justify-content: flex-end; }
+.czp-modal-body { padding: .75rem 1.1rem; overflow-y: auto; }
+.czp-modal-close {
+  border: 0;
+  background: none;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--czp-muted);
+  cursor: pointer;
+  padding: 0 .2rem;
+}
+.czp-pick {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  padding: .45rem .3rem;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 8px;
+}
+.czp-pick:hover { background: #f6f7f9; }
+.czp-pick[hidden] { display: none; }
+.czp-pick input { width: 16px; height: 16px; accent-color: var(--czp-orange); }
+
+/* ---- Searchable dropdown -------------------------------------------- */
+.czp-combo { position: relative; }
+.czp-combo-list {
+  position: absolute;
+  z-index: 60;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  display: none;
+  background: #fff;
+  border: 1px solid var(--czp-line-strong);
+  border-radius: 9px;
+  box-shadow: var(--czp-shadow);
+}
+.czp-combo-list.is-open { display: block; }
+.czp-combo-list div {
+  padding: .5rem .75rem;
+  font-size: 13px;
+  cursor: pointer;
+}
+.czp-combo-list div:hover { background: var(--czp-orange-soft); }
+
+/* ---- Buttons --------------------------------------------------------- */
+.czp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  min-height: 42px;
+  padding: .55rem 1.35rem;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.czp-btn:disabled { opacity: .6; cursor: not-allowed; }
+.czp-btn-primary { background: var(--czp-orange); color: #fff; }
+.czp-btn-primary:hover:not(:disabled) { background: var(--czp-orange-dark); }
+.czp-btn-ghost {
+  background: #fff;
+  color: var(--czp-ink-soft);
+  border-color: var(--czp-line-strong);
+}
+.czp-btn-ghost:hover:not(:disabled) { border-color: var(--czp-ink-soft); color: var(--czp-ink); }
+.czp-btn-sm { min-height: 34px; padding: .3rem .8rem; font-size: 12.5px; }
+
+/* ---- Step footer nav ------------------------------------------------- */
+.czp-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0 -1.5rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--czp-line);
+  background: #fbfcfd;
+}
+.czp-nav-count { font-size: 12px; color: var(--czp-muted); font-weight: 600; }
+@media (max-width: 640px) {
+  .czp-nav { margin: 0 -1rem; padding: 1rem; }
+  .czp-nav-count { display: none; }
+}
+
+/* ---- Alerts ---------------------------------------------------------- */
+.czp-alert {
+  display: block;
+  padding: .8rem 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--czp-line);
+  font-size: 13px;
+  margin-bottom: 1.25rem;
+}
+.czp-alert[hidden] { display: none; }
+.czp-alert b { display: block; margin-bottom: .15rem; }
+.czp-alert-error   { background: var(--czp-red-soft);    border-color: #f4c1bc; color: #912018; }
+.czp-alert-warn    { background: var(--czp-orange-soft); border-color: #f6d8bd; color: #a4550f; }
+.czp-alert-info    { background: var(--czp-blue-soft);   border-color: #cfe0f5; color: #24568f; }
+.czp-alert-success { background: var(--czp-green-soft);  border-color: #c9e6d0; color: var(--czp-green); }
+.czp-alert ul { margin: .35rem 0 0; padding-left: 1.1rem; }
+.czp-alert li { margin-bottom: .1rem; }
+.czp-alert-jump {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ---- Review step ----------------------------------------------------- */
+.czp-review-list { list-style: none; margin: 0 0 1rem; padding: 0; }
+.czp-review-list li {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  padding: .75rem .9rem;
+  border: 1px solid var(--czp-line);
+  border-radius: 10px;
+  margin-bottom: .5rem;
+  font-size: 13.5px;
+  background: #fff;
+}
+.czp-review-list li > span { flex: 1 1 auto; min-width: 0; }
+.czp-dot {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+}
+.czp-review-list li.is-done .czp-dot { background: var(--czp-green-soft); color: var(--czp-green); }
+.czp-review-list li.is-todo .czp-dot { background: var(--czp-orange-soft); color: #a4550f; }
+.czp-review-list li.is-done > small { color: var(--czp-green); font-weight: 600; font-size: 11.5px; }
+
+/* ---- Toast ----------------------------------------------------------- */
+.czp-toast {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 11000;
+  display: none;
+  max-width: min(560px, 92vw);
+  padding: .8rem 1.2rem;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  font-size: 13.5px;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, .18);
+}
+.czp-toast.is-shown { display: block; }
+.czp-toast.is-success { background: #eafaf0; border-color: #c9e6d0; color: var(--czp-green); }
+.czp-toast.is-error   { background: var(--czp-red-soft); border-color: #f4c1bc; color: #912018; }
+
+/* Screen-reader-only text. */
+.czp-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}

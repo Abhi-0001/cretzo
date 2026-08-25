@@ -801,7 +801,7 @@ function renderProducts(products) {
         let favLabel = isFav ? 'Wishlisted' : 'Wishlist';
 
         // Product image
-        let imgSrc = product.image_sm || base_url + 'assets/front_end/modern/img/product-placeholder.jpg';
+        let imgSrc = product.image_sm || base_url + 'assets/front_end/cretzo/img/product-placeholder.jpg';
 
         // Secondary image for the hover-swap (falls back to none when the product has only one image)
         let hoverSrc = (product.other_images_sm && product.other_images_sm.length) ? product.other_images_sm[0] : '';
