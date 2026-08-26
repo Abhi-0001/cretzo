@@ -4474,6 +4474,13 @@ Defined Methods:-
 
                 $multipleWhere = ['seller_id' => $row['seller_id'], 'order_id' => $row['id']];
                 $order_charge_data = $this->db->where($multipleWhere)->get('order_charges')->result_array();
+                // Actual Shiprocket freight for this seller's parcel, recovered from their
+                // settlement under the seller-paid shipping model. Reported alongside the
+                // customer-facing delivery charge so the app can show the payout the same way
+                // the web order screen does.
+                $seller_freight_charge = (!empty($order_charge_data) && isset($order_charge_data[0]['freight_charge']))
+                    ? (float) $order_charge_data[0]['freight_charge']
+                    : 0;
 
                 $updated_username = fetch_details('users', 'id =' . $row['updated_by'], 'username');
                 $deliver_by = fetch_details('users', 'id =' . $row['delivery_boy_id'], 'username');
@@ -4502,6 +4509,7 @@ Defined Methods:-
                 $temp['product_id'] = $row['product_id'];
                 $temp['pickup_location'] = $row['pickup_location'];
                 $temp['seller_otp'] = $order_charge_data[0]['otp'];
+                $temp['seller_freight_charge'] = $seller_freight_charge;
                 $temp['seller_id'] = $row['seller_id'];
                 $temp['user_email'] = $row['user_email'];
                 $temp['product_slug'] = $row['product_slug'];

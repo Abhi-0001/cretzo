@@ -40,3 +40,24 @@ defined('BASEPATH') or exit('No direct script access allowed');
 | Set to FALSE to disable the endpoints entirely again.
 */
 $config['allow_api_withdrawal_requests'] = true;
+
+/*
+| Allow POST /app/v1/api/send_withdrawal_request (the CUSTOMER wallet withdrawal).
+|
+| Same class of hole as the seller endpoint above, and it was wide open: no per-user check
+| at all, user_id taken from the POST body, so any caller holding the shared app key could
+| withdraw another customer's wallet balance to their own payment address. (The website's
+| own withdraw_money() had the same defect and additionally no login check whatsoever -
+| both now route through Payment_request_model::create_withdrawal_request().)
+|
+| Defaults to FALSE, unlike the seller flag, because the customer app cannot satisfy the
+| per-user check yet: the token is only issued as of this change, so no released build sends
+| it. Leaving this false refuses the call with "not available through the app yet"; flipping
+| it to true without an updated app would refuse with "Authentication required" instead.
+| Neither loses money - and customers can still withdraw on the website, which uses a real
+| session and the logged-in user's own id.
+|
+| TO ENABLE: update the customer app to store `api_token` from the login response and send
+| it as an `api_token` POST field on this endpoint, then set this to TRUE.
+*/
+$config['allow_customer_api_withdrawal_requests'] = false;

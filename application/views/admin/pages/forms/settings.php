@@ -158,6 +158,30 @@
                                         <input type="number" class="form-control" name="low_stock_limit" value="<?= (isset($settings['low_stock_limit'])) ? html_escape($settings['low_stock_limit']) : '5' ?>" placeholder='Product low stock limit' min='1' />
                                     </div>
                                     <div class="form-group col-12">
+                                        <div class="alert alert-warning mb-2">
+                                            <strong><i class="fas fa-truck mr-1"></i>Seller-paid shipping (free delivery for customers)</strong>
+                                            <div class="small mt-1">
+                                                With this on, customers are charged <strong>&#8377;0 delivery on every order</strong> and the
+                                                <strong>actual courier freight Shiprocket bills</strong> is deducted from the seller's
+                                                settlement instead, when their return window closes. Sellers are expected to price
+                                                their own shipping into the product price. The freight figure is captured when the
+                                                AWB is assigned, apportioned across the items in the parcel, and shown as its own
+                                                line on the seller's settlement statement.
+                                                <br>
+                                                Turning this <strong>off</strong> reverts to charging the customer at checkout
+                                                (flat rate, or the area / zipcode rate, or the Shiprocket quote) and stops
+                                                recovering freight from sellers. Orders already placed are unaffected either way -
+                                                each one settles against the figures captured at the time.
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="form-group col-md-6 col-sm-12">
+                                        <label for="seller_paid_shipping">Free delivery for customers, freight recovered from the seller</label>
+                                        <div class="card-body">
+                                            <input type="checkbox" name="seller_paid_shipping" <?= (!isset($settings['seller_paid_shipping']) || $settings['seller_paid_shipping'] == '1') ? 'Checked' : ''  ?> data-bootstrap-switch data-off-color="danger" data-on-color="success">
+                                        </div>
+                                    </div>
+                                    <div class="form-group col-12">
                                         <div class="alert alert-info mb-2">
                                             <strong><i class="fas fa-balance-scale mr-1"></i>Statutory deductions on seller settlements (TCS &amp; TDS)</strong>
                                             <div class="small mt-1">

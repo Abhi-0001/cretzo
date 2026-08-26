@@ -437,6 +437,13 @@
 
             <p class="text-s delivery-hint mb-2"><i class="uil uil-info-circle"></i> Please enter PIN code to check delivery time & Cash on Delivery Availability</p>
             <ul class="delivery-perks-list">
+                <?php // "Free Ship" in the badge row below has always been hard-coded copy. It is
+                      // now actually true for every order, so it is stated properly here as well -
+                      // and hidden when an admin turns the seller-paid shipping model off, rather
+                      // than promising free delivery the checkout then charges for. ?>
+                <?php if (seller_paid_shipping_enabled()) { ?>
+                    <li class="text-s"><i class="uil uil-check-circle"></i> Free Delivery on this order</li>
+                <?php } ?>
                 <li class="text-s"><i class="uil uil-check-circle"></i> 100% Original Products</li>
                 <li class="text-s"><i class="uil uil-check-circle"></i> Cash on Delivery might be available</li>
                 <li class="text-s"><i class="uil uil-check-circle"></i> Easy 14 days returns and exchanges</li>
@@ -453,9 +460,9 @@
 
             <div class="shipping-container">
 
-                <div class="shipping-option">
+                <div class="shipping-option<?= seller_paid_shipping_enabled() ? '' : ' shipping-option-muted' ?>">
                     <span class="shipping-icon-badge"><i class="uil uil-truck"></i></span>
-                    <p class="text-n">Free Ship</p>
+                    <p class="text-n"><?= seller_paid_shipping_enabled() ? 'Free Delivery' : 'Delivery charges apply' ?></p>
                 </div>
 
                 <?php if (isset($product['product'][0]['cod_allowed']) && !empty($product['product'][0]['cod_allowed']) && $product['product'][0]['cod_allowed'] == 1) {  ?>

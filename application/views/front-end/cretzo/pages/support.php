@@ -10,6 +10,9 @@
  * the admin side already uses.
  */
 $has_types = !empty($ticket_types);
+// A ticket is the written trail; WhatsApp is the fast lane. Offer both, and keep offering
+// WhatsApp when tickets cannot be raised at all (no categories configured).
+$support_whatsapp = whatsapp_support_link('Hello Cretzo Support, I need help with my order.');
 ?>
 
 <div class="overview-side-container">
@@ -45,17 +48,28 @@ $has_types = !empty($ticket_types);
                             </select>
                             <input type="text" id="cs-search" class="cs-support__search" placeholder="Search your tickets...">
                         </div>
-                        <button type="button" class="cs-support__primary" id="cs-new-btn" <?= $has_types ? '' : 'disabled' ?>>
-                            <i class="uil uil-plus"></i> New ticket
-                        </button>
+                        <div class="cs-support__bar-actions">
+                            <?php if (!empty($support_whatsapp)) { ?>
+                                <a class="cs-support__whatsapp" href="<?= html_escape($support_whatsapp) ?>" target="_blank" rel="noopener">
+                                    <i class="uil uil-whatsapp"></i> WhatsApp support
+                                </a>
+                            <?php } ?>
+                            <button type="button" class="cs-support__primary" id="cs-new-btn" <?= $has_types ? '' : 'disabled' ?>>
+                                <i class="uil uil-plus"></i> New ticket
+                            </button>
+                        </div>
                     </div>
 
                     <?php if (!$has_types) { ?>
                         <div class="cs-support__notice">
                             Support categories have not been set up yet, so new tickets cannot be raised right now.
-                            <?php if (!empty($support_email)) { ?>
-                                Please email <a href="mailto:<?= html_escape($support_email) ?>"><?= html_escape($support_email) ?></a> in the meantime.
+                            <?php if (!empty($support_whatsapp)) { ?>
+                                Please <a href="<?= html_escape($support_whatsapp) ?>" target="_blank" rel="noopener">message us on WhatsApp</a>
                             <?php } ?>
+                            <?php if (!empty($support_email)) { ?>
+                                <?= !empty($support_whatsapp) ? 'or email' : 'Please email' ?> <a href="mailto:<?= html_escape($support_email) ?>"><?= html_escape($support_email) ?></a>
+                            <?php } ?>
+                            in the meantime.
                         </div>
                     <?php } ?>
 
@@ -161,6 +175,12 @@ $has_types = !empty($ticket_types);
         color: #fff; background: linear-gradient(135deg, #ff9a3d 0%, #ff7a1a 100%);
     }
     .cs-support__primary:disabled { opacity: .5; cursor: not-allowed; }
+    .cs-support__bar-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .cs-support__whatsapp {
+        display: inline-flex; align-items: center; gap: 7px; padding: 10px 18px; border-radius: 10px;
+        font-size: 14px; font-weight: 600; color: #fff; background: #25d366; text-decoration: none;
+    }
+    .cs-support__whatsapp:hover, .cs-support__whatsapp:focus { color: #fff; background: #1fbe5b; text-decoration: none; }
     .cs-support__ghost {
         padding: 10px 18px; border: 1px solid #e3e3e3; border-radius: 10px; background: #fff;
         cursor: pointer; font-size: 14px; color: #374151;

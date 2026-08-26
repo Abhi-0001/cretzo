@@ -70,7 +70,25 @@ class Cron_job extends CI_Controller
         $expected = $this->config->item('secret', 'cron');
         $token = $token !== null ? $token : $this->input->get('token');
 
-        if (empty($expected) || $expected === 'change-me-before-use' || empty($token) || !hash_equals((string) $expected, (string) $token)) {
+        // An UNSET secret and a WRONG token are both refused, but they are different operational
+        // problems and used to look identical from the outside: a bare 401. The secret's
+        // hard-coded fallback was removed (it lived in a git-tracked file, so it was published to
+        // anyone with repo access, and these endpoints credit seller wallets), which means an
+        // install that has not set SUBSCRIPTION_CRON_SECRET yet now refuses its own nightly jobs.
+        // That is the correct, fail-closed direction - but silently is the wrong way to do it, so
+        // it is logged distinctly. "Settlements stopped running three weeks ago" must not be
+        // something anyone discovers from a seller complaint.
+        if (empty($expected) || $expected === 'change-me-before-use') {
+            log_message('error', 'Cron_job: SUBSCRIPTION_CRON_SECRET is not set on this server, so every '
+                . 'token-protected cron endpoint is refusing to run - including the nightly seller '
+                . 'settlement. Set the environment variable and re-point the cron URLs at the new token.');
+            $this->response['error'] = true;
+            $this->response['message'] = 'Cron secret is not configured on this server.';
+            echo json_encode($this->response);
+            return false;
+        }
+
+        if (empty($token) || !hash_equals((string) $expected, (string) $token)) {
             $this->response['error'] = true;
             $this->response['message'] = 'Unauthorized';
             echo json_encode($this->response);
@@ -361,6 +379,131 @@ class Cron_job extends CI_Controller
         $this->response['error'] = false;
         $this->response['message'] = 'Low stock alerts processed.';
         $this->response['data'] = ['low_items' => count($items), 'alerted' => $sent, 'already_alerted' => $skipped, 'failed' => $failed, 'threshold' => $limit];
+        echo json_encode($this->response);
+        return false;
+    }
+
+    /**
+     * Fills in the actual courier freight for shipments where it was never captured.
+     *
+     * Under the seller-paid shipping model the freight Shiprocket bills is recovered from the
+     * seller at settlement, so it has to be on record before their return window closes. The
+     * primary capture is at AWB assignment (generate_awb() -> record_shiprocket_freight()),
+     * which is the one response that carries the figure without an extra API call.
+     *
+     * That capture can miss: Shiprocket unreachable at that moment, a response shape carrying
+     * no freight key, an AWB assigned before this code shipped, or a shipment whose AWB was
+     * raised straight from the Shiprocket panel rather than from here. Every one of those ends
+     * with a parcel that cost the seller money and a settlement that does not know it, and
+     * nothing anywhere would have reported it. This is the catch-up pass.
+     *
+     * Read-only against Shiprocket, bounded per run, and only ever looks at forward shipments
+     * that have an AWB (a parcel with no AWB has not been rated yet, so there is nothing to
+     * ask about). Running it when everything is already captured is a no-op.
+     *
+     * Suggested schedule: hourly, and in any case more often than max_product_return_days.
+     *   php index.php admin cron_job sync_shipment_freight <cron-secret>
+     */
+    public function sync_shipment_freight($token = null)
+    {
+        if (!$this->cron_authorized($token)) {
+            return false;
+        }
+
+        if (!$this->db->field_exists('freight_charge', 'order_tracking')) {
+            $this->response['error'] = true;
+            $this->response['message'] = 'Freight capture needs the pending database migrations to be applied first.';
+            $this->response['data'] = ['checked' => 0];
+            echo json_encode($this->response);
+            return false;
+        }
+
+        $shipping = get_settings('shipping_method', true);
+        if (empty($shipping['shiprocket_shipping_method']) || $shipping['shiprocket_shipping_method'] != 1) {
+            $this->response['error'] = false;
+            $this->response['message'] = 'Shiprocket shipping is disabled - there is no freight to reconcile.';
+            $this->response['data'] = ['checked' => 0];
+            echo json_encode($this->response);
+            return false;
+        }
+
+        // Same cap and override as sync_shipment_statuses(), for the same reason: one run must
+        // not be able to sit on a third-party API for an unbounded time.
+        $limit = (int) $this->input->get('limit');
+        $limit = ($limit > 0 && $limit <= 200) ? $limit : 50;
+
+        /*
+         * Forward shipments with an AWB whose freight has never been captured.
+         *
+         * `freight_captured_at IS NULL` rather than `freight_charge = 0` is the test: a genuine
+         * capture that came back as 0.00 must not be re-asked about on every single run
+         * forever, and the two cases are indistinguishable by amount alone.
+         */
+        $candidates = $this->db
+            ->select('ot.id, ot.order_id, ot.shipment_id, ot.awb_code')
+            ->from('order_tracking ot')
+            ->where('ot.is_canceled', 0)
+            ->where('ot.is_return', 0)
+            ->where('ot.shipment_id >', 0)
+            ->where('ot.awb_code IS NOT NULL', null, false)
+            ->where("ot.awb_code != ''", null, false)
+            ->where('ot.freight_captured_at IS NULL', null, false)
+            ->order_by('ot.id', 'ASC')
+            ->limit($limit)
+            ->get()
+            ->result_array();
+
+        $this->load->library('Shiprocket');
+        $this->load->helper('function_helper');
+
+        $checked = 0;
+        $captured = 0;
+        $no_figure = 0;
+        $failed = 0;
+        $total_freight = 0;
+
+        foreach ($candidates as $tracking) {
+            $checked++;
+
+            // The shipment RECORD, not the tracking timeline - it is the record that carries
+            // the charges. track_awb() returns scan history and no money at all.
+            $res = $this->shiprocket->get_order($tracking['shipment_id']);
+            if (!is_array($res)) {
+                $failed++;
+                continue;
+            }
+
+            $freight = shiprocket_freight_from_response($res);
+            if ($freight === null) {
+                // Not a fault. A shipment that has been assigned an AWB but not yet picked up
+                // and weighed legitimately has no billed freight yet, so it is left alone and
+                // picked up by a later run rather than being stamped as captured-at-zero.
+                $no_figure++;
+                continue;
+            }
+
+            $recorded = record_shiprocket_freight($tracking['shipment_id'], $freight, 'reconciliation');
+            if (!empty($recorded['error'])) {
+                $failed++;
+                continue;
+            }
+
+            $captured++;
+            $total_freight += $freight;
+        }
+
+        $this->response['error'] = false;
+        $this->response['message'] = $captured > 0
+            ? 'Freight reconciled for ' . $captured . ' shipment(s).'
+            : 'Nothing to reconcile.';
+        $this->response['data'] = [
+            'checked'          => $checked,
+            'captured'         => $captured,
+            'no_figure_yet'    => $no_figure,
+            'failed'           => $failed,
+            'freight_recorded' => round($total_freight, 2),
+            'limit'            => $limit,
+        ];
         echo json_encode($this->response);
         return false;
     }

@@ -85,6 +85,37 @@ $money = function ($amount) use ($currency) {
                 </div>
             <?php } ?>
 
+            <?php
+            // Seller-paid shipping only works if the freight is actually captured at AWB
+            // assignment. When it is not, every settlement quietly pays the seller in full and
+            // the platform keeps the courier bill - with "freight recovered: 0.00" as the only
+            // trace, which is indistinguishable from "no freight was owed".
+            if (!empty($freight_status['enabled']) && $freight_status['without_freight'] > 0) { ?>
+                <div class="alert alert-warning d-flex align-items-start">
+                    <i class="fas fa-truck-loading mr-2 mt-1"></i>
+                    <div>
+                        <strong><?= (int) $freight_status['without_freight'] ?> of <?= (int) $freight_status['settled_items'] ?> settled item(s)</strong>
+                        recovered no shipping cost from the seller, covering
+                        <?= $money($freight_status['exposed_amount']) ?> of sales.
+                        Customers are charged nothing for delivery, so the platform paid the courier
+                        for those parcels and got nothing back.
+                        <div class="mt-2 text-muted">
+                            <i class="fas fa-info-circle mr-1"></i>
+                            Freight is captured when Shiprocket assigns an AWB.
+                            <?php if ((int) $freight_status['shipments'] === 0) { ?>
+                                <strong>No shipment has ever been booked</strong> &mdash; check the
+                                Shiprocket email and password under Shipping Settings, then confirm
+                                orders are reaching Shiprocket.
+                            <?php } else { ?>
+                                <?= (int) $freight_status['freight_captured'] ?> of
+                                <?= (int) $freight_status['shipments'] ?> shipment(s) have a freight
+                                charge recorded.
+                            <?php } ?>
+                        </div>
+                    </div>
+                </div>
+            <?php } ?>
+
             <?php if (!empty($reconciliation)) { ?>
                 <div class="card attribute-card mb-4">
                     <div class="card-header attribute-card-header d-flex align-items-center">
@@ -201,8 +232,24 @@ $money = function ($amount) use ($currency) {
                                                 <?php } ?>
                                             </td>
                                             <td class="text-right"><?= $money($row['taxable_value']) ?></td>
-                                            <td class="text-right"><?= $money($row['tds_amount']) ?></td>
-                                            <td class="text-right"><?= $money($row['tcs_amount']) ?></td>
+                                            <?php
+                                            // A period whose reversals exceed its collections leaves a CREDIT, not a
+                                            // negative deposit. The model floors the depositable figure at zero and
+                                            // reports the excess separately; showing it here is what stops the
+                                            // difference from looking like a rounding error on the return.
+                                            ?>
+                                            <td class="text-right">
+                                                <?= $money($row['tds_amount']) ?>
+                                                <?php if (!empty($row['tds_credit'])) { ?>
+                                                    <span class="d-block text-info small" title="Returns exceeded TDS collected in this period. Carry this credit forward - it is not depositable now.">credit <?= $money($row['tds_credit']) ?></span>
+                                                <?php } ?>
+                                            </td>
+                                            <td class="text-right">
+                                                <?= $money($row['tcs_amount']) ?>
+                                                <?php if (!empty($row['tcs_credit'])) { ?>
+                                                    <span class="d-block text-info small" title="Returns exceeded TCS collected in this period. Carry this credit forward - it is not depositable now.">credit <?= $money($row['tcs_credit']) ?></span>
+                                                <?php } ?>
+                                            </td>
                                             <td class="text-right text-muted"><?= $money($row['tcs_igst']) ?></td>
                                             <td class="text-right text-muted"><?= $money($row['tcs_cgst']) ?></td>
                                             <td class="text-right text-muted"><?= $money($row['tcs_sgst']) ?></td>
@@ -275,6 +322,9 @@ $money = function ($amount) use ($currency) {
                                 <th data-field="commission_percent" data-sortable="true">Commission %</th>
                                 <th data-field="commission_amount" data-sortable="true">Commission (Deduction)</th>
                                 <th data-field="commission_gst_amount" data-sortable="false" data-visible="false">GST on Commission</th>
+                                <!-- Actual Shiprocket freight recovered from the seller for this item's
+                                     parcel under the seller-paid shipping model. -->
+                                <th data-field="shipping_deduction" data-sortable="false">Shipping (Freight)</th>
                                 <th data-field="tcs_amount" data-sortable="false">GST TCS</th>
                                 <th data-field="tcs_basis" data-sortable="false">TCS Head</th>
                                 <th data-field="tcs_igst_amount" data-sortable="false" data-visible="false">TCS IGST</th>

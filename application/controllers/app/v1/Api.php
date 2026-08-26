@@ -1486,7 +1486,9 @@ Defined Methods:-
         }
         $this->form_validation->set_rules('user_id', 'User', 'trim|numeric|required|xss_clean');
         $this->form_validation->set_rules('product_variant_id', 'Product Variant', 'trim|required|xss_clean');
-        $this->form_validation->set_rules('qty', 'Quantity', 'trim|required|xss_clean|numeric');
+        // 'numeric' accepts -3 and 1.5. A cart quantity is a positive whole number - see the
+        // guard at the top of validate_stock() for what a negative one used to do to the bill.
+        $this->form_validation->set_rules('qty', 'Quantity', 'trim|required|xss_clean|is_natural_no_zero');
         $this->form_validation->set_rules('address_id', 'Address Id', 'trim|xss_clean|numeric');
         $this->form_validation->set_rules('is_saved_for_later', 'Saved For Later', 'trim|xss_clean');
 
@@ -5241,6 +5243,13 @@ Defined Methods:-
         if (!$this->verify_token()) {
             return false;
         }
+        // verify_token() proves the caller holds the app-level key, not that they ARE the user
+        // whose wallet they named. Without this gate anyone with that key - it ships inside the
+        // mobile app - could post another user's user_id with their own payment address and
+        // drain that balance. Same gate the seller API already has.
+        if (!$this->customer_withdrawals_allowed()) {
+            return false;
+        }
         $this->form_validation->set_rules('user_id', 'User Id', 'trim|numeric|required|xss_clean');
         $this->form_validation->set_rules('payment_address', 'Payment Address', 'trim|required|xss_clean');
         $this->form_validation->set_rules('amount', 'Amount', 'trim|required|xss_clean|numeric|greater_than[0]');
@@ -5250,43 +5259,95 @@ Defined Methods:-
             $this->response['message'] = strip_tags(validation_errors());
             $this->response['data'] = array();
             print_r(json_encode($this->response));
-        } else {
-            $user_id = $this->input->post('user_id', true);
-            $payment_address = $this->input->post('payment_address', true);
-            $amount = $this->input->post('amount', true);
-            $userData = fetch_details('users', ['id' => $_POST['user_id']], 'balance');
-
-            if (!empty($userData)) {
-
-                if ($_POST['amount'] <= $userData[0]['balance']) {
-
-                    $data = [
-                        'user_id' => $user_id,
-                        'payment_address' => $payment_address,
-                        'payment_type' => 'customer',
-                        'amount_requested' => $amount,
-                    ];
-
-                    if (insert_details($data, 'payment_requests')) {
-                        $this->Customer_model->update_balance_customer($amount, $user_id, 'deduct');
-                        $userData = fetch_details('users', ['id' => $_POST['user_id']], 'balance');
-                        $this->response['error'] = false;
-                        $this->response['message'] = 'Withdrawal Request Sent Successfully';
-                        $this->response['data'] = $userData[0]['balance'];
-                    } else {
-                        $this->response['error'] = true;
-                        $this->response['message'] = 'Cannot sent Withdrawal Request.Please Try again later.';
-                        $this->response['data'] = array();
-                    }
-                } else {
-                    $this->response['error'] = true;
-                    $this->response['message'] = 'You don\'t have enough balance to sent the withdraw request.';
-                    $this->response['data'] = array();
-                }
-
-                print_r(json_encode($this->response));
-            }
+            return false;
         }
+
+        $user_id = $this->input->post('user_id', true);
+        $payment_address = $this->input->post('payment_address', true);
+        $amount = round((float) $this->input->post('amount', true), 2);
+
+        /*
+         * Routed through the same model method the web account page and the seller panel use, so
+         * this endpoint can no longer take its own (wrong) path. What it used to do by hand:
+         *
+         *   - read the balance, compare it and debit it in three separate UNLOCKED statements,
+         *     so two simultaneous requests both passed `amount <= balance` against the same
+         *     starting balance and both were inserted - an overdraw, leaving users.balance
+         *     negative;
+         *   - debit via update_balance_customer(), which moves users.balance and writes NO
+         *     `transactions` row - so the withdrawal never showed in the customer's wallet
+         *     history and the stored balance drifted from the ledger by every withdrawal made;
+         *   - insert the request and debit the wallet unwrapped, so a failure between the two
+         *     either took the money with no request recorded or recorded a request with no money
+         *     taken;
+         *   - enforce no minimum and no cap on simultaneously open requests.
+         *
+         * It also emitted an EMPTY response body whenever the user row could not be read,
+         * because the print_r sat inside `if (!empty($userData))`.
+         */
+        $this->load->model('payment_request_model');
+        $result = $this->payment_request_model->create_withdrawal_request($user_id, 'customer', $amount, $payment_address);
+
+        $this->response['error'] = $result['error'];
+        $this->response['message'] = $result['message'];
+        $this->response['data'] = isset($result['balance']) ? $result['balance'] : array();
+        print_r(json_encode($this->response));
+    }
+
+    /**
+     * Gate for the customer wallet-withdrawal endpoint.
+     *
+     * Mirrors seller/app/v1/Api::api_withdrawals_allowed(). The config flag defaults to FALSE
+     * because the customer app has to be updated first: the per-user token is only issued as of
+     * this change (see the login endpoint), so no released build sends it yet. Refusing is the
+     * safe failure - the alternative was an endpoint that let any caller drain any wallet.
+     *
+     * Customers can still withdraw through the website, which uses a real session.
+     */
+    private function customer_withdrawals_allowed()
+    {
+        $this->config->load('api_security', true);
+        if ($this->config->item('allow_customer_api_withdrawal_requests', 'api_security') !== true) {
+            $this->response['error'] = true;
+            $this->response['message'] = 'Withdrawal requests are not available through the app yet. Please use the website.';
+            $this->response['data'] = array();
+            print_r(json_encode($this->response));
+            return false;
+        }
+
+        return $this->verify_customer_token();
+    }
+
+    /**
+     * Prove the caller is the user whose id they are acting on.
+     *
+     * Compares the per-user token issued at login (users.apikey, returned as `api_token`)
+     * against the user_id in the request, with hash_equals so it cannot be timed.
+     */
+    private function verify_customer_token()
+    {
+        $user_id = $this->input->post('user_id', true);
+        $token = $this->input->post('api_token', true);
+
+        if (empty($user_id) || empty($token)) {
+            $this->response['error'] = true;
+            $this->response['message'] = 'Authentication required. Please sign in again.';
+            $this->response['data'] = array();
+            print_r(json_encode($this->response));
+            return false;
+        }
+
+        $user = fetch_details('users', ['id' => $user_id], 'apikey');
+
+        if (empty($user) || empty($user[0]['apikey']) || !hash_equals((string) $user[0]['apikey'], (string) $token)) {
+            $this->response['error'] = true;
+            $this->response['message'] = 'Authentication required. Please sign in again.';
+            $this->response['data'] = array();
+            print_r(json_encode($this->response));
+            return false;
+        }
+
+        return true;
     }
 
     //42.get_withdrawal_request
@@ -6236,8 +6297,21 @@ Defined Methods:-
                 if (isset($_POST['fcm_id']) && !empty(($_POST['fcm_id']))) {
                     update_details(['fcm_id' => $this->input->post('fcm_id', true)], $where, 'users');
                 }
-                /** set user jwt token  */
-                // update_details(['apikey' => $token], $where, "users");
+                /*
+                 * Issue a PER-USER token, the same way the seller API's login endpoint does.
+                 *
+                 * verify_token() only proves "a legitimate build of the app is calling" - it
+                 * carries no user identity - so every endpoint here takes the user_id it acts on
+                 * straight from the POST body. On the money endpoints that is a wallet-draining
+                 * hole: anyone holding the app key (which ships inside the app) could post
+                 * another user's user_id with their own payment address. This is the credential
+                 * that lets the server tell one user from another.
+                 *
+                 * Returned to the app as `api_token` below. Rotated on every login, so an old
+                 * token stops working once the user signs in again.
+                 */
+                $api_token = bin2hex(random_bytes(32));
+                update_details(['apikey' => $api_token], $where, 'users');
 
                 // $data = fetch_details('users', $where);
                 $data = $this->db->select("*")
@@ -6263,6 +6337,11 @@ Defined Methods:-
                     $response['data'] = [];
                 } else {
                     //if the login is successful
+                    // Exposed under the same key name the seller API uses, so both apps store and
+                    // send the per-user credential identically. `apikey` also carries it (the
+                    // SELECT * above runs after the token is written), but the app should read
+                    // `api_token` - that name is the contract.
+                    $data['api_token'] = $api_token;
                     $response['error'] = false;
                     $response['message'] = "User login successfully";
                     $response['data'] = $data;
@@ -6499,11 +6578,25 @@ Defined Methods:-
                                 echo json_encode($this->response);
                                 return false;
                             } else {
+                                /*
+                                 * This endpoint quotes the customer app a shipping fee for a
+                                 * single product before it is even in the cart, and it built that
+                                 * figure from the courier rate DIRECTLY - it does not go through
+                                 * get_cart_total() or check_parcels_deliveriblity(), so zeroing
+                                 * the charge in those left this one path still telling app users
+                                 * that delivery costs money. Under seller-paid shipping it is
+                                 * free, and the courier's own rate is kept under `quoted_*` for
+                                 * anyone who needs to see it.
+                                 */
+                                $free_delivery = seller_paid_shipping_enabled();
                                 $estimate_data = [
                                     'pickup_availability' => $shiprocket_data['pickup_availability'],
                                     'courier_name' => $shiprocket_data['courier_name'],
-                                    'delivery_charge_with_cod' => $shiprocket_data_with_cod['rate'],
-                                    'delivery_charge_without_cod' => $shiprocket_data['rate'],
+                                    'delivery_charge_with_cod' => $free_delivery ? 0 : $shiprocket_data_with_cod['rate'],
+                                    'delivery_charge_without_cod' => $free_delivery ? 0 : $shiprocket_data['rate'],
+                                    'quoted_delivery_charge_with_cod' => $shiprocket_data_with_cod['rate'],
+                                    'quoted_delivery_charge_without_cod' => $shiprocket_data['rate'],
+                                    'is_free_delivery' => $free_delivery ? 1 : 0,
                                     'estimate_date' => $shiprocket_data['etd'],
                                     'estimate_days' => $shiprocket_data['estimated_delivery_days'],
                                 ];

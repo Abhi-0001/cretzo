@@ -334,6 +334,101 @@ function seller_contact_validation_message($values, $exclude_user_id = 0)
 }
 
 /**
+ * Format check for the two tax identifiers that decide what the marketplace withholds.
+ *
+ * These were NOT validated anywhere. The regexes existed but were commented out in
+ * seller/Auth.php (lines 474-475 and 532-533) and seller/Login.php never had them, so both
+ * fields were free text limited only by a maxlength on the input. The live consequences:
+ *
+ *   - seller 7's GSTIN was the literal string "THE DEVILS NUMBER FKN 6 I AM SO COOL BWAHHAH"
+ *     and their PAN was blank;
+ *   - 5 of 8 seller profiles carried a PAN that is not a PAN ("HGFHF7657657",
+ *     "2323232323232323");
+ *   - Tax_compliance_model reads those fields to pick the statutory rate, so it correctly
+ *     concluded "no valid PAN" and applied the 5% s.206AA penalty rate instead of 0.1%. The
+ *     same order item that settled at Rs. 1.10 TDS in August settles at Rs. 54.95 today -
+ *     fifty times more - purely because the identifier stopped validating. TCS collapsed to
+ *     zero for the same reason: no GSTIN validates, so nothing is collected from anybody.
+ *
+ * The identifier is the whole basis of the deduction, so a wrong one is not a cosmetic data
+ * problem - it is money taken off the wrong seller at the wrong rate and deposited against an
+ * identity that does not exist.
+ *
+ * PAN: 5 letters, 4 digits, 1 letter. The 4th letter is the holder class and the 5th is the
+ * first letter of the surname / entity name, which is why the shape alone is meaningful -
+ * Tax_compliance_model::classify_pan() reads position 4 to decide whether the Rs. 5 lakh
+ * s.194-O threshold applies.
+ *
+ * GSTIN: 2-digit state code, the holder's 10-character PAN, an entity number, 'Z', checksum.
+ * Same expression Tax_compliance_model::is_valid_gstin() already uses to decide whether TCS is
+ * collectable, so a seller can no longer save a value the settlement engine will reject.
+ *
+ * Both are optional here: whether they are REQUIRED is the form's business (a seller trading on
+ * a GST Enrollment ID has no GSTIN at all), and this only asserts that a value which IS present
+ * is well formed.
+ *
+ * @param  array $values keys: pan, gst, gst_enrollment_number
+ * @return array human-readable messages; empty means everything present is well formed
+ */
+function seller_tax_identifier_errors($values)
+{
+    $errors = [];
+
+    // The wording of each message matters: seller-profile.js maps a server rejection back onto
+    // the field it belongs to by looking for the field's label in the message text
+    // (SERVER_FIELD_HINTS), so "PAN Number", "GST Number" and "GST Enrollment ID" have to appear
+    // verbatim. Without them the error arrives as an anonymous banner on whichever step the
+    // seller happens to be on, which is the exact problem that mapping exists to solve.
+    if (array_key_exists('pan', $values)) {
+        $pan = strtoupper(preg_replace('/\s+/', '', (string) $values['pan']));
+        if ($pan !== '' && !preg_match('/^[A-Z]{5}[0-9]{4}[A-Z]$/', $pan)) {
+            $errors[] = 'Enter a valid PAN Number - 10 characters, formatted like ABCDE1234F.';
+        }
+    }
+
+    if (array_key_exists('gst', $values)) {
+        $gstin = strtoupper(preg_replace('/\s+/', '', (string) $values['gst']));
+        if ($gstin !== '' && !preg_match('/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/', $gstin)) {
+            $errors[] = 'Enter a valid GST Number - 15 characters, formatted like 22ABCDE0000A1Z5.';
+        }
+    }
+
+    // The GSTIN embeds the holder's PAN at characters 3-12. A mismatch means one of the two
+    // belongs to somebody else, which is exactly the case where a deduction gets deposited
+    // against the wrong identity - and neither field looks wrong on its own.
+    if (empty($errors) && !empty($values['pan']) && !empty($values['gst'])) {
+        $pan = strtoupper(preg_replace('/\s+/', '', (string) $values['pan']));
+        $gstin = strtoupper(preg_replace('/\s+/', '', (string) $values['gst']));
+        if ($pan !== '' && strlen($gstin) === 15 && substr($gstin, 2, 10) !== $pan) {
+            $errors[] = 'This GST Number does not contain the PAN Number above - characters 3 to 12 of a GSTIN are the holder\'s PAN. Please check both.';
+        }
+    }
+
+    if (array_key_exists('gst_enrollment_number', $values)) {
+        $enrol = strtoupper(preg_replace('/\s+/', '', (string) $values['gst_enrollment_number']));
+        // A GST Enrollment ID (for an unregistered supplier) has no single published format, so
+        // this only rejects the obviously-not-an-identifier cases rather than inventing a shape.
+        if ($enrol !== '' && !preg_match('/^[0-9A-Z\-\/]{8,32}$/', $enrol)) {
+            $errors[] = 'Enter a valid GST Enrollment ID - 8 to 32 letters, digits, hyphens or slashes.';
+        }
+    }
+
+    return $errors;
+}
+
+/**
+ * One-line wrapper matching seller_contact_validation_message(), so the profile and admin save
+ * paths read the same way for both groups of identifiers.
+ *
+ * @return string '' when everything present is well formed
+ */
+function seller_tax_identifier_validation_message($values)
+{
+    $errors = seller_tax_identifier_errors($values);
+    return empty($errors) ? '' : implode(' ', $errors);
+}
+
+/**
  * Request-scoped memo store for the `settings` table.
  *
  * Returned BY REFERENCE so callers can write into it. Keys are the `variable`
@@ -2767,6 +2862,30 @@ function validate_stock($product_variant_ids, $qtns)
     $error = false;
     $count = isset($product_variant_ids) ? count($product_variant_ids) : '';
     for ($i = 0; $i < $count; $i++) {
+        /*
+         * The quantity must be a positive whole number, and that has to be asserted BEFORE any
+         * stock arithmetic happens.
+         *
+         * Every stock check below is phrased as `stock - quantity < 0`. A negative quantity turns
+         * that into `stock + n`, which is larger, so it passed every check - and then the line
+         * subtotal came out negative, update_stock('minus') INCREASED sellable inventory, and the
+         * order total went below zero. orders.id=26 in this database is exactly that: a total of
+         * -1099 with its order_charges row at -1099 too. A negative line in a multi-item cart can
+         * also offset the positive ones, bringing any basket down to whatever the buyer chooses.
+         *
+         * Zero is refused as well: it is never a purchase, and it would create an order line for
+         * nothing while still reserving a settlement row for it. Non-integers ("1.5", "1e3",
+         * "abc") are refused for the same reason - the value ends up in arithmetic and in the
+         * quantity column, and intval() silently turns anything unparseable into 0.
+         */
+        $qty_raw = isset($qtns[$i]) ? trim((string) $qtns[$i]) : '';
+        if ($qty_raw === '' || !ctype_digit($qty_raw) || (int) $qty_raw < 1) {
+            $response['error'] = true;
+            $response['message'] = 'Please enter a valid quantity.';
+            $response['data'] = array();
+            return $response;
+        }
+
         $res = $t->db->select('p.*,pv.*,pv.id as pv_id,p.stock as p_stock,p.availability as p_availability,pv.stock as pv_stock,pv.availability as pv_availability,p.name as product_name')->where('pv.id = ', $product_variant_ids[$i])->join('products p', 'pv.product_id = p.id')->get('product_variants pv')->result_array();
 
         // An invalid / removed variant is treated as not purchasable.
@@ -3595,6 +3714,11 @@ function get_cart_total($user_id, $product_variant_id = false, $is_saved_for_lat
     $percentage = array();
     $amount = array();
     $cod_allowed = 1;
+    // Names of every cart item whose product forbids Cash on Delivery. The single
+    // $cod_allowed flag only says "something in this cart blocks COD"; the checkout page and
+    // Cart::place_order() both need to tell the customer WHICH items, all of them at once,
+    // otherwise they are sent back to the cart to remove one product per attempt.
+    $cod_blocked_products = array();
     $download_allowed = array();
     $is_attachment_required = '0';
     for ($i = 0; $i < count($data); $i++) {
@@ -3622,6 +3746,10 @@ function get_cart_total($user_id, $product_variant_id = false, $is_saved_for_lat
         $data[$i]['image'] = get_image_url($data[$i]['image']);
         if ($data[$i]['cod_allowed'] == 0) {
             $cod_allowed = 0;
+            $blocked_name = isset($data[$i]['name']) ? trim((string) $data[$i]['name']) : '';
+            if ($blocked_name !== '' && !in_array($blocked_name, $cod_blocked_products, true)) {
+                $cod_blocked_products[] = $blocked_name;
+            }
         }
         $variant_id[$i] = $data[$i]['id'];
         $quantity[$i] = intval($data[$i]['qty']);
@@ -3710,11 +3838,22 @@ function get_cart_total($user_id, $product_variant_id = false, $is_saved_for_lat
     }
 
     $delivery_charge = isset($data[0]['type']) && $data[0]['type'] == 'digital_product' ? 0 :  $delivery_charge;
+    // Seller-paid shipping. Everything above still runs - the serviceability check decides
+    // whether the cart can be delivered at all, and the courier ETA is still quoted to the
+    // customer - but the CHARGE is dropped here, after the branches that computed it, so the
+    // single figure the whole checkout derives its totals from is 0 and no caller can
+    // reintroduce it. Cart::place_order() takes the delivery charge from this array, so this
+    // is also what stops one being stored on the order.
+    if (seller_paid_shipping_enabled()) {
+        $data['quoted_delivery_charge'] = str_replace(",", "", (string) $delivery_charge);
+        $delivery_charge = 0;
+    }
     $delivery_charge = str_replace(",", "", $delivery_charge);
     $overall_amt = 0;
     $tax_amount = array_sum($amount);
     $overall_amt = $total + $delivery_charge;
     $data[0]['is_cod_allowed'] = $cod_allowed;
+    $data['cod_blocked_products'] = $cod_blocked_products;
     $data['total_mrp'] = strval($total_mrp);
     $data['discount_on_mrp'] = strval($discount_on_mrp);
     $data['sub_total'] = strval($total);
@@ -3724,6 +3863,7 @@ function get_cart_total($user_id, $product_variant_id = false, $is_saved_for_lat
     $data['total_arr'] = $total;
     $data['variant_id'] = $variant_id;
     $data['delivery_charge'] = $delivery_charge;
+    $data['is_free_delivery'] = seller_paid_shipping_enabled() ? 1 : 0;
     $data['overall_amount'] = strval($overall_amt);
     $data['amount_inclusive_tax'] = strval($overall_amt + $tax_amount);
     $data['is_attachment_required'] = $is_attachment_required;
@@ -7191,9 +7331,238 @@ function get_stock($id, $type)
     $stock = isset($response[0]['stock']) ? $response[0]['stock'] : null;
     return $stock;
 }
+/**
+ * Is the marketplace on the seller-paid shipping model?
+ *
+ * Under it the customer is never charged freight - every order ships free - and the ACTUAL
+ * courier charge Shiprocket bills is recovered from the seller's settlement instead. Sellers
+ * price their own shipping into `price` / `special_price`.
+ *
+ * Defaults to ON when the key is absent, which is the case only between deploying this code
+ * and running migration 070. That is the intended behaviour, not a fallback: an install that
+ * has not been configured must still ship free rather than quietly charging customers freight
+ * the settlement engine is simultaneously recovering from the seller - which would collect it
+ * twice.
+ */
+function seller_paid_shipping_enabled()
+{
+    $settings = get_settings('system_settings', true);
+    if (!isset($settings['seller_paid_shipping']) || $settings['seller_paid_shipping'] === '') {
+        return true;
+    }
+    return ($settings['seller_paid_shipping'] == '1');
+}
+
+/**
+ * Pull the freight Shiprocket actually billed out of one of its responses.
+ *
+ * The figure appears under a different key and at a different depth depending on which
+ * endpoint answered - `freight_charges` inside `response.data` on an AWB assignment, `charges`
+ * or `freight_charges` on a shipment record - so this walks the whole body for the first
+ * recognised key rather than hard-coding one path and silently recording 0 when Shiprocket
+ * changes shape.
+ *
+ * Deliberately does NOT accept `rate`. That is the serviceability QUOTE - an estimate made
+ * before the parcel was weighed - and recording an estimate in a column the settlement engine
+ * debits sellers from would charge them a number no courier ever billed.
+ *
+ * @return float|null  null when the response carries no freight figure at all.
+ */
+function shiprocket_freight_from_response($response)
+{
+    if (!is_array($response)) {
+        return null;
+    }
+
+    $keys = ['freight_charges', 'freight_charge', 'shipping_charges', 'charges'];
+    $found = null;
+
+    $walk = function ($node) use (&$walk, $keys, &$found) {
+        if ($found !== null || !is_array($node)) {
+            return;
+        }
+        foreach ($keys as $key) {
+            if (isset($node[$key]) && is_numeric($node[$key])) {
+                $found = (float) $node[$key];
+                return;
+            }
+        }
+        foreach ($node as $value) {
+            if (is_array($value)) {
+                $walk($value);
+                if ($found !== null) {
+                    return;
+                }
+            }
+        }
+    };
+    $walk($response);
+
+    // A negative freight is meaningless and would CREDIT the seller at settlement.
+    if ($found !== null && $found < 0) {
+        log_message('error', 'shiprocket_freight_from_response: refusing negative freight ' . $found);
+        return null;
+    }
+
+    return $found;
+}
+
+/**
+ * Record what the courier actually charged for a shipment, and spread it over the order items
+ * that shipment carries so the settlement engine can recover it per item.
+ *
+ * Under the seller-paid shipping model this is the only place the real freight enters the
+ * system. Three writes, all recomputed from scratch on every call so a re-capture (a retry, a
+ * reconciliation sweep re-reading the same shipment, an admin correcting the figure) overwrites
+ * rather than accumulates:
+ *
+ *   - `order_tracking.freight_charge`   the parcel's billed freight, with its provenance
+ *   - `order_items.shipping_deduction`  that freight apportioned across the parcel's items
+ *   - `order_charges.freight_charge`    the seller's total for the order, re-summed from the above
+ *
+ * Apportionment is pro-rata by the item's own `sub_total` - a 2000 item in a parcel with a 500
+ * one carries four fifths of the freight - falling back to an equal split when every line is
+ * zero-valued (a fully discounted or free item). Any rounding remainder lands on the last item
+ * so the apportioned figures always sum back to exactly what the courier billed.
+ *
+ * REVERSE shipments are recorded but never apportioned. A return leg's freight is a separate
+ * commercial question (who pays for a return depends on why it was returned) and deducting it
+ * here would silently charge the seller for a return the platform had accepted responsibility
+ * for. The figure is stored so that decision can be made from real numbers later.
+ *
+ * @param  int    $shipment_id  Shiprocket shipment id, as held on order_tracking
+ * @param  float  $freight      amount the courier billed
+ * @param  string $source       awb_assignment | reconciliation | manual
+ * @return array  ['error' => bool, 'message' => string, 'data' => [...]]
+ */
+function record_shiprocket_freight($shipment_id, $freight, $source = 'awb_assignment')
+{
+    $t = &get_instance();
+    $shipment_id = (int) $shipment_id;
+
+    if ($shipment_id <= 0 || !is_numeric($freight) || (float) $freight < 0) {
+        return ['error' => true, 'message' => 'A shipment id and a non-negative freight amount are required.', 'data' => []];
+    }
+    $freight = round((float) $freight, 2);
+
+    // Guarded: this runs from the AWB path on every install, including ones that have the code
+    // but have not run migration 070 yet. Without the check that path would fatal on an
+    // unknown column and take the AWB generation down with it.
+    if (!$t->db->field_exists('freight_charge', 'order_tracking')) {
+        log_message('error', 'record_shiprocket_freight: order_tracking.freight_charge is missing - run the pending migrations.');
+        return ['error' => true, 'message' => 'Freight capture is not available until the pending database migrations are applied.', 'data' => []];
+    }
+
+    $tracking = fetch_details('order_tracking', ['shipment_id' => $shipment_id], 'id,order_id,order_item_id,is_return');
+    if (empty($tracking)) {
+        log_message('error', 'record_shiprocket_freight: no order_tracking row for shipment ' . $shipment_id);
+        return ['error' => true, 'message' => 'No shipment is recorded against that Shiprocket shipment id.', 'data' => []];
+    }
+    $tracking = $tracking[0];
+
+    $t->db->set([
+        'freight_charge'        => $freight,
+        'freight_charge_source' => $source,
+        'freight_captured_at'   => date('Y-m-d H:i:s'),
+    ])->where('shipment_id', $shipment_id)->update('order_tracking');
+
+    if (!empty($tracking['is_return'])) {
+        return [
+            'error'   => false,
+            'message' => 'Return-leg freight recorded. It is not deducted from the seller.',
+            'data'    => ['freight' => $freight, 'apportioned' => []],
+        ];
+    }
+
+    if (!$t->db->field_exists('shipping_deduction', 'order_items')) {
+        log_message('error', 'record_shiprocket_freight: order_items.shipping_deduction is missing - run the pending migrations.');
+        return ['error' => true, 'message' => 'Freight apportionment is not available until the pending database migrations are applied.', 'data' => []];
+    }
+
+    // order_tracking.order_item_id holds a COMMA LIST of the items in the parcel, which is how
+    // create_shiprocket_forward_shipment() writes it. array_filter drops the empties a stray
+    // trailing comma would otherwise turn into `WHERE id IN ('')`.
+    $item_ids = array_values(array_filter(array_map('intval', explode(',', (string) $tracking['order_item_id']))));
+    if (empty($item_ids)) {
+        log_message('error', 'record_shiprocket_freight: shipment ' . $shipment_id . ' names no order items, so its freight of '
+            . $freight . ' could not be apportioned.');
+        return ['error' => true, 'message' => 'That shipment names no order items, so its freight cannot be apportioned.', 'data' => ['freight' => $freight]];
+    }
+
+    $items = $t->db->select('id, seller_id, sub_total')
+        ->where_in('id', $item_ids)
+        ->order_by('id', 'ASC')
+        ->get('order_items')->result_array();
+    if (empty($items)) {
+        log_message('error', 'record_shiprocket_freight: none of the order items named by shipment ' . $shipment_id . ' still exist.');
+        return ['error' => true, 'message' => 'The order items on that shipment no longer exist.', 'data' => ['freight' => $freight]];
+    }
+
+    $basis = 0.0;
+    foreach ($items as $item) {
+        $basis += max(0, (float) $item['sub_total']);
+    }
+
+    $apportioned = [];
+    $running = 0.0;
+    $last = count($items) - 1;
+    foreach ($items as $i => $item) {
+        if ($i === $last) {
+            // Remainder, so the parts always add back up to the billed freight exactly.
+            $share = round($freight - $running, 2);
+        } elseif ($basis > 0) {
+            $share = round($freight * (max(0, (float) $item['sub_total']) / $basis), 2);
+        } else {
+            $share = round($freight / count($items), 2);
+        }
+        $share = ($share < 0) ? 0 : $share;
+        $running += $share;
+
+        $t->db->set('shipping_deduction', $share)->where('id', $item['id'])->update('order_items');
+        $apportioned[(int) $item['id']] = $share;
+    }
+
+    /*
+     * Re-sum the seller's parcel total from the items rather than adding this shipment's
+     * freight to whatever was there. A seller shipping from two pickup locations has two
+     * shipments but only ONE order_charges row, so an additive update would double-count the
+     * second capture of either one.
+     */
+    if ($t->db->field_exists('freight_charge', 'order_charges')) {
+        $sellers = array_unique(array_map(function ($item) {
+            return (int) $item['seller_id'];
+        }, $items));
+        foreach ($sellers as $seller_id) {
+            $total = $t->db->select('COALESCE(SUM(shipping_deduction), 0) as freight', false)
+                ->where('order_id', (int) $tracking['order_id'])
+                ->where('seller_id', $seller_id)
+                ->get('order_items')->row_array();
+            $t->db->set('freight_charge', round((float) $total['freight'], 2))
+                ->where('order_id', (int) $tracking['order_id'])
+                ->where('seller_id', $seller_id)
+                ->update('order_charges');
+        }
+    }
+
+    return [
+        'error'   => false,
+        'message' => 'Freight recorded and apportioned across the parcel.',
+        'data'    => ['freight' => $freight, 'apportioned' => $apportioned],
+    ];
+}
+
 function get_delivery_charge($address_id, $total = 0)
 {
     $t = &get_instance();
+
+    // Seller-paid shipping: the customer is never quoted freight. Returned from the top so
+    // every caller - the web checkout, the mobile cart, the POS screen - is free-shipping
+    // without each one having to know about the model. The real freight is captured from
+    // Shiprocket at AWB time and recovered from the seller at settlement instead.
+    if (seller_paid_shipping_enabled()) {
+        return number_format(0, 2);
+    }
+
     $total = str_replace(',', '', $total);
     $system_settings = get_settings('system_settings', true);
     $address = fetch_details('addresses', ['id' => $address_id], 'area_id,pincode,city_id');
@@ -8099,6 +8468,8 @@ function check_parcels_deliveriblity($parcels, $user_pincode)
     $t = &get_instance();
     $t->load->library(['shiprocket']);
     $min_days = $max_days = $delivery_charge_with_cod  = $delivery_charge_without_cod = 0;
+    // Accumulates one entry per seller per pickup location - see the note where it is filled.
+    $data = [];
 
     foreach ($parcels as $seller_id => $parcel) {
         foreach ($parcel as $pickup_location => $parcel_weight) {
@@ -8143,12 +8514,24 @@ function check_parcels_deliveriblity($parcels, $user_pincode)
                 $check_deliveribility_with_cod = $t->shiprocket->check_serviceability($availibility_data_with_cod);
                 $shiprocket_data_with_cod = shiprocket_recomended_data($check_deliveribility_with_cod);
 
-                $data = [];
+                /*
+                 * `$data = []` used to sit here, INSIDE the per-parcel loop, so every parcel
+                 * wiped the ones before it and a multi-seller cart reported serviceability,
+                 * courier and ETA for its LAST parcel only. The accumulated charge totals below
+                 * were right, but the per-parcel breakdown the mobile app renders was not.
+                 * Initialised once, before the loop, instead.
+                 */
                 $estimated_delivery_days = $shiprocket_data['estimated_delivery_days'] ?? 0;
 
                 $data[$seller_id][$pickup_location]['parcel_weight'] = $parcel_weight['weight'];
                 $data[$seller_id][$pickup_location]['pickup_availability'] = $shiprocket_data['pickup_availability'] ?? false;
                 $data[$seller_id][$pickup_location]['courier_name'] = $shiprocket_data['courier_name'] ?? '';
+                // The courier's quoted rate. Under seller-paid shipping it is NOT what the
+                // customer pays - it is kept as `quoted_*` for diagnostics and for the
+                // shipping-cost picture a seller is shown, while the customer-facing keys
+                // below are zeroed at the bottom of this function.
+                $data[$seller_id][$pickup_location]['quoted_delivery_charge_with_cod'] = $shiprocket_data_with_cod['rate'] ?? 0;
+                $data[$seller_id][$pickup_location]['quoted_delivery_charge_without_cod'] = $shiprocket_data['rate'] ?? 0;
                 $data[$seller_id][$pickup_location]['delivery_charge_with_cod'] = $shiprocket_data_with_cod['rate'] ?? 0;
                 $data[$seller_id][$pickup_location]['delivery_charge_without_cod'] = $shiprocket_data['rate'] ?? 0;
                 $data[$seller_id][$pickup_location]['estimate_date'] = $shiprocket_data['etd'] ?? '';
@@ -8166,13 +8549,44 @@ function check_parcels_deliveriblity($parcels, $user_pincode)
     }
 
     $delivery_day = ($min_days == $max_days) ? $min_days : $min_days . '-' . $max_days;
+
+    /*
+     * Seller-paid shipping: the quote above is still made - it is the same serviceability call
+     * that produces the delivery ETA, and the rate is worth keeping visible - but the customer
+     * is charged nothing. The `quoted_*` keys carry the real courier estimate for anyone who
+     * needs it; the plain keys are what checkout, the cart and the mobile app read, and they
+     * are 0. The freight actually recovered from the seller is not this estimate at all: it is
+     * captured from Shiprocket at AWB assignment (see record_shiprocket_freight()).
+     */
+    $customer_charge_with_cod = round($delivery_charge_with_cod);
+    $customer_charge_without_cod = round($delivery_charge_without_cod);
+    if (seller_paid_shipping_enabled()) {
+        $customer_charge_with_cod = 0;
+        $customer_charge_without_cod = 0;
+        // $data is a STRING ("More than 15kg weight is not allow") on the overweight branch
+        // above, not the per-parcel array - iterating it would be a fatal on a heavy cart.
+        $parcel_rows = is_array($data) ? $data : [];
+        foreach ($parcel_rows as $seller_id => $pickups) {
+            if (!is_array($pickups)) {
+                continue;
+            }
+            foreach ($pickups as $pickup_location => $parcel) {
+                $data[$seller_id][$pickup_location]['delivery_charge_with_cod'] = 0;
+                $data[$seller_id][$pickup_location]['delivery_charge_without_cod'] = 0;
+            }
+        }
+    }
+
     $shipping_parcels = [
         'error' => false,
         'estimated_delivery_days' => $delivery_day,
         'estimate_date' => $shiprocket_data['etd'] ?? '',
         'delivery_charge' => 0,
-        'delivery_charge_with_cod' => round($delivery_charge_with_cod),
-        'delivery_charge_without_cod' => round($delivery_charge_without_cod),
+        'delivery_charge_with_cod' => $customer_charge_with_cod,
+        'delivery_charge_without_cod' => $customer_charge_without_cod,
+        'quoted_delivery_charge_with_cod' => round($delivery_charge_with_cod),
+        'quoted_delivery_charge_without_cod' => round($delivery_charge_without_cod),
+        'is_free_delivery' => seller_paid_shipping_enabled() ? 1 : 0,
         'data' => $data
     ];
     return $shipping_parcels;
@@ -8208,6 +8622,26 @@ function generate_awb($shipment_id)
 
     if (!empty($awb_code)) {
         $t->db->set(['awb_code' => $awb_code])->where('shipment_id', $shipment_id)->update('order_tracking');
+
+        /*
+         * Capture the freight the courier is actually billing, now, while Shiprocket is telling
+         * us. This is the moment the cost becomes real: assigning the AWB commits the parcel to
+         * a courier at a rate, and it is the only response that carries `freight_charges`
+         * without a second API call.
+         *
+         * Under seller-paid shipping that figure is what the seller is charged at settlement,
+         * so it has to be recorded here or it is lost - a later `shipments/{id}` read is a
+         * reconciliation fallback, not a substitute. Non-fatal by design: a missing figure
+         * means the seller is not charged freight for the parcel, which is the safe direction
+         * to fail in, and the reconciliation cron picks it up on its next pass.
+         */
+        $freight = shiprocket_freight_from_response($res);
+        if ($freight !== null) {
+            record_shiprocket_freight($shipment_id, $freight, 'awb_assignment');
+        } else {
+            log_message('error', 'Shiprocket AWB assignment for shipment ' . $shipment_id
+                . ' carried no freight figure; it will be reconciled later.');
+        }
     } else {
         log_message('error', 'Shiprocket AWB assignment returned no awb_code for shipment ' . $shipment_id . ' --> ' . var_export($res, true));
     }
@@ -11450,4 +11884,84 @@ function seller_file_verification_request($user_id)
     ]);
 
     return $result;
+}
+
+/**
+ * The support WhatsApp number, in the form wa.me expects: digits only, country code included.
+ *
+ * Every "WhatsApp support" button on the site used to read `system_settings.whatsapp_number`
+ * straight out of the settings row and hide itself when that field was blank - which is exactly
+ * the state the store was in. The settings form's `whatsapp_status` toggle was off, and
+ * Setting_model::update_settings() blanks `whatsapp_number` whenever it is saved with the toggle
+ * off, so the number was wiped and every support button silently vanished. The seller, admin and
+ * buyer chat pages were left reading "WhatsApp support is currently unavailable".
+ *
+ * A support channel is not an optional decoration, so this resolves a number instead of giving
+ * up: the dedicated WhatsApp field first, then the support numbers that the footer and
+ * contact-us page already display, then the number the owner confirmed (see migration 052).
+ * A bare 10-digit Indian number is given the 91 country code, because wa.me will not accept a
+ * number without one.
+ *
+ * @return string digits only, or '' if nothing usable is configured anywhere.
+ */
+function support_whatsapp_number()
+{
+    static $resolved = null;
+    if ($resolved !== null) {
+        return $resolved;
+    }
+
+    $system = get_settings('system_settings', true);
+    $web    = get_settings('web_settings', true);
+    $system = is_array($system) ? $system : [];
+    $web    = is_array($web) ? $web : [];
+
+    $candidates = [
+        isset($system['whatsapp_number']) ? $system['whatsapp_number'] : '',
+        isset($system['support_number']) ? $system['support_number'] : '',
+        isset($web['support_number']) ? $web['support_number'] : '',
+        SUPPORT_WHATSAPP_DEFAULT,
+    ];
+
+    $resolved = '';
+    foreach ($candidates as $candidate) {
+        $digits = preg_replace('/\D+/', '', (string) $candidate);
+        if ($digits === '') {
+            continue;
+        }
+        if (strlen($digits) == 10) {
+            $digits = '91' . $digits;
+        }
+        // Anything shorter than a country code + subscriber number, or longer than E.164
+        // allows, is a typo rather than a phone number - fall through to the next candidate.
+        if (strlen($digits) >= 11 && strlen($digits) <= 15) {
+            $resolved = $digits;
+            break;
+        }
+    }
+
+    return $resolved;
+}
+
+/**
+ * A ready-to-use https://wa.me/... link for the support number, with the chat pre-filled.
+ *
+ * @param  string $message text the chat opens with; defaults to a greeting naming the store.
+ * @return string the URL, or '' when no support number can be resolved at all (in which case
+ *                callers should show their fallback copy rather than a dead button).
+ */
+function whatsapp_support_link($message = '')
+{
+    $number = support_whatsapp_number();
+    if (empty($number)) {
+        return '';
+    }
+
+    if ($message === '' || $message === null) {
+        $settings = get_settings('system_settings', true);
+        $app_name = (is_array($settings) && !empty($settings['app_name'])) ? $settings['app_name'] : 'Cretzo';
+        $message  = 'Hello ' . $app_name . ' Support,';
+    }
+
+    return 'https://wa.me/' . $number . '?text=' . rawurlencode($message);
 }

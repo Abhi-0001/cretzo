@@ -1673,3 +1673,31 @@ span.plus,
 span.minus {
     cursor: pointer;
 }
+/* ==========================================================================
+   WHATSAPP SUPPORT
+   The store answers on WhatsApp. There is deliberately no floating launcher for
+   it - next to the chat widget's own green bubble two green circles competed
+   with each other - so this is only the in-dialog action.
+   ========================================================================== */
+/* The WhatsApp action inside the "live chat coming soon" dialogs. */
+.cs-chat-whatsapp {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 6px;
+    padding: 12px 26px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+    background: #25d366;
+    border: none;
+    border-radius: 999px;
+    cursor: pointer;
+    box-shadow: 0 10px 24px -10px rgba(37, 211, 102, .75);
+}
+.cs-chat-whatsapp:hover,
+.cs-chat-whatsapp:focus {
+    color: #fff;
+    background: #1fbe5b;
+}

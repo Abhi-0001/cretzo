@@ -1742,13 +1742,20 @@ search_products.on("select2:select", function (e) {
                     success: function (e) {
                         if (csrfName = e.csrfName, csrfHash = e.csrfHash, 0 == e.error) {
                             $("#cart-count").text(e.data.cart_count), i(r);
+                            /* Re-render the mini-cart through the single renderer instead of a
+                               second, divergent copy of the template. The old inline markup
+                               dropped min/max/step off the quantity input (so stepping broke
+                               after a removal) and wrote an empty string - a blank panel with
+                               no empty state - once the last line was gone. */
                             if (e.data.items) {
-                                var sidebarHtml = "";
-                                $.each(e.data.items, function (idx, product) {
-                                    var priceVal = product.special_price < product.price && 0 != product.special_price ? product.special_price : product.price;
-                                    sidebarHtml += '<div class="shopping-cart"><div class="shopping-cart-item d-flex justify-content-between mb-4" title="' + product.name + '"><div class="d-flex flex-row gap-3"><figure class="rounded cart-img"><a href="' + base_url + 'products/details/' + product.product_slug + '"><img src="' + base_url + product.image + '" alt="Not Found" style="object-fit: contain;"></a></figure><div class="w-100 cart-title"><a href="' + base_url + 'products/details/' + product.product_slug + '"><h3 class="post-title fs-16 lh-xs mb-1" title="' + product.name + '">' + product.name + '</h3></a><p class="price"><ins><span class="amount">' + currency + priceVal + '</span></ins></p><div class="product-pricing d-flex py-2 px-1 w-100"><div class="align-items-center d-flex p-2 w-15"><input type="number" name="header_qty" class="form-control d-flex align-items-center" value="' + product.qty + '" data-id="' + product.product_variant_id + '" data-price="' + product.price + '"></div><div class="product-line-price align-self-center px-1">' + currency + (product.qty * priceVal) + '</div></div></div></div><div class="product-sm-removal"><button class="remove-product btn btn-sm btn-danger rounded-1 p-1 py-0" data-id="' + product.product_variant_id + '"><i class="uil uil-trash-alt"></i></button></div></div></div>';
-                                });
-                                $("#cart-item-sidebar").html(sidebarHtml);
+                                display_cart(e.data.items.map(function (product) {
+                                    return $.extend({}, product, {
+                                        min: product.minimum_order_quantity,
+                                        max: product.total_allowed_quantity,
+                                        step: product.quantity_step_size
+                                    })
+                                }));
+                                $("#cart-count").text(e.data.cart_count);
                             }
                         } else Toast.fire({
                             icon: "error",
@@ -2237,9 +2244,13 @@ function display_cart(e) {
 
     var t = e.length ? e.length : "0";
     $("#cart-count").text(t);
+    /* An emptied cart used to leave the offcanvas blank - no items, no empty state. */
+    if (!e.length) {
+        $("#cart-item-sidebar").html('<h1 class="h4 text-center mini-cart-empty">Your cart is empty</h1><img src="' + base_url + 'assets/front_end/cretzo/img/new/empty-cart(4).png" alt="Empty Cart" class="mt-16" />');
+        return;
+    }
     var a = "";
     null !== e && e.length > 0 && e.forEach(e => {
-        console.log(e);
 
         //a += '<div class="shopping-cart"><div class="shopping-cart-item d-flex justify-content-between mb-4"><div class="d-flex flex-row gap-3"  title = " ' + e.title + '"><figure class="rounded cart-img"><a href="' + base_url + 'products/details/' + e.slug + '"><img src="' + e.image + '" alt="Not Found" style="object-fit: contain;"></a></figure><div class="w-100"><a href="' + base_url + 'products/details/' + e.slug + '"><h3 class="post-title fs-16 lh-xs mb-1" title = " ' + e.title + '">' + e.title + '</h3></a><p class="price"><ins><span class="amount">' + currency + e.price + '</span></ins></p><div class="product-pricing d-flex py-2 px-1 w-100"><div class="align-items-center d-flex p-2 w-15"><input type="number" name="header_qty" class="form-control d-flex align-items-center" value="' + e.qty + '" data-id="' + e.product_variant_id + '" data-price="' + e.price + '" min="' + e.min + '" max="' + e.max + '" step="' + e.step + '" ></div><div class="product-line-price align-self-center px-1">' + currency + (e.qty * e.price) + '</div></div></div></div><div class="product-sm-removal"><button class="remove-product btn btn-sm btn-danger rounded-1 p-1 py-0" data-id="' + e.product_variant_id + '"><i class="uil uil-trash-alt"></i></button>   </div></div></div>'
 
@@ -2277,17 +2288,31 @@ function cart_sync() {
     if (null != e && e) $.ajax({
         type: "POST",
         url: base_url + "cart/cart_sync",
+        /* dataType is deliberately left off: a stray warning or a second json object in the
+           response used to make the strict json parse fail, which skipped this callback and
+           left the guest cart in localStorage forever. */
         data: {
             [csrfName]: csrfHash,
             data: e,
             is_saved_for_later: !1
         },
-        dataType: "json",
         success: function (e) {
-            if (csrfName = e.csrfName, csrfHash = e.csrfHash, 0 == e.error) return Toast.fire({
-                icon: "success",
-                title: e.message
-            }), localStorage.removeItem("cart"), !0
+            var r = e;
+            if ("string" == typeof r) try {
+                r = JSON.parse(r)
+            } catch (t) {
+                /* Unparseable body - the merge may still have happened server-side. Drop the
+                   guest cart anyway so it cannot outlive the login and haunt the mini-cart. */
+                localStorage.removeItem("cart");
+                return
+            }
+            csrfName = r.csrfName || csrfName, csrfHash = r.csrfHash || csrfHash;
+            localStorage.removeItem("cart");
+            if (r.message) Toast.fire({
+                icon: 0 == r.error ? "success" : "error",
+                title: r.message
+            });
+            return !0
         }
     });
     else;
@@ -2580,6 +2605,15 @@ function customer_wallet_query_paramss(e) {
         
        
     }), $(document).ready(function () {
+        /* The localStorage cart belongs to GUESTS only. This used to run for everyone and
+           paint the stored list over the server-rendered mini-cart, so a guest cart left
+           behind by a failed cart_sync kept showing items that are not in the DB - the
+           remove button then answered "Cart Is Already Empty !" and the row never went
+           away. Once signed in, the DB cart is the only source of truth; drop the leftover. */
+        if (1 == is_loggedin) {
+            localStorage.removeItem("cart");
+            return;
+        }
         var e = localStorage.getItem("cart");
         (e = null !== localStorage.getItem("cart") ? JSON.parse(e) : null) && display_cart(e)
     }), $(document).ready(function () {
@@ -3893,21 +3927,80 @@ jQuery(document).ready(function ($) {
 });
 
 $(document).ready(function () {
-    // Show/hide chat iframe on chat button click
-    $("#chat-button").on("click", function (e) {
+    /* Support chat widget.
+     *
+     * `.toggle()` flipped display:none straight to display:block, so the panel snapped in with
+     * no transition and the `opened` class it also set had nothing to animate. Opening now
+     * unhides first and adds the class on the next frame so the CSS transition actually runs,
+     * and closing waits for it to finish before hiding. The widget also had no way to close
+     * itself from inside the iframe - the header's X posts a message that is handled here. */
+    var $chatFab = $("#chat-button");
+    var $chatPanel = $("#chat-iframe");
+
+    function chatIsOpen() {
+        return $chatPanel.hasClass("opened");
+    }
+
+    function openChat() {
+        if (chatIsOpen()) {
+            return;
+        }
+        $chatPanel.show();
+        // Force a reflow so the browser has a pre-transition state to animate away from.
+        $chatPanel[0].offsetHeight;
+        $chatPanel.addClass("opened");
+        $chatFab.addClass("opened").attr("aria-expanded", "true");
+    }
+
+    function closeChat() {
+        if (!chatIsOpen()) {
+            return;
+        }
+        $chatPanel.removeClass("opened");
+        $chatFab.removeClass("opened").attr("aria-expanded", "false");
+        window.setTimeout(function () {
+            if (!chatIsOpen()) {
+                $chatPanel.hide();
+            }
+        }, 240);
+    }
+
+    function toggleChat() {
+        if (chatIsOpen()) {
+            closeChat();
+        } else {
+            openChat();
+        }
+    }
+
+    $chatFab.on("click", function (e) {
         e.preventDefault();
-        $("#chat-iframe").toggle();
-        $(this).toggleClass("opened");
-        $("#chat-iframe").toggleClass("opened");
+        toggleChat();
     });
+
     $("#chat-with-button").on("click", function (e) {
         e.preventDefault();
-        console.log("clicked:", $(this).data("id"));
-        console.log("clicked:", base_url + "my-account/floating_chat_modern?user_id=" + $(this).data("id"));
-        $("#chat-iframe").attr("src", base_url + "my-account/floating_chat_modern?user_id=" + $(this).data("id"));
-        $("#chat-iframe").toggle();
-        $(this).toggleClass("opened");
-        $("#chat-iframe").toggleClass("opened");
+        $chatPanel.attr("src", base_url + "my-account/floating_chat_modern?user_id=" + $(this).data("id"));
+        toggleChat();
+    });
+
+    // The widget's own close button and Escape key ask the parent to dismiss the panel;
+    // the origin check keeps any other framed page from driving this.
+    window.addEventListener("message", function (event) {
+        if (event.origin !== window.location.origin) {
+            return;
+        }
+        var payload = event.data;
+        if (payload && payload.cretzoChat === "close") {
+            closeChat();
+        }
+    });
+
+    // Escape on the host page closes it too, for people who never focused the iframe.
+    $(document).on("keydown", function (e) {
+        if ((e.key === "Escape" || e.keyCode === 27) && chatIsOpen()) {
+            closeChat();
+        }
     });
 });
 $(document).ready(function () {

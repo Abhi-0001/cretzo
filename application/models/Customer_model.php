@@ -303,6 +303,22 @@ class Customer_model extends CI_Model
      * users' stored balances do not match the sum of their ledger, one of them by a large amount.
      * Prefer update_wallet_balance() in function_helper.php, which does both atomically.
      */
+    /**
+     * DEPRECATED - do not call. Use update_wallet_balance() in function_helper.php.
+     *
+     * This moves users.balance and writes NO row to `transactions`, so every call permanently
+     * desynchronises the stored balance from the ledger that is supposed to explain it. It also
+     * does its own unlocked read-compare-write, so two concurrent callers can both pass a
+     * balance check against the same starting figure and overdraw the wallet.
+     *
+     * Both of its former callers were the customer withdrawal endpoints (My_account::
+     * withdraw_money and app/v1/Api::send_withdrawal_request); both now route through
+     * Payment_request_model::create_withdrawal_request(), which takes a row lock, writes the
+     * ledger entry, and commits the request and the debit together. Nothing calls this any more.
+     *
+     * Kept rather than removed only because it is a public model method; it should be deleted
+     * once you are satisfied nothing outside this repository reaches for it.
+     */
     function update_balance_customer($amount, $user_id, $action)
     {
         $user_id = (int) $user_id;

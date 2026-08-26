@@ -21,7 +21,17 @@ function setupActionButton(){
 
 function setupPaymentCheckbox(){
 
-    selected_payment_method = $("input[name='payment_method']:checked")[0].id;
+    /* Fall back to the first method that is still selectable. Only Razorpay is rendered with
+       `checked`, and the COD radio is rendered `disabled` when a cart item forbids Cash on
+       Delivery - so with Razorpay turned off in settings nothing is checked, and reading
+       [0].id off the empty set threw a TypeError that killed the rest of this script (the
+       Place Order button then stayed disabled). */
+    var $checked_method = $("input[name='payment_method']:checked").not(':disabled');
+    if ($checked_method.length === 0) {
+        $checked_method = $("input[name='payment_method']").not(':disabled').not('#wallet').first();
+        $checked_method.prop('checked', true);
+    }
+    selected_payment_method = $checked_method.length ? $checked_method[0].id : '';
 
     $("input[name='payment_method']").change(function() {
 
@@ -113,7 +123,11 @@ function setupWalletBalance(){
             $('#wallet').prop("checked", true).trigger('change');
         }
         else{
-            $(`#${selected_payment_method}`).prop("checked", true).trigger('change');
+            /* selected_payment_method is '' when no method is selectable (see
+               setupPaymentCheckbox); $('#') is a jQuery syntax error, so guard it. */
+            if (selected_payment_method) {
+                $(`#${selected_payment_method}`).prop("checked", true).trigger('change');
+            }
         }
 
         // refreshBill(); // Commented out because already being called when payment method is triggered.
@@ -400,8 +414,22 @@ function refreshBill(){
 
     /* Update the values on the displayed bill */
 
-    /* Update Bill Text For Delivery Charge */
-    $('.final-shipping').text('₹'+moneyFormatIndia(getDeliveryCharge(isCOD)));
+    /* Update Bill Text For Delivery Charge.
+       Under the seller-paid shipping model the charge is always 0 and the row reads FREE, the
+       same as the server rendered it - printing "₹0" here instead both looked like a fault and
+       silently undid the server's label on every refresh. Guarded on the flag rather than on
+       "charge == 0" because a zero charge under the old model just means the order cleared the
+       free-delivery threshold, which is not a promise of free shipping on every order. */
+    var delivery_charge = parseFloat(getDeliveryCharge(isCOD));
+    delivery_charge = isNaN(delivery_charge) ? 0 : delivery_charge;
+    if ($('#is_free_delivery').val() == '1' && delivery_charge === 0) {
+        $('.final-shipping').text('FREE').css('color', 'var(--color-success)');
+        /* "(Cash On Delivery)" next to a free shipping line is meaningless - it exists to
+           explain a COD surcharge, and there is none. */
+        $('.final-shipping-title-cod-tag').addClass('d-none');
+    } else {
+        $('.final-shipping').text('₹'+moneyFormatIndia(delivery_charge));
+    }
 
     /* Update Bill Text For Promocode */
     updatePromoCodeInfoOnBill();

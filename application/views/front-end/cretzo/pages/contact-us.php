@@ -17,6 +17,9 @@ $contact_address = (isset($web_settings['address']) && !empty($web_settings['add
 $contact_number  = (isset($web_settings['support_number']) && !empty($web_settings['support_number'])) ? $web_settings['support_number'] : '';
 $contact_email   = (isset($web_settings['support_email']) && !empty($web_settings['support_email'])) ? $web_settings['support_email'] : '';
 $contact_map     = (isset($web_settings['map_iframe']) && !empty($web_settings['map_iframe'])) ? $web_settings['map_iframe'] : '';
+// WhatsApp is the channel the store actually answers on, but this page only offered an address,
+// a phone number and a form. whatsapp_support_link() resolves the number from settings.
+$contact_whatsapp = whatsapp_support_link();
 ?>
 
 <!-- breadcrumb -->
@@ -47,7 +50,7 @@ $contact_map     = (isset($web_settings['map_iframe']) && !empty($web_settings['
         <p class="text-n op-8">Questions about an order, a product or selling with us? Send us a message and we'll get back to you shortly.</p>
     </div>
 
-    <?php if ($contact_address !== '' || $contact_number !== '' || $contact_email !== '') { ?>
+    <?php if ($contact_address !== '' || $contact_number !== '' || $contact_email !== '' || $contact_whatsapp !== '') { ?>
         <div class="contact-tiles">
 
             <?php if ($contact_address !== '') { ?>
@@ -66,6 +69,16 @@ $contact_map     = (isset($web_settings['map_iframe']) && !empty($web_settings['
                           // punctuation for the href but show the number as configured. ?>
                     <p class="text-n op-8 mb-0">
                         <a class="contact-link" href="tel:<?= preg_replace('/[^0-9+]/', '', $contact_number) ?>"><?= html_escape($contact_number) ?></a>
+                    </p>
+                </div>
+            <?php } ?>
+
+            <?php if ($contact_whatsapp !== '') { ?>
+                <div class="contact-tile">
+                    <span class="contact-tile-icon" aria-hidden="true"><i class="uil uil-whatsapp"></i></span>
+                    <h2 class="text-b fw-b">WhatsApp Us</h2>
+                    <p class="text-n op-8 mb-0">
+                        <a class="contact-link" href="<?= html_escape($contact_whatsapp) ?>" target="_blank" rel="noopener">Chat on WhatsApp</a>
                     </p>
                 </div>
             <?php } ?>

@@ -32,8 +32,24 @@ defined('BASEPATH') or exit('No direct script access allowed');
 |   0 9 * * *   low_stock_alerts              (once daily, at a sensible hour)
 | ---------------------------------------------------------------------------
 */
-$config['secret'] = getenv('SUBSCRIPTION_CRON_SECRET')
-    ?: '842e7d305567c1453f321fdb30fcf50e813d0eaeeb8cc452dfed202c56239aeb';
+/*
+| This file is TRACKED IN GIT, so a secret written here is a secret published to
+| everyone with repository access - and these endpoints move real money
+| (settle_seller_commission credits seller wallets, settle_cashback_discount pays
+| out promo cashback). The previous hard-coded fallback was exactly that, so it is
+| gone and MUST be replaced with the environment variable.
+|
+| Set it on the server, e.g. in the vhost / .htaccess / panel environment:
+|     SetEnv SUBSCRIPTION_CRON_SECRET "<a long random string>"
+| or generate one with:  php -r "echo bin2hex(random_bytes(32));"
+|
+| Leaving it unset is FAIL-CLOSED, not fail-open: cron_authorized() treats an empty
+| secret as "refuse everything", so the token-protected endpoints answer
+| Unauthorized until the variable is present. A logged-in admin can still trigger
+| them from the panel in the meantime, so nothing is stuck - but the nightly jobs
+| will not run, which is the loud failure you want rather than a silent one.
+*/
+$config['secret'] = getenv('SUBSCRIPTION_CRON_SECRET') ?: '';
 
 /*
 | How many days ahead of expiry a seller gets a renewal reminder. One email is

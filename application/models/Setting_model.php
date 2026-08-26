@@ -77,6 +77,11 @@ class Setting_model extends CI_Model
             'current_version_ios' => $keep('current_version_ios'),
             'is_version_system_on' => $toggle('is_version_system_on'),
             'area_wise_delivery_charge' => $toggle('area_wise_delivery_charge'),
+            // Seller-paid shipping (the Meesho model): customers are never charged freight and
+            // the actual Shiprocket cost is recovered from the seller at settlement. Must be
+            // listed here - this method rebuilds the whole system_settings blob from the form,
+            // so a key it does not name is dropped on the next save.
+            'seller_paid_shipping' => $toggle('seller_paid_shipping'),
             'currency' => $keep('currency'),
             'delivery_charge' => $keep('delivery_charge'),
             'min_amount' => $keep('min_amount'),
@@ -138,9 +143,11 @@ class Setting_model extends CI_Model
         ];
 
 
-        if ($system_data['whatsapp_status'] == 0) {
-            $system_data['whatsapp_number'] = '';
-        }
+        // The number used to be BLANKED here whenever the toggle was saved off, which is how the
+        // store ended up with no WhatsApp number at all: one save with the switch off destroyed
+        // it, and every "WhatsApp support" button on the site reads this field. The toggle
+        // decides whether the number is advertised - it is not a reason to forget it - so the
+        // value is kept and turning the switch back on no longer means re-typing it.
 
         // Same guard as the fields above: an absent logo/favicon means "not part of this
         // request", and both writes below are already skipped when the value is empty.

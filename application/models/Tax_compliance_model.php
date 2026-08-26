@@ -499,9 +499,60 @@ class Tax_compliance_model extends CI_Model
         $rows = $this->db->group_by('ss.seller_id')->order_by('taxable_value', 'DESC')
             ->get('seller_settlements ss')->result_array();
 
+        /*
+         * A deposit figure can never be negative, and this used to return one.
+         *
+         * The netting above is right - both statutes are computed on supplies NET of returns, so
+         * a reversed settlement has to take its deductions back out. But with no floor, a period
+         * whose reversals exceed its collections reported a NEGATIVE amount withheld, and there
+         * is no such thing: you cannot deposit minus fifty-five rupees against GSTR-8 or 26Q.
+         * Reproduced by settling one item and returning it - the summary came back
+         * tds_amount = -54.95, which whoever prepares the return then has to guess at.
+         *
+         * Split into the two figures that actually exist:
+         *   *_amount  what is DEPOSITABLE for this period - floored at zero, and the number that
+         *             goes on the return;
+         *   *_credit  the excess that reversals ate beyond this period's collections. That is a
+         *             carry-forward against the next period, not a payment, and it is reported
+         *             as its own line so it is visible instead of hiding inside a minus sign.
+         *   *_net     the raw signed netting, kept so the arithmetic can still be audited.
+         *
+         * The three TCS heads are floored the same way and then reconciled: flooring each head
+         * independently can leave them not adding up to the floored total (one head positive,
+         * another negative), so the heads are scaled back onto the depositable total. GSTR-8 is
+         * filed head by head, so heads that do not sum to the total is a filing error.
+         */
+        $split = function ($value) {
+            $value = round((float) $value, 2);
+            return [
+                'net'     => $value,
+                'amount'  => ($value > 0) ? $value : 0.0,
+                'credit'  => ($value < 0) ? round(-$value, 2) : 0.0,
+            ];
+        };
+
         $out = [];
         foreach ($rows as $row) {
             $pan = $this->classify_pan($row['pan']);
+
+            $tds = $split($row['tds_amount']);
+            $tcs = $split($row['tcs_amount']);
+
+            $igst = max(0.0, round((float) $row['tcs_igst'], 2));
+            $cgst = max(0.0, round((float) $row['tcs_cgst'], 2));
+            $sgst = max(0.0, round((float) $row['tcs_sgst'], 2));
+            $head_sum = round($igst + $cgst + $sgst, 2);
+            if ($head_sum > 0 && abs($head_sum - $tcs['amount']) > 0.01) {
+                // Proportional, then the rounding remainder is pushed onto IGST so the three
+                // heads always add back to exactly the depositable total.
+                $factor = $tcs['amount'] / $head_sum;
+                $cgst = round($cgst * $factor, 2);
+                $sgst = round($sgst * $factor, 2);
+                $igst = round($tcs['amount'] - $cgst - $sgst, 2);
+            } elseif ($tcs['amount'] <= 0) {
+                $igst = $cgst = $sgst = 0.0;
+            }
+
             $out[] = [
                 'seller_id'      => (int) $row['seller_id'],
                 'seller_name'    => !empty($row['shop_name']) ? $row['shop_name'] : $row['seller_name'],
@@ -512,11 +563,15 @@ class Tax_compliance_model extends CI_Model
                 'gst_registered' => $this->is_valid_gstin($row['gst']),
                 'taxable_value'  => round((float) $row['taxable_value'], 2),
                 'gross_amount'   => round((float) $row['gross_amount'], 2),
-                'tds_amount'     => round((float) $row['tds_amount'], 2),
-                'tcs_amount'     => round((float) $row['tcs_amount'], 2),
-                'tcs_igst'       => round((float) $row['tcs_igst'], 2),
-                'tcs_cgst'       => round((float) $row['tcs_cgst'], 2),
-                'tcs_sgst'       => round((float) $row['tcs_sgst'], 2),
+                'tds_amount'     => $tds['amount'],
+                'tds_credit'     => $tds['credit'],
+                'tds_net'        => $tds['net'],
+                'tcs_amount'     => $tcs['amount'],
+                'tcs_credit'     => $tcs['credit'],
+                'tcs_net'        => $tcs['net'],
+                'tcs_igst'       => $igst,
+                'tcs_cgst'       => $cgst,
+                'tcs_sgst'       => $sgst,
                 'settled_items'  => (int) $row['settled_items'],
                 'returned_items' => (int) $row['returned_items'],
                 'financial_year' => $fy,

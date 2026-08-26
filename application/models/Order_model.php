@@ -480,7 +480,54 @@ class Order_model extends CI_Model
             }
 
             $delivery_charge = isset($data['delivery_charge']) && !empty($data['delivery_charge']) ? $data['delivery_charge'] : 0;
-            $discount = isset($data['discount']) && !empty($data['discount']) ? $data['discount'] : 0;
+            /*
+             * Seller-paid shipping: the customer is charged nothing for delivery, so the charge
+             * is forced to 0 here rather than trusted from $data.
+             *
+             * This is the last line of defence as well as the model switch. place_order() is
+             * reached from the web checkout, the mobile API, the POS screen and the digital
+             * order path, and several of those still pass a delivery_charge through from their
+             * own request - so zeroing it only in get_cart_total() would leave a caller able to
+             * post one and have it billed to the customer while the settlement engine was
+             * simultaneously recovering the real freight from the seller. That would collect
+             * for the same shipment twice.
+             *
+             * The freight actually paid is captured from Shiprocket at AWB assignment and
+             * deducted from the seller at settlement - see record_shiprocket_freight().
+             */
+            if (seller_paid_shipping_enabled()) {
+                $delivery_charge = 0;
+                $data['delivery_charge'] = 0;
+                // Nothing was charged, so there is nothing to refund on a return. Left at 1 it
+                // made the refund path add a delivery charge of 0 back as a returnable line.
+                $data['is_delivery_charge_returnable'] = 0;
+            }
+            /*
+             * `discount` is a COUNTER discount, and only the POS screen is allowed to set one.
+             *
+             * It used to be read straight out of $data for every caller and subtracted from the
+             * order total below with no cap, no floor and no check on where it came from. The web
+             * checkout hands its entire $_POST array to this method and never mentions the key, so
+             * a customer could simply add `discount=3971` to the place_order request and set their
+             * own price. That is not theoretical: orders.id=27 in this database carries
+             * discount=3971 against a total of 1099 and a final_total of -2872, i.e. a COD order
+             * where the courier had nothing to collect and the goods shipped free.
+             *
+             * A seller ringing up a walk-in sale at their own counter legitimately gives manual
+             * discounts, which is why the field exists at all - so it is honoured for a POS order
+             * and ignored everywhere else. Customer-facing discounts have their own validated
+             * channel (promo_code -> validate_promo_code() -> promo_discount).
+             *
+             * Even for POS it is clamped: negative would ADD to the bill, and more than the goods
+             * are worth would drive the order negative exactly as before.
+             */
+            $is_pos_order = isset($data['is_pos_order']) && (int) $data['is_pos_order'] === 1;
+            $discount = 0;
+            if ($is_pos_order && isset($data['discount']) && is_numeric($data['discount'])) {
+                $discount = round((float) $data['discount'], 2);
+                $discount = ($discount < 0) ? 0 : $discount;
+            }
+            $data['discount'] = $discount;
             $gross_total = 0;
             $cart_data = [];
             for ($i = 0; $i < count($product_variant); $i++) {
@@ -598,8 +645,17 @@ class Order_model extends CI_Model
 
             //end of parcels making
 
+            // A counter discount can never exceed what is being sold, and the bill can never go
+            // negative. Without the clamp a POS discount larger than the basket produced a
+            // negative final_total / total_payable, which is what orders 26 and 27 are: a bill
+            // the courier can only "collect" by handing money back. $discount is written back so
+            // the figure stored on the order is the one that was actually applied.
+            $discount = min($discount, round($total + intval($delivery_charge), 2));
+            $data['discount'] = $discount;
+
             $final_total = $total + intval($delivery_charge) - $discount;
             $final_total = round($final_total, 2);
+            $final_total = ($final_total < 0) ? 0 : $final_total;
 
             /* Calculating Wallet Balance */
             $total_payable = $final_total;
@@ -693,7 +749,11 @@ class Order_model extends CI_Model
                 $order_data['latitude'] = $_POST['latitude'];
                 $order_data['longitude'] = $_POST['longitude'];
             }
-            $order_data['notes'] = $data['order_note'];
+            // Optional in practice - the digital-order path, the app's online-payment flow and
+            // several direct callers omit it, and reading it unguarded raised "Undefined array
+            // key: order_note" on each of those checkouts. Under the API that warning text is
+            // printed ahead of the JSON body and breaks the client's parse.
+            $order_data['notes'] = isset($data['order_note']) ? $data['order_note'] : '';
 
 
             $order_inserted = $this->db->insert('orders', $order_data);

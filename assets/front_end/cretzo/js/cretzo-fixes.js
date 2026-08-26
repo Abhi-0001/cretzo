@@ -198,6 +198,13 @@
                         '<h2 class="cs-soon-title">💬 Live Chat</h2>' +
                         '<span class="cs-soon-chip">Coming Soon</span>' +
                         '<p class="cs-soon-text">We’re working on launching our Live Chat Support feature to provide you with a faster and smoother support experience.</p>' +
+                        // The handler below has always existed, but the button it listens for was
+                        // never rendered - so the dialog announced WhatsApp support and gave no
+                        // way to reach it. Only offered when a number actually resolves.
+                        (whatsappSupportHref()
+                            ? '<p class="cs-soon-text">Our team is on WhatsApp in the meantime.</p>' +
+                              '<button type="button" class="cs-chat-whatsapp"><i class="uil uil-whatsapp"></i> Continue to WhatsApp</button>'
+                            : '') +
                     '</div>' +
                 '</div>' +
             '</div>';
@@ -211,8 +218,15 @@
 
     // "Continue to WhatsApp": open the WhatsApp link if configured,
     // otherwise open the floating chat widget in the bottom-right corner.
+    // The WhatsApp link the footer renders as a global. It is the only source now: the footer
+    // link and floating launcher this used to fall back to have both been removed, so a page
+    // without the global has no WhatsApp link to offer and the caller opens the chat widget.
+    function whatsappSupportHref() {
+        return window.CRETZO_WHATSAPP_LINK || '';
+    }
+
     $(document).on('click', '#cs-chat-modal .cs-chat-whatsapp', function () {
-        var waHref = $('.whatsapp-icon a').attr('href');
+        var waHref = whatsappSupportHref();
         closeChatSoon();
         if (waHref) {
             window.open(waHref, '_blank');

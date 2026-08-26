@@ -24,6 +24,22 @@
                 <span class="cs-chat-soon__chip">Coming Soon</span>
                 <h2 class="cs-chat-soon__title">Live Chat</h2>
                 <p class="cs-chat-soon__text">We’re working on launching our <strong>Live Chat Support</strong> feature to provide you with a faster and smoother support experience.</p>
+                <?php
+                /*
+                 * Until live chat ships this page was a dead end - it announced the feature and
+                 * offered no way to actually reach anybody. WhatsApp is the live human channel,
+                 * so it gets the primary action here (whatsapp_support_link() resolves the number
+                 * from settings, falling back to the confirmed one).
+                 */
+                $whatsapp_link = whatsapp_support_link('Hello Cretzo Support, I need help with my order.');
+                ?>
+                <?php if (!empty($whatsapp_link)) { ?>
+                    <p class="cs-chat-soon__text">In the meantime our team is on WhatsApp and replies during business hours.</p>
+                    <a href="<?= html_escape($whatsapp_link) ?>" target="_blank" rel="noopener" class="cs-chat-soon__wa">
+                        <i class="uil uil-whatsapp"></i> Chat on WhatsApp
+                    </a>
+                <?php } ?>
+                <p class="cs-chat-soon__text">Prefer a written trail? <a href="<?= base_url('my-account/support') ?>">Raise a support ticket</a>.</p>
             </div>
 
         </div>
@@ -94,5 +110,31 @@
     .cs-chat-soon__text strong {
         color: #374151;
         font-weight: 600;
+    }
+    .cs-chat-soon__wa {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        margin: 6px 0 18px;
+        padding: 13px 30px;
+        font-size: 15px;
+        font-weight: 600;
+        color: #fff;
+        background: #25d366;
+        border-radius: 999px;
+        text-decoration: none;
+        box-shadow: 0 10px 24px -10px rgba(37, 211, 102, .75);
+        transition: transform .15s ease, box-shadow .15s ease;
+    }
+    .cs-chat-soon__wa:hover,
+    .cs-chat-soon__wa:focus {
+        color: #fff;
+        text-decoration: none;
+        transform: translateY(-1px);
+        box-shadow: 0 14px 28px -10px rgba(37, 211, 102, .85);
+    }
+    .cs-chat-soon__wa i {
+        font-size: 20px;
+        line-height: 1;
     }
 </style>

@@ -80,6 +80,10 @@ $system_settings = get_settings('system_settings', true); ?>
             </li>
         <?php } ?>
 
+        <?php /* No WhatsApp link in this column on purpose - it landed in the wrong place in the
+                 footer grid on listing pages. WhatsApp is offered on contact-us, in the chat
+                 widget and on the chat/support pages instead. */ ?>
+
         <li class="footer-heading mt-4">Keep in touch</li>
         <li class="media-icon-container social">
 
@@ -640,10 +644,22 @@ $system_settings = get_settings('system_settings', true); ?>
     </div>
 <?php } ?>
 
+<?php /* Same link as the footer, kept in a global so the "coming soon" dialogs in
+         cretzo-fixes.js can send people to WhatsApp without hardcoding a number. */ ?>
+<script>window.CRETZO_WHATSAPP_LINK = <?= json_encode(whatsapp_support_link()) ?>;</script>
+
+<?php /* No floating WhatsApp launcher here on purpose: stacked next to the chat widget's own
+         green bubble it read as a second, competing action. WhatsApp is reached from the footer,
+         contact-us, the chat pages and the widget's own "WhatsApp Support" button instead. */ ?>
 <div class="fixed-icon">
-<div id="chat-button"><i class="uil uil-comments"></i></div>
+<?php /* The panel used to be a hardcoded 450x600 inline style, which is wider than a phone
+         viewport - on mobile it hung off the right edge of the screen and could not be read.
+         Sizing now lives in custom.css (#chat-iframe) where a media query can shrink it, and
+         the iframe is loaded lazily so a widget nobody opens does not cost every page a
+         second document. */ ?>
+<button type="button" id="chat-button" aria-label="Open support chat" aria-expanded="false" aria-controls="chat-iframe"><i class="uil uil-comments"></i></button>
     <!-- Floating chat iframe -->
-    <iframe src="<?= base_url('my-account/floating_chat_modern') ?>" id="chat-iframe" style="display: none; position: fixed; bottom: 80px; right: 20px; width: 450px; height: 600px; border: none;z-index:999;"></iframe>
+    <iframe src="<?= base_url('my-account/floating_chat_modern') ?>" id="chat-iframe" title="Support chat" loading="lazy"></iframe>
     <div class="progress-wrap mt-2">
         <svg class="progress-circle svg-content" width="100%" height="100%" viewBox="-1 -1 102 102">
             <path d="M50,1 a49,49 0 0,1 0,98 a49,49 0 0,1 0,-98" />

@@ -461,6 +461,24 @@
                                                         </div>
                                                         <div id='product-general-settings'>
                                                             <?php
+                                                            /*
+                                                             * Sellers set the price that has to cover shipping, so the one place
+                                                             * they will read this is next to the price field. Customers pay 0
+                                                             * delivery and the courier's freight is deducted from the seller's
+                                                             * settlement, so a price that ignores shipping is a price that loses
+                                                             * money on every order - and there was nothing anywhere telling them.
+                                                             */
+                                                            if (seller_paid_shipping_enabled()) { ?>
+                                                                <div class="alert alert-warning">
+                                                                    <b><i class="fas fa-truck mr-1"></i>Include your shipping cost in the price.</b>
+                                                                    Customers are offered <b>free delivery</b> on this store, and the actual
+                                                                    courier charge for each parcel is deducted from your settlement when the
+                                                                    return window closes. Price accordingly &mdash; and keep the weight and
+                                                                    dimensions below accurate, since the courier rate is based on them.
+                                                                </div>
+                                                            <?php }
+                                                            ?>
+                                                            <?php
                                                             if ($product_details[0]['type'] == "simple_product" || $product_details[0]['type'] == "digital_product") {
                                                                 // Price, weight and dimensions of a simple / digital product live on its single
                                                                 // product_variants row. That row can be missing (older imported products) or

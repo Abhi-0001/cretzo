@@ -221,3 +221,12 @@ defined('SHIPROCKET_NOMINAL_WEIGHT_KG') or define('SHIPROCKET_NOMINAL_WEIGHT_KG'
 | rejects a shipment whose length, breadth or height is 0. See shiprocket_parcel_dimension().
 */
 defined('SHIPROCKET_NOMINAL_DIMENSION_CM') or define('SHIPROCKET_NOMINAL_DIMENSION_CM', 10);
+
+/*
+| Support WhatsApp number of last resort, used only when neither `system_settings.whatsapp_number`
+| nor either `support_number` holds a usable one. The owner confirmed this number on 2026-08-20
+| (migration 052 settled it across the settings rows); keeping it here means the WhatsApp support
+| buttons keep working on a store whose settings row has been saved with the WhatsApp toggle off,
+| which blanks the configured number. See support_whatsapp_number() in function_helper.php.
+*/
+defined('SUPPORT_WHATSAPP_DEFAULT') or define('SUPPORT_WHATSAPP_DEFAULT', '7290024349');

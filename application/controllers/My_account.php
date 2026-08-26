@@ -1077,11 +1077,39 @@ class My_account extends CI_Controller
         }
     }
 
+    /**
+     * Customer wallet withdrawal request.
+     *
+     * This endpoint had NO authentication check of any kind and took the user_id whose wallet to
+     * debit straight from the request body - so an unauthenticated POST could drain ANY user's
+     * balance to an attacker-supplied payment address. It is the same hole that was closed on
+     * seller/Payment_request::add_withdrawal_request(); the customer-side copy was missed.
+     *
+     * Everything else it did by hand is also wrong, and all of it is already solved correctly in
+     * Payment_request_model::create_withdrawal_request(), so this now routes through that:
+     *
+     *   - the balance was read, compared and debited in three separate unlocked statements, so
+     *     two requests submitted at once both passed `amount <= balance` against the same
+     *     starting balance and both were inserted - letting a customer withdraw more than they
+     *     had and leaving users.balance negative;
+     *   - the debit went through update_balance_customer(), which moves users.balance and writes
+     *     NO `transactions` row, so the withdrawal never appeared in the customer's own wallet
+     *     history and the stored balance drifted from the ledger by every withdrawal ever made;
+     *   - the insert and the debit were unwrapped, so a failure between them either took the
+     *     money without recording the request or recorded a request without taking the money;
+     *   - there was no minimum amount and no limit on open requests.
+     */
     public function withdraw_money()
     {
-        // print_r($_POST);
-        // return;
-        $this->form_validation->set_rules('user_id', 'User Id', 'trim|numeric|required|xss_clean');
+        // user_id is the SESSION's user, never a POST value - see the note above.
+        if (!$this->ion_auth->logged_in()) {
+            $this->response['error'] = true;
+            $this->response['message'] = 'Please sign in to request a withdrawal.';
+            $this->response['data'] = array();
+            print_r(json_encode($this->response));
+            return false;
+        }
+
         $this->form_validation->set_rules('payment_address', 'Payment Address', 'trim|required|xss_clean');
         $this->form_validation->set_rules('amount', 'Amount', 'trim|required|xss_clean|numeric|greater_than[0]');
 
@@ -1090,44 +1118,26 @@ class My_account extends CI_Controller
             $this->response['message'] = strip_tags(validation_errors());
             $this->response['data'] = array();
             print_r(json_encode($this->response));
-        } else {
-            $user_id = $this->input->post('user_id', true);
-            $payment_address = $this->input->post('payment_address', true);
-            $amount = $this->input->post('amount', true);
-            $userData = fetch_details('users', ['id' => $_POST['user_id']], 'balance');
-
-            if (!empty($userData)) {
-
-                if ($_POST['amount'] <= $userData[0]['balance']) {
-
-                    $data = [
-                        'user_id' => $user_id,
-                        'payment_address' => $payment_address,
-                        'payment_type' => 'customer',
-                        'amount_requested' => $amount,
-                    ];
-
-
-                    if (insert_details($data, 'payment_requests')) {
-                        $this->Customer_model->update_balance_customer($amount, $user_id, 'deduct');
-                        $userData = fetch_details('users', ['id' => $_POST['user_id']], 'balance');
-                        $this->response['error'] = false;
-                        $this->response['message'] = 'Withdrawal Request Sent Successfully';
-                        $this->response['data'] = $userData[0]['balance'];
-                    } else {
-                        $this->response['error'] = true;
-                        $this->response['message'] = 'Cannot sent Withdrawal Request.Please Try again later.';
-                        $this->response['data'] = array();
-                    }
-                } else {
-                    $this->response['error'] = true;
-                    $this->response['message'] = 'You don\'t have enough balance to sent the withdraw request.';
-                    $this->response['data'] = array();
-                }
-
-                print_r(json_encode($this->response));
-            }
+            return false;
         }
+
+        $this->load->model('payment_request_model');
+
+        $user_id = $this->data['user']->id;
+        $payment_address = $this->input->post('payment_address', true);
+        $amount = round((float) $this->input->post('amount', true), 2);
+
+        $result = $this->payment_request_model->create_withdrawal_request($user_id, 'customer', $amount, $payment_address);
+
+        $this->response['error'] = $result['error'];
+        $this->response['message'] = $result['message'];
+        // The view shows the remaining balance, so keep returning it - but from the model's
+        // post-commit read rather than a second unsynchronised SELECT.
+        $this->response['data'] = isset($result['balance']) ? $result['balance'] : array();
+
+        // Was inside `if (!empty($userData))`, so a user row that could not be read produced a
+        // completely EMPTY response body - the form showed neither an error nor a success.
+        print_r(json_encode($this->response));
     }
 
     public function get_withdrawal_request()

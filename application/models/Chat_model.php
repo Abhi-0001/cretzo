@@ -827,4 +827,234 @@ class Chat_model extends CI_Model
         $query = $this->db->get();
         return $query->result_array();
     }
+    /* ================== support-assistant transcripts (chat_messages) ==================
+     *
+     * `chat_messages` holds the storefront chat widget's conversations. Nothing in the app
+     * ever read the table - it was written on every message and never looked at - so support
+     * had no way to see what customers were asking the bot, or where it was failing them.
+     * These reads back the admin "Assistant Chats" page.
+     *
+     * A thread is one (session_id, user_id) pair: session_id is the widget's own thread token
+     * (see Chat::chat_thread_id()), and user_id distinguishes the same browser before and
+     * after signing in.
+     */
+
+    /** Bootstrap-table server-side list of assistant threads. Echoes its own JSON. */
+    function get_assistant_thread_list()
+    {
+        $offset = (isset($_GET['offset']) && ctype_digit((string) $_GET['offset'])) ? (int) $_GET['offset'] : 0;
+        $limit = (isset($_GET['limit']) && ctype_digit((string) $_GET['limit'])) ? (int) $_GET['limit'] : 10;
+        $limit = max(1, min($limit, 200));
+
+        // Whitelisted, like every other list on the admin side - the sort column arrives
+        // straight from the querystring.
+        $allowed_sort = [
+            'last_activity' => 'last_activity',
+            'messages'      => 'messages',
+            'started'       => 'started',
+            'username'      => 'username',
+        ];
+        $sort = (isset($_GET['sort']) && isset($allowed_sort[$_GET['sort']])) ? $allowed_sort[$_GET['sort']] : 'last_activity';
+        $order = (isset($_GET['order']) && strtolower($_GET['order']) === 'asc') ? 'ASC' : 'DESC';
+
+        $search = isset($_GET['search']) ? trim((string) $_GET['search']) : '';
+        $audience = (isset($_GET['audience']) && in_array($_GET['audience'], ['customer', 'guest'], true)) ? $_GET['audience'] : '';
+
+        $binds = [];
+        $conditions = [];
+
+        if ($search !== '') {
+            $like = '%' . $this->db->escape_like_str($search) . '%';
+            $conditions[] = '(cm.message LIKE ? OR u.username LIKE ? OR u.mobile LIKE ? OR u.email LIKE ? OR cm.session_id LIKE ?)';
+            array_push($binds, $like, $like, $like, $like, $like);
+        }
+        /* A guest is user_id NULL *or* 0: some legacy rows recorded 0 rather than NULL, and
+         * `user_id IS NOT NULL` counted those as signed-in customers while the row itself was
+         * rendered as a guest - the filter and the badge disagreed on the same thread. */
+        if ($audience === 'customer') {
+            $conditions[] = 'COALESCE(cm.user_id, 0) > 0';
+        } elseif ($audience === 'guest') {
+            $conditions[] = 'COALESCE(cm.user_id, 0) = 0';
+        }
+
+        $where = !empty($conditions) ? ' WHERE ' . implode(' AND ', $conditions) : '';
+
+        /* Grouped in SQL rather than by pulling every row into PHP: this table grows by one row
+         * per message and is the only place these conversations live, so it will outgrow
+         * everything else on this page. */
+        // Grouped on COALESCE so a thread holding both NULL and 0 rows is one conversation,
+        // not two - and so the group key matches what get_assistant_thread() looks up.
+        $group = 'FROM chat_messages cm LEFT JOIN users u ON u.id = cm.user_id' . $where
+            . ' GROUP BY cm.session_id, COALESCE(cm.user_id, 0)';
+
+        $total_row = $this->db->query('SELECT COUNT(*) AS total FROM (SELECT 1 ' . $group . ') t', $binds)->row_array();
+        $total = isset($total_row['total']) ? (int) $total_row['total'] : 0;
+
+        $sql = 'SELECT cm.session_id, COALESCE(cm.user_id, 0) AS user_id, u.username, u.mobile,
+                       COUNT(*) AS messages,
+                       MIN(cm.created_at) AS started,
+                       MAX(cm.created_at) AS last_activity,
+                       MAX(cm.id) AS last_id,
+                       SUM(CASE WHEN cm.sender = "user" THEN 1 ELSE 0 END) AS from_customer '
+            . $group . ' ORDER BY ' . $sort . ' ' . $order . ' LIMIT ' . (int) $limit . ' OFFSET ' . (int) $offset;
+
+        $threads = $this->db->query($sql, $binds)->result_array();
+
+        // One extra query for the previews, rather than one per row.
+        $last_ids = array_filter(array_map(function ($t) {
+            return (int) $t['last_id'];
+        }, $threads));
+        $previews = [];
+        if (!empty($last_ids)) {
+            $rows = $this->db->select('id, sender, message')->where_in('id', $last_ids)->get('chat_messages')->result_array();
+            foreach ($rows as $row) {
+                $previews[(int) $row['id']] = $row;
+            }
+        }
+
+        $data = [];
+        foreach ($threads as $thread) {
+            $thread_key = (string) $thread['session_id'];
+            $customer_label = $this->assistant_customer_label($thread);
+
+            $last = isset($previews[(int) $thread['last_id']]) ? $previews[(int) $thread['last_id']] : null;
+            $preview = '';
+            if ($last !== null) {
+                // stripcslashes(): the query builder stores a newline as a literal "\n", so a
+                // multi-line bot reply comes back with backslash-n sequences in it.
+                $text = trim(preg_replace('/\s+/', ' ', stripcslashes((string) $last['message'])));
+                if (function_exists('mb_strimwidth')) {
+                    $text = mb_strimwidth($text, 0, 90, '...');
+                }
+                $who = ($last['sender'] === 'agent') ? 'Bot' : 'Customer';
+                $preview = '<span class="text-muted small">' . $who . ':</span> ' . html_escape($text);
+            }
+
+            $view = '<a href="javascript:void(0)" class="view_assistant_chat btn btn-success action-btn btn-xs mr-1"'
+                . ' data-thread="' . html_escape($thread_key) . '"'
+                . ' data-user_id="' . (int) $thread['user_id'] . '"'
+                . ' data-customer="' . html_escape(strip_tags($customer_label)) . '"'
+                . ' title="View conversation" data-target="#assistant_chat_modal" data-toggle="modal">'
+                . '<i class="fa fa-eye"></i></a>';
+
+            $data[] = [
+                'thread'        => '<code class="small">' . html_escape(substr($thread_key, 0, 10)) . '</code>',
+                'username'      => $customer_label,
+                'audience'      => !empty($thread['user_id'])
+                    ? '<label class="badge badge-info">SIGNED IN</label>'
+                    : '<label class="badge badge-light border">GUEST</label>',
+                'messages'      => (int) $thread['messages'] . ' <span class="text-muted small">(' . (int) $thread['from_customer'] . ' from customer)</span>',
+                'last_message'  => $preview,
+                'started'       => $thread['started'],
+                'last_activity' => $thread['last_activity'],
+                'operate'       => $view,
+            ];
+        }
+
+        print_r(json_encode(['total' => $total, 'rows' => $data]));
+    }
+
+    /** Full transcript of one assistant thread, oldest first. */
+    function get_assistant_thread($thread_key, $user_id = null)
+    {
+        $this->db->select('id, sender, message, created_at')
+            ->from('chat_messages')
+            ->order_by('id', 'ASC')
+            ->limit(500);
+
+        if ($thread_key === '' || $thread_key === null) {
+            $this->db->where('session_id IS NULL', null, false);
+        } else {
+            $this->db->where('session_id', $thread_key);
+        }
+
+        // A guest thread and a signed-in thread can share a token if the visitor logged in
+        // mid-conversation, so the user side of the key matters.
+        if (empty($user_id)) {
+            // NULL and 0 both mean "not signed in"; matching only NULL made the legacy 0 rows
+            // unreachable from the transcript view even though the list showed their thread.
+            $this->db->where('COALESCE(user_id, 0) = 0', null, false);
+        } else {
+            $this->db->where('user_id', (int) $user_id);
+        }
+
+        $rows = $this->db->get()->result_array();
+
+        $messages = [];
+        foreach ($rows as $row) {
+            $messages[] = [
+                'id'         => (int) $row['id'],
+                'sender'     => $row['sender'] === 'agent' ? 'agent' : 'user',
+                'message'    => stripcslashes((string) $row['message']),
+                'created_at' => $row['created_at'],
+            ];
+        }
+
+        return $messages;
+    }
+
+    /** Headline counts for the cards above the list. */
+    function get_assistant_stats()
+    {
+        $row = $this->db->query('SELECT COUNT(*) AS messages,
+                COUNT(DISTINCT CONCAT(COALESCE(session_id, "-"), ":", COALESCE(user_id, 0))) AS threads,
+                SUM(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 ELSE 0 END) AS week_messages,
+                SUM(CASE WHEN user_id IS NULL THEN 1 ELSE 0 END) AS guest_messages
+            FROM chat_messages')->row_array();
+
+        return [
+            'messages'       => isset($row['messages']) ? (int) $row['messages'] : 0,
+            'threads'        => isset($row['threads']) ? (int) $row['threads'] : 0,
+            'week_messages'  => isset($row['week_messages']) ? (int) $row['week_messages'] : 0,
+            'guest_messages' => isset($row['guest_messages']) ? (int) $row['guest_messages'] : 0,
+        ];
+    }
+
+    /**
+     * The bot's stock "I did not quite get that" line, counted over the last 30 days. This is
+     * the one number that says whether the assistant is actually answering people, so it is
+     * worth surfacing rather than leaving buried in the transcripts.
+     */
+    function get_assistant_fallback_rate()
+    {
+        /* Two wordings, because the bot's fallback line was rewritten: matching only the
+         * current one silently scored every older conversation as answered, which made the
+         * rate read far better than it was. Add a clause here whenever that line changes. */
+        $row = $this->db->query('SELECT
+                SUM(CASE WHEN sender = "agent" THEN 1 ELSE 0 END) AS replies,
+                SUM(CASE WHEN sender = "agent" AND (
+                        message LIKE "%did not quite get that%"
+                        OR message LIKE "%Please select one of the available options%"
+                    ) THEN 1 ELSE 0 END) AS missed
+            FROM chat_messages WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)')->row_array();
+
+        $replies = isset($row['replies']) ? (int) $row['replies'] : 0;
+        $missed = isset($row['missed']) ? (int) $row['missed'] : 0;
+
+        return [
+            'replies' => $replies,
+            'missed'  => $missed,
+            'percent' => $replies > 0 ? round(($missed / $replies) * 100, 1) : 0,
+        ];
+    }
+
+    /** Display name for a thread's owner, including the deleted-account case. */
+    private function assistant_customer_label($thread)
+    {
+        if (empty($thread['user_id'])) {
+            return '<span class="text-muted">Guest visitor</span>';
+        }
+
+        $name = trim(stripcslashes((string) $thread['username']));
+        if ($name === '') {
+            // LEFT JOIN with no match: the account was deleted but the transcript remains.
+            return '<span class="text-muted">(deleted user #' . (int) $thread['user_id'] . ')</span>';
+        }
+
+        $label = html_escape($name);
+        if (!empty($thread['mobile'])) {
+            $label .= ' <span class="text-muted small">' . html_escape(stripcslashes((string) $thread['mobile'])) . '</span>';
+        }
+        return $label;
+    }
 }

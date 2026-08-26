@@ -156,6 +156,13 @@ class Orders extends CI_Controller
                     $temp['product_type'] = $row['type'];
                     $temp['seller_otp'] = $order_charge_row['otp'];
                     $temp['seller_delivery_charge'] = $order_charge_row['delivery_charge'];
+                    // The actual courier freight for this seller's parcel, recovered from their
+                    // settlement under the seller-paid shipping model. Coalesced rather than
+                    // indexed: the column arrives with migration 070 and the fallback row above
+                    // does not carry it, so an order with no order_charges row (or a deploy
+                    // mid-migration) reads 0 instead of raising an undefined-key warning into
+                    // the page.
+                    $temp['seller_freight_charge'] = isset($order_charge_row['freight_charge']) ? $order_charge_row['freight_charge'] : 0;
                     $temp['seller_promo_discount'] = $order_charge_row['promo_discount'];
                     $temp['download_allowed'] = $row['download_allowed'];
                     $temp['is_sent'] = $row['is_sent'];

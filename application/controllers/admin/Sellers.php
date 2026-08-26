@@ -416,7 +416,12 @@ class Sellers extends CI_Controller
             $this->form_validation->set_rules('pickup_pin', 'Pickup PIN Code', 'trim|required|numeric|xss_clean');
             $this->form_validation->set_rules('primary_category_id', 'Primary Category', 'trim|required|xss_clean');
             $this->form_validation->set_rules('entity_type', 'Entity Type', 'trim|required|xss_clean');
-            $this->form_validation->set_rules('pan', 'PAN Number', 'trim|required|xss_clean');
+            // Format, not just presence. "required" alone let an admin save "HGFHF7657657" as a
+            // PAN, and Tax_compliance_model then reads that field to pick the statutory rate -
+            // an unparseable PAN means the 5% s.206AA penalty rate instead of 0.1%. The regex is
+            // the same one classify_pan() uses, so what the admin can save and what the
+            // settlement engine accepts can no longer disagree.
+            $this->form_validation->set_rules('pan', 'PAN Number', 'trim|required|xss_clean|regex_match[/^[A-Za-z]{5}[0-9]{4}[A-Za-z]$/]');
             $this->form_validation->set_rules('business_address1', 'Business Address', 'trim|required|xss_clean');
             $this->form_validation->set_rules('business_pin', 'Business PIN Code', 'trim|required|numeric|xss_clean');
             $this->form_validation->set_rules('business_state', 'Business State', 'trim|required|xss_clean');
@@ -445,10 +450,13 @@ class Sellers extends CI_Controller
 
             // GST vs GST-enrollment requirement mirrors the "We are not GST registered"
             // (gst_check) toggle on the form - same logic as seller/Login::update_user().
+            // Same reasoning as the PAN above: this exact expression is what
+            // Tax_compliance_model::is_valid_gstin() tests before it will collect TCS at all, so
+            // a GSTIN that fails it is a seller from whom nothing is ever collected - silently.
             if (!isset($_POST['gst_check'])) {
-                $this->form_validation->set_rules('gst', 'GST Number', 'trim|required|xss_clean');
+                $this->form_validation->set_rules('gst', 'GST Number', 'trim|required|xss_clean|regex_match[/^[0-9]{2}[A-Za-z]{5}[0-9]{4}[A-Za-z]{1}[1-9A-Za-z]{1}[Zz]{1}[0-9A-Za-z]{1}$/]');
             } else {
-                $this->form_validation->set_rules('gst_enrollment_number', 'GST Enrollment Number', 'trim|required|xss_clean');
+                $this->form_validation->set_rules('gst_enrollment_number', 'GST Enrollment Number', 'trim|required|xss_clean|regex_match[/^[0-9A-Za-z\-\/]{8,32}$/]');
             }
 
             if (!$this->form_validation->run()) {

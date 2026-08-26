@@ -82,6 +82,19 @@
                                     </div>
                                 </div>
 
+                                <?php if (seller_paid_shipping_enabled()) { ?>
+                                    <div class="row mt-4">
+                                        <div class="form-group col-md-12">
+                                            <div class="alert alert-warning mb-0">
+                                                <b><i class="fas fa-info-circle mr-1"></i>Seller-paid shipping is ON</b>, so
+                                                customers are already charged &#8377;0 delivery on <b>every</b> order and the settings
+                                                in this section have no effect. The actual courier freight is recovered from the
+                                                seller's settlement instead. Turn it off under
+                                                <b>Settings &rarr; System Settings</b> if you want to charge customers for delivery again.
+                                            </div>
+                                        </div>
+                                    </div>
+                                <?php } ?>
                                 <div class="row mt-4">
                                     <div class="form-group col-md-12">
                                         <span class="text-danger"><b>Note:</b> You can give free delivery charge only when <b>Standard delivery method </b> is enable.</span>

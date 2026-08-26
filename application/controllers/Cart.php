@@ -83,7 +83,10 @@ class Cart extends CI_Controller
             $this->form_validation->set_rules('product_variant_id', 'Product Variant', 'trim|required|xss_clean');
             $this->form_validation->set_rules('is_saved_for_later', 'Saved For Later', 'trim|xss_clean');
             $_POST['qty'] = (isset($_POST['qty']) && $_POST['qty'] != '') ? $_POST['qty'] : 1;
-            $this->form_validation->set_rules('qty', 'Quantity', 'trim|xss_clean');
+            // Was 'trim|xss_clean' only, so a negative or fractional quantity was stored in the
+            // cart and only stopped later (or, before the validate_stock() fix, not at all).
+            // Caught here so the customer gets a straight answer at the point they added it.
+            $this->form_validation->set_rules('qty', 'Quantity', 'trim|xss_clean|is_natural_no_zero');
             if (!$this->form_validation->run()) {
                 $this->response['error'] = true;
                 $this->response['message'] = validation_errors();
@@ -168,102 +171,155 @@ class Cart extends CI_Controller
         }
     }
 
+    /* Merges the browser's guest cart (localStorage) into the logged-in user's DB cart.
+       This used to abort the whole sync - and, when validate_stock() failed inside
+       add_to_cart(), print a SECOND json object after the one add_to_cart() already
+       printed. jQuery's dataType:"json" then failed to parse the concatenated body, its
+       success callback never ran, and localStorage.removeItem('cart') never happened.
+       The stale guest cart then survived every page load and display_cart() painted it
+       over the server-rendered mini-cart: phantom items that cart/remove could not
+       delete (they were never in the DB), answering "Cart Is Already Empty !".
+       So: never abort on a bad line, never let the model print, always emit exactly one
+       json object with error=false so the client clears localStorage. */
     public function cart_sync()
     {
-        if (!isset($_POST['data']) || empty($_POST['data'])) {
-            $this->response['error'] = true;
-            $this->response['message'] = "Pass the data";
-            $this->response['csrfName'] = $this->security->get_csrf_token_name();
-            $this->response['csrfHash'] = $this->security->get_csrf_hash();
-            $this->response['data'] = array();
-            print_r(json_encode($this->response));
-            return false;
-        }
-        $post_data = json_decode($_POST['data'], true);
-        if (isset($post_data) && !empty($post_data)) {
-            foreach ($post_data as $data) {
-                if (!isset($data['product_variant_id']) || empty($data['product_variant_id']) || !is_numeric($data['product_variant_id'])) {
-                    $this->response['error'] = true;
-                    $this->response['message'] = "The variant ID field is required";
-                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                    $this->response['data'] = array();
-                    print_r(json_encode($this->response));
-                }
-                if (!isset($data['qty']) || empty($data['qty']) || !is_numeric($data['qty'])) {
-                    $this->response['error'] = true;
-                    $this->response['message'] = "Please enter valid quantity for " . $data['title'];
-                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                    $this->response['data'] = array();
-                    print_r(json_encode($this->response));
-                }
-            }
-        } else {
-            $this->response['error'] = true;
-            $this->response['message'] = "Pass the data";
-            $this->response['data'] = array();
-            print_r(json_encode($this->response));
-            return false;
-        }
-        $user_id = $this->data['user']->id;
-        $product_variant_ids = array_column($post_data, "product_variant_id");
-        $quantity = array_column($post_data, "qty");
-        $place_order_data = array();
-        $place_order_data['product_variant_id'] = implode(",", $product_variant_ids);
-        $place_order_data['qty'] = implode(",", $quantity);
-        $place_order_data['user_id'] =  $user_id;
-
-        $settings = get_settings('system_settings', true);
-        $cart_count = get_cart_count($user_id);
-        foreach ($product_variant_ids as $variant_id) {
-            $is_variant_available_in_cart = is_variant_available_in_cart($variant_id, $user_id);
-            if (!$is_variant_available_in_cart) {
-                if ($cart_count[0]['total'] >= $settings['max_items_cart']) {
-                    $this->response['error'] = true;
-                    $this->response['message'] = 'Maximum ' . $settings['max_items_cart'] . ' Item(s) Can Be Added Only!';
-                    $this->response['data'] = array();
-                    print_r(json_encode($this->response));
-                    return;
-                }
-            }
-        }
-        $saved_for_later = (isset($_POST['is_saved_for_later']) && $_POST['is_saved_for_later'] != "") ? $this->input->post('is_saved_for_later', true) : 0;
-        $check_status = ($saved_for_later == 1) ? false : true;
-        if (!$this->cart_model->add_to_cart($place_order_data, $check_status)) {
-            if ($_POST['qty'] == 0) {
-                $res = get_cart_total($this->data['user']->id, false);
-            } else {
-                $res = get_cart_total($this->data['user']->id, $_POST['product_variant_id']);
-            }
-            $this->response['error'] = false;
-            $this->response['message'] = 'Item added to Cart.';
-            $this->response['data'] = [
-                'total_quantity' => ($_POST['qty'] == 0) ? '0' : strval($_POST['qty']),
-                'sub_total' => strval($res['sub_total']),
-                'total_items' => (isset($res[0]['total_items'])) ? strval($res[0]['total_items']) : "0",
-                'tax_percentage' => (isset($res['tax_percentage'])) ? strval($res['tax_percentage']) : "0",
-                'tax_amount' => (isset($res['tax_amount'])) ? strval($res['tax_amount']) : "0",
-                'cart_count' => (isset($res[0]['cart_count'])) ? strval($res[0]['cart_count']) : "0",
-                'max_items_cart' => $this->data['settings']['max_items_cart'],
-                'overall_amount' => $res['overall_amount'],
-                'items' => $this->cart_model->get_user_cart($this->data['user']->id),
-            ];
-            print_r(json_encode($this->response));
-            return false;
-        } else {
+        if (!$this->data['is_logged_in']) {
             $this->response['error'] = true;
             $this->response['message'] = 'Please Login first to use Cart.';
-            $this->response['data'] = $this->data;
+            $this->response['data'] = array();
             echo json_encode($this->response);
             return false;
         }
+
+        $post_data = (isset($_POST['data']) && !empty($_POST['data'])) ? json_decode($_POST['data'], true) : null;
+        if (empty($post_data) || !is_array($post_data)) {
+            /* Nothing usable to merge. Still a success for the client: it should drop the
+               unusable localStorage cart rather than keep replaying it forever. */
+            $this->response['error'] = false;
+            $this->response['message'] = 'Nothing to sync.';
+            $this->response['data'] = ['synced' => 0, 'skipped' => 0, 'items' => $this->cart_model->get_user_cart($this->data['user']->id)];
+            print_r(json_encode($this->response));
+            return false;
+        }
+
+        $user_id = $this->data['user']->id;
+        $settings = get_settings('system_settings', true);
+        $saved_for_later = (isset($_POST['is_saved_for_later']) && $_POST['is_saved_for_later'] != "") ? $this->input->post('is_saved_for_later', true) : 0;
+        $saved_for_later = ($saved_for_later == 1 || $saved_for_later === 'true') ? 1 : 0;
+
+        $cart_count_row = get_cart_count($user_id);
+        $cart_count = isset($cart_count_row[0]['total']) ? intval($cart_count_row[0]['total']) : 0;
+
+        $variant_ids = array();
+        $quantities = array();
+        $skipped = array();
+        $no_room = array();
+
+        foreach ($post_data as $row) {
+            $variant_id = isset($row['product_variant_id']) ? $row['product_variant_id'] : '';
+            $qty = isset($row['qty']) ? $row['qty'] : '';
+            /* The label is echoed back in the response message, and it comes from
+               client-controlled localStorage - strip markup and cap the length. */
+            $label = (isset($row['name']) && $row['name'] != '') ? $row['name'] : ((isset($row['title']) && $row['title'] != '') ? $row['title'] : 'item');
+            $label = trim(strip_tags(is_string($label) ? $label : 'item'));
+            $label = ($label === '') ? 'item' : mb_substr($label, 0, 60);
+
+            if (empty($variant_id) || !is_numeric($variant_id) || empty($qty) || !is_numeric($qty) || $qty <= 0) {
+                $skipped[] = $label;
+                continue;
+            }
+            if (in_array($variant_id, $variant_ids)) {
+                continue;
+            }
+
+            /* Only merge lines the cart can actually display. get_user_cart() and
+               get_cart_total() both inner-join on products.status / product_variants.status /
+               seller_data.status = 1, so a de-listed variant would land in the cart table and
+               then be invisible everywhere - the exact phantom-row state this fix is about. */
+            $is_displayable = $this->db->select('pv.id')
+                ->join('products p', 'p.id = pv.product_id')
+                ->join('seller_data sd', 'sd.user_id = p.seller_id')
+                ->where(['pv.id' => $variant_id, 'pv.status' => 1, 'p.status' => 1, 'sd.status' => 1])
+                ->get('product_variants pv')->num_rows();
+            if (!$is_displayable) {
+                $skipped[] = $label;
+                continue;
+            }
+
+            /* Skip - don't abort on - anything no longer purchasable. Doing the stock check
+               here (instead of letting add_to_cart do it) keeps the model from printing its
+               own json response mid-request. */
+            if ($saved_for_later != 1) {
+                $stock_status = validate_stock([$variant_id], [$qty]);
+                if (!empty($stock_status) && isset($stock_status['error']) && $stock_status['error'] == true) {
+                    $skipped[] = $label;
+                    continue;
+                }
+            }
+
+            if (!is_variant_available_in_cart($variant_id, $user_id)) {
+                if ($cart_count >= $settings['max_items_cart']) {
+                    /* Dropped for want of room, not because it went away - the two read very
+                       differently to whoever just logged in, so keep them apart. */
+                    $no_room[] = $label;
+                    continue;
+                }
+                $cart_count++;
+            }
+
+            $variant_ids[] = $variant_id;
+            $quantities[] = $qty;
+        }
+
+        if (!empty($variant_ids)) {
+            $this->cart_model->add_to_cart([
+                'user_id' => $user_id,
+                'product_variant_id' => implode(',', $variant_ids),
+                'qty' => implode(',', $quantities),
+                'is_saved_for_later' => $saved_for_later,
+            ], false);
+        }
+
+        $res = get_cart_total($user_id, false, strval($saved_for_later));
+        $notes = array();
+        if (!empty($skipped)) {
+            $notes[] = 'no longer available: ' . implode(', ', array_unique($skipped));
+        }
+        if (!empty($no_room)) {
+            $notes[] = 'cart holds only ' . $settings['max_items_cart'] . ' items, so we left out: ' . implode(', ', array_unique($no_room));
+        }
+        $this->response['error'] = false;
+        $this->response['message'] = empty($notes) ? 'Cart synced.' : 'Cart synced - ' . implode('; ', $notes);
+        $this->response['data'] = [
+            'synced' => count($variant_ids),
+            'skipped' => count($skipped) + count($no_room),
+            'skipped_unavailable' => count($skipped),
+            'skipped_no_room' => count($no_room),
+            'total_items' => (isset($res[0]['total_items'])) ? strval($res[0]['total_items']) : "0",
+            'cart_count' => (isset($res[0]['cart_count'])) ? strval($res[0]['cart_count']) : "0",
+            'sub_total' => strval($res['sub_total']),
+            'max_items_cart' => $settings['max_items_cart'],
+            'items' => $this->cart_model->get_user_cart($user_id, $saved_for_later),
+        ];
+        print_r(json_encode($this->response));
+        return false;
     }
 
 
     // remove_from_cart
     public function remove()
     {
+        /* This endpoint dereferenced $this->data['user']->id with no login check: a guest
+           request read a property off an empty array, so the user id came through as null,
+           the cart lookup matched nothing and the caller got "Cart Is Already Empty !"
+           instead of being told to log in. */
+        if (!$this->data['is_logged_in']) {
+            $this->response['error'] = true;
+            $this->response['message'] = 'Please Login first to use Cart.';
+            $this->response['data'] = array();
+            echo json_encode($this->response);
+            return false;
+        }
         $this->form_validation->set_rules('product_variant_id', 'Product Variant', 'trim|numeric|xss_clean|required');
         if (!$this->form_validation->run()) {
             $this->response['error'] = true;
@@ -273,51 +329,42 @@ class Cart extends CI_Controller
             
             return false;
         } else {
-            //Fetching cart items to check wheather cart is empty or not
-            $cart_total_response = get_cart_total($this->data['user']->id);
-            if (isset($_POST['is_save_for_later']) && empty($_POST['is_save_for_later'])) {
-                if (!isset($cart_total_response[0]['total_items'])) {
-                    $this->response['error'] = true;
-                    $this->response['message'] = 'Cart Is Already Empty !';
-                    $this->response['data'] = array();
-                    print_r(json_encode($this->response));
-                    return false;
-                }
-            }
-
+            $user_id = $this->data['user']->id;
             $data = array(
-                'user_id' => $this->data['user']->id,
+                'user_id' => $user_id,
                 'product_variant_id' => $this->input->post('product_variant_id', true),
             );
-            if ($this->cart_model->remove_from_cart($data)) {
-                $this->response['error'] = false;
-                $this->response['message'] = 'Removed From Cart !';
-                $this->response['data'] = [
-                    'cart_count' => count($this->cart_model->get_user_cart($this->data['user']->id)),
-                    'items' => $this->cart_model->get_user_cart($this->data['user']->id),
-                ];
-                print_r(json_encode($this->response));
-                return false;
-            } else {
-                $this->response['error'] = true;
-                $this->response['message'] = 'Cannot remove this Item from cart.';
-                echo json_encode($this->response);
-                return false;
-            }
+
+            /* Removal is idempotent. It used to bail out with "Cart Is Already Empty !"
+               whenever get_cart_total() came back with no rows, which is exactly the state
+               a stale mini-cart is in: the row is on screen but not in the DB (or its
+               product / variant / seller has since been deactivated, so the status-filtered
+               queries no longer see it). The user was then stuck with a line they could not
+               delete. Deleting what is there and returning the authoritative item list lets
+               the UI reconcile itself either way. */
+            $this->cart_model->remove_from_cart($data);
+
+            $is_saved_for_later = (isset($_POST['is_save_for_later']) && $_POST['is_save_for_later'] == '1') ? 1 : 0;
+            $items = $this->cart_model->get_user_cart($user_id, $is_saved_for_later);
+            $res = get_cart_total($user_id, false, strval($is_saved_for_later));
+
+            $this->response['error'] = false;
+            $this->response['message'] = 'Removed From Cart !';
+            $this->response['data'] = [
+                'cart_count' => count($items),
+                'total_items' => (isset($res[0]['total_items'])) ? strval($res[0]['total_items']) : "0",
+                'sub_total' => strval($res['sub_total']),
+                'items' => $items,
+            ];
+            print_r(json_encode($this->response));
+            return false;
         }
     }
     public function clear()
     {
         if ($this->data['is_logged_in']) {
-            $cart_total_response = get_cart_total($this->data['user']->id);
-            if (!isset($cart_total_response[0]['total_items'])) {
-                $this->response['error'] = true;
-                $this->response['message'] = 'Cart Is Already Empty !';
-                $this->response['data'] = array();
-                print_r(json_encode($this->response));
-                return;
-            }
-
+            /* Clearing an already-empty (or stale, status-filtered) cart is a no-op, not an
+               error - the old hard failure left rows the UI still showed undeletable. */
             $data = array(
                 'user_id' => $this->data['user']->id,
             );
@@ -548,6 +595,34 @@ class Cart extends CI_Controller
             if (isset($_POST['wallet_used']) && $_POST['wallet_used'] != 1) {
                 $this->form_validation->set_rules('payment_method', 'Payment Method', 'trim|required|xss_clean', array('required' => 'Please select payment method'));
             }
+            /*
+             * Whitelist the payment method against the ones this endpoint actually handles.
+             *
+             * There was no whitelist, and the branch chain further down that decides
+             * `active_status` has no `else`. So an unrecognised value fell through all of it and
+             * Order_model::place_order() applied its default of 'received' - the SAME state a paid
+             * COD order reaches, and the state that fires the seller's "new order" notification.
+             * Posting `payment_method=Paypal` therefore produced a confirmed, unpaid order with
+             * zero rows in `transactions`. Confirmed live in an earlier audit.
+             *
+             * Two layers, because either alone leaves a gap:
+             *   - this rule rejects anything outside the set;
+             *   - the `else` at the end of the branch chain refuses anything that somehow still
+             *     arrives there, so the default can never silently mean "paid".
+             *
+             * The other gateways (PayPal, Paytm, PhonePe, MyFatoorah, Instamojo, Stripe,
+             * Flutterwave, Midtrans, Paystack) do not come through here - they call place_order()
+             * from their own verified callbacks in Payment.php - so they are deliberately absent.
+             * `wallet` appears because the wallet branch below rewrites payment_method to it, and
+             * the checkout page posts it directly when the wallet covers the whole bill.
+             */
+            $accepted_payment_methods = ['Razorpay', 'COD', 'wallet', BANK_TRANSFER];
+            $this->form_validation->set_rules(
+                'payment_method',
+                'Payment Method',
+                'trim|xss_clean|in_list[' . implode(',', $accepted_payment_methods) . ']',
+                array('in_list' => 'That payment method is not available. Please choose another.')
+            );
             $this->form_validation->set_rules('promo_code', 'Promo Code', 'trim|xss_clean');
             $this->form_validation->set_rules('order_note', 'Special Note', 'trim|xss_clean');
 
@@ -569,6 +644,24 @@ class Cart extends CI_Controller
             if (isset($_POST['product_type']) && $_POST['product_type'] == 'digital_product' && $_POST['download_allowed'] == 0) {
                 $this->form_validation->set_rules('email', 'Email ID', 'trim|required|valid_email|xss_clean', array('required' => 'Please Enter Email ID'));
             }
+            /*
+             * Normalised once, here, because payment_method is only REQUIRED when the wallet is
+             * not being used - so a wallet checkout can legitimately arrive without it, and every
+             * read below (this line, the COD check, the branch chain) was unguarded. Under
+             * development error reporting that "Undefined array key" warning is printed AHEAD of
+             * the JSON body, so the browser's JSON.parse fails and a checkout that actually
+             * succeeded looks broken to the customer. The deployed .htaccess sets CI_ENV
+             * development, so that happens in production too.
+             *
+             * Defaulting to 'wallet' is the correct reading: the only way to reach here without a
+             * payment method is the wallet path, and the wallet block further down re-derives the
+             * value properly (and downgrades active_status to 'awaiting' when the wallet does not
+             * cover the whole bill).
+             */
+            if (!isset($_POST['payment_method']) || trim((string) $_POST['payment_method']) === '') {
+                $_POST['payment_method'] = (isset($_POST['wallet_used']) && $_POST['wallet_used'] == 1) ? 'wallet' : '';
+            }
+
             if ($_POST['payment_method'] == "Razorpay") {
                 $this->form_validation->set_rules('razorpay_order_id', 'Razorpay Order ID', 'trim|required|xss_clean');
                 $this->form_validation->set_rules('razorpay_payment_id', 'Razorpay Payment ID', 'trim|required|xss_clean');
@@ -754,16 +847,38 @@ class Cart extends CI_Controller
                 // letting out-of-stock items be ordered via Razorpay/wallet/bank transfer.
                 $product_variant_id = explode(',', $_POST['product_variant_id']);
                 if ($_POST['payment_method'] == 'COD') {
+                    // Every COD-blocked item is reported in ONE message. This used to return on
+                    // the first offending product, so a cart with three such items took three
+                    // place-order attempts - each one bounced the customer back to the cart to
+                    // remove a single product - before the order could go through. The checkout
+                    // page now also disables the COD radio and names these items up front, so
+                    // reaching this branch means a stale page or a direct POST.
+                    $cod_blocked_names = array();
                     for ($i = 0; $i < count($product_variant_id); $i++) {
                         $product_id = fetch_details("product_variants", ['id' => $product_variant_id[$i]], 'product_id');
-                        $is_allowed = fetch_details("products", ['id' => $product_id[0]['product_id']], 'cod_allowed,name');
-                        if ($is_allowed[0]['cod_allowed'] == 0) {
-                            $this->response['error'] = true;
-                            $this->response['message'] = "Cash On Delivery is not allow on the product " . $is_allowed[0]['name'];
-                            $this->response['data'] = array();
-                            print_r(json_encode($this->response));
-                            return false;
+                        if (empty($product_id)) {
+                            continue;
                         }
+                        $is_allowed = fetch_details("products", ['id' => $product_id[0]['product_id']], 'cod_allowed,name');
+                        if (empty($is_allowed)) {
+                            continue;
+                        }
+                        if ($is_allowed[0]['cod_allowed'] == 0) {
+                            $blocked_name = trim((string) $is_allowed[0]['name']);
+                            if ($blocked_name !== '' && !in_array($blocked_name, $cod_blocked_names, true)) {
+                                $cod_blocked_names[] = $blocked_name;
+                            }
+                        }
+                    }
+                    if (!empty($cod_blocked_names)) {
+                        $this->response['error'] = true;
+                        $this->response['message'] = (count($cod_blocked_names) > 1)
+                            ? 'Cash on Delivery is not available for these items: ' . implode(', ', $cod_blocked_names) . '. Please pay online, or remove them from your cart to pay cash for the rest.'
+                            : 'Cash on Delivery is not available for "' . $cod_blocked_names[0] . '". Please pay online, or remove it from your cart to pay cash for the rest.';
+                        $this->response['data'] = array();
+                        $this->response['cod_blocked_products'] = $cod_blocked_names;
+                        print_r(json_encode($this->response));
+                        return false;
                     }
                 }
                 $quantity = explode(',', $_POST['quantity']);
@@ -979,8 +1094,29 @@ class Cart extends CI_Controller
                     $data['status'] = "awaiting";
                     $data['txn_id'] = null;
                     $data['message'] = null;
-                } 
-                
+                } else {
+                    /*
+                     * This chain had NO else, and that omission was the whole bug: an
+                     * unrecognised payment_method set no `active_status`, so
+                     * Order_model::place_order() fell back to its default of 'received' - the
+                     * same state a paid COD order reaches, and the one that notifies the seller
+                     * to ship. An order was confirmed with no payment recorded anywhere.
+                     *
+                     * Refusing outright rather than downgrading to 'awaiting': reaching here
+                     * means the whitelist above was bypassed or a new method was added without
+                     * wiring up its branch, and in neither case is it safe to guess what the
+                     * customer paid.
+                     */
+                    log_message('error', 'Cart::place_order refused an unhandled payment method: '
+                        . var_export($_POST['payment_method'], true));
+                    $this->response['error'] = true;
+                    $this->response['message'] = 'That payment method is not available. Please choose another.';
+                    $this->response['data'] = array();
+                    print_r(json_encode($this->response));
+                    return false;
+                }
+
+
                 if (isset($_POST['product_type']) && $_POST['product_type'] != 'digital_product') {
                     $_POST['address_id'] = $_POST['address_id'];
                 } else {
