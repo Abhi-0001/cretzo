@@ -115,13 +115,16 @@ body {
     width: 42px;
     height: 42px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, .2);
+    background: #fff;
     border: 1.5px solid rgba(255, 255, 255, .45);
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 20px;
+    overflow: hidden;
 }
+
+.cw-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
 .cw-id { flex: 1 1 auto; min-width: 0; }
 
@@ -222,16 +225,21 @@ body {
     width: 28px;
     height: 28px;
     border-radius: 50%;
-    background: linear-gradient(135deg, var(--brand), var(--brand-dark));
+    background: #fff;
     color: #fff;
     font-size: 14px;
     display: flex;
     align-items: center;
     justify-content: center;
     margin-top: 2px;
+    overflow: hidden;
+    box-shadow: 0 0 0 1px var(--line);
 }
 
-.cw-turn.me .cw-face { background: #33363c; }
+.cw-face img { width: 100%; height: 100%; object-fit: cover; }
+
+.cw-turn.me .cw-face { background: #33363c; box-shadow: none; }
+.cw-turn.me .cw-face svg { width: 15px; height: 15px; }
 
 .cw-stack { min-width: 0; max-width: calc(100% - 40px); }
 .cw-turn.me .cw-stack { display: flex; flex-direction: column; align-items: flex-end; }
@@ -496,7 +504,7 @@ body {
 
     <header class="cw-head">
         <div class="cw-head-row">
-            <div class="cw-avatar" aria-hidden="true">🧵</div>
+            <div class="cw-avatar" aria-hidden="true"><img src="<?= base_url('assets/front_end/cretzo/img/chat-fab-icon.png') ?>" alt=""></div>
             <div class="cw-id">
                 <div class="cw-title"><?= html_escape($store_name) ?> Assistant</div>
                 <div class="cw-status"><span class="cw-dot" aria-hidden="true"></span> Online · replies instantly</div>
@@ -543,6 +551,11 @@ body {
     var CSRF_HASH  = <?= json_encode($this->security->get_csrf_hash()) ?>;
     var SEND_URL   = <?= json_encode(base_url('chat/send')) ?>;
     var HIST_URL   = <?= json_encode(base_url('chat/history')) ?>;
+    var BOT_AVATAR = <?= json_encode(base_url('assets/front_end/cretzo/img/chat-fab-icon.png')) ?>;
+    var USER_AVATAR_SVG = '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+        '<circle cx="12" cy="8" r="3.6" fill="currentColor"/>' +
+        '<path d="M4.5 19.2c1.2-3.6 4.2-5.6 7.5-5.6s6.3 2 7.5 5.6c.25.75-.3 1.3-1 1.3H5.5c-.7 0-1.25-.55-1-1.3z" fill="currentColor"/>' +
+        '</svg>';
 
     var body    = document.getElementById('cw-body');
     var form    = document.getElementById('cw-form');
@@ -558,6 +571,25 @@ body {
         if (cls) { node.className = cls; }
         if (text !== undefined && text !== null) { node.textContent = text; }
         return node;
+    }
+
+    /**
+     * The face avatar used to be a raw emoji, which renders as a different (and on some
+     * platforms mismatched) glyph per OS/browser. The assistant now always shows the actual
+     * Cretzo mascot; the visitor gets a plain person silhouette instead of a smiley.
+     */
+    function buildFace(who) {
+        var face = el('div', 'cw-face');
+        face.setAttribute('aria-hidden', 'true');
+        if (who === 'me') {
+            face.innerHTML = USER_AVATAR_SVG;
+        } else {
+            var img = el('img');
+            img.src = BOT_AVATAR;
+            img.alt = '';
+            face.appendChild(img);
+        }
+        return face;
     }
 
     function atBottom() {
@@ -581,8 +613,7 @@ body {
      */
     function addTurn(who, text, time) {
         var turn = el('div', 'cw-turn' + (who === 'me' ? ' me' : ''));
-        var face = el('div', 'cw-face', who === 'me' ? '🙂' : '🧵');
-        face.setAttribute('aria-hidden', 'true');
+        var face = buildFace(who);
         var stack = el('div', 'cw-stack');
         var bubble = el('div', 'cw-bubble', text);
 
@@ -670,8 +701,7 @@ body {
 
     function showTyping() {
         var turn = el('div', 'cw-turn');
-        var face = el('div', 'cw-face', '🧵');
-        face.setAttribute('aria-hidden', 'true');
+        var face = buildFace('bot');
         var bubble = el('div', 'cw-bubble cw-typing');
         bubble.setAttribute('aria-label', 'Assistant is typing');
         bubble.appendChild(el('i'));

@@ -140,7 +140,13 @@
     .admin-sales-report-page .fixed-table-toolbar .export .btn:hover { border-color: var(--color-orange); color: var(--color-orange); }
 
     .admin-sales-report-page .fixed-table-container { border: none; }
-    .admin-sales-report-page table.table { border-collapse: separate; border-spacing: 0; margin-bottom: 0; }
+    .admin-sales-report-page .fixed-table-container,
+    .admin-sales-report-page .fixed-table-body,
+    .admin-sales-report-page table.table { width: 100% !important; }
+    .admin-sales-report-page table.table { table-layout: fixed; border-collapse: separate; border-spacing: 0; margin-bottom: 0; }
+    .admin-sales-report-page table.table th[data-field="address"],
+    .admin-sales-report-page table.table td:nth-child(6) { width: 26%; }
+    .admin-sales-report-page table.table td { word-break: break-word; white-space: normal; }
     .admin-sales-report-page table.table thead th {
         background: #fafafa;
         border-top: none;
