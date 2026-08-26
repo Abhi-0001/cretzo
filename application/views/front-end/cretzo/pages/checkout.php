@@ -1,6 +1,15 @@
 <?php 
     $cart_count = isset($cart[0]['cart_count']) && !empty($cart[0]['cart_count']) ? $cart[0]['cart_count'] : 0;
     $delivery_charge = !empty($cart['sub_total']) ? $cart['delivery_charge'] : 0;
+    /*
+     * Under seller-paid shipping the charge is always 0 (get_cart_total() zeroes it), so the
+     * bill showed a literal "Rs.0" against "Shipping Fee". That reads like a glitch rather than
+     * a benefit, so the row says FREE instead. Driven off the same switch the server uses
+     * rather than off `$delivery_charge == 0`, because a zero charge under the OLD model means
+     * something different - the order simply crossed the free-delivery threshold - and should
+     * not be advertised as free shipping on every order.
+     */
+    $is_free_delivery = !empty($cart['is_free_delivery']);
     $subtotal = !empty($cart['sub_total']) ? ($cart['overall_amount'] - $cart['delivery_charge']) : 0;
     $total = !empty($cart['sub_total']) ? $cart['overall_amount'] : 0;
     $total_mrp = !empty($cart['total_mrp']) ? $cart['total_mrp'] : 0;
@@ -68,6 +77,11 @@
 
     <input type="hidden" id="input_address_id" value="<?= $cart[0]['type'] != 'digital_product' ? $selected_address_id : '' ?>">
     <input type="hidden" name="mobile" id="mobile" value="<?= isset($selected_address) && !empty($selected_address) ? $selected_address['mobile'] : $wallet_balance[0]['mobile'] ?>" />
+
+    <?php // refreshBill() in js/cretzo/checkout.js repaints the Shipping Fee cell on every
+          // bill refresh, so the server-rendered "FREE" has to be repeatable client-side or
+          // it is overwritten with "₹0" the moment a payment method is picked. ?>
+    <input type="hidden" id="is_free_delivery" value="<?= $is_free_delivery ? '1' : '0' ?>">
 
     <input type="hidden" name="delivery_charge_without_cod" id="delivery_charge_without_cod" value="0">
     <input type="hidden" name="delivery_charge_with_cod" id="delivery_charge_with_cod" value="0">
@@ -262,7 +276,11 @@
                     </tr>
                     <tr class="bill-row">
                         <td class="text-s bill-column">Shipping Fee<span class="final-shipping-title-cod-tag fw-bold d-none"> (Cash On Delivery)</span></td>
-                        <td class="text-s bill-column fw-b final-shipping" style="color: black;">₹<?= moneyFormatIndia(round($delivery_charge)) ?></td>
+                        <?php if ($is_free_delivery) { ?>
+                            <td class="text-s bill-column fw-b final-shipping" style="color: var(--color-success);">FREE</td>
+                        <?php } else { ?>
+                            <td class="text-s bill-column fw-b final-shipping" style="color: black;">₹<?= moneyFormatIndia(round($delivery_charge)) ?></td>
+                        <?php } ?>
                     </tr>
                     <tr class="bill-row bill-row-last">
                         <td class="text-n bill-column fw-b">Total Amount</td>
@@ -369,12 +387,26 @@
                     </div>
                 <?php } ?>
 
-                <?php if (isset($payment_methods['cod_method']) && $payment_methods['cod_method'] == 1) { ?>
+                <?php if (isset($payment_methods['cod_method']) && $payment_methods['cod_method'] == 1) {
+                    /* COD is refused by the server when ANY cart item has cod_allowed = 0, and the
+                     * check used to run item-by-item at place-order time: the customer picked COD,
+                     * pressed Place Order, was told about ONE offending product, went back to the
+                     * cart, removed it, and got told about the next one. So the option is disabled
+                     * outright here and every blocking item is named at once - the customer sees
+                     * the full list before choosing a payment mode instead of discovering it one
+                     * round-trip at a time. get_cart_total() collects the names.
+                     *
+                     * (The disable used to be written against is_cod_allowed == -1, a value
+                     * nothing in the codebase ever sets, so the radio was always clickable while
+                     * the red "COD Not Available" label sat next to it.) */
+                    $cod_blocked = isset($cart[0]['is_cod_allowed']) && $cart[0]['is_cod_allowed'] == 0;
+                    $cod_blocked_names = (isset($cart['cod_blocked_products']) && is_array($cart['cod_blocked_products'])) ? $cart['cod_blocked_products'] : array();
+                ?>
                     <div class="m-4 pl-1">
                         <tr>
                             <td>
                                 <label for="cod" class="pb-1">
-                                    <input id="cod" class="form-check-input" title="<?= isset($cart[0]['is_cod_allowed']) && $cart[0]['is_cod_allowed'] == 0 ? 'Cash on delivery is not allowed for one of the item in your cart' : 'Please select one of this options.' ?>" name="payment_method" type="radio" value="COD" <?= isset($cart[0]['is_cod_allowed']) && $cart[0]['is_cod_allowed'] == -1 ? 'disabled' : '' ?>>
+                                    <input id="cod" class="form-check-input" title="<?= $cod_blocked ? 'Cash on Delivery is not available for some items in your cart' : 'Please select one of this options.' ?>" name="payment_method" type="radio" value="COD" <?= $cod_blocked ? 'disabled' : '' ?>>
                                 </label>
                             </td>
                             <td>
@@ -383,11 +415,26 @@
                                 </label>
                             </td>
                             <td>
-                                <label for="cod">
-                                    Cash On Delivery <?= isset($cart[0]['is_cod_allowed']) && $cart[0]['is_cod_allowed'] == 0 ? '<span style="color: red; font-size: 0.85em; margin-left: 8px;">COD Not Available</span>' : '' ?>
+                                <label for="cod" class="<?= $cod_blocked ? 'cod-disabled-label' : '' ?>">
+                                    Cash On Delivery <?= $cod_blocked ? '<span class="cod-unavailable-tag">COD Not Available</span>' : '' ?>
                                 </label>
                             </td>
                         </tr>
+                        <?php if ($cod_blocked) { ?>
+                            <div class="cod-unavailable-note">
+                                <?php if (!empty($cod_blocked_names)) { ?>
+                                    Cash on Delivery is not available for <?= count($cod_blocked_names) > 1 ? 'these items' : 'this item' ?>:
+                                    <ul>
+                                        <?php foreach ($cod_blocked_names as $blocked_name) { ?>
+                                            <li><?= htmlspecialchars($blocked_name, ENT_QUOTES, 'UTF-8') ?></li>
+                                        <?php } ?>
+                                    </ul>
+                                    Pay online to order everything together, or <a href="<?= base_url('cart') ?>">edit your cart</a> to remove <?= count($cod_blocked_names) > 1 ? 'them' : 'it' ?> and pay cash for the rest.
+                                <?php } else { ?>
+                                    Cash on Delivery is not available for one or more items in your cart. Pay online to order everything together, or <a href="<?= base_url('cart') ?>">edit your cart</a>.
+                                <?php } ?>
+                            </div>
+                        <?php } ?>
                     </div>
                 <?php } ?>
 
@@ -501,7 +548,11 @@
                     </tr>
                     <tr class="bill-row">
                         <td class="text-s bill-column">Shipping Fee<span class="final-shipping-title-cod-tag fw-bold d-none"> (Cash On Delivery)</span></td>
-                        <td class="text-s bill-column fw-b final-shipping" style="color: black;">₹<?= moneyFormatIndia(round($delivery_charge)) ?></td>
+                        <?php if ($is_free_delivery) { ?>
+                            <td class="text-s bill-column fw-b final-shipping" style="color: var(--color-success);">FREE</td>
+                        <?php } else { ?>
+                            <td class="text-s bill-column fw-b final-shipping" style="color: black;">₹<?= moneyFormatIndia(round($delivery_charge)) ?></td>
+                        <?php } ?>
                     </tr>
                     <tr class="bill-row bill-row-last">
                         <td class="text-n bill-column fw-b">Total Amount</td>
@@ -656,6 +707,46 @@
         text-align: center;
         color: #6b6b6b;
         padding: 24px 0;
+    }
+
+    /* Cash on Delivery, unavailable because of specific cart items. */
+    .cod-unavailable-tag {
+        color: #c62828;
+        font-size: 0.85em;
+        margin-left: 8px;
+        white-space: nowrap;
+    }
+
+    .cod-disabled-label {
+        color: #8a8a8a;
+        cursor: not-allowed;
+    }
+
+    .cod-unavailable-note {
+        margin-top: 6px;
+        padding: 10px 12px;
+        border-left: 3px solid #c62828;
+        background: #fdecea;
+        border-radius: 4px;
+        color: #7f2b22;
+        font-size: 0.85rem;
+        line-height: 1.45;
+        max-width: 520px;
+    }
+
+    .cod-unavailable-note ul {
+        margin: 6px 0;
+        padding-left: 20px;
+    }
+
+    .cod-unavailable-note li {
+        margin-bottom: 2px;
+    }
+
+    .cod-unavailable-note a {
+        color: #c62828;
+        font-weight: 600;
+        text-decoration: underline;
     }
 </style>
 

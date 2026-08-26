@@ -10,6 +10,10 @@
  * does not lose the list's paging/filter state.
  */
 $has_types = !empty($ticket_types);
+// Tickets are the written trail; WhatsApp is the fast lane to the platform team, and it is the
+// channel the store actually answers on. whatsapp_support_link() resolves the number from
+// settings, falling back to the owner-confirmed one.
+$support_whatsapp = whatsapp_support_link('Hello Cretzo Support, I need help with my seller account.');
 ?>
 
 <div class="content-wrapper seller-support-page">
@@ -43,9 +47,13 @@ $has_types = !empty($ticket_types);
             <?php if (!$has_types) { ?>
                 <div class="alert alert-warning">
                     Support categories have not been set up yet, so new tickets cannot be raised right now.
-                    <?php if (!empty($support_email)) { ?>
-                        Please email <a href="mailto:<?= html_escape($support_email) ?>"><?= html_escape($support_email) ?></a> in the meantime.
+                    <?php if (!empty($support_whatsapp)) { ?>
+                        Please <a href="<?= html_escape($support_whatsapp) ?>" target="_blank" rel="noopener">message us on WhatsApp</a>
                     <?php } ?>
+                    <?php if (!empty($support_email)) { ?>
+                        <?= !empty($support_whatsapp) ? 'or email' : 'Please email' ?> <a href="mailto:<?= html_escape($support_email) ?>"><?= html_escape($support_email) ?></a>
+                    <?php } ?>
+                    in the meantime.
                 </div>
             <?php } ?>
 
@@ -56,6 +64,11 @@ $has_types = !empty($ticket_types);
                         <span class="header-icon bg-set mr-2"><i class="fas fa-life-ring"></i></span>
                         <h5 class="mb-0">My Tickets</h5>
                         <div class="ml-auto">
+                            <?php if (!empty($support_whatsapp)) { ?>
+                                <a href="<?= html_escape($support_whatsapp) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-success mr-1">
+                                    <i class="fab fa-whatsapp mr-1"></i> WhatsApp Support
+                                </a>
+                            <?php } ?>
                             <button type="button" class="btn btn-sm btn-theme" id="ss-new-btn" <?= $has_types ? '' : 'disabled' ?>>
                                 <i class="fas fa-plus mr-1"></i> New Ticket
                             </button>

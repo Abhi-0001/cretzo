@@ -84,6 +84,10 @@
                                 <th data-field="commission_percent" data-sortable="false">Commission %</th>
                                 <th data-field="commission_amount" data-sortable="false">Commission</th>
                                 <th data-field="commission_gst_amount" data-sortable="false" data-visible="false">GST on Commission</th>
+                                <!-- Actual courier freight for this item's parcel, recovered under the
+                                     seller-paid shipping model. Shown by default: it is money taken off
+                                     the payout, and a seller who cannot see it reads it as a short payment. -->
+                                <th data-field="shipping_deduction" data-sortable="false">Shipping (Freight)</th>
                                 <th data-field="tcs_amount" data-sortable="false">GST TCS</th>
                                 <th data-field="tcs_basis" data-sortable="false">TCS Head</th>
                                 <th data-field="tds_amount" data-sortable="false">TDS 194-O</th>

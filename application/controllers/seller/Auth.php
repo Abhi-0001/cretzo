@@ -529,8 +529,21 @@ class Auth extends CI_Controller
 
         // Step 3 fields
         // $this->form_validation->set_rules('entity_type', 'Entity Type', 'required|trim');
-        // $this->form_validation->set_rules('pan', 'PAN Number', 'required|regex_match[/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/]');
-        // $this->form_validation->set_rules('gst', 'GST Number', 'required|regex_match[/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/]');
+        // Restored, minus the `required`.
+        //
+        // These two were commented out along with the rest of this endpoint's rules, which left
+        // PAN and GSTIN as unvalidated free text everywhere they are written - and those two
+        // fields are what Tax_compliance_model reads to decide the TDS and TCS rate for every
+        // settlement. The result was a live marketplace deducting 5% s.206AA from sellers whose
+        // "PAN" was a random digit string, and collecting no TCS from anybody because no GSTIN
+        // validated. See seller_tax_identifier_errors() for the full account.
+        //
+        // `required` stays off deliberately: this endpoint only asks for name/phone/email (the
+        // seller completes their tax details later on the profile form, which now validates them
+        // too), so demanding a PAN here would break the registration it is meant to allow. What
+        // matters is that a value which IS supplied has to be a real identifier.
+        $this->form_validation->set_rules('pan', 'PAN Number', 'trim|xss_clean|regex_match[/^[A-Za-z]{5}[0-9]{4}[A-Za-z]$/]');
+        $this->form_validation->set_rules('gst', 'GST Number', 'trim|xss_clean|regex_match[/^[0-9]{2}[A-Za-z]{5}[0-9]{4}[A-Za-z]{1}[1-9A-Za-z]{1}[Zz]{1}[0-9A-Za-z]{1}$/]');
 
         // $this->form_validation->set_rules('account_number', "Account Number", 'required|trim|numeric');
         // $this->form_validation->set_rules('confirm_account_number', "Confirm Account Number", 'required|trim|numeric|matches[account_number]');

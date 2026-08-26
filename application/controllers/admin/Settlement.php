@@ -40,6 +40,11 @@ class Settlement extends CI_Controller
             // Surfaces sellers whose wallet balance no longer matches their ledger, so drift
             // is visible instead of being discovered during a dispute.
             $this->data['reconciliation'] = $this->Seller_settlement_model->get_wallet_reconciliation();
+            // Under seller-paid shipping the customer pays no delivery charge, so an item settled
+            // with no freight against it is courier cost the platform swallowed. Surfaced here
+            // because the settlement report was the one screen that looked complete while the
+            // recovery half of that model was doing nothing at all.
+            $this->data['freight_status'] = $this->Seller_settlement_model->get_freight_recovery_status();
 
             // TCS / TDS actually withheld this financial year, per seller and NET OF RETURNS.
             // This is the figure that gets deposited and filed (GSTR-8 for the TCS split,

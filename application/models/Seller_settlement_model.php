@@ -142,6 +142,66 @@ class Seller_settlement_model extends CI_Model
     }
 
     /**
+     * How much courier cost the platform is absorbing because freight was never captured.
+     *
+     * Under seller-paid shipping the customer is charged nothing for delivery and the actual
+     * Shiprocket freight is recovered from the seller at settlement. That recovery only happens
+     * if the freight was captured when the AWB was assigned - and if shipments are not being
+     * booked at all, every settlement pays the seller their full net while the platform pays the
+     * whole courier bill. Nothing reported that: `total_freight_recovered: 0.00` on the cron
+     * response reads exactly the same whether nothing was owed or capture is broken.
+     *
+     * On this database that is not a hypothetical - 0 of 43 order items carry a shipping_deduction
+     * and `order_tracking` is empty, because the stored Shiprocket credentials are being rejected.
+     *
+     * @return array{enabled: bool, settled_items: int, without_freight: int, exposed_amount: float,
+     *               shipments: int, freight_captured: int}
+     */
+    public function get_freight_recovery_status()
+    {
+        $enabled = function_exists('seller_paid_shipping_enabled') ? (bool) seller_paid_shipping_enabled() : false;
+
+        $status = [
+            'enabled'          => $enabled,
+            'settled_items'    => 0,
+            'without_freight'  => 0,
+            'exposed_amount'   => 0.0,
+            'shipments'        => 0,
+            'freight_captured' => 0,
+        ];
+
+        if (!$this->db->field_exists('shipping_deduction', 'order_items')) {
+            return $status;
+        }
+
+        $row = $this->db
+            ->select("COUNT(id) AS settled_items,
+                      SUM(CASE WHEN COALESCE(shipping_deduction, 0) <= 0 THEN 1 ELSE 0 END) AS without_freight,
+                      COALESCE(SUM(CASE WHEN COALESCE(shipping_deduction, 0) <= 0 THEN sub_total ELSE 0 END), 0) AS exposed", false)
+            ->where('is_credited', 1)
+            ->get('order_items')
+            ->row_array();
+
+        $status['settled_items']   = (int) $row['settled_items'];
+        $status['without_freight'] = (int) $row['without_freight'];
+        // The sale value of those lines, NOT an estimate of the freight itself - the freight on a
+        // parcel nobody captured is unknowable, and inventing a number would be worse than saying
+        // how much trade it covers.
+        $status['exposed_amount']  = (float) $row['exposed'];
+
+        if ($this->db->table_exists('order_tracking')) {
+            $ship = $this->db
+                ->select('COUNT(id) AS shipments, SUM(CASE WHEN COALESCE(freight_charge, 0) > 0 THEN 1 ELSE 0 END) AS captured', false)
+                ->get('order_tracking')
+                ->row_array();
+            $status['shipments']        = (int) $ship['shipments'];
+            $status['freight_captured'] = (int) $ship['captured'];
+        }
+
+        return $status;
+    }
+
+    /**
      * @param int|null $seller_id  A seller id scopes the list to that seller (the seller panel).
      *                             NULL lists every seller's settlements (the admin report).
      */
@@ -249,6 +309,11 @@ class Seller_settlement_model extends CI_Model
                 'commission_percent' => $row['commission_percent'],
                 'commission_amount' => $row['commission_amount'],
                 'commission_gst_amount' => isset($row['commission_gst_amount']) ? $row['commission_gst_amount'] : '0.00',
+                // The courier freight recovered from the seller for this item's parcel. Always
+                // 0.00 before seller-paid shipping, so it was never worth reporting; it is now
+                // one of the largest lines on a statement and has to be visible or the seller
+                // cannot tell a freight deduction from a commission one.
+                'shipping_deduction' => isset($row['shipping_deduction']) ? $row['shipping_deduction'] : '0.00',
                 'tcs_amount' => isset($row['tcs_amount']) ? $row['tcs_amount'] : '0.00',
                 // The IGST / CGST+SGST split is what the quarterly GSTR-8 return is filed on,
                 // so it is reported per settlement rather than only as a combined figure.

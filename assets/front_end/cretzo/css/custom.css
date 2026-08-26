@@ -1663,14 +1663,47 @@ section #progressbar div.active:after {
     margin-top: 2px;
 }
 
-#chat-button.opened,
-#chat-iframe.opened {
-    transition: all 0.35s ease-in-out;
-    box-shadow: 0px 19px 10px 2px #00000014
+/* ------------------------------------------------------------------
+   Support chat widget (FAB + iframe panel)
+
+   The panel's size used to be an inline 450x600 on the iframe tag, so it
+   could not respond to the viewport and hung off the right edge of a phone
+   screen. Sizing lives here now, and the panel animates open instead of
+   appearing instantly via .toggle().
+------------------------------------------------------------------ */
+#chat-iframe {
+    display: none;
+    position: fixed;
+    bottom: 84px;
+    right: 20px;
+    width: 400px;
+    /* Never taller than the space between the FAB and the top of the window. */
+    height: min(620px, calc(100vh - 120px));
+    border: none;
+    border-radius: 20px;
+    z-index: 9999;
+    background: transparent;
+    box-shadow: 0 18px 48px rgba(24, 26, 30, 0.18);
+    transform: translateY(12px) scale(0.98);
+    opacity: 0;
+    transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-#chat-iframe {
-    border-radius: 26px;
+#chat-iframe.opened {
+    opacity: 1;
+    transform: none;
+}
+
+@media (max-width: 480px) {
+    #chat-iframe {
+        right: 0;
+        left: 0;
+        bottom: 0;
+        width: 100%;
+        height: 100%;
+        max-height: 100%;
+        border-radius: 0;
+    }
 }
 
 .fixed-icon {
@@ -1689,21 +1722,51 @@ section #progressbar div.active:after {
 }
 
 #chat-button {
-    transition: all 0.35s ease-in-out;
-    /* position: fixed;
-    bottom: 32px;
-    right: 83px; */
-    padding: 8px 14px;
-    background-color: #3cc766;
+    /* Was a green circle with no relationship to the storefront's terracotta accent, and a
+       <div> with no accessible name - it is now a real button carrying the brand gradient. */
+    -webkit-appearance: none;
+    appearance: none;
+    border: 0;
+    width: 52px;
+    height: 52px;
+    padding: 0;
+    background: linear-gradient(135deg, #e07b39 0%, #c96820 100%);
     color: #fff;
-    font-size: 20px;
+    font-size: 24px;
+    line-height: 1;
     border-radius: 50%;
-    z-index: 999;
+    z-index: 9998;
     cursor: pointer;
-    /* height: 2.5rem;
-    width: 2.5rem; */
     display: flex;
+    align-items: center;
     justify-content: center;
+    box-shadow: 0 6px 18px rgba(224, 123, 57, 0.42);
+    transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s ease, background 0.25s ease;
+}
+
+#chat-button:hover {
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 10px 24px rgba(224, 123, 57, 0.5);
+}
+
+#chat-button:focus-visible {
+    outline: 3px solid #a8531a;
+    outline-offset: 2px;
+}
+
+/* Open state: the icon rotates into a close affordance so the FAB doubles as the dismiss
+   control, which is how people expect a chat bubble to behave. */
+#chat-button.opened {
+    background: linear-gradient(135deg, #33363c 0%, #1f2126 100%);
+    box-shadow: 0 6px 18px rgba(31, 33, 38, 0.4);
+}
+
+#chat-button.opened i {
+    transform: rotate(90deg);
+}
+
+#chat-button i {
+    transition: transform 0.25s ease;
 }
 
 

@@ -861,6 +861,48 @@ class Seller_model extends CI_Model
         return ['reversed' => true, 'amount' => $amount, 'message' => 'Commission reversed'];
     }
 
+    /**
+     * Debit a seller even when it takes their wallet negative.
+     *
+     * update_wallet_balance('debit', ...) refuses any debit larger than the current balance,
+     * which is exactly the case that has to be recorded here: a settlement whose freight
+     * exceeds the sale value, or a clawback on money the seller has already withdrawn.
+     * Refusing it would silently write the loss off the platform's books.
+     *
+     * Same approach as reverse_settlement_for_order_item(), and the negative balance is
+     * recovered from the seller's next settlement (crediting a negative balance is allowed).
+     *
+     * @return array in update_wallet_balance()'s shape, so callers can treat both alike.
+     */
+    private function debit_seller_allowing_negative($seller_id, $amount, $message, $order_item_id = '', $order_id = null)
+    {
+        $amount = round((float) $amount, 2);
+        if ($amount <= 0) {
+            return ['error' => false, 'message' => 'No wallet movement required', 'data' => []];
+        }
+
+        $this->db->set('balance', '`balance` - ' . $this->db->escape_str($amount), false)
+            ->where('id', $seller_id)
+            ->update('users');
+
+        $transaction = [
+            'transaction_type' => 'wallet',
+            'user_id'          => $seller_id,
+            'order_item_id'    => $order_item_id,
+            'type'             => 'debit',
+            'amount'           => $amount,
+            'status'           => 'success',
+            'message'          => $message,
+            'is_refund'        => 0,
+        ];
+        if (!empty($order_id)) {
+            $transaction['order_id'] = $order_id;
+        }
+        $this->db->insert('transactions', escape_array($transaction));
+
+        return ['error' => false, 'message' => 'Seller debited for a negative settlement', 'data' => []];
+    }
+
     function settle_seller_commission($is_date = TRUE)
     {
 
@@ -911,7 +953,14 @@ class Seller_model extends CI_Model
         // seller's subscription plan instead. Joining on a since-deleted product/variant
         // silently dropped the order item from every settlement run forever, so this
         // also fixes orders never getting settled when their product was removed later.
-        $data = $this->db->select("oi.id,date(oi.date_added) as order_date,oi.order_id,oi.product_variant_id,oi.seller_id,oi.sub_total,oi.tax_percent,oi.commission_rate,oi.commission_rate_source ")
+        // shipping_deduction is the actual Shiprocket freight for this item's parcel,
+        // apportioned to the item when the AWB was assigned (record_shiprocket_freight()).
+        // Guarded with field_exists so a deploy that has not yet run migration 070 settles at
+        // the old figures rather than fataling the whole settlement run on an unknown column.
+        $has_freight_column = $this->db->field_exists('shipping_deduction', 'order_items');
+        $select = "oi.id,date(oi.date_added) as order_date,oi.order_id,oi.product_variant_id,oi.seller_id,oi.sub_total,oi.tax_percent,oi.commission_rate,oi.commission_rate_source ";
+        $select .= $has_freight_column ? ', oi.shipping_deduction' : ', 0 as shipping_deduction';
+        $data = $this->db->select($select)
             ->where($where)
             ->order_by('oi.seller_id, oi.date_added', 'ASC')
             ->get('order_items oi')->result_array();
@@ -930,6 +979,11 @@ class Seller_model extends CI_Model
         $skipped_no_plan = 0;
         $total_credited = 0;
         $total_commission = 0;
+        $total_freight = 0;
+        // Items settled with no freight recovered while seller-paid shipping is ON, i.e. parcels
+        // the platform paid for and got nothing back on. See where this is incremented.
+        $freightless_settlements = 0;
+        $negative_settlements = 0;
         // Only sellers whose wallet was actually credited by THIS run should be notified.
         // The notification loop below used to walk every seller present in the query result,
         // including ones whose items were all skipped for having no subscription and ones
@@ -970,6 +1024,7 @@ class Seller_model extends CI_Model
                         'order_amount' => $row['sub_total'],
                         'commission_percent' => $commission_pr,
                         'commission_amount' => 0,
+                        'shipping_deduction' => round((float) (isset($row['shipping_deduction']) ? $row['shipping_deduction'] : 0), 2),
                         'net_payable' => 0,
                         'settlement_status' => 'failed',
                     ]);
@@ -987,11 +1042,28 @@ class Seller_model extends CI_Model
                 // rate and whether the Rs. 5 lakh threshold shields the sale, their GSTIN
                 // decides whether TCS is collected at all, and the delivery state decides
                 // whether that collection is IGST or CGST + SGST.
+                /*
+                 * The freight the courier actually billed for this item's parcel, recovered
+                 * from the seller here. This argument was hard-coded 0, so
+                 * `seller_settlements.shipping_deduction` has been written as 0.00 on every
+                 * settlement ever made and no shipping cost was recovered from anybody -
+                 * which was correct while the CUSTOMER paid the delivery charge at checkout,
+                 * and is exactly what changes under the seller-paid shipping model.
+                 *
+                 * A parcel whose freight was never captured (Shiprocket unreachable at AWB
+                 * time, an order shipped outside Shiprocket, anything predating this change)
+                 * has 0 here and settles at the old figures. Under-recovering is the safe
+                 * direction to fail in: the alternative is charging a seller a freight cost
+                 * nobody can evidence.
+                 */
+                $freight = round((float) (isset($row['shipping_deduction']) ? $row['shipping_deduction'] : 0), 2);
+                $freight = ($freight < 0) ? 0 : $freight;
+
                 $breakdown = $this->calculate_settlement_breakdown(
                     $row['sub_total'],
                     $row['tax_percent'],
                     $commission_pr,
-                    0,
+                    $freight,
                     0,
                     ['seller_id' => $row['seller_id'], 'order_id' => $row['order_id']]
                 );
@@ -1021,9 +1093,35 @@ class Seller_model extends CI_Model
                 // permanent failure: it could never be credited, never be stamped, and was
                 // retried and re-recorded as failed on every single settlement run forever.
                 // There is simply no wallet movement to make, so skip the credit and settle it.
-                $response = ($transfer_amt == 0)
-                    ? ['error' => false, 'message' => 'No wallet movement required']
-                    : update_wallet_balance('credit', $row['seller_id'], $transfer_amt, 'Commission Amount Credited for Order Item ID  : ' . $row['id']);
+                /*
+                 * A NEGATIVE net payable is now reachable and has to be handled as a debit.
+                 *
+                 * Before freight was recovered, every deduction was a fraction of the sale
+                 * (commission, GST on it, TCS, TDS), so the net could not realistically fall
+                 * below zero. Freight is a flat rupee amount: a 99 item that cost 120 to ship
+                 * leaves the seller genuinely owing the platform money, which is inherent to
+                 * the seller-paid shipping model and not an error.
+                 *
+                 * It must NOT be passed to update_wallet_balance('credit', ...) though. That
+                 * does `balance + amount` unguarded, so a negative amount silently DEBITS the
+                 * seller while writing a ledger row typed 'credit' holding a negative value -
+                 * the same class of bug the out-of-range commission check above exists to
+                 * prevent, and it would corrupt every wallet reconciliation that sums the
+                 * ledger by type. Recorded as a real debit instead.
+                 */
+                if ($transfer_amt == 0) {
+                    $response = ['error' => false, 'message' => 'No wallet movement required'];
+                } elseif ($transfer_amt > 0) {
+                    $response = update_wallet_balance('credit', $row['seller_id'], $transfer_amt, 'Commission Amount Credited for Order Item ID  : ' . $row['id']);
+                } else {
+                    $response = $this->debit_seller_allowing_negative(
+                        $row['seller_id'],
+                        abs($transfer_amt),
+                        'Shipping cost exceeded the sale value for Order Item ID : ' . $row['id'],
+                        $row['id'],
+                        $row['order_id']
+                    );
+                }
                 if ($response['error'] == false) {
                     // is_credited was already set by the claim above; this records the amounts.
                     update_details(['is_credited' => 1, 'admin_commission_amount' => $commission_amt, "seller_commission_amount" => $transfer_amt], ['id' => $row['id']], 'order_items');
@@ -1040,10 +1138,40 @@ class Seller_model extends CI_Model
                 $settled_ok = ($response['error'] == false) && ($this->db->trans_status() !== FALSE);
 
                 if ($settled_ok) {
-                    $credited_sellers[$row['seller_id']] = true;
+                    // Only an actual credit earns the "money has been credited" notification.
+                    // A negative settlement took money OFF the seller; telling them it was
+                    // credited would be plainly false.
+                    if ($transfer_amt > 0) {
+                        $credited_sellers[$row['seller_id']] = true;
+                    }
                     $settled_count++;
                     $total_credited += $transfer_amt;
                     $total_commission += $commission_amt;
+                    $total_freight += $freight;
+                    /*
+                     * Under seller-paid shipping the CUSTOMER is charged nothing for delivery, so
+                     * an item that settles with no freight against it means the platform paid the
+                     * courier and recovered none of it. That is invisible in a report that only
+                     * shows a total: "freight recovered: 0.00" reads identically whether nothing
+                     * was owed or nothing was captured.
+                     *
+                     * It is not hypothetical. On this database 0 of 43 order items carry a
+                     * shipping_deduction and order_tracking is empty, because freight is only
+                     * captured when Shiprocket assigns an AWB - and the stored Shiprocket
+                     * credentials are being rejected ("Invalid email and password combination"),
+                     * so no shipment can be booked at all. Every settlement is therefore paying
+                     * the seller their full net while the platform absorbs the whole courier bill.
+                     *
+                     * Counted rather than blocked: refusing to settle would withhold money sellers
+                     * are genuinely owed because of a platform-side integration fault. Under-
+                     * recovering is the safe direction to fail in - but it must be LOUD.
+                     */
+                    if (seller_paid_shipping_enabled() && $freight <= 0) {
+                        $freightless_settlements++;
+                    }
+                    if ($transfer_amt < 0) {
+                        $negative_settlements++;
+                    }
                     $wallet_updated = true;
                     $response_data['error'] = false;
                     $response_data['message'] = 'Commission settled Successfully';
@@ -1126,7 +1254,26 @@ class Seller_model extends CI_Model
             'skipped_no_plan'  => $skipped_no_plan,
             'total_credited'   => round($total_credited, 2),
             'total_commission' => round($total_commission, 2),
+            // Items whose freight exceeded the sale value, so the seller was debited rather
+            // than credited. Reported because a run that silently debits sellers looks
+            // identical to one that credits them if only a total is shown.
+            'negative_settlements' => $negative_settlements,
+            'total_freight_recovered' => round($total_freight, 2),
+            // Items settled with NO freight recovered while the customer was charged nothing for
+            // delivery - i.e. parcels the platform paid the courier for and recovered none of.
+            // "total_freight_recovered: 0.00" alone cannot distinguish "nothing was owed" from
+            // "capture is broken", which is exactly the state this database is in.
+            'settled_without_freight' => $freightless_settlements,
         ];
+
+        if ($freightless_settlements > 0) {
+            log_message('error', 'settle_seller_commission: ' . $freightless_settlements . ' of '
+                . $settled_count . ' item(s) settled with no freight recovered while seller-paid '
+                . 'shipping is enabled. The platform paid the courier for those parcels and '
+                . 'recovered nothing. Freight is captured when Shiprocket assigns an AWB - check '
+                . 'that shipments are actually being booked (order_tracking) and that the '
+                . 'Shiprocket credentials are valid.');
+        }
         print_r(json_encode($response_data));
     }
 

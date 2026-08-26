@@ -869,4 +869,66 @@ class Chat extends CI_Controller
             print_r(json_encode(['error' => false]));
         }
     }
+    /* ================== support-assistant transcripts ==================
+     *
+     * The storefront chat widget has been writing every message to `chat_messages` and no
+     * screen anywhere read it back, so nobody on the team could see what customers asked the
+     * bot. These three methods are that missing screen. They sit on this controller and reuse
+     * the existing 'chat' permission module rather than introducing a new one, which would
+     * need a migration plus a row in every role.
+     */
+
+    public function assistant()
+    {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {
+            redirect('admin/login', 'refresh');
+            return;
+        }
+
+        $settings = get_settings('system_settings', true);
+        $this->data['main_page'] = TABLES . 'assistant-chats';
+        $this->data['title'] = 'Assistant Chats | ' . $settings['app_name'];
+        $this->data['meta_description'] = 'Support assistant conversations | ' . $settings['app_name'];
+        $this->data['assistant_stats'] = $this->chat_model->get_assistant_stats();
+        $this->data['assistant_fallback'] = $this->chat_model->get_assistant_fallback_rate();
+        $this->load->view('admin/template', $this->data);
+    }
+
+    /** Bootstrap-table data source; the model echoes the JSON itself, as the others do. */
+    public function assistant_list()
+    {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {
+            redirect('admin/login', 'refresh');
+            return;
+        }
+
+        return $this->chat_model->get_assistant_thread_list();
+    }
+
+    public function assistant_thread()
+    {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {
+            redirect('admin/login', 'refresh');
+            return;
+        }
+
+        // A thread token is hex from random_bytes(), or a legacy CodeIgniter session id. Both
+        // are alphanumeric, so anything else is not a thread and is not worth a query.
+        $thread = (string) $this->input->get('thread', true);
+        if ($thread !== '' && !preg_match('/^[A-Za-z0-9]{1,128}$/', $thread)) {
+            $this->output->set_content_type('application/json')
+                ->set_output(json_encode(['error' => true, 'message' => 'Invalid conversation reference.']));
+            return;
+        }
+
+        $user_id = (string) $this->input->get('user_id', true);
+        $user_id = ctype_digit($user_id) ? (int) $user_id : 0;
+
+        $messages = $this->chat_model->get_assistant_thread($thread, $user_id);
+
+        $this->output->set_content_type('application/json')->set_output(json_encode([
+            'error'    => false,
+            'messages' => $messages,
+        ]));
+    }
 }

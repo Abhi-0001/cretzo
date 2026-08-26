@@ -29,6 +29,16 @@
                                 <h5 class="mb-0"><?= (isset($fetched_data[0]['id'])) ? 'Edit Zipcode' : 'Add Zipcode' ?></h5>
                             </div>
                         </div>
+                        <?php if (seller_paid_shipping_enabled()) { ?>
+                            <div class="px-3 pt-3">
+                                <div class="alert alert-warning mb-0">
+                                    <b><i class="fas fa-info-circle mr-1"></i>Seller-paid shipping is ON.</b>
+                                    Customers are charged &#8377;0 delivery on every order, so the delivery charge and
+                                    minimum-free-delivery amount below are <b>not applied at checkout</b>. They are kept
+                                    for when the model is switched off under <b>Settings &rarr; System Settings</b>.
+                                </div>
+                            </div>
+                        <?php } ?>
                         <!-- form start -->
                         <form class="form-horizontal form-submit-event" action="<?= base_url('admin/area/add_zipcode'); ?>" method="POST" id="add_zipcode_form" enctype="multipart/form-data">
                             <?php

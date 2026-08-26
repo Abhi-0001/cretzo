@@ -365,7 +365,14 @@ if(empty($order_item)){
                                                 <?php if ($item['type'] != 'digital_product') { ?>
                                                     <tr>
                                                         <th><?= !empty($this->lang->line('delivery_charge')) ? $this->lang->line('delivery_charge') : 'Delivery Charge' ?></th>
-                                                        <td>+ <?= $settings['currency'] . number_format($order['delivery_charge'], 2) ?></td>
+                                                        <?php // Read off the ORDER, not off the current setting: an order placed while
+                                                              // customers were still charged freight must keep showing what it charged.
+                                                              // Only a genuinely uncharged order is labelled FREE. ?>
+                                                        <?php if (round((float) $order['delivery_charge'], 2) == 0) { ?>
+                                                            <td style="color: var(--color-success);">FREE</td>
+                                                        <?php } else { ?>
+                                                            <td>+ <?= $settings['currency'] . number_format($order['delivery_charge'], 2) ?></td>
+                                                        <?php } ?>
                                                     </tr>
                                                 <?php } ?>
                                                 <tr class="d-none">

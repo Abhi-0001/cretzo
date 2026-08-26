@@ -182,8 +182,15 @@ class Point_of_sale extends CI_Controller
             $place_order_data['mobile'] = $customer_mobile;
             $place_order_data['order_note'] = 'Walk-in customer: ' . $customer_name;
             $place_order_data['is_wallet_used'] = 0;
-            $place_order_data['delivery_charge'] = $_POST['delivery_charges'];
-            $place_order_data['discount'] = $_POST['discount'];
+            // Both were read with no isset() guard (an "Undefined array key" notice printed into
+            // the JSON response on any bill submitted without them) and with no sign check. A
+            // negative delivery charge reduced the bill and a negative discount INCREASED it.
+            // place_order() clamps the discount against the basket total as well, so a cashier
+            // cannot discount a bill below zero.
+            $pos_delivery = (isset($_POST['delivery_charges']) && is_numeric($_POST['delivery_charges'])) ? round((float) $_POST['delivery_charges'], 2) : 0;
+            $pos_discount = (isset($_POST['discount']) && is_numeric($_POST['discount'])) ? round((float) $_POST['discount'], 2) : 0;
+            $place_order_data['delivery_charge'] = ($pos_delivery < 0) ? 0 : $pos_delivery;
+            $place_order_data['discount'] = ($pos_discount < 0) ? 0 : $pos_discount;
             $place_order_data['is_delivery_charge_returnable'] = 0;
             $place_order_data['wallet_balance_used'] = 0;
             $place_order_data['active_status'] = "delivered";

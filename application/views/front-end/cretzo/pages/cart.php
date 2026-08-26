@@ -340,6 +340,10 @@ $logo = get_settings('web_logo');
             $total_mrp = !empty($cart['total_mrp']) ? $cart['total_mrp'] : 0;
             $total_discount_on_mrp = !empty($cart['discount_on_mrp']) ? $cart['discount_on_mrp'] : 0;
             $total = $total - $delivery_charge;
+            // Seller-paid shipping. Stated on the cart as well as at checkout - it is a reason
+            // to carry on to checkout, and the cart had no delivery line at all before, so a
+            // customer had no way to know whether one was coming.
+            $is_free_delivery = !empty($cart['is_free_delivery']);
             ?>
 
             <div class="cart-right-three">
@@ -356,6 +360,9 @@ $logo = get_settings('web_logo');
                         </td>
                     </tr>
                     <tr class="bill-row"><td class="text-s bill-column">Platform Free</td><td class="text-s bill-column">FREE</td></tr>
+                    <?php if ($is_free_delivery) { ?>
+                        <tr class="bill-row"><td class="text-s bill-column">Delivery Fee</td><td class="text-s bill-column fw-b" style="color: var(--color-success);">FREE</td></tr>
+                    <?php } ?>
                     <tr class="bill-row bill-row-last"><td class="text-n bill-column fw-b">Total Amount</td><td class="text-n bill-column fw-b" id="final_total">₹<?= moneyFormatIndia(round($total)) ?></td></tr>
                 </table>
 
@@ -907,14 +914,12 @@ $logo = get_settings('web_logo');
     // init only if not logged in (when logged-in, server renders and server-side actions handle updates)
     if (!isLoggedIn) {
         initClientCart();
-    } else {
-        // still wire client removal/qty for server-side rendered items (we call server endpoints in real app - but here we just wire UI)
-        $(document).on('click', '.remove-product', function(){
-            // ideally make an AJAX call to remove on server; fallback: remove element visually
-            const id = $(this).data('id');
-            $(this).closest('.cart-item').remove();
-        });
     }
+    /* No logged-in branch here on purpose. There used to be a second '.remove-product'
+       handler that only removed the row from the DOM - no server call - so it raced the
+       real handler in custom.js: the line disappeared even when the server rejected the
+       removal, and came back on the next page load. custom.js owns removal for
+       logged-in users. */
 
 })(jQuery);
 </script>
@@ -1335,11 +1340,14 @@ $logo = get_settings('web_logo');
 <?php } ?>
 
 <div class="fixed-icon">
-    <?php if ($this->ion_auth->logged_in()) { ?>
-        <div id="chat-button"><i class="uil uil-comments"></i></div>
-        <!-- Floating chat iframe -->
-        <iframe src="<?= base_url('my-account/floating_chat_modern') ?>" id="chat-iframe" style="display: none; position: fixed; bottom: 80px; right: 20px; width: 450px; height: 600px; border: none;z-index:999;"></iframe>
-    <?php } ?>
+    <?php /* This page does not include footer.php, so it carries its own copy of the widget.
+             It used to be gated on logged_in(), meaning a guest with items in the cart - exactly
+             the person most likely to have a question - had no chat at all here, unlike every
+             other page. The assistant answers guests too, so the gate is gone and the markup
+             now matches the footer's. */ ?>
+    <button type="button" id="chat-button" aria-label="Open support chat" aria-expanded="false" aria-controls="chat-iframe"><i class="uil uil-comments"></i></button>
+    <!-- Floating chat iframe -->
+    <iframe src="<?= base_url('my-account/floating_chat_modern') ?>" id="chat-iframe" title="Support chat" loading="lazy"></iframe>
     <div class="progress-wrap mt-2">
         <svg class="progress-circle svg-content" width="100%" height="100%" viewBox="-1 -1 102 102">
             <path d="M50,1 a49,49 0 0,1 0,98 a49,49 0 0,1 0,-98" />

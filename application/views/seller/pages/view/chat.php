@@ -13,10 +13,23 @@
                                 <p class="text-muted mb-5" style="font-size: 16px; max-width: 480px; margin-left: auto; margin-right: auto;">
                                     We're working hard on bringing in-app chat to you. In the meantime, reach out to our support team directly on WhatsApp for any help.
                                 </p>
-                                <?php if (!empty($whatsapp_status) && !empty($whatsapp_number)) : ?>
-                                    <a href="https://wa.me/<?= preg_replace('/[^0-9]/', '', $whatsapp_number) ?>" target="_blank" class="btn btn-success btn-lg px-5 py-3" style="border-radius: 50px; font-size: 17px;">
+                                <?php
+                                /*
+                                 * This used to read $whatsapp_number straight from the settings row and hide
+                                 * itself when the field was blank - which it was, so sellers only ever saw
+                                 * "WhatsApp support is currently unavailable". whatsapp_support_link() falls
+                                 * back through the configured support numbers to the confirmed one, so the
+                                 * button is there whatever state the settings row is in.
+                                 */
+                                $whatsapp_link = whatsapp_support_link('Hello Cretzo Support, I need help with my seller account.');
+                                ?>
+                                <?php if (!empty($whatsapp_link)) : ?>
+                                    <a href="<?= html_escape($whatsapp_link) ?>" target="_blank" rel="noopener" class="btn btn-success btn-lg px-5 py-3" style="border-radius: 50px; font-size: 17px;">
                                         <i class="fab fa-whatsapp mr-2"></i> Continue to WhatsApp
                                     </a>
+                                    <p class="text-muted mt-3 mb-0" style="font-size: 14px;">
+                                        or call us on <a href="tel:+<?= html_escape(support_whatsapp_number()) ?>" class="text-muted"><?= html_escape(support_whatsapp_number()) ?></a>
+                                    </p>
                                 <?php else : ?>
                                     <p class="text-muted mb-0"><em>WhatsApp support is currently unavailable. Please contact the admin for assistance.</em></p>
                                 <?php endif; ?>

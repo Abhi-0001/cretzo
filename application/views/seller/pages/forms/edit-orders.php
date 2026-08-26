@@ -580,6 +580,24 @@
                                             $total = $total + $order_detls[0]['delivery_charge']; ?>
                                         </td>
                                     </tr>
+                                    <?php
+                                    /*
+                                     * The courier's actual freight for this parcel, which under the
+                                     * seller-paid shipping model is deducted from this seller's
+                                     * settlement. Distinct from "Delivery Charge" above, which is what
+                                     * the CUSTOMER was billed - and is 0 under this model. Shown only
+                                     * once a figure has been captured from Shiprocket (at AWB
+                                     * assignment, or by the reconciliation cron): a 0 here before then
+                                     * means "not yet known", not "free", and stating it as a number
+                                     * would misrepresent the payout.
+                                     */
+                                    $seller_freight = isset($items[0]['seller_freight_charge']) ? (float) $items[0]['seller_freight_charge'] : 0;
+                                    if ($seller_freight > 0) { ?>
+                                        <tr>
+                                            <th class="w-10px">Shipping Freight(<?= $settings['currency'] ?>) <small class="text-muted">(deducted from your settlement)</small></th>
+                                            <td id='freight_charge'>- <?= number_format($seller_freight, 2) ?></td>
+                                        </tr>
+                                    <?php } ?>
                                 <?php } ?>
                                 <!-- <tr>
                                     <th class="w-10px">Wallet Balance(<?= $settings['currency'] ?>)</th>

@@ -1,417 +1,881 @@
+<?php
+/*
+ * Storefront support widget, rendered inside the #chat-iframe in the theme footer.
+ *
+ * This page used to pull in the theme's whole include-css / include-script bundle - the
+ * entire storefront CSS and JS, jQuery included - just to draw a 450px panel, and then laid
+ * the panel out as a static page: a 200px-tall message box with a permanent wall of buttons
+ * below it, no way to close it from inside, and a fixed pixel width that overflowed a phone
+ * screen. It is now self-contained (no theme assets, no jQuery) and built as an actual chat
+ * surface: messages fill the height, options arrive as chips attached to the reply that
+ * offered them, and the transcript is restored from chat/history when it is re-opened.
+ */
+$settings      = function_exists('get_settings') ? get_settings('system_settings', true) : [];
+$store_name    = !empty($settings['app_name']) ? stripcslashes($settings['app_name']) : 'Support';
+$whatsapp_link = function_exists('whatsapp_support_link') ? whatsapp_support_link() : '';
+$logged_in     = isset($is_logged_in) ? (bool) $is_logged_in : (isset($this->ion_auth) && $this->ion_auth->logged_in());
+?>
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<?php
-/* This passed a $data variable that does not exist in a view's scope - the controller's
- * data is already extracted into local variables here - so it warned "Undefined variable
- * $data" and handed include-css NULL, which is what left $is_rtl unset in there too.
- * Both includes now read the variables already in scope. */
-$this->load->view('front-end/' . THEME . '/include-css');
-$this->load->view('front-end/' . THEME . '/include-script');
-?>
+<title><?= html_escape($store_name) ?> Assistant</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 
 <style>
-
-/* MAIN BOX */
-.chat-ui {
-    background: #fff;
-    border-radius: 18px;
-    padding: 15px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+/* ---------------------------------------------------------------- tokens */
+:root {
+    /* Terracotta is the storefront's accent (--color-orange / #e07b39). */
+    --brand: #e07b39;
+    --brand-dark: #c96820;
+    --brand-deep: #a8531a;
+    --brand-tint: #fff3e6;
+    --ink: #1f2126;
+    --ink-soft: #5c6068;
+    --ink-faint: #8f949c;
+    --line: #ecedef;
+    --surface: #ffffff;
+    --canvas: #f7f5f2;
+    --radius: 18px;
+    --shadow-sm: 0 1px 2px rgba(24, 26, 30, .06);
+    --shadow-md: 0 6px 18px rgba(24, 26, 30, .10);
 }
 
-/* HEADER */
-.chat-header {
-    font-weight: 600;
-    margin-bottom: 12px;
-    color: #333;
+* { box-sizing: border-box; }
+
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
 }
 
-/* CHAT AREA */
-.chat-box {
-    max-height: 200px;
+body {
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--ink);
+    background: transparent;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ---------------------------------------------------------------- shell */
+.cw {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: var(--canvas);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: 0 18px 48px rgba(24, 26, 30, .18);
+}
+
+/* ---------------------------------------------------------------- header */
+.cw-head {
+    flex: 0 0 auto;
+    position: relative;
+    z-index: 2;
+    padding: 16px 16px 18px;
+    background: linear-gradient(135deg, var(--brand) 0%, var(--brand-dark) 55%, var(--brand-deep) 100%);
+    color: #fff;
+    overflow: hidden;
+    transition: box-shadow .2s ease;
+}
+
+/* Without this, a message scrolled under the header just vanished with no seam, so it was
+   not obvious there was anything above the fold. */
+.cw-head.scrolled { box-shadow: 0 4px 14px rgba(24, 26, 30, .18); }
+
+/* Soft light bloom so the gradient does not read as a flat block. */
+.cw-head::after {
+    content: '';
+    position: absolute;
+    top: -70px;
+    right: -40px;
+    width: 190px;
+    height: 190px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, .14);
+    pointer-events: none;
+}
+
+.cw-head-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.cw-avatar {
+    flex: 0 0 auto;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, .2);
+    border: 1.5px solid rgba(255, 255, 255, .45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+}
+
+.cw-id { flex: 1 1 auto; min-width: 0; }
+
+.cw-title {
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: -.1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cw-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, .88);
+    margin-top: 1px;
+}
+
+.cw-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #4ade80;
+    box-shadow: 0 0 0 0 rgba(74, 222, 128, .7);
+    animation: pulse 2.4s infinite;
+}
+
+@keyframes pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(74, 222, 128, .7); }
+    70%  { box-shadow: 0 0 0 7px rgba(74, 222, 128, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); }
+}
+
+.cw-tools { display: flex; gap: 4px; flex: 0 0 auto; }
+
+.cw-icon-btn {
+    width: 30px;
+    height: 30px;
+    border: 0;
+    border-radius: 9px;
+    background: rgba(255, 255, 255, .16);
+    color: #fff;
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background .18s ease, transform .18s ease;
+}
+
+.cw-icon-btn:hover { background: rgba(255, 255, 255, .3); transform: translateY(-1px); }
+.cw-icon-btn:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
+
+/* ---------------------------------------------------------------- messages */
+.cw-body {
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
-    margin-bottom: 10px;
+    overscroll-behavior: contain;
+    padding: 16px 14px 6px;
+    scroll-behavior: smooth;
 }
 
-/* BOT MSG */
-.bot-msg {
-    background: #f8f8f8;
-    padding: 10px;
-    border-radius: 12px;
-    margin-bottom: 8px;
-    max-width: 80%;
+.cw-body::-webkit-scrollbar { width: 6px; }
+.cw-body::-webkit-scrollbar-thumb { background: #d8d6d1; border-radius: 3px; }
+.cw-body::-webkit-scrollbar-track { background: transparent; }
+
+.cw-day {
+    text-align: center;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    margin: 2px 0 14px;
 }
 
-/* USER MSG */
-.user-msg {
-    background: #ffe9cc;
-    padding: 10px;
-    border-radius: 12px;
-    margin-bottom: 8px;
-    margin-left: auto;
-    max-width: 80%;
+.cw-turn {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+    animation: rise .28s cubic-bezier(.22, 1, .36, 1) both;
 }
 
-/* MESSAGE INTRO */
-.chat-message {
-    background: #f8f8f8;
-    padding: 12px;
-    border-radius: 12px;
-    margin-bottom: 10px;
+@keyframes rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: none; }
 }
 
-/* BUTTONS */
-.chat-row {
+.cw-turn.me { flex-direction: row-reverse; }
+
+.cw-face {
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--brand), var(--brand-dark));
+    color: #fff;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 2px;
+}
+
+.cw-turn.me .cw-face { background: #33363c; }
+
+.cw-stack { min-width: 0; max-width: calc(100% - 40px); }
+.cw-turn.me .cw-stack { display: flex; flex-direction: column; align-items: flex-end; }
+
+.cw-bubble {
+    padding: 10px 13px;
+    border-radius: 14px;
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+    border-top-left-radius: 4px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+
+.cw-turn.me .cw-bubble {
+    background: linear-gradient(135deg, var(--brand) 0%, var(--brand-dark) 100%);
+    color: #fff;
+    border-top-left-radius: 14px;
+    border-top-right-radius: 4px;
+    box-shadow: 0 2px 8px rgba(224, 123, 57, .28);
+}
+
+.cw-time {
+    font-size: 10.5px;
+    color: var(--ink-faint);
+    margin: 4px 4px 0;
+}
+
+/* Links inside a bot bubble. */
+.cw-bubble a { color: var(--brand-dark); font-weight: 600; }
+
+/* ---------------------------------------------------------------- typing */
+.cw-typing {
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+    padding: 13px 15px;
+}
+
+.cw-typing i {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--ink-faint);
+    display: block;
+    animation: bounce 1.3s infinite ease-in-out;
+}
+
+.cw-typing i:nth-child(2) { animation-delay: .18s; }
+.cw-typing i:nth-child(3) { animation-delay: .36s; }
+
+@keyframes bounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: .45; }
+    30%           { transform: translateY(-5px); opacity: 1; }
+}
+
+/* ---------------------------------------------------------------- cards */
+.cw-cards { display: grid; gap: 8px; margin-top: 8px; }
+
+.cw-card {
     display: flex;
     gap: 10px;
-    margin-top: 8px;
+    align-items: center;
+    padding: 9px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 13px;
+    text-decoration: none;
+    color: inherit;
+    box-shadow: var(--shadow-sm);
+    transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease;
 }
 
-.chat-btn {
-    flex: 1;
-    padding: 10px;
+.cw-card:hover {
+    border-color: var(--brand);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+.cw-card-img {
+    flex: 0 0 auto;
+    width: 46px;
+    height: 46px;
     border-radius: 10px;
-    background: #fff;
-    border: 1px solid #eee;
-    cursor: pointer;
-    transition: all 0.25s ease;
-    font-size: 13px;
+    object-fit: cover;
+    background: var(--brand-tint);
 }
 
-/* 🔥 PREMIUM HOVER */
-.chat-btn:hover {
-    background: linear-gradient(135deg, #fff4e5, #ffe0b3);
-    border-color: #f4a742;
-    color: #b96d00;
-    transform: translateY(-2px);
-    box-shadow: 0 6px 15px rgba(244,167,66,0.25);
-}
-
-/* POPULAR */
-.popular-title {
-    font-weight: 600;
-    margin-top: 10px;
-}
-
-/* INPUT */
-.chat-input {
+.cw-card-glyph {
+    flex: 0 0 auto;
+    width: 46px;
+    height: 46px;
+    border-radius: 10px;
+    background: var(--brand-tint);
+    color: var(--brand-dark);
     display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 19px;
+}
+
+.cw-card-txt { min-width: 0; flex: 1 1 auto; }
+
+.cw-card-title {
+    font-weight: 600;
+    font-size: 13px;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.cw-card-body {
+    font-size: 11.5px;
+    color: var(--ink-soft);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cw-card-price {
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--brand-dark);
+    margin-top: 1px;
+}
+
+.cw-card-go {
+    flex: 0 0 auto;
+    color: var(--ink-faint);
+    font-size: 16px;
+    padding-right: 2px;
+}
+
+/* ---------------------------------------------------------------- chips */
+.cw-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 9px;
+}
+
+.cw-chip {
+    border: 1px solid #e4d8cc;
+    background: var(--surface);
+    color: var(--brand-deep);
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 7px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background .18s ease, border-color .18s ease, transform .18s ease, box-shadow .18s ease;
+}
+
+.cw-chip:hover {
+    background: var(--brand-tint);
+    border-color: var(--brand);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(224, 123, 57, .18);
+}
+
+.cw-chip:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+.cw-chip[disabled] { opacity: .45; cursor: default; transform: none; box-shadow: none; }
+
+/* ---------------------------------------------------------------- composer */
+.cw-foot {
+    flex: 0 0 auto;
+    padding: 10px 12px 12px;
+    background: var(--surface);
+    border-top: 1px solid var(--line);
+}
+
+.cw-form {
+    display: flex;
+    align-items: flex-end;
     gap: 8px;
 }
 
-.chat-input input {
-    width: 100%;
-    padding: 10px;
+.cw-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.4;
+    color: var(--ink);
+    background: var(--canvas);
+    border: 1.5px solid var(--line);
     border-radius: 20px;
-    border: 1px solid #ddd;
+    padding: 10px 14px;
+    resize: none;
+    max-height: 96px;
+    transition: border-color .18s ease, background .18s ease;
 }
 
-/* SEND BUTTON (added only) */
-#sendBtn {
-    background: #f4a742;
-    border: none;
-    color: white;
-    padding: 10px 16px;
-    border-radius: 20px;
+.cw-input:focus {
+    outline: none;
+    background: #fff;
+    border-color: var(--brand);
+}
+
+.cw-input::placeholder { color: var(--ink-faint); }
+
+.cw-send {
+    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
+    border: 0;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--brand), var(--brand-dark));
+    color: #fff;
     cursor: pointer;
-    transition: 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(224, 123, 57, .35);
+    transition: transform .18s ease, box-shadow .18s ease, opacity .18s ease;
 }
 
-#sendBtn:hover {
-    background: #e6952f;
+.cw-send:hover:not([disabled]) { transform: translateY(-1px) scale(1.04); box-shadow: 0 6px 16px rgba(224, 123, 57, .45); }
+.cw-send:focus-visible { outline: 2px solid var(--brand-deep); outline-offset: 2px; }
+.cw-send[disabled] { opacity: .45; cursor: default; box-shadow: none; }
+
+.cw-legal {
+    text-align: center;
+    font-size: 10.5px;
+    color: var(--ink-faint);
+    margin: 8px 0 0;
 }
 
-/* TYPING */
-.typing {
-    opacity: 0.6;
-    font-style: italic;
+.cw-legal a { color: var(--ink-soft); }
+
+/* Screen-reader-only live region. */
+.cw-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
 }
 
-/* ANIMATION */
-.bot-msg, .user-msg {
-    animation: fadeIn 0.3s ease;
+/* ---------------------------------------------------------------- small screens */
+@media (max-width: 480px) {
+    .cw { border-radius: 0; box-shadow: none; }
+    .cw-body { padding: 14px 11px 4px; }
+    .cw-stack { max-width: calc(100% - 34px); }
 }
 
-@keyframes fadeIn {
-    from {opacity:0; transform:translateY(10px);}
-    to {opacity:1; transform:translateY(0);}
+@media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
-
 </style>
-
 </head>
 
 <body>
 
-<div class="container mt-3">
+<div class="cw">
 
-<div class="chat-ui">
+    <header class="cw-head">
+        <div class="cw-head-row">
+            <div class="cw-avatar" aria-hidden="true">🧵</div>
+            <div class="cw-id">
+                <div class="cw-title"><?= html_escape($store_name) ?> Assistant</div>
+                <div class="cw-status"><span class="cw-dot" aria-hidden="true"></span> Online · replies instantly</div>
+            </div>
+            <div class="cw-tools">
+                <button type="button" class="cw-icon-btn" id="cw-restart" title="Start a new conversation" aria-label="Start a new conversation">⟳</button>
+                <button type="button" class="cw-icon-btn" id="cw-close" title="Close chat" aria-label="Close chat">✕</button>
+            </div>
+        </div>
+    </header>
 
-<!-- HEADER -->
-<div class="chat-header">
-🤖 E-Shop Assistant ●
-</div>
+    <main class="cw-body" id="cw-body" role="log" aria-live="polite" aria-label="Conversation"></main>
 
-<!-- CHAT BOX -->
-<div id="chat-box" class="chat-box">
-    <div class="bot-msg">Hi 👋 I’m here to help. What can I assist you with today?</div>
-</div>
-
-<!-- MESSAGE -->
-<div class="chat-message">
-Choose an option below or type your question
-</div>
-
-<!-- ACTIONS -->
-<div class="chat-actions">
-
-<div class="chat-row">
-<div class="chat-btn" data-chat-action="track_order" data-chat-message="track order">📦 Track Order</div>
-<div class="chat-btn" data-chat-action="cancel_order" data-chat-message="cancel order">❌ Cancel Order</div>
-</div>
-
-<div class="chat-row">
-<div class="chat-btn" data-chat-action="return_item" data-chat-message="return item">🔄 Return Item</div>
-<div class="chat-btn" data-chat-action="payment_issue" data-chat-message="payment issue">💳 Payment Issue</div>
-</div>
-
-<div class="chat-row">
-<div class="chat-btn" data-chat-action="product_inquiry" data-chat-message="product inquiry">🛍️ Product Inquiry</div>
-<?php if (!empty($whatsapp_status) && !empty($whatsapp_number)) { ?>
-<div class="chat-btn" onclick="openWhatsApp()">🎧 WhatsApp Support </div>
-<?php } else { ?>
-<div class="chat-btn" data-chat-action="support" data-chat-message="customer support">🎧 Contact Support</div>
-<?php } ?>
-</div>
-
-<div class="chat-row">
-<a class="chat-btn text-decoration-none text-center" href="<?= base_url('my-account/support') ?>" target="_top">🎫 My Support Tickets</a>
-</div>
+    <footer class="cw-foot">
+        <form class="cw-form" id="cw-form" autocomplete="off">
+            <label class="cw-sr" for="cw-input">Type your message</label>
+            <textarea class="cw-input" id="cw-input" rows="1" placeholder="Type your message…" maxlength="1000"></textarea>
+            <button class="cw-send" id="cw-send" type="submit" aria-label="Send message" disabled>
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M4 12L20 4l-3.2 8L20 20 4 12z" fill="currentColor"/>
+                </svg>
+            </button>
+        </form>
+        <p class="cw-legal">
+            Automated assistant · need a person?
+            <?php if (!empty($whatsapp_link)) { ?>
+                <a href="<?= html_escape($whatsapp_link) ?>" target="_blank" rel="noopener">WhatsApp us</a>
+            <?php } else { ?>
+                <a href="<?= base_url($logged_in ? 'my-account/support' : 'login') ?>" target="_top">Raise a ticket</a>
+            <?php } ?>
+        </p>
+    </footer>
 
 </div>
 
-<!-- POPULAR -->
-<div class="chat-popular">
-
-<div class="popular-title">Popular Questions</div>
-
-<div class="chat-row">
-<div class="chat-btn" data-chat-action="track_order" data-chat-message="where is my order">📦 Where is my order?</div>
-    <div class="chat-btn" data-chat-action="return_item" data-chat-message="start return">🔄 How do I return?</div>
-</div>
-<div class="chat-btn" data-chat-action="payment_issue" data-chat-message="payment problem">
-💳 I need help with a payment problem
-</div>
-
-</div>
-
-<!-- INPUT (ONLY UPDATED PART) -->
-<div class="chat-input">
-    <input id="userInput" placeholder="Type a message..." />
-    <button id="sendBtn">Send</button>
-</div>
-
-</div>
-
-<!-- JS -->
 <script>
+(function () {
+    'use strict';
 
-/* Every message the widget sent used to come back 403 Forbidden: `chat/send` is a POST and
- * CSRF protection is on globally, but this fetch() carried no token and the URI is not in
- * csrf_exclude_uris - so the customer-facing support chat was completely non-functional and
- * only ever showed "Server error". The token is emitted here and refreshed from each reply. */
-var CSRF_NAME = <?= json_encode($this->security->get_csrf_token_name()) ?>;
-var CSRF_HASH = <?= json_encode($this->security->get_csrf_hash()) ?>;
-var WHATSAPP_NUMBER = <?= json_encode(preg_replace('/\D+/', '', (string) (isset($whatsapp_number) ? $whatsapp_number : ''))) ?>;
-var APP_SUPPORT_LABEL = <?= json_encode(isset($title) ? trim(explode('|', $title)[1] ?? 'Support') : 'Support') ?>;
+    /* Every message the widget sent used to come back 403 Forbidden: `chat/send` is a POST and
+     * CSRF protection is on globally, but the old fetch() carried no token and the URI is not in
+     * csrf_exclude_uris. The token is emitted here and refreshed from each reply. */
+    var CSRF_NAME  = <?= json_encode($this->security->get_csrf_token_name()) ?>;
+    var CSRF_HASH  = <?= json_encode($this->security->get_csrf_hash()) ?>;
+    var SEND_URL   = <?= json_encode(base_url('chat/send')) ?>;
+    var HIST_URL   = <?= json_encode(base_url('chat/history')) ?>;
 
-// =====================
-// MAIN SEND FUNCTION
-// =====================
-let pendingAction = "";
-function appendMessage(className, text) {
-    let chatBox = document.getElementById("chat-box");
+    var body    = document.getElementById('cw-body');
+    var form    = document.getElementById('cw-form');
+    var input   = document.getElementById('cw-input');
+    var sendBtn = document.getElementById('cw-send');
 
-    if (!chatBox) {
-        console.log("❌ chat-box not found");
-        return null ;
+    var busy = false;
+
+    /* -------------------------------------------------- rendering */
+
+    function el(tag, cls, text) {
+        var node = document.createElement(tag);
+        if (cls) { node.className = cls; }
+        if (text !== undefined && text !== null) { node.textContent = text; }
+        return node;
     }
 
-    // USER MESSAGE
-    
-    let message = document.createElement("div");
-    message.className = className;
-    message.innerText = text;
-    chatBox.appendChild(message);
-    chatBox.scrollTop = chatBox.scrollHeight;
-
-    // TYPING INDICATOR
-   return message;
-}
-function getPromptForAction(action) {
-    const prompts = {
-        track_order: "Sure — please enter your Order ID so I can estimate how many days are left for delivery.",
-        cancel_order: "I can guide you through cancellation. If your order is already shipped, please share the Order ID with support for a manual check.",
-        return_item: "Returns are handled from My Account → My Orders → Return. Tell me what went wrong with the item if you need extra help.",
-        payment_issue: "Payment issue noted. Please share whether money was debited, the payment method, and any payment reference/order ID.",
-        product_inquiry: "Please send the product name or product link, and I’ll help with availability, variants, or delivery questions.",
-        support: "Click WhatsApp Support to chat directly with our support team."
-    };
-
-    return prompts[action] || "Please type your question and I’ll help.";
-}
-
-function sendChatRequest(text, action, orderId) {
-    let typing = appendMessage("bot-msg typing", "Typing...");
-
-    const params = new URLSearchParams();
-    params.append("message", text || "");
-    params.append(CSRF_NAME, CSRF_HASH);
-
-    if (action) {
-        params.append("action", action);
+    function atBottom() {
+        return body.scrollHeight - body.scrollTop - body.clientHeight < 60;
     }
 
-    // =====================
-    // API CALL
-    // =====================
-    if (action === "track_order" && orderId) {
-        params.append("order_id", orderId);
+    function scrollDown(force) {
+        if (!force && !atBottom()) { return; }
+        // scroll-behavior:smooth would animate this, and a second jump arriving mid-animation
+        // cancels the first - so pin instantly and let CSS smoothing apply to user scrolling.
+        body.scrollTo({ top: body.scrollHeight, behavior: 'auto' });
     }
-    console.log("Sending:");
-    console.log(params.toString());
-    fetch("<?= base_url('chat/send') ?>", {
-    method: "POST",
-    headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Accept": "application/json"
-    },
-    body: params.toString()
-    })
-    .then(res => res.text()) 
-    .then(data => {
 
-        console.log("RAW RESPONSE:", data);
+    function dayLabel(text) {
+        body.appendChild(el('div', 'cw-day', text));
+    }
 
-        if (typing) {
-            typing.remove();
-        }
+    /**
+     * One conversation turn. Text is always set via textContent, so a reply that echoes
+     * something the visitor typed can never inject markup into the widget.
+     */
+    function addTurn(who, text, time) {
+        var turn = el('div', 'cw-turn' + (who === 'me' ? ' me' : ''));
+        var face = el('div', 'cw-face', who === 'me' ? '🙂' : '🧵');
+        face.setAttribute('aria-hidden', 'true');
+        var stack = el('div', 'cw-stack');
+        var bubble = el('div', 'cw-bubble', text);
 
-        try {
-            let json = JSON.parse(data);
-            // csrf_regenerate is off today, but adopting the hash the server hands back keeps
-            // the widget working if that ever changes or the token expires mid-session.
-            if (json.csrfHash) {
-                CSRF_HASH = json.csrfHash;
+        stack.appendChild(bubble);
+        if (time) { stack.appendChild(el('div', 'cw-time', time)); }
+        turn.appendChild(face);
+        turn.appendChild(stack);
+        body.appendChild(turn);
+        scrollDown(who === 'me');
+        return stack;
+    }
+
+    function addCards(stack, cards) {
+        if (!cards || !cards.length) { return; }
+
+        var wrap = el('div', 'cw-cards');
+
+        cards.forEach(function (card) {
+            var a = el('a', 'cw-card');
+            a.href = card.url || '#';
+            // The widget lives in an iframe: a product link must open the parent window, not
+            // navigate the 400px panel to a full storefront page.
+            a.target = '_top';
+            a.rel = 'noopener';
+
+            if (card.image) {
+                var img = el('img', 'cw-card-img');
+                img.src = card.image;
+                img.alt = '';
+                img.loading = 'lazy';
+                img.onerror = function () { this.remove(); };
+                // The image arrives after layout and makes the card taller, which would
+                // otherwise push the newest reply back out of view.
+                img.onload = function () { scrollDown(); };
+                a.appendChild(img);
+            } else {
+                a.appendChild(el('div', 'cw-card-glyph', card.type === 'product' ? '🛍️' : '↗'));
             }
-            if (json.csrfName) {
-                CSRF_NAME = json.csrfName;
+
+            var txt = el('div', 'cw-card-txt');
+            txt.appendChild(el('div', 'cw-card-title', card.title || ''));
+            if (card.price) {
+                txt.appendChild(el('div', 'cw-card-price', card.price));
             }
-            appendMessage("bot-msg", json.reply || "No response");
-
-        } catch (e) {
-            console.log("❌ JSON ERROR:", e);
-            appendMessage("bot-msg", "Server error ⚠️");
-
-        }
-    })
-    .catch(err => {
-
-        console.log("❌ FETCH ERROR:", err);
-        appendMessage("bot-msg", "Connection error ⚠️");
-
-
-    });
-}
-
-//Whatsapp direct connection
-function openWhatsApp()
-{
-    if (!WHATSAPP_NUMBER) {
-        appendMessage("bot-msg", "WhatsApp support is not available right now. Please raise a support ticket instead.");
-        return;
-    }
-    window.open(
-        "https://wa.me/" + encodeURIComponent(WHATSAPP_NUMBER) + "?text=" + encodeURIComponent("Hello " + APP_SUPPORT_LABEL + " Support"),
-        "_blank"
-    );
-}
-
-
-
-
-// =====================
-// BUTTON + ENTER SUPPORT
-// =====================
-window.sendMsg = function (text, action) {
-    text = (text || "").trim();
-    action = action || "";
-    if (!text && !action) {
-        return;
-    }
-
-    pendingAction = "";
-    appendMessage("user-msg", text || getPromptForAction(action));
-
-    if (action === "track_order") {
-        pendingAction = "track_order";
-    }
-
-    sendChatRequest(text, action, "");
-};
-
-document.addEventListener("DOMContentLoaded", function () {
-    let input = document.getElementById("userInput");
-    let sendBtn = document.getElementById("sendBtn");
-
-    if (!input || !sendBtn) {
-        console.log("❌ Input or Button missing");
-        return;
-    }
-
-    // CLICK SEND
-    document.querySelectorAll("[data-chat-message]").forEach(function (button) {
-        button.addEventListener("click", function () {
-            pendingAction = "";
-            window.sendMsg(button.dataset.chatMessage, button.dataset.chatAction || "");
+            if (card.body) {
+                txt.appendChild(el('div', 'cw-card-body', card.body));
+            }
+            a.appendChild(txt);
+            a.appendChild(el('span', 'cw-card-go', '›'));
+            wrap.appendChild(a);
         });
-    });
-    sendBtn.addEventListener("click", function () {
 
-        let text = input.value.trim();
-        if (text === "") {
-            return;
+        stack.appendChild(wrap);
+        scrollDown();
+    }
+
+    /**
+     * Chips belong to the message that offered them, and are retired once used - the old
+     * widget kept one permanent grid of buttons that stayed valid-looking even when the
+     * conversation had moved on.
+     */
+    function addChips(stack, chips) {
+        if (!chips || !chips.length) { return; }
+
+        var wrap = el('div', 'cw-chips');
+
+        chips.forEach(function (chip) {
+            var btn = el('button', 'cw-chip', chip.label || chip.message || '');
+            btn.type = 'button';
+            btn.addEventListener('click', function () {
+                if (busy) { return; }
+                retire(wrap);
+                send(chip.message || chip.label || '', chip.action || '');
+            });
+            wrap.appendChild(btn);
+        });
+
+        stack.appendChild(wrap);
+        scrollDown();
+    }
+
+    function retire(wrap) {
+        wrap.querySelectorAll('.cw-chip').forEach(function (b) { b.disabled = true; });
+    }
+
+    function showTyping() {
+        var turn = el('div', 'cw-turn');
+        var face = el('div', 'cw-face', '🧵');
+        face.setAttribute('aria-hidden', 'true');
+        var bubble = el('div', 'cw-bubble cw-typing');
+        bubble.setAttribute('aria-label', 'Assistant is typing');
+        bubble.appendChild(el('i'));
+        bubble.appendChild(el('i'));
+        bubble.appendChild(el('i'));
+        var stack = el('div', 'cw-stack');
+        stack.appendChild(bubble);
+        turn.appendChild(face);
+        turn.appendChild(stack);
+        body.appendChild(turn);
+        scrollDown(true);
+        return turn;
+    }
+
+    function setBusy(state) {
+        busy = state;
+        sendBtn.disabled = state || input.value.trim() === '';
+        input.disabled = state;
+    }
+
+    /* -------------------------------------------------- transport */
+
+    function post(url, fields) {
+        var params = new URLSearchParams();
+        Object.keys(fields).forEach(function (key) {
+            if (fields[key] !== undefined && fields[key] !== null) {
+                params.append(key, fields[key]);
+            }
+        });
+        params.append(CSRF_NAME, CSRF_HASH);
+
+        return fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Accept': 'application/json'
+            },
+            credentials: 'same-origin',
+            body: params.toString()
+        }).then(function (res) {
+            return res.text().then(function (raw) {
+                var json;
+                try {
+                    json = JSON.parse(raw);
+                } catch (e) {
+                    // A PHP notice or an error page prepended to the JSON used to surface as a
+                    // bare "Server error" with no clue in it; keep the detail in the console.
+                    console.error('chat: unparseable response', res.status, raw.slice(0, 500));
+                    throw new Error('bad-json');
+                }
+                if (!res.ok) { throw new Error('http-' + res.status); }
+                // csrf_regenerate is off today, but adopting the hash the server hands back
+                // keeps the widget working if that ever changes or the token expires.
+                if (json.csrfHash) { CSRF_HASH = json.csrfHash; }
+                if (json.csrfName) { CSRF_NAME = json.csrfName; }
+                return json;
+            });
+        });
+    }
+
+    function send(text, action) {
+        text = (text || '').trim();
+        action = action || '';
+        if (busy || (!text && !action)) { return; }
+
+        addTurn('me', text || action.replace(/_/g, ' '), timeNow());
+        setBusy(true);
+        var typing = showTyping();
+
+        post(SEND_URL, { message: text, action: action })
+            .then(function (json) {
+                typing.remove();
+                var stack = addTurn('bot', json.reply || 'Sorry, I have nothing to add there.', json.time || timeNow());
+                addCards(stack, json.cards);
+                addChips(stack, json.quick_replies);
+                // A reply carrying five product cards is tall enough that the incremental
+                // "only scroll if already near the bottom" checks give up part-way through it,
+                // leaving the cards below the fold. The reply is complete here, so commit.
+                scrollDown(true);
+            })
+            .catch(function (err) {
+                typing.remove();
+                var stack = addTurn(
+                    'bot',
+                    err && err.message === 'bad-json'
+                        ? 'Something went wrong on our side. Please try again, or reach us on WhatsApp.'
+                        : 'I could not reach the server. Check your connection and try again.',
+                    timeNow()
+                );
+                addChips(stack, [{ label: '↻ Try again', message: text, action: action }]);
+            })
+            .then(function () {
+                setBusy(false);
+                input.focus();
+            });
+    }
+
+    function timeNow() {
+        try {
+            return new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        } catch (e) {
+            return '';
         }
+    }
 
-        if (pendingAction === "track_order") {
-            appendMessage("user-msg", text);
-            sendChatRequest(text, "track_order", text);
-            pendingAction = "";
-        } else {
-            window.sendMsg(text, "");
-        
-        
+    /* -------------------------------------------------- boot */
 
-      
-        }input.value = "";
+    function greet(greeting, returning) {
+        // Replaying the full "I'm the assistant, I can do X, Y, Z" introduction on every page
+        // navigation reads like the bot has forgotten the conversation directly above it.
+        var text = returning
+            ? 'Anything else I can help with?'
+            : ((greeting && greeting.text) || 'Hi 👋 How can I help you today?');
+        var stack = addTurn('bot', text, timeNow());
+        addChips(stack, greeting && greeting.quick_replies);
+    }
+
+    function boot() {
+        // The transcript was already being written to chat_messages on every message, but
+        // nothing read it back, so re-opening the widget always looked like a cold start.
+        fetch(HIST_URL, {
+            headers: { 'Accept': 'application/json' },
+            credentials: 'same-origin'
+        })
+            .then(function (res) { return res.json(); })
+            .then(function (json) {
+                var messages = (json && json.messages) || [];
+                if (messages.length) {
+                    dayLabel('Earlier');
+                    messages.forEach(function (m) {
+                        addTurn(m.sender === 'agent' ? 'bot' : 'me', m.text, m.time);
+                    });
+                    dayLabel('Today');
+                }
+                greet(json && json.greeting, messages.length > 0);
+                scrollDown(true);
+            })
+            .catch(function () {
+                greet(null);
+            });
+    }
+
+    /* -------------------------------------------------- composer wiring */
+
+    var head = document.querySelector('.cw-head');
+    body.addEventListener('scroll', function () {
+        head.classList.toggle('scrolled', body.scrollTop > 4);
+    }, { passive: true });
+
+    input.addEventListener('input', function () {
+        sendBtn.disabled = busy || input.value.trim() === '';
+        input.style.height = 'auto';
+        input.style.height = Math.min(input.scrollHeight, 96) + 'px';
     });
 
-    // ENTER KEY
-    input.addEventListener("keypress", function (e) {
-
-        if (e.key === "Enter") {
+    input.addEventListener('keydown', function (e) {
+        // Enter sends; Shift+Enter is a newline. The old widget bound `keypress` and had no
+        // newline escape at all.
+        if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            sendBtn.click();
+            form.requestSubmit ? form.requestSubmit() : form.dispatchEvent(new Event('submit', { cancelable: true }));
         }
     });
 
-});
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var text = input.value.trim();
+        if (!text) { return; }
+        input.value = '';
+        input.style.height = 'auto';
+        send(text, '');
+    });
 
+    document.getElementById('cw-restart').addEventListener('click', function () {
+        if (busy) { return; }
+        body.innerHTML = '';
+        setBusy(true);
+        post(SEND_URL, { message: '', action: 'reset' })
+            .then(function (json) {
+                greet({ text: json.reply, quick_replies: json.quick_replies });
+            })
+            .catch(function () { greet(null); })
+            .then(function () { setBusy(false); });
+    });
+
+    // There was no way to dismiss the panel from inside it; the parent page owns the iframe,
+    // so ask it to close. The FAB handler in custom.js listens for this.
+    document.getElementById('cw-close').addEventListener('click', function () {
+        try {
+            window.parent.postMessage({ cretzoChat: 'close' }, window.location.origin);
+        } catch (e) {
+            console.warn('chat: parent did not accept close', e);
+        }
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            document.getElementById('cw-close').click();
+        }
+    });
+
+    boot();
+    input.focus();
+})();
 </script>
 
 </body>

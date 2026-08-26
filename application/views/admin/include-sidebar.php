@@ -379,14 +379,32 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
                     </li>
                 <?php } ?>
 
+                <?php /* The storefront assistant's transcripts had no screen at all - the
+                         table was written to on every message and read by nothing - so Chat is
+                         now a group with the person-to-person chat and the bot side by side. */ ?>
                 <?php if (has_permissions('read', 'chat')) { ?>
-                    <li class="nav-item">
-                        <a href="<?= base_url('admin/chat') ?>" class="nav-link">
-                            <i class="nav-icon 	far fa-comments text-warning"></i>
+                    <li class="nav-item has-treeview">
+                        <a href="#" class="nav-link">
+                            <i class="nav-icon far fa-comments text-warning"></i>
                             <p>
                                 Chat
+                                <i class="right fas fa-angle-left"></i>
                             </p>
                         </a>
+                        <ul class="nav nav-treeview">
+                            <li class="nav-item">
+                                <a href="<?= base_url('admin/chat') ?>" class="nav-link">
+                                    <i class="far fa-circle nav-icon"></i>
+                                    <p>Live Chat</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="<?= base_url('admin/chat/assistant') ?>" class="nav-link">
+                                    <i class="far fa-circle nav-icon"></i>
+                                    <p>Assistant Chats</p>
+                                </a>
+                            </li>
+                        </ul>
                     </li>
                 <?php } ?>
 

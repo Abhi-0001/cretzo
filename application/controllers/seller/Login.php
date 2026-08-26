@@ -200,6 +200,25 @@ class Login extends CI_Controller
                 // actually keeps is checked - the other one stays in the DOM while hidden and
                 // can still post a stale value the seller can no longer see or correct.
                 $is_non_gst_posted = isset($_POST['gst_check']);
+
+                // FORMAT before uniqueness, same order as the contact fields above: telling a
+                // seller their PAN is already taken is meaningless if what they typed is not a
+                // PAN. Nothing validated the shape of these two before, so the settlement engine
+                // was picking statutory rates off free text - see seller_tax_identifier_errors().
+                $tax_id_error = seller_tax_identifier_validation_message([
+                    'pan' => $this->input->post('pan', true),
+                    'gst' => $is_non_gst_posted ? '' : $this->input->post('gst', true),
+                    'gst_enrollment_number' => $is_non_gst_posted ? $this->input->post('gst_enrollment_number', true) : '',
+                ]);
+                if ($tax_id_error !== '') {
+                    $this->response['error'] = true;
+                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                    $this->response['message'] = $tax_id_error;
+                    print_r(json_encode($this->response));
+                    return;
+                }
+
                 $duplicate_identifiers = duplicate_seller_identifiers([
                     'pan' => $this->input->post('pan', true),
                     'gst' => $is_non_gst_posted ? '' : $this->input->post('gst', true),
