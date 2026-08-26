@@ -1661,7 +1661,7 @@ section #progressbar div.active:after {
     white-space: nowrap;
     margin-top: 2px;
 }
-#chat-button.opened, #chat-iframe.opened{
+#chat-iframe.opened{
     transition: all 0.35s ease-in-out;
     box-shadow: 0px 19px 10px 2px #00000014
 }
@@ -1671,21 +1671,63 @@ section #progressbar div.active:after {
 }
 
 #chat-button {
-    transition: all 0.35s ease-in-out;
+    -webkit-appearance: none;
+    appearance: none;
+    border: 0;
+    transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s ease, background 0.25s ease;
     position: fixed;
     bottom: 32px;
     left: 83px;
-    padding:10px;
-    background-color: #3cc766;
+    padding: 0;
+    width: 56px;
+    height: 56px;
+    background: #fff;
     color: #fff;
     font-size: 20px;
     border-radius:50%;
     z-index: 1;
     cursor: pointer;
-    /* height: 2.5rem;
-    width: 2.5rem; */
     display: flex;
+    align-items: center;
     justify-content: center;
+    box-shadow: 0 4px 14px rgba(31, 33, 38, 0.18), 0 0 0 1px rgba(31, 33, 38, 0.06);
+}
+
+#chat-button:hover {
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 8px 20px rgba(31, 33, 38, 0.22), 0 0 0 1px rgba(31, 33, 38, 0.06);
+}
+
+#chat-button-icon {
+    width: 34px;
+    height: 34px;
+    object-fit: contain;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+#chat-button-close-icon {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transform: scale(0.6) rotate(-45deg);
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+#chat-button.opened {
+    background: linear-gradient(135deg, #33363c 0%, #1f2126 100%);
+    box-shadow: 0 6px 18px rgba(31, 33, 38, 0.4);
+}
+
+#chat-button.opened #chat-button-icon {
+    opacity: 0;
+    transform: scale(0.6) rotate(45deg);
+}
+
+#chat-button.opened #chat-button-close-icon {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
 }
 
 #floating_chat_view{

@@ -657,7 +657,10 @@ $system_settings = get_settings('system_settings', true); ?>
          Sizing now lives in custom.css (#chat-iframe) where a media query can shrink it, and
          the iframe is loaded lazily so a widget nobody opens does not cost every page a
          second document. */ ?>
-<button type="button" id="chat-button" aria-label="Open support chat" aria-expanded="false" aria-controls="chat-iframe"><i class="uil uil-comments"></i></button>
+<button type="button" id="chat-button" aria-label="Open support chat" aria-expanded="false" aria-controls="chat-iframe">
+    <img src="<?= base_url('assets/front_end/cretzo/img/chat-fab-icon.png') ?>" alt="" id="chat-button-icon">
+    <i class="uil uil-times" id="chat-button-close-icon" aria-hidden="true"></i>
+</button>
     <!-- Floating chat iframe -->
     <iframe src="<?= base_url('my-account/floating_chat_modern') ?>" id="chat-iframe" title="Support chat" loading="lazy"></iframe>
     <div class="progress-wrap mt-2">

@@ -1723,30 +1723,33 @@ section #progressbar div.active:after {
 
 #chat-button {
     /* Was a green circle with no relationship to the storefront's terracotta accent, and a
-       <div> with no accessible name - it is now a real button carrying the brand gradient. */
+       <div> with no accessible name - it is now a real button, and the glyph on it is the
+       Cretzo bird mascot (cropped from the site logo) instead of a generic stock chat icon,
+       so it reads as the product's own launcher rather than a third-party widget. */
     -webkit-appearance: none;
     appearance: none;
     border: 0;
-    width: 52px;
-    height: 52px;
+    width: 56px;
+    height: 56px;
     padding: 0;
-    background: linear-gradient(135deg, #e07b39 0%, #c96820 100%);
+    background: #fff;
     color: #fff;
-    font-size: 24px;
+    font-size: 22px;
     line-height: 1;
     border-radius: 50%;
     z-index: 9998;
     cursor: pointer;
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 6px 18px rgba(224, 123, 57, 0.42);
+    box-shadow: 0 4px 14px rgba(31, 33, 38, 0.18), 0 0 0 1px rgba(31, 33, 38, 0.06);
     transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s ease, background 0.25s ease;
 }
 
 #chat-button:hover {
     transform: translateY(-2px) scale(1.05);
-    box-shadow: 0 10px 24px rgba(224, 123, 57, 0.5);
+    box-shadow: 0 8px 20px rgba(31, 33, 38, 0.22), 0 0 0 1px rgba(31, 33, 38, 0.06);
 }
 
 #chat-button:focus-visible {
@@ -1754,19 +1757,38 @@ section #progressbar div.active:after {
     outline-offset: 2px;
 }
 
-/* Open state: the icon rotates into a close affordance so the FAB doubles as the dismiss
-   control, which is how people expect a chat bubble to behave. */
+#chat-button-icon {
+    width: 34px;
+    height: 34px;
+    object-fit: contain;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+#chat-button-close-icon {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transform: scale(0.6) rotate(-45deg);
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+/* Open state: the mascot swaps for a close cross so the FAB doubles as the dismiss control,
+   which is how people expect a chat launcher to behave. */
 #chat-button.opened {
     background: linear-gradient(135deg, #33363c 0%, #1f2126 100%);
     box-shadow: 0 6px 18px rgba(31, 33, 38, 0.4);
 }
 
-#chat-button.opened i {
-    transform: rotate(90deg);
+#chat-button.opened #chat-button-icon {
+    opacity: 0;
+    transform: scale(0.6) rotate(45deg);
 }
 
-#chat-button i {
-    transition: transform 0.25s ease;
+#chat-button.opened #chat-button-close-icon {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
 }
 
 
