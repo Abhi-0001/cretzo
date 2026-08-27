@@ -17,19 +17,33 @@
     max-width: 100% !important;
 }
 
-/* Hero banner height.
-   height:100% into a short letterbox forced the banner into whatever box the slide happened
-   to be, and with object-fit:cover that threw away the top and bottom of the artwork - at
-   full-bleed width the 1535x1023 banners were losing about half their height.
+/* Hero banner height - fixed 5:2 (2.5:1).
 
-   height:auto lets the image keep its OWN aspect ratio (the width/height attributes that
-   home.php now emits supply it), so nothing is cropped until max-height actually clamps.
-   The clamp is what stops a 3:2 banner from pushing the rest of the page below the fold;
-   raised from 68vh so much less is cut on wide screens. */
+   Previously this was height:auto with max-height:82vh. Two problems with that:
+
+   1. The height was tied to the VIEWPORT, not to the artwork, so the banner's shape changed
+      on every screen - 2.17:1 on a 1080p monitor, something else on a 1200px-tall one. There
+      was no single aspect ratio anyone could design a banner to.
+   2. The 82vh clamp always won on desktop, and object-fit:cover then discarded whatever did
+      not fit. A 3:2 banner at 1920 wide needs 1280px of height; only 886px was shown, so
+      roughly a third of every banner was thrown away - including, on these banners, part of
+      the artwork above and below the headline.
+
+   Pinning the ratio makes the height deterministic (height = width / 3) and means a banner
+   authored at 3:1 is displayed complete, with no cropping at all. It is also much shorter
+   than the old 82vh clamp at every common width, which is the point:
+
+       viewport width   was (82vh)   now (3:1)
+       1920                886px       640px
+       1536                708px       512px
+       1366                630px       455px
+
+   Author banners at 2560x853 (or 1920x640 minimum). object-fit:cover is kept so an
+   off-ratio upload degrades gracefully instead of stretching. */
 .slider .slide-img img{
     width: 100% !important;
+    aspect-ratio: 3 / 1;
     height: auto !important;
-    max-height: 82vh !important;
     object-fit: cover !important;
 }
 
@@ -39,11 +53,14 @@
 }
 
 @media (max-width: 768px){
-    /* Phones: also ratio-driven now (was a hard 280px, which cut the artwork the same way),
-       still capped so the banner cannot fill the whole screen. */
+    /* Phones get a taller 2.2:1 crop. At 3:1 a 390px-wide phone would render a 130px strip,
+       too short to read a headline in - 2.2:1 gives 177px. There is only ONE image column on
+       `sliders`, so the same artwork serves both and object-fit:cover trims the sides here
+       (about 13% off each edge). Keep headlines and buttons inside the middle ~75% of the
+       banner width so nothing important is lost on a phone. */
     .slider .slide-img img{
+        aspect-ratio: 2.2 / 1;
         height: auto !important;
-        max-height: 50vh !important;
     }
 }
 

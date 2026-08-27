@@ -1711,6 +1711,14 @@ section #progressbar div.active:after {
     right: 15px;
     bottom: 15px;
     z-index: 99999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.fixed-icon .progress-wrap.mt-2 {
+    margin-top: 0 !important;
 }
 
 .fixed-icon.chat-fab-hidden {

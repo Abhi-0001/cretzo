@@ -34,6 +34,14 @@ $logged_in     = isset($is_logged_in) ? (bool) $is_logged_in : (isset($this->ion
     --brand-dark: #c96820;
     --brand-deep: #a8531a;
     --brand-tint: #fff3e6;
+    /* The header and the visitor's own bubbles used to be a deep terracotta gradient carrying
+       white text, which measured 2.2-3.0:1 against white - under the 4.5:1 readable minimum,
+       and lightening it with white text on top would only have made it worse. They are now a
+       soft cream-terracotta with dark terracotta text: lighter than before AND 5.9:1. */
+    --surface-warm: #ffe3cc;
+    --surface-warm-edge: #f7d3b6;
+    --ink-warm: #8a4418;
+    --ink-warm-soft: #a35a28;
     --ink: #1f2126;
     --ink-soft: #5c6068;
     --ink-faint: #8f949c;
@@ -80,17 +88,18 @@ body {
     position: relative;
     z-index: 2;
     padding: 16px 16px 18px;
-    background: linear-gradient(135deg, var(--brand) 0%, var(--brand-dark) 55%, var(--brand-deep) 100%);
-    color: #fff;
+    background: linear-gradient(135deg, #fff0e2 0%, var(--surface-warm) 100%);
+    color: var(--ink-warm);
+    border-bottom: 1px solid var(--surface-warm-edge);
     overflow: hidden;
     transition: box-shadow .2s ease;
 }
 
 /* Without this, a message scrolled under the header just vanished with no seam, so it was
    not obvious there was anything above the fold. */
-.cw-head.scrolled { box-shadow: 0 4px 14px rgba(24, 26, 30, .18); }
+.cw-head.scrolled { box-shadow: 0 4px 14px rgba(138, 68, 24, .16); }
 
-/* Soft light bloom so the gradient does not read as a flat block. */
+/* Soft bloom so the header does not read as a flat block. White still reads on the cream. */
 .cw-head::after {
     content: '';
     position: absolute;
@@ -99,12 +108,16 @@ body {
     width: 190px;
     height: 190px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, .14);
+    background: rgba(255, 255, 255, .5);
     pointer-events: none;
+    /* ::after paints ABOVE the element's children, so without this the bloom sat on top of
+       the title and buttons and washed them out. */
+    z-index: 0;
 }
 
 .cw-head-row {
     position: relative;
+    z-index: 1;
     display: flex;
     align-items: center;
     gap: 12px;
@@ -116,7 +129,7 @@ body {
     height: 42px;
     border-radius: 50%;
     background: #fff;
-    border: 1.5px solid rgba(255, 255, 255, .45);
+    border: 1.5px solid rgba(138, 68, 24, .14);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -142,7 +155,7 @@ body {
     align-items: center;
     gap: 6px;
     font-size: 12px;
-    color: rgba(255, 255, 255, .88);
+    color: var(--ink-warm-soft);
     margin-top: 1px;
 }
 
@@ -150,15 +163,15 @@ body {
     width: 7px;
     height: 7px;
     border-radius: 50%;
-    background: #4ade80;
-    box-shadow: 0 0 0 0 rgba(74, 222, 128, .7);
+    background: #15a34a;
+    box-shadow: 0 0 0 0 rgba(21, 163, 74, .55);
     animation: pulse 2.4s infinite;
 }
 
 @keyframes pulse {
-    0%   { box-shadow: 0 0 0 0 rgba(74, 222, 128, .7); }
-    70%  { box-shadow: 0 0 0 7px rgba(74, 222, 128, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); }
+    0%   { box-shadow: 0 0 0 0 rgba(21, 163, 74, .55); }
+    70%  { box-shadow: 0 0 0 7px rgba(21, 163, 74, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(21, 163, 74, 0); }
 }
 
 .cw-tools { display: flex; gap: 4px; flex: 0 0 auto; }
@@ -168,8 +181,9 @@ body {
     height: 30px;
     border: 0;
     border-radius: 9px;
-    background: rgba(255, 255, 255, .16);
-    color: #fff;
+    background: rgba(255, 255, 255, .7);
+    border: 1px solid rgba(138, 68, 24, .16);
+    color: var(--ink-warm);
     font-size: 15px;
     line-height: 1;
     cursor: pointer;
@@ -179,8 +193,8 @@ body {
     transition: background .18s ease, transform .18s ease;
 }
 
-.cw-icon-btn:hover { background: rgba(255, 255, 255, .3); transform: translateY(-1px); }
-.cw-icon-btn:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
+.cw-icon-btn:hover { background: #fff; border-color: rgba(138, 68, 24, .34); transform: translateY(-1px); }
+.cw-icon-btn:focus-visible { outline: 2px solid var(--ink-warm); outline-offset: 1px; }
 
 /* ---------------------------------------------------------------- messages */
 .cw-body {
@@ -256,11 +270,12 @@ body {
 }
 
 .cw-turn.me .cw-bubble {
-    background: linear-gradient(135deg, var(--brand) 0%, var(--brand-dark) 100%);
-    color: #fff;
+    background: var(--surface-warm);
+    color: var(--ink-warm);
+    border: 1px solid var(--surface-warm-edge);
     border-top-left-radius: 14px;
     border-top-right-radius: 4px;
-    box-shadow: 0 2px 8px rgba(224, 123, 57, .28);
+    box-shadow: 0 1px 3px rgba(138, 68, 24, .10);
 }
 
 .cw-time {
@@ -374,6 +389,26 @@ body {
     color: var(--ink-faint);
     font-size: 16px;
     padding-right: 2px;
+}
+
+/* A card pointing at the page the visitor is already on. It used to render as an ordinary
+   link, so clicking it re-navigated to the same URL: the page did not visibly change and the
+   iframe reloaded, which read as a dead button. It is now inert and says so. */
+.cw-card.is-here {
+    cursor: default;
+    background: var(--brand-tint);
+    border-color: #e4d8cc;
+    box-shadow: none;
+}
+
+.cw-card.is-here:hover { transform: none; box-shadow: none; border-color: #e4d8cc; }
+
+.cw-card.is-here .cw-card-go {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--brand-deep);
+    white-space: nowrap;
+    letter-spacing: .2px;
 }
 
 /* ---------------------------------------------------------------- chips */
@@ -592,6 +627,37 @@ body {
         return face;
     }
 
+    /* The page hosting the widget. Same-origin, so this is readable, but a browser or a
+     * future embed could still refuse - in which case no card is ever treated as "here",
+     * which is the safe direction to fail. */
+    var parentUrl = '';
+    try {
+        parentUrl = window.parent.location.href;
+    } catch (e) {
+        parentUrl = '';
+    }
+
+    /**
+     * True when a card's destination is the page the visitor is already looking at.
+     *
+     * Origin and path only - the query string is deliberately ignored. Every card here is a
+     * "go to this section" link (products, cart, my orders, support), and the pages they point
+     * at rewrite their own URL as you use them: the product listing sits on
+     * `/products?page=1&per-page=20` the moment it renders. Comparing the query string meant
+     * the guard never fired on exactly the pages that carry one.
+     */
+    function isCurrentPage(href) {
+        if (!href || !parentUrl) { return false; }
+        try {
+            var to = new URL(href, parentUrl);
+            var here = new URL(parentUrl);
+            return to.origin === here.origin
+                && to.pathname.replace(/\/+$/, '') === here.pathname.replace(/\/+$/, '');
+        } catch (e) {
+            return false;
+        }
+    }
+
     function atBottom() {
         return body.scrollHeight - body.scrollTop - body.clientHeight < 60;
     }
@@ -632,12 +698,20 @@ body {
         var wrap = el('div', 'cw-cards');
 
         cards.forEach(function (card) {
-            var a = el('a', 'cw-card');
-            a.href = card.url || '#';
-            // The widget lives in an iframe: a product link must open the parent window, not
-            // navigate the 400px panel to a full storefront page.
-            a.target = '_top';
-            a.rel = 'noopener';
+            var here = isCurrentPage(card.url);
+            // Rendered as a <div>, not a disabled <a>: a link that goes nowhere is worse for a
+            // screen reader than something that was never announced as a link.
+            var a = el(here ? 'div' : 'a', 'cw-card' + (here ? ' is-here' : ''));
+
+            if (here) {
+                a.setAttribute('aria-current', 'page');
+            } else {
+                a.href = card.url || '#';
+                // The widget lives in an iframe: a product link must open the parent window,
+                // not navigate the 400px panel to a full storefront page.
+                a.target = '_top';
+                a.rel = 'noopener';
+            }
 
             if (card.image) {
                 var img = el('img', 'cw-card-img');
@@ -662,7 +736,7 @@ body {
                 txt.appendChild(el('div', 'cw-card-body', card.body));
             }
             a.appendChild(txt);
-            a.appendChild(el('span', 'cw-card-go', '›'));
+            a.appendChild(el('span', 'cw-card-go', here ? "You're here" : '›'));
             wrap.appendChild(a);
         });
 

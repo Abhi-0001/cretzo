@@ -1345,7 +1345,10 @@ $logo = get_settings('web_logo');
              the person most likely to have a question - had no chat at all here, unlike every
              other page. The assistant answers guests too, so the gate is gone and the markup
              now matches the footer's. */ ?>
-    <button type="button" id="chat-button" aria-label="Open support chat" aria-expanded="false" aria-controls="chat-iframe"><i class="uil uil-comments"></i></button>
+    <button type="button" id="chat-button" aria-label="Open support chat" aria-expanded="false" aria-controls="chat-iframe">
+        <img src="<?= base_url('assets/front_end/cretzo/img/chat-fab-icon.png') ?>" alt="" id="chat-button-icon">
+        <i class="uil uil-times" id="chat-button-close-icon" aria-hidden="true"></i>
+    </button>
     <!-- Floating chat iframe -->
     <iframe src="<?= base_url('my-account/floating_chat_modern') ?>" id="chat-iframe" title="Support chat" loading="lazy"></iframe>
     <div class="progress-wrap mt-2">
