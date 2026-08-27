@@ -16,6 +16,10 @@ class Chat extends CI_Controller {
     /** Newest messages restored into the widget when it is re-opened. */
     const HISTORY_LIMIT = 40;
 
+    /* Each candidate code costs two usage subqueries in validate_promo_code(), and a chat
+     * bubble listing more than a handful of codes stops being readable anyway. */
+    const MAX_PROMO_CODES = 5;
+
     public function __construct()
     {
         parent::__construct();
@@ -322,7 +326,7 @@ class Chat extends CI_Controller {
             return $this->contact_reply();
         }
 
-        if ($this->matches_any($normalized, ['product inquiry', 'product enquiry', 'search', 'looking for', 'do you have', 'in stock', 'availability', 'product'])) {
+        if ($this->matches_any($normalized, ['product inquiry', 'product enquiry', 'search', 'looking for', 'do you have', 'in stock', 'availability', 'product', 'browse', 'catalogue', 'catalog'])) {
             return $this->start_product_enquiry_flow();
         }
 
@@ -729,9 +733,12 @@ class Chat extends CI_Controller {
             ? 'I could not find anything matching "' . $product_name . '". Try a shorter keyword — "earrings" instead of "silver drop earrings for wedding".'
             : 'Tell me a product name or keyword and I will search for you.';
 
+        /* "Browse the shop" was a chip carrying no action and the free text "browse", which
+         * matches no intent - so it answered with the generic "I did not quite get that",
+         * the same dead-end this whole pass is about. The card below already offers exactly
+         * that destination, so the chip was redundant as well as broken. */
         return $this->msg($text, $this->follow_up_chips([
             $this->chip('🔍 Try another word', 'product inquiry', 'product_inquiry'),
-            $this->chip('🛍️ Browse the shop', 'browse', ''),
         ]), [[
             'type'  => 'link',
             'title' => 'Browse all products',
@@ -803,20 +810,178 @@ class Chat extends CI_Controller {
         ]));
     }
 
+    /**
+     * Offers used to be answered with a card pointing at base_url() - the home page. On the
+     * home page that is a navigation to the page you are already on, so it read as a dead
+     * button; and there is no offers page on this storefront to point at instead. Worse, the
+     * `offers` banner table is routinely empty, so even a working link showed nothing.
+     *
+     * A customer asking about offers wants the codes, so the codes are what they now get.
+     */
     private function offers_reply()
     {
-        $text = 'Current offers show up on the home page and in your cart. Any coupon you have can be applied on the cart page before checkout — the discount is shown before you pay.';
+        $codes = $this->usable_promo_codes();
 
-        $cards = [[
-            'type'  => 'link',
-            'title' => 'See what’s on offer',
-            'body'  => 'Deals and featured collections',
-            'url'   => base_url(),
-        ]];
+        if (empty($codes)) {
+            return $this->msg(
+                "There are no coupon codes running just now. Discounts on individual products are shown on the product page itself, and any offer you are eligible for is applied in your cart before you pay.",
+                $this->follow_up_chips([
+                    $this->chip('🛍️ Find a product', 'product inquiry', 'product_inquiry'),
+                ])
+                // Deliberately no card: with no codes and no offers page there is nowhere
+                // useful to send anyone, and an inert card reads as broken.
+            );
+        }
 
-        return $this->msg($text, $this->follow_up_chips([
+        $lines = [count($codes) === 1 ? 'One code you can use right now:' : 'Codes you can use right now:'];
+        foreach ($codes as $code) {
+            $lines[] = '';
+            $lines[] = '🏷️ ' . $code['code'] . ' — ' . $code['benefit'];
+            foreach ($code['notes'] as $note) {
+                $lines[] = '   ' . $note;
+            }
+        }
+        $lines[] = '';
+        $lines[] = 'Enter the code in your cart before checkout — the discount is shown before you pay.';
+
+        return $this->msg(implode("\n", $lines), $this->follow_up_chips([
             $this->chip('🛍️ Find a product', 'product inquiry', 'product_inquiry'),
-        ]), $cards);
+        ]), $this->cart_card());
+    }
+
+    /**
+     * Publicly listable promo codes that this particular visitor could actually redeem.
+     *
+     * The listing gate (status, date window, and `list_promocode` so targeted codes stay
+     * private) comes from Promo_code_model::get_promo_codes(), which is the same read the
+     * mobile API and My Account use. Redeemability is then settled by the platform's own
+     * validate_promo_code() rather than re-implemented here - it owns the global no_of_users
+     * cap, the already-redeemed check and the per-customer repeat quota, and duplicating any
+     * of that is how the bot would end up advertising a code checkout then rejects.
+     */
+    private function usable_promo_codes()
+    {
+        $this->load->model('Promo_code_model');
+
+        // Explicit sort: the model's own default is 'u.id', an alias that does not exist in
+        // its query, so leaving it out would be a SQL error.
+        $listed = $this->Promo_code_model->get_promo_codes(25, 0, 'id', 'DESC');
+        $rows = (!empty($listed['data']) && is_array($listed['data'])) ? $listed['data'] : [];
+        if (empty($rows)) {
+            return [];
+        }
+
+        $user_id = $this->get_chat_user_id();
+
+        /* validate_promo_code() applies the minimum-order gate against the cart total we hand
+         * it. We are not pricing a cart here, so pass a total high enough to clear any
+         * threshold and surface the real minimum to the customer as a note instead - otherwise
+         * every code with a minimum would look unavailable to a browsing visitor. */
+        $probe_total = 100000000;
+
+        $usable = [];
+        foreach ($rows as $row) {
+            if (count($usable) >= self::MAX_PROMO_CODES) {
+                break;
+            }
+
+            $code = trim(stripcslashes((string) $row['promo_code']));
+            if ($code === '') {
+                continue;
+            }
+
+            if (function_exists('validate_promo_code')) {
+                $check = validate_promo_code($code, $user_id, $probe_total);
+                // A guest has no redemption history, so only the campaign-wide caps can
+                // exclude a code for them - which is the right answer before they sign in.
+                if (!empty($check['error'])) {
+                    continue;
+                }
+            }
+
+            $usable[] = [
+                'code'    => $code,
+                'benefit' => $this->promo_benefit_label($row),
+                'notes'   => $this->promo_notes($row),
+            ];
+        }
+
+        return $usable;
+    }
+
+    /** "20% off, up to Rs.500" / "Rs.100 off" / cashback wording. */
+    private function promo_benefit_label($row)
+    {
+        $discount = isset($row['discount']) ? (float) $row['discount'] : 0;
+        $is_cashback = !empty($row['is_cashback']);
+        $word = $is_cashback ? ' cashback' : ' off';
+
+        if (isset($row['discount_type']) && strtolower((string) $row['discount_type']) === 'percentage') {
+            $label = rtrim(rtrim(number_format($discount, 2, '.', ''), '0'), '.') . '%' . $word;
+            if (!empty($row['max_discount_amt'])) {
+                $label .= ', up to ' . $this->format_price($row['max_discount_amt']);
+            }
+            return $label;
+        }
+
+        return $this->format_price($discount) . $word;
+    }
+
+    /** The conditions worth stating up front, so nothing is a surprise at checkout. */
+    private function promo_notes($row)
+    {
+        $notes = [];
+
+        if (!empty($row['min_order_amt']) && (float) $row['min_order_amt'] > 0) {
+            $notes[] = 'on orders over ' . $this->format_price($row['min_order_amt']);
+        }
+
+        if (!empty($row['end_date'])) {
+            $end = strtotime((string) $row['end_date']);
+            if ($end !== false) {
+                $notes[] = 'valid until ' . date('d M Y', $end);
+            }
+        }
+
+        if (!empty($row['is_cashback'])) {
+            $notes[] = 'credited to your wallet after the order';
+        }
+
+        $message = isset($row['message']) ? trim(stripcslashes((string) $row['message'])) : '';
+        if ($message !== '') {
+            $notes[] = $message;
+        }
+
+        return $notes;
+    }
+
+    /**
+     * A card only when there is something real behind it: the cart, and only if the customer
+     * has something in it to apply the code to.
+     */
+    private function cart_card()
+    {
+        $user_id = $this->get_chat_user_id();
+        if ($user_id <= 0 || !$this->db->table_exists('cart')) {
+            return [];
+        }
+
+        $row = $this->db->select('COUNT(id) AS items')
+            ->where('user_id', $user_id)
+            ->where('is_saved_for_later', 0)
+            ->get('cart')
+            ->row_array();
+
+        if (empty($row['items'])) {
+            return [];
+        }
+
+        return [[
+            'type'  => 'link',
+            'title' => 'Apply it in your cart',
+            'body'  => ((int) $row['items'] === 1) ? '1 item waiting' : (int) $row['items'] . ' items waiting',
+            'url'   => base_url('cart'),
+        ]];
     }
 
     private function account_reply()
