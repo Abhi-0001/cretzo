@@ -99,25 +99,44 @@ console.log(auth_settings);
 // The modal's show.bs.modal reset only re-showed step 1 and never re-added
 // .d-none, so re-opening the modal after a completed/abandoned attempt painted
 // BOTH steps stacked in one dialog. Toggling both directions here fixes that.
+// Three steps now, matching the seller registration flow:
+//   1 Details (name/email/mobile, #send-otp-form)
+//   2 Verify  (OTP, #signup-step-2 inside #verify-otp-form)
+//   3 Password(#signup-step-3 inside the same form - submitting it registers)
+// Steps 2 and 3 share one form so a single FormData carries the whole signup.
 function showSignupStep(step) {
-    if (step === 2) {
-        $("#send-otp-form").hide();
-        $("#otp_div").show();
-        $("#verify-otp-form").removeClass("d-none").show();
-    } else {
+    if (step === 1) {
         $("#verify-otp-form").addClass("d-none").hide();
         $("#send-otp-form").show();
+    } else {
+        $("#send-otp-form").hide();
+        $("#verify-otp-form").removeClass("d-none").show();
     }
+    $("#signup-step-2").toggleClass("d-none", step === 3);
+    $("#signup-step-3").toggleClass("d-none", step !== 3);
 }
 
 function resetRegisterButton() {
     $("#register_submit_btn").html("Register Now").attr("disabled", !1);
 }
 
-// Returns an error message, or "" when the step-2 fields are good to submit.
-function validateSignupFields() {
+// Each of the three helpers returns an error message, or "" when that step is good.
+function validateSignupDetails() {
+    if (!$.trim($("#signup-name").val())) return "Please enter your full name.";
+    var email = $.trim($("#signup-email").val());
+    // Email stays optional (accounts are keyed on mobile), but if one is typed it
+    // has to look like an address - the server rejects it otherwise.
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "Please enter a valid email address.";
+    if (!$.trim($("#phone-number").val())) return "Please enter your mobile number.";
+    return "";
+}
+
+function validateSignupOtp() {
     if (!$.trim($("#otp").val())) return "Please enter the OTP sent to your phone.";
-    if (!$.trim($("#name").val())) return "Please enter a username.";
+    return "";
+}
+
+function validateSignupPassword() {
     if (!$("#password").val()) return "Please enter a password.";
     // .val() on both sides - the sms branch used to compare the jQuery objects
     // themselves, which are never === equal, so it rejected every single signup
@@ -126,6 +145,37 @@ function validateSignupFields() {
     if (!$("#signup-terms").is(":checked")) return "Please accept the Terms & Conditions to continue.";
     return "";
 }
+
+// The details typed on step 1 live in #send-otp-form, which is not the form that
+// gets submitted, so they are attached to the registration payload by hand.
+function appendSignupDetails(formData) {
+    formData.append("name", $.trim($("#signup-name").val()));
+    formData.append("email", $.trim($("#signup-email").val()));
+    formData.append("mobile", $("#phone-number").val());
+    formData.append("country_code", $(".selected-dial-code").text());
+}
+
+function showOtpError(message) {
+    $("#otp-error").html(message).show();
+    $("#verify-otp-button").html("Verify OTP").attr("disabled", !1);
+}
+
+// Shared step-2 -> step-3 hand-off for both auth branches.
+function goToPasswordStep() {
+    $("#otp-error").html("");
+    $("#verify-otp-button").html("Verify OTP").attr("disabled", !1);
+    $("#registration-error").html("");
+    resetRegisterButton();
+    showSignupStep(3);
+    setTimeout(function () { $("#password").focus(); }, 50);
+}
+
+$(document).on("click", "#signup-back-to-details", function (e) {
+    e.preventDefault();
+    $("#otp-error").html("");
+    $("#registration-error").html("");
+    showSignupStep(1);
+});
 
 function showRegistrationError(message) {
     $("#registration-error").html(message).show();
@@ -153,7 +203,14 @@ if (auth_settings == "firebase") {
     window.otpConfirmationResult = null;
 
     function onSignInSubmit(e) {
-        if (e.preventDefault(), isPhoneNumberValid()) {
+        e.preventDefault();
+        var detailsProblem = validateSignupDetails();
+        if (detailsProblem) {
+            $("#is-user-exist-error").html(detailsProblem).show();
+            return;
+        }
+        $("#is-user-exist-error").html("");
+        if (isPhoneNumberValid()) {
             $("#send-otp-button").html("Please Wait...");
             var t = is_user_exist();
             if (updateSignInButtonUI(), 1 == t.error) $("#is-user-exist-error").html(t.message), $("#send-otp-button").html("Send OTP");
@@ -166,7 +223,11 @@ if (auth_settings == "firebase") {
                     $("#send-otp-button").html("Send OTP"), $(".send-otp-form").unblock(), window.signingIn = !1, updateSignInButtonUI(), resetRecaptcha();
                     resetRegisterButton();
                     $("#registration-error").html("");
+                    $("#otp-error").html("");
+                    $("#signup-otp-mobile").text(getPhoneNumberFromUserInput());
+                    window.otpVerified = !1;
                     showSignupStep(2);
+                    setTimeout(function () { $("#otp").focus(); }, 50);
                 }).catch(function (e) {
                     window.signingIn = !1, $("#is-user-exist-error").html(e.message).show(), $("#send-otp-button").html("Send OTP"), updateSignInButtonUI(), resetRecaptcha()
                 })
@@ -174,31 +235,59 @@ if (auth_settings == "firebase") {
         }
     }
 
+    // Step 2: confirm the code with Firebase before the password step opens. The
+    // confirmation is consumed here, so the submit handler below must NOT confirm
+    // again - a second confirm() on the same result always fails.
+    window.otpVerified = !1;
+
+    $(document).on("click", "#verify-otp-button", function (e) {
+        e.preventDefault();
+        $("#otp-error").html("");
+
+        var problem = validateSignupOtp();
+        if (problem) {
+            showOtpError(problem);
+            return;
+        }
+        if (!window.otpConfirmationResult) {
+            showOtpError("Your OTP session expired. Please request a new OTP.");
+            return;
+        }
+
+        $("#verify-otp-button").html("Please Wait...").attr("disabled", !0);
+
+        window.otpConfirmationResult.confirm($("#otp").val()).then(function () {
+            window.otpVerified = !0;
+            goToPasswordStep();
+        }).catch(function () {
+            showOtpError("Invalid OTP. Please Enter Valid OTP");
+        });
+    });
+
     // Bound once, at load, outside any callback.
     $(document).on("submit", "#verify-otp-form", function (t) {
         t.preventDefault();
         $("#registration-error").html("");
 
-        var problem = validateSignupFields();
+        var problem = validateSignupPassword();
         if (problem) {
             showRegistrationError(problem);
             return;
         }
-        if (!window.otpConfirmationResult) {
-            showRegistrationError("Your OTP session expired. Please request a new OTP.");
+        if (!window.otpVerified) {
+            showRegistrationError("Please verify the OTP sent to your phone first.");
+            showSignupStep(2);
             return;
         }
 
-        var otp = $("#otp").val(),
-            formData = new FormData(this),
+        var formData = new FormData(this),
             action = $(this).attr("action");
 
         $("#register_submit_btn").html("Please Wait...").attr("disabled", !0);
 
-        window.otpConfirmationResult.confirm(otp).then(function () {
+        (function () {
             formData.append(csrfName, csrfHash);
-            formData.append("mobile", $("#phone-number").val());
-            formData.append("country_code", $(".selected-dial-code").text());
+            appendSignupDetails(formData);
             $.ajax({
                 type: "POST",
                 url: action,
@@ -224,12 +313,7 @@ if (auth_settings == "firebase") {
                     showRegistrationError("Something went wrong. Please try again.");
                 }
             })
-        }).catch(function () {
-            // Was setting "Please Wait..." + disabled here, which is what left the
-            // button permanently dead after a wrong OTP - the user could see the
-            // error but had no way to retry without reloading the page.
-            showRegistrationError("Invalid OTP. Please Enter Valid OTP");
-        })
+        })();
     });
 
     window.onload = function () {
@@ -257,6 +341,12 @@ function resetRecaptcha() {
 if (auth_settings == "sms") {
     $(document).on("click", "#send-otp-button", function (e) {
         e.preventDefault();
+        var detailsProblem = validateSignupDetails();
+        if (detailsProblem) {
+            $("#is-user-exist-error").html(detailsProblem).show();
+            return;
+        }
+        $("#is-user-exist-error").html("");
         // r.append(csrfName, csrfHash), r.append("mobile", $("#phone-number").val()), r.append("country_code", $(".selected-dial-code").text()),
         console.log('not valid');
         console.log("in sms ");
@@ -278,16 +368,31 @@ if (auth_settings == "sms") {
                     resetRecaptcha();
                 resetRegisterButton();
                 $("#registration-error").html("");
+                $("#otp-error").html("");
+                $("#signup-otp-mobile").text($(".selected-dial-code").text() + t);
                 showSignupStep(2);
+                setTimeout(function () { $("#otp").focus(); }, 50);
             }
         })
+    });
+
+    // No client-side OTP check exists on this branch (the code is validated by
+    // auth/register-user), so step 2 only checks the field is filled in and moves on.
+    $(document).on("click", "#verify-otp-button", function (e) {
+        e.preventDefault();
+        var problem = validateSignupOtp();
+        if (problem) {
+            showOtpError(problem);
+            return;
+        }
+        goToPasswordStep();
     });
 
     $(document).on("submit", "#verify-otp-form", function (t) {
         t.preventDefault();
         $("#registration-error").html("");
 
-        var problem = validateSignupFields();
+        var problem = validateSignupPassword() || validateSignupOtp();
         if (problem) {
             showRegistrationError(problem);
             return;
@@ -297,8 +402,7 @@ if (auth_settings == "sms") {
             action = $(this).attr("action");
         $("#register_submit_btn").html("Please Wait...").attr("disabled", !0);
         formData.append(csrfName, csrfHash);
-        formData.append("mobile", $("#phone-number").val());
-        formData.append("country_code", $(".selected-dial-code").text());
+        appendSignupDetails(formData);
         $.ajax({
             type: "POST",
             url: action,
@@ -1453,7 +1557,9 @@ search_products.on("select2:select", function (e) {
                     // each other.
                     showSignupStep(1),
                     $("#verify-otp-form")[0].reset(),
+                    $("#otp-error").html(""),
                     window.otpConfirmationResult = null,
+                    window.otpVerified = !1,
                     resetRegisterButton(),
                     $("#registration-error").html(""),
 
@@ -2846,6 +2952,16 @@ function customer_wallet_query_paramss(e) {
                 })
             }
         })
+    }),
+    // Reverse of #forgot_password_link: back to the sign-in panel with whatever was
+    // typed there still intact (closing the modal used to be the only way out).
+    $(document).on("click", ".back-to-login-link", function (e) {
+        e.preventDefault();
+        $("#forgot_password_div").addClass("d-none");
+        $("#login_div").removeClass("d-none");
+        $("#verify_forgot_password_otp_form").addClass("d-none");
+        $("#send_forgot_password_otp_form").removeClass("d-none");
+        $("#forgot_pass_error_box, #set_password_error_box").html("");
     }),
     $(document).on("click", "#forgot_password_link", function (e) {
         e.preventDefault(), $(".auth-modal").find("header a").removeClass("active"), $("#forgot_password_div").removeClass("d-none").siblings("section").addClass("d-none"),

@@ -27,11 +27,12 @@
 /* 58/42 split, matching #login_div in login.css so both modals line up. */
 #register_div .login-left{
     width: 58%;
-    padding: 36px 40px 28px 40px;
+    /* Trimmed from 36/28 - the panel was taller than it needed to be on a laptop. */
+    padding: 24px 36px 20px 36px;
 }
 #register_div .input{
-    margin-bottom: 12px;
-    height: 46px;
+    margin-bottom: 10px;
+    height: 42px;
     border: 1px solid rgba(0, 0, 0, 0.14);
     border-radius: 10px;
     font-size: 0.95rem;
@@ -56,10 +57,11 @@
     background-position: center;
 }
 #register_div .login .heading-n{
-    margin-bottom: 10px;
+    margin-bottom: 6px;
+    font-size: 1.5rem;
 }
 #register_div .field-container{
-    margin: 18px 0 14px;
+    margin: 12px 0 10px;
 }
 #register_div .btn-container{
     /* margin-top: 20px; */
@@ -68,7 +70,7 @@
    share a single cramped flex row (and a single toggle that drove neither). */
 #register_div .password-field{
     position: relative;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
 }
 #register_div .password-field .input{
     margin-bottom: 0;
@@ -106,7 +108,7 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    margin: 16px 0 12px;
+    margin: 12px 0 10px;
     color: rgba(0, 0, 0, 0.45);
     font-size: 0.85rem;
 }
@@ -138,22 +140,22 @@
 }
 
 /* --- Style overrides over default template STARTS --- */
-/* One button per row - see the matching note in login.css. These were two
-   columns of `flex: 1 1 0` (half the container each) holding nowrap labels that
-   need ~190px, so the labels ran out of their boxes and across the button
-   beside them, which is what the overlap on a phone was. */
+/* Two buttons on ONE row, which is what keeps the modal short. This only works
+   because the labels are now just "Google" / "Facebook": the previous attempt at
+   a two-column row kept the full "Sign up with Facebook" sentences, which need
+   ~190px each and spilled across the neighbouring button. */
 #register_div .login-with-container{
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     gap: 10px;
     align-items: stretch;
 }
 #register_div .login-with-container > a{
-    flex: 0 0 auto;
+    flex: 1 1 0;
     min-width: 0;
 }
 #register_div .media-container{
-    padding: 10px 8px;
+    padding: 8px 6px;
     border: 1px solid rgba(0, 0, 0, 0.14);
     border-radius: 10px;
     width: 100%;
@@ -165,8 +167,8 @@
     cursor: pointer;
     transition: border-color .15s ease, background-color .15s ease;
 }
-/* The labels are full sentences ("Sign up with Facebook") and are not wrapped;
-   each button now has a full-width row, so they fit. */
+/* Single-word labels, not wrapped; ellipsis is the last resort on a very narrow
+   screen rather than letting text spill out of the button. */
 #register_div .media-container p{
     margin-bottom: 0;
     white-space: nowrap;
@@ -267,20 +269,6 @@
         padding: 20px 20px 16px 20px;
     }
 }
-@media screen and (max-width: 500px){
-    #register_div .login{
-        border-radius: 14px;
-        flex-direction: column-reverse;
-    }
-    #register_div .login-left{
-        width: 100%;
-        padding: 12px 24px;
-    }
-    #register_div .login-right{
-        width: 100%;
-        min-height: 120px;
-    }
-}
 @media screen and (max-width: 400px){
     #register_div .login-container{
         padding: 10px 5px;
@@ -288,4 +276,148 @@
     #register_div .login-left{
         padding: 12px 24px;
     }
+}
+
+/* ===========================================================================
+   3-step signup: Details -> Verify -> Password
+   The indicator mirrors the seller registration page, and only one .signup-panel
+   inside #verify-otp-form is visible at a time (custom.js toggles .d-none).
+   =========================================================================== */
+#register_div .signup-steps{
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 6px;
+    margin: 12px 0 2px;
+}
+#register_div .signup-step{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+    width: 68px;
+}
+#register_div .signup-step span{
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: rgba(0, 0, 0, 0.45);
+    background-color: #fff;
+    border: 2px solid rgba(0, 0, 0, 0.14);
+    transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+#register_div .signup-step label{
+    margin: 0;
+    font-size: 0.78rem;
+    line-height: 1;
+    color: rgba(0, 0, 0, 0.45);
+    text-align: center;
+}
+#register_div .signup-step.active span{
+    background-color: var(--color-orange);
+    border-color: var(--color-orange);
+    color: #fff;
+}
+#register_div .signup-step.active label{
+    color: var(--color-orange);
+    font-weight: 600;
+}
+#register_div .signup-step.done span{
+    border-color: var(--color-orange);
+    color: var(--color-orange);
+}
+#register_div .signup-step-line{
+    flex: 1 1 auto;
+    max-width: 60px;
+    height: 2px;
+    margin-top: 14px;
+    background-color: rgba(0, 0, 0, 0.14);
+}
+/* Panels are display:none via Bootstrap's .d-none; nothing else to hide here. */
+#register_div .signup-panel{
+    width: 100%;
+}
+#register_div #otp-error:empty,
+#register_div .reg-error:empty{
+    display: none;
+}
+#register_div #otp{
+    letter-spacing: 6px;
+    font-size: 1.1rem;
+}
+
+/* ---------------------------------------------------------------------------
+   Mobile: the modal used to render as a small centred card with a tall photo
+   on top, leaving the actual form squeezed into what was left. On phones it is
+   now a full-height sheet - the photo is a slim banner and the form gets the
+   rest of the screen, with 44px+ touch targets.
+   ------------------------------------------------------------------------- */
+@media screen and (max-width: 767.98px){
+    .signup-dialog{
+        margin: 0;
+        max-width: 100%;
+        min-height: 100%;
+        align-items: stretch;
+    }
+    #register_div.login-container{
+        padding: 0;
+        align-items: stretch;
+    }
+    #register_div .login{
+        border-radius: 0;
+        min-height: 100vh;
+        flex-direction: column;
+    }
+    /* column (not column-reverse) with the image first: the photo stays a banner
+       at the top and the form flows below it instead of being pushed off-screen. */
+    #register_div .login-right{
+        order: -1;
+        width: 100%;
+        /* Tall enough for the photo to read as a hero rather than a thin strip.
+           Capped in vh so it never eats the form on a short handset. */
+        min-height: 200px;
+        flex: 0 0 auto;
+        height: 26vh;
+        max-height: 240px;
+    }
+    #register_div .login-left{
+        width: 100%;
+        flex: 1 1 auto;
+        padding: 20px 20px 28px 20px;
+        overflow-y: auto;
+    }
+    #register_div .login .heading-n{
+        font-size: 1.35rem;
+    }
+    #register_div .input{
+        height: 48px;
+        font-size: 1rem;
+    }
+    #register_div .cretzo.btn{
+        width: 100%;
+        min-height: 48px;
+    }
+    #register_div .signup-steps{
+        margin: 14px 0 2px;
+    }
+    #register_div .btn-close{
+        z-index: 3;
+    }
+}
+
+/* .login-left also carries Bootstrap's .pb-4 in the markup, which stacked another
+   1.5rem under the padding above and was a good part of the excess height. */
+#register_div .login-left.pb-4{
+    padding-bottom: 20px !important;
+}
+/* No fixed floor: with the social row on one line the panel is short enough that
+   a 300px minimum was padding empty space at the bottom of steps 2 and 3. */
+#register_div .login{
+    min-height: 0;
 }

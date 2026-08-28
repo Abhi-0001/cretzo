@@ -265,8 +265,13 @@ range-slider input:focus::-moz-range-thumb {
      All" showing next to the closed tag. Hide everything in the container
      except the tag until it's actually open (tapped .active, or CSS :hover
      on non-touch devices) — layout stays intact (visibility, not display). */
-  .filter-container:not(.active):not(:hover) > *:not(.filter-tag) {
+  .filter-container:not(.active) > *:not(.filter-tag) {
     visibility: hidden;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .filter-container:hover > *:not(.filter-tag) {
+      visibility: visible;
+    }
   }
 
   /* .filter-container-inner{

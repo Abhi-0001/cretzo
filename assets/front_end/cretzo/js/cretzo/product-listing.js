@@ -150,16 +150,23 @@ $(document).ready(function() {
     } */
 
     // Add event listener for tapping on .filter-container
-    $('.filter-container').on('click', function() {
+    $('.filter-container').on('click', function(e) {
         // Check if screen size is less than or equal to 1000px
-        if ($(window).width() <= 1000) {
-            // Add active class to filter-container
-            $(this).addClass('active');
+        if ($(window).width() > 1000) return;
 
-            // Show background overlay
-            // $('#bg-overlay').css('display', 'block');
-            $('#bg-overlay').addClass('active');
+        var $container = $(this);
+        var onTab = $(e.target).closest('.filter-tag').length > 0;
+
+        // The vertical "Filter" tab toggles the panel; anything else only opens it
+        // (so interacting with the filters themselves never closes the panel).
+        if (onTab && $container.hasClass('active')) {
+            $container.removeClass('active');
+            $('#bg-overlay').removeClass('active');
+            return;
         }
+
+        $container.addClass('active');
+        $('#bg-overlay').addClass('active');
     });
 
     // Sort by change - ensure no other handlers cause a full page reload.

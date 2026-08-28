@@ -33,22 +33,7 @@ $noti_total = isset($count_noti[0]['total']) ? (int) $count_noti[0]['total'] : 0
 
     <!-- Right navbar links -->
     <ul class="navbar-nav ml-auto align-items-center">
-        <?php
-        /*
-         * Language picker.
-         *
-         * #google_translate_element is still the real control - googleTranslateElementInit()
-         * in custom.js mounts Google's widget into it and only Google's own <select> can
-         * actually switch the page language. But that select is a NATIVE one: its popup is
-         * drawn by the OS, so it cannot be styled, and Google feeds it ~250 unsorted
-         * languages - an unusable wall of names in a header this size.
-         *
-         * So the widget is kept in the DOM (hidden) and driven from the Bootstrap dropdown
-         * below, which custom.js fills from that select's own <option> list. Nothing is
-         * hardcoded here: whatever languages Google offers are what appear, plus a search
-         * box to get to one in a couple of keystrokes.
-         */
-        ?>
+        <?php /* Language picker (Google Translate) disabled - restore this block to re-enable.
         <li class="nav-item dropdown czp-lang d-none d-md-block">
             <a class="nav-link czp-lang-toggle" href="#" id="czp-lang-toggle" data-toggle="dropdown"
                aria-haspopup="true" aria-expanded="false" title="Change language">
@@ -69,6 +54,7 @@ $noti_total = isset($count_noti[0]['total']) ? (int) $count_noti[0]['total'] : 0
             <?php // Hidden, not removed: this is what actually performs the translation. ?>
             <div id="google_translate_element" class="czp-translate-host"></div>
         </li>
+        */ ?>
 
         <?php if ($is_demo_mode) { ?>
             <li class="nav-item">
