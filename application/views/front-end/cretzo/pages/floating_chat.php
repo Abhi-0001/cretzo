@@ -883,6 +883,17 @@ body {
 
     /* -------------------------------------------------- boot */
 
+    /* Offered when chat/history could not be reached, so a visitor whose first request failed
+     * still gets somewhere to go instead of a greeting with nothing under it. The actions
+     * match Chat::reply_for_action(); the server is the authority once it answers. */
+    var FALLBACK_CHIPS = [
+        { label: '📦 Track order', message: 'track order', action: 'track_order' },
+        { label: '🚚 Shipping', message: 'shipping info', action: 'shipping' },
+        { label: '↩️ Returns', message: 'return item', action: 'return_item' },
+        { label: '🛍️ Find a product', message: 'product inquiry', action: 'product_inquiry' },
+        { label: '🙋 Talk to support', message: 'customer support', action: 'support' }
+    ];
+
     function greet(greeting, returning) {
         // Replaying the full "I'm the assistant, I can do X, Y, Z" introduction on every page
         // navigation reads like the bot has forgotten the conversation directly above it.
@@ -890,7 +901,10 @@ body {
             ? 'Anything else I can help with?'
             : ((greeting && greeting.text) || 'Hi 👋 How can I help you today?');
         var stack = addTurn('bot', text, timeNow());
-        addChips(stack, greeting && greeting.quick_replies);
+        // A greeting with no chips under it was a dead end: the visitor had to guess what the
+        // assistant could do, on exactly the request that had already gone wrong.
+        var chips = (greeting && greeting.quick_replies) || [];
+        addChips(stack, chips.length ? chips : FALLBACK_CHIPS);
     }
 
     function boot() {

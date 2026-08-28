@@ -45,6 +45,11 @@ class Chat extends CI_Controller {
 
         if ($action === 'reset') {
             $this->clear_chat_state();
+            /* "Restart chat" wiped the panel but nothing else, so the entire old transcript
+             * came straight back the next time chat/history ran - the visitor re-opened the
+             * widget and found the conversation they had just cleared. The rows are kept (support
+             * reads them in admin > Assistant Chats) but the visitor's own view starts here. */
+            $this->session->set_userdata('chat_history_after', date('Y-m-d H:i:s'));
             $this->respond($this->greeting_reply());
             return;
         }
@@ -126,6 +131,12 @@ class Chat extends CI_Controller {
             $this->db->where('session_id', $thread)->where('COALESCE(user_id, 0) = 0', null, false);
         }
 
+        // Everything before the visitor's last "Restart chat" stays out of their transcript.
+        $after = $this->session->userdata('chat_history_after');
+        if (!empty($after) && is_string($after)) {
+            $this->db->where('created_at >=', $after);
+        }
+
         $rows = $this->db->get()->result_array();
         $rows = array_reverse($rows);
 
@@ -173,6 +184,14 @@ class Chat extends CI_Controller {
                 return $this->account_reply();
             case 'contact':
                 return $this->contact_reply();
+            case 'sell':
+                return $this->seller_onboarding_reply();
+            case 'wallet':
+                return $this->wallet_reply();
+            case 'invoice':
+                return $this->invoice_reply();
+            case 'refund':
+                return $this->refund_reply();
             case 'support':
                 return $this->support_handoff_reply();
             case 'menu':
@@ -274,6 +293,15 @@ class Chat extends CI_Controller {
             return $this->greeting_reply();
         }
 
+        /* People paste the number on its own - "16", "#1043", "order 1043" - and that used to
+         * land on "Sorry, I did not quite get that", because nothing but the pending-Order-ID
+         * state ever read a number. A message that is nothing but an order number can only be
+         * one request. */
+        if (preg_match('/^#?\s*(\d{1,10})$/', trim($message), $m)
+            || preg_match('/^order\s*#?\s*(\d{1,10})$/i', trim($message), $m)) {
+            return $this->reply_with_order_status($m[1]);
+        }
+
         if ($this->matches_any($normalized, ['thank', 'thanks', 'thx', 'appreciate'])) {
             return $this->msg("You're welcome! 😊 Anything else I can help with?", $this->main_menu_chips());
         }
@@ -306,7 +334,7 @@ class Chat extends CI_Controller {
             return $this->start_payment_issue_flow();
         }
 
-        if ($this->matches_any($normalized, ['coupon', 'promo code', 'discount', 'offer', 'sale'])) {
+        if ($this->matches_any($normalized, ['coupon', 'promo code', 'coupon code', 'discount code', 'code', 'discount', 'offer', 'sale', 'deal', 'cashback'])) {
             return $this->offers_reply();
         }
 
@@ -324,6 +352,21 @@ class Chat extends CI_Controller {
 
         if ($this->matches_any($normalized, ['contact', 'phone number', 'email', 'address', 'whatsapp', 'call you'])) {
             return $this->contact_reply();
+        }
+
+        /* "How do I sell on Cretzo?" is one of the most common questions a handmade
+         * marketplace gets, and it used to be answered with five random products - the
+         * catch-all product search matched the sentence's filler words. */
+        if ($this->matches_any($normalized, ['sell', 'become a seller', 'become seller', 'selling', 'seller account', 'vendor', 'open a shop', 'list my product', 'register as seller', 'seller registration'])) {
+            return $this->seller_onboarding_reply();
+        }
+
+        if ($this->matches_any($normalized, ['wallet', 'wallet balance', 'store credit'])) {
+            return $this->wallet_reply();
+        }
+
+        if ($this->matches_any($normalized, ['invoice', 'bill', 'receipt', 'gst'])) {
+            return $this->invoice_reply();
         }
 
         if ($this->matches_any($normalized, ['product inquiry', 'product enquiry', 'search', 'looking for', 'do you have', 'in stock', 'availability', 'product', 'browse', 'catalogue', 'catalog'])) {
@@ -362,7 +405,7 @@ class Chat extends CI_Controller {
         $this->session->set_userdata('chat_state', self::STATE_PAYMENT_ISSUE);
         return $this->msg(
             "Tell me what happened with the payment — for example \"amount debited but no order\", \"payment pending\" or \"refund not received\" — and mention the payment method if you can.",
-            $this->follow_up_chips([$this->chip('💰 Refund status', 'refund', '')])
+            $this->follow_up_chips([$this->chip('💰 Refund status', 'refund', 'refund')])
         );
     }
 
@@ -476,9 +519,12 @@ class Chat extends CI_Controller {
 
         return $this->msg(
             "Your latest orders:\n" . implode("\n", $lines),
+            /* The second chip here used to be "Open My Orders", carrying no action - so it
+             * posted the text "my orders page", matched the my-orders intent and simply
+             * re-printed this very list. The card below is what actually opens the page. */
             $this->follow_up_chips([
                 $this->chip('📦 Track one', 'track order', 'track_order'),
-                $this->chip('🧾 Open My Orders', 'my orders page', ''),
+                $this->chip('↩️ Return an item', 'return item', 'return_item'),
             ]),
             [[
                 'type'  => 'link',
@@ -633,11 +679,6 @@ class Chat extends CI_Controller {
      *                   ordinary sentence that happened to be short is not answered with a
      *                   product-search failure.
      */
-    /**
-     * @param bool $soft when true, returns null instead of a "nothing found" message, so an
-     *                   ordinary sentence that happened to be short is not answered with a
-     *                   product-search failure.
-     */
     private function reply_with_product_matches($product_name, $soft = false) {
         $product_name = trim($product_name);
 
@@ -650,15 +691,30 @@ class Chat extends CI_Controller {
          * sd.status and p.listing_visibility = 1 (the seller's plan listing cap) and applies
          * the GST state restriction. So the chat happily listed products whose own detail page
          * immediately redirects to /products - on this database that is 176 of 290 products.
-         * Reusing the platform's own read means a result can always be opened. */
+         * Reusing the platform's own read means a result can always be opened.
+         *
+         * What it does NOT do is rank: its `search` filter splits the phrase on spaces and ORs
+         * every token as `p.tags LIKE '%token%'`, so a whole sentence matched almost the entire
+         * catalogue on its noise words alone - `LIKE '%i%'` and `LIKE '%a%'` hit nearly every
+         * tag row. "how do i become a seller" and "what is your ceo name" both came back with a
+         * handful of unrelated products presented as matches. Search on the meaningful words
+         * only, and check every row against them before showing it. */
+        $terms = $this->search_terms($product_name);
+        if (empty($terms)) {
+            return $soft ? null : $this->no_products_reply($product_name);
+        }
+
         $user_id = $this->get_chat_user_id();
-        $filter = ['search' => $product_name];
+        $filter = ['search' => implode(' ', $terms)];
         if (function_exists('get_customer_state')) {
             $filter['customer_state'] = get_customer_state();
         }
 
-        $result = fetch_product($user_id > 0 ? $user_id : null, $filter, null, null, 5, 0);
+        // Over-fetch: the relevance pass below discards rows fetch_product() matched on a tag
+        // fragment, and asking for exactly 5 would leave a thin list after filtering.
+        $result = fetch_product($user_id > 0 ? $user_id : null, $filter, null, null, 20, 0);
         $products = (!empty($result['product']) && is_array($result['product'])) ? $result['product'] : [];
+        $products = array_slice($this->rank_by_relevance($products, $terms), 0, 5);
 
         if (empty($products)) {
             return $soft ? null : $this->no_products_reply($product_name);
@@ -699,6 +755,108 @@ class Chat extends CI_Controller {
             $this->chip('🔍 Search again', 'product inquiry', 'product_inquiry'),
             $this->chip('🚚 Shipping', 'shipping info', 'shipping'),
         ]), $cards);
+    }
+
+    /**
+     * The words in a message that are worth searching the catalogue for.
+     *
+     * Everything one or two characters long, and the ordinary English/Hinglish filler a
+     * shopper wraps a request in, is dropped - those are exactly the tokens that made
+     * fetch_product() match the whole catalogue.
+     */
+    private function search_terms($phrase)
+    {
+        $stop = [
+            'the', 'and', 'for', 'you', 'your', 'yours', 'our', 'ours', 'with', 'from', 'that', 'this',
+            'these', 'those', 'have', 'has', 'had', 'can', 'could', 'would', 'should', 'will', 'shall',
+            'are', 'was', 'were', 'been', 'being', 'any', 'all', 'some', 'more', 'most', 'much', 'many',
+            'not', 'but', 'get', 'got', 'give', 'need', 'want', 'looking', 'show', 'tell', 'find', 'know',
+            'about', 'what', 'when', 'where', 'which', 'who', 'whom', 'whose', 'why', 'how', 'there',
+            'here', 'they', 'them', 'their', 'his', 'her', 'him', 'she', 'out', 'into', 'over', 'under',
+            'than', 'then', 'now', 'also', 'just', 'only', 'very', 'please', 'plz', 'hai', 'hain', 'kya',
+            'mujhe', 'mera', 'meri', 'apna', 'apni', 'koi', 'kuch', 'chahiye', 'karo', 'kare', 'karna',
+            'hey', 'hello', 'name', 'yes', 'yeah', 'okay', 'thanks', 'thank', 'does', 'did', 'doing',
+        ];
+
+        $phrase = preg_replace('/[^\p{L}\p{N}\s]+/u', ' ', (string) $phrase);
+        $words = preg_split('/\s+/u', mb_strtolower(trim((string) $phrase)), -1, PREG_SPLIT_NO_EMPTY);
+        if (empty($words)) {
+            return [];
+        }
+
+        $terms = [];
+        foreach ($words as $word) {
+            if (mb_strlen($word) < 3 || in_array($word, $stop, true)) {
+                continue;
+            }
+            if (!in_array($word, $terms, true)) {
+                $terms[] = $word;
+            }
+            if (count($terms) >= 6) {
+                break;
+            }
+        }
+
+        return $terms;
+    }
+
+    /**
+     * Keep only the rows that genuinely answer the search, best first.
+     *
+     * fetch_product() matches a tag on a bare substring, so "art" also pulls in "cart",
+     * "heart" and "party". A row survives here only when a search term starts a word in its
+     * name or tags, and rows matching more terms - and matching in the name rather than in a
+     * tag - sort first.
+     */
+    private function rank_by_relevance($products, $terms)
+    {
+        $scored = [];
+
+        foreach ($products as $index => $product) {
+            $name = mb_strtolower(stripcslashes((string) (isset($product['name']) ? $product['name'] : '')));
+            // fetch_product() hands `tags` back already exploded into an array on most rows,
+            // but a plain string on others - casting blindly warned "Array to string conversion"
+            // and printed a PHP error page into the middle of the JSON reply.
+            $tags = isset($product['tags']) ? $product['tags'] : '';
+            $tags = is_array($tags) ? implode(' ', $tags) : (string) $tags;
+            $tags = mb_strtolower(stripcslashes($tags));
+            $score = 0;
+
+            foreach ($terms as $term) {
+                $word = '/(?<![\p{L}\p{N}])' . preg_quote($term, '/') . '/u';
+                if (preg_match($word, $name)) {
+                    $score += 3;
+                } elseif (preg_match($word, $tags)) {
+                    $score += 1;
+                }
+            }
+
+            if ($score > 0) {
+                // The index preserves fetch_product()'s own ordering as the tie-breaker.
+                $scored[] = ['score' => $score, 'index' => $index, 'name' => $name, 'product' => $product];
+            }
+        }
+
+        usort($scored, function ($a, $b) {
+            if ($a['score'] === $b['score']) {
+                return $a['index'] - $b['index'];
+            }
+            return $b['score'] - $a['score'];
+        });
+
+        /* The same handmade design is often listed once per seller, so an unfiltered top-5
+         * came back as the same product name three times over - it reads as a broken result
+         * list rather than a choice. Keep the best-scoring listing of each name. */
+        $out = [];
+        $seen = [];
+        foreach ($scored as $row) {
+            if ($row['name'] !== '' && isset($seen[$row['name']])) {
+                continue;
+            }
+            $seen[$row['name']] = true;
+            $out[] = $row['product'];
+        }
+        return $out;
     }
 
     /**
@@ -770,7 +928,7 @@ class Chat extends CI_Controller {
         }
 
         return $this->msg($text, $this->follow_up_chips([
-            $this->chip('💰 Refund status', 'refund', ''),
+            $this->chip('💰 Refund status', 'refund', 'refund'),
             $this->chip('🙋 Talk to support', 'customer support', 'support'),
         ]), [[
             'type'  => 'link',
@@ -1027,6 +1185,61 @@ class Chat extends CI_Controller {
         ]), $cards);
     }
 
+    /**
+     * Cretzo is a marketplace, so a good share of visitors are makers rather than shoppers.
+     */
+    private function seller_onboarding_reply()
+    {
+        return $this->msg(
+            'You can sell your own work on ' . $this->store_name() . '. Register a seller account, complete your shop profile and upload your ID and bank details — our team reviews it and, once you are approved, you can list products and start taking orders.',
+            $this->follow_up_chips([$this->chip('🙋 Talk to support', 'customer support', 'support')]),
+            [[
+                'type'  => 'link',
+                'title' => 'Open the seller portal',
+                'body'  => 'Register or sign in as a seller',
+                'url'   => base_url('seller'),
+            ]]
+        );
+    }
+
+    private function wallet_reply()
+    {
+        $card = [];
+        if ($this->get_chat_user_id() > 0) {
+            $card = [[
+                'type'  => 'link',
+                'title' => 'Open my wallet',
+                'body'  => 'Balance and transaction history',
+                'url'   => base_url('my-account/wallet'),
+            ]];
+        }
+
+        return $this->msg(
+            'Your ' . $this->store_name() . ' wallet holds refunds and cashback. You can spend the balance on your next order — choose the wallet at checkout — and every credit and debit is listed under My Account → Wallet.',
+            $this->follow_up_chips([$this->chip('💰 Refund status', 'refund', 'refund')]),
+            $card
+        );
+    }
+
+    private function invoice_reply()
+    {
+        $card = [];
+        if ($this->get_chat_user_id() > 0) {
+            $card = [[
+                'type'  => 'link',
+                'title' => 'Go to My Orders',
+                'body'  => 'Download the invoice for an order',
+                'url'   => base_url('my-account/orders'),
+            ]];
+        }
+
+        return $this->msg(
+            'The invoice for an order is available from My Account → My Orders once the order has been confirmed — open the order and download it from there. It carries the seller\'s GST details where the seller is registered.',
+            $this->follow_up_chips([$this->chip('📦 Track order', 'track order', 'track_order')]),
+            $card
+        );
+    }
+
     private function support_handoff_reply()
     {
         if ($this->get_chat_user_id() <= 0) {
@@ -1211,9 +1424,34 @@ class Chat extends CI_Controller {
         return strtolower(trim($message));
     }
 
+    /**
+     * Keyword match against a normalised message.
+     *
+     * A plain stripos() matched keywords INSIDE longer words, and the short ones did real
+     * damage: "cod" (cash on delivery) is a substring of "code", so a customer asking about a
+     * discount "code" was answered with the shipping policy. ASCII keywords are therefore
+     * matched on word boundaries; a multi-word phrase still matches as a phrase, it just has
+     * to start and end on a word boundary too. A trailing plural is tolerated, so "returns"
+     * still matches the keyword "return".
+     *
+     * Devanagari keywords keep the substring test: PCRE's  is ASCII-only unless PCRE_UCP is
+     * set, so a boundary around "मेरा" would never fire.
+     */
     private function matches_any($message, $keywords) {
         foreach ($keywords as $keyword) {
-            if (stripos($message, $keyword) !== false) {
+            $keyword = trim((string) $keyword);
+            if ($keyword === '') {
+                continue;
+            }
+
+            if (preg_match('/[^ -~]/', $keyword)) {
+                if (stripos($message, $keyword) !== false) {
+                    return true;
+                }
+                continue;
+            }
+
+            if (preg_match('/(?<![a-z0-9])' . preg_quote($keyword, '/') . '(?:s|es)?(?![a-z0-9])/i', $message)) {
                 return true;
             }
         }
