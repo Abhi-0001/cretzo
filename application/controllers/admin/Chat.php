@@ -931,4 +931,39 @@ class Chat extends CI_Controller
             'messages' => $messages,
         ]));
     }
+
+    /**
+     * Delete one conversation and every message in it.
+     *
+     * POST-only: a transcript wipe behind a GET would be triggerable by anything that can make
+     * the browser fetch a URL, and CI's CSRF filter only guards POST.
+     */
+    public function assistant_delete()
+    {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {
+            $this->output->set_content_type('application/json')
+                ->set_output(json_encode(['error' => true, 'message' => 'Not authorised.']));
+            return;
+        }
+
+        $thread = (string) $this->input->post('thread', true);
+        if ($thread !== '' && !preg_match('/^[A-Za-z0-9]{1,128}$/', $thread)) {
+            $this->output->set_content_type('application/json')
+                ->set_output(json_encode(['error' => true, 'message' => 'Invalid conversation reference.']));
+            return;
+        }
+
+        $user_id = (string) $this->input->post('user_id', true);
+        $user_id = ctype_digit($user_id) ? (int) $user_id : 0;
+
+        $deleted = $this->chat_model->delete_assistant_thread($thread, $user_id);
+
+        $this->output->set_content_type('application/json')->set_output(json_encode([
+            'error'   => false,
+            'deleted' => (int) $deleted,
+            'message' => $deleted > 0
+                ? 'Conversation deleted (' . (int) $deleted . ' messages removed).'
+                : 'That conversation had already been removed.',
+        ]));
+    }
 }

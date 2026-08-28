@@ -812,12 +812,6 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a href="<?= base_url('admin/themes') ?>" class="nav-link">
-                                    <i class="fa fa-palette nav-icon "></i>
-                                    <p>Themes</p>
-                                </a>
-                            </li>
-                            <li class="nav-item">
                                 <a href="<?= base_url('admin/language') ?>" class="nav-link">
                                     <i class="fa fa-language nav-icon "></i>
                                     <p>Languages</p>
@@ -826,7 +820,11 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
                             <?//php if (isset($authentication['authentication_method']) && $authentication['authentication_method'] == 'firebase') { ?>
                                 <li class="nav-item">
                                     <a href="<?= base_url('admin/web-setting/firebase') ?>" class="nav-link">
-                                        <i class="bx bxl-firebase nav-icon "></i>
+                                        <?php // Was "bx bxl-firebase" - a Boxicons class, and Boxicons is not loaded in
+                                              // the admin, so this rendered as an empty gap while every sibling item
+                                              // showed a Font Awesome glyph. fa-fire matches the Firebase Settings
+                                              // page header icon. ?>
+                                        <i class="fas fa-fire nav-icon "></i>
                                         <p>Firebase</p>
                                     </a>
                                 </li>

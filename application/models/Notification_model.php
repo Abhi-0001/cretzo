@@ -38,6 +38,9 @@ class Notification_model extends CI_Model
         $notification_data = [];
         $count_res = $this->db->select(' COUNT(id) as `total` ')->get('notifications')->result_array();
         $search_res = $this->db->select(' * ')->order_by($sort, $order)->limit($limit, $offset)->get('notifications')->result_array();
+        // Read-side placeholder repair (see clean_notification_rows) - the mobile apps read this
+        // feed and cannot fix the text themselves.
+        $search_res = clean_notification_rows($search_res);
         for ($i = 0; $i < count($search_res); $i++) {
             $search_res[$i]['title'] = output_escaping($search_res[$i]['title']);
             $search_res[$i]['message'] = output_escaping($search_res[$i]['message']);
@@ -111,6 +114,10 @@ class Notification_model extends CI_Model
         }
 
         $city_search_res = $search_res->order_by($sort, $order)->limit($limit, $offset)->get('system_notification')->result_array();
+
+        // Rows written before the send paths learned to substitute their templates still hold
+        // raw "< order_id >" text; repaired at render so the list never shows template syntax.
+        $city_search_res = clean_notification_rows($city_search_res);
 
         // Notification "type" is only ever one of a small, known set produced elsewhere in the
         // codebase (place_order, seller_verification_request); the View button used to always
@@ -255,6 +262,9 @@ class Notification_model extends CI_Model
         }
 
         $city_search_res = $search_res->order_by($sort, $order)->limit($limit, $offset)->get('notifications')->result_array();
+        // See clean_notification_rows(): repairs rows stored with their template placeholders
+        // left unresolved, so no list can display raw "< order_id >" text.
+        $city_search_res = clean_notification_rows($city_search_res);
         $bulkData = array();
         $bulkData['total'] = $total;
         $rows = array();
@@ -457,6 +467,9 @@ class Notification_model extends CI_Model
         }
         $this->scope_to_user($builder, $user_id, $audiences);
         $records = $builder->order_by('n.id', 'DESC')->limit($limit, $offset)->get('notifications n')->result_array();
+        // Same read-side repair the admin lists apply - the customer and seller bells read the
+        // same rows and must not show template syntax either.
+        $records = clean_notification_rows($records);
 
         $rows = [];
         foreach ($records as $row) {

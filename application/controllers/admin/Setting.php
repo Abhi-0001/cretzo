@@ -162,6 +162,10 @@ class Setting extends CI_Controller
                 return false;
                 exit();
             }
+            // The Feature Section fields (shipping/return/support/safety_security title,
+            // description and mode) and copyright_details used to be validated here. They were
+            // removed from the Web Settings form because nothing under application/views/front-end
+            // ever read them - editing them changed nothing on the storefront.
             $this->form_validation->set_rules('site_title', 'Site Title', 'trim|required|xss_clean');
             $this->form_validation->set_rules('support_number', 'Support number', 'trim|required|numeric|xss_clean');
             $this->form_validation->set_rules('support_email', 'Support Email', 'trim|required|xss_clean|valid_email');
@@ -175,7 +179,6 @@ class Setting extends CI_Controller
             // silently corrupted legitimate content like "Copyright 2026 © cretzo.com" on the
             // very next save. Those fields are left as `trim` only and rely on the html_escape()
             // now applied at every render site instead (admin form + public storefront).
-            $this->form_validation->set_rules('copyright_details', 'Copyright Details', 'trim');
             $this->form_validation->set_rules('address', 'Address', 'trim');
             $this->form_validation->set_rules('app_short_description', 'App Short Description', 'trim');
             // NOT xss_clean either - this field is deliberately meant to hold a raw <iframe>
@@ -195,18 +198,12 @@ class Setting extends CI_Controller
             $this->form_validation->set_rules('facebook_link', 'Facebook Link', 'trim|xss_clean');
             $this->form_validation->set_rules('instagram_link', 'Instagram Link', 'trim|xss_clean');
             $this->form_validation->set_rules('youtube_link', 'Youtube Link', 'trim|xss_clean');
-            $this->form_validation->set_rules('shipping_title', 'Shipping Title', 'trim');
-            $this->form_validation->set_rules('shipping_description', 'Shipping Description', 'trim');
-            $this->form_validation->set_rules('return_title', 'Return Title', 'trim');
-            $this->form_validation->set_rules('return_description', 'Return Description', 'trim');
-            $this->form_validation->set_rules('support_title', 'Support Title', 'trim');
-            $this->form_validation->set_rules('support_description', 'Support Description', 'trim');
-            $this->form_validation->set_rules('safety_security_title', 'Safety Security Title', 'trim');
-            $this->form_validation->set_rules('safety_security_description', 'Safety Security Description', 'trim');
             $this->form_validation->set_rules('primary_color', 'Primary Color', 'trim|xss_clean');
             $this->form_validation->set_rules('secondary_color', 'Secondary Color', 'trim|xss_clean');
             $this->form_validation->set_rules('font_color', 'Font Color', 'trim|xss_clean');
-            $this->form_validation->set_rules('modern_theme_color', 'Modern Theme Color', 'trim|xss_clean');
+            // Whitelisted: this value is interpolated straight into a stylesheet path
+            // (css/colors/<value>.css) by the storefront's include-css view.
+            $this->form_validation->set_rules('modern_theme_color', 'Accent Palette', 'trim|in_list[orange,aqua,blue,fuchsia,grape,green,leaf,navy,pink,purple,red,sky,violet]');
             if (!$this->form_validation->run()) {
                 $this->response['error'] = true;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
@@ -232,74 +229,5 @@ class Setting extends CI_Controller
             redirect('admin/login', 'refresh');
         }
     }
-    public function get_themes()
-    {
-        if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
-            $this->Setting_model->get_theme_list();
-        } else {
-            redirect('admin/login', 'refresh');
-        }
-    }
 
-    public function set_default_theme()
-    {
-        if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
-            if (print_msg(!has_permissions('update', 'settings'), PERMISSION_ERROR_MSG, 'settings')) {
-                return false;
-            }
-            $this->form_validation->set_rules('theme_id', 'Theme', 'trim|required|xss_clean|numeric');
-            if (!$this->form_validation->run()) {
-                $this->response['error'] = true;
-                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = validation_errors();
-                print_r(json_encode($this->response));
-                return false;
-            }
-            $theme_id = $this->input->post('theme_id', true);
-            $theme = $this->db->where('id', $theme_id)->get('themes')->row_array();
-            if (empty($theme)) {
-                $this->response['error'] = true;
-                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = "No theme found.";
-                $this->response['test'] = $theme;
-                print_r(json_encode($this->response));
-                return false;
-            }
-
-            if ($theme['status'] == 0) {
-                $this->response['error'] = true;
-                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = "You can not set Inactive theme as default.";
-                print_r(json_encode($this->response));
-                return false;
-            }
-            $this->db->trans_start();
-
-            $this->db->set('is_default', 0);
-            $this->db->update('themes');
-
-            $this->db->set('is_default', 1);
-            $this->db->where('id', $theme_id)->update('themes');
-
-            $this->db->trans_complete();
-            $error = true;
-            if ($this->db->trans_status() === true) {
-                $error = false;
-            }
-            $this->response['error'] = $error;
-            $this->response['csrfName'] = $this->security->get_csrf_token_name();
-            $this->response['csrfHash'] = $this->security->get_csrf_hash();
-            // Reported "Default Theme Updated." unconditionally, including when the transaction had
-
-            // rolled back - the admin saw a success toast while the storefront kept the old theme.
-
-            $this->response['message'] = $error ? "Could not update the default theme." : "Default Theme Updated.";
-            print_r(json_encode($this->response));
-        } else {
-            redirect('admin/login', 'refresh');
-        }
-    }
 }

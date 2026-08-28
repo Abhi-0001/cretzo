@@ -3272,16 +3272,16 @@ Defined Methods:-
                         // place order custome notification on payment success
 
                         $custom_notification = fetch_details('custom_notifications', ['type' => "place_order"], '');
-                        $hashtag_order_id = '< order_id >';
-                        $string = json_encode($custom_notification[0]['title'], JSON_UNESCAPED_UNICODE);
-                        $hashtag = html_entity_decode($string);
-                        $data1 = str_replace($hashtag_order_id, $order_id, $hashtag);
-                        $title = output_escaping(trim($data1, '"'));
-                        $hashtag_application_name = '< application_name >';
-                        $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
-                        $hashtag = html_entity_decode($string);
-                        $data2 = str_replace($hashtag_application_name, $system_settings['app_name'], $hashtag);
-                        $message = output_escaping(trim($data2, '"'));
+                        // The message used to have ONLY < application_name > substituted into it, so the
+                        // order id placeholder survived and customers were shown the literal text
+                        // "Your order #< order_id > has been placed". Both halves go through the same
+                        // token list now.
+                        $notification_tokens = [
+                            'order_id'         => $order_id,
+                            'application_name' => $system_settings['app_name'],
+                        ];
+                        $title = render_notification_text($custom_notification[0]['title'], $notification_tokens);
+                        $message = render_notification_text($custom_notification[0]['message'], $notification_tokens);
 
                         $fcm_admin_subject = (!empty($custom_notification)) ? $title : 'New order placed ID #' . $order_id;
                         $fcm_admin_msg = (!empty($custom_notification)) ? $message : 'New order received for  ' . $system_settings['app_name'] . ' please process it.';
@@ -3703,16 +3703,16 @@ Defined Methods:-
 
                             // place order custome notification on payment success
                             $custom_notification = fetch_details('custom_notifications', ['type' => "place_order"], '');
-                            $hashtag_order_id = '< order_id >';
-                            $string = json_encode($custom_notification[0]['title'], JSON_UNESCAPED_UNICODE);
-                            $hashtag = html_entity_decode($string);
-                            $data1 = str_replace($hashtag_order_id, $order_id, $hashtag);
-                            $title = output_escaping(trim($data1, '"'));
-                            $hashtag_application_name = '< application_name >';
-                            $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
-                            $hashtag = html_entity_decode($string);
-                            $data2 = str_replace($hashtag_application_name, $system_settings['app_name'], $hashtag);
-                            $message = output_escaping(trim($data2, '"'));
+                            // The message used to have ONLY < application_name > substituted into it, so the
+                            // order id placeholder survived and customers were shown the literal text
+                            // "Your order #< order_id > has been placed". Both halves go through the same
+                            // token list now.
+                            $notification_tokens = [
+                                'order_id'         => $order_id,
+                                'application_name' => $system_settings['app_name'],
+                            ];
+                            $title = render_notification_text($custom_notification[0]['title'], $notification_tokens);
+                            $message = render_notification_text($custom_notification[0]['message'], $notification_tokens);
 
                             $fcm_admin_subject = (!empty($custom_notification)) ? $title : 'New order placed ID #' . $order_id;
                             $fcm_admin_msg = (!empty($custom_notification)) ? $message : 'New order received for  ' . $system_settings['app_name'] . ' please process it.';
@@ -4895,8 +4895,14 @@ Defined Methods:-
                     $data = str_replace(array($hashtag_order_id, $hashtag_application_name), array($order_id, $app_name), $hashtag);
                     $message = output_escaping(trim($data, '"'));
                     $customer_msg = (!empty($custom_notification)) ? $message : "Hello Dear Admin you have new order bank transfer proof. Order ID #" . $order_id . ' please take note of it! Thank you. Regards ' . $app_name . '';
+                    // Title was emitted as the raw stored template while only the message had its
+                    // placeholders substituted, so any template whose title names the order/ticket/status
+                    // reached the reader as literal "< ... >" text. Both halves share one token list now.
+                    $proof_title = (!empty($custom_notification) && !empty($custom_notification[0]['title']))
+                        ? render_notification_text($custom_notification[0]['title'], ['order_id' => $order_id, 'application_name' => $app_name])
+                        : "You have new order proof";
                     $fcmMsg = array(
-                        'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "You have new order proof",
+                        'title' => $proof_title,
                         'body' => $customer_msg,
                         'type' => "bank_transfer_proof",
                     );
@@ -5543,16 +5549,16 @@ Defined Methods:-
                         // place order custome notification on payment success
 
                         $custom_notification = fetch_details('custom_notifications', ['type' => "place_order"], '');
-                        $hashtag_order_id = '< order_id >';
-                        $string = json_encode($custom_notification[0]['title'], JSON_UNESCAPED_UNICODE);
-                        $hashtag = html_entity_decode($string);
-                        $data1 = str_replace($hashtag_order_id, $order_id, $hashtag);
-                        $title = output_escaping(trim($data1, '"'));
-                        $hashtag_application_name = '< application_name >';
-                        $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
-                        $hashtag = html_entity_decode($string);
-                        $data2 = str_replace($hashtag_application_name, $system_settings['app_name'], $hashtag);
-                        $message = output_escaping(trim($data2, '"'));
+                        // The message used to have ONLY < application_name > substituted into it, so the
+                        // order id placeholder survived and customers were shown the literal text
+                        // "Your order #< order_id > has been placed". Both halves go through the same
+                        // token list now.
+                        $notification_tokens = [
+                            'order_id'         => $order_id,
+                            'application_name' => $system_settings['app_name'],
+                        ];
+                        $title = render_notification_text($custom_notification[0]['title'], $notification_tokens);
+                        $message = render_notification_text($custom_notification[0]['message'], $notification_tokens);
 
                         $fcm_admin_subject = (!empty($custom_notification)) ? $title : 'New order placed ID #' . $order_id;
                         $fcm_admin_msg = (!empty($custom_notification)) ? $message : 'New order received for  ' . $system_settings['app_name'] . ' please process it.';
@@ -5781,16 +5787,16 @@ Defined Methods:-
                         // place order custome notification on payment success
 
                         $custom_notification = fetch_details('custom_notifications', ['type' => "place_order"], '');
-                        $hashtag_order_id = '< order_id >';
-                        $string = json_encode($custom_notification[0]['title'], JSON_UNESCAPED_UNICODE);
-                        $hashtag = html_entity_decode($string);
-                        $data1 = str_replace($hashtag_order_id, $order_id, $hashtag);
-                        $title = output_escaping(trim($data1, '"'));
-                        $hashtag_application_name = '< application_name >';
-                        $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
-                        $hashtag = html_entity_decode($string);
-                        $data2 = str_replace($hashtag_application_name, $system_settings['app_name'], $hashtag);
-                        $message = output_escaping(trim($data2, '"'));
+                        // The message used to have ONLY < application_name > substituted into it, so the
+                        // order id placeholder survived and customers were shown the literal text
+                        // "Your order #< order_id > has been placed". Both halves go through the same
+                        // token list now.
+                        $notification_tokens = [
+                            'order_id'         => $order_id,
+                            'application_name' => $system_settings['app_name'],
+                        ];
+                        $title = render_notification_text($custom_notification[0]['title'], $notification_tokens);
+                        $message = render_notification_text($custom_notification[0]['message'], $notification_tokens);
 
                         $fcm_admin_subject = (!empty($custom_notification)) ? $title : 'New order placed ID #' . $order_id;
                         $fcm_admin_msg = (!empty($custom_notification)) ? $message : 'New order received for  ' . $system_settings['app_name'] . ' please process it.';
@@ -6195,16 +6201,16 @@ Defined Methods:-
                             update_details(['status' => $status], ['order_id' => $order_id], 'order_items', false);
                             // place order custome notification on payment success
                             $custom_notification = fetch_details('custom_notifications', ['type' => "place_order"], '');
-                            $hashtag_order_id = '< order_id >';
-                            $string = json_encode($custom_notification[0]['title'], JSON_UNESCAPED_UNICODE);
-                            $hashtag = html_entity_decode($string);
-                            $data1 = str_replace($hashtag_order_id, $order_id, $hashtag);
-                            $title = output_escaping(trim($data1, '"'));
-                            $hashtag_application_name = '< application_name >';
-                            $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
-                            $hashtag = html_entity_decode($string);
-                            $data2 = str_replace($hashtag_application_name, $system_settings['app_name'], $hashtag);
-                            $message = output_escaping(trim($data2, '"'));
+                            // The message used to have ONLY < application_name > substituted into it, so the
+                            // order id placeholder survived and customers were shown the literal text
+                            // "Your order #< order_id > has been placed". Both halves go through the same
+                            // token list now.
+                            $notification_tokens = [
+                                'order_id'         => $order_id,
+                                'application_name' => $system_settings['app_name'],
+                            ];
+                            $title = render_notification_text($custom_notification[0]['title'], $notification_tokens);
+                            $message = render_notification_text($custom_notification[0]['message'], $notification_tokens);
 
                             $fcm_admin_subject = (!empty($custom_notification)) ? $title : 'New order placed ID #' . $order_id;
                             $fcm_admin_msg = (!empty($custom_notification)) ? $message : 'New order received for  ' . $system_settings['app_name'] . ' please process it.';

@@ -1033,18 +1033,30 @@ class Orders extends CI_Controller
                 // $user_res[0] unguarded threw "Undefined array key" notices that got mixed
                 // into the AJAX JSON response and broke the front-end's response parsing.
                 if (!empty($user_res)) {
-                    $hashtag_cutomer_name = '< cutomer_name >';
-                    $hashtag_order_id = '< order_item_id >';
-                    $hashtag_application_name = '< application_name >';
-                    $string = json_encode(isset($custom_notification[0]['message']) ? $custom_notification[0]['message'] : '', JSON_UNESCAPED_UNICODE);
-                    $hashtag = html_entity_decode($string);
-                    $data = str_replace(array($hashtag_cutomer_name, $hashtag_order_id, $hashtag_application_name), array($user_res[0]['username'], $order_item_res[0]['id'], $app_name), $hashtag);
-                    $message = output_escaping(trim($data, '"'));
-                    $customer_msg = (!empty($custom_notification)) ? $message :  'Hello Dear ' . $user_res[0]['username'] . ' Order status updated to' . $_POST['status'] . ' for order ID #' .  $order_item_res[0]['id'] . ' please take note of it! Thank you. Regards ' . $app_name . '';
+                    /*
+                     * Was a hand-rolled str_replace over three hardcoded token spellings, applied
+                     * to the MESSAGE only - the TITLE went out as the raw template, so a template
+                     * titled "Order #< order_id > updated" reached the customer with that literal
+                     * text in it. render_notification_text() fills both halves from one token list
+                     * and tolerates the inconsistent spacing/spelling across the seeded templates.
+                     */
+                    $notification_tokens = [
+                        'cutomer_name'     => $user_res[0]['username'],
+                        'order_id'         => $order_item_res[0]['order_id'],
+                        'order_item_id'    => $order_item_res[0]['id'],
+                        'status'           => $_POST['status'],
+                        'application_name' => $app_name,
+                    ];
+                    $customer_msg = (!empty($custom_notification) && isset($custom_notification[0]['message']))
+                        ? render_notification_text($custom_notification[0]['message'], $notification_tokens)
+                        : 'Hello Dear ' . $user_res[0]['username'] . ' Order status updated to' . $_POST['status'] . ' for order ID #' .  $order_item_res[0]['id'] . ' please take note of it! Thank you. Regards ' . $app_name . '';
+                    $customer_title = (!empty($custom_notification) && !empty($custom_notification[0]['title']))
+                        ? render_notification_text($custom_notification[0]['title'], $notification_tokens)
+                        : 'Order status updated';
                     $fcm_ids = array();
                     if (!empty($user_res[0]['fcm_id'])) {
                         $fcmMsg = array(
-                            'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : " Order status updated",
+                            'title' => $customer_title,
                             'body' => $customer_msg,
                             'type' => "order",
                             'order_id' => $order_item_res[0]['order_id'],
@@ -1071,7 +1083,7 @@ class Orders extends CI_Controller
                      */
                     add_user_notification(
                         $user_id,
-                        (!empty($custom_notification)) ? $custom_notification[0]['title'] : 'Order status updated',
+                        $customer_title,
                         $customer_msg,
                         'order_' . $_POST['status'],
                         base_url('my-account/orders'),
@@ -1086,15 +1098,20 @@ class Orders extends CI_Controller
                     // with no device token registered it was never composed at all - and there
                     // was no in-app record for the seller either way. Composed here so both the
                     // notification list and the optional push read the same text.
-                    $hashtag_cutomer_name = '< cutomer_name >';
-                    $hashtag_order_id = '< order_item_id >';
-                    $hashtag_application_name = '< application_name >';
-                    $string = json_encode(isset($custom_notification[0]['message']) ? $custom_notification[0]['message'] : '', JSON_UNESCAPED_UNICODE);
-                    $hashtag = html_entity_decode($string);
-                    $data = str_replace(array($hashtag_cutomer_name, $hashtag_order_id, $hashtag_application_name), array($seller_res[0]['username'], $order_item_res[0]['id'], $app_name), $hashtag);
-                    $message = output_escaping(trim($data, '"'));
-                    $seller_msg = (!empty($custom_notification)) ? $message :  'Hello Dear ' . $seller_res[0]['username'] . ' Order status updated to' . $_POST['status'] . ' for your order ID #' . $order_item_res[0]['id'] . ' please take note of it! Regards ' . $app_name . '';
-                    $seller_title = (!empty($custom_notification)) ? $custom_notification[0]['title'] : 'Order status updated';
+                    // Same token fill as the customer copy above, addressed to the seller.
+                    $seller_tokens = [
+                        'cutomer_name'     => $seller_res[0]['username'],
+                        'order_id'         => $order_item_res[0]['order_id'],
+                        'order_item_id'    => $order_item_res[0]['id'],
+                        'status'           => $_POST['status'],
+                        'application_name' => $app_name,
+                    ];
+                    $seller_msg = (!empty($custom_notification) && isset($custom_notification[0]['message']))
+                        ? render_notification_text($custom_notification[0]['message'], $seller_tokens)
+                        : 'Hello Dear ' . $seller_res[0]['username'] . ' Order status updated to' . $_POST['status'] . ' for your order ID #' . $order_item_res[0]['id'] . ' please take note of it! Regards ' . $app_name . '';
+                    $seller_title = (!empty($custom_notification) && !empty($custom_notification[0]['title']))
+                        ? render_notification_text($custom_notification[0]['title'], $seller_tokens)
+                        : 'Order status updated';
 
                     add_user_notification(
                         $order_item_res[0]['seller_id'],
@@ -1222,13 +1239,18 @@ class Orders extends CI_Controller
                 $status = $this->input->post('status', true);
 
                 if (update_details(['status' => $status], ['order_id' => $order_id], 'order_bank_transfer')) {
+                    // $status used to be reused as the scratch variable for the order_items
+                    // status JSON in the "Accepted" branch, so by the time the notification was
+                    // composed below it held [["received","<date>"]] - and that JSON blob, not
+                    // the word "Accepted", is what the < status > placeholder was filled with.
+                    // The timeline JSON gets its own variable.
                     if ($status == 1) {
                         $status = "Rejected";
                     } else if ($status == 2) {
                         $status = "Accepted";
                         update_details(['active_status' => 'received'], ['order_id' => $order_id], 'order_items');
-                        $status = json_encode(array(array('received', date("d-m-Y h:i:sa"))));
-                        update_details(['status' => $status], ['order_id' => $order_id], 'order_items', false);
+                        $status_timeline = json_encode(array(array('received', date("d-m-Y h:i:sa"))));
+                        update_details(['status' => $status_timeline], ['order_id' => $order_id], 'order_items', false);
                     } else {
                         $status = "Pending";
                     }
@@ -1240,7 +1262,12 @@ class Orders extends CI_Controller
                     $hashtag = html_entity_decode($string);
                     $data = str_replace(array($hashtag_status, $hashtag_order_id), array($status, $order_id), $hashtag);
                     $message = output_escaping(trim($data, '"'));
-                    $customer_title = (!empty($custom_notification)) ? $custom_notification[0]['title'] : 'Bank Transfer Receipt Status';
+                    // Title was emitted as the raw stored template while only the message had its
+                    // placeholders substituted, so any template whose title names the order/ticket/status
+                    // reached the reader as literal "< ... >" text. Both halves share one token list now.
+                    $customer_title = (!empty($custom_notification) && !empty($custom_notification[0]['title']))
+                        ? render_notification_text($custom_notification[0]['title'], ['order_id' => $order_id, 'status' => $status])
+                        : 'Bank Transfer Receipt Status';
                     $customer_msg = (!empty($custom_notification)) ? $message : 'Bank Transfer Receipt' . $status . ' for order ID: ' . $order_id;
                     $user = fetch_details("users", ['id' => $user_id], 'email,fcm_id');
                     // send_mail($user[0]['email'], $customer_title, $customer_msg);                    

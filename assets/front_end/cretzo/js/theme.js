@@ -814,8 +814,17 @@ var theme = {
   passVisibility: () => {
     let pass = document.querySelectorAll('.password-field');
     for (let i = 0; i < pass.length; i++) {
+      // assets/front_end/cretzo/js/cretzo-fixes.js (FIX 12) binds these toggles
+      // itself, because init() aborts on offCanvas() long before this runs and
+      // the eye icons were dead. Skip anything it has already claimed, or the
+      // two listeners would flip the type twice and nothing would appear to
+      // happen.
+      if (pass[i].getAttribute('data-cretzo-pass-toggle')) continue;
       let passInput = pass[i].querySelector('.form-control');
       let passToggle = pass[i].querySelector('.password-toggle > i');
+      // Both were dereferenced unguarded: one field missing its input or its
+      // icon threw here and killed the loop for every field after it.
+      if (!passInput || !passToggle) continue;
       passToggle.addEventListener('click', (e) => {
         if (passInput.type === "password") {
           passInput.type = "text";

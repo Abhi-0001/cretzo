@@ -33,7 +33,7 @@
 
         <!-- start send admin notification  -->
         <?php
-        $notifications = fetch_details('system_notification',  NULL,  '*',  '3', '0',  'read_by', 'ASC',  '',  '');
+        $notifications = clean_notification_rows(fetch_details('system_notification',  NULL,  '*',  '3', '0',  'read_by', 'ASC',  '',  ''));
         $count_noti = fetch_details('system_notification',  ["read_by" => 0],  'count(id) as total');
         ?>
 

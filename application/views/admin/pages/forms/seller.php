@@ -288,9 +288,14 @@ $rail = [
               <?php endif; ?>
               <button type="button" class="czp-btn czp-btn-ghost czp-btn-sm"
                       onclick="openSellerFormSection('admin')">Review &amp; approve</button>
-              <?php if ($seller_is_approved && !empty($d['slug'])): ?>
+              <?php if ($seller_is_approved && (!empty($d['slug']) || $edit_user_id > 0)): ?>
+                <?php // seller_profile_url(), the same helper the storefront's seller cards
+                      // use. The public store lives at sellers/seller_details/<slug>;
+                      // sellers/<slug> matches no route ($route['sellers/(:num)'] only
+                      // covers the numeric pagination) and 404s. It also falls back to
+                      // the user id when a seller has no slug yet. ?>
                 <a class="czp-btn czp-btn-ghost czp-btn-sm" target="_blank" rel="noopener"
-                   href="<?= base_url('sellers/' . rawurlencode($d['slug'])) ?>">View storefront</a>
+                   href="<?= seller_profile_url($d['slug'] ?? '', $edit_user_id) ?>">View storefront</a>
               <?php endif; ?>
               <a class="czp-btn czp-btn-ghost czp-btn-sm" href="<?= base_url('admin/sellers') ?>">All sellers</a>
             </div>

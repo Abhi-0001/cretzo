@@ -1,12 +1,260 @@
+<?php
+/**
+ * Language labels editor.
+ *
+ * The label set used to be one flat wall of ~170 inputs (with a handful of
+ * duplicated keys). It is now driven by this single map so the markup lives in
+ * one place: group => [title, icon, labels => [post_key => [caption, default]]].
+ */
+$label_groups = [
+    'navigation' => [
+        'title' => 'Navigation & Menu',
+        'icon'  => 'fa-compass',
+        'labels' => [
+            'menu' => ['Menu', 'Menu'],
+            'home' => ['Home', 'Home'],
+            'pages' => ['Pages', 'Pages'],
+            'products' => ['Products', 'Products'],
+            'product_listing' => ['Product Listing', 'Product Listing'],
+            'category' => ['Category', 'Category'],
+            'amazing_categories' => ['Amazing Categories', 'Amazing Categories'],
+            'sellers' => ['Sellers', 'Sellers'],
+            'blogs' => ['Blogs', 'Blogs'],
+            'become_a_seller' => ['Become a Seller', 'Become a Seller'],
+            'about_us' => ['About Us', 'About Us'],
+            'contact_us' => ['Contact Us', 'Contact Us'],
+            'faq' => ['FAQs', 'FAQs'],
+            'mobile_app' => ['Mobile App', 'Mobile App'],
+            'language' => ['Language', 'Language'],
+            'view_more' => ['View More', 'View More'],
+            'see_all' => ['See All', 'See All'],
+            'go_to_shop' => ['Go to Shop', 'Go to Shop'],
+            'back_to_top' => ['Back to Top', 'Back to top'],
+        ],
+    ],
+    'account' => [
+        'title' => 'Account & Authentication',
+        'icon'  => 'fa-user-circle',
+        'labels' => [
+            'login' => ['Login', 'Login'],
+            'register' => ['Register', 'Register'],
+            'logout' => ['Logout', 'Logout'],
+            'my_account' => ['My Account', 'My Account'],
+            'dashboard' => ['Dashboard', 'Dashboard'],
+            'profile' => ['Profile', 'Profile'],
+            'update_profile' => ['Update Profile', 'Update Profile'],
+            'username' => ['Username', 'Username'],
+            'notification' => ['Notification', 'Notification'],
+            'old_password' => ['Old Password', 'Old Password'],
+            'new_password' => ['New Password', 'New Password'],
+            'confirm_new_password' => ['Confirm New Password', 'Confirm New Password'],
+            'forgot_password' => ['Forgot Password', 'Forgot Password'],
+            'send_otp' => ['Send OTP', 'Send OTP'],
+            'enter_valid_number' => ['Enter Valid Number', 'Enter Valid Number'],
+        ],
+    ],
+    'catalog' => [
+        'title' => 'Product & Catalogue',
+        'icon'  => 'fa-box-open',
+        'labels' => [
+            'product' => ['Product', 'Product'],
+            'image' => ['Image', 'Image'],
+            'price' => ['Price', 'Price'],
+            'details' => ['Details', 'Details'],
+            'view' => ['View', 'View'],
+            'view_details' => ['View Details', 'View Details'],
+            'specification' => ['Specifications', 'Specifications'],
+            'related_products' => ['Related Products', 'Related Products'],
+            'reviews' => ['Reviews', 'Reviews'],
+            'rating' => ['Rating', 'Rating'],
+            'sale' => ['Sale', 'Sale'],
+            'compare' => ['Compare', 'Compare'],
+            'pick_your_favorite_color' => ['Pick Your Favorite Color', 'Pick Your Favorite Color'],
+            'favorite' => ['Favorite', 'Favorite'],
+            'add_to_favorite' => ['Add to Favorite', 'Add to Favorite'],
+            'remove_from_favorite' => ['Remove from Favorite', 'Remove from Favorite'],
+            'no_favorite_product_message' => ['No Favorites - Empty Message', 'No Favorite Products Found'],
+        ],
+    ],
+    'filters' => [
+        'title' => 'Filters & Sorting',
+        'icon'  => 'fa-sliders-h',
+        'labels' => [
+            'filter' => ['Filter', 'Filter'],
+            'sort_by' => ['Sort By', 'Sort By'],
+            'show' => ['Show', 'Show'],
+            'relevance' => ['Relevance', 'Relevance'],
+            'top_rated' => ['Top Rated', 'Top Rated'],
+            'newest_first' => ['Newest First', 'Newest First'],
+            'oldest_first' => ['Oldest First', 'Oldest First'],
+            'price_low_to_high' => ['Price - Low To High', 'Price - Low To High'],
+            'price_high_to_low' => ['Price - High To Low', 'Price - High To Low'],
+        ],
+    ],
+    'cart' => [
+        'title' => 'Cart',
+        'icon'  => 'fa-shopping-cart',
+        'labels' => [
+            'cart' => ['Cart', 'Cart'],
+            'your_cart' => ['Your Cart', 'Your cart'],
+            'shopping_cart' => ['Shopping Cart', 'Shopping Cart'],
+            'view_cart' => ['View Cart', 'View Cart'],
+            'add_to_cart' => ['Add to Cart', 'Add to Cart'],
+            'buy_now' => ['Buy Now', 'Buy Now'],
+            'move_to_cart' => ['Move to Cart', 'Move to cart'],
+            'save_for_later' => ['Save For Later', 'Save For Later'],
+            'clear_cart' => ['Clear Cart', 'Clear Cart'],
+            'cart_total' => ['Cart Total', 'Cart Total'],
+            'empty_cart_message' => ['Empty Cart Message', 'Your Cart Is Empty'],
+            'return_to_shop' => ['Return To Shop', 'Return To Shop'],
+            'continue_shopping' => ['Continue Shopping', 'Continue Shopping'],
+            'quantity' => ['Quantity', 'Quantity'],
+            'qty' => ['Qty (short form)', 'Qty'],
+            'subtotal' => ['Subtotal', 'Subtotal'],
+            'total' => ['Total', 'Total'],
+            'grand_total' => ['Grand Total', 'Grand Total'],
+            'promo_code' => ['Promo Code (cart)', 'Promo code'],
+            'promocode' => ['Promo Code', 'Promo Code'],
+            'redeem' => ['Redeem', 'Redeem'],
+            'see_all_offers' => ['See All Offers', 'See All Offers'],
+        ],
+    ],
+    'checkout' => [
+        'title' => 'Checkout & Payment',
+        'icon'  => 'fa-credit-card',
+        'labels' => [
+            'checkout' => ['Checkout', 'Checkout'],
+            'go_to_checkout' => ['Go To Checkout', 'Go To Checkout'],
+            'place_order' => ['Place Order', 'Place Order'],
+            'order_summary' => ['Order Summary', 'Order Summary'],
+            'billing_details' => ['Billing Details', 'Billing Details'],
+            'billing_address' => ['Billing Address', 'Billing address'],
+            'shipping_address' => ['Shipping Address', 'Shipping Address'],
+            'preferred_delivery_date_time' => ['Preferred Delivery Date / Time', 'Preferred Delivery Date / Time'],
+            'select_payment_method' => ['Select Payment Method', 'Select Payment Method'],
+            'payment_method' => ['Payment Method', 'Payment Method'],
+            'cash_on_delivery' => ['Cash On Delivery', 'Cash On Delivery'],
+            'delivery_charge' => ['Delivery Charge', 'Delivery Charge'],
+            'tax' => ['Tax', 'Tax'],
+            'promocode_discount' => ['Promocode Discount', 'Promocode Discount'],
+            'wallet_used' => ['Wallet Used', 'Wallet Used'],
+            'total_order_price' => ['Total Order Price', 'Total Order Price'],
+            'final_total' => ['Final Total', 'Final Total'],
+            'payment_completed' => ['Payment Complete', 'Payment Complete'],
+            'payment_completed_message' => ['Payment Complete - Message', 'Payment Completed Successfully'],
+            'payment_cancelled' => ['Payment Cancelled / Failed', 'Payment Cancelled / Failed'],
+            'payment_cancelled_message' => ['Payment Cancelled - Message', 'It seems like payment process is failed or cancelled.Please Try again.'],
+            'payment_cancelled_description' => ['Payment Cancelled - Description', 'Payment Cancelled Description'],
+            'thank_you_for_shopping' => ['Thank You For Shopping', 'Thank You For Shopping'],
+            'thank_you_for_shopping_with_us' => ['Thank You For Shopping With Us', 'Thank you for Shopping with Us'],
+        ],
+    ],
+    'orders' => [
+        'title' => 'Orders',
+        'icon'  => 'fa-receipt',
+        'labels' => [
+            'orders' => ['Orders', 'Orders'],
+            'my_orders' => ['My Orders', 'My Orders'],
+            'order_id' => ['Order ID', 'Order ID'],
+            'place_on' => ['Placed On', 'Place On'],
+            'invoice' => ['Invoice', 'Invoice'],
+            'shipping_details' => ['Shipping Details', 'Shipping Details'],
+            'return' => ['Return', 'Return'],
+            'back_to_list' => ['Back to List', 'Back to List'],
+        ],
+    ],
+    'address' => [
+        'title' => 'Address & Contact Fields',
+        'icon'  => 'fa-map-marker-alt',
+        'labels' => [
+            'address' => ['Address', 'Address'],
+            'create_a_new_address' => ['Create a New Address', 'Create a New Address'],
+            'edit_address' => ['Edit Address', 'Edit Address'],
+            'name' => ['Name', 'Name'],
+            'mobile_number' => ['Mobile Number', 'Mobile Number'],
+            'alternate_mobile' => ['Alternate Mobile', 'Alternate Mobile'],
+            'city' => ['City', 'City'],
+            'select_city' => ['Select City', 'Select City'],
+            'area' => ['Area', 'Area'],
+            'select_area' => ['Select Area', 'Select Area'],
+            'landmark' => ['Landmark', 'Landmark'],
+            'pincode' => ['Pincode', 'Pincode'],
+            'state' => ['State', 'State'],
+            'country' => ['Country', 'Country'],
+            'type' => ['Type', 'Type'],
+            'office' => ['Office', 'Office'],
+            'other' => ['Other', 'Other'],
+        ],
+    ],
+    'wallet' => [
+        'title' => 'Wallet & Bank Details',
+        'icon'  => 'fa-wallet',
+        'labels' => [
+            'wallet' => ['Wallet', 'Wallet'],
+            'wallet_balance' => ['Wallet Balance', 'Wallet Balance'],
+            'available_balance' => ['Available Balance', 'Available Balance'],
+            'balance' => ['Balance', 'Balance'],
+            'transaction' => ['Transaction', 'Transaction'],
+            'transactions' => ['Transactions', 'Transactions'],
+            'account_details' => ['Account Details', 'Account Details'],
+            'account_name' => ['Account Name', 'Account Name'],
+            'account_number' => ['Account Number', 'Account Number'],
+            'bank_name' => ['Bank Name', 'Bank Name'],
+            'bank_code' => ['Bank Code', 'Bank Code'],
+            'extra_details' => ['Extra Details', 'Extra Details'],
+        ],
+    ],
+    'footer' => [
+        'title' => 'Footer, Contact & Policies',
+        'icon'  => 'fa-shoe-prints',
+        'labels' => [
+            'newsletter' => ['Newsletter', 'Newsletter'],
+            'subscribe' => ['Subscribe', 'Subscribe'],
+            'useful_links' => ['Useful Links', 'Useful Links'],
+            'social_media' => ['Social Media', 'Social Media'],
+            'follow_us' => ['Follow Us', 'Follow us'],
+            'find_us' => ['Find Us', 'Find Us'],
+            'call_us' => ['Call Us', 'Call Us'],
+            'mail_us' => ['Mail Us', 'Mail Us'],
+            'email_us' => ['Email Us', 'Email Us'],
+            'email' => ['Email', 'Email'],
+            'subject' => ['Subject', 'Subject'],
+            'message' => ['Message', 'Message'],
+            'send_message' => ['Send Message', 'Send Message'],
+            'terms_and_condition' => ['Terms & Condition', 'Terms & Condition'],
+            'privacy_policy' => ['Privacy Policy', 'Privacy Policy'],
+            'shipping_policy' => ['Shipping Policy', 'Shipping Policy'],
+            'return_policy' => ['Return Policy', 'Return Policy'],
+        ],
+    ],
+    'common' => [
+        'title' => 'Common Buttons & Actions',
+        'icon'  => 'fa-mouse-pointer',
+        'labels' => [
+            'submit' => ['Submit', 'Submit'],
+            'save' => ['Save', 'Save'],
+            'cancel' => ['Cancel', 'Cancel'],
+            'close' => ['Close', 'Close'],
+            'clear' => ['Clear', 'Clear'],
+            'reset' => ['Reset', 'Reset'],
+            'remove' => ['Remove', 'Remove'],
+            'action' => ['Action', 'Action'],
+        ],
+    ],
+];
+
+$total_labels = 0;
+foreach ($label_groups as $group) {
+    $total_labels += count($group['labels']);
+}
+?>
 <div class="content-wrapper admin-languages-page">
-    <!-- Content Header (Page header) -->
-    <!-- Main content -->
     <section class="content-header">
         <div class="container-fluid">
             <div class="row mb-2 align-items-center">
                 <div class="col-sm-6">
                     <h4 class="mb-0"><i class="fas fa-language mr-2 text-primary-theme"></i>Language Management</h4>
-                    <p class="text-muted mb-0 small">Manage storefront languages and their translated labels.</p>
+                    <p class="text-muted mb-0 small">Translate the labels shown across the storefront.</p>
                 </div>
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">
@@ -15,1181 +263,217 @@
                     </ol>
                 </div>
             </div>
-        </div><!-- /.container-fluid -->
+        </div>
     </section>
+
     <section class="content">
         <div class="container-fluid">
-            <div class="row">
-                <div class="col-md-12">
-                    <div class="card attribute-card">
-                        <div class="card-header attribute-card-header d-flex justify-content-between align-items-center flex-wrap">
-                            <div class="d-flex align-items-center">
-                                <span class="header-icon bg-set mr-2"><i class="fas fa-globe"></i></span>
-                                <h5 class="mb-0">Select Language</h5>
-                            </div>
-                            <a href="#" class="btn btn-primary-theme btn-sm" data-toggle="modal" data-target="#language-modal">
-                                <i class="fas fa-plus mr-1"></i>Add Language
-                            </a>
-                        </div>
-                        <!-- form start -->
-                        <div class="card-body pt-3">
-                            <div class="col-md-12">
-                                <div class="msg_error p-3 mb-3">Select the Language to add labels.</div>
-                                <div class="form-group">
-                                    <label for="">Languages</label>
-                                    <select name="selected_language" id="selected_language" class="form-control">
-                                        <?php foreach ($languages as $row) { ?>
-                                            <option value="<?= $row['id'] ?>" <?= (isset($_GET['id']) && $_GET['id'] == $row['id']) ? 'selected' : '' ?>><?= $row['language'] ?></option>
-                                        <?php } ?>
-                                    </select>
-                                </div>
-                            </div>
+            <form class="form-horizontal" id="update-language-form" action="<?= base_url('admin/language/save'); ?>" method="POST">
+                <input type="hidden" id="id" name="language_id" value="<?= html_escape($language['id']) ?>">
+
+                <!-- Toolbar: language picker, label search, RTL and save all live here -->
+                <div class="lang-toolbar">
+                    <div class="lang-toolbar-item">
+                        <label for="selected_language">Language</label>
+                        <select name="selected_language" id="selected_language" class="form-control">
+                            <?php foreach ($languages as $row) { ?>
+                                <option value="<?= $row['id'] ?>" <?= ($row['id'] == $language['id']) ? 'selected' : '' ?>><?= ucfirst($row['language']) ?></option>
+                            <?php } ?>
+                        </select>
+                    </div>
+                    <div class="lang-toolbar-item lang-toolbar-search">
+                        <label for="label-search">Search labels</label>
+                        <div class="lang-search-wrap">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="label-search" class="form-control" placeholder="Filter <?= $total_labels ?> labels..." autocomplete="off">
                         </div>
                     </div>
-
-                    <div class="card attribute-card">
-                        <div class="card-header attribute-card-header d-flex justify-content-between align-items-center flex-wrap">
-                            <div class="d-flex align-items-center">
-                                <span class="header-icon bg-set mr-2"><i class="fas fa-tags"></i></span>
-                                <h5 class="mb-0">Labels</h5>
-                            </div>
-                        </div>
-                        <div class="card-body pt-3">
-                            <form class="form-horizontal" id="update-language-form" action="<?= base_url('admin/language/save'); ?>" method="POST">
-                                <input type="hidden" id="id" name="language_id" value="<?= html_escape($language['id']) ?>">
-                                <div class="row">
-                                    <div class="col-md-12">
-                                        <div class="form-group">
-                                            <input type="checkbox" name="is_rtl" class="form-checkbox" id="is_rtl" value="<?= $language['is_rtl'] ?>" <?= ($language['is_rtl']) ? 'checked' : '' ?> />
-                                            <label for="is_rtl" class="control-checkbox">Enable RTL</label>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="menu" class="control-checkbox">Menu</label>
-                                            <input type="text" name="menu" class="form-control" value="<?= html_escape((isset($lang_labels['menu']) && !empty($lang_labels['menu'])) ? $lang_labels['menu'] : 'Menu') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="products" class="control-checkbox">Products</label>
-                                            <input type="text" name="products" class="form-control" value="<?= html_escape((isset($lang_labels['products']) && !empty($lang_labels['products'])) ? $lang_labels['products'] : 'Products') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="my_account" class="control-checkbox">My Account</label>
-                                            <input type="text" name="my_account" class="form-control" value="<?= html_escape((isset($lang_labels['my_account']) && !empty($lang_labels['my_account'])) ? $lang_labels['my_account'] : 'My Account') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="my_orders" class="control-checkbox">My Orders</label>
-                                            <input type="text" name="my_orders" class="form-control" value="<?= html_escape((isset($lang_labels['my_orders']) && !empty($lang_labels['my_orders'])) ? $lang_labels['my_orders'] : 'My Orders') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="favorite" class="control-checkbox">Favorite</label>
-                                            <input type="text" name="favorite" class="form-control" value="<?= html_escape((isset($lang_labels['favorite']) && !empty($lang_labels['favorite'])) ? $lang_labels['favorite'] : 'Favorite') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="sellers" class="control-checkbox">Sellers</label>
-                                            <input type="text" name="sellers" class="form-control" value="<?= html_escape((isset($lang_labels['sellers']) && !empty($lang_labels['sellers'])) ? $lang_labels['sellers'] : 'sellers') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="login" class="control-checkbox">Login</label>
-                                            <input type="text" name="login" class="form-control" value="<?= html_escape((isset($lang_labels['login']) && !empty($lang_labels['login'])) ? $lang_labels['login'] : 'Login') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="register" class="control-checkbox">Register</label>
-                                            <input type="text" name="register" class="form-control" value="<?= html_escape((isset($lang_labels['register']) && !empty($lang_labels['register'])) ? $lang_labels['register'] : 'Register') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="about_us" class="control-checkbox">About Us</label>
-                                            <input type="text" name="about_us" class="form-control" value="<?= html_escape((isset($lang_labels['about_us']) && !empty($lang_labels['about_us'])) ? $lang_labels['about_us'] : 'About Us') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="contact_us" class="control-checkbox">Contact Us</label>
-                                            <input type="text" name="contact_us" class="form-control" value="<?= html_escape((isset($lang_labels['contact_us']) && !empty($lang_labels['contact_us'])) ? $lang_labels['contact_us'] : 'Contact Us') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="logout" class="control-checkbox">Logout</label>
-                                            <input type="text" name="logout" class="form-control" value="<?= html_escape((isset($lang_labels['logout']) && !empty($lang_labels['logout'])) ? $lang_labels['logout'] : 'Logout') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="language" class="control-checkbox">Language</label>
-                                            <input type="text" name="language" class="form-control" value="<?= html_escape((isset($lang_labels['language']) && !empty($lang_labels['language'])) ? $lang_labels['language'] : 'Language') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="shopping_cart" class="control-checkbox">Shopping Cart</label>
-                                            <input type="text" name="shopping_cart" class="form-control" value="<?= html_escape((isset($lang_labels['shopping_cart']) && !empty($lang_labels['shopping_cart'])) ? $lang_labels['shopping_cart'] : 'Shopping Cart') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="close" class="control-checkbox">Close</label>
-                                            <input type="text" name="close" class="form-control" value="<?= html_escape((isset($lang_labels['close']) && !empty($lang_labels['close'])) ? $lang_labels['close'] : 'Close') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="return_to_shop" class="control-checkbox">Return To Shop</label>
-                                            <input type="text" name="return_to_shop" class="form-control" value="<?= html_escape((isset($lang_labels['return_to_shop']) && !empty($lang_labels['return_to_shop'])) ? $lang_labels['return_to_shop'] : 'Return To Shop') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="empty_cart_message" class="control-checkbox">Your Cart Is Empty</label>
-                                            <input type="text" name="empty_cart_message" class="form-control" value="<?= html_escape((isset($lang_labels['empty_cart_message']) && !empty($lang_labels['empty_cart_message'])) ? $lang_labels['empty_cart_message'] : 'Your Cart Is Empty') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="view_cart" class="control-checkbox">View Cart</label>
-                                            <input type="text" name="view_cart" class="form-control" value="<?= html_escape((isset($lang_labels['view_cart']) && !empty($lang_labels['view_cart'])) ? $lang_labels['view_cart'] : 'View Cart') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="faq" class="control-checkbox">FAQs</label>
-                                            <input type="text" name="faq" class="form-control" value="<?= html_escape((isset($lang_labels['faq']) && !empty($lang_labels['faq'])) ? $lang_labels['faq'] : 'FAQs') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="compare" class="control-checkbox">Compare</label>
-                                            <input type="text" name="compare" class="form-control" value="<?= html_escape((isset($lang_labels['compare']) && !empty($lang_labels['compare'])) ? $lang_labels['compare'] : 'Compare') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="pages" class="control-checkbox">Pages</label>
-                                            <input type="text" name="pages" class="form-control" value="<?= html_escape((isset($lang_labels['pages']) && !empty($lang_labels['pages'])) ? $lang_labels['pages'] : 'Pages') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="social_media" class="control-checkbox">Social Media</label>
-                                            <input type="text" name="social_media" class="form-control" value="<?= html_escape((isset($lang_labels['social_media']) && !empty($lang_labels['social_media'])) ? $lang_labels['social_media'] : 'Social Media') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="terms_and_condition" class="control-checkbox">Terms & Condition</label>
-                                            <input type="text" name="terms_and_condition" class="form-control" value="<?= html_escape((isset($lang_labels['terms_and_condition']) && !empty($lang_labels['terms_and_condition'])) ? $lang_labels['terms_and_condition'] : 'Terms & Condition') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="privacy_policy" class="control-checkbox">Privacy Policy</label>
-                                            <input type="text" name="privacy_policy" class="form-control" value="<?= html_escape((isset($lang_labels['privacy_policy']) && !empty($lang_labels['privacy_policy'])) ? $lang_labels['privacy_policy'] : 'Privacy Policy') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="reviews" class="control-checkbox">Reviews</label>
-                                            <input type="text" name="reviews" class="form-control" value="<?= html_escape((isset($lang_labels['reviews']) && !empty($lang_labels['reviews'])) ? $lang_labels['reviews'] : 'Reviews') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="add_to_cart" class="control-checkbox">Add to Cart</label>
-                                            <input type="text" name="add_to_cart" class="form-control" value="<?= html_escape((isset($lang_labels['add_to_cart']) && !empty($lang_labels['add_to_cart'])) ? $lang_labels['add_to_cart'] : 'Add to Cart') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="add_to_favorite" class="control-checkbox">Add to Favorite</label>
-                                            <input type="text" name="add_to_favorite" class="form-control" value="<?= html_escape((isset($lang_labels['add_to_favorite']) && !empty($lang_labels['add_to_favorite'])) ? $lang_labels['add_to_favorite'] : 'Add to Favorite') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="cancel" class="control-checkbox">Cancel</label>
-                                            <input type="text" name="cancel" class="form-control" value="<?= html_escape((isset($lang_labels['cancel']) && !empty($lang_labels['cancel'])) ? $lang_labels['cancel'] : 'Cancel') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="send_otp" class="control-checkbox">Send OTP</label>
-                                            <input type="text" name="send_otp" class="form-control" value="<?= html_escape((isset($lang_labels['send_otp']) && !empty($lang_labels['send_otp'])) ? $lang_labels['send_otp'] : 'Send OTP') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="submit" class="control-checkbox">Submit</label>
-                                            <input type="text" name="submit" class="form-control" value="<?= html_escape((isset($lang_labels['submit']) && !empty($lang_labels['submit'])) ? $lang_labels['submit'] : 'Submit') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="home" class="control-checkbox">Home</label>
-                                            <input type="text" name="home" class="form-control" value="<?= html_escape((isset($lang_labels['home']) && !empty($lang_labels['home'])) ? $lang_labels['home'] : 'Home') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="name" class="control-checkbox">Name</label>
-                                            <input type="text" name="name" class="form-control" value="<?= html_escape((isset($lang_labels['name']) && !empty($lang_labels['name'])) ? $lang_labels['name'] : 'Name') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="mobile_number" class="control-checkbox">Mobile Number</label>
-                                            <input type="text" name="mobile_number" class="form-control" value="<?= html_escape((isset($lang_labels['mobile_number']) && !empty($lang_labels['mobile_number'])) ? $lang_labels['mobile_number'] : 'Mobile Number') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="address" class="control-checkbox">Address</label>
-                                            <input type="text" name="address" class="form-control" value="<?= html_escape((isset($lang_labels['address']) && !empty($lang_labels['address'])) ? $lang_labels['address'] : 'Address') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="city" class="control-checkbox">City</label>
-                                            <input type="text" name="city" class="form-control" value="<?= html_escape((isset($lang_labels['city']) && !empty($lang_labels['city'])) ? $lang_labels['city'] : 'City') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="select_city" class="control-checkbox">Select City</label>
-                                            <input type="text" name="select_city" class="form-control" value="<?= html_escape((isset($lang_labels['select_city']) && !empty($lang_labels['select_city'])) ? $lang_labels['select_city'] : 'Select City') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="select_area" class="control-checkbox">Select Area</label>
-                                            <input type="text" name="select_area" class="form-control" value="<?= html_escape((isset($lang_labels['select_area']) && !empty($lang_labels['select_area'])) ? $lang_labels['select_area'] : 'Select Area') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="area" class="control-checkbox">Area</label>
-                                            <input type="text" name="area" class="form-control" value="<?= html_escape((isset($lang_labels['area']) && !empty($lang_labels['area'])) ? $lang_labels['area'] : 'Area') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="pincode" class="control-checkbox">Pincode</label>
-                                            <input type="text" name="pincode" class="form-control" value="<?= html_escape((isset($lang_labels['pincode']) && !empty($lang_labels['pincode'])) ? $lang_labels['pincode'] : 'Pincode') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="state" class="control-checkbox">State</label>
-                                            <input type="text" name="state" class="form-control" value="<?= html_escape((isset($lang_labels['state']) && !empty($lang_labels['state'])) ? $lang_labels['state'] : 'State') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="country" class="control-checkbox">Country</label>
-                                            <input type="text" name="country" class="form-control" value="<?= html_escape((isset($lang_labels['country']) && !empty($lang_labels['country'])) ? $lang_labels['country'] : 'Country') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="type" class="control-checkbox">Type</label>
-                                            <input type="text" name="type" class="form-control" value="<?= html_escape((isset($lang_labels['type']) && !empty($lang_labels['type'])) ? $lang_labels['type'] : 'Type') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="office" class="control-checkbox">Office</label>
-                                            <input type="text" name="office" class="form-control" value="<?= html_escape((isset($lang_labels['office']) && !empty($lang_labels['office'])) ? $lang_labels['office'] : 'Office') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="other" class="control-checkbox">Other</label>
-                                            <input type="text" name="other" class="form-control" value="<?= html_escape((isset($lang_labels['other']) && !empty($lang_labels['other'])) ? $lang_labels['other'] : 'Other') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="alternate_mobile" class="control-checkbox">Alternate Mobile</label>
-                                            <input type="text" name="alternate_mobile" class="form-control" value="<?= html_escape((isset($lang_labels['alternate_mobile']) && !empty($lang_labels['alternate_mobile'])) ? $lang_labels['alternate_mobile'] : 'Alternate Mobile') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="landmark" class="control-checkbox">Landmark</label>
-                                            <input type="text" name="landmark" class="form-control" value="<?= html_escape((isset($lang_labels['landmark']) && !empty($lang_labels['landmark'])) ? $lang_labels['landmark'] : 'Landmark') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="action" class="control-checkbox">Action</label>
-                                            <input type="text" name="action" class="form-control" value="<?= html_escape((isset($lang_labels['action']) && !empty($lang_labels['action'])) ? $lang_labels['action'] : 'Action') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="edit_address" class="control-checkbox">Edit Address</label>
-                                            <input type="text" name="edit_address" class="form-control" value="<?= html_escape((isset($lang_labels['edit_address']) && !empty($lang_labels['edit_address'])) ? $lang_labels['edit_address'] : 'Edit Address') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="image" class="control-checkbox">Image</label>
-                                            <input type="text" name="image" class="form-control" value="<?= html_escape((isset($lang_labels['image']) && !empty($lang_labels['image'])) ? $lang_labels['image'] : 'Image') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="price" class="control-checkbox">Price</label>
-                                            <input type="text" name="price" class="form-control" value="<?= html_escape((isset($lang_labels['price']) && !empty($lang_labels['price'])) ? $lang_labels['price'] : 'Price') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="quantity" class="control-checkbox">Quantity</label>
-                                            <input type="text" name="quantity" class="form-control" value="<?= html_escape((isset($lang_labels['quantity']) && !empty($lang_labels['quantity'])) ? $lang_labels['quantity'] : 'Quantity') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="total" class="control-checkbox">Total</label>
-                                            <input type="text" name="total" class="form-control" value="<?= html_escape((isset($lang_labels['total']) && !empty($lang_labels['total'])) ? $lang_labels['total'] : 'Total') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="save_for_later" class="control-checkbox">Save For Later</label>
-                                            <input type="text" name="save_for_later" class="form-control" value="<?= html_escape((isset($lang_labels['save_for_later']) && !empty($lang_labels['save_for_later'])) ? $lang_labels['save_for_later'] : 'Save For Later') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="remove" class="control-checkbox">Remove</label>
-                                            <input type="text" name="remove" class="form-control" value="<?= html_escape((isset($lang_labels['remove']) && !empty($lang_labels['remove'])) ? $lang_labels['remove'] : 'Remove') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="subtotal" class="control-checkbox">Subtotal</label>
-                                            <input type="text" name="subtotal" class="form-control" value="<?= html_escape((isset($lang_labels['subtotal']) && !empty($lang_labels['subtotal'])) ? $lang_labels['subtotal'] : 'Subtotal') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="tax" class="control-checkbox">Tax</label>
-                                            <input type="text" name="tax" class="form-control" value="<?= html_escape((isset($lang_labels['tax']) && !empty($lang_labels['tax'])) ? $lang_labels['tax'] : 'Tax') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="delivery_charge" class="control-checkbox">Delivery Charge</label>
-                                            <input type="text" name="delivery_charge" class="form-control" value="<?= html_escape((isset($lang_labels['delivery_charge']) && !empty($lang_labels['delivery_charge'])) ? $lang_labels['delivery_charge'] : 'Delivery Charge') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="grand_total" class="control-checkbox">Grand Total</label>
-                                            <input type="text" name="grand_total" class="form-control" value="<?= html_escape((isset($lang_labels['grand_total']) && !empty($lang_labels['grand_total'])) ? $lang_labels['grand_total'] : 'Grand Total') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="checkout" class="control-checkbox">Checkout</label>
-                                            <input type="text" name="checkout" class="form-control" value="<?= html_escape((isset($lang_labels['checkout']) && !empty($lang_labels['checkout'])) ? $lang_labels['checkout'] : 'Checkout') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="move_to_cart" class="control-checkbox">Move to cart</label>
-                                            <input type="text" name="move_to_cart" class="form-control" value="<?= html_escape((isset($lang_labels['move_to_cart']) && !empty($lang_labels['move_to_cart'])) ? $lang_labels['move_to_cart'] : 'Move to cart') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="category" class="control-checkbox">Category</label>
-                                            <input type="text" name="category" class="form-control" value="<?= html_escape((isset($lang_labels['category']) && !empty($lang_labels['category'])) ? $lang_labels['category'] : 'Category') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="cart" class="control-checkbox">Cart</label>
-                                            <input type="text" name="cart" class="form-control" value="<?= html_escape((isset($lang_labels['cart']) && !empty($lang_labels['cart'])) ? $lang_labels['cart'] : 'Cart') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="your_cart" class="control-checkbox">Your cart</label>
-                                            <input type="text" name="your_cart" class="form-control" value="<?= html_escape((isset($lang_labels['your_cart']) && !empty($lang_labels['your_cart'])) ? $lang_labels['your_cart'] : 'Your cart') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="promo_code" class="control-checkbox">Promo code</label>
-                                            <input type="text" name="promo_code" class="form-control" value="<?= html_escape((isset($lang_labels['promo_code']) && !empty($lang_labels['promo_code'])) ? $lang_labels['promo_code'] : 'Promo code') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="redeem" class="control-checkbox">Redeem</label>
-                                            <input type="text" name="redeem" class="form-control" value="<?= html_escape((isset($lang_labels['redeem']) && !empty($lang_labels['redeem'])) ? $lang_labels['redeem'] : 'Redeem') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="clear" class="control-checkbox">Clear</label>
-                                            <input type="text" name="clear" class="form-control" value="<?= html_escape((isset($lang_labels['clear']) && !empty($lang_labels['clear'])) ? $lang_labels['clear'] : 'Clear') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="billing_address" class="control-checkbox">Billing address</label>
-                                            <input type="text" name="billing_address" class="form-control" value="<?= html_escape((isset($lang_labels['billing_address']) && !empty($lang_labels['billing_address'])) ? $lang_labels['billing_address'] : 'Billing address') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="preferred_delivery_date_time" class="control-checkbox">Preferred Delivery Date / Time</label>
-                                            <input type="text" name="preferred_delivery_date_time" class="form-control" value="<?= html_escape((isset($lang_labels['preferred_delivery_date_time']) && !empty($lang_labels['preferred_delivery_date_time'])) ? $lang_labels['preferred_delivery_date_time'] : 'Preferred Delivery Date / Time') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="select_payment_method" class="control-checkbox">Select Payment Method</label>
-                                            <input type="text" name="select_payment_method" class="form-control" value="<?= html_escape((isset($lang_labels['select_payment_method']) && !empty($lang_labels['select_payment_method'])) ? $lang_labels['select_payment_method'] : 'Select Payment Method') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="cash_on_delivery" class="control-checkbox">Cash On Delivery</label>
-                                            <input type="text" name="cash_on_delivery" class="form-control" value="<?= html_escape((isset($lang_labels['cash_on_delivery']) && !empty($lang_labels['cash_on_delivery'])) ? $lang_labels['cash_on_delivery'] : 'Cash On Delivery') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="create_a_new_address" class="control-checkbox">Create a New Address</label>
-                                            <input type="text" name="create_a_new_address" class="form-control" value="<?= html_escape((isset($lang_labels['create_a_new_address']) && !empty($lang_labels['create_a_new_address'])) ? $lang_labels['create_a_new_address'] : 'Create a New Address') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="shipping_address" class="control-checkbox">Shipping Address</label>
-                                            <input type="text" name="shipping_address" class="form-control" value="<?= html_escape((isset($lang_labels['shipping_address']) && !empty($lang_labels['shipping_address'])) ? $lang_labels['shipping_address'] : 'Shipping Address') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="save" class="control-checkbox">Save</label>
-                                            <input type="text" name="save" class="form-control" value="<?= html_escape((isset($lang_labels['save']) && !empty($lang_labels['save'])) ? $lang_labels['save'] : 'Save') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="username" class="control-checkbox">Username</label>
-                                            <input type="text" name="username" class="form-control" value="<?= html_escape((isset($lang_labels['username']) && !empty($lang_labels['username'])) ? $lang_labels['username'] : 'Username') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="email" class="control-checkbox">Email</label>
-                                            <input type="text" name="email" class="form-control" value="<?= html_escape((isset($lang_labels['email']) && !empty($lang_labels['email'])) ? $lang_labels['email'] : 'Email') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="subject" class="control-checkbox">Subject</label>
-                                            <input type="text" name="subject" class="form-control" value="<?= html_escape((isset($lang_labels['subject']) && !empty($lang_labels['subject'])) ? $lang_labels['subject'] : 'Subject') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="message" class="control-checkbox">Message</label>
-                                            <input type="text" name="message" class="form-control" value="<?= html_escape((isset($lang_labels['message']) && !empty($lang_labels['message'])) ? $lang_labels['message'] : 'Message') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="send_message" class="control-checkbox">Send Message</label>
-                                            <input type="text" name="send_message" class="form-control" value="<?= html_escape((isset($lang_labels['send_message']) && !empty($lang_labels['send_message'])) ? $lang_labels['send_message'] : 'Send Message') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="dashboard" class="control-checkbox">Dashboard</label>
-                                            <input type="text" name="dashboard" class="form-control" value="<?= html_escape((isset($lang_labels['dashboard']) && !empty($lang_labels['dashboard'])) ? $lang_labels['dashboard'] : 'Dashboard') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="profile" class="control-checkbox">Profile</label>
-                                            <input type="text" name="profile" class="form-control" value="<?= html_escape((isset($lang_labels['profile']) && !empty($lang_labels['profile'])) ? $lang_labels['profile'] : 'Profile') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="orders" class="control-checkbox">Orders</label>
-                                            <input type="text" name="orders" class="form-control" value="<?= html_escape((isset($lang_labels['orders']) && !empty($lang_labels['orders'])) ? $lang_labels['orders'] : 'Orders') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="notification" class="control-checkbox">Notification</label>
-                                            <input type="text" name="notification" class="form-control" value="<?= html_escape((isset($lang_labels['notification']) && !empty($lang_labels['notification'])) ? $lang_labels['notification'] : 'Notification') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="wallet" class="control-checkbox">Wallet</label>
-                                            <input type="text" name="wallet" class="form-control" value="<?= html_escape((isset($lang_labels['wallet']) && !empty($lang_labels['wallet'])) ? $lang_labels['wallet'] : 'Wallet') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="transaction" class="control-checkbox">Transaction</label>
-                                            <input type="text" name="transaction" class="form-control" value="<?= html_escape((isset($lang_labels['transaction']) && !empty($lang_labels['transaction'])) ? $lang_labels['transaction'] : 'Transaction') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="no_favorite_product_message" class="control-checkbox">No Favorite Products Found</label>
-                                            <input type="text" name="no_favorite_product_message" class="form-control" value="<?= html_escape((isset($lang_labels['no_favorite_product_message']) && !empty($lang_labels['no_favorite_product_message'])) ? $lang_labels['no_favorite_product_message'] : 'No Favorite Products Found') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="amazing_categories" class="control-checkbox">Amazing Categories</label>
-                                            <input type="text" name="amazing_categories" class="form-control" value="<?= html_escape((isset($lang_labels['amazing_categories']) && !empty($lang_labels['amazing_categories'])) ? $lang_labels['amazing_categories'] : 'Amazing Categories') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="view_more" class="control-checkbox">View More</label>
-                                            <input type="text" name="view_more" class="form-control" value="<?= html_escape((isset($lang_labels['view_more']) && !empty($lang_labels['view_more'])) ? $lang_labels['view_more'] : 'View More') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="mobile_app" class="control-checkbox">Mobile App</label>
-                                            <input type="text" name="mobile_app" class="form-control" value="<?= html_escape((isset($lang_labels['mobile_app']) && !empty($lang_labels['mobile_app'])) ? $lang_labels['mobile_app'] : 'Mobile App') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="order_id" class="control-checkbox">Order ID</label>
-                                            <input type="text" name="order_id" class="form-control" value="<?= html_escape((isset($lang_labels['order_id']) && !empty($lang_labels['order_id'])) ? $lang_labels['order_id'] : 'Order ID') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="place_on" class="control-checkbox">Place On</label>
-                                            <input type="text" name="place_on" class="form-control" value="<?= html_escape((isset($lang_labels['place_on']) && !empty($lang_labels['place_on'])) ? $lang_labels['place_on'] : 'Place On') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="invoice" class="control-checkbox">Invoice</label>
-                                            <input type="text" name="invoice" class="form-control" value="<?= html_escape((isset($lang_labels['invoice']) && !empty($lang_labels['invoice'])) ? $lang_labels['invoice'] : 'Invoice') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="back_to_list" class="control-checkbox">Back to List</label>
-                                            <input type="text" name="back_to_list" class="form-control" value="<?= html_escape((isset($lang_labels['back_to_list']) && !empty($lang_labels['back_to_list'])) ? $lang_labels['back_to_list'] : 'Back to List') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="return" class="control-checkbox">Return</label>
-                                            <input type="text" name="return" class="form-control" value="<?= html_escape((isset($lang_labels['return']) && !empty($lang_labels['return'])) ? $lang_labels['return'] : 'Return') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="shipping_details" class="control-checkbox">Shipping Details</label>
-                                            <input type="text" name="shipping_details" class="form-control" value="<?= html_escape((isset($lang_labels['shipping_details']) && !empty($lang_labels['shipping_details'])) ? $lang_labels['shipping_details'] : 'Shipping Details') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="total_order_price" class="control-checkbox">Total Order Price</label>
-                                            <input type="text" name="total_order_price" class="form-control" value="<?= html_escape((isset($lang_labels['total_order_price']) && !empty($lang_labels['total_order_price'])) ? $lang_labels['total_order_price'] : 'Total Order Price') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="promocode_discount" class="control-checkbox">Promocode Discount</label>
-                                            <input type="text" name="promocode_discount" class="form-control" value="<?= html_escape((isset($lang_labels['promocode_discount']) && !empty($lang_labels['promocode_discount'])) ? $lang_labels['promocode_discount'] : 'Promocode Discount') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="wallet_used" class="control-checkbox">Wallet Used</label>
-                                            <input type="text" name="wallet_used" class="form-control" value="<?= html_escape((isset($lang_labels['wallet_used']) && !empty($lang_labels['wallet_used'])) ? $lang_labels['wallet_used'] : 'Wallet Used') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="final_total" class="control-checkbox">Final Total</label>
-                                            <input type="text" name="final_total" class="form-control" value="<?= html_escape((isset($lang_labels['final_total']) && !empty($lang_labels['final_total'])) ? $lang_labels['final_total'] : 'Final Total') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="view_details" class="control-checkbox">View Details</label>
-                                            <input type="text" name="view_details" class="form-control" value="<?= html_escape((isset($lang_labels['view_details']) && !empty($lang_labels['view_details'])) ? $lang_labels['view_details'] : 'View Details') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="payment_cancelled" class="control-checkbox">Payment Cancelled / Failed</label>
-                                            <input type="text" name="payment_cancelled" class="form-control" value="<?= html_escape((isset($lang_labels['payment_cancelled']) && !empty($lang_labels['payment_cancelled'])) ? $lang_labels['payment_cancelled'] : 'Payment Cancelled / Failed') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="payment_cancelled_message" class="control-checkbox">It seems like payment process is failed or cancelled.Please Try again.</label>
-                                            <input type="text" name="payment_cancelled_message" class="form-control" value="<?= html_escape((isset($lang_labels['payment_cancelled_message']) && !empty($lang_labels['payment_cancelled_message'])) ? $lang_labels['payment_cancelled_message'] : 'It seems like payment process is failed or cancelled.Please Try again.') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="payment_completed" class="control-checkbox">Payment Complete</label>
-                                            <input type="text" name="payment_completed" class="form-control" value="<?= html_escape((isset($lang_labels['payment_completed']) && !empty($lang_labels['payment_completed'])) ? $lang_labels['payment_completed'] : 'Payment Complete') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="payment_completed_message" class="control-checkbox">Payment Completed Successfully</label>
-                                            <input type="text" name="payment_completed_message" class="form-control" value="<?= html_escape((isset($lang_labels['payment_completed_message']) && !empty($lang_labels['payment_completed_message'])) ? $lang_labels['payment_completed_message'] : 'Payment Completed Successfully') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="thank_you_for_shopping_with_us" class="control-checkbox">Thank you for Shopping with Us</label>
-                                            <input type="text" name="thank_you_for_shopping_with_us" class="form-control" value="<?= html_escape((isset($lang_labels['thank_you_for_shopping_with_us']) && !empty($lang_labels['thank_you_for_shopping_with_us'])) ? $lang_labels['thank_you_for_shopping_with_us'] : 'Thank you for Shopping with Us') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="filter" class="control-checkbox">Filter</label>
-                                            <input type="text" name="filter" class="form-control" value="<?= html_escape((isset($lang_labels['filter']) && !empty($lang_labels['filter'])) ? $lang_labels['filter'] : 'Filter') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="top_rated" class="control-checkbox">Top Rated</label>
-                                            <input type="text" name="top_rated" class="form-control" value="<?= html_escape((isset($lang_labels['top_rated']) && !empty($lang_labels['top_rated'])) ? $lang_labels['top_rated'] : 'Top Rated') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="newest_first" class="control-checkbox">Newest First</label>
-                                            <input type="text" name="newest_first" class="form-control" value="<?= html_escape((isset($lang_labels['newest_first']) && !empty($lang_labels['newest_first'])) ? $lang_labels['newest_first'] : 'Newest First') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="oldest_first" class="control-checkbox">Oldest First</label>
-                                            <input type="text" name="oldest_first" class="form-control" value="<?= html_escape((isset($lang_labels['oldest_first']) && !empty($lang_labels['oldest_first'])) ? $lang_labels['oldest_first'] : 'Oldest First') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="price_low_to_high" class="control-checkbox">Price - Low To High</label>
-                                            <input type="text" name="price_low_to_high" class="form-control" value="<?= html_escape((isset($lang_labels['price_low_to_high']) && !empty($lang_labels['price_low_to_high'])) ? $lang_labels['price_low_to_high'] : 'Price - Low To High') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="price_high_to_low" class="control-checkbox">Price - High To Low</label>
-                                            <input type="text" name="price_high_to_low" class="form-control" value="<?= html_escape((isset($lang_labels['price_high_to_low']) && !empty($lang_labels['price_high_to_low'])) ? $lang_labels['price_high_to_low'] : 'Price - High To Low') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="relevance" class="control-checkbox">Relevance</label>
-                                            <input type="text" name="relevance" class="form-control" value="<?= html_escape((isset($lang_labels['relevance']) && !empty($lang_labels['relevance'])) ? $lang_labels['relevance'] : 'Relevance') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="sale" class="control-checkbox">Sale</label>
-                                            <input type="text" name="sale" class="form-control" value="<?= html_escape((isset($lang_labels['sale']) && !empty($lang_labels['sale'])) ? $lang_labels['sale'] : 'Sale') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="view" class="control-checkbox">View</label>
-                                            <input type="text" name="view" class="form-control" value="<?= html_escape((isset($lang_labels['view']) && !empty($lang_labels['view'])) ? $lang_labels['view'] : 'View') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="back_to_top" class="control-checkbox">Back to top</label>
-                                            <input type="text" name="back_to_top" class="form-control" value="<?= html_escape((isset($lang_labels['back_to_top']) && !empty($lang_labels['back_to_top'])) ? $lang_labels['back_to_top'] : 'Back to top') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="go_to_shop" class="control-checkbox">Go to Shop</label>
-                                            <input type="text" name="go_to_shop" class="form-control" value="<?= html_escape((isset($lang_labels['go_to_shop']) && !empty($lang_labels['go_to_shop'])) ? $lang_labels['go_to_shop'] : 'Go to Shop') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="details" class="control-checkbox">Details</label>
-                                            <input type="text" name="details" class="form-control" value="<?= html_escape((isset($lang_labels['details']) && !empty($lang_labels['details'])) ? $lang_labels['details'] : 'Details') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="remove_from_favorite" class="control-checkbox">Remove from Favorite</label>
-                                            <input type="text" name="remove_from_favorite" class="form-control" value="<?= html_escape((isset($lang_labels['remove_from_favorite']) && !empty($lang_labels['remove_from_favorite'])) ? $lang_labels['remove_from_favorite'] : 'Remove from Favorite') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="specification" class="control-checkbox">Specifications</label>
-                                            <input type="text" name="specification" class="form-control" value="<?= html_escape((isset($lang_labels['specification']) && !empty($lang_labels['specification'])) ? $lang_labels['specification'] : 'Specifications') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="rating" class="control-checkbox">Rating</label>
-                                            <input type="text" name="rating" class="form-control" value="<?= html_escape((isset($lang_labels['rating']) && !empty($lang_labels['rating'])) ? $lang_labels['rating'] : 'Rating') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="related_products" class="control-checkbox">Related Products</label>
-                                            <input type="text" name="related_products" class="form-control" value="<?= html_escape((isset($lang_labels['related_products']) && !empty($lang_labels['related_products'])) ? $lang_labels['related_products'] : 'Related Products') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="old_password" class="control-checkbox">Old Password</label>
-                                            <input type="text" name="old_password" class="form-control" value="<?= html_escape((isset($lang_labels['old_password']) && !empty($lang_labels['old_password'])) ? $lang_labels['old_password'] : 'Old Password') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="new_password" class="control-checkbox">New Password</label>
-                                            <input type="text" name="new_password" class="form-control" value="<?= html_escape((isset($lang_labels['new_password']) && !empty($lang_labels['new_password'])) ? $lang_labels['new_password'] : 'New Password') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="confirm_new_password" class="control-checkbox">Confirm New Password</label>
-                                            <input type="text" name="confirm_new_password" class="form-control" value="<?= html_escape((isset($lang_labels['confirm_new_password']) && !empty($lang_labels['confirm_new_password'])) ? $lang_labels['confirm_new_password'] : 'Confirm New Password') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="reset" class="control-checkbox">Reset</label>
-                                            <input type="text" name="reset" class="form-control" value="<?= html_escape((isset($lang_labels['reset']) && !empty($lang_labels['reset'])) ? $lang_labels['reset'] : 'Reset') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="update_profile" class="control-checkbox">Update Profile</label>
-                                            <input type="text" name="update_profile" class="form-control" value="<?= html_escape((isset($lang_labels['update_profile']) && !empty($lang_labels['update_profile'])) ? $lang_labels['update_profile'] : 'Update Profile') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="transactions" class="control-checkbox">Transactions</label>
-                                            <input type="text" name="transactions" class="form-control" value="<?= html_escape((isset($lang_labels['transactions']) && !empty($lang_labels['transactions'])) ? $lang_labels['transactions'] : 'Transactions') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="wallet" class="control-checkbox">Wallet</label>
-                                            <input type="text" name="wallet" class="form-control" value="<?= html_escape((isset($lang_labels['wallet']) && !empty($lang_labels['wallet'])) ? $lang_labels['wallet'] : 'Wallet') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="newsletter" class="control-checkbox">Newsletter</label>
-                                            <input type="text" name="newsletter" class="form-control" value="<?= html_escape((isset($lang_labels['newsletter']) && !empty($lang_labels['newsletter'])) ? $lang_labels['newsletter'] : 'Newsletter') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="useful_links" class="control-checkbox">Useful Links</label>
-                                            <input type="text" name="useful_links" class="form-control" value="<?= html_escape((isset($lang_labels['useful_links']) && !empty($lang_labels['useful_links'])) ? $lang_labels['useful_links'] : 'Useful Links') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="subscribe" class="control-checkbox">Subscribe</label>
-                                            <input type="text" name="subscribe" class="form-control" value="<?= html_escape((isset($lang_labels['subscribe']) && !empty($lang_labels['subscribe'])) ? $lang_labels['subscribe'] : 'Subscribe') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="follow_us" class="control-checkbox">Follow us</label>
-                                            <input type="text" name="follow_us" class="form-control" value="<?= html_escape((isset($lang_labels['follow_us']) && !empty($lang_labels['follow_us'])) ? $lang_labels['follow_us'] : 'Follow us') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="find_us" class="control-checkbox">Find Us</label>
-                                            <input type="text" name="find_us" class="form-control" value="<?= html_escape((isset($lang_labels['find_us']) && !empty($lang_labels['find_us'])) ? $lang_labels['find_us'] : 'Find Us') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="call_us" class="control-checkbox">Call Us</label>
-                                            <input type="text" name="call_us" class="form-control" value="<?= html_escape((isset($lang_labels['call_us']) && !empty($lang_labels['call_us'])) ? $lang_labels['call_us'] : 'Call Us') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="wallet" class="control-checkbox">Mail Us</label>
-                                            <input type="text" name="mail_us" class="form-control" value="<?= html_escape((isset($lang_labels['mail_us']) && !empty($lang_labels['mail_us'])) ? $lang_labels['mail_us'] : 'Mail Us') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="mail_us" class="control-checkbox">Mail Us</label>
-                                            <input type="text" name="mail_us" class="form-control" value="<?= html_escape((isset($lang_labels['mail_us']) && !empty($lang_labels['mail_us'])) ? $lang_labels['mail_us'] : 'Mail Us') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="forgot_password" class="control-checkbox">Forgot Password</label>
-                                            <input type="text" name="forgot_password" class="form-control" value="<?= html_escape((isset($lang_labels['forgot_password']) && !empty($lang_labels['forgot_password'])) ? $lang_labels['forgot_password'] : 'Forgot Password') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="see_all" class="control-checkbox">See All</label>
-                                            <input type="text" name="see_all" class="form-control" value="<?= html_escape((isset($lang_labels['see_all']) && !empty($lang_labels['see_all'])) ? $lang_labels['see_all'] : 'See All') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="sort_by" class="control-checkbox">Sort By</label>
-                                            <input type="text" name="sort_by" class="form-control" value="<?= html_escape((isset($lang_labels['sort_by']) && !empty($lang_labels['sort_by'])) ? $lang_labels['sort_by'] : 'Sort By') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="show" class="control-checkbox">Show</label>
-                                            <input type="text" name="show" class="form-control" value="<?= html_escape((isset($lang_labels['show']) && !empty($lang_labels['show'])) ? $lang_labels['show'] : 'Show') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="product_listing" class="control-checkbox">Product Listing</label>
-                                            <input type="text" name="product_listing" class="form-control" value="<?= html_escape((isset($lang_labels['product_listing']) && !empty($lang_labels['product_listing'])) ? $lang_labels['product_listing'] : 'Product Listing') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="balance" class="control-checkbox">Balance</label>
-                                            <input type="text" name="balance" class="form-control" value="<?= html_escape((isset($lang_labels['balance']) && !empty($lang_labels['balance'])) ? $lang_labels['balance'] : 'Balance') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="sellers" class="control-checkbox">Sellers</label>
-                                            <input type="text" name="sellers" class="form-control" value="<?= html_escape((isset($lang_labels['sellers']) && !empty($lang_labels['sellers'])) ? $lang_labels['sellers'] : 'Sellers') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="enter_valid_number" class="control-checkbox">Enter Valid Number</label>
-                                            <input type="text" name="enter_valid_number" class="form-control" value="<?= html_escape((isset($lang_labels['enter_valid_number']) && !empty($lang_labels['enter_valid_number'])) ? $lang_labels['enter_valid_number'] : 'Enter Valid Number') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="compare" class="control-checkbox">Compare</label>
-                                            <input type="text" name="compare" class="form-control" value="<?= html_escape((isset($lang_labels['compare']) && !empty($lang_labels['compare'])) ? $lang_labels['compare'] : 'Compare') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="clear_cart" class="control-checkbox">Clear Cart</label>
-                                            <input type="text" name="clear_cart" class="form-control" value="<?= html_escape((isset($lang_labels['clear_cart']) && !empty($lang_labels['clear_cart'])) ? $lang_labels['clear_cart'] : 'Clear Cart') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="product" class="control-checkbox">Product</label>
-                                            <input type="text" name="product" class="form-control" value="<?= html_escape((isset($lang_labels['product']) && !empty($lang_labels['product'])) ? $lang_labels['product'] : 'Product') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="cart_total" class="control-checkbox">Cart Total</label>
-                                            <input type="text" name="cart_total" class="form-control" value="<?= html_escape((isset($lang_labels['cart_total']) && !empty($lang_labels['cart_total'])) ? $lang_labels['cart_total'] : 'Cart Total') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="go_to_checkout" class="control-checkbox">Go To Checkout</label>
-                                            <input type="text" name="go_to_checkout" class="form-control" value="<?= html_escape((isset($lang_labels['go_to_checkout']) && !empty($lang_labels['go_to_checkout'])) ? $lang_labels['go_to_checkout'] : 'Go To Checkout') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="billing_details" class="control-checkbox">Billing Details</label>
-                                            <input type="text" name="billing_details" class="form-control" value="<?= html_escape((isset($lang_labels['billing_details']) && !empty($lang_labels['billing_details'])) ? $lang_labels['billing_details'] : 'Billing Details') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="wallet_balance" class="control-checkbox">Wallet Balance</label>
-                                            <input type="text" name="wallet_balance" class="form-control" value="<?= html_escape((isset($lang_labels['wallet_balance']) && !empty($lang_labels['wallet_balance'])) ? $lang_labels['wallet_balance'] : 'Wallet Balance') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="available_balance" class="control-checkbox">Available Balance</label>
-                                            <input type="text" name="available_balance" class="form-control" value="<?= html_escape((isset($lang_labels['available_balance']) && !empty($lang_labels['available_balance'])) ? $lang_labels['available_balance'] : 'Available Balance') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="payment_method" class="control-checkbox">Payment Method</label>
-                                            <input type="text" name="payment_method" class="form-control" value="<?= html_escape((isset($lang_labels['payment_method']) && !empty($lang_labels['payment_method'])) ? $lang_labels['payment_method'] : 'Payment Method') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="account_details" class="control-checkbox">Account Details</label>
-                                            <input type="text" name="account_details" class="form-control" value="<?= html_escape((isset($lang_labels['account_details']) && !empty($lang_labels['account_details'])) ? $lang_labels['account_details'] : 'Account Details') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="account_name" class="control-checkbox">Account Name</label>
-                                            <input type="text" name="account_name" class="form-control" value="<?= html_escape((isset($lang_labels['account_name']) && !empty($lang_labels['account_name'])) ? $lang_labels['account_name'] : 'Account Name') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="account_number" class="control-checkbox">Account Number</label>
-                                            <input type="text" name="account_number" class="form-control" value="<?= html_escape((isset($lang_labels['account_number']) && !empty($lang_labels['account_number'])) ? $lang_labels['account_number'] : 'Account Number') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="bank_name" class="control-checkbox">Bank Name</label>
-                                            <input type="text" name="bank_name" class="form-control" value="<?= html_escape((isset($lang_labels['bank_name']) && !empty($lang_labels['bank_name'])) ? $lang_labels['bank_name'] : 'Bank Name') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="bank_code" class="control-checkbox">Bank Code</label>
-                                            <input type="text" name="bank_code" class="form-control" value="<?= html_escape((isset($lang_labels['bank_code']) && !empty($lang_labels['bank_code'])) ? $lang_labels['bank_code'] : 'Bank Code') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="extra_details" class="control-checkbox">Extra Details</label>
-                                            <input type="text" name="extra_details" class="form-control" value="<?= html_escape((isset($lang_labels['extra_details']) && !empty($lang_labels['extra_details'])) ? $lang_labels['extra_details'] : 'Extra Details') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="order_summary" class="control-checkbox">Order Summary</label>
-                                            <input type="text" name="order_summary" class="form-control" value="<?= html_escape((isset($lang_labels['order_summary']) && !empty($lang_labels['order_summary'])) ? $lang_labels['order_summary'] : 'Order Summary') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="qty" class="control-checkbox">Quantity</label>
-                                            <input type="text" name="qty" class="form-control" value="<?= html_escape((isset($lang_labels['qty']) && !empty($lang_labels['qty'])) ? $lang_labels['qty'] : 'Qty') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="promocode" class="control-checkbox">Promo Code</label>
-                                            <input type="text" name="promocode" class="form-control" value="<?= html_escape((isset($lang_labels['promocode']) && !empty($lang_labels['promocode'])) ? $lang_labels['promocode'] : 'Promo Code') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="see_all_offers" class="control-checkbox">See All Offers</label>
-                                            <input type="text" name="see_all_offers" class="form-control" value="<?= html_escape((isset($lang_labels['see_all_offers']) && !empty($lang_labels['see_all_offers'])) ? $lang_labels['see_all_offers'] : 'See All Offers') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="place_order" class="control-checkbox">Place Order</label>
-                                            <input type="text" name="place_order" class="form-control" value="<?= html_escape((isset($lang_labels['place_order']) && !empty($lang_labels['place_order'])) ? $lang_labels['place_order'] : 'Place Order') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="thank_you_for_shopping" class="control-checkbox">Thank You For Shopping</label>
-                                            <input type="text" name="thank_you_for_shopping" class="form-control" value="<?= html_escape((isset($lang_labels['thank_you_for_shopping']) && !empty($lang_labels['thank_you_for_shopping'])) ? $lang_labels['thank_you_for_shopping'] : 'Thank You For Shopping') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="continue_shopping" class="control-checkbox">Continue Shopping</label>
-                                            <input type="text" name="continue_shopping" class="form-control" value="<?= html_escape((isset($lang_labels['continue_shopping']) && !empty($lang_labels['continue_shopping'])) ? $lang_labels['continue_shopping'] : 'Continue Shopping') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="shipping_policy" class="control-checkbox">Shipping Policy</label>
-                                            <input type="text" name="shipping_policy" class="form-control" value="<?= html_escape((isset($lang_labels['shipping_policy']) && !empty($lang_labels['shipping_policy'])) ? $lang_labels['shipping_policy'] : 'Shipping Policy') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="return_policy" class="control-checkbox">Return Policy</label>
-                                            <input type="text" name="return_policy" class="form-control" value="<?= html_escape((isset($lang_labels['return_policy']) && !empty($lang_labels['return_policy'])) ? $lang_labels['return_policy'] : 'Return Policy') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="payment_cancelled_description" class="control-checkbox">Payment Cancelled Description</label>
-                                            <input type="text" name="payment_cancelled_description" class="form-control" value="<?= html_escape((isset($lang_labels['payment_cancelled_description']) && !empty($lang_labels['payment_cancelled_description'])) ? $lang_labels['payment_cancelled_description'] : 'Payment Cancelled Description') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="pick_your_favorite_color" class="control-checkbox">Pick Your Favorite Color</label>
-                                            <input type="text" name="pick_your_favorite_color" class="form-control" value="<?= html_escape((isset($lang_labels['pick_your_favorite_color']) && !empty($lang_labels['pick_your_favorite_color'])) ? $lang_labels['pick_your_favorite_color'] : 'Pick Your Favorite Color') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="buy_now" class="control-checkbox">Buy Now</label>
-                                            <input type="text" name="buy_now" class="form-control" value="<?= html_escape((isset($lang_labels['buy_now']) && !empty($lang_labels['buy_now'])) ? $lang_labels['buy_now'] : 'Buy Now') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="email_us" class="control-checkbox">Buy Now</label>
-                                            <input type="text" name="email_us" class="form-control" value="<?= html_escape((isset($lang_labels['email_us']) && !empty($lang_labels['email_us'])) ? $lang_labels['email_us'] : 'Email Us') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="email_us" class="control-checkbox">Blogs</label>
-                                            <input type="text" name="blogs" class="form-control" value="<?= html_escape((isset($lang_labels['blogs']) && !empty($lang_labels['blogs'])) ? $lang_labels['blogs'] : 'Blogs') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="email_us" class="control-checkbox">Become a Seller</label>
-                                            <input type="text" name="become_a_seller" class="form-control" value="<?= html_escape((isset($lang_labels['become_a_seller']) && !empty($lang_labels['become_a_seller'])) ? $lang_labels['become_a_seller'] : 'Become a Seller') ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-12">
-                                        <div class="form-group">
-                                            <button type="submit" class="btn btn-success" id="update_btn">Update</button>
-                                        </div>
-                                    </div>
-
-                                    <div class="d-flex justify-content-center form-group">
-                                        <div id="update-result" class="p-3"></div>
-                                    </div>
-                                </div>
-                            </form>
+                    <div class="lang-toolbar-item lang-toolbar-rtl">
+                        <div class="custom-control custom-switch">
+                            <input type="checkbox" class="custom-control-input" name="is_rtl" id="is_rtl" value="1" <?= (!empty($language['is_rtl'])) ? 'checked' : '' ?>>
+                            <label class="custom-control-label" for="is_rtl">Right-to-left (RTL)</label>
                         </div>
                     </div>
-                    <!--/.card-->
+                    <div class="lang-toolbar-actions">
+                        <a href="#" class="btn btn-outline-secondary btn-sm" data-toggle="modal" data-target="#language-modal">
+                            <i class="fas fa-plus mr-1"></i>Add Language
+                        </a>
+                        <button type="submit" class="btn btn-primary-theme btn-sm" id="update_btn">
+                            <i class="fas fa-save mr-1"></i>Save Changes
+                        </button>
+                    </div>
                 </div>
-            </div>
-        </div><!-- /.container-fluid -->
+
+                <div id="update-result" class="p-3 mb-3" style="display:none;"></div>
+                <div id="label-search-empty" class="lang-empty" style="display:none;">
+                    <i class="fas fa-search mb-2"></i>
+                    <p class="mb-0">No labels match your search.</p>
+                </div>
+
+                <?php foreach ($label_groups as $group_key => $group) { ?>
+                    <div class="card lang-card" data-group="<?= $group_key ?>">
+                        <div class="card-header lang-card-header" data-toggle="collapse" data-target="#group-<?= $group_key ?>" role="button" aria-expanded="true">
+                            <span class="header-icon"><i class="fas <?= $group['icon'] ?>"></i></span>
+                            <h5 class="mb-0"><?= $group['title'] ?></h5>
+                            <span class="lang-count badge"><?= count($group['labels']) ?></span>
+                            <i class="fas fa-chevron-up lang-caret ml-auto"></i>
+                        </div>
+                        <div class="collapse show" id="group-<?= $group_key ?>">
+                            <div class="card-body">
+                                <div class="row">
+                                    <?php foreach ($group['labels'] as $key => $meta) {
+                                        $caption = $meta[0];
+                                        $value = (isset($lang_labels[$key]) && $lang_labels[$key] !== '') ? $lang_labels[$key] : $meta[1];
+                                    ?>
+                                        <div class="col-md-4 col-sm-6 lang-field" data-search="<?= html_escape(strtolower($caption . ' ' . $key)) ?>">
+                                            <div class="form-group">
+                                                <label for="lbl-<?= $key ?>"><?= html_escape($caption) ?></label>
+                                                <input type="text" id="lbl-<?= $key ?>" name="<?= $key ?>" class="form-control" value="<?= html_escape($value) ?>" />
+                                            </div>
+                                        </div>
+                                    <?php } ?>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                <?php } ?>
+
+                <div class="text-right mb-4">
+                    <button type="submit" class="btn btn-primary-theme"><i class="fas fa-save mr-1"></i>Save Changes</button>
+                </div>
+            </form>
+        </div>
     </section>
-    <!-- /.content -->
 </div>
 
-<style>
-    .admin-languages-page .text-primary-theme { color: var(--color-orange); }
-
-    .admin-languages-page .btn-primary-theme {
-        background: var(--color-orange);
-        border-color: var(--color-orange);
-        color: #fff;
-        font-weight: 600;
-    }
-    .admin-languages-page .btn-primary-theme:hover { background: var(--color-orange-dark); border-color: var(--color-orange-dark); color: #fff; }
-
-    .admin-languages-page .attribute-card { border: none; border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,0.06); margin-bottom: 1.5rem; }
-    .admin-languages-page .attribute-card-header {
-        background: #fff;
-        border-bottom: 1px solid rgba(0,0,0,0.06);
-        gap: 10px;
-        border-radius: 10px 10px 0 0;
-    }
-    .admin-languages-page .header-icon {
-        width: 34px; height: 34px; border-radius: 8px;
-        display: flex; align-items: center; justify-content: center;
-        color: #fff; font-size: 14px; flex: none;
-    }
-    .admin-languages-page .header-icon.bg-set { background: var(--color-orange); }
-
-    .admin-languages-page .btn-success {
-        background: var(--color-orange);
-        border-color: var(--color-orange);
-        color: #fff;
-        font-weight: 600;
-    }
-    .admin-languages-page .btn-success:hover { background: var(--color-orange-dark); border-color: var(--color-orange-dark); color: #fff; }
-</style>
-<div class="modal fade" id="language-modal" tabindex="-1" role="dialog" aria-labelledby="myLargeModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+<div class="modal fade" id="language-modal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog" role="document">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="exampleModalLongTitle">Add Language</h5>
+                <h5 class="modal-title">Add Language</h5>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
             <div class="modal-body">
                 <form class="form-horizontal" id="add-new-language-form" action="<?= base_url('admin/language/create'); ?>" method="POST">
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label for="">Name <small>(Language name should be in english)</small></label>
-                                                <input type="text" name="language" id="language" class="form-control" placeholder="Ex. English , Hindi" />
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label for="">Code</label>
-                                    <input type="text" name="code" id="code" class="form-control" placeholder="Ex. EN , हिन्दी" />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <input type="checkbox" name="is_rtl" class="form-checkbox" id="is_rtl_create" value="1" />
-                            <label for="is_rtl_create" class="control-checkbox">Enable RTL</label>
-                        </div>
-                        <div class="form-group">
-                            <button type="submit" class="btn btn-success" id="submit_btn">Save</button>
+                    <div class="form-group">
+                        <label for="language">Name <small class="text-muted">(in English, letters only)</small></label>
+                        <input type="text" name="language" id="language" class="form-control" placeholder="Ex. English, Hindi" />
+                    </div>
+                    <div class="form-group">
+                        <label for="code">Code</label>
+                        <input type="text" name="code" id="code" class="form-control" placeholder="Ex. en, hi" />
+                    </div>
+                    <div class="form-group">
+                        <div class="custom-control custom-switch">
+                            <input type="checkbox" class="custom-control-input" name="is_rtl" id="is_rtl_create" value="1" />
+                            <label class="custom-control-label" for="is_rtl_create">Right-to-left (RTL)</label>
                         </div>
                     </div>
-                    <div class="d-flex justify-content-center form-group">
-                        <div id="result" class="p-3"></div>
-                    </div>
+                    <div id="result" class="mb-2"></div>
+                    <button type="submit" class="btn btn-primary-theme" id="submit_btn">Save</button>
                 </form>
             </div>
         </div>
     </div>
 </div>
+
+<style>
+    .admin-languages-page .text-primary-theme { color: var(--color-orange); }
+    .admin-languages-page .btn-primary-theme,
+    #language-modal .btn-primary-theme {
+        background: var(--color-orange);
+        border-color: var(--color-orange);
+        color: #fff;
+        font-weight: 600;
+    }
+    .admin-languages-page .btn-primary-theme:hover,
+    #language-modal .btn-primary-theme:hover { background: var(--color-orange-dark); border-color: var(--color-orange-dark); color: #fff; }
+
+    .admin-languages-page .lang-toolbar {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        gap: 14px;
+        background: #fff;
+        border-radius: 10px;
+        box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+        padding: 14px 16px;
+        margin-bottom: 1.25rem;
+    }
+    .admin-languages-page .lang-toolbar-item { min-width: 180px; }
+    .admin-languages-page .lang-toolbar-search { flex: 1 1 260px; }
+    .admin-languages-page .lang-toolbar > div > label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .3px; color: #6c757d; margin-bottom: 4px; }
+    .admin-languages-page .lang-toolbar-rtl { display: flex; align-items: center; padding-bottom: 8px; }
+    .admin-languages-page .lang-toolbar-rtl label { text-transform: none; font-size: 13px; color: #495057; margin-bottom: 0; }
+    .admin-languages-page .lang-toolbar-actions { margin-left: auto; display: flex; gap: 8px; padding-bottom: 2px; }
+    .admin-languages-page .lang-search-wrap { position: relative; }
+    .admin-languages-page .lang-search-wrap i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #adb5bd; font-size: 13px; }
+    .admin-languages-page .lang-search-wrap .form-control { padding-left: 32px; }
+
+    .admin-languages-page .lang-card { border: none; border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,0.06); margin-bottom: 1.25rem; }
+    .admin-languages-page .lang-card-header {
+        background: #fff;
+        border-bottom: 1px solid rgba(0,0,0,0.06);
+        border-radius: 10px 10px 0 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        cursor: pointer;
+    }
+    .admin-languages-page .lang-card-header h5 { font-size: 15px; font-weight: 600; }
+    .admin-languages-page .header-icon {
+        width: 34px; height: 34px; border-radius: 8px;
+        display: flex; align-items: center; justify-content: center;
+        background: var(--color-orange); color: #fff; font-size: 14px; flex: none;
+    }
+    .admin-languages-page .lang-count { background: #f1f3f5; color: #6c757d; font-weight: 600; }
+    .admin-languages-page .lang-caret { color: #adb5bd; transition: transform .2s ease; }
+    .admin-languages-page .lang-card-header.collapsed .lang-caret { transform: rotate(180deg); }
+
+    .admin-languages-page .lang-field label { font-size: 13px; font-weight: 600; color: #343a40; display: block; margin-bottom: 4px; }
+    .admin-languages-page .lang-field .form-control { font-size: 14px; }
+
+    .admin-languages-page .lang-empty { text-align: center; color: #868e96; padding: 40px 0; }
+    .admin-languages-page .lang-empty i { font-size: 26px; display: block; }
+
+    @media (max-width: 767px) {
+        .admin-languages-page .lang-toolbar { position: static; }
+        .admin-languages-page .lang-toolbar-actions { margin-left: 0; width: 100%; }
+    }
+</style>
+
+<script>
+    (function () {
+        var search = document.getElementById('label-search');
+        if (!search) {
+            return;
+        }
+        var fields = [].slice.call(document.querySelectorAll('.lang-field'));
+        var cards = [].slice.call(document.querySelectorAll('.lang-card'));
+        var empty = document.getElementById('label-search-empty');
+
+        search.addEventListener('input', function () {
+            var term = this.value.trim().toLowerCase();
+            fields.forEach(function (field) {
+                var hit = !term || field.getAttribute('data-search').indexOf(term) !== -1;
+                field.style.display = hit ? '' : 'none';
+                field.setAttribute('data-hit', hit ? '1' : '0');
+            });
+            var visible = 0;
+            cards.forEach(function (card) {
+                var shown = card.querySelectorAll('.lang-field[data-hit="1"]').length;
+                if (!term) {
+                    shown = card.querySelectorAll('.lang-field').length;
+                }
+                card.style.display = shown ? '' : 'none';
+                visible += shown;
+            });
+            empty.style.display = (term && !visible) ? 'block' : 'none';
+        });
+    })();
+</script>

@@ -219,10 +219,12 @@ class Setting_model extends CI_Model
         // visible text "\r\n" every time this form was saved (same root cause already fixed for
         // Contact Us / About Us / Privacy Policy elsewhere in this pass).
         $post['app_download_section'] = (isset($post['app_download_section']) && !empty($post['app_download_section'])) ?: 0;
-        $post['shipping_mode'] = (isset($post['shipping_mode']) && !empty($post['shipping_mode'])) ?: 0;
-        $post['return_mode'] = (isset($post['return_mode']) && !empty($post['return_mode'])) ?: 0;
-        $post['support_mode'] = (isset($post['support_mode']) && !empty($post['support_mode'])) ?: 0;
-        $post['safety_security_mode'] = (isset($post['safety_security_mode']) && !empty($post['safety_security_mode'])) ?: 0;
+        // shipping_mode / return_mode / support_mode / safety_security_mode were normalised
+        // here too. Those toggles are gone from the Web Settings form: no storefront view ever
+        // read them, so defaulting them back in would only re-seed dead keys into the blob.
+        // The raw POST carries CI's CSRF field; without this it gets json_encode()'d into the
+        // saved settings blob alongside the real values and then re-rendered on every load.
+        unset($post[$this->security->get_csrf_token_name()]);
         $main_image_name = (isset($post['logo']) && !empty($post['logo'])) ? $post['logo'] : "";
         $favicon_image_name = (isset($post['favicon']) && !empty($post['favicon'])) ? $post['favicon'] : "";
         $system_data = json_encode($post);
@@ -912,98 +914,6 @@ class Setting_model extends CI_Model
         print_r(json_encode($bulkData));
     }
 
-    public function get_theme_list()
-    {
-        $offset = 0;
-        $limit = 10;
-        $sort = 'id';
-        $order = 'ASC';
-        $multipleWhere = '';
-
-        if (isset($_GET['offset']))
-            $offset = $_GET['offset'];
-        if (isset($_GET['limit']))
-            $limit = $_GET['limit'];
-
-        // Whitelist against the actual selected columns - $_GET['sort'] was previously
-        // passed straight into order_by() unchecked (SQL injection shape).
-        $allowed_sort_columns = ['id', 'name', 'slug', 'is_default', 'status'];
-        if (isset($_GET['sort']) && in_array($_GET['sort'], $allowed_sort_columns, true)) {
-            $sort = $_GET['sort'];
-        }
-        if (isset($_GET['order']) && strtolower($_GET['order']) === 'asc') {
-            $order = 'asc';
-        } else {
-            $order = 'desc';
-        }
-
-        if (isset($_GET['search']) and $_GET['search'] != '') {
-            $search = $_GET['search'];
-            $multipleWhere = ['id' => $search, 'name' => $search, 'slug' => $search, 'is_default' => $search, 'status' => $search];
-        }
-
-        $count_res = $this->db->select(' COUNT(id) as `total`');
-
-        if (isset($multipleWhere) && !empty($multipleWhere)) {
-            $count_res->or_like($multipleWhere);
-        }
-        if (isset($where) && !empty($where)) {
-            $count_res->where($where);
-        }
-
-        $address_count = $count_res->get('themes')->result_array();
-
-        foreach ($address_count as $row) {
-            $total = $row['total'];
-        }
-
-        $search_res = $this->db->select('*');
-
-        if (isset($multipleWhere) && !empty($multipleWhere)) {
-            $search_res->or_like($multipleWhere);
-        }
-        if (isset($where) && !empty($where)) {
-            $search_res->where($where);
-        }
-
-        $theme = $search_res->order_by($sort, $order)->limit($limit, $offset)->get('themes')->result_array();
-        $bulkData = array();
-        $bulkData['total'] = $total;
-        $rows = array();
-        $tempRow = array();
-        foreach ($theme as $row) {
-            $row = output_escaping($row);
-            $operate = '';
-            $tempRow['id'] = $row['id'];
-            $tempRow['name'] = html_escape($row['name']);
-            $tempRow['image'] = "<div class='image-box-100'><a href='" . base_url('assets/front_end/' . $row['slug'] . '/preview-image/' . $row['image']) . "' data-toggle='lightbox' data-gallery='gallery'><img src='" . base_url('assets/front_end/' . $row['slug'] . '/preview-image/' . $row['image']) . "' class='rounded'></a></div>";
-            if ($row['is_default'] == '1') {
-                $tempRow['is_default'] = '<a class="badge badge-success text-white" >Yes</a>';
-            } else {
-                $tempRow['is_default'] = '<a class="badge badge-danger text-white" >No</a>';
-                $operate .= '<a class="btn btn-success action-btn btn-xs update_default_theme mr-1 mb-1 ml-1" title="Default" href="javascript:void(0)" data-id="' . $row['id'] . '" data-status="' . $row['status'] . '" ><i class="fa fa-check-circle"></i></a>';
-            }
-            // data-status carries the DESIRED new status, because admin/themes/switch writes it
-            // through verbatim (unlike admin/home/update_status, which inverts what it is sent).
-            // This was '. !$row['status'] .', and PHP renders the boolean false as the EMPTY
-            // STRING when concatenated - so on an active theme the button posted status="",
-            // which failed switch()'s 'required' rule and made deactivating a theme impossible.
-            // (int) keeps the intent and renders a real 0/1.
-            $desired_status = (int) !$row['status'];
-            if ($row['status'] == '1') {
-                $tempRow['status'] = '<a class="badge badge-success text-white" >Active</a>';
-                $operate .= '<a class="btn btn-warning btn-xs action-btn update_active_status mb-1 ml-1 mr-1" data-table="themes" title="Deactivate" href="javascript:void(0)" data-id="' . $row['id'] . '" data-status="' . $desired_status . '" ><i class="fa fa-eye-slash"></i></a>';
-            } else {
-                $tempRow['status'] = '<a class="badge badge-danger text-white" >Inactive</a>';
-                $operate .= '<a class="btn btn-primary mr-1 ml-1 mb-1 btn-xs action-btn update_active_status" data-table="themes" href="javascript:void(0)" title="Active" data-id="' . $row['id'] . '" data-status="' . $desired_status . '" ><i class="fa fa-eye"></i></a>';
-            }
-            $tempRow['created_on'] = $row['created_on'];
-            $tempRow['operate'] = $operate;
-            $rows[] = $tempRow;
-        }
-        $bulkData['rows'] = $rows;
-        print_r(json_encode($bulkData));
-    }
 
     public function firebase_setting($post)
     {

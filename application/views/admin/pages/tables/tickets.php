@@ -114,7 +114,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-12 main-content">
+        <div class="container-fluid tickets-main">
             <div class="card attribute-card">
                 <div class="card-header attribute-card-header">
                     <span class="header-icon bg-set mr-2"><i class="fas fa-life-ring"></i></span>
@@ -142,7 +142,7 @@
                             </select>
                         </div>
                     </div>
-                    <table class='table-striped' id="ticket_table" data-toggle="table" data-url="<?= base_url('admin/tickets/view_ticket_list') ?>" data-click-to-select="true" data-side-pagination="server" data-pagination="true" data-page-list="[5, 10, 20, 50, 100, 200]" data-search="true" data-show-columns="true" data-show-refresh="true" data-trim-on-search="false" data-sort-name="t.id" data-sort-order="desc" data-mobile-responsive="true" data-toolbar="" data-show-export="true" data-maintain-selected="true" data-query-params="ticket_queryParams">
+                    <table class='table-striped' id="ticket_table" data-toggle="table" data-url="<?= base_url('admin/tickets/view_ticket_list') ?>" data-click-to-select="true" data-side-pagination="server" data-pagination="true" data-page-size="10" data-page-list="[10, 25, 50, 100]" data-search="true" data-show-columns="true" data-show-refresh="true" data-trim-on-search="false" data-sort-name="t.id" data-sort-order="desc" data-mobile-responsive="true" data-toolbar="" data-show-export="true" data-maintain-selected="true" data-query-params="ticket_queryParams">
                         <thead>
                             <tr>
                                 <th data-field="id" data-sortable="true" data-align='center'>ID</th>
@@ -163,14 +163,103 @@
                     </table>
                 </div>
             </div>
-        </div>
-</div>
-<!-- /.row -->
-</div><!-- /.container-fluid -->
-</section>
+        </div><!-- /.container-fluid -->
+    </section>
 
 <style>
     .admin-tickets-page .text-primary-theme { color: var(--color-orange); }
+
+    /* ============================ page height ============================
+       The list used to grow the document: a 100-row page ran metres past the viewport and
+       carried the toolbar and the pager off with it. The page is now a fixed-height column -
+       header, then the card - and the table BODY is the only thing that scrolls, with the
+       column headers sticky on top of it. */
+    .admin-tickets-page {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 57px);
+        min-height: 520px;
+        overflow: hidden;
+    }
+    .admin-tickets-page > .content-header { flex: 0 0 auto; }
+    .admin-tickets-page > .content {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        padding-bottom: 12px;
+    }
+    .admin-tickets-page .tickets-main {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+    }
+    .admin-tickets-page .attribute-card {
+        flex: 1 1 auto;
+        min-height: 0;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        margin-bottom: 0;
+        overflow: hidden;
+    }
+    .admin-tickets-page .attribute-card-header { flex: 0 0 auto; }
+    .admin-tickets-page .card-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        padding-bottom: 0;
+    }
+    .admin-tickets-page .ticket-filters { flex: 0 0 auto; }
+
+    /* bootstrap-table builds its own wrappers; these have to become the flex column too, or
+       the scroll lands on the whole widget instead of on the rows. */
+    .admin-tickets-page .bootstrap-table,
+    .admin-tickets-page .fixed-table-container {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        border: 0;
+        padding-bottom: 0 !important;
+    }
+    .admin-tickets-page .fixed-table-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+    }
+    .admin-tickets-page .fixed-table-pagination {
+        flex: 0 0 auto;
+        border-top: 1px solid rgba(0, 0, 0, .06);
+        padding-top: 8px;
+        margin: 0;
+    }
+    .admin-tickets-page table.table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+    }
+    /* Compact rows: default cell padding made ten rows taller than the viewport on its own. */
+    .admin-tickets-page table.table tbody td { padding: 7px 10px; }
+    /* Description is the column that wraps to four lines and drives the row height. */
+    /* Subject and Description in the default column set (the two hidden id columns are not
+       rendered at all, so the visible order is ID / Type / User / Raised by / Subject / Email
+       / Description / Status / Created / Actions). */
+    .admin-tickets-page table.table tbody td:nth-child(5),
+    .admin-tickets-page table.table tbody td:nth-child(7) {
+        max-width: 260px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    /* Below lg the fixed column would trap the list in a short scroller on a phone, so let
+       the document flow normally there. */
+    @media (max-width: 991px) {
+        .admin-tickets-page { height: auto; overflow: visible; }
+        .admin-tickets-page .fixed-table-body { overflow-x: auto; }
+    }
 
     .admin-tickets-page .attribute-card { border: none; border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,0.06); }
     .admin-tickets-page .attribute-card-header {

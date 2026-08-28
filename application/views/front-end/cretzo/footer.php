@@ -140,25 +140,6 @@ $system_settings = get_settings('system_settings', true); ?>
     <!-- color switcher -->
     <div id="colors-switcher">
         <div>
-            <h6>Pick Your Theme</h6>
-            <ul class="px-2 text-center">
-                <li class="list-item-inline mb-3">
-                    <a class="text-decoration-none text-dark" href="<?= base_url("themes/switch/modern") ?>">
-                        <p class="m-0">Modern Theme</p>
-                        <img src="<?= base_url("/assets/front_end/modern/preview-image/modern.png") ?>" alt="Modern image" class="w-75">
-
-                    </a>
-                </li>
-                <li class="list-item-inline mb-3">
-                    <a class="text-decoration-none text-dark" href="<?= base_url("themes/switch/classic") ?>">
-                        <p class="m-0">Classic Theme</p>
-                        <img src="<?= base_url("/assets/front_end/classic/preview-image/classic.jpg") ?>" alt="classic image" class="w-75">
-                    </a>
-                </li>
-            </ul>
-        </div>
-
-        <div>
             <h6><?= !empty($this->lang->line('pick_your_favorite_color')) ? $this->lang->line('pick_your_favorite_color') : 'Pick Your Favorite Color' ?></h6>
             <ul class="color-style text-center mb-2">
                 <li class="list-item-inline">

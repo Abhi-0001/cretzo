@@ -283,7 +283,7 @@ class Home extends CI_Controller
             // doing it.
             $allowed_tables = [
                 'users', 'products', 'categories', 'brands', 'blogs', 'blog_categories',
-                'taxes', 'faqs', 'promo_codes', 'seller_data', 'themes',
+                'taxes', 'faqs', 'promo_codes', 'seller_data',
                 'attributes', 'attribute_set', 'attribute_values',
                 'pickup_locations', 'client_api_keys', 'time_slots', 'sections',
             ];
@@ -353,6 +353,9 @@ class Home extends CI_Controller
         }
 
         $notifications = fetch_details('system_notification', ["read_by" => 0],  '*',  '3', '0',  'id', 'DESC',  '',  '');
+        // Older rows still carry unsubstituted "< order_id >" template text; repaired here so
+        // the bell never renders template syntax regardless of what is stored.
+        $notifications = clean_notification_rows($notifications);
 
         $response['error'] = false;
         $response['notifications'] = $notifications;

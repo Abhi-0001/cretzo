@@ -444,10 +444,21 @@ Defined Methods:-
                     $data = str_replace(array($hashtag_cutomer_name, $hashtag_order_id, $hashtag_application_name), array($user_res[0]['username'], $order_item_res[0]['order_id'], $app_name), $hashtag);
                     $message = output_escaping(trim($data, '"'));
                     $customer_msg = (!empty($custom_notification)) ? $message :   'Hello Dear ' . $user_res[0]['username'] . ' Order status updated to' . $_POST['status'] . ' for your order ID #' . $order_item_res[0]['order_id'] . ' please take note of it! Thank you for shopping with us. Regards ' . $app_name . '';
+                    // Title was emitted as the raw stored template while only the message had its
+                    // placeholders substituted, so any template whose title names the order/ticket/status
+                    // reached the reader as literal "< ... >" text. Both halves share one token list now.
+                    $customer_title = (!empty($custom_notification) && !empty($custom_notification[0]['title']))
+                        ? render_notification_text($custom_notification[0]['title'], [
+                            'cutomer_name'     => $user_res[0]['username'],
+                            'order_id'         => $order_item_res[0]['order_id'],
+                            'status'           => $_POST['status'],
+                            'application_name' => $app_name,
+                        ])
+                        : 'Order status updated';
                     $fcm_ids = array();
                     if (!empty($user_res[0]['fcm_id'])) {
                         $fcmMsg = array(
-                            'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Order status updated",
+                            'title' => $customer_title,
                             'body' => $customer_msg,
                             'type' => "order",
                         );
@@ -1273,7 +1284,9 @@ Defined Methods:-
                     $hashtag = html_entity_decode($string);
                     $data = str_replace($hashtag_application_name, $system_settings['app_name'], $hashtag);
                     $message = output_escaping(trim($data, '"'));
-                    $fcm_admin_subject = (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Attachments";
+                    $fcm_admin_subject = (!empty($custom_notification) && !empty($custom_notification[0]['title']))
+                        ? render_notification_text($custom_notification[0]['title'], ['application_name' => $system_settings['app_name'], 'ticket_id' => $ticket_id])
+                        : "Attachments";
                     $fcm_admin_msg = (!empty($custom_notification)) ? $message : "Ticket Message";
                     if (!empty($fcm_ids)) {
                         $fcmMsg = array(
@@ -1387,7 +1400,9 @@ Defined Methods:-
                     $hashtag = html_entity_decode($string);
                     $data = str_replace($hashtag_application_name, $system_settings['app_name'], $hashtag);
                     $message = output_escaping(trim($data, '"'));
-                    $fcm_admin_subject =  (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Your Ticket status has been changed";
+                    $fcm_admin_subject = (!empty($custom_notification) && !empty($custom_notification[0]['title']))
+                        ? render_notification_text($custom_notification[0]['title'], ['application_name' => $system_settings['app_name'], 'ticket_id' => $ticket_id])
+                        : "Your Ticket status has been changed";
                     $fcm_admin_msg = (!empty($custom_notification)) ? $message : "Ticket Message";
                     if (!empty($fcm_ids)) {
                         $fcmMsg = array(
@@ -1796,7 +1811,12 @@ Defined Methods:-
                 $hashtag = html_entity_decode($string);
                 $data = str_replace(array($hashtag_status, $hashtag_order_id), array($status, $order_id), $hashtag);
                 $message = output_escaping(trim($data, '"'));
-                $title = (!empty($custom_notification)) ? $custom_notification[0]['title'] : 'Bank Transfer Receipt Status';
+                // Title was emitted as the raw stored template while only the message had its
+                // placeholders substituted, so any template whose title names the order/ticket/status
+                // reached the reader as literal "< ... >" text. Both halves share one token list now.
+                $title = (!empty($custom_notification) && !empty($custom_notification[0]['title']))
+                    ? render_notification_text($custom_notification[0]['title'], ['order_id' => $order_id, 'status' => $status])
+                    : 'Bank Transfer Receipt Status';
                 $customer_msg = (!empty($custom_notification)) ? $message : 'Bank Transfer Receipt' . $status . ' for order ID: ' . $order_id;
                 $user = fetch_details("users", ['id' => $user_id], 'email,fcm_id');
                 // send_mail($user[0]['email'], $title, $customer_msg . $status . ' for order ID: ' . $order_id);

@@ -935,7 +935,13 @@ class Chat_model extends CI_Model
                 . ' data-user_id="' . (int) $thread['user_id'] . '"'
                 . ' data-customer="' . html_escape(strip_tags($customer_label)) . '"'
                 . ' title="View conversation" data-target="#assistant_chat_modal" data-toggle="modal">'
-                . '<i class="fa fa-eye"></i></a>';
+                . '<i class="fa fa-eye"></i></a>'
+                . '<a href="javascript:void(0)" class="delete_assistant_chat btn btn-danger action-btn btn-xs"'
+                . ' data-thread="' . html_escape($thread_key) . '"'
+                . ' data-user_id="' . (int) $thread['user_id'] . '"'
+                . ' data-customer="' . html_escape(strip_tags($customer_label)) . '"'
+                . ' data-messages="' . (int) $thread['messages'] . '"'
+                . ' title="Delete conversation"><i class="fa fa-trash"></i></a>';
 
             $data[] = [
                 'thread'        => '<code class="small">' . html_escape(substr($thread_key, 0, 10)) . '</code>',
@@ -1056,5 +1062,32 @@ class Chat_model extends CI_Model
             $label .= ' <span class="text-muted small">' . html_escape(stripcslashes((string) $thread['mobile'])) . '</span>';
         }
         return $label;
+    }
+
+    /**
+     * Delete one assistant conversation - every message sharing the thread's (session_id,
+     * user_id) key. Admin asked for this because the table is otherwise append-only: test
+     * conversations and abandoned one-line threads pile up and there was no way to clear them.
+     *
+     * Keyed exactly the way get_assistant_thread() reads, so what gets deleted is always the
+     * thread the admin was just looking at - guest rows recorded as 0 and as NULL included.
+     */
+    function delete_assistant_thread($thread_key, $user_id = null)
+    {
+        if ($thread_key === '' || $thread_key === null) {
+            $this->db->where('session_id IS NULL', null, false);
+        } else {
+            $this->db->where('session_id', $thread_key);
+        }
+
+        if (empty($user_id)) {
+            $this->db->where('COALESCE(user_id, 0) = 0', null, false);
+        } else {
+            $this->db->where('user_id', (int) $user_id);
+        }
+
+        $this->db->delete('chat_messages');
+
+        return $this->db->affected_rows();
     }
 }
