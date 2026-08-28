@@ -7365,6 +7365,126 @@ $(document).ready(function () {
     googleTranslateElementInit();
 });
 
+/*
+ * Language picker (admin header).
+ *
+ * Google's widget renders a native <select> (.goog-te-combo) holding every language it
+ * supports. A native select's popup is drawn by the OS, so it cannot be styled, and the
+ * unsorted ~250-entry list was unusable in the header. The select is hidden by CSS and
+ * mirrored into the Bootstrap dropdown in admin/include-navbar.php: same options, sorted,
+ * searchable, and selecting one writes back to the select and fires its change event, which
+ * is what actually triggers the translation.
+ *
+ * The widget is injected asynchronously by a third-party script, so the select may not exist
+ * yet on ready - hence the bounded poll rather than a one-shot read.
+ */
+(function () {
+    var $toggle = $('#czp-lang-toggle');
+    if (!$toggle.length) {
+        return; // Not the admin header (seller panel has no translate widget).
+    }
+
+    var $list = $('#czp-lang-list');
+    var $search = $('#czp-lang-search');
+    var $current = $('#czp-lang-current');
+    var tries = 0;
+
+    function combo() {
+        return document.querySelector('#google_translate_element .goog-te-combo');
+    }
+
+    function render(select) {
+        var items = [];
+        $(select).find('option').each(function () {
+            var value = $(this).attr('value');
+            var label = $.trim($(this).text());
+            // The first option is Google's "Select Language" placeholder, which carries no
+            // value; it is the reset-to-original entry, so it is relabelled, not dropped.
+            if (!value) {
+                items.push({ value: '', label: 'Original (English)' });
+            } else {
+                items.push({ value: value, label: label });
+            }
+        });
+
+        items.sort(function (a, b) {
+            if (!a.value) return -1;   // reset entry stays pinned to the top
+            if (!b.value) return 1;
+            return a.label.localeCompare(b.label);
+        });
+
+        var html = '';
+        for (var i = 0; i < items.length; i++) {
+            html += '<button type="button" class="czp-lang-item" data-value="' +
+                items[i].value + '">' + items[i].label + '</button>';
+        }
+        html += '<div class="czp-lang-empty czp-lang-nomatch" style="display:none;">No language found</div>';
+        $list.html(html);
+        syncCurrent(select);
+    }
+
+    function syncCurrent(select) {
+        var value = select.value;
+        var $active = $list.find('.czp-lang-item[data-value="' + value + '"]');
+        $list.find('.czp-lang-item').removeClass('is-active');
+        $active.addClass('is-active');
+        $current.text(value && $active.length ? $active.text() : 'English');
+    }
+
+    // The select is created by Google's script some time after page load.
+    var waitForCombo = setInterval(function () {
+        var select = combo();
+        tries++;
+        if (select) {
+            clearInterval(waitForCombo);
+            render(select);
+        } else if (tries > 40) { // ~20s, then give up quietly
+            clearInterval(waitForCombo);
+            $list.html('<div class="czp-lang-empty">Language list unavailable</div>');
+        }
+    }, 500);
+
+    $list.on('click', '.czp-lang-item', function () {
+        var select = combo();
+        if (!select) {
+            return;
+        }
+        select.value = $(this).data('value');
+        // .change() on the jQuery object is not enough here: the widget listens with a
+        // native handler, so the event has to be dispatched on the DOM node itself.
+        select.dispatchEvent(new Event('change'));
+        syncCurrent(select);
+        $toggle.dropdown('hide');
+    });
+
+    $search.on('input', function () {
+        var term = $(this).val().toLowerCase();
+        var shown = 0;
+        $list.find('.czp-lang-item').each(function () {
+            var match = $(this).text().toLowerCase().indexOf(term) !== -1;
+            $(this).toggle(match);
+            if (match) {
+                shown++;
+            }
+        });
+        $list.find('.czp-lang-nomatch').toggle(shown === 0);
+    });
+
+    // Fresh search box and a visible active row every time the menu opens.
+    $('.czp-lang').on('shown.bs.dropdown', function () {
+        $search.val('').trigger('input').trigger('focus');
+        var $active = $list.find('.is-active');
+        if ($active.length) {
+            $list.scrollTop($active.position().top + $list.scrollTop() - 60);
+        }
+    });
+
+    // Keep the label right after Google restores a previously chosen language on reload.
+    $(document).on('change', '#google_translate_element .goog-te-combo', function () {
+        syncCurrent(this);
+    });
+})();
+
 
 
 // send admin notification
@@ -7379,7 +7499,13 @@ $(document).ready(function () {
                 // #refresh_notification, which now holds the panel as well - so every 30
                 // seconds it destroyed an open panel (and, before that, re-created the
                 // bell element for no reason).
-                $('#refresh_notification').find('.order_notification').text(result.count_notifications);
+                // The badge is hidden at zero (see admin/include-navbar.php), so the count
+                // and its visibility have to move together - setting .text() alone left a
+                // new notification's badge hidden until the next full page load.
+                var $badge = $('#refresh_notification').find('.order_notification');
+                var unread = parseInt(result.count_notifications, 10) || 0;
+                $badge.text(unread > 99 ? '99+' : unread);
+                $badge.toggle(unread > 0);
             }
         });
     }, 30000);
