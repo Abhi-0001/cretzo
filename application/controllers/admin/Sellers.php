@@ -335,7 +335,7 @@ class Sellers extends CI_Controller
 
             // Rows keyed on the seller that would otherwise be left pointing at a user id
             // that no longer exists. seller_subscriptions is the one that actually bit us:
-            // an orphan there still counted towards the 100-vendor launch-offer cap.
+            // an orphan there still counted towards the 20-vendor launch-offer cap.
             delete_details(['seller_id' => $id], 'seller_subscriptions');
             delete_details(['user_id' => $id], 'addresses');
             delete_details(['user_id' => $id], 'cart');

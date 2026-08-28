@@ -1,3 +1,36 @@
+<?php
+/*
+ * PERFORMANCE - AdminLTE demo widgets and unused editors removed from the ADMIN panel.
+ *
+ * Same audit as the seller panel: every library below was checked against its own API
+ * across all admin views plus the scripts this page loads (custom/custom.js, custom/pos.js,
+ * dist/js/adminlte.js, js/stisla.js, js/loader.js, js/tooltip.js). None is referenced.
+ *
+ *   chart.js/Chart.min.js (168 KB) - there is no `new Chart(` anywhere in this codebase.
+ *       The dashboard's charts are drawn by Chartist and by google.visualization; Chart.js
+ *       was never used by either panel. (An earlier pass kept it on the seller dashboard on
+ *       the strength of a grep for `Chart(`, which matches google.visualization.PieChart( -
+ *       a false positive, now corrected on both sides.)
+ *   jquery.vmap + jquery.vmap.usa (66 KB) - AdminLTE's demo "vector map of the USA".
+ *   dist/js/demo.js (12 KB)        - AdminLTE's theme-settings demo panel, not for production.
+ *   sparkline.js, jquery.knob.min.js - demo dashboard widgets.
+ *   tempusdominus (55 KB + 9 KB css) - no .datetimepicker() call exists.
+ *   jquery.fancybox (66 KB + 16 KB css) - a third lightbox; ekko-lightbox and lightbox.js
+ *                                    are the ones actually used.
+ *   jquery.validate.min.js (23 KB) - no .validate() call.
+ *   intlTelInput (69 KB + 26 KB css) - never initialised.
+ *   Markdown.Converter/Sanitizer/Editor (161 KB) - the pagedown editor; no wmd- element.
+ *
+ * Plus the two gstatic Firebase 7.20.0 tags removed from include-head.php - see the note
+ * there; they duplicated the local 8.0.1 SDK that actually serves firebase.auth().
+ *
+ * Total: 698 KB and 17 local requests, plus 2 cross-origin requests, off every admin page.
+ *
+ * Kept, because they ARE used: jquery.overlayScrollbars (adminlte.js drives the sidebar
+ * with it), chartist, jstree, tinymce, ekko-lightbox, lightbox.js, bootstrap-switch,
+ * bootstrap-table, tableExport, select2, iziToast, dropzone, tagify, blockUI, sortable.
+ */
+?>
 <aside class="control-sidebar control-sidebar-dark">
     <!-- Control sidebar content goes here -->
 </aside>
@@ -18,19 +51,13 @@
 <!-- Ekko Lightbox -->
 <script src=<?= add_ver(base_url('assets/admin/ekko-lightbox/ekko-lightbox.min.js')) ?>></script>
 <!-- ChartJS -->
-<script src="<?= add_ver(base_url('assets/admin/chart.js/Chart.min.js')) ?>"></script>
 <!-- Sparkline -->
-<script src="<?= add_ver(base_url('assets/admin/js/sparkline.js')) ?>"></script>
 <!-- JQVMap -->
-<script src="<?= add_ver(base_url('assets/admin/js/jquery.vmap.min.js')) ?>"></script>
-<script src="<?= add_ver(base_url('assets/admin/js/jquery.vmap.usa.js')) ?>"></script>
 <!-- jQuery Knob Chart -->
-<script src="<?= add_ver(base_url('assets/admin/js/jquery.knob.min.js')) ?>"></script>
 <!-- daterangepicker -->
 <script src="<?= add_ver(base_url('assets/admin/js/moment.min.js')) ?>"></script>
 <script src="<?= add_ver(base_url('assets/admin/js/daterangepicker.js')) ?>"></script>
 <!-- Tempusdominus Bootstrap 4 -->
-<script src="<?= add_ver(base_url('assets/admin/js/tempusdominus-bootstrap-4.min.js')) ?>"></script>
 <!-- Toastr -->
 <script src="<?= add_ver(base_url('assets/admin/js/iziToast.min.js')) ?>"></script>
 <!-- Select -->
@@ -46,7 +73,6 @@
 <script src="<?= add_ver(base_url('assets/admin/js/tableExport.js')) ?>"></script>
 <script src="<?= base_url('assets/admin/js//bootstrap-table-export.min.js"') ?>"></script>
 <!-- Jquery Fancybox -->
-<script src="<?= add_ver(base_url('assets/admin/js/jquery.fancybox.min.js')) ?>"></script>
 <!-- Sweeta Alert 2 -->
 <script src="<?= add_ver(base_url('assets/admin/js/sweetalert2.min.js')) ?>"></script>
 <!-- Block UI -->
@@ -67,16 +93,11 @@
 <script type="text/javascript" src="<?= add_ver(base_url('assets/admin/js/jquery-sortable.js')) ?>"></script>
 
 <script type="text/javascript" src="<?= add_ver(base_url('assets/admin/js/tagify.min.js')) ?>"></script>
-<script type="text/javascript" src="<?= add_ver(base_url('assets/admin/js/jquery.validate.min.js')) ?>"></script>
 <!-- Markdown -->
-<script type="text/javascript" src="<?= add_ver(base_url('assets/admin/js/Markdown.Converter.js')); ?>"></script>
-<script type="text/javascript" src="<?= add_ver(base_url('assets/admin/js/Markdown.Sanitizer.js')); ?>"></script>
-<script type="text/javascript" src="<?= add_ver(base_url('assets/admin/js/Markdown.Editor.js')); ?>"></script>
 
 
 
 <!-- intlTelInput -->
-<script type="text/javascript" src="<?= add_ver(base_url('assets/admin/js/intlTelInput.js')) ?>"></script>
 <script type="text/javascript" src="<?= add_ver(base_url('assets/admin/js/lightbox.js')) ?>"></script>
 
 <script type="text/javascript" src="<?= add_ver(base_url('assets/admin/js/stisla.js')); ?>"></script>
@@ -92,7 +113,6 @@
 <script src="<?= add_ver(base_url('assets/admin/custom/custom.js')) ?>"></script>
 
 <!-- Demo -->
-<script src="<?= add_ver(base_url('assets/admin/dist/js/demo.js')) ?>"></script>
 
 <?php if ($this->session->flashdata('message')) { ?>
     <script>

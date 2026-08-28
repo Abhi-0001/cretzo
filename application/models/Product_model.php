@@ -644,6 +644,21 @@ class Product_model extends CI_Model
         // destinations - see the note at those two links for why this matters.
         $is_seller_context = $this->ion_auth->is_seller();
 
+        /*
+         * PERFORMANCE: get_variants_values_by_pid() ran once PER ROW inside this loop, so
+         * the admin/seller product tables issued one extra query for every product drawn -
+         * 109 queries to render a 100-row page, scaling linearly with page size.
+         *
+         * Opening the request-scoped prefetch makes that helper read from a single batched
+         * `WHERE product_id IN (...)`. The rows here key the product id as `pid` (`id` is
+         * the VARIANT id), so the ids are remapped for product_batch_open(), which expects
+         * `id`. The helper still falls through to its own query for anything not
+         * prefetched, so the values are unchanged.
+         */
+        product_batch_open(array_map(function ($r) {
+            return array('id' => isset($r['pid']) ? $r['pid'] : null);
+        }, $pro_search_res));
+        try {
         foreach ($pro_search_res as $row) {
             $row = output_escaping($row);
 
@@ -721,6 +736,10 @@ class Product_model extends CI_Model
             $tempRow['rating'] = '<input type="text" class="kv-fa rating-loading" value="' . $row['rating'] . '" data-size="xs" title="" readonly> <span> (' . $row['rating'] . '/' . $row['no_of_ratings'] . ') </span>';
             $tempRow['operate'] = $operate;
             $rows[] = $tempRow;
+        }
+        } finally {
+            /* finally, so an exception in the loop cannot leave a stale scope open. */
+            product_batch_close();
         }
         $bulkData['rows'] = $rows;
         print_r(json_encode($bulkData));
@@ -824,6 +843,21 @@ class Product_model extends CI_Model
         $bulkData['total'] = $total;
         $rows = array();
         $tempRow = array();
+        /*
+         * PERFORMANCE: get_variants_values_by_pid() ran once PER ROW inside this loop, so
+         * the admin/seller product tables issued one extra query for every product drawn -
+         * 109 queries to render a 100-row page, scaling linearly with page size.
+         *
+         * Opening the request-scoped prefetch makes that helper read from a single batched
+         * `WHERE product_id IN (...)`. The rows here key the product id as `pid` (`id` is
+         * the VARIANT id), so the ids are remapped for product_batch_open(), which expects
+         * `id`. The helper still falls through to its own query for anything not
+         * prefetched, so the values are unchanged.
+         */
+        product_batch_open(array_map(function ($r) {
+            return array('id' => isset($r['pid']) ? $r['pid'] : null);
+        }, $pro_search_res));
+        try {
         foreach ($pro_search_res as $row) {
             $row = output_escaping($row);
             $attr_values  =  get_variants_values_by_pid($row['pid']);
@@ -831,6 +865,10 @@ class Product_model extends CI_Model
             $tempRow['varaint_id'] = $row['id'];
             $tempRow['name'] = $row['name'] . '<br><small>' . ucwords(str_replace('_', ' ', $row['type'])) . '</small><br><small> By </small><b>' . $row['store_name'] . '</b>';
             $rows[] = $tempRow;
+        }
+        } finally {
+            /* finally, so an exception in the loop cannot leave a stale scope open. */
+            product_batch_close();
         }
 
         $bulkData['rows'] = $rows;
@@ -1330,11 +1368,42 @@ class Product_model extends CI_Model
 
 
 
+        /*
+         * PERFORMANCE: identical to the fix in get_seller_stock_details() below - this is
+         * the admin-side twin of that report and carried the same two queries PER PRODUCT
+         * (a category-name lookup and a variant lookup), so its cost scaled with page size:
+         * 218 queries to draw a 100-row page, against 26 once batched.
+         *
+         * Variants come from the request-scoped prefetch fetch_product() already uses;
+         * get_variants_values_by_pid() falls through to its own query for anything not
+         * prefetched, so values are unchanged. Category names are prefetched into a map
+         * rather than read from $product['category_name'], because that column is passed
+         * through output_escaping() while this loop reads the raw `name` and html_escape()s
+         * it itself.
+         */
+        $stock_category_names = array();
+        $stock_category_ids = array_filter(array_unique(array_column($products['product'], 'category_id')));
+        if (!empty($stock_category_ids)) {
+            $stock_category_rows = $this->db->select('id, name')
+                ->where_in('id', $stock_category_ids)
+                ->get('categories')->result_array();
+            foreach ($stock_category_rows as $stock_category_row) {
+                $stock_category_names[(string) $stock_category_row['id']] = $stock_category_row['name'];
+            }
+        }
+
+        product_batch_open($products['product']);
+        try {
+
         foreach ($products['product'] as $product) {
 
             $category_id = $product['category_id'];
 
-            $category_name = fetch_details('categories', ['id' => $category_id], 'name');
+            /* Shaped like the fetch_details() result this replaced, so the
+             * isset($category_name[0]['name']) read further down is untouched. */
+            $category_name = array_key_exists((string) $category_id, $stock_category_names)
+                ? array(array('name' => $stock_category_names[(string) $category_id]))
+                : array();
 
             $operate = $stock = "";
 
@@ -1439,6 +1508,12 @@ class Product_model extends CI_Model
             $rows[] = $tempRow;
         }
 
+        } finally {
+            /* Closed in a finally so an exception inside the loop cannot leave a stale
+             * prefetch scope visible to the rest of the request. */
+            product_batch_close();
+        }
+
         $bulkData['rows'] = $rows;
 
 
@@ -1521,11 +1596,49 @@ class Product_model extends CI_Model
 
 
 
+        /*
+         * PERFORMANCE: this loop issued two queries PER PRODUCT - a category-name lookup
+         * and a variant lookup - so the seller's stock table cost 38 queries to render
+         * ten rows.
+         *
+         * The variants are handled by the same request-scoped prefetch fetch_product()
+         * uses: opening a scope makes get_variants_values_by_pid() read from one batched
+         * `WHERE product_id IN (...)` query instead of going back to the database per row.
+         * The helper falls through to its original query for anything not prefetched, so
+         * the values are identical either way.
+         *
+         * The category names are prefetched into a map here rather than taken from
+         * $product['category_name'] (which fetch_product already selects), because that
+         * column is passed through output_escaping() while this loop reads the raw `name`
+         * and html_escape()s it itself. Same table, same column, same escaping as before -
+         * just fetched once instead of once per row.
+         *
+         * NOTE: get_stock_details() above is this function's admin-side twin and still
+         * carries both N+1s. Same fix applies there verbatim.
+         */
+        $stock_category_names = array();
+        $stock_category_ids = array_filter(array_unique(array_column($products['product'], 'category_id')));
+        if (!empty($stock_category_ids)) {
+            $stock_category_rows = $this->db->select('id, name')
+                ->where_in('id', $stock_category_ids)
+                ->get('categories')->result_array();
+            foreach ($stock_category_rows as $stock_category_row) {
+                $stock_category_names[(string) $stock_category_row['id']] = $stock_category_row['name'];
+            }
+        }
+
+        product_batch_open($products['product']);
+        try {
+
         foreach ($products['product'] as $product) {
 
             $category_id = $product['category_id'];
 
-            $category_name = fetch_details('categories', ['id' => $category_id], 'name');
+            /* Shaped like the fetch_details() result this replaced, so the
+             * isset($category_name[0]['name']) read further down is untouched. */
+            $category_name = array_key_exists((string) $category_id, $stock_category_names)
+                ? array(array('name' => $stock_category_names[(string) $category_id]))
+                : array();
 
             $operate = $stock = "";
 
@@ -1621,6 +1734,12 @@ class Product_model extends CI_Model
             }
 
             $rows[] = $tempRow;
+        }
+
+        } finally {
+            /* Closed in a finally so an exception raised inside the loop cannot leave a
+             * stale prefetch scope visible to the rest of the request. */
+            product_batch_close();
         }
 
         $bulkData['rows'] = $rows;

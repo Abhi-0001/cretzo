@@ -62,11 +62,11 @@
                             <div class="card-body">
                                 <p class="text-muted small mb-1">You selected</p>
                                 <h3 class="plan-name mb-2"><?= html_escape($plan['name']); ?></h3>
-                                <div class="plan-price mb-3">₹<?= html_escape($plan['price']); ?> <span class="text-muted font-weight-normal">/ <?= html_escape($plan['validity']); ?></span></div>
+                                <div class="plan-price mb-3"><?= (is_numeric($plan['price']) && (float) $plan['price'] <= 0) ? 'Free' : '₹' . html_escape($plan['price']); ?> <span class="text-muted font-weight-normal">/ <?= html_escape(plan_validity_text($plan['validity'])); ?></span></div>
 
                                 <ul class="plan-detail-list mb-3">
-                                    <li><span>Validity</span><strong><?= html_escape($plan['validity']); ?></strong></li>
-                                    <li><span>Access</span><strong><?= !empty($plan['listings_limit']) ? intval($plan['listings_limit']) . ' extra listings' : 'Unlimited'; ?></strong></li>
+                                    <li><span>Validity</span><strong><?= html_escape(plan_validity_text($plan['validity'])); ?></strong></li>
+                                    <li><span>Access</span><strong><?= html_escape(plan_listings_text(isset($plan['listings_limit']) ? $plan['listings_limit'] : '')); ?></strong></li>
                                     <li><span>Support</span><strong>24*7</strong></li>
                                 </ul>
 

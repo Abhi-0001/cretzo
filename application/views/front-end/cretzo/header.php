@@ -1,6 +1,56 @@
 <?php
 $this->load->model('category_model');
-$categories = $this->category_model->get_categories(null, 12);
+
+/*
+ * PERFORMANCE: the navigation category tree is rebuilt on EVERY page of the site.
+ * get_categories() costs nine queries - one count, one for the parents, then
+ * sub_categories() once per parent (an N+1) - and resolves two image URLs per
+ * category, each of which stats the filesystem. None of it varies by visitor.
+ *
+ * Cached for 15 minutes and busted explicitly whenever a category is created,
+ * edited, deleted or reordered (see Category_model and admin/Category.php).
+ *
+ * Deliberately NOT busted by the `clicks` counter that Products::details()
+ * increments on every product view: that column is a popularity tally the
+ * navigation never reads, and treating it as an invalidation event would mean the
+ * cache was thrown away on essentially every request, which is the same as having
+ * no cache at all. A cached tree can therefore carry a slightly stale click count
+ * and nothing on screen is affected.
+ */
+$categories = app_cache_remember('nav_categories.12', 900, function () {
+    return $this->category_model->get_categories(null, 12);
+});
+
+/*
+ * PERFORMANCE: the cart used to be re-queried SIX times while rendering this one
+ * header - once for the desktop badge, twice each for the two mobile badges (the
+ * count was called again inside its own ternary), and once for the off-canvas
+ * mini-cart. get_user_cart() is a four-table join, so that was six identical joins
+ * on every single page of the storefront.
+ *
+ * It is now read once here and reused. The off-canvas body below used $user->id
+ * while the badges used the session's user_id; those are the same value -
+ * Ion_auth_model::user() defaults its $id to $this->session->userdata('user_id') -
+ * so a single fetch serves all of them.
+ */
+$header_cart_items = $this->cart_model->get_user_cart($this->session->userdata('user_id'));
+$header_cart_count = count($header_cart_items);
+
+/*
+ * PERFORMANCE: the wishlist badge was far worse than the cart one. Both the desktop
+ * and the mobile badge called count(get_favorites(...)) TWICE each - once to test it
+ * against 0 and once to print it - so four full calls per page. get_favorites()
+ * does not just count: for EVERY favourited product it runs get_variants_values_by_pid()
+ * and get_min_max_price_of_product() and resolves three image URLs (each of which
+ * stats the filesystem). The product batch is not open here, so none of that is
+ * pooled. A customer with 20 favourites was paying for ~80 hydrated products and
+ * several hundred file_exists() calls to render the number "20", four times over.
+ *
+ * get_favorites() already has a count-only mode ($return_count), which short-circuits
+ * to a single count_all_results() before any of the hydration runs. That is exactly
+ * what a badge needs.
+ */
+$header_wishlist_count = (int) get_favorites($this->session->userdata('user_id'), null, null, true);
 
 
 $language = get_languages();
@@ -185,7 +235,7 @@ $notif_unread = $this->ion_auth->logged_in()
                         <img class="icon-img" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/love.png') ?>">
                     </a>
                 <?php } ?>
-                <p id="wishlist-count" data-wishlist-count class="icon-num"><?= (count(get_favorites($this->session->userdata('user_id'))) != 0 ? count(get_favorites($this->session->userdata('user_id'))) : '0'); ?></p>
+                <p id="wishlist-count" data-wishlist-count class="icon-num"><?= ($header_wishlist_count != 0 ? $header_wishlist_count : '0'); ?></p>
             </li>
             
             <!-- checkout/cart icon functionality based on whether user is on checkout page already or not -->
@@ -201,9 +251,7 @@ $notif_unread = $this->ion_auth->logged_in()
                     <img class="icon-img" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/shopping-bag.png') ?>">
                 </a>
 
-                <?php 
-                    $cartCount = count($this->cart_model->get_user_cart($this->session->userdata('user_id')));
-                ?>
+                <?php $cartCount = $header_cart_count; ?>
                 <p id="cart-count" class="icon-num"><?= ($cartCount != "0" && $cartCount != "" ? $cartCount : '0'); ?></p>
             </li>
 
@@ -318,7 +366,7 @@ $notif_unread = $this->ion_auth->logged_in()
                         <!-- <img class="icon-img-m" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/heart-icon.png') ?>"> -->
                         <img class="icon-img-m" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/love.png') ?>">
                     </a>
-                    <p class="icon-num-m"><?= (count(get_favorites($this->session->userdata('user_id'))) != 0 ? count(get_favorites($this->session->userdata('user_id'))) : '0'); ?></p>
+                    <p class="icon-num-m"><?= ($header_wishlist_count != 0 ? $header_wishlist_count : '0'); ?></p>
                 </li>
 
                 <!-- checkout/cart icon functionality based on whether user is on checkout page already or not -->
@@ -328,14 +376,14 @@ $notif_unread = $this->ion_auth->logged_in()
                         <a href="<?= base_url('cart') ?>">
                             <img class="icon-img-m" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/shopping-bag.png') ?>">
                         </a>
-                        <p class="icon-num-m"><?= (count($this->cart_model->get_user_cart($this->session->userdata('user_id'))) != 0 ? count($this->cart_model->get_user_cart($this->session->userdata('user_id'))) : '0'); ?></p>
+                        <p class="icon-num-m"><?= ($header_cart_count != 0 ? $header_cart_count : '0'); ?></p>
                     </li>
                 <?php } else { ?>
                     <li class="icon">
                         <a href="javascript:void(0);" data-bs-toggle="offcanvas" data-bs-target="#offcanvas-cart">
                             <img class="icon-img-m" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/shopping-bag.png') ?>">
                         </a>
-                        <p class="icon-num-m"><?= (count($this->cart_model->get_user_cart($this->session->userdata('user_id'))) != 0 ? count($this->cart_model->get_user_cart($this->session->userdata('user_id'))) : '0'); ?></p>
+                        <p class="icon-num-m"><?= ($header_cart_count != 0 ? $header_cart_count : '0'); ?></p>
                     </li>
                 <?php } ?>
 
@@ -470,7 +518,8 @@ $notif_unread = $this->ion_auth->logged_in()
         <div class="offcanvas-body d-flex flex-column" id="cart-item-sidebar">
             <?php
             if (isset($user->id)) {
-                $cart_items = $this->cart_model->get_user_cart($user->id);
+                /* Same rows the badges above counted - see the note at the top of this file. */
+                $cart_items = $header_cart_items;
                 if (count($cart_items) != 0) {
                     foreach ($cart_items as $items) {
                         $price = $items['special_price'] != '' && $items['special_price'] > 0 && $items['special_price'] != null ? $items['special_price'] : $items['price']; ?>

@@ -757,7 +757,16 @@ $(document).click(function (e) {
 
 <link href="//cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/css/toastr.min.css" rel="stylesheet">
 <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/js/toastr.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@10"></script>
+<?php
+/*
+ * PERFORMANCE: sweetalert2 was loaded TWICE - this jsdelivr copy (v10) and the local
+ * js/sweetalert2.min.js (v11.12.3) in include-script.php. template.php loads footer.php
+ * BEFORE include-script.php, so v10 landed first and was then overwritten wholesale by
+ * the local v11; every Swal call on the site, and the Toast mixin that custom.js builds
+ * at load time and that fires 82 times across the storefront, is already v11. This tag
+ * was a cross-origin, render-blocking download of a library the page then threw away.
+ */
+?>
 
 <style>
 /* ─────────────────────────────────────────────────────────────

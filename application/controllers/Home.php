@@ -53,16 +53,25 @@ class Home extends CI_Controller
         $has_child_or_item = 'false';
         $filters = [];
         /* Fetching Categories Sections */
-        $categories = $this->category_model->get_categories('', $limit, $offset, $sort, $order, 'false');
-        $brands = $this->brand_model->get_brands('', $limit, $offset, $sort, $order, 'false');
+        /*
+         * PERFORMANCE: neither of these depends on who is visiting - they are the
+         * homepage's category strip and brand strip. get_categories() in particular
+         * runs one query per parent category (see Category_model::get_categories) and
+         * resolves two image URLs per row, each stat-ing the filesystem.
+         *
+         * Both are busted by their own models when an administrator saves a category
+         * or a brand, so the TTL is only a backstop.
+         */
+        $categories = app_cache_remember('home_categories.' . $limit, 900, function () use ($limit, $offset, $sort, $order) {
+            return $this->category_model->get_categories('', $limit, $offset, $sort, $order, 'false');
+        });
+        $brands = app_cache_remember('home_brands.' . $limit, 900, function () use ($limit, $offset, $sort, $order) {
+            return $this->brand_model->get_brands('', $limit, $offset, $sort, $order, 'false');
+        });
         // echo "<pre>";
         // print_r($brands);
         // die;
         /* Fetching Featured Sections */
-
-        // Honour the publish flag added in migration 046 - an unpublished section must not
-        // render on the homepage.
-        $sections = $this->db->where('status', 1)->limit($limit, $offset)->order_by('row_order')->get('sections')->result_array();
 
         $user_id = null;
 $id = null;
@@ -84,6 +93,51 @@ if (!empty($this->data['is_logged_in'])) {
 
 $filters['show_only_active_products'] = true;
 
+/*
+ * PERFORMANCE: this lookup used to sit INSIDE the section loop below, so the same
+ * single-row query ran once per homepage section to get the same answer every time.
+ * The default theme cannot change part-way through rendering one page, so it is read
+ * once here and the loop reads the resolved name out of $default_theme_name.
+ */
+$theme = fetch_details('themes', ['is_default' => 1], 'name');
+$default_theme_name = isset($theme[0]['name']) ? strtolower($theme[0]['name']) : '';
+
+/*
+ * PERFORMANCE: building the homepage's featured sections is what the page actually
+ * spends its time on. After the N+1 and reference-data work, 67 of the 71 queries a
+ * homepage render still issues come from this loop: each of the six published
+ * sections runs a full fetch_product() - main query, count, min/max price and the
+ * batch prefetches - and then resolves image URLs for every card, each of which
+ * stats the filesystem.
+ *
+ * For a SIGNED-OUT visitor the result is byte-for-byte the same for everybody, so it
+ * is cached and shared. For a signed-in shopper it is not: fetch_product() folds in
+ * that person's cart quantities, favourites, own rating and is_purchased flags, so
+ * caching it under a shared key would leak one customer's state to another. Signed-in
+ * visitors therefore always build it live - $user_id is the discriminator and it is
+ * part of the branch, not the key, so there is no way to get this wrong by accident.
+ *
+ * INVALIDATION IS DELIBERATELY TIME-BASED
+ * This payload embeds prices and stock, and unlike categories or brands there is no
+ * single choke point through which every product write passes - products are written
+ * by the admin form, the seller form, two bulk-upload paths, the stock engine and the
+ * mobile APIs. Hanging invalidation off all of those would be easy to get wrong and
+ * easy to miss when a new write path is added, so the cache simply expires instead.
+ *
+ * The staleness that buys is bounded and cosmetic: a card can show a price up to
+ * HOME_SECTIONS_CACHE_TTL seconds old, but nothing downstream trusts it. Cart_model
+ * re-reads pv.price / pv.special_price live when the item is added, and stock is
+ * re-validated at checkout, so a shopper is never charged a stale price - at worst
+ * they see the previous one on the homepage tile for a few minutes.
+ *
+ * Set HOME_SECTIONS_CACHE_TTL to 0 in application/config/constants.php to turn this
+ * off entirely and go back to building on every request.
+ */
+$build_sections = function () use ($limit, $offset, $filters, $user_id, $default_theme_name) {
+    // Honour the publish flag added in migration 046 - an unpublished section must not
+    // render on the homepage.
+    $sections = $this->db->where('status', 1)->limit($limit, $offset)->order_by('row_order')->get('sections')->result_array();
+
 if (!empty($sections)) {
     for ($i = 0; $i < count($sections); $i++) {
         $product_ids = isset($sections[$i]['product_ids']) ? explode(',', (string)$sections[$i]['product_ids']) : '';
@@ -93,10 +147,7 @@ if (!empty($sections)) {
                     $filters['product_type'] = (isset($sections[$i]['product_type'])) ? $sections[$i]['product_type'] : null;
                 }
 
-                $theme = fetch_details('themes', ['is_default' => 1], 'name');
-                // print_r($theme);
-
-                if (isset($theme[0]['name']) && strtolower($theme[0]['name']) == 'modern') {
+                if ($default_theme_name == 'modern') {
                     if ($sections[$i]['style'] == "default" || $sections[$i]['style'] == "style_3") {
                         $limit = 4;
                     } elseif ($sections[$i]['style'] == "style_1" || $sections[$i]['style'] == "style_2" || $sections[$i]['style'] == "style_4") {
@@ -104,7 +155,7 @@ if (!empty($sections)) {
                     } else {
                         $limit = null;
                     }
-                } else if (isset($theme[0]['name']) && strtolower($theme[0]['name']) == 'cretzo') {
+                } else if ($default_theme_name == 'cretzo') {
                     if ($sections[$i]['style'] == "cretzo_trending") {
                         $limit = 6; // only fetch 6 trending products for the cretzo trending area
                         
@@ -137,6 +188,15 @@ if (!empty($sections)) {
                 unset($product_details);
             }
         }
+
+    return $sections;
+};
+
+if ($user_id === null && defined('HOME_SECTIONS_CACHE_TTL') && HOME_SECTIONS_CACHE_TTL > 0) {
+    $sections = app_cache_remember('home_sections.guest', HOME_SECTIONS_CACHE_TTL, $build_sections);
+} else {
+    $sections = $build_sections();
+}
 
         $this->data['sections'] = $sections;
         $this->data['categories'] = $categories;

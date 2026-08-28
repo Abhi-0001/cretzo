@@ -7,10 +7,10 @@ class Seller_subscription_model extends CI_Model
     const LAUNCH_OFFER_PLAN_NAME = 'Launch Offer';
 
     /** Number of vendors eligible for the launch promotion. */
-    const LAUNCH_OFFER_SELLER_CAP = 100;
+    const LAUNCH_OFFER_SELLER_CAP = 20;
 
     /** Listing allowance granted by the launch promotion. */
-    const LAUNCH_OFFER_LISTINGS = 50;
+    const LAUNCH_OFFER_LISTINGS = 30;
 
     /** Validity of the launch promotion, in days (1 year). */
     const LAUNCH_OFFER_VALIDITY_DAYS = 365;
@@ -189,7 +189,7 @@ class Seller_subscription_model extends CI_Model
     /**
      * Auto-assign a subscription when a vendor registers.
      * The first LAUNCH_OFFER_SELLER_CAP vendors receive the "Launch Offer"
-     * plan (50 free listings, valid 1 year). Everyone after is put on the admin's
+     * plan (30 free listings, valid 1 year). Everyone after is put on the admin's
      * default free plan (the lowest-priced plan configured in the admin panel,
      * e.g. "Basic") — its listing limit / validity come from the admin panel,
      * they are NOT hardcoded here.
@@ -229,7 +229,7 @@ class Seller_subscription_model extends CI_Model
             $count = isset($count_row['cnt']) ? (int) $count_row['cnt'] : 0;
 
             if ($count < self::LAUNCH_OFFER_SELLER_CAP) {
-                // Within the first 100 vendors -> grant the launch promotion.
+                // Within the first 20 vendors -> grant the launch promotion.
                 $this->assign_subscription($seller_id, $launch_plan['id'], $launch_plan['validity']);
                 $this->db->trans_complete();
                 return $this->db->trans_status();
@@ -309,8 +309,8 @@ class Seller_subscription_model extends CI_Model
 
         if ($this->db->field_exists('features', 'subscriptions')) {
             $data['features'] = json_encode([
-                ['id' => 'launch_free_listings', 'name' => '50 Free Listings', 'description' => 'List up to 50 products free for 1 year'],
-                ['id' => 'launch_first_100', 'name' => 'First 100 Vendors', 'description' => 'Exclusive to the first 100 vendors who join'],
+                ['id' => 'launch_free_listings', 'name' => '30 Free Listings', 'description' => 'List up to 30 products free for 1 year'],
+                ['id' => 'launch_first_20', 'name' => 'First 20 Vendors', 'description' => 'Exclusive to the first 20 vendors who join'],
             ]);
         }
 

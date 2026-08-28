@@ -20,6 +20,12 @@ class Language_model extends CI_Model
             'code' => $data['code'],
             'is_rtl' => (isset($data['is_rtl']) && $data['is_rtl'] == 1) ? 1 : 0,
         );
+        /* get_languages() keeps a cross-request copy of every filter combination
+         * (see the note in function_helper.php); drop them all so the switcher and the
+         * RTL flag reflect this change on the very next request. */
+        if (function_exists('app_cache_delete_group')) {
+            app_cache_delete_group('languages.');
+        }
         return $this->db->insert('languages', $arr);
     }
 
@@ -28,6 +34,12 @@ class Language_model extends CI_Model
         $arr = array(
             'is_rtl' => (isset($data['is_rtl']) && $data['is_rtl'] == 1) ? 1 : 0,
         );
+        /* get_languages() keeps a cross-request copy of every filter combination
+         * (see the note in function_helper.php); drop them all so the switcher and the
+         * RTL flag reflect this change on the very next request. */
+        if (function_exists('app_cache_delete_group')) {
+            app_cache_delete_group('languages.');
+        }
         return $this->db->where('id', $data['language_id'])->update('languages', $arr);
     }
 

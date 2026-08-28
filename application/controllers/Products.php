@@ -120,21 +120,30 @@ class Products extends CI_Controller
         $order = 'ASC';
         $brands = $this->brand_model->get_brands('', $limit = NULL, $offset, $sort, $order, 'false');
 
-        $products = fetch_product(null, $filter, null, $category_id, $limit = NULL, $offset, $sort, $order);
-        // echo "<pre>";
-        // print_r($brands);
-        // die;
-
-
-        // $limit = ($this->input->get('per-page')) ? $this->input->get('per-page', true) : 12;
-        // $brands = array();
-        // for ($i = 0; $i < count($products['product']); $i++) {
-        //     if (!empty($products['product'][$i]['brand'])) {
-        //         // echo "<pre>";
-        //         $brand = explode(',', $products['product'][$i]['brand']);
-        //         $brands = array_values(array_unique(array_merge($brands, $brand)));
-        //     }
-        // }
+        /*
+         * PERFORMANCE: there used to be an unlimited fetch_product() here -
+         *
+         *     $products = fetch_product(null, $filter, null, $category_id, $limit = NULL, ...);
+         *
+         * with $limit deliberately NULL, so it pulled and fully hydrated EVERY product
+         * matching the filter: variants, attributes, min/max price, ratings and image
+         * URLs for the whole catalogue, on every load of the listing page. The only
+         * code that ever read $products was the brand-extraction loop directly below
+         * it, which has been commented out for a long time (brands come from
+         * $this->brand_model->get_brands() on the line above instead). The result was
+         * assigned and never used.
+         *
+         * This page already calls fetch_product() twice more - once for the count
+         * (return_count = TRUE, which short-circuits before the hydration loop) and
+         * once for the actual page of products. This third call was the most expensive
+         * of the three and produced nothing, and its cost grew with the size of the
+         * catalogue rather than with the page size.
+         *
+         * The `$limit = NULL` inside the old call was an assignment expression with a
+         * side effect, but $limit is NULL at this point anyway (the get_brands() call
+         * above assigns it the same way) and is unconditionally reassigned further
+         * down, so dropping the call does not change $limit for anything after it.
+         */
 
         $category = $this->category_model->get_categories(
             '',
@@ -293,16 +302,15 @@ class Products extends CI_Controller
         );
 
         $limit = ($this->input->get('per-page')) ? $this->input->get('per-page', true) : 20;
-        $products = fetch_product(null, '', null, $category_id, $limit, $offset, $sort, $order);
 
-        // $brands = array();
-        // for ($i = 0; $i < count($products['product']); $i++) {
-        //     if (!empty($products['product'][$i]['brand'])) {
-        //         // echo "<pre>";
-        //         $brand = explode(',', $products['product'][$i]['brand']);
-        //         $brands = array_values(array_unique(array_merge($brands, $brand)));
-        //     }
-        // }
+        /*
+         * PERFORMANCE: a fetch_product() call sat here whose result was only ever read
+         * by the brand-extraction loop below it, which has been commented out for a
+         * long time. This method fetches the products it actually renders further
+         * down, so this was a wholly duplicated page of hydration - variants,
+         * attributes, min/max price and image URLs for twenty products - thrown away.
+         * $limit is still needed by the pagination below, so only the call is gone.
+         */
 
         if (empty($category)) {
             redirect(base_url('products'));

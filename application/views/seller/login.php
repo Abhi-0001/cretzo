@@ -69,7 +69,7 @@ $is_forgot_password = (isset($main_page) && strpos($main_page, 'forgot-password'
             <?php if (!empty($launch_offer_active)) : ?>
             <div class="launch-offer-banner" role="note">
                 <span class="lo-icon" aria-hidden="true">&#127881;</span>
-                <span class="lo-text"><strong>Launch Offer</strong>First 100 vendors get 50 free listings for 1 year</span>
+                <span class="lo-text"><strong>Launch Offer</strong>First 20 vendors get 30 free listings for 1 year</span>
             </div>
             <?php endif; ?>
         </div>

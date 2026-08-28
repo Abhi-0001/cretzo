@@ -461,6 +461,20 @@ function clear_settings_cache($type = null)
     } else {
         unset($store[$type]);
     }
+
+    /*
+     * The memo above lives for one request. get_settings_raw() now also keeps a
+     * CROSS-request copy, so a write has to drop that too or the next visitor
+     * would keep reading the pre-write value until the TTL lapsed.
+     *
+     * Deleting the whole group rather than the single key is deliberate: it costs
+     * one glob of a handful of files, and it means a caller that clears one
+     * variable after writing several (which happens in the admin settings forms)
+     * cannot leave a stale sibling behind.
+     */
+    if (function_exists('app_cache_delete_group')) {
+        app_cache_delete_group('settings.');
+    }
 }
 
 /**
@@ -490,12 +504,35 @@ function get_settings_raw($type)
 {
     $store = &settings_cache_store();
     if (!array_key_exists($type, $store)) {
-        $t = &get_instance();
-        // Narrowed from `SELECT *` to the one column that is ever read. The policy
-        // rows in this table are large (seller_terms_conditions is 13 KB), so the
-        // discarded columns were real bytes off the wire on every single call.
-        $res = $t->db->select('value')->where('variable', $type)->get('settings')->result_array();
-        $store[$type] = isset($res[0]['value']) ? $res[0]['value'] : false;
+        /*
+         * PERFORMANCE: nine `settings` reads were still hitting MySQL on every page
+         * even with the per-request memo, because the memo starts empty each time.
+         * The values change only when an administrator saves a settings form, and
+         * every one of those writes already funnels through clear_settings_cache()
+         * / settings_write_done() - so a cross-request copy is safe to add on top.
+         *
+         * FALSE (no such row) is cached as well as a real value: a lookup for a
+         * variable that does not exist is just as repeatable, and not caching it
+         * would leave the misses querying every time. It is stored wrapped in an
+         * array because FALSE is indistinguishable from app_cache_get()'s miss
+         * sentinel otherwise.
+         *
+         * The 300s TTL is a backstop, not the primary invalidation: the four
+         * settings writes that live in MIGRATIONS do not all call the clear hook,
+         * and a migration run should not be able to pin a stale value forever.
+         */
+        $cached = app_cache_get('settings.' . $type);
+        if (is_array($cached) && array_key_exists('v', $cached)) {
+            $store[$type] = $cached['v'];
+        } else {
+            $t = &get_instance();
+            // Narrowed from `SELECT *` to the one column that is ever read. The policy
+            // rows in this table are large (seller_terms_conditions is 13 KB), so the
+            // discarded columns were real bytes off the wire on every single call.
+            $res = $t->db->select('value')->where('variable', $type)->get('settings')->result_array();
+            $store[$type] = isset($res[0]['value']) ? $res[0]['value'] : false;
+            app_cache_set('settings.' . $type, array('v' => $store[$type]), 300);
+        }
     }
     return $store[$type];
 }
@@ -1354,7 +1391,18 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
                         } else {
                             $product[$i]['variants'][$k]['cart_count'] = "0";
                         }
-                        $is_purchased = $t->db->where(['oi.product_variant_id' => $product[$i]['variants'][$k]['id'], 'oi.user_id' => $user_id])->order_by('oi.id', 'DESC')->limit(1)->get('order_items oi')->result_array();
+                        /*
+                         * PERFORMANCE: "has this shopper already bought this variant?".
+                         * This ran once per VARIANT and was the biggest single source of
+                         * queries left on a logged-in storefront page - 42 of the 147 the
+                         * homepage issued. Prefetched in one grouped query; see bucket 10
+                         * in batch_helper.php. Falls through to the original lookup when
+                         * no scope is open, so nothing outside fetch_product() changes.
+                         */
+                        $is_purchased = product_batch_get('purchased', $product[$i]['variants'][$k]['id'] . '|' . $user_id);
+                        if ($is_purchased === null) {
+                            $is_purchased = $t->db->where(['oi.product_variant_id' => $product[$i]['variants'][$k]['id'], 'oi.user_id' => $user_id])->order_by('oi.id', 'DESC')->limit(1)->get('order_items oi')->result_array();
+                        }
 
                         if (!empty($is_purchased) && strtolower($is_purchased[0]['active_status']) == 'delivered') {
                             array_push($is_purchased_count, 1);
@@ -4150,10 +4198,62 @@ function resize_image($image_data, $source_path, $id = false)
     }
 }
 
+/**
+ * The current request's memo of user_permissions rows, keyed by user id.
+ *
+ * Returned by reference so callers can write through it.
+ */
+function &user_permissions_cache_store()
+{
+    static $store = array();
+    return $store;
+}
+
+/**
+ * Drops the memoised permissions for this request.
+ *
+ * MUST be called after any write to `user_permissions`, otherwise the admin who has
+ * just saved a system user's permissions would keep seeing the pre-write set for the
+ * rest of that request. Every write site in System_users_model calls this.
+ *
+ * @param int|string|null $id Clear just this user, or NULL for all of them.
+ */
+function clear_user_permissions_cache($id = null)
+{
+    $store = &user_permissions_cache_store();
+    if ($id === null) {
+        $store = array();
+    } else {
+        unset($store[(string) $id]);
+    }
+}
+
+/**
+ * PERFORMANCE: memoised per request.
+ *
+ * has_permissions() calls this every time it is asked about a module, and the admin
+ * sidebar asks about a module for every entry it draws. Measured with MySQL's general
+ * log, a single /admin/home render issued
+ *
+ *     77 x  SELECT * FROM `user_permissions` WHERE `user_id` = '107'
+ *
+ * - 77 of the page's 111 queries, all of them the same row fetched again and again.
+ *
+ * The row can only change through System_users_model, which clears this memo on write,
+ * so a save followed by a re-read in the same request still sees the new value. The
+ * memo is per request only: nothing is shared across requests, so there is no way for
+ * one admin's permissions to be served to another.
+ */
 function get_user_permissions($id)
 {
-    $userData = fetch_details('user_permissions', ['user_id' => $id]);
-    return $userData;
+    $store = &user_permissions_cache_store();
+    $key = (string) $id;
+
+    if (!array_key_exists($key, $store)) {
+        $store[$key] = fetch_details('user_permissions', ['user_id' => $id]);
+    }
+
+    return $store[$key];
 }
 
 function has_permissions($role, $module)
@@ -5603,6 +5703,23 @@ function current_theme($id = '', $name = '', $slug = '', $is_default = 1, $statu
 }
 function get_languages($id = '', $language_name = '', $code = '', $is_rtl = '')
 {
+    /*
+     * PERFORMANCE: called three times while rendering a single page - once by the
+     * header for the language switcher, once by imp-inputs.php and once by
+     * template.php to resolve the RTL flag - and again on any page that includes
+     * the chat partial. The `languages` table is written only by the admin
+     * Language form, so it is effectively static at runtime.
+     *
+     * Keyed on the arguments because the callers pass different filters and each
+     * combination is its own result set. Busted by Language_model on add/edit; the
+     * hour-long TTL is only a backstop.
+     */
+    $cache_key = 'languages.' . md5(serialize(array($id, $language_name, $code, $is_rtl)));
+    $cached = app_cache_get($cache_key);
+    if ($cached !== null) {
+        return $cached;
+    }
+
     $CI = &get_instance();
     if (!empty($id)) {
         $CI->db->where('id', $id);
@@ -5617,6 +5734,7 @@ function get_languages($id = '', $language_name = '', $code = '', $is_rtl = '')
         $CI->db->where('is_rtl', $is_rtl);
     }
     $res = $CI->db->get('languages')->result_array();
+    app_cache_set($cache_key, $res, 3600);
     return $res;
 }
 
@@ -12339,4 +12457,56 @@ function storefront_pagination($base_url, $total_rows, $per_page, $extra = [])
 function storefront_pagination_label($what = 'results')
 {
     return 'Pagination for ' . $what;
+}
+
+/**
+ * Human-readable text for a subscription plan's free-text `validity` column.
+ *
+ * The column is admin-entered and holds anything from a bare day count ("365") to
+ * prose ("1 month") to nothing at all. A blank value means the plan never expires -
+ * assign_subscription() writes a NULL end_date for it - so it must read as "Ongoing"
+ * everywhere rather than as an empty gap or a raw "365".
+ */
+function plan_validity_text($validity)
+{
+    $raw = trim((string) $validity);
+    if ($raw === '') {
+        return 'Ongoing';
+    }
+
+    if (!ctype_digit($raw)) {
+        return $raw;
+    }
+
+    $days = (int) $raw;
+    if ($days <= 0) {
+        return 'Ongoing';
+    }
+    if ($days % 365 === 0) {
+        $years = $days / 365;
+        return $years . ' Year' . ($years > 1 ? 's' : '');
+    }
+    if ($days % 30 === 0) {
+        $months = $days / 30;
+        return $months . ' Month' . ($months > 1 ? 's' : '');
+    }
+
+    return $days . ' Day' . ($days > 1 ? 's' : '');
+}
+
+/**
+ * Human-readable text for a plan's free-text `listings_limit` column, matching the
+ * parsing Seller_subscription_model uses to enforce the cap: blank or "Unlimited"
+ * or text with no digits means no cap, otherwise the first number is the cap.
+ */
+function plan_listings_text($listings_limit)
+{
+    $raw = trim((string) $listings_limit);
+    if ($raw === '' || stripos($raw, 'unlimited') !== false || !preg_match('/\d+/', $raw, $m)) {
+        return 'Unlimited listings';
+    }
+
+    $limit = (int) $m[0];
+
+    return $limit . ' listing' . ($limit === 1 ? '' : 's');
 }

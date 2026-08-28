@@ -1,3 +1,37 @@
+<?php
+/*
+ * PERFORMANCE - AdminLTE demo widgets and unused editors removed from the SELLER panel.
+ *
+ * The seller panel inherited the stock AdminLTE dashboard script list wholesale, so
+ * every page a seller opened downloaded the template's demo widgets. None of these is
+ * referenced by any view under application/views/seller, nor by the shared scripts the
+ * seller pages load (assets/admin/custom/custom.js, custom/pos.js, dist/js/adminlte.js,
+ * js/stisla.js, js/loader.js, js/tooltip.js) - checked against each library's own API,
+ * not just its filename:
+ *
+ *   jquery.vmap.min.js + jquery.vmap.usa.js (66 KB) - a clickable vector map OF THE USA,
+ *       the AdminLTE demo dashboard widget. This is an India-based marketplace.
+ *   dist/js/demo.js (12 KB)          - AdminLTE's own "theme settings" demo panel, which
+ *                                      is explicitly not meant to ship to production.
+ *   sparkline.js (7 KB)              - demo dashboard sparklines. (The one "sparkline"
+ *                                      match elsewhere is in Google Charts' loader.js,
+ *                                      where it is the name of a CHART TYPE - unrelated.)
+ *   jquery.knob.min.js (10 KB)       - demo dial gauges.
+ *   tempusdominus (55 KB + 9 KB css) - date/time picker; no .datetimepicker() call exists.
+ *   jquery.fancybox.min.js (66 KB)   - a THIRD lightbox, alongside ekko-lightbox and
+ *                                      lightbox.js which ARE used. Nothing calls fancybox.
+ *   jquery.validate.min.js (23 KB)   - no .validate() call anywhere in the seller panel.
+ *   intlTelInput.js (69 KB)          - no intlTelInput() call in any seller view.
+ *   Markdown.Converter/Sanitizer/Editor.js (161 KB) - the pagedown editor; no wmd- element.
+ *
+ * Total: 486 KB and 14 render-blocking requests off every seller page.
+ *
+ * Kept deliberately, because they ARE used:
+ *   jquery.overlayScrollbars - adminlte.js drives the sidebar scrollbar with it
+ *   ekko-lightbox, lightbox.js, chartist, Chart.js, jstree, bootstrap-switch,
+ *   select2, iziToast, dropzone, tagify, tableExport, blockUI
+ */
+?>
 <aside class="control-sidebar control-sidebar-dark">
     <!-- Control sidebar content goes here -->
 </aside>
@@ -15,20 +49,23 @@
 
 <script src=<?= base_url('assets/admin/ekko-lightbox/ekko-lightbox.min.js') ?>></script>
 
-<!-- ChartJS -->
-<script src="<?= base_url('assets/admin/chart.js/Chart.min.js') ?>"></script>
-<!-- Sparkline -->
-<script src="<?= base_url('assets/admin/js/sparkline.js') ?>"></script>
-<!-- JQVMap -->
-<script src="<?= base_url('assets/admin/js/jquery.vmap.min.js') ?>"></script>
-<script src="<?= base_url('assets/admin/js/jquery.vmap.usa.js') ?>"></script>
-<!-- jQuery Knob Chart -->
-<script src="<?= base_url('assets/admin/js/jquery.knob.min.js') ?>"></script>
+<?php
+/*
+ * Chart.min.js (168 KB) is gone entirely rather than gated: there is no `new Chart(`
+ * anywhere in this codebase. An earlier pass kept it on the dashboard on the strength of
+ * a grep for `Chart(`, which also matches google.visualization.PieChart( - a false
+ * positive. The dashboard's charts are drawn by Chartist and google.visualization.
+ *
+ * $seller_needs_charts is still computed here because chartist.js below is genuinely
+ * dashboard-only; include-head.php normally sets it first.
+ */
+$seller_needs_charts = isset($seller_needs_charts)
+    ? $seller_needs_charts
+    : ((isset($main_page) && trim((string) $main_page) !== '' ? $main_page : FORMS . 'home') === FORMS . 'home');
+?>
 <!-- daterangepicker -->
 <script src="<?= base_url('assets/admin/js/moment.min.js') ?>"></script>
 <script src="<?= base_url('assets/admin/js/daterangepicker.js') ?>"></script>
-<!-- Tempusdominus Bootstrap 4 -->
-<script src="<?= base_url('assets/admin/js/tempusdominus-bootstrap-4.min.js') ?>"></script>
 <!-- Toastr -->
 <script src="<?= base_url('assets/admin/js/iziToast.min.js') ?>"></script>
 <!-- Select -->
@@ -43,8 +80,6 @@
 <script src="<?= base_url('assets/admin/js/bootstrap-table.min.js') ?>"></script>
 <script src="<?= base_url('assets/admin/js/tableExport.js') ?>"></script>
 <script src="<?= base_url('assets/admin/js/bootstrap-table-export.min.js') ?>"></script>
-<!-- Jquery Fancybox -->
-<script src="<?= base_url('assets/admin/js/jquery.fancybox.min.js') ?>"></script>
 <!-- Sweeta Alert 2 -->
 <script src="<?= base_url('assets/admin/js/sweetalert2.min.js') ?>"></script>
 <!-- Block UI -->
@@ -52,7 +87,9 @@
 <!-- JS tree -->
 <script src="<?= base_url('assets/admin/js/jstree.min.js') ?>"></script>
 <!-- Chartist -->
-<script src="<?= base_url('assets/admin/js/chartist.js') ?>"></script>
+<?php if ($seller_needs_charts) { ?>
+    <script src="<?= base_url('assets/admin/js/chartist.js') ?>"></script>
+<?php } ?>
 <!-- Tool Tip -->
 <script src="<?= base_url('assets/admin/js/tooltip.js') ?>"></script>
 <!-- Loader Js -->
@@ -65,19 +102,12 @@
 <script type="text/javascript" src="<?= base_url('assets/admin/js/jquery-sortable.js') ?>"></script>
 
 <script type="text/javascript" src="<?= base_url('assets/admin/js/tagify.min.js') ?>"></script>
-<script type="text/javascript" src="<?= base_url('assets/admin/js/jquery.validate.min.js') ?>"></script>
-<!-- Markdown -->
-<script type="text/javascript" src="<?= base_url('assets/admin/js/Markdown.Converter.js'); ?>"></script>
-<script type="text/javascript" src="<?= base_url('assets/admin/js/Markdown.Sanitizer.js'); ?>"></script>
-<script type="text/javascript" src="<?= base_url('assets/admin/js/Markdown.Editor.js'); ?>"></script>
 <script type="text/javascript" src="<?= base_url('assets/admin/js/stisla.js'); ?>"></script>
 
 <!-- Firebase.js -->
 <script type="text/javascript" src="<?= base_url('assets/admin/js/firebase-app.js') ?>"></script>
 <script type="text/javascript" src="<?= base_url('assets/admin/js/firebase-auth.js') ?>"></script>
 <script type="text/javascript" src="<?= base_url('firebase-config.js') ?>"></script>
-<!-- intlTelInput -->
-<script type="text/javascript" src="<?= base_url('assets/admin/js/intlTelInput.js') ?>"></script>
 <script type="text/javascript" src="<?= base_url('assets/admin/js/lightbox.js') ?>"></script>
 <!-- Custom -->
  
@@ -93,8 +123,6 @@
 if (isset($main_page) && $main_page === FORMS . 'product') { ?>
     <script src="<?= add_ver(base_url('assets/admin/custom/custom.js')) ?>"></script>
 <?php } ?>
-<!-- Demo -->
-<script src="<?= base_url('assets/admin/dist/js/demo.js') ?>"></script>
 
 <?php if ($this->session->flashdata('message')) { ?>
     <script>

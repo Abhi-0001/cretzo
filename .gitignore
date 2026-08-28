@@ -32,3 +32,8 @@ application/config/development/
 
 # Written at runtime by admin/Webhook.php (MyFatoorah signature logging)
 webhook.log
+
+# Runtime cache written by application/helpers/cache_helper.php. Machine-local and
+# regenerated on demand - committing it would ship one machine's stale reference
+# data (categories, settings, language list) to every other environment.
+application/cache/app/

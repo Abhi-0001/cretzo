@@ -233,6 +233,21 @@ class Category_model extends CI_Model
     public function clear_category_cache()
     {
         $this->children_index = null;
+
+        /*
+         * The storefront header caches the rendered navigation tree across requests
+         * (see the note in views/front-end/cretzo/header.php), so a category that is
+         * created, renamed, reordered or deleted has to drop that copy too - otherwise
+         * an administrator saves a category and the change does not appear in the nav
+         * for up to fifteen minutes.
+         *
+         * Every write site already calls this method, which is why the invalidation
+         * hangs off it rather than being repeated at each one.
+         */
+        if (function_exists('app_cache_delete_group')) {
+            app_cache_delete_group('nav_categories');
+            app_cache_delete_group('home_categories');
+        }
     }
 
     public function sub_categories($id, $level)

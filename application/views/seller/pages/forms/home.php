@@ -62,9 +62,7 @@
                     <div>
                         <strong>Current Plan:</strong>
                         <?= html_escape($current_subscription_plan['name']); ?>
-                        <?php if (!empty($current_subscription_plan['validity'])) : ?>
-                            <span class="ml-2 badge badge-light"><?= html_escape($current_subscription_plan['validity']); ?></span>
-                        <?php endif; ?>
+                        <span class="ml-2 badge badge-light"><?= html_escape(plan_validity_text(isset($current_subscription_plan['validity']) ? $current_subscription_plan['validity'] : '')); ?></span>
                         <?php if (!empty($active_subscription['end_date'])) :
                             // Countdown, not just a date: the seller needs to notice the plan is
                             // about to lapse while they can still act on it. A plan with no

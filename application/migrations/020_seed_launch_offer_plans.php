@@ -3,8 +3,8 @@ defined('BASEPATH') or exit('No direct script access allowed');
 
 /**
  * Seeds the "Launch Offer" promo plan used by the launch promotion:
- *  - "Launch Offer": auto-granted to the first 100 vendors who register
- *    (50 free listings, valid for 1 year / 365 days).
+ *  - "Launch Offer": auto-granted to the first 20 vendors who register
+ *    (30 free listings, valid for 1 year / 365 days).
  *
  * This is the only plan seeded here. The ordinary catalogue plans (Basic /
  * Standard / Premium etc.) are created and edited by the admin in the admin
@@ -25,11 +25,11 @@ class Migration_seed_launch_offer_plans extends CI_Migration
         $plan = [
             'name'           => 'Launch Offer',
             'price'          => '0',
-            'listings_limit' => '50',
+            'listings_limit' => '30',
             'validity'       => '365',
             'features'       => json_encode([
-                ['id' => 'launch_free_listings', 'name' => '50 Free Listings', 'description' => 'List up to 50 products free for 1 year'],
-                ['id' => 'launch_first_100', 'name' => 'First 100 Vendors', 'description' => 'Exclusive to the first 100 vendors who join'],
+                ['id' => 'launch_free_listings', 'name' => '30 Free Listings', 'description' => 'List up to 30 products free for 1 year'],
+                ['id' => 'launch_first_20', 'name' => 'First 20 Vendors', 'description' => 'Exclusive to the first 20 vendors who join'],
             ]),
         ];
 
