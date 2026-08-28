@@ -332,6 +332,11 @@ class Brand extends CI_Controller
                             $data['image'] = $row[1];
                             $data['status'] = 1;
                             $this->db->insert('brands', $data);
+        /* The homepage brand strip is cached across requests (see Home.php); drop it
+         * so an added, edited or deleted brand shows up on the next page load. */
+        if (function_exists('app_cache_delete_group')) {
+            app_cache_delete_group('home_brands');
+        }
                         }
                         $temp1++;
                     }
@@ -434,6 +439,11 @@ class Brand extends CI_Controller
                                     $data['image'] = $brands[0]['image'];
                                 }
                                 $this->db->where('id', $row[0])->update('brands', $data);
+        /* The homepage brand strip is cached across requests (see Home.php); drop it
+         * so an added, edited or deleted brand shows up on the next page load. */
+        if (function_exists('app_cache_delete_group')) {
+            app_cache_delete_group('home_brands');
+        }
                             }
                         }
                         $temp1++;

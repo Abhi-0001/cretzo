@@ -43,6 +43,11 @@ class Brand_model extends CI_Model
             $old_name = isset($old_brand[0]['name']) ? $old_brand[0]['name'] : null;
 
             $this->db->set($brands_data)->where('id', $data['edit_brand'])->update('brands');
+        /* The homepage brand strip is cached across requests (see Home.php); drop it
+         * so an added, edited or deleted brand shows up on the next page load. */
+        if (function_exists('app_cache_delete_group')) {
+            app_cache_delete_group('home_brands');
+        }
 
             if ($old_name !== null && $old_name !== $brands_data['name']) {
                 $this->db->set('brand', $brands_data['name'])->where('brand', $old_name)->update('products');
@@ -52,6 +57,11 @@ class Brand_model extends CI_Model
                 $brands_data['image'] = $data['brand_input_image'];
             }
             $this->db->insert('brands', $brands_data);
+        /* The homepage brand strip is cached across requests (see Home.php); drop it
+         * so an added, edited or deleted brand shows up on the next page load. */
+        if (function_exists('app_cache_delete_group')) {
+            app_cache_delete_group('home_brands');
+        }
         }
 
         $this->db->trans_complete();
@@ -78,6 +88,11 @@ class Brand_model extends CI_Model
         }
 
         $this->db->delete('brands', ['id' => $id]);
+        /* The homepage brand strip is cached across requests (see Home.php); drop it
+         * so an added, edited or deleted brand shows up on the next page load. */
+        if (function_exists('app_cache_delete_group')) {
+            app_cache_delete_group('home_brands');
+        }
         return ['success' => ($this->db->affected_rows() > 0), 'message' => 'Deleted Succesfully'];
     }
 

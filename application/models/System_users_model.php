@@ -38,6 +38,11 @@ class System_users_model extends CI_Model
                 $permission_data['permissions'] = NULL;
             }
             $this->db->set($permission_data)->where('user_id', $data['edit_system_user'])->update('user_permissions');
+            /* get_user_permissions() memoises this row for the rest of the request - drop it
+             * so a save followed by a re-read reflects the new permission set. */
+            if (function_exists('clear_user_permissions_cache')) {
+                clear_user_permissions_cache();
+            }
             $this->db->set($user_data)->where('id', $data['edit_system_user'])->update('users');
         } else {
 
@@ -83,8 +88,18 @@ class System_users_model extends CI_Model
                 $permission_data['user_id'] = $last_id;
                 if (!empty($this->db->where('user_id', $last_id)->get('user_permissions')->row_array())) {
                     $this->db->set($permission_data)->where('user_id', $last_id)->update('user_permissions');
+                    /* get_user_permissions() memoises this row for the rest of the request - drop it
+                     * so a save followed by a re-read reflects the new permission set. */
+                    if (function_exists('clear_user_permissions_cache')) {
+                        clear_user_permissions_cache();
+                    }
                 } else {
                     $this->db->insert('user_permissions', $permission_data);
+                    /* get_user_permissions() memoises this row for the rest of the request - drop it
+                     * so a save followed by a re-read reflects the new permission set. */
+                    if (function_exists('clear_user_permissions_cache')) {
+                        clear_user_permissions_cache();
+                    }
                 }
 
                 return $last_id;
@@ -98,6 +113,11 @@ class System_users_model extends CI_Model
             $this->db->insert('users_groups', ['user_id' => $last_id, 'group_id' => '2']);
             $permission_data['user_id'] = $last_id;
             $this->db->insert('user_permissions', $permission_data);
+            /* get_user_permissions() memoises this row for the rest of the request - drop it
+             * so a save followed by a re-read reflects the new permission set. */
+            if (function_exists('clear_user_permissions_cache')) {
+                clear_user_permissions_cache();
+            }
 
             return $last_id;
         }

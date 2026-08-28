@@ -82,6 +82,9 @@ class Product_batch
     /** @var array "pid|userid" => this user's rating rows for that product */
     public static $user_rating = array();
 
+    /** @var array "variantid|userid" => latest order_items row for that variant/user */
+    public static $purchased = array();
+
     public static function is_open()
     {
         return self::$depth > 0;
@@ -118,6 +121,7 @@ class Product_batch
         self::$variants_by_id = array();
         self::$favorites = array();
         self::$user_rating = array();
+        self::$purchased = array();
     }
 }
 
@@ -396,6 +400,36 @@ function product_batch_open(array $products, $user_id = null)
             $pid = $row['product_id'];
             unset($row['product_id']);
             Product_batch::$user_rating[$pid . '|' . $user_id][] = $row;
+        }
+
+        if (!empty($variant_ids)) {
+            foreach ($variant_ids as $vid) {
+                Product_batch::$purchased[$vid . '|' . $user_id] = array();
+            }
+
+            $escaped_vids = array();
+            foreach ($variant_ids as $vid) {
+                $escaped_vids[] = (int) $vid;
+            }
+
+            $rows = $t->db->query(
+                'SELECT oi.product_variant_id, oi.active_status
+                   FROM `order_items` oi
+                   JOIN (
+                        SELECT product_variant_id, MAX(id) AS max_id
+                          FROM `order_items`
+                         WHERE user_id = ?
+                           AND product_variant_id IN (' . implode(',', $escaped_vids) . ')
+                      GROUP BY product_variant_id
+                   ) latest ON latest.max_id = oi.id',
+                array($user_id)
+            )->result_array();
+
+            foreach ($rows as $row) {
+                $vid = $row['product_variant_id'];
+                unset($row['product_variant_id']);
+                Product_batch::$purchased[$vid . '|' . $user_id][] = $row;
+            }
         }
     }
 }

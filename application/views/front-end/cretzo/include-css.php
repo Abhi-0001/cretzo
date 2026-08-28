@@ -21,9 +21,7 @@
  */
 ?>
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
-<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
-<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 <link rel="dns-prefetch" href="https://checkout.razorpay.com">
 
 <!-- <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -59,8 +57,8 @@ $path = ($is_rtl == 1) ? 'rtl/' : "";
 <!-- Swiper css -->
 
 <link rel="stylesheet" href="<?= add_ver(THEME_ASSETS_URL . 'css/swiper-bundle.min.css') ?>" />
-<!-- Bootstrap Tabs -->
-<link rel="stylesheet" href="<?= add_ver(THEME_ASSETS_URL . 'css/bootstrap-tabs-x.min.css') ?>" />
+<?php /* bootstrap-tabs-x.min.css removed with its script - see the note at the top of
+          include-script.php. Nothing on the storefront uses .nav-tabs-x / .tab-content-x. */ ?>
 <!-- Sweet Alert -->
 <link rel="stylesheet" href="<?= add_ver(THEME_ASSETS_URL . 'css/sweetalert2.min.css') ?>">
 <!-- Select2 -->
@@ -71,18 +69,57 @@ $path = ($is_rtl == 1) ? 'rtl/' : "";
 <link rel="stylesheet" href="<?= add_ver(THEME_ASSETS_URL . 'css/jquery.jssocials.css') ?>">
 <!-- Star rating CSS -->
 <link rel="stylesheet" href="<?= add_ver(THEME_ASSETS_URL . 'css/'. $path .'star-rating.min.css') ?>">
-<link href="https://cdn.jsdelivr.net/gh/kartik-v/bootstrap-star-rating@4.0.7/themes/krajee-svg/theme.css" media="all" rel="stylesheet" type="text/css" />
+<?php
+/*
+ * PERFORMANCE: this pulled the Krajee SVG star-rating theme (v4.0.7) from jsdelivr,
+ * and the very next line loads the SAME theme from disk (css/theme.min.css is
+ * "Krajee SVG Theme styling for bootstrap-star-rating", v4.1.2). The local, newer copy
+ * wins by cascade order, so the CDN request was a render-blocking round-trip to a third
+ * party for a stylesheet that was immediately overridden.
+ *
+ * With this and the duplicate sweetalert2 in footer.php gone, nothing on the storefront
+ * loads from jsdelivr any more, so its preconnect hints go too.
+ */
+?>
 <link rel="stylesheet" href="<?= add_ver(THEME_ASSETS_URL . 'css/'. $path .'theme.min.css') ?>">
-<!-- daterangepiker -->
-<link rel="stylesheet" href="<?= add_ver(THEME_ASSETS_URL . 'css/daterangepicker.css') ?>">
+<?php
+/*
+ * PERFORMANCE: moment.js (52 KB) + daterangepicker (67 KB JS, 7 KB CSS) were global.
+ * The only code that touches either is assets/front_end/cretzo/js/checkout.js, which
+ * binds apply/cancel.daterangepicker on #datepicker and calls moment() for the
+ * delivery-slot times - and that file is loaded by pages/checkout.php alone.
+ * $storefront_needs_daterangepicker is reused by include-script.php below.
+ */
+$storefront_needs_daterangepicker = ($main_page === 'checkout');
+if ($storefront_needs_daterangepicker) { ?>
+    <link rel="stylesheet" href="<?= add_ver(THEME_ASSETS_URL . 'css/daterangepicker.css') ?>">
+<?php } ?>
 
-<!-- Bootstrap -->
-<link rel="stylesheet" href="<?= add_ver(THEME_ASSETS_URL . 'css/bootstrap-table.min.css') ?>">
+<?php
+/*
+ * PERFORMANCE: bootstrap-table (139 KB of JS + 10 KB of CSS) was loaded on every
+ * storefront page. Only four pages can actually use it:
+ *   transactions, wallet - they carry the data-toggle="table" markup
+ *   address, checkout    - custom.js's add/edit-address handlers call
+ *                          $("#address_list_table").bootstrapTable("refresh") in their
+ *                          AJAX callbacks. That selector matches nothing in this theme,
+ *                          but an undefined .bootstrapTable would still throw a
+ *                          TypeError and abort the rest of the callback, so the library
+ *                          has to be present wherever those forms are.
+ * ($("#send_bank_receipt_form"), the other bootstrapTable caller in custom.js, has no
+ *  markup anywhere in this theme, so that handler never binds.)
+ *
+ * $storefront_needs_bootstrap_table is reused by include-script.php for the matching
+ * <script> tag - keep the two in step.
+ */
+$storefront_needs_bootstrap_table = in_array($main_page, ['transactions', 'wallet', 'address', 'checkout'], true);
+if ($storefront_needs_bootstrap_table) { ?>
+    <link rel="stylesheet" href="<?= add_ver(THEME_ASSETS_URL . 'css/bootstrap-table.min.css') ?>">
+<?php } ?>
 <link rel="stylesheet" href="<?= add_ver(THEME_ASSETS_URL . 'css/lightbox.css') ?>">
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-<!-- MDB perfect scrollbar -->
-<link href="<?= add_ver(THEME_ASSETS_URL . 'css/perfect-scrollbar.css') ?>" rel="stylesheet" />
+<?php /* perfect-scrollbar.css removed with its script - no .ps-container markup exists. */ ?>
 
 <link rel="stylesheet" href="<?= add_ver(THEME_ASSETS_URL . 'css/style.css') ?>">
 
@@ -105,7 +142,13 @@ $path = ($is_rtl == 1) ? 'rtl/' : "";
 
 
 <link rel="stylesheet" href="<?= add_ver(THEME_ASSETS_URL . 'css/plugins.css') ?>">
-<link rel="stylesheet" href="<?= add_ver(THEME_ASSETS_URL . 'css/theme.min.css') ?>">
+<?php /*
+ * theme.min.css is already linked above, as 'css/' . $path . 'theme.min.css'. In
+ * LTR $path is "", so this was the identical file downloaded and parsed a second
+ * time; in RTL it was worse than redundant, because this copy hardcodes the LTR
+ * path and so re-applied LTR rules over the RTL sheet. The $path-aware link above
+ * is the correct one, so this duplicate is removed.
+ */ ?>
 
 
 
@@ -141,9 +184,11 @@ if (!empty($fb_auth['authentication_method']) && $fb_auth['authentication_method
     </script>
     <script src="<?= add_ver(base_url('assets/firebase-password-reset.js')) ?>"></script>
 <?php endif; ?>
-<!-- Date Range Picker -->
-<script src="<?= add_ver(THEME_ASSETS_URL . 'js/moment.min.js') ?>"></script>
-<script src="<?= add_ver(THEME_ASSETS_URL . 'js/daterangepicker.js') ?>"></script>
+<!-- Date Range Picker - checkout only, see note above -->
+<?php if ($storefront_needs_daterangepicker) { ?>
+    <script src="<?= add_ver(THEME_ASSETS_URL . 'js/moment.min.js') ?>"></script>
+    <script src="<?= add_ver(THEME_ASSETS_URL . 'js/daterangepicker.js') ?>"></script>
+<?php } ?>
 <script type="text/javascript">
     base_url = "<?= base_url() ?>";
     currency = "<?= isset($settings['currency'])? $settings['currency'] : '$' ?>";

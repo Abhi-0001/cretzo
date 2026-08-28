@@ -273,7 +273,7 @@
                             <span class="slb-icon" aria-hidden="true">&#127881;</span>
                             <span>
                                 <span class="slb-title">Launch Offer</span>
-                                <span class="slb-sub">First 100 vendors get 50 free listings for 1 year</span>
+                                <span class="slb-sub">First 20 vendors get 30 free listings for 1 year</span>
                             </span>
                         </div>
                         <?php endif; ?>
@@ -339,25 +339,8 @@
                                     $this_price = is_numeric($price_numeric) ? (float) $price_numeric : 0.0;
                                     $is_downgrade = ($locked_price !== null && !$is_active && $this_price < $locked_price);
 
-                                    $listings_text = isset($plan['listings_limit']) && $plan['listings_limit'] !== '' ? 'Up to ' . $plan['listings_limit'] . ' Listings' : 'Unlimited Listings';
-
-                                    $validity_raw = isset($plan['validity']) ? trim($plan['validity']) : '';
-                                    if ($validity_raw === '') {
-                                        $validity_text = 'Lifetime';
-                                    } elseif (ctype_digit($validity_raw)) {
-                                        $days = (int) $validity_raw;
-                                        if ($days > 0 && $days % 365 === 0) {
-                                            $years = $days / 365;
-                                            $validity_text = $years . ' Year' . ($years > 1 ? 's' : '');
-                                        } elseif ($days > 0 && $days % 30 === 0) {
-                                            $months = $days / 30;
-                                            $validity_text = $months . ' Month' . ($months > 1 ? 's' : '');
-                                        } else {
-                                            $validity_text = $days . ' Days';
-                                        }
-                                    } else {
-                                        $validity_text = $validity_raw;
-                                    }
+                                    $listings_text = plan_listings_text(isset($plan['listings_limit']) ? $plan['listings_limit'] : '');
+                                    $validity_text = plan_validity_text(isset($plan['validity']) ? $plan['validity'] : '');
                                 ?>
                                     <div class="subscription-card <?= $is_active ? 'active' : '' ?>" id="plan-<?= (int) $plan['id']; ?>">
                                         <div class="active-badge">CURRENT PLAN</div>
@@ -368,7 +351,7 @@
                                             <?php if ($is_active) : ?>
                                             <button class="upgrade-btn" disabled>Active</button>
                                         <?php elseif ($is_launch_offer) : ?>
-                                            <button class="upgrade-btn" disabled title="Automatically granted to the first 100 vendors on sign up">First 100 Vendors Only</button>
+                                            <button class="upgrade-btn" disabled title="Automatically granted to the first 20 vendors on sign up">First 20 Vendors Only</button>
                                         <?php elseif ($is_downgrade) : ?>
                                             <?php // Named the current plan in the tooltip so it is clear WHY it is unavailable. ?>
                                             <button class="upgrade-btn" disabled title="You cannot move to a lower plan while <?= html_escape($current_plan['name']) ?> is active<?= !empty($active_subscription['end_date']) ? ' (until ' . date('d M Y', strtotime($active_subscription['end_date'])) . ')' : '' ?>. Upgrades are available any time.">Not Available</button>

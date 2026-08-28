@@ -1,3 +1,35 @@
+<?php
+/*
+ * PERFORMANCE - libraries removed from the storefront (Phase 2).
+ *
+ * These nine files were loaded on EVERY buyer-facing page and not one of them was
+ * referenced by any code that actually runs on the storefront. Verified by grepping
+ * every live view under views/front-end/cretzo plus every script this file loads
+ * (plugins.js, theme.js, custom.js, cretzo-fixes.js, js/cretzo/*.js, js/checkout.js)
+ * for each library's own API - not just its filename:
+ *
+ *   dropzone.js (149 KB)        - admin media uploads. No .dropzone anywhere here.
+ *   Markdown.Converter.js (73 KB)
+ *   Markdown.Editor.js    (85 KB)
+ *   Markdown.Sanitizer.js  (3 KB) - the admin pagedown editor. No wmd- element exists.
+ *   stisla.js (14 KB)           - the ADMIN theme's own script, on the shop front.
+ *   perfect-scrollbar.min.js    - no PerfectScrollbar call, no .ps-container markup.
+ *   modernizr-custom.js         - no Modernizr reference.
+ *   bootstrap-tabs-x.min.js     - no tabsX call, no .nav-tabs-x markup.
+ *   darkmode-min.js             - the theme switcher removed in f507e4d.
+ *
+ * The only matches for Modernizr / tabsX / ezPlus were inside eshop-bundle-js.js,
+ * which this theme does not load at all. Their two stylesheets
+ * (perfect-scrollbar.css, bootstrap-tabs-x.min.css) went with them from
+ * include-css.php - no markup uses their classes either.
+ *
+ * Together: 358 KB and 11 render-blocking requests off every single page.
+ *
+ * Kept deliberately, because they ARE used and the greps prove it:
+ *   jquery.blockUI.js - custom.js:166 calls .unblock() in the OTP sign-in flow
+ *   select2, intlTelInput, jssocials, lightbox, iziModal, swiper, star-rating
+ */
+?>
 <!-- plugins -->
 <script src="<?= add_ver(THEME_ASSETS_URL . 'js/plugins.js') ?>"></script>
 <?php // jQuery is already loaded from include-css.php in the <head>, immediately before
@@ -7,7 +39,16 @@
       // 403 "The action you have requested is not allowed". Do not re-add it. ?>
 <!-- theme -->
 <script src="<?= add_ver(THEME_ASSETS_URL . 'js/theme.js') ?>"></script>
-<script src="<?= add_ver(THEME_ASSETS_URL . 'js/theme.min.js') ?>"></script>
+<?php /*
+ * theme.min.js was loaded here as well as at line ~38 below, so it was fetched,
+ * parsed and executed twice on every page.
+ *
+ * Despite the name it is NOT a minified theme.js (that file is 33 KB of the theme's
+ * own component bootstrap; this one is 870 bytes). It is the Krajee SVG theme
+ * configuration for bootstrap-star-rating, and its own header says it "must be
+ * loaded after 'star-rating.js'". Here it ran BEFORE star-rating.min.js, so this
+ * copy could never have been the one doing the work - the later one is. Removed.
+ */ ?>
 
 <!-- IziModal -->
 <script src="<?= add_ver(THEME_ASSETS_URL . 'js/iziModal.min.js') ?>"></script>
@@ -19,47 +60,41 @@
 <script src="<?= add_ver(THEME_ASSETS_URL . 'js/swiper-bundle.min.js') ?>"></script>
 <!-- Select -->
 <script src="<?= add_ver(THEME_ASSETS_URL . 'js/select2.full.min.js') ?>"></script>
-<!-- Bootstrap Tabs -->
-<script src="<?= add_ver(THEME_ASSETS_URL . 'js/bootstrap-tabs-x.min.js') ?>"></script>
 
 <!-- ElevateZoom -->
 <!-- <script src="<?= add_ver(THEME_ASSETS_URL . 'js/jquery.ez-plus.js') ?>"></script> -->
 <!-- <script src="<? //= add_ver(THEME_ASSETS_URL . 'js/jquery.ez-plus.js') 
                 ?>"></script> -->
 
-<!-- Bootstrap Table -->
-<script src="<?= add_ver(THEME_ASSETS_URL . 'js/bootstrap-table.min.js') ?>"></script>
+<!-- Bootstrap Table - four pages only, see the note in include-css.php -->
+<?php
+/* include-css.php runs first (template.php loads it in the <head>) and sets this.
+ * Recomputed defensively for the pages that pull this file in directly. */
+$storefront_needs_bootstrap_table = isset($storefront_needs_bootstrap_table)
+    ? $storefront_needs_bootstrap_table
+    : in_array(isset($main_page) ? $main_page : '', ['transactions', 'wallet', 'address', 'checkout'], true);
+if ($storefront_needs_bootstrap_table) { ?>
+    <script src="<?= add_ver(THEME_ASSETS_URL . 'js/bootstrap-table.min.js') ?>"></script>
+<?php } ?>
 <!-- blockUI -->
 <script src="<?= add_ver(THEME_ASSETS_URL . 'js/jquery.blockUI.js') ?>"></script>
 <!-- Sweeta Alert 2 -->
 <script src="<?= add_ver(THEME_ASSETS_URL . 'js/sweetalert2.min.js') ?>"></script>
-<script src="<?= add_ver(THEME_ASSETS_URL . 'js/darkmode-min.js') ?>"></script>
 <!-- Star rating -->
 <script src="<?= add_ver(THEME_ASSETS_URL . 'js/star-rating.min.js') ?>"></script>
 <script src="<?= add_ver(THEME_ASSETS_URL . 'js/theme.min.js') ?>"></script>
-<!-- Modernizr-custom.js -->
-<script src="<?= add_ver(THEME_ASSETS_URL . 'js/modernizr-custom.js') ?>"></script>
 <!-- Lazy-Load.js -->
 <script src="<?= add_ver(THEME_ASSETS_URL . 'js/lazyload.min.js') ?>"></script>
 
 <!-- jsSocial -->
 <script src="<?= add_ver(THEME_ASSETS_URL . 'js/jquery.jssocials.min.js') ?>"></script>
-<!-- MDB perfect scrollbar -->
-<script src="<?= add_ver(THEME_ASSETS_URL . 'js/perfect-scrollbar.min.js') ?>"></script>
 
 
 
 <!-- intlTelInput -->
 <script src="<?= add_ver(THEME_ASSETS_URL . 'js/intlTelInput.js') ?>"></script>
 <script src="<?= add_ver(THEME_ASSETS_URL . 'js/lightbox.js') ?>"></script>
-<!-- Dropzone -->
-<script src="<?= add_ver(THEME_ASSETS_URL . 'js/dropzone.js') ?>"></script>
-<script src="<?= add_ver(THEME_ASSETS_URL . 'js/stisla.js') ?>"></script>
 
-<!-- Markdown -->
-<script src="<?= add_ver(THEME_ASSETS_URL . 'js/Markdown.Converter.js') ?>"></script>
-<script src="<?= add_ver(THEME_ASSETS_URL . 'js/Markdown.Sanitizer.js') ?>"></script>
-<script src="<?= add_ver(THEME_ASSETS_URL . 'js/Markdown.Editor.js') ?>"></script>
 
 
 <!-- Firebase.js -->

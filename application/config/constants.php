@@ -230,3 +230,21 @@ defined('SHIPROCKET_NOMINAL_DIMENSION_CM') or define('SHIPROCKET_NOMINAL_DIMENSI
 | which blanks the configured number. See support_whatsapp_number() in function_helper.php.
 */
 defined('SUPPORT_WHATSAPP_DEFAULT') or define('SUPPORT_WHATSAPP_DEFAULT', '7290024349');
+
+/*
+| How long (seconds) the SIGNED-OUT homepage's featured sections stay cached.
+|
+| Building those sections is the bulk of the homepage's work - six fetch_product()
+| calls with all their hydration - and the result is identical for every logged-out
+| visitor, so it is shared. Signed-in shoppers always build it live, because their
+| copy carries per-user cart counts, favourites and is_purchased flags.
+|
+| The trade-off this buys is that a homepage tile can show a price or stock state up
+| to this many seconds old. Nothing downstream trusts that value: Cart_model re-reads
+| the live price when the item is added and stock is re-validated at checkout, so it
+| is a display lag, not a pricing bug.
+|
+| Set to 0 to disable the cache entirely and rebuild the sections on every request.
+| Raise it for a catalogue that changes rarely; lower it during a flash sale.
+*/
+defined('HOME_SECTIONS_CACHE_TTL') or define('HOME_SECTIONS_CACHE_TTL', 300);

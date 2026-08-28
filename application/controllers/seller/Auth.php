@@ -338,7 +338,7 @@ class Auth extends CI_Controller
                 'authorized_signature' => '',
             ]);
 
-            // Launch promotion: first 100 vendors get "Launch Offer" (50 free listings /
+            // Launch promotion: first 20 vendors get "Launch Offer" (30 free listings /
             // 1 year), everyone after gets the free plan. Never blocks registration.
             $this->Seller_subscription_model->assign_registration_offer($user_id);
 
@@ -679,7 +679,7 @@ class Auth extends CI_Controller
 
             $this->Seller_model->seller_cereate_user($seller_data);
 
-            // Launch promotion: first 100 vendors get "Launch Offer" (50 free listings /
+            // Launch promotion: first 20 vendors get "Launch Offer" (30 free listings /
             // 1 year), everyone after gets the free plan.
             if (!empty($user_id)) {
                 $this->Seller_subscription_model->assign_registration_offer($user_id);
