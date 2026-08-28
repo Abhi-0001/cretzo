@@ -297,7 +297,12 @@ class Notification_model extends CI_Model
                 }
             }
             $tempRow['image_src'] = $row['image'];
-            $tempRow['image'] = "<div class='mx-auto product-image image-box-100'><a href='" . html_escape($row['image']) . "' data-toggle='lightbox' data-gallery='gallery' >
+            // An empty image used to still emit the thumbnail box with a blank src, so the
+            // admin list showed a broken-image icon and a tall row for every notification
+            // that has no image at all (which is most of them).
+            $tempRow['image'] = ($row['image'] === '')
+                ? '<span class="text-muted">-</span>'
+                : "<div class='mx-auto product-image image-box-100'><a href='" . html_escape($row['image']) . "' data-toggle='lightbox' data-gallery='gallery' >
       <img class='rounded'  src='"  . html_escape($row['image']) . "'></a></div>";
             $tempRow['link'] = html_escape($row['link']);
             // Consumed by the customer-facing "My Account > Notifications" front-end page

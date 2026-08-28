@@ -7,6 +7,7 @@ defined('BASEPATH') or exit('No direct script access allowed');
 | Pass it as ?token=... in the cron URL.
 |
 | Endpoints protected by this secret:
+|   admin/cron_job/settle_seller_commission      - CREDITS SELLER WALLETS for delivered items
 |   admin/cron_job/expire_seller_subscriptions   - flips is_active off on lapsed rows
 |   admin/cron_job/subscription_expiry_reminders - emails sellers before/on expiry
 |   admin/cron_job/expire_abandoned_orders       - releases stock held by unpaid orders
@@ -19,17 +20,32 @@ defined('BASEPATH') or exit('No direct script access allowed');
 | ---------------------------------------------------------------------------
 | Hostinger cron setup (hPanel -> Advanced -> Cron Jobs), both once daily:
 |
+|   curl -s "https://YOURDOMAIN/admin/cron_job/settle_seller_commission?is_date=1&token=THE_SECRET"
 |   curl -s "https://YOURDOMAIN/admin/cron_job/expire_seller_subscriptions?token=THE_SECRET"
 |   curl -s "https://YOURDOMAIN/admin/cron_job/subscription_expiry_reminders?token=THE_SECRET"
 |   curl -s "https://YOURDOMAIN/admin/cron_job/expire_abandoned_orders?token=THE_SECRET"
 |   curl -s "https://YOURDOMAIN/admin/cron_job/low_stock_alerts?token=THE_SECRET"
 |
 | Suggested schedule:
+|   0 3 * * *   settle_seller_commission      (pays sellers - see the warning below)
 |   0 2 * * *   expire_seller_subscriptions   (expiry sweep)
 |   0 8 * * *   subscription_expiry_reminders (reminders, after the sweep)
 |   0 * * * *   expire_abandoned_orders       (hourly - the sooner unpaid stock is
 |                                              released, the sooner it can sell)
 |   0 9 * * *   low_stock_alerts              (once daily, at a sensible hour)
+|
+| settle_seller_commission is the one job sellers notice the absence of, and it is
+| the easiest to forget because nothing fails loudly when it is missing - orders
+| just sit delivered-and-uncredited forever. Two gotchas when wiring it up:
+|
+|   - `is_date=1` is REQUIRED. Without it form validation rejects the call and the
+|     endpoint answers a validation error instead of settling anything. (is_date=0
+|     ignores return windows entirely and pays out every delivered item at once -
+|     that is a manual recovery tool, never a schedule.)
+|   - Verify it from a shell, NOT from a logged-in browser tab. cron_authorized()
+|     lets an admin session straight through before it ever looks at the token, so
+|     a browser test passes with a completely wrong token and tells you nothing
+|     about whether the real cron will be authorised.
 | ---------------------------------------------------------------------------
 */
 /*

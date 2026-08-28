@@ -105,18 +105,32 @@ class Seller_settlement_model extends CI_Model
     }
 
     /**
-     * Delivered order items that have NOT been credited yet, and how many of them are stuck
-     * because their seller has no subscription plan for the commission slab to come from.
+     * Order items that are settleable but NOT credited yet: how much is waiting, how much is
+     * stuck for want of a subscription plan, and - critically - how much is OVERDUE.
      *
-     * settle_seller_commission() skips those rows silently and retries them forever, so a
+     * settle_seller_commission() skips no-plan rows silently and retries them forever, so a
      * seller who never subscribed accrues delivered orders that are never paid out with
      * nothing anywhere reporting it. This is what surfaces them.
+     *
+     * The overdue figures exist because "pending" alone cannot distinguish the two very
+     * different situations it covers. An item inside its return window is simply waiting and
+     * needs no attention; an item whose window closed days ago is evidence that the settlement
+     * sweep is not running at all - which is exactly what happened in production, where
+     * seller_settlements sat completely empty because the cron URL was never wired up and the
+     * page cheerfully reported the backlog as something that would "settle automatically".
+     * Overdue rows never resolve on their own, so they are reported separately.
      */
     public function get_unsettled_summary()
     {
+        // Must mirror settle_seller_commission()'s eligibility exactly. 'delivered' alone was
+        // undercounting: a declined return moves the item to 'return_request_decline' and the
+        // sweep still pays it out, so such rows were pending-but-invisible here - the one
+        // status most likely to need a human eye was the one the page never mentioned.
+        $settleable = ['delivered', 'return_request_decline'];
+
         $pending = $this->db
             ->select('COUNT(id) as items, COALESCE(SUM(sub_total), 0) as amount', false)
-            ->where('active_status', 'delivered')
+            ->where_in('active_status', $settleable)
             ->where('is_credited', 0)
             ->get('order_items')
             ->row_array();
@@ -127,17 +141,46 @@ class Seller_settlement_model extends CI_Model
         $blocked = $this->db
             ->select('COUNT(oi.id) as items, COALESCE(SUM(oi.sub_total), 0) as amount', false)
             ->join('seller_subscriptions ss', 'ss.seller_id = oi.seller_id', 'left')
-            ->where('oi.active_status', 'delivered')
+            ->where_in('oi.active_status', $settleable)
             ->where('oi.is_credited', 0)
             ->where('ss.id IS NULL', null, false)
             ->get('order_items oi')
             ->row_array();
+
+        // Same window arithmetic the sweep uses: delivery date + max_product_return_days, with
+        // COALESCE onto date_added for rows predating delivered_at. Cast because the setting
+        // comes from an admin-editable blob and is interpolated into SQL.
+        $settings = get_settings('system_settings', true);
+        $return_days = isset($settings['max_product_return_days']) ? (int) $settings['max_product_return_days'] : 0;
+        $window_closed = "DATE_ADD(DATE_FORMAT(COALESCE(delivered_at, date_added), '%Y-%m-%d'), INTERVAL " . $return_days . " DAY) <= '" . date('Y-m-d') . "'";
+
+        $overdue = $this->db
+            ->select("COUNT(id) as items, COALESCE(SUM(sub_total), 0) as amount,
+                      MIN(COALESCE(delivered_at, date_added)) as oldest", false)
+            ->where_in('active_status', $settleable)
+            ->where('is_credited', 0)
+            ->where($window_closed, null, false)
+            ->get('order_items')
+            ->row_array();
+
+        // Days since the OLDEST overdue item became payable, which is the honest measure of how
+        // long the sweep has been down - not days since delivery.
+        $overdue_days = 0;
+        if (!empty($overdue['oldest'])) {
+            $payable_from = strtotime(date('Y-m-d', strtotime($overdue['oldest'])) . ' +' . $return_days . ' day');
+            $overdue_days = (int) floor((strtotime(date('Y-m-d')) - $payable_from) / 86400);
+            $overdue_days = ($overdue_days < 0) ? 0 : $overdue_days;
+        }
 
         return [
             'pending_items'      => (int) $pending['items'],
             'pending_amount'     => (float) $pending['amount'],
             'blocked_items'      => (int) $blocked['items'],
             'blocked_amount'     => (float) $blocked['amount'],
+            'overdue_items'      => (int) $overdue['items'],
+            'overdue_amount'     => (float) $overdue['amount'],
+            'overdue_days'       => $overdue_days,
+            'return_days'        => $return_days,
         ];
     }
 

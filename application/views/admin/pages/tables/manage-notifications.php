@@ -149,8 +149,8 @@
                                         <th data-field="id" data-sortable="true">ID</th>
                                         <th data-field="title" data-sortable="true">Title</th>
                                         <th data-field="type" data-sortable="true">Type</th>
-                                        <th data-field="image" data-sortable="false" class="col-md-5">Image</th>
-                                        <th data-field="link" data-sortable="false" class="col-md-5">Link</th>
+                                        <th data-field="image" data-sortable="false">Image</th>
+                                        <th data-field="link" data-sortable="false">Link</th>
                                         <th data-field="message" data-sortable="true">Message</th>
                                         <th data-field="send_to" data-sortable="true">Send to</th>
                                         <th data-field="users_id" data-sortable="false">users id</th>
@@ -217,6 +217,39 @@
     .admin-manage-notifications-page table.table tbody tr:hover { background-color: var(--color-orange-light); }
     .admin-manage-notifications-page .fixed-table-pagination .pagination .page-item.active .page-link { color: #fff; background-color: var(--color-orange); border-color: var(--color-orange); }
     .admin-manage-notifications-page .fixed-table-pagination .pagination .page-link { color: var(--color-orange-dark); border-radius: 6px; margin: 0 2px; border: 1px solid rgba(0,0,0,0.08); }
+
+    /* The history rows were ~120px tall: the image cell renders a `.image-box-100`
+       thumbnail box and the text cells wrapped over many lines in narrow columns.
+       Keep every cell on one un-truncated line and let the table grow as wide as it
+       needs - the body scrolls horizontally instead of the rows growing taller. */
+    .admin-manage-notifications-page .fixed-table-body { overflow-x: auto; }
+    .admin-manage-notifications-page .fixed-table-body table { width: auto !important; min-width: 100%; }
+    .admin-manage-notifications-page .fixed-table-body table tbody td,
+    .admin-manage-notifications-page .fixed-table-body table thead th {
+        padding: 6px 12px !important;
+        vertical-align: middle !important;
+        white-space: nowrap !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+        max-width: none !important;
+        line-height: 1.4;
+    }
+    .admin-manage-notifications-page .fixed-table-body table tbody td .image-box-100,
+    .admin-manage-notifications-page .fixed-table-body table tbody td .product-image {
+        width: 36px !important;
+        height: 36px !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+        padding: 0 !important;
+        margin: 0 auto !important;
+        line-height: 0;
+        overflow: hidden;
+    }
+    .admin-manage-notifications-page .fixed-table-body table tbody td .image-box-100 img {
+        width: 36px !important;
+        height: 36px !important;
+        object-fit: cover;
+    }
 
     .admin-manage-notifications-page td:has(.action-btn) { white-space: nowrap; }
     .admin-manage-notifications-page .action-btn { display: inline-block; vertical-align: middle; }

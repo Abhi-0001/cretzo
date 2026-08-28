@@ -236,7 +236,11 @@ class Ion_auth
 
 		if (!$email_activation) {
 			if ($id !== FALSE) {
-				if ($group_ids[0] == 2) {
+				// Only log a welcome-credit transaction when there is actually a credit.
+				// With the welcome bonus off (or set to 0) this still wrote a "+ 0.00 welcome
+				// wallet balance added successfully" row for every single signup, so the wallet
+				// transaction lists filled up with entries for money nobody was ever given.
+				if ($group_ids[0] == 2 && (float) $wallet_balance > 0) {
 					$this->load->model("transaction_model");
 					$transaction_data = [
 						'transaction_type' => "wallet",

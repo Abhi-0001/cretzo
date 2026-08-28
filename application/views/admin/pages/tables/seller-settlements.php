@@ -65,13 +65,51 @@ $money = function ($amount) use ($currency) {
                 </div>
             </div>
 
-            <?php if ($unsettled['pending_items'] > 0) { ?>
-                <div class="alert alert-info d-flex align-items-start">
-                    <i class="fas fa-hourglass-half mr-2 mt-1"></i>
+            <?php if ($unsettled['pending_items'] > 0) {
+                // Overdue rows are NOT "waiting" - their return window has already closed, so
+                // the sweep should have paid them and hasn't. Saying "these settle
+                // automatically" about them is actively misleading: on production this banner
+                // reported a backlog as self-resolving while seller_settlements was empty and
+                // the cron had never been wired up at all. An overdue count means someone has
+                // to act, so it gets a warning, not an info note.
+                $has_overdue = ($unsettled['overdue_items'] > 0);
+                $waiting_items = $unsettled['pending_items'] - $unsettled['overdue_items'];
+            ?>
+                <div class="alert alert-<?= $has_overdue ? 'warning' : 'info' ?> d-flex align-items-start">
+                    <i class="fas fa-<?= $has_overdue ? 'exclamation-triangle' : 'hourglass-half' ?> mr-2 mt-1"></i>
                     <div>
                         <strong><?= (int) $unsettled['pending_items'] ?> delivered order item(s)</strong>
                         worth <?= $money($unsettled['pending_amount']) ?> are delivered but not yet credited.
-                        These settle automatically once their return window closes.
+
+                        <?php if ($has_overdue) { ?>
+                            <div class="mt-2">
+                                <strong><?= (int) $unsettled['overdue_items'] ?> of them
+                                (<?= $money($unsettled['overdue_amount']) ?>) are OVERDUE</strong> &mdash;
+                                their return window
+                                <?= ((int) $unsettled['return_days'] === 0) ? '(set to 0 days, so they are payable on delivery)' : 'of ' . (int) $unsettled['return_days'] . ' day(s)' ?>
+                                closed
+                                <?= ((int) $unsettled['overdue_days'] === 0) ? 'today' : (int) $unsettled['overdue_days'] . ' day(s) ago' ?>
+                                and they still have not been credited. These do not resolve on their own.
+                            </div>
+                            <div class="mt-2 text-muted">
+                                <i class="fas fa-info-circle mr-1"></i>
+                                Settlement only happens when
+                                <code>admin/cron_job/settle_seller_commission?is_date=1</code> runs.
+                                If that scheduled job is not set up on the server &mdash; or its
+                                <code>SUBSCRIPTION_CRON_SECRET</code> is unset, which makes it refuse
+                                every call &mdash; sellers are never paid. See
+                                <code>application/config/cron.php</code> for the exact cron line.
+                            </div>
+                            <?php if ($waiting_items > 0) { ?>
+                                <div class="mt-2 text-muted">
+                                    The remaining <?= (int) $waiting_items ?> item(s) are still inside
+                                    their return window and are simply waiting.
+                                </div>
+                            <?php } ?>
+                        <?php } else { ?>
+                            These settle automatically once their return window closes.
+                        <?php } ?>
+
                         <?php if ($unsettled['blocked_items'] > 0) { ?>
                             <div class="mt-2 text-muted">
                                 <i class="fas fa-info-circle mr-1"></i>
