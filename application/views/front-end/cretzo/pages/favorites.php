@@ -71,9 +71,7 @@
             <?php   } ?>
                     </div>
 
-                    <nav id="products-pagination-nav" class="text-center mt-7 mb-5" aria-label="pagination">
-                        <?= (isset($links)) ? $links : '' ?>
-                    </nav>
+                    <nav id="products-pagination-nav" class="cz-pager-nav" aria-label="<?= storefront_pagination_label('your wishlist') ?>"><?= (isset($links)) ? $links : '' ?></nav>
             <?php
                 } else { ?>
                     <div class="col-12 m-5">

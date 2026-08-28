@@ -171,3 +171,54 @@ a.nav-link{
 .bootstrap-table .fixed-row-height td:hover {
     overflow-x: auto;
 }
+/* ============================================================
+   NOTIFICATION PANEL HEADER (admin navbar bell)
+   The panel (#list) is filled by custom.js, which now puts a
+   title row with a close button at the top of it. The bell's
+   panel is not a Bootstrap-managed dropdown (its menu is not a
+   child of a common .dropdown), so this button and the
+   outside-click handler in custom.js are what close it.
+============================================================ */
+#list .notification-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    padding: .5rem 1rem;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--color-grey);
+}
+
+#list .notification-close {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--color-grey);
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background .15s, color .15s;
+}
+
+#list .notification-close:hover,
+#list .notification-close:focus {
+    background: var(--color-orange-light);
+    color: var(--color-orange);
+    outline: 0;
+}
+
+#list .loading-message {
+    padding: 1rem;
+    text-align: center;
+    color: var(--color-grey);
+}

@@ -8591,11 +8591,65 @@ function check_parcels_deliveriblity($parcels, $user_pincode)
     ];
     return $shipping_parcels;
 }
-function get_shiprocket_order($shiprocket_order_id)
+/**
+ * The Shiprocket ORDER record, for display and for the inline status sync on the order edit pages.
+ *
+ * Two things this now avoids, both of which were paid on every render of admin/seller
+ * "edit order" - a page that is opened constantly:
+ *
+ *  1. Duplicate calls in one render. The call sites sit inside a per-seller / per-pickup-location
+ *     loop, so an order split across three parcels asked Shiprocket the same question three
+ *     times, each a blocking request with a 15-second timeout. A slow Shiprocket meant a hung
+ *     admin page, and the whole page's worth of calls happened before a single byte was sent.
+ *
+ *  2. Asking about shipments that can no longer change. Once a parcel is delivered, cancelled or
+ *     returned there is no further scan coming, yet every page load re-asked - which is what
+ *     filled the log with `orders/show/990777 (http 404)` on repeat. The last status Shiprocket
+ *     reported is already on the tracking row, so it is served from there.
+ *
+ * The webhook (real time) and sync_shipment_statuses() (cron) are the mechanisms that actually
+ * keep status current; this call is only the page's own read, so serving a terminal one locally
+ * loses nothing.
+ *
+ * @param  bool $force_remote  Skip both the cache and the terminal short-circuit and go to
+ *                              Shiprocket. Required by anything reading a field the local
+ *                              reconstruction does not carry - freight reconciliation in
+ *                              particular, which runs precisely on shipments that HAVE finished
+ *                              and needs the billed charges, not the status.
+ * @return array|null decoded Shiprocket response, or a locally-reconstructed one for a
+ *                    finished shipment. Shape always carries ['data'], as callers assume.
+ */
+function get_shiprocket_order($shiprocket_order_id, $force_remote = false)
 {
+    static $cache = [];
+
+    $key = (string) $shiprocket_order_id;
+    if ($key === '' || $key === '0') {
+        return null;
+    }
+    if (!$force_remote && array_key_exists($key, $cache)) {
+        return $cache[$key];
+    }
+
     $t = &get_instance();
+
+    /*
+     * `others` holds whatever Shiprocket last said about this shipment - the webhook and the cron
+     * both write it. If that is already a terminal state, answer from it.
+     */
+    $tracking = $force_remote ? [] : fetch_details('order_tracking', ['shiprocket_order_id' => $shiprocket_order_id], 'others,is_canceled');
+    if (!empty($tracking)) {
+        $last_status = isset($tracking[0]['others']) ? (string) $tracking[0]['others'] : '';
+        $internal = shiprocket_status_to_order_status($last_status);
+        if (in_array($internal, ['delivered', 'cancelled', 'returned'], true)) {
+            $cache[$key] = ['data' => ['status' => $last_status, 'status_code' => 0]];
+            return $cache[$key];
+        }
+    }
+
     $t->load->library(['shiprocket']);
     $res = $t->shiprocket->get_specific_order($shiprocket_order_id);
+    $cache[$key] = $res;
     return $res;
 }
 
@@ -8846,24 +8900,55 @@ function shiprocket_status_to_order_status($shiprocket_status)
     }
 
     $map = [
+        /* Pre-handover: the parcel exists here but no courier has it yet. */
+        'INVOICED'           => 'processed',
         'READY TO SHIP'      => 'processed',
+        'SHIPMENT BOOKED'    => 'processed',
+        'MANIFEST GENERATED' => 'processed',
+        'OUT FOR PICKUP'     => 'processed',
+
+        /* With the courier and moving. */
         'PICKUP SCHEDULED'   => 'shipped',
         'PICKUP GENERATED'   => 'shipped',
         'PICKUP QUEUED'      => 'shipped',
         'PICKED UP'          => 'shipped',
+        'HANDOVER TO COURIER' => 'shipped',
         'SHIPPED'            => 'shipped',
         'IN TRANSIT'         => 'shipped',
-        'OUT FOR DELIVERY'   => 'shipped',
+        'IN FLIGHT'          => 'shipped',
+        'CUSTOM CLEARED'     => 'shipped',
+        'MISROUTED'          => 'shipped',
+        'DELAYED'            => 'shipped',
+        'REACHED WAREHOUSE'  => 'shipped',
         'REACHED DESTINATION HUB' => 'shipped',
+        'OUT FOR DELIVERY'   => 'shipped',
+
         'DELIVERED'          => 'delivered',
+
         'CANCELED'           => 'cancelled',
         'CANCELLED'          => 'cancelled',
+
         'RTO INITIATED'      => 'returned',
         'RTO IN TRANSIT'     => 'returned',
+        'RTO OFD'            => 'returned',
+        'RTO NDR'            => 'returned',
         'RTO DELIVERED'      => 'returned',
         'RTO ACKNOWLEDGED'   => 'returned',
         'RETURN DELIVERED'   => 'returned',
     ];
+
+    /*
+     * Statuses left DELIBERATELY unmapped, so they are recorded on the tracking row and shown,
+     * but change no order status by themselves:
+     *
+     *   UNDELIVERED, PARTIAL_DELIVERED, PICKUP ERROR, PICKUP EXCEPTION, LOST, DAMAGED, DESTROYED
+     *
+     * Each is an exception a person has to settle. The only internal statuses that would fit are
+     * `cancelled` and `returned`, and both of those refund the customer and restore stock through
+     * Order_model::update_order() - so guessing here would issue refunds off a courier scan. An
+     * UNDELIVERED scan in particular is routine (customer not home) and is normally followed by a
+     * successful re-attempt; auto-cancelling on it would refund orders that then get delivered.
+     */
 
     return isset($map[$shiprocket_status]) ? $map[$shiprocket_status] : null;
 }
@@ -10599,8 +10684,24 @@ function generate_manifest($shipment_id)
     $t = &get_instance();
     $t->load->library(['Shiprocket']);
 
+    /*
+     * The two steps do NOT take the same identifier, which is easy to miss because the local
+     * variable is one number: `manifests/generate` takes the SHIPMENT id, `manifests/print` takes
+     * the SHIPROCKET ORDER id. This passed the shipment id to both, so the print step asked
+     * Shiprocket to manifest an order id that belongs to a different record entirely - it could
+     * only ever have returned nothing, or someone else's manifest.
+     */
+    $tracking = fetch_details('order_tracking', ['shipment_id' => $shipment_id], 'shiprocket_order_id');
+    $shiprocket_order_id = !empty($tracking) ? $tracking[0]['shiprocket_order_id'] : '';
+
+    if (empty($shiprocket_order_id)) {
+        log_message('error', 'generate_manifest: no shiprocket_order_id recorded against shipment ' . $shipment_id
+            . ', so its manifest cannot be printed.');
+        return null;
+    }
+
     $generated = $t->shiprocket->generate_manifests($shipment_id);
-    $res = $t->shiprocket->print_manifest($shipment_id);
+    $res = $t->shiprocket->print_manifest($shiprocket_order_id);
 
     if (shiprocket_result_ok('manifest', $res)) {
         $t->db->set(['manifest_url' => $res['manifest_url']])->where('shipment_id', $shipment_id)->update('order_tracking');
@@ -11964,4 +12065,144 @@ function whatsapp_support_link($message = '')
     }
 
     return 'https://wa.me/' . $number . '?text=' . rawurlencode($message);
+}
+
+
+/**
+ * ONE pagination component for the whole buyer-facing storefront.
+ *
+ * Before this there were twelve near-identical CodeIgniter pagination configs
+ * copied between Products, Sellers, Home, My_account and Blogs, and they had
+ * drifted: the product listing drew arrow icons from Unicons while the
+ * category, search, tag and seller listings drew "First"/"Last" text plus
+ * Font-Awesome arrows, and the brands page had no prev/next configured at all.
+ * Three of the twelve built links that no view ever printed. Same site, five
+ * different pagers.
+ *
+ * Everything on the storefront now goes through here, so the markup is fixed:
+ *
+ *   <ul class="pagination cz-pagination">
+ *     <li class="page-item cz-page-prev disabled"><span class="page-link">…</span></li>
+ *     <li class="page-item"><a class="page-link" href="…">1</a></li>
+ *     <li class="page-item active"><span class="page-link" aria-current="page">2</span></li>
+ *     …
+ *     <li class="page-item cz-page-next"><a class="page-link" href="…">…</a></li>
+ *   </ul>
+ *
+ * Prev and next are ALWAYS rendered, disabled on the first/last page, so the
+ * control keeps its shape instead of showing a lone right arrow on page 1.
+ * CodeIgniter's library simply omits them at the edges, so the two
+ * placeholders are added here afterwards - which is also why the prev/next
+ * items carry their own classes, they are what makes that check reliable.
+ *
+ * The URL building is still CodeIgniter's: each caller's base_url, uri_segment
+ * and query-string reuse already work, and re-deriving them by hand for eleven
+ * routes is exactly where a pager breaks.
+ *
+ * assets/front_end/cretzo/js/cretzo/product-listing.js emits this same markup
+ * for the AJAX listing (see renderPagination there) - the two must stay in
+ * step, since a filter or sort click swaps the server-rendered pager for the
+ * JavaScript one on the same page.
+ *
+ * @param string $base_url    Route the page numbers hang off, e.g. base_url('products')
+ * @param int    $total_rows  Total matching records
+ * @param int    $per_page    Page size
+ * @param array  $extra       Any config key to add or override (uri_segment,
+ *                            reuse_query_string, num_links, ...)
+ * @return string The <ul> markup, or '' when there is only one page
+ */
+function storefront_pagination($base_url, $total_rows, $per_page, $extra = [])
+{
+    $CI = &get_instance();
+    $CI->load->library('pagination');
+
+    $per_page = max(1, (int) $per_page);
+    $total_rows = max(0, (int) $total_rows);
+
+    // Nothing to page through. Returning '' keeps the empty <nav> out of the
+    // layout rather than leaving a stray single "1" button under the grid.
+    if ($total_rows <= $per_page) {
+        return '';
+    }
+
+    $arrow_prev = '<span class="cz-page-arrow" aria-hidden="true"><i class="uil uil-angle-left-b"></i></span>';
+    $arrow_next = '<span class="cz-page-arrow" aria-hidden="true"><i class="uil uil-angle-right-b"></i></span>';
+
+    $config = [
+        'base_url' => $base_url,
+        'total_rows' => $total_rows,
+        'per_page' => $per_page,
+        // 5 numbers keeps the control inside a phone screen without scrolling;
+        // the CSS lets it scroll horizontally if a caller asks for more.
+        'num_links' => 2,
+        'use_page_numbers' => true,
+        'reuse_query_string' => true,
+        'page_query_string' => false,
+
+        'full_tag_open' => '<ul class="pagination cz-pagination">',
+        'full_tag_close' => '</ul>',
+
+        'attributes' => ['class' => 'page-link'],
+
+        'num_tag_open' => '<li class="page-item">',
+        'num_tag_close' => '</li>',
+
+        // A <span>, not an <a href="#">: the current page is not a link, and a
+        // dead "#" href moved the page to the top when it was clicked.
+        'cur_tag_open' => '<li class="page-item active"><span class="page-link" aria-current="page">',
+        'cur_tag_close' => '</span></li>',
+
+        'prev_tag_open' => '<li class="page-item cz-page-prev">',
+        'prev_link' => $arrow_prev,
+        'prev_tag_close' => '</li>',
+
+        'next_tag_open' => '<li class="page-item cz-page-next">',
+        'next_link' => $arrow_next,
+        'next_tag_close' => '</li>',
+
+        // First/Last are off everywhere. They used to appear on some listings
+        // and not others, and as words among icons they were the widest thing
+        // in the row on a phone.
+        'first_link' => false,
+        'last_link' => false,
+    ];
+
+    foreach ($extra as $key => $value) {
+        $config[$key] = $value;
+    }
+
+    $CI->pagination->initialize($config);
+    $html = $CI->pagination->create_links();
+
+    if ($html === '') {
+        return '';
+    }
+
+    // Symmetry: put back whichever arrow the library dropped because we are on
+    // the first or the last page.
+    if (strpos($html, 'cz-page-prev') === false) {
+        $html = str_replace(
+            '<ul class="pagination cz-pagination">',
+            '<ul class="pagination cz-pagination"><li class="page-item cz-page-prev disabled"><span class="page-link">' . $arrow_prev . '</span></li>',
+            $html
+        );
+    }
+    if (strpos($html, 'cz-page-next') === false) {
+        $html = str_replace(
+            '</ul>',
+            '<li class="page-item cz-page-next disabled"><span class="page-link">' . $arrow_next . '</span></li></ul>',
+            $html
+        );
+    }
+
+    return $html;
+}
+
+/**
+ * Screen-reader label for a pager, so every <nav> around
+ * storefront_pagination() output announces what it pages through.
+ */
+function storefront_pagination_label($what = 'results')
+{
+    return 'Pagination for ' . $what;
 }

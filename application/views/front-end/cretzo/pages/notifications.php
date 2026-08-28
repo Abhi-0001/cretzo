@@ -278,13 +278,33 @@
     }
     .cs-notif__empty { padding: 40px 10px; text-align: center; opacity: .6; font-size: 14px; }
     .cs-notif__pager { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; }
+    /* Matches the numbered pager in cretzo-fixes.css (FIX 11) - same border,
+       radius, height and orange hover, so the two pagers on the buyer site do
+       not look like they came from different products. */
     .cs-notif__page {
-        border: 1px solid rgba(0, 0, 0, .15);
+        min-height: 40px;
+        border: 1px solid #e4e6ea;
         background: #fff;
-        border-radius: 8px;
-        padding: 6px 14px;
-        font-size: 13px;
+        border-radius: 10px;
+        padding: 0 16px;
+        font-size: 14px;
+        font-weight: 600;
+        color: #333;
+        box-shadow: 0 1px 2px rgba(16, 24, 40, .04);
         cursor: pointer;
+        transition: background-color .15s ease, border-color .15s ease, color .15s ease;
     }
-    .cs-notif__page:disabled { opacity: .45; cursor: default; }
+    .cs-notif__page:hover:not(:disabled), .cs-notif__page:focus-visible:not(:disabled) {
+        border-color: var(--color-orange, #F2822E);
+        background: var(--color-orange-light, #fff4ea);
+        color: var(--color-orange-dark, #d96f1d);
+        outline: none;
+    }
+    .cs-notif__page:disabled {
+        border-color: #ececef;
+        background: #f7f7f8;
+        color: #c3c6cc;
+        box-shadow: none;
+        cursor: default;
+    }
 </style>

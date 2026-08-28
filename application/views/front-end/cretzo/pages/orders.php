@@ -146,6 +146,15 @@ die; */
                 } ?>
             </ul>
 
+            <?php // My_account::orders() has always built these links; this view never
+                  // printed them, so a buyer with more than 10 orders could not reach
+                  // the older ones. ?>
+            <?php if (!empty($links)) { ?>
+                <nav class="cz-pager-nav" aria-label="<?= storefront_pagination_label('your orders') ?>">
+                    <?= $links ?>
+                </nav>
+            <?php } ?>
+
         </div>
     </div>
 </div>

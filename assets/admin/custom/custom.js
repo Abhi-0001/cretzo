@@ -7432,78 +7432,117 @@ $(document).ready(function () {
             url: base_url + 'admin/home/get_notification',
             dataType: 'json',
             success: function (result) {
-                var html = '';
-                html += '<a href="javascript:void(0);" id="notification_count" data-toggle="dropdown" class="nav-link notification-toggle nav-link-lg"><i class="fas fa-bell fa-2x"></i><span class="badge badge-danger navbar-badge order_notification mt-1">' + result.count_notifications + '</span></a>';
-                $('#refresh_notification').html(html);
+                // Only the number is refreshed. This used to replace the whole of
+                // #refresh_notification, which now holds the panel as well - so every 30
+                // seconds it destroyed an open panel (and, before that, re-created the
+                // bell element for no reason).
+                $('#refresh_notification').find('.order_notification').text(result.count_notifications);
             }
         });
     }, 30000);
 });
 
-$(document).on('click', '#notification_count', function (e, rows) {
-    e.preventDefault();
-    $('#list').toggle();
-    if ($('#list').is(":visible")) {
-        // Display a "Please Wait" message or spinner while waiting for the response
-        $('#list').html('<div class="loading-message">Please Wait...</div>').addClass("show");
+/*
+ * Admin notification panel.
+ *
+ * Opening and closing belongs to Bootstrap now that the panel is a child of the bell's
+ * .dropdown parent (see application/views/admin/include-navbar.php) - that is what gives us
+ * closing on an outside click and on Escape, neither of which used to work: this file
+ * toggled the panel by hand with .toggle() plus the .show class, and nothing ever closed
+ * it except a second click on the bell.
+ *
+ * What is left here is only the content: load it when the panel opens, and offer an
+ * explicit close button in its header.
+ */
 
-        $.ajax({
-            type: 'GET',
-            url: base_url + 'admin/home/new_notification_list',
-            dataType: 'json',
-            success: function (result) {
-                var html = '';
-                var beep;
-                var seconds_ago;
-                var time;
+// The header is rendered in the loading state too, so the close button exists before the
+// notifications arrive - a slow request used to leave "Please Wait..." on screen.
+function notificationListHeader() {
+    return '<div class="dropdown-header notification-header">' +
+        '<span>Notifications</span>' +
+        '<button type="button" id="notification_close" class="notification-close" aria-label="Close notifications" title="Close">&times;</button>' +
+        '</div><div class="dropdown-divider"></div>';
+}
 
-                $.each(result.notifications, function (i, a) {
-                    beep = (a.read_by && a.read_by == 0) ? '<span><i class="fa fa-certificate ml-3 orange text-sm"></i></span>' : "";
-                    seconds_ago = a.date_sent;
-                    // Everything that was not a verification request fell through to the ORDER
-                    // edit page - so a ticket notification opened admin/orders/edit_orders with a
-                    // ticket id as edit_id, and a "new seller registered" notification did the
-                    // same. Route by type instead.
-                    var noti_url;
-                    var noti_suffix = '&noti_id=' + a.id;
-                    if (a.type === 'seller_verification_request' || a.type === 'verification_request' || a.type === 'seller_registered') {
-                        noti_url = base_url + 'admin/sellers/manage-seller?edit_id=' + a.type_id + noti_suffix;
-                    } else if (a.type === 'ticket_message' || a.type === 'ticket_status' || a.type === 'ticket_created') {
-                        noti_url = base_url + 'admin/tickets?noti_id=' + a.id;
-                    } else if (a.type === 'withdrawal_request' || a.type === 'payment_request') {
-                        noti_url = base_url + 'admin/payment-request/withdrawal-requests?noti_id=' + a.id;
-                    } else if (a.type === 'place_order' || (a.type && a.type.indexOf('order') !== -1)) {
-                        noti_url = base_url + 'admin/orders/edit_orders?edit_id=' + a.type_id + noti_suffix;
-                    } else {
-                        // Unknown type: the notification log is a real page and is never wrong,
-                        // whereas guessing the order editor produces a broken deep link.
-                        noti_url = base_url + 'admin/Notification_settings/manage_system_notifications?noti_id=' + a.id;
-                    }
-                
-                    html += '  <a href="' + noti_url + '" class="dropdown-item">\
-                            <div class="media">\
-                                <div class="media-body">\
-                                    <h3 class="dropdown-item-title mb-2">' + a.title + beep + '</h3>\
-                                    <p class="text-sm mb-2">' + a.message + '</p>\
-                                    <p class="text-sm text-muted"><i class="far fa-clock mr-1"></i>' + seconds_ago + '</p>\
-                                </div>\
-                            </div>\
-                        </a>\
-                <div class="dropdown-divider"></div>';
-                });
-
-                if (!(result.notifications.length === 0)) {
-                    html += '<a href="javascript:void(0);" class="dropdown-item dropdown-footer mark-all-as-read">Mark All As Read</a><div class="dropdown-divider"></div>';
-                } else {
-                    html += '<div class="dropdown-footer mt-2">No New Notifications</div>';
-                }
-
-                html += '<a href="' + base_url + 'admin/Notification_settings/manage_system_notifications' + '" class="dropdown-item dropdown-footer">See All Notifications</a>';
-
-                $('#list').html(html);
-            }
-        });
+function closeNotificationList() {
+    var $bell = $('#notification_count');
+    if ($bell.length && typeof $bell.dropdown === 'function') {
+        $bell.dropdown('hide');
     }
+    // Bootstrap tracks "open" purely with these classes, so clearing them is a valid close
+    // and covers the case where the plugin is not available.
+    $('#refresh_notification, #list').removeClass('show');
+}
+
+$(document).on('click', '#notification_close', function (e) {
+    e.preventDefault();
+    // The panel is inside the dropdown, so without this the click would reach Bootstrap's
+    // own toggle logic on the way up and could re-open what we just closed.
+    e.stopPropagation();
+    closeNotificationList();
+});
+
+// Bootstrap fires this on the .dropdown element as the panel opens.
+$(document).on('show.bs.dropdown', '#refresh_notification', function () {
+    // Display a "Please Wait" message or spinner while waiting for the response
+    $('#list').html(notificationListHeader() + '<div class="loading-message">Please Wait...</div>');
+
+    $.ajax({
+        type: 'GET',
+        url: base_url + 'admin/home/new_notification_list',
+        dataType: 'json',
+        success: function (result) {
+            var html = '';
+            var beep;
+            var seconds_ago;
+            var time;
+
+            $.each(result.notifications, function (i, a) {
+                beep = (a.read_by && a.read_by == 0) ? '<span><i class="fa fa-certificate ml-3 orange text-sm"></i></span>' : "";
+                seconds_ago = a.date_sent;
+                // Everything that was not a verification request fell through to the ORDER
+                // edit page - so a ticket notification opened admin/orders/edit_orders with a
+                // ticket id as edit_id, and a "new seller registered" notification did the
+                // same. Route by type instead.
+                var noti_url;
+                var noti_suffix = '&noti_id=' + a.id;
+                if (a.type === 'seller_verification_request' || a.type === 'verification_request' || a.type === 'seller_registered') {
+                    noti_url = base_url + 'admin/sellers/manage-seller?edit_id=' + a.type_id + noti_suffix;
+                } else if (a.type === 'ticket_message' || a.type === 'ticket_status' || a.type === 'ticket_created') {
+                    noti_url = base_url + 'admin/tickets?noti_id=' + a.id;
+                } else if (a.type === 'withdrawal_request' || a.type === 'payment_request') {
+                    noti_url = base_url + 'admin/payment-request/withdrawal-requests?noti_id=' + a.id;
+                } else if (a.type === 'place_order' || (a.type && a.type.indexOf('order') !== -1)) {
+                    noti_url = base_url + 'admin/orders/edit_orders?edit_id=' + a.type_id + noti_suffix;
+                } else {
+                    // Unknown type: the notification log is a real page and is never wrong,
+                    // whereas guessing the order editor produces a broken deep link.
+                    noti_url = base_url + 'admin/Notification_settings/manage_system_notifications?noti_id=' + a.id;
+                }
+            
+                html += '  <a href="' + noti_url + '" class="dropdown-item">\
+                        <div class="media">\
+                            <div class="media-body">\
+                                <h3 class="dropdown-item-title mb-2">' + a.title + beep + '</h3>\
+                                <p class="text-sm mb-2">' + a.message + '</p>\
+                                <p class="text-sm text-muted"><i class="far fa-clock mr-1"></i>' + seconds_ago + '</p>\
+                            </div>\
+                        </div>\
+                    </a>\
+            <div class="dropdown-divider"></div>';
+            });
+
+            if (!(result.notifications.length === 0)) {
+                html += '<a href="javascript:void(0);" class="dropdown-item dropdown-footer mark-all-as-read">Mark All As Read</a><div class="dropdown-divider"></div>';
+            } else {
+                html += '<div class="dropdown-footer mt-2">No New Notifications</div>';
+            }
+
+            html += '<a href="' + base_url + 'admin/Notification_settings/manage_system_notifications' + '" class="dropdown-item dropdown-footer">See All Notifications</a>';
+
+            $('#list').html(notificationListHeader() + html);
+        }
+    });
 });
 
 

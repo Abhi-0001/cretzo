@@ -264,6 +264,13 @@
             <?php } ?>
 
         </div>
+
+        <?php if (!empty($links)) { ?>
+            <nav class="cz-pager-nav" aria-label="<?= storefront_pagination_label("this seller's products") ?>">
+                <?= $links ?>
+            </nav>
+        <?php } ?>
+        </div>
     </div>
 </section>
 

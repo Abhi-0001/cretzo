@@ -625,13 +625,17 @@ class Webhook extends CI_Controller
         $this->load->library(['Shiprocket']);
         $request = file_get_contents('php://input');
 
-        log_message('error', 'Shiprocket file webhook--> ' . var_export($request, true));
-
         if ($request === false || empty($request)) {
             $this->edie("Error in reading Post Data");
         }
         $request = json_decode($request, true);
-        log_message('error', 'Shiprocket webhook--> ' . var_export($request, true));
+
+        // Was logged twice at ERROR level - the raw body and then the decoded array - on every
+        // single callback. Shiprocket sends one for every scan of every parcel, so this was the
+        // biggest writer to the error log by far, it buried the failures worth reading, and it
+        // put customer addresses and phone numbers in a file that is not treated as sensitive.
+        // The scan history is already persisted on the tracking row; this is only a trace.
+        log_message('debug', 'Shiprocket webhook--> ' . substr(json_encode($request), 0, 1000));
 
         if (!isset($_SERVER['HTTP_X_API_KEY']) || empty($_SERVER['HTTP_X_API_KEY'])) {
             $res['error'] = true;
@@ -643,13 +647,18 @@ class Webhook extends CI_Controller
         // configured as a number can't be loosely matched by a different string.
         if (!hash_equals((string) $token, (string) $_SERVER['HTTP_X_API_KEY'])) {
             $res['error'] = true;
-            $res['message'] = "token is  not veified";
+            $res['message'] = "token is not verified";
             echo json_encode($res);
             return false;
         }
-        if (!isset($request['awb']) || empty($request['awb'])) {
+        $awb = isset($request['awb']) ? trim((string) $request['awb']) : '';
+        // Shiprocket's own payload carries its order id alongside the AWB (documented as
+        // `sr_order_id`), which is the only identifier that does not change over a shipment's life.
+        $sr_order_id = isset($request['sr_order_id']) ? trim((string) $request['sr_order_id']) : '';
+
+        if ($awb === '' && $sr_order_id === '') {
             $res['error'] = true;
-            $res['message'] = "awb not found";
+            $res['message'] = "neither awb nor sr_order_id was sent";
             echo json_encode($res);
             return false;
         }
@@ -657,7 +666,35 @@ class Webhook extends CI_Controller
         // is_return is selected so sync_shiprocket_shipment_status() can tell a reverse pickup
         // apart from the original delivery. Both legs carry the same order_item_id, and the
         // two report the same status names for opposite journeys.
-        $tracking = fetch_details('order_tracking', ['awb_code' => $request['awb']], 'id,order_id,order_item_id,is_return');
+        $tracking = ($awb !== '')
+            ? fetch_details('order_tracking', ['awb_code' => $awb], 'id,order_id,order_item_id,is_return,awb_code')
+            : [];
+
+        /*
+         * Fall back to Shiprocket's order id.
+         *
+         * Matching on the AWB alone loses callbacks in two ordinary situations, and loses them
+         * silently - Shiprocket gets its 200 and stops retrying:
+         *
+         *   - the AWB changes. Re-assigning a shipment to another courier issues a new one, and
+         *     order_tracking.awb_code still holds the old number, so every scan for the parcel
+         *     that is actually moving is answered "order not found".
+         *   - the callback arrives before generate_awb() has stored an AWB at all.
+         *
+         * The order id is stable across both. When it is what matched, the AWB on the row is
+         * brought up to date so later callbacks - and the freight/tracking reads that go by AWB -
+         * find it the fast way again.
+         */
+        if (empty($tracking) && $sr_order_id !== '') {
+            $tracking = fetch_details('order_tracking', ['shiprocket_order_id' => $sr_order_id], 'id,order_id,order_item_id,is_return,awb_code');
+            if (!empty($tracking) && $awb !== '' && (string) $tracking[0]['awb_code'] !== $awb) {
+                log_message('error', 'Shiprocket webhook: shipment ' . $tracking[0]['id'] . ' matched on sr_order_id '
+                    . $sr_order_id . '; updating awb_code from ' . var_export($tracking[0]['awb_code'], true)
+                    . ' to ' . $awb . '.');
+                update_details(['awb_code' => $awb], ['id' => $tracking[0]['id']], 'order_tracking', false);
+            }
+        }
+
         if (empty($tracking)) {
             $res['error'] = true;
             $res['message'] = "order not found";
@@ -665,7 +702,9 @@ class Webhook extends CI_Controller
             return false;
         }
 
-        log_message('error', 'Shiprocket webhook order id --> ' . var_export($tracking[0]['order_id'], true));
+        // Also demoted: one line per scan of every parcel, at the only level this install
+        // actually writes (log_threshold = 1), for a fact already on the tracking row.
+        log_message('debug', 'Shiprocket webhook order id --> ' . var_export($tracking[0]['order_id'], true));
 
         // Every status Shiprocket sends is handled here, not just delivered/canceled:
         // sync_shiprocket_shipment_status() maps it onto an internal order-item status

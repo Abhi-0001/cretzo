@@ -311,9 +311,10 @@ die; */
                 </div>
             <?php } ?>
 
-            <nav id="products-pagination-nav" class="text-center mt-7 mb-5" aria-label="pagination">
-                <?= (isset($links)) ? $links : '' ?>
-            </nav>
+            <?php // Kept in the DOM even when empty: product-listing.js renders the AJAX
+                  // pager into this element, so it has to exist before the first reply.
+                  // .cz-pager-nav:empty in cretzo-fixes.css collapses its margins. ?>
+            <nav id="products-pagination-nav" class="cz-pager-nav" aria-label="<?= storefront_pagination_label('products') ?>"><?= (isset($links)) ? $links : '' ?></nav>
 
         
         </div>

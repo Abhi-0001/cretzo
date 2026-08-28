@@ -670,6 +670,10 @@ textarea.czp-input { min-height: 84px; resize: vertical; }
   background: #fff;
 }
 .czp-review-list li > span { flex: 1 1 auto; min-width: 0; }
+/* The status dot is a direct span child too, and the rule above outweighs
+   .czp-dot's own flex - so it stretched into a wide pill with the "!" or the
+   tick floating in the middle of it. */
+.czp-review-list li > span.czp-dot { flex: 0 0 auto; }
 .czp-dot {
   flex: 0 0 auto;
   width: 20px;

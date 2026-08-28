@@ -183,54 +183,9 @@ class Products extends CI_Controller
         print_r($max_price_record);
         die; */
 
-        $theme = fetch_details('themes', ['status' => 1], 'name');
         // print_r($filter);
         // die;
         $limit = ($this->input->get('per-page')) ? $this->input->get('per-page', true) : 20;
-        $config['base_url'] = base_url('products');
-        $config['total_rows'] = $total_rows;
-        $config['per_page'] = $limit;
-        $config['num_links'] = 7;
-        $config['use_page_numbers'] = TRUE;
-        $config['reuse_query_string'] = TRUE;
-        $config['page_query_string'] = FALSE;
-
-        $config['attributes'] = array('class' => 'page-link');
-        $config['full_tag_open'] = '<ul class="pagination justify-content-center">';
-        $config['full_tag_close'] = '</ul>';
-
-        if (isset($theme[0]['name']) && (strtolower($theme[0]['name']) == 'modern' || strtolower($theme[0]['name']) == 'cretzo')) {
-
-            $config['prev_tag_open'] = '<li class="page-item">';
-            $config['prev_link'] = '<i class="uil uil-arrow-left"></i>';
-            $config['prev_tag_close'] = '</li>';
-
-            $config['next_tag_open'] = '<li class="page-item">';
-            $config['next_link'] = '<i class="uil uil-arrow-right"></i>';
-            $config['next_tag_close'] = '</li>';
-        } else {
-            $config['first_tag_open'] = '<li class="page-item">';
-            $config['first_link'] = 'First';
-            $config['first_tag_close'] = '</li>';
-
-            $config['last_tag_open'] = '<li class="page-item">';
-            $config['last_link'] = 'Last';
-            $config['last_tag_close'] = '</li>';
-
-            $config['prev_tag_open'] = '<li class="page-item">';
-            $config['prev_link'] = '<i class="fa fa-arrow-left"></i>';
-            $config['prev_tag_close'] = '</li>';
-
-            $config['next_tag_open'] = '<li class="page-item">';
-            $config['next_link'] = '<i class="fa fa-arrow-right"></i>';
-            $config['next_tag_close'] = '</li>';
-        }
-
-        $config['cur_tag_open'] = '<li class="page-item active disabled"><a class="page-link">';
-        $config['cur_tag_close'] = '</a></li>';
-
-        $config['num_tag_open'] = '<li class="page-item">';
-        $config['num_tag_close'] = '</li>';
 
         $page_no = (empty($this->uri->segment(2))) ? 1 : $this->uri->segment(2);
         if (!is_numeric($page_no)) {
@@ -238,8 +193,12 @@ class Products extends CI_Controller
         }
         $offset = ($page_no - 1) * $limit;
         // print_r($offset);
-        $this->pagination->initialize($config);
-        $this->data['links'] = $this->pagination->create_links();
+        // One shared pager for the whole storefront - see storefront_pagination()
+        // in function_helper.php. The per-theme branch that used to sit here (Unicons
+        // arrows for cretzo/modern, "First"/"Last" plus Font-Awesome arrows for
+        // everything else) is gone: this is the cretzo storefront, and the other
+        // listings on it did not take that branch, so the same site had two pagers.
+        $this->data['links'] = storefront_pagination(base_url('products'), $total_rows, $limit);
         $this->data['main_page'] = 'product-listing';
         $this->data['title'] = 'Product Listing | ' . $this->data['web_settings']['site_title'];
         $this->data['seller'] = $seller;
@@ -252,10 +211,10 @@ class Products extends CI_Controller
 
 
         /* we are adding total_rows and page_no to passed data as well */
-        $this->data['total_rows'] = $config['total_rows'];
+        $this->data['total_rows'] = $total_rows;
         $this->data['page_no'] = $page_no;
         $this->data['per_page'] = $limit;
-        $this->data['num_pages'] = (int) ceil($config['total_rows'] / $limit);
+        $this->data['num_pages'] = (int) ceil($total_rows / $limit);
 
 
         $this->data['filters'] = (isset($this->data['products']['filters'])) ? json_encode($this->data['products']['filters']) : "";
@@ -412,48 +371,17 @@ class Products extends CI_Controller
         }
         $total_rows = fetch_product($user_id, $filter, null, $category_id, null, null, null, null, TRUE);
 
-        $config['base_url'] = base_url('products/category/' . $category_slug);
-        $config['total_rows'] = $total_rows;
-        $config['per_page'] = $limit;
-        $config['use_page_numbers'] = TRUE;
-        $config['uri_segment'] = 4;
-        $config['num_links'] = 7;
-        $config['use_page_numbers'] = TRUE;
-        $config['reuse_query_string'] = TRUE;
-        $config['page_query_string'] = FALSE;
-
-        $config['attributes'] = array('class' => 'page-link');
-        $config['full_tag_open'] = '<ul class="pagination justify-content-center">';
-        $config['full_tag_close'] = '</ul>';
-
-        $config['first_tag_open'] = '<li class="page-item">';
-        $config['first_link'] = 'First';
-        $config['first_tag_close'] = '</li>';
-
-        $config['last_tag_open'] = '<li class="page-item">';
-        $config['last_link'] = 'Last';
-        $config['last_tag_close'] = '</li>';
-
-        $config['prev_tag_open'] = '<li class="page-item">';
-        $config['prev_link'] = '<i class="fa fa-arrow-left"></i>';
-        $config['prev_tag_close'] = '</li>';
-
-        $config['next_tag_open'] = '<li class="page-item">';
-        $config['next_link'] = '<i class="fa fa-arrow-right"></i>';
-        $config['next_tag_close'] = '</li>';
-
-        $config['cur_tag_open'] = '<li class="page-item active"><a class="page-link">';
-        $config['cur_tag_close'] = '</a></li>';
-
-        $config['num_tag_open'] = '<li class="page-item">';
-        $config['num_tag_close'] = '</li>';
         $page_no = (empty($this->uri->segment(4))) ? 1 : $this->uri->segment(4);
         if (!is_numeric($page_no)) {
             redirect(base_url('products'));
         }
         $offset = ($page_no - 1) * $limit;
-        $this->pagination->initialize($config);
-        $this->data['links'] = $this->pagination->create_links();
+        $this->data['links'] = storefront_pagination(
+            base_url('products/category/' . $category_slug),
+            $total_rows,
+            $limit,
+            ['uri_segment' => 4]
+        );
         $page_title = $category['name'] . " " . ((!empty($this->data['sub_categories'])) ? "Subcategories" : "") . " " . ((!empty($this->data['sub_categories']) && !empty($this->data['products']['product'])) ? "&" : "") . " " . ((!empty($this->data['products']['product'])) ? "Products" : "");
         $this->data['main_page'] = 'product-listing';
         $this->data['title'] = $page_title . ' | ' . $this->data['web_settings']['site_title'];
@@ -467,10 +395,10 @@ class Products extends CI_Controller
 
 
         /* we are adding total_rows and page_no to passed data as well */
-        $this->data['total_rows'] = $config['total_rows'];
+        $this->data['total_rows'] = $total_rows;
         $this->data['page_no'] = $page_no;
         $this->data['per_page'] = $limit;
-        $this->data['num_pages'] = (int) ceil($config['total_rows'] / $limit);
+        $this->data['num_pages'] = (int) ceil($total_rows / $limit);
 
 
         $this->data['products'] = fetch_product(null, $filter, null, $category_id, $limit, $offset, $sort, $order);
@@ -727,79 +655,17 @@ class Products extends CI_Controller
             $order = 'desc';
         }
         $total_rows = fetch_product($user_id, $filter, $product_ids, $product_categories, null, null, null, null, TRUE);
-        $config['base_url'] = base_url('products/section/' . $section_id . '/' . $section_title);
-        $config['total_rows'] = $total_rows;
-        $config['per_page'] = $limit;
-        $config['uri_segment'] = 5;
-        $config['use_page_numbers'] = TRUE;
-        $config['num_links'] = 7;
-        $config['reuse_query_string'] = TRUE;
-        $config['page_query_string'] = FALSE;
-
-        // $config['attributes'] = array('class' => 'page-link');
-
-        $theme = fetch_details('themes', ['status' => 1], 'name');
-
-        if (isset($theme[0]['name']) && (strtolower($theme[0]['name']) == 'modern' || strtolower($theme[0]['name']) == 'cretzo')) {
-            $config['attributes'] = array('class' => 'page-link');
-            $config['full_tag_open'] = '<ul class="pagination justify-content-center">';
-            $config['full_tag_close'] = '</ul>';
-
-            // $config['first_tag_open'] = '<li class="page-item">';
-            // $config['first_link'] = 'First';
-            // $config['first_tag_close'] = '</li>';
-
-            // $config['last_tag_open'] = '<li class="page-item">';
-            // $config['last_link'] = 'Last';
-            // $config['last_tag_close'] = '</li>';
-
-            $config['prev_tag_open'] = '<li class="page-item">';
-            $config['prev_link'] = '<i class="uil uil-arrow-left"></i>';
-            $config['prev_tag_close'] = '</li>';
-
-            $config['next_tag_open'] = '<li class="page-item">';
-            $config['next_link'] = '<i class="uil uil-arrow-right"></i>';
-            $config['next_tag_close'] = '</li>';
-
-            $config['cur_tag_open'] = '<li class="page-item active disabled"><a class="page-link">';
-            $config['cur_tag_close'] = '</a></li>';
-
-            $config['num_tag_open'] = '<li class="page-item">';
-            $config['num_tag_close'] = '</li>';
-        } else {
-            $config['attributes'] = array('class' => 'page-link');
-            $config['full_tag_open'] = '<ul class="pagination justify-content-center">';
-            $config['full_tag_close'] = '</ul>';
-
-            $config['first_tag_open'] = '<li class="page-item">';
-            $config['first_link'] = 'First';
-            $config['first_tag_close'] = '</li>';
-
-            $config['last_tag_open'] = '<li class="page-item">';
-            $config['last_link'] = 'Last';
-            $config['last_tag_close'] = '</li>';
-
-            $config['prev_tag_open'] = '<li class="page-item">';
-            $config['prev_link'] = '<i class="fa fa-arrow-left"></i>';
-            $config['prev_tag_close'] = '</li>';
-
-            $config['next_tag_open'] = '<li class="page-item">';
-            $config['next_link'] = '<i class="fa fa-arrow-right"></i>';
-            $config['next_tag_close'] = '</li>';
-
-            $config['cur_tag_open'] = '<li class="page-item active"><a class="page-link">';
-            $config['cur_tag_close'] = '</a></li>';
-
-            $config['num_tag_open'] = '<li class="page-item">';
-            $config['num_tag_close'] = '</li>';
-        }
         $page_no = (empty($this->uri->segment(5))) ? 1 : $this->uri->segment(5);
         if (!is_numeric($page_no)) {
             redirect(base_url('products'));
         }
         $offset = ($page_no - 1) * $limit;
-        $this->pagination->initialize($config);
-        $this->data['links'] = $this->pagination->create_links();
+        $this->data['links'] = storefront_pagination(
+            base_url('products/section/' . $section_id . '/' . $section_title),
+            $total_rows,
+            $limit,
+            ['uri_segment' => 5]
+        );
         $page_title = $section['title'] . " Products";
         $page_title = output_escaping($page_title);
         $this->data['main_page'] = 'product-listing';
@@ -817,10 +683,10 @@ class Products extends CI_Controller
 
 
         /* we are adding total_rows and page_no to passed data as well */
-        $this->data['total_rows'] = $config['total_rows'];
+        $this->data['total_rows'] = $total_rows;
         $this->data['page_no'] = $page_no;
         $this->data['per_page'] = $limit;
-        $this->data['num_pages'] = $limit == 0 ? 1 : (int) ceil($config['total_rows'] / $limit);
+        $this->data['num_pages'] = $limit == 0 ? 1 : (int) ceil($total_rows / $limit);
 
 
         $this->data['products'] = fetch_product(null, $filter, $product_ids, $product_categories, $limit, $offset, $sort, $order);
@@ -914,47 +780,17 @@ class Products extends CI_Controller
         }
         $total_rows = fetch_product($user_id, $filter, null, null, null, null, null, null, TRUE);
 
-        $config['base_url'] = base_url('products/search');
-        $config['total_rows'] = $total_rows;
-        $config['per_page'] = $limit;
-        $config['uri_segment'] = 3;
-        $config['use_page_numbers'] = TRUE;
-        $config['num_links'] = 7;
-        $config['reuse_query_string'] = TRUE;
-        $config['page_query_string'] = FALSE;
-
-        $config['attributes'] = array('class' => 'page-link');
-        $config['full_tag_open'] = '<ul class="pagination justify-content-center">';
-        $config['full_tag_close'] = '</ul>';
-
-        $config['first_tag_open'] = '<li class="page-item">';
-        $config['first_link'] = 'First';
-        $config['first_tag_close'] = '</li>';
-
-        $config['last_tag_open'] = '<li class="page-item">';
-        $config['last_link'] = 'Last';
-        $config['last_tag_close'] = '</li>';
-
-        $config['prev_tag_open'] = '<li class="page-item">';
-        $config['prev_link'] = '<i class="fa fa-arrow-left"></i>';
-        $config['prev_tag_close'] = '</li>';
-
-        $config['next_tag_open'] = '<li class="page-item">';
-        $config['next_link'] = '<i class="fa fa-arrow-right"></i>';
-        $config['next_tag_close'] = '</li>';
-
-        $config['cur_tag_open'] = '<li class="page-item active"><a class="page-link">';
-        $config['cur_tag_close'] = '</a></li>';
-
-        $config['num_tag_open'] = '<li class="page-item">';
-        $config['num_tag_close'] = '</li>';
         $page_no = (empty($this->uri->segment(3))) ? 1 : $this->uri->segment(3);
         if (!is_numeric($page_no)) {
             redirect(base_url('products'));
         }
         $offset = ($page_no - 1) * $limit;
-        $this->pagination->initialize($config);
-        $this->data['links'] = $this->pagination->create_links();
+        $this->data['links'] = storefront_pagination(
+            base_url('products/search'),
+            $total_rows,
+            $limit,
+            ['uri_segment' => 3]
+        );
         // Read unguarded, so /products/search with no q - a bare visit, or a cleared search box -
         // printed a warning into the page.
         $page_title = 'Search Result for "' . html_escape(isset($_GET['q']) ? $_GET['q'] : '') . '"';
@@ -970,10 +806,10 @@ class Products extends CI_Controller
 
 
         /* we are adding total_rows and page_no to passed data as well */
-        $this->data['total_rows'] = $config['total_rows'];
+        $this->data['total_rows'] = $total_rows;
         $this->data['page_no'] = $page_no;
         $this->data['per_page'] = $limit;
-        $this->data['num_pages'] = (int) ceil($config['total_rows'] / $limit);
+        $this->data['num_pages'] = (int) ceil($total_rows / $limit);
 
 
         $this->data['products'] = fetch_product(null, $filter, null, null, $limit, $offset, $sort, $order);
@@ -1062,47 +898,20 @@ class Products extends CI_Controller
         }
         $total_rows = fetch_product($user_id, $filter, null, null, null, null, null, null, TRUE);
 
-        $config['base_url'] = base_url('products/search');
-        $config['total_rows'] = $total_rows;
-        $config['per_page'] = $limit;
-        $config['uri_segment'] = 3;
-        $config['use_page_numbers'] = TRUE;
-        $config['num_links'] = 7;
-        $config['reuse_query_string'] = TRUE;
-        $config['page_query_string'] = FALSE;
-
-        $config['attributes'] = array('class' => 'page-link');
-        $config['full_tag_open'] = '<ul class="pagination justify-content-center">';
-        $config['full_tag_close'] = '</ul>';
-
-        $config['first_tag_open'] = '<li class="page-item">';
-        $config['first_link'] = 'First';
-        $config['first_tag_close'] = '</li>';
-
-        $config['last_tag_open'] = '<li class="page-item">';
-        $config['last_link'] = 'Last';
-        $config['last_tag_close'] = '</li>';
-
-        $config['prev_tag_open'] = '<li class="page-item">';
-        $config['prev_link'] = '<i class="fa fa-arrow-left"></i>';
-        $config['prev_tag_close'] = '</li>';
-
-        $config['next_tag_open'] = '<li class="page-item">';
-        $config['next_link'] = '<i class="fa fa-arrow-right"></i>';
-        $config['next_tag_close'] = '</li>';
-
-        $config['cur_tag_open'] = '<li class="page-item active"><a class="page-link">';
-        $config['cur_tag_close'] = '</a></li>';
-
-        $config['num_tag_open'] = '<li class="page-item">';
-        $config['num_tag_close'] = '</li>';
         $page_no = (empty($this->uri->segment(4))) ? 1 : $this->uri->segment(4);
         if (!is_numeric($page_no)) {
             redirect(base_url('products'));
         }
         $offset = ($page_no - 1) * $limit;
-        $this->pagination->initialize($config);
-        $this->data['links'] = $this->pagination->create_links();
+        // base_url and uri_segment were copied from search() - 'products/search' and
+        // segment 3 - while the page number is read from segment 4 below. So the tag
+        // pager linked to /products/search/N and highlighted the wrong page.
+        $this->data['links'] = storefront_pagination(
+            base_url('products/tags/' . rawurlencode($tag)),
+            $total_rows,
+            $limit,
+            ['uri_segment' => 4]
+        );
         $page_title = 'Products by tag "' . xss_clean($tag) . '"';
         $this->data['main_page'] = 'product-listing';
         $this->data['title'] = $page_title . ' | ' . $this->data['web_settings']['site_title'];
@@ -1116,10 +925,10 @@ class Products extends CI_Controller
         $this->data['products'] = fetch_product(null, $filter, null, null, $limit, $offset, $sort, $order);
         // Provide the pagination vars the listing view expects (mirrors index()/category())
         // so the tags page doesn't emit PHP notices on its initial render.
-        $this->data['total_rows'] = $config['total_rows'];
+        $this->data['total_rows'] = $total_rows;
         $this->data['page_no'] = $page_no;
         $this->data['per_page'] = $limit;
-        $this->data['num_pages'] = (int) ceil($config['total_rows'] / $limit);
+        $this->data['num_pages'] = (int) ceil($total_rows / $limit);
         $this->data['filters'] = (isset($this->data['products']['filters'])) ? json_encode($this->data['products']['filters']) : "";
         $this->data['filters_key'] = 'products_tags';
         $this->data['is_category_page'] = false;
