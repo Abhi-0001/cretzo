@@ -122,79 +122,7 @@ class Web_setting extends CI_Controller
             redirect('admin/login', 'refresh');
         }
     }
-    public function get_themes()
-    {
-        if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
-            $this->Setting_model->get_theme_list();
-        } else {
-            redirect('admin/login', 'refresh');
-        }
-    }
 
-    public function set_default_theme()
-    {
-        if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
-            // Was missing entirely - the near-identical twin method on Setting.php correctly
-            // requires this, but a restricted admin with zero update rights on Settings could
-            // still change the storefront's default theme via this duplicate route.
-            if (print_msg(!has_permissions('update', 'settings'), PERMISSION_ERROR_MSG, 'settings')) {
-                return false;
-            }
-            $this->form_validation->set_rules('theme_id', 'Theme', 'trim|required|xss_clean|numeric');
-            if (!$this->form_validation->run()) {
-                $this->response['error'] = true;
-                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = validation_errors();
-                print_r(json_encode($this->response));
-                return false;
-            }
-            $theme_id = $this->input->post('theme_id', true);
-            $theme = $this->db->where('id', $theme_id)->get('themes')->row_array();
-            if (empty($theme)) {
-                $this->response['error'] = true;
-                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = "No theme found.";
-                $this->response['test'] = $theme;
-                print_r(json_encode($this->response));
-                return false;
-            }
-
-            if ($theme['status'] == 0) {
-                $this->response['error'] = true;
-                $this->response['csrfName'] = $this->security->get_csrf_token_name();
-                $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                $this->response['message'] = "You can not set Inactive theme as default.";
-                print_r(json_encode($this->response));
-                return false;
-            }
-            $this->db->trans_start();
-
-            $this->db->set('is_default', 0);
-            $this->db->update('themes');
-
-            $this->db->set('is_default', 1);
-            $this->db->where('id', $theme_id)->update('themes');
-
-            $this->db->trans_complete();
-            $error = true;
-            if ($this->db->trans_status() === true) {
-                $error = false;
-            }
-            $this->response['error'] = $error;
-            $this->response['csrfName'] = $this->security->get_csrf_token_name();
-            $this->response['csrfHash'] = $this->security->get_csrf_hash();
-            // Reported "Default Theme Updated." unconditionally, including when the transaction had
-
-            // rolled back - the admin saw a success toast while the storefront kept the old theme.
-
-            $this->response['message'] = $error ? "Could not update the default theme." : "Default Theme Updated.";
-            print_r(json_encode($this->response));
-        } else {
-            redirect('admin/login', 'refresh');
-        }
-    }
 
     public function firebase()
     {

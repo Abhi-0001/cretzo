@@ -1971,6 +1971,15 @@ function fcm_is_configured()
 
 function send_notification($fcmMsg, $registrationIDs_chunks)
 {
+    /* Same guard as add_user_notification(): a push body is the one copy of a notification
+     * nobody can edit after the fact, so any placeholder the caller could not fill is cleared
+     * here rather than shipped to a phone. */
+    foreach (['title', 'body'] as $field) {
+        if (isset($fcmMsg[$field])) {
+            $fcmMsg[$field] = fill_notification_placeholders($fcmMsg[$field]);
+        }
+    }
+
     $fcmFields = [
         'priority'     => 'high',
         'notification' => $fcmMsg,
@@ -2076,6 +2085,13 @@ function add_user_notification($user_id, $title, $message, $type = 'default', $l
         return false;
     }
 
+    /* Last line of defence against a raw "< order_id >" reaching a reader: a template can
+     * always carry a token the calling path has no value for, and once the row is written
+     * there is nothing downstream that can repair it. Callers that DO know the values still
+     * fill them first - this only clears whatever is left. */
+    $title = fill_notification_placeholders($title);
+    $message = fill_notification_placeholders($message);
+
     $row = [
         'title'    => mb_substr((string) $title, 0, 128),
         'message'  => mb_substr((string) $message, 0, 512),
@@ -2129,20 +2145,138 @@ function user_unread_notification_count($user_id, $panel = 'customer')
     return (int) $t->notification_model->count_user_unread($user_id, $panel);
 }
 
-function get_custom_notification_template($type, $default_title, $default_message)
+/**
+ * Fills the `< token >` placeholders the custom_notifications templates are written with.
+ *
+ * These templates ship with placeholders - "Your order #< order_id > has been placed" - and
+ * every send path substituted them by hand, with its own list of str_replace() pairs. Some
+ * lists were incomplete: the place_order paths replaced `< order_id >` in the TITLE and only
+ * `< application_name >` in the MESSAGE, so customers and admins were shown the literal text
+ * "Your order #< order_id > has been placed". This is the one place that knows how to do it.
+ *
+ * `application_name` fills itself from system settings when the caller does not pass it.
+ *
+ * Anything still unresolved after substitution is REMOVED rather than left in the text: a
+ * template can legitimately carry a token a given path has no value for, and a half-empty
+ * sentence reads far better than a raw placeholder. A '#' immediately in front of a dropped
+ * token goes with it, so "order #< order_id >" degrades to "order", not "order #".
+ */
+function fill_notification_placeholders($text, $tokens = [])
 {
-    $settings = get_settings('system_settings', true);
-    $app_name = !empty($settings['app_name']) ? $settings['app_name'] : '';
+    $text = (string) $text;
+    if ($text === '' || strpos($text, '<') === false) {
+        return $text;
+    }
 
+    if (!array_key_exists('application_name', $tokens)) {
+        $settings = get_settings('system_settings', true);
+        $tokens['application_name'] = !empty($settings['app_name']) ? $settings['app_name'] : '';
+    }
+
+    // The seeded templates spell it "cutomer_name". Accept both spellings for either value so
+    // a corrected template does not silently stop resolving.
+    if (isset($tokens['customer_name']) && !isset($tokens['cutomer_name'])) {
+        $tokens['cutomer_name'] = $tokens['customer_name'];
+    } elseif (isset($tokens['cutomer_name']) && !isset($tokens['customer_name'])) {
+        $tokens['customer_name'] = $tokens['cutomer_name'];
+    }
+    // Same story for the two id tokens: templates use whichever one their author had in mind,
+    // and a path that knows one of them almost always means the same number by the other.
+    if (isset($tokens['order_id']) && !isset($tokens['order_item_id'])) {
+        $tokens['order_item_id'] = $tokens['order_id'];
+    } elseif (isset($tokens['order_item_id']) && !isset($tokens['order_id'])) {
+        $tokens['order_id'] = $tokens['order_item_id'];
+    }
+
+    // One pass over every "< name >" in the text: spacing inside the angle brackets is
+    // inconsistent across the seeds ("< status  >" appears in the admin API), so it is matched
+    // loosely rather than compared literally.
+    $text = preg_replace_callback('/(#\s*)?<\s*([a-z0-9_]+)\s*>/i', function ($m) use ($tokens) {
+        $key = strtolower($m[2]);
+        if (array_key_exists($key, $tokens) && $tokens[$key] !== null && $tokens[$key] !== '') {
+            return (isset($m[1]) ? $m[1] : '') . $tokens[$key];
+        }
+        return '';
+    }, $text);
+
+    // Substitution can leave a double space or a space before punctuation behind it.
+    $text = preg_replace('/[ 	]{2,}/', ' ', $text);
+    $text = preg_replace('/\s+([,.!?])/', '$1', $text);
+
+    return trim($text);
+}
+
+/**
+ * Renders one stored template string (title or message) for delivery.
+ *
+ * The json_encode/html_entity_decode/output_escaping dance is what every call site already
+ * did by hand - it undoes the escaping the admin template editor stores - so it is kept
+ * exactly, with the placeholder fill folded in.
+ */
+function render_notification_text($raw, $tokens = [])
+{
+    $decoded = html_entity_decode(json_encode((string) $raw, JSON_UNESCAPED_UNICODE));
+
+    return output_escaping(trim(fill_notification_placeholders(trim($decoded, '"'), $tokens)));
+}
+
+/**
+ * Read-side repair for stored notification rows.
+ *
+ * Every send path fills its placeholders now, but rows written before that was true are still
+ * sitting in both notification tables reading "Your order #< order_id > has been placed", and
+ * a template can always carry a token the sending path had no value for. Nothing downstream of
+ * the insert can fix the stored text, so every list that displays notifications passes its rows
+ * through here first: the row's own `type_id` supplies the order/ticket id where it has one, and
+ * anything still unresolved is dropped along with the "#" in front of it rather than shown raw.
+ *
+ * Cheap by design - fill_notification_placeholders() returns immediately when the text contains
+ * no "<" at all, which is the case for every correctly-written row.
+ *
+ * @param array $rows  Rows with `title` / `message` keys (and optionally `type_id`).
+ * @return array       The same rows, with those two fields rendered.
+ */
+function clean_notification_rows($rows)
+{
+    if (empty($rows) || !is_array($rows)) {
+        return $rows;
+    }
+
+    foreach ($rows as $i => $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+
+        $tokens = [];
+        // type_id is the id of the thing the notification was about - the order for order
+        // events, the ticket for ticket events. Only usable when it is actually a number.
+        if (isset($row['type_id']) && ctype_digit((string) $row['type_id']) && (int) $row['type_id'] > 0) {
+            $tokens['order_id'] = (int) $row['type_id'];
+        }
+
+        foreach (['title', 'message'] as $field) {
+            if (isset($row[$field])) {
+                $rows[$i][$field] = fill_notification_placeholders($row[$field], $tokens);
+            }
+        }
+    }
+
+    return $rows;
+}
+
+/**
+ * @param array $tokens Placeholder values for the template, e.g. ['order_id' => 12].
+ */
+function get_custom_notification_template($type, $default_title, $default_message, $tokens = [])
+{
     $custom = fetch_details('custom_notifications', ['type' => $type], '*', 1);
 
     $title   = $default_title;
     $message = $default_message;
 
     if (!empty($custom) && !empty($custom[0]['message'])) {
-        $title = !empty($custom[0]['title']) ? $custom[0]['title'] : $default_title;
-        $decoded = html_entity_decode(json_encode($custom[0]['message'], JSON_UNESCAPED_UNICODE));
-        $message = output_escaping(trim(str_replace('< application_name >', $app_name, $decoded), '"'));
+        $title = !empty($custom[0]['title']) ? render_notification_text($custom[0]['title'], $tokens) : $default_title;
+        $message = render_notification_text($custom[0]['message'], $tokens);
     }
 
     return ['title' => $title, 'message' => $message];

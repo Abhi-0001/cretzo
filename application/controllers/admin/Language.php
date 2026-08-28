@@ -127,7 +127,13 @@ class Language extends CI_Controller
             $lang = array();
             $langstr = '';
             $data = $this->input->post(null, true);
+            // Only real storefront labels belong in the language file - the form also
+            // posts the record id, the language picker, the RTL flag and the CSRF token.
+            $reserved = ['language_id', 'selected_language', 'is_rtl', $this->security->get_csrf_token_name()];
             foreach ($data as $key => $value) {
+                if (in_array($key, $reserved, true) || !is_string($value)) {
+                    continue;
+                }
                 $label_data =  strip_tags($value);
                 $label_data = $this->db->escape_str($label_data);
                 $label_key = $key;

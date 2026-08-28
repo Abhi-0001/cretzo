@@ -1,0 +1,303 @@
+/* ============================================================
+   Admin > Web Settings
+   Card-based layout for the storefront's public-facing settings.
+   Tokens (--color-orange*) come from assets/admin/css/cretzo/cretzo.css.
+   ============================================================ */
+
+.aws-page {
+    --aws-border: rgba(0, 0, 0, 0.08);
+    --aws-muted: #6b7280;
+    --aws-bg: #f6f7f9;
+}
+
+.aws-page .content-header {
+    padding-bottom: 0;
+}
+
+/* ---------- Page head ---------- */
+.aws-head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+.aws-head__icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-orange);
+    color: #fff;
+    font-size: 18px;
+    flex: none;
+}
+
+.aws-head__title {
+    margin: 0;
+    font-weight: 700;
+    font-size: 1.35rem;
+    line-height: 1.2;
+}
+
+.aws-head__sub {
+    margin: 2px 0 0;
+    color: var(--aws-muted);
+    font-size: 0.85rem;
+}
+
+/* ---------- Layout ---------- */
+.aws-layout {
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: 22px;
+    align-items: start;
+}
+
+@media (max-width: 991.98px) {
+    .aws-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .aws-nav {
+        display: none;
+    }
+}
+
+/* ---------- Side nav ---------- */
+.aws-nav {
+    position: sticky;
+    top: 80px;
+    background: #fff;
+    border: 1px solid var(--aws-border);
+    border-radius: 12px;
+    padding: 8px;
+}
+
+.aws-nav a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 8px;
+    color: #374151;
+    font-size: 0.88rem;
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.aws-nav a i {
+    width: 16px;
+    text-align: center;
+    color: var(--aws-muted);
+}
+
+.aws-nav a:hover {
+    background: var(--color-orange-light);
+    color: var(--color-orange-dark);
+}
+
+.aws-nav a:hover i {
+    color: var(--color-orange-dark);
+}
+
+/* ---------- Cards ---------- */
+.aws-card {
+    background: #fff;
+    border: 1px solid var(--aws-border);
+    border-radius: 12px;
+    margin-bottom: 20px;
+    scroll-margin-top: 80px;
+}
+
+.aws-card__head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--aws-border);
+}
+
+.aws-card__icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-orange-light);
+    color: var(--color-orange-dark);
+    font-size: 14px;
+    flex: none;
+}
+
+.aws-card__title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.aws-card__note {
+    margin: 1px 0 0;
+    font-size: 0.78rem;
+    color: var(--aws-muted);
+}
+
+.aws-card__body {
+    padding: 18px 20px 6px;
+}
+
+/* ---------- Fields ---------- */
+.aws-page .form-group > label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 6px;
+}
+
+.aws-page .form-group > label small {
+    display: block;
+    font-weight: 400;
+    color: var(--aws-muted);
+}
+
+.aws-req {
+    color: #dc3545;
+    font-style: normal;
+}
+
+.aws-page .form-control {
+    border-radius: 8px;
+    border-color: #dfe3e8;
+    font-size: 0.9rem;
+}
+
+.aws-page .form-control:focus {
+    border-color: var(--color-orange);
+    box-shadow: 0 0 0 3px var(--color-orange-light);
+}
+
+.aws-page textarea.form-control {
+    min-height: 90px;
+}
+
+/* ---------- Toggle row ---------- */
+.aws-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 12px 14px;
+    border: 1px dashed var(--aws-border);
+    border-radius: 10px;
+    background: var(--aws-bg);
+    margin-bottom: 18px;
+}
+
+.aws-toggle strong {
+    display: block;
+    font-size: 0.9rem;
+}
+
+.aws-toggle span {
+    font-size: 0.78rem;
+    color: var(--aws-muted);
+}
+
+/* ---------- Media upload ---------- */
+.aws-media {
+    border: 1px dashed var(--aws-border);
+    border-radius: 10px;
+    padding: 14px;
+    background: var(--aws-bg);
+}
+
+.aws-media .btn {
+    border-radius: 8px;
+}
+
+.aws-media .image-upload-section {
+    margin: 0;
+    padding: 0;
+}
+
+.aws-media .image-upload-section .image {
+    margin: 12px 0 0 !important;
+    padding: 10px !important;
+    max-width: 160px;
+    box-shadow: none !important;
+    border: 1px solid var(--aws-border);
+    border-radius: 10px;
+    background: #fff;
+}
+
+.aws-media .image-upload-section img {
+    max-height: 90px;
+    width: auto;
+    object-fit: contain;
+}
+
+.aws-media__hint {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--aws-muted);
+    margin-top: 8px;
+}
+
+/* ---------- Colours ---------- */
+.aws-swatch-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+}
+
+.aws-swatch {
+    min-width: 160px;
+}
+
+/* ---------- Sticky save bar ---------- */
+.aws-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 12px 18px;
+    background: #fff;
+    border: 1px solid var(--aws-border);
+    border-radius: 12px;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+    margin-bottom: 20px;
+}
+
+.aws-actions #error_box {
+    margin: 0;
+    margin-right: auto;
+}
+
+.aws-page .btn-save {
+    background: var(--color-orange);
+    border-color: var(--color-orange);
+    color: #fff;
+    font-weight: 600;
+    border-radius: 8px;
+    padding: 7px 22px;
+}
+
+.aws-page .btn-save:hover,
+.aws-page .btn-save:focus {
+    background: var(--color-orange-dark);
+    border-color: var(--color-orange-dark);
+    color: #fff;
+}
+
+.aws-page .btn-reset {
+    border-radius: 8px;
+    padding: 7px 18px;
+}

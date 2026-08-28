@@ -3199,11 +3199,7 @@ $(document).on('click', '.update_active_status', function () {
     var update_id = $(this).data('id');
     var status = $(this).data('status');
     var table = $(this).data('table');
-    if (table == "themes") {
-        update_theme(update_id, status, table, from);
-    } else {
-        update_status(update_id, status, table, from);
-    }
+    update_status(update_id, status, table, from);
 
 });
 
@@ -3368,32 +3364,6 @@ $(document).on('click', '#tree_view', function () {
     });
 });
 
-function update_theme(update_id, status, table, user) {
-
-    $.ajax({
-        type: 'POST',
-        url: base_url + user + '/themes/switch',
-        data: {
-            id: update_id,
-            status: status,
-            table: table
-        },
-        dataType: 'json',
-        success: function (result) {
-            if (result['error'] == false) {
-                iziToast.success({
-                    message: '<span style="text-transform:capitalize">' + result.message + '</span>',
-                });
-                $('.table').bootstrapTable('refresh');
-            } else {
-                iziToast.error({
-                    message: '<span style="text-transform:capitalize">' + result.message + '</span>',
-                });
-            }
-        }
-    });
-}
-
 function update_status(update_id, status, table, user) {
     $.ajax({
         type: 'GET',
@@ -3423,33 +3393,6 @@ function update_status(update_id, status, table, user) {
         }
     });
 }
-
-$(document).on('click', '.update_default_theme', function () {
-    var theme_id = $(this).data('id');
-    $.ajax({
-        type: 'POST',
-        url: base_url + 'admin/setting/set-default-theme',
-        data: {
-            [csrfName]: csrfHash,
-            theme_id: theme_id
-        },
-        dataType: 'json',
-        success: function (result) {
-            csrfName = result.csrfName;
-            csrfHash = result.csrfHash;
-            if (result['error'] == false) {
-                iziToast.success({
-                    message: result.message,
-                });
-                $('.table').bootstrapTable('refresh');
-            } else {
-                iziToast.error({
-                    message: result.message,
-                });
-            }
-        }
-    });
-});
 
 $(document).on('submit', '#bulk_area_update_form', function (e) {
     e.preventDefault();

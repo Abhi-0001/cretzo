@@ -398,14 +398,15 @@ $logo = get_settings('web_logo');
                 <h5 class="modal-title w-100 text-start m-0"><?= !empty($this->lang->line('promocodes')) ? $this->lang->line('promocodes') : 'Apply Coupon' ?></h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
+            <div class="promo-modal-head">
                 <div class="promo-check-row">
                     <input type="text" class="promo-check-input" id="promo_modal_input" placeholder="Enter coupon code" autocomplete="off">
                     <button type="button" class="promo-check-btn" id="promo_modal_check_btn">CHECK</button>
                 </div>
 
                 <div id="promo-modal-toast" class="promo-modal-toast d-none"></div>
-
+            </div>
+            <div class="modal-body">
                 <section id="promo_code_form">
                     <ul id="promocode-list" class="promo-list"></ul>
                 </section>
@@ -439,7 +440,14 @@ $logo = get_settings('web_logo');
     #promo-code-modal .modal-body {
         max-height: 60vh;
         overflow-y: auto;
-        padding: 25px;
+        padding: 5px 25px 25px;
+    }
+
+    /* Fixed (non-scrolling) coupon "check" input row */
+    #promo-code-modal .promo-modal-head {
+        flex: 0 0 auto;
+        padding: 10px 25px 0;
+        background: #fff;
     }
 
     /* Coupon "check" input row */
@@ -450,9 +458,7 @@ $logo = get_settings('web_logo');
         border-radius: 8px;
         margin-bottom: 16px;
         overflow: hidden;
-        position: sticky;
-        top: 5px;
-        background: white;
+        background: #fff;
     }
     #promo-code-modal .promo-check-input {
         flex: 1 1 auto;

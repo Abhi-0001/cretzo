@@ -135,7 +135,8 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-12 main-content">
+            <div class="row pickup-main">
+                <div class="col-md-12 main-content d-flex">
                 <div class="card attribute-card">
                     <div class="card-header attribute-card-header d-flex justify-content-between align-items-center flex-wrap">
                         <div class="d-flex align-items-center">
@@ -161,7 +162,7 @@
                             </div>
                         </div>
 
-                        <table class='table-striped' id='pickup_location_table' data-toggle="table" data-url="<?= base_url('admin/pickup_location/view_pickup_location') ?>" data-click-to-select="true" data-side-pagination="server" data-pagination="true" data-page-list="[5, 10, 20, 50, 100, 200]" data-search="true" data-show-columns="true" data-show-refresh="true" data-trim-on-search="false" data-sort-name="id" data-sort-order="asc" data-mobile-responsive="true" data-toolbar="" data-show-export="true" data-export-types='["txt","excel"]' data-export-options='{
+                        <table class='table-striped' id='pickup_location_table' data-toggle="table" data-url="<?= base_url('admin/pickup_location/view_pickup_location') ?>" data-click-to-select="true" data-side-pagination="server" data-pagination="true" data-page-size="10" data-page-list="[10, 25, 50, 100]" data-search="true" data-show-columns="true" data-show-refresh="true" data-trim-on-search="false" data-sort-name="id" data-sort-order="asc" data-mobile-responsive="true" data-toolbar="" data-show-export="true" data-export-types='["txt","excel"]' data-export-options='{
                         "fileName": "area-list",
                         "ignoreColumn": ["operate"]
                         }' data-maintain-selected="true" data-query-params="product_query_params">
@@ -184,9 +185,8 @@
                         </table>
                     </div><!-- .card-body -->
                 </div><!-- .card -->
-            </div>
-        </div>
-        <!-- /.row -->
+                </div><!-- /.col -->
+            </div><!-- /.row -->
 </div><!-- /.container-fluid -->
 </section>
 <!-- /.content -->
@@ -194,6 +194,101 @@
 
 <style>
     .admin-pickup-location-page .text-primary-theme { color: var(--color-orange); }
+
+    /* ============================ page height ============================
+       This page used to be pinned to the viewport: height: calc(100vh - 57px) with
+       overflow: hidden on the wrapper, a chain of flex parents down to the table, and only
+       .fixed-table-body allowed to scroll. It did not hold up:
+
+         - bootstrap-table builds its own wrappers and puts .fixed-table-pagination INSIDE
+           them, so the pager ended up below the clipped box - at a 800px viewport it sat at
+           y=917 inside a container cut off at y=848, i.e. off screen with no way to reach it.
+         - .fixed-table-body never actually became a scroll container (scrollHeight ==
+           clientHeight), so the rows that did not fit were simply cut off: overflow: hidden
+           on the wrapper means no scrollbar anywhere. Choosing a page size of 25/50/100 hid
+           most of the list.
+         - the flex rules matched BOTH .attribute-card blocks on this page, including the
+           hidden form card, so the two competed for the same height.
+
+       So the document scrolls again - every row and the pager are always reachable - and the
+       table body is given a generous bounded height instead of a computed one. Inside that
+       height the body scrolls both ways, with the column headers sticky above the rows; when
+       the viewport is too short for even that, the page scroll takes over. No ancestor may
+       carry overflow: hidden, or it becomes the sticky header's scrollport and the header
+       stops sticking.
+       ===================================================================== */
+    .admin-pickup-location-page .attribute-card { width: 100%; }
+
+    /* The spacer above the seller filter only added dead height, and the filter row's own
+       top margin added 16px more - both come straight out of the space the rows and the
+       pager have to share. */
+    .admin-pickup-location-page .card-body > .gaps-1-5x { display: none; }
+    .admin-pickup-location-page .card-body > .row.mt-3 { margin-top: 0 !important; }
+    .admin-pickup-location-page .card-body > .row label { margin-bottom: 2px; font-size: 12.5px; font-weight: 600; }
+
+    .admin-pickup-location-page .bootstrap-table,
+    .admin-pickup-location-page .fixed-table-container {
+        padding-bottom: 0 !important;
+    }
+    .admin-pickup-location-page .fixed-table-body {
+        /* 486px is measured, not guessed: the navbar, page header, card header, seller
+           filter and table toolbar stack to 402px above this element, and the pager plus its
+           gap takes 76px below it (402 + 76 = 478, plus 8px of breathing room). So on a
+           768-800px screen the sticky header, the rows and the pager are all on screen at
+           once, and a taller screen simply gets more rows. min-height keeps it usable on a
+           short screen, where the document scroll - which this page no longer suppresses -
+           takes over. */
+        max-height: calc(100vh - 486px);
+        min-height: 260px;
+        overflow: auto;
+    }
+    .admin-pickup-location-page .fixed-table-body thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: #fafafa;
+    }
+    /* Twelve columns, so the body scrolls sideways rather than squeezing every column. */
+    .admin-pickup-location-page table.table { min-width: 1500px; }
+    .admin-pickup-location-page table.table tbody td {
+        padding: 8px 10px;
+        vertical-align: middle;
+        /* Everything except the two address columns is a short value that reads best on
+           one line. */
+        white-space: nowrap;
+    }
+    /* Address and Address 2 are shown IN FULL - no ellipsis. These are the values an admin
+       is on this page to check against what the seller entered and what Shiprocket will
+       collect from, and a truncated "R 370 jogabai extension new ..." cannot be verified.
+       They wrap instead, and the row grows to fit; the bounded, scrollable body above is
+       what keeps that from running off the screen. */
+    .admin-pickup-location-page table.table thead th:nth-child(7),
+    .admin-pickup-location-page table.table thead th:nth-child(8),
+    .admin-pickup-location-page table.table tbody td:nth-child(7),
+    .admin-pickup-location-page table.table tbody td:nth-child(8) {
+        white-space: normal;
+        min-width: 260px;
+        max-width: 320px;
+        line-height: 1.35;
+        overflow-wrap: anywhere;
+    }
+    /* Email stays on one line. Wrapping it broke mid-word ("test@test / .com"), which is
+       harder to read than letting the body scroll sideways to it. */
+    .admin-pickup-location-page table.table thead th:nth-child(5),
+    .admin-pickup-location-page table.table tbody td:nth-child(5) { min-width: 190px; }
+    /* The pager belongs to the document, not to the scrolling body. */
+    .admin-pickup-location-page .fixed-table-pagination {
+        flex: 0 0 auto;
+        margin-top: 10px;
+        padding-bottom: 4px;
+    }
+
+    @media (max-width: 991px) {
+        .admin-pickup-location-page .fixed-table-body {
+            max-height: none;
+            min-height: 0;
+        }
+    }
 
     .admin-pickup-location-page .btn-primary-theme {
         background: var(--color-orange);

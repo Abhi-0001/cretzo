@@ -281,3 +281,54 @@
         };
     }
 
+
+    /* ═══════════════════════════════════════════════
+       FIX 12: PASSWORD EYE — show/hide never worked
+       ------------------------------------------------
+       The eye icons in the login, sign-up and forgot-password modals had no
+       click handler at all. theme.js binds them in theme.passVisibility(),
+       but that is the 26th call inside theme.init() and the 3rd call,
+       theme.offCanvas(), throws on this site:
+
+           new bootstrap.Offcanvas(...)  ->  "bootstrap.Offcanvas is not a
+                                              constructor"
+
+       theme.js is written for Bootstrap 5; include-script.php loads Bootstrap
+       4.0.0, which has no Offcanvas. init() aborts there, so passVisibility()
+       and everything after it never runs.
+
+       Rather than change what does or does not boot inside theme.init() (23
+       components sit behind that same abort, and the cretzo theme has been
+       built and tested with them dead), the toggle is bound here on its own.
+
+       Delegated from document, so it also covers markup injected later, and
+       bound to the whole .password-toggle rather than just the <i> inside it -
+       clicking a few pixels off the glyph used to hit nothing even where the
+       handler existed.
+    ═══════════════════════════════════════════════ */
+    $(document).on('click', '.password-field .password-toggle, .password-container .password-toggle', function (e) {
+        e.preventDefault();
+
+        var $toggle = $(this);
+        var $field = $toggle.closest('.password-field, .password-container');
+        // The input this eye belongs to, never "the first password box on the
+        // page": sign-up shows Password and Re-enter Password side by side.
+        var $input = $field.find('input[type="password"], input[type="text"]').first();
+        if (!$input.length) return;
+
+        var show = $input.attr('type') === 'password';
+        $input.attr('type', show ? 'text' : 'password');
+
+        // uil-eye / uil-eye-slash are the Unicons classes the markup ships with.
+        $toggle.find('i')
+            .toggleClass('uil-eye', !show)
+            .toggleClass('uil-eye-slash', show);
+        $toggle.attr('aria-label', show ? 'Hide password' : 'Show password');
+    });
+
+    // Marks these fields as already handled, so that if theme.init() is ever
+    // repaired, theme.passVisibility() skips them instead of adding a second
+    // listener that would flip the type straight back.
+    $(function () {
+        $('.password-field, .password-container').attr('data-cretzo-pass-toggle', '1');
+    });
