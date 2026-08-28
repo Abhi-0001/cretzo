@@ -181,11 +181,23 @@ $support_whatsapp = whatsapp_support_link('Hello Cretzo Support, I need help wit
         font-size: 14px; font-weight: 600; color: #fff; background: #25d366; text-decoration: none;
     }
     .cs-support__whatsapp:hover, .cs-support__whatsapp:focus { color: #fff; background: #1fbe5b; text-decoration: none; }
+    /* Matches the numbered pager in cretzo-fixes.css (FIX 11). */
     .cs-support__ghost {
-        padding: 10px 18px; border: 1px solid #e3e3e3; border-radius: 10px; background: #fff;
-        cursor: pointer; font-size: 14px; color: #374151;
+        min-height: 40px; padding: 0 16px; border: 1px solid #e4e6ea; border-radius: 10px;
+        background: #fff; cursor: pointer; font-size: 14px; font-weight: 600; color: #333;
+        box-shadow: 0 1px 2px rgba(16, 24, 40, .04);
+        transition: background-color .15s ease, border-color .15s ease, color .15s ease;
     }
-    .cs-support__ghost:disabled { opacity: .5; cursor: not-allowed; }
+    .cs-support__ghost:hover:not(:disabled), .cs-support__ghost:focus-visible:not(:disabled) {
+        border-color: var(--color-orange, #F2822E);
+        background: var(--color-orange-light, #fff4ea);
+        color: var(--color-orange-dark, #d96f1d);
+        outline: none;
+    }
+    .cs-support__ghost:disabled {
+        border-color: #ececef; background: #f7f7f8; color: #c3c6cc;
+        box-shadow: none; cursor: default;
+    }
     .cs-support__back { border: none; background: none; padding: 0 0 14px; color: #b96d00; cursor: pointer; font-size: 14px; }
     .cs-support__h2 { font-size: 20px; font-weight: 700; color: #1f2937; margin: 0 0 6px; }
     .cs-support__label { display: block; margin: 16px 0 6px; font-size: 13px; font-weight: 600; color: #374151; }

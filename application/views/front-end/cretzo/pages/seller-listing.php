@@ -130,9 +130,9 @@
                             <a href="<?= base_url('products') ?>" class="btn rounded-pill btn-warning"><?= !empty($this->lang->line('go_to_shop')) ? $this->lang->line('go_to_shop') : 'Go to Shop' ?></a>
                         </div>
                     <?php } ?>
-                    <nav class="text-center mt-4">
-                        <?= (isset($links)) ? $links : '' ?>
-                    </nav>
+                    <?php if (!empty($links)) { ?>
+                        <nav class="cz-pager-nav" aria-label="<?= storefront_pagination_label('sellers') ?>"><?= $links ?></nav>
+                    <?php } ?>
                 </div>
             </div>
         </div>

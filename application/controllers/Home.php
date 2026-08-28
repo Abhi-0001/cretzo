@@ -205,40 +205,19 @@ if (!empty($sections)) {
         $total_rows = count($brands);
 
 
-        $config['base_url'] = base_url('home/brands/');
-        $config['total_rows'] = $total_rows;
-        $config['per_page'] = $limit;
-        $config['use_page_numbers'] = TRUE;
-        $config['uri_segment'] = 3;
-        $config['num_links'] = 3;
-        $config['use_page_numbers'] = TRUE;
-        $config['reuse_query_string'] = TRUE;
-        $config['page_query_string'] = FALSE;
-
-        $config['attributes'] = array('class' => 'page-link');
-        $config['full_tag_open'] = '<ul class="pagination justify-content-center">';
-        $config['full_tag_close'] = '</ul>';
-
-        $config['first_tag_open'] = '<li class="page-item">';
-        $config['first_link'] = 'First';
-        $config['first_tag_close'] = '</li>';
-
-        $config['last_tag_open'] = '<li class="page-item">';
-        $config['last_link'] = 'Last';
-        $config['last_tag_close'] = '</li>';
-
-        $config['cur_tag_open'] = '<li class="page-item active"><a class="page-link">';
-        $config['cur_tag_close'] = '</a></li>';
-
-        $config['num_tag_open'] = '<li class="page-item">';
-        $config['num_tag_close'] = '</li>';
         $page_no = (empty($this->uri->segment(3))) ? 1 : $this->uri->segment(3);
         if (!is_numeric($page_no)) {
-            redirect(base_url('brands'));
+            redirect(base_url('home/brands'));
         }
         $offset = ($page_no - 1) * $limit;
-        $this->pagination->initialize($config);
-        $this->data['links'] =  $this->pagination->create_links();
+        // This one had no prev/next configured at all - only First/Last and the
+        // numbers - so the brands pager was the odd one out on the whole site.
+        $this->data['links'] = storefront_pagination(
+            base_url('home/brands/'),
+            $total_rows,
+            $limit,
+            ['uri_segment' => 3]
+        );
 
 
         $this->data['main_page'] = 'Brands';

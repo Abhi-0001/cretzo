@@ -58,46 +58,12 @@ class Sellers extends CI_Controller
             $order = 'asc';
         }
 
-        $config['base_url'] = base_url('sellers');
-        $config['total_rows'] = $sellers['total'];
-        $config['per_page'] = $limit;
-        $config['num_links'] = 7;
-        $config['use_page_numbers'] = TRUE;
-        $config['reuse_query_string'] = TRUE;
-        $config['page_query_string'] = FALSE;
-
-        $config['attributes'] = array('class' => 'page-link');
-        $config['full_tag_open'] = '<ul class="pagination justify-content-center">';
-        $config['full_tag_close'] = '</ul>';
-
-        $config['first_tag_open'] = '<li class="page-item">';
-        $config['first_link'] = 'First';
-        $config['first_tag_close'] = '</li>';
-
-        $config['last_tag_open'] = '<li class="page-item">';
-        $config['last_link'] = 'Last';
-        $config['last_tag_close'] = '</li>';
-
-        $config['prev_tag_open'] = '<li class="page-item">';
-        $config['prev_link'] = '<i class="fa fa-arrow-left"></i>';
-        $config['prev_tag_close'] = '</li>';
-
-        $config['next_tag_open'] = '<li class="page-item">';
-        $config['next_link'] = '<i class="fa fa-arrow-right"></i>';
-        $config['next_tag_close'] = '</li>';
-
-        $config['cur_tag_open'] = '<li class="page-item active"><a class="page-link">';
-        $config['cur_tag_close'] = '</a></li>';
-
-        $config['num_tag_open'] = '<li class="page-item">';
-        $config['num_tag_close'] = '</li>';
         $page_no = (empty($this->uri->segment(2))) ? 1 : $this->uri->segment(2);
         if (!is_numeric($page_no)) {
             redirect(base_url('sellers'));
         }
         $offset = ($page_no - 1) * $limit;
-        $this->pagination->initialize($config);
-        $this->data['links'] =  $this->pagination->create_links();
+        $this->data['links'] = storefront_pagination(base_url('sellers'), $sellers['total'], $limit);
 
         $this->data['main_page'] = 'seller-listing';
         $this->data['title'] = 'Seller Listing | ' . $this->data['web_settings']['site_title'];
@@ -183,58 +149,17 @@ class Sellers extends CI_Controller
         $limit = ($this->input->get('per-page')) ? $this->input->get('per-page', true) : 12;
         $seller_products_count = fetch_product('', '', '', '', '', '', '', '', true, '', $seller_data[0]['user_id']);
 
-        $config['base_url'] = base_url('sellers/seller_details/' . $seller_slug);
-        $config['total_rows'] = $seller_products_count;
-        $config['per_page'] = $limit;
-        $config['num_links'] = 7;
-        $config['use_page_numbers'] = TRUE;
-        $config['reuse_query_string'] = TRUE;
-        $config['page_query_string'] = FALSE;
-
-        $config['attributes'] = array('class' => 'page-link');
-        $config['full_tag_open'] = '<ul class="pagination justify-content-center">';
-        $config['full_tag_close'] = '</ul>';
-
-        if (isset($theme[0]['name']) && strtolower($theme[0]['name']) == 'modern') {
-
-            $config['prev_tag_open'] = '<li class="page-item">';
-            $config['prev_link'] = '<i class="uil uil-arrow-left"></i>';
-            $config['prev_tag_close'] = '</li>';
-
-            $config['next_tag_open'] = '<li class="page-item">';
-            $config['next_link'] = '<i class="uil uil-arrow-right"></i>';
-            $config['next_tag_close'] = '</li>';
-        } else {
-            $config['first_tag_open'] = '<li class="page-item">';
-            $config['first_link'] = 'First';
-            $config['first_tag_close'] = '</li>';
-
-            $config['last_tag_open'] = '<li class="page-item">';
-            $config['last_link'] = 'Last';
-            $config['last_tag_close'] = '</li>';
-
-            $config['prev_tag_open'] = '<li class="page-item">';
-            $config['prev_link'] = '<i class="fa fa-arrow-left"></i>';
-            $config['prev_tag_close'] = '</li>';
-
-            $config['next_tag_open'] = '<li class="page-item">';
-            $config['next_link'] = '<i class="fa fa-arrow-right"></i>';
-            $config['next_tag_close'] = '</li>';
-        }
-
-        $config['cur_tag_open'] = '<li class="page-item active disabled"><a class="page-link">';
-        $config['cur_tag_close'] = '</a></li>';
-
-        $config['num_tag_open'] = '<li class="page-item">';
-        $config['num_tag_close'] = '</li>';
-
         $page_no = (empty($this->uri->segment(4))) ? 1 : $this->uri->segment(4);
         if (!is_numeric($page_no)) {
             redirect(base_url('sellers'));
         }
         $offset = ($page_no - 1) * $limit;
-        $this->pagination->initialize($config);
-        $this->data['links'] =  $this->pagination->create_links();
+        $this->data['links'] = storefront_pagination(
+            base_url('sellers/seller_details/' . $seller_slug),
+            $seller_products_count,
+            $limit,
+            ['uri_segment' => 4]
+        );
 
 
         $this->data['main_page'] = 'seller-details';

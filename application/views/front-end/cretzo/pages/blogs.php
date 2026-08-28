@@ -117,6 +117,15 @@
                 <!-- /.item-inner -->
             <?php } ?>
         </div>
+
+        <?php // Blogs::index() has always built these links; this view never printed
+              // them, so page 2 onwards was unreachable. ?>
+        <?php if (!empty($links)) { ?>
+            <nav class="cz-pager-nav" aria-label="<?= storefront_pagination_label('blog posts') ?>">
+                <?= $links ?>
+            </nav>
+        <?php } ?>
+        </div>
     </div>
 </section>
 <!-- /section -->

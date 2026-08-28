@@ -196,6 +196,7 @@ class Pickup_location extends CI_Controller
 
         $addresses = $result['data']['shipping_address'];
         $added = $updated = $skipped = 0;
+        $seen_nicknames = [];
 
         foreach ($addresses as $address) {
             $nickname = isset($address['pickup_location']) ? trim((string) $address['pickup_location']) : '';
@@ -232,6 +233,8 @@ class Pickup_location extends CI_Controller
                 'phone_verified'  => (isset($address['phone_verified']) && $address['phone_verified'] == 1) ? 1 : 0,
             ];
 
+            $seen_nicknames[] = $nickname;
+
             $existing = $this->db->select('id')
                 ->where('seller_id', $seller_id)
                 ->where('pickup_location', $nickname)
@@ -246,12 +249,39 @@ class Pickup_location extends CI_Controller
             }
         }
 
+        /*
+         * Withdraw the verified stamp from this seller's addresses that Shiprocket did NOT return.
+         *
+         * The sync only ever added and updated, so the stamp was permanent once given. Delete an
+         * address in the Shiprocket panel - or rename its nickname, which is the same thing here -
+         * and the local row kept saying "Shiprocket has confirmed this", so
+         * shiprocket_pickup_is_bookable() waved the parcel through and Shiprocket rejected it at
+         * booking time with "Wrong Pickup location entered". This database has such a row
+         * ("Developer's Den"), which is what made it visible.
+         *
+         * The rows themselves are left alone - they are the owner's data, may hold local notes,
+         * and a failed or partial sync must not be able to delete addresses. Only the claim that
+         * Shiprocket has them is withdrawn, which is the claim this response is evidence for.
+         */
+        $unverified = 0;
+        if ($this->db->field_exists('shiprocket_verified_at', 'pickup_locations')) {
+            $this->db->where('seller_id', $seller_id)
+                ->where('shiprocket_verified_at IS NOT NULL', null, false);
+            if (!empty($seen_nicknames)) {
+                $this->db->where_not_in('pickup_location', $seen_nicknames);
+            }
+            $this->db->update('pickup_locations', ['shiprocket_verified_at' => null]);
+            $unverified = $this->db->affected_rows();
+        }
+
         $this->response['error'] = false;
         $this->response['csrfName'] = $this->security->get_csrf_token_name();
         $this->response['csrfHash'] = $this->security->get_csrf_hash();
         $this->response['message'] = 'Imported from Shiprocket: ' . $added . ' added, ' . $updated
-            . ' updated' . ($skipped > 0 ? ', ' . $skipped . ' skipped (no nickname or pincode)' : '') . '.';
-        $this->response['data'] = ['added' => $added, 'updated' => $updated, 'skipped' => $skipped];
+            . ' updated' . ($skipped > 0 ? ', ' . $skipped . ' skipped (no nickname or pincode)' : '')
+            . ($unverified > 0 ? ', ' . $unverified . ' no longer held by Shiprocket and marked unconfirmed' : '')
+            . '.';
+        $this->response['data'] = ['added' => $added, 'updated' => $updated, 'skipped' => $skipped, 'unverified' => $unverified];
         print_r(json_encode($this->response));
     }
 }

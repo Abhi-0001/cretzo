@@ -440,7 +440,7 @@ class Cron_job extends CI_Controller
          * forever, and the two cases are indistinguishable by amount alone.
          */
         $candidates = $this->db
-            ->select('ot.id, ot.order_id, ot.shipment_id, ot.awb_code')
+            ->select('ot.id, ot.order_id, ot.shipment_id, ot.awb_code, ot.shiprocket_order_id')
             ->from('order_tracking ot')
             ->where('ot.is_canceled', 0)
             ->where('ot.is_return', 0)
@@ -468,12 +468,36 @@ class Cron_job extends CI_Controller
             // The shipment RECORD, not the tracking timeline - it is the record that carries
             // the charges. track_awb() returns scan history and no money at all.
             $res = $this->shiprocket->get_order($tracking['shipment_id']);
+            $freight = is_array($res) ? shiprocket_freight_from_response($res) : null;
+
+            /*
+             * `shipments/{id}` and `orders/show/{id}` are separate Shiprocket API MODULES, and an
+             * API user can be permitted one and not the other - this account is exactly that case
+             * (verified 2026-08-27: shipments/{id} answers 401 while orders/show/{id} answers
+             * normally). With only the one endpoint, a single missing permission meant freight was
+             * never reconciled for any shipment, ever, and under seller-paid shipping that is the
+             * platform silently absorbing every courier bill.
+             *
+             * So fall back to the order record. shiprocket_freight_from_response() searches by key
+             * rather than by path, so it reads the figure out of either shape, and a response that
+             * genuinely carries no freight yet still returns null and is left for a later run.
+             */
+            if ($freight === null && !empty($tracking['shiprocket_order_id'])) {
+                // force_remote: this runs on shipments that have finished, and the local
+                // short-circuit in get_shiprocket_order() carries a status but no charges.
+                $fallback = get_shiprocket_order($tracking['shiprocket_order_id'], true);
+                if (is_array($fallback)) {
+                    $freight = shiprocket_freight_from_response($fallback);
+                    if (!is_array($res)) {
+                        $res = $fallback; // so the "unreadable response" test below sees this one
+                    }
+                }
+            }
+
             if (!is_array($res)) {
                 $failed++;
                 continue;
             }
-
-            $freight = shiprocket_freight_from_response($res);
             if ($freight === null) {
                 // Not a fault. A shipment that has been assigned an AWB but not yet picked up
                 // and weighed legitimately has no billed freight yet, so it is left alone and

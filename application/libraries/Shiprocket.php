@@ -28,6 +28,21 @@ class Shiprocket
     private $last_error = null;
     private $last_status = null;
 
+    /** settings.variable holding "do not attempt a login before this time" */
+    const LOGIN_COOLDOWN_SETTING = 'shiprocket_login_cooldown';
+
+    /** How long to stop trying after Shiprocket refuses a login. */
+    const LOGIN_COOLDOWN_SECONDS = 900;
+
+    /**
+     * Whether a forced re-authentication has already been tried in this PHP process.
+     *
+     * Static, not per-instance: several libraries' worth of Shiprocket calls can happen in one
+     * request (a checkout books a parcel per seller), each on its own instance, and the point is
+     * to bound the number of LOGINS per request - see the long note in curl().
+     */
+    private static $refresh_attempted = false;
+
     function __construct()
     {
         $settings = get_settings('shipping_method', true);
@@ -78,6 +93,27 @@ class Shiprocket
             return "";
         }
 
+        /*
+         * Refuse to log in at all for a while after Shiprocket has rejected a login.
+         *
+         * Shiprocket does not merely rate-limit auth/login, it BLOCKS the API user: "User blocked
+         * due to too many failed login attempts". Once that happens nothing can authenticate, so
+         * a wrong password does not just break order creation - it takes serviceability, tracking
+         * and pickup lookups down with it, and the storefront starts telling customers their
+         * address is not deliverable.
+         *
+         * That is not hypothetical: on 2026-08-26 the stored password was rejected ("Invalid
+         * email and password combination"), every checkout retried the login, and the user was
+         * blocked. A cooldown keeps a bad password a shipping problem instead of an outage.
+         */
+        $cooldown_until = $this->login_cooldown_until();
+        if ($cooldown_until > time()) {
+            log_message('error', 'Shiprocket login suppressed for another ' . ($cooldown_until - time())
+                . 's - the last attempt was refused. Repeating it risks Shiprocket blocking the API user'
+                . ' outright, which disables tracking and serviceability too.');
+            return "";
+        }
+
         $curl = curl_init();
 
         curl_setopt_array($curl, array(
@@ -109,11 +145,45 @@ class Shiprocket
         if (empty($token)) {
             log_message('error', 'Shiprocket login failed (http ' . $status . '): '
                 . substr((string) ($curl_error !== '' ? $curl_error : $result), 0, 300));
+            $this->start_login_cooldown();
             return "";
         }
 
+        $this->clear_login_cooldown();
         $this->store_token($token);
         return $token;
+    }
+
+    /** Unix time before which no login should be attempted, or 0. */
+    private function login_cooldown_until()
+    {
+        $t = &get_instance();
+        $row = $t->db->select('value')->where('variable', self::LOGIN_COOLDOWN_SETTING)->get('settings')->row_array();
+        return empty($row['value']) ? 0 : (int) $row['value'];
+    }
+
+    private function start_login_cooldown()
+    {
+        $this->write_setting(self::LOGIN_COOLDOWN_SETTING, (string) (time() + self::LOGIN_COOLDOWN_SECONDS));
+    }
+
+    private function clear_login_cooldown()
+    {
+        if ($this->login_cooldown_until() > 0) {
+            $this->write_setting(self::LOGIN_COOLDOWN_SETTING, '0');
+        }
+    }
+
+    /** Upsert one settings row. Same shape store_token() uses. */
+    private function write_setting($variable, $value)
+    {
+        $t = &get_instance();
+        $exists = $t->db->select('id')->where('variable', $variable)->get('settings')->row_array();
+        if (empty($exists)) {
+            settings_write_done($t->db->insert('settings', ['variable' => $variable, 'value' => $value]));
+        } else {
+            settings_write_done($t->db->set('value', $value)->where('variable', $variable)->update('settings'));
+        }
     }
 
     /**
@@ -236,13 +306,45 @@ class Shiprocket
 
         $this->last_status = $status;
 
-        // A cached token that Shiprocket has since invalidated returns 401. Re-authenticate once
-        // and replay - otherwise every call would fail until the cache expired on its own.
+        /*
+         * Shiprocket answers {"message":"token_expired","status_code":401} for TWO completely
+         * different situations, and nothing in the body distinguishes them:
+         *
+         *   1. the bearer token really has expired or been invalidated, and
+         *   2. the API user has no access to the module that endpoint belongs to.
+         *
+         * (2) is the live state of this account, verified against it on 2026-08-27: one and the
+         * same cached token returns 200 on settings/company/pickup, courier/serviceability,
+         * orders/show/{id} and courier/track/*, and 401 "token_expired" on orders/create/adhoc
+         * and shipments/{id}. The token is fine; the API user is not permitted those modules.
+         *
+         * Re-authenticating cannot fix (2), and refreshing unconditionally turned every such
+         * call into a fresh login - one per checkout, one per candidate in the freight cron, one
+         * per render of the order edit page. Shiprocket does not just throttle auth/login, it
+         * blocks the API user ("User blocked due to too many failed login attempts"), and a
+         * blocked user cannot authenticate for anything: tracking and serviceability go down
+         * with order creation. That is precisely the sequence in the logs for 2026-08-26.
+         *
+         * So: at most ONE forced re-authentication per PHP process. A genuinely invalidated
+         * token is still recovered, while a permission-blocked endpoint costs one login instead
+         * of one per call.
+         */
         if ($status === 401 && !$is_retry) {
-            log_message('error', 'Shiprocket returned 401 - refreshing the cached token and retrying once: ' . $url);
-            $this->token = $this->generate_token(true);
-            if (!empty($this->token)) {
-                return $this->curl($url, $method, $data, true);
+            if (self::$refresh_attempted) {
+                log_message('error', 'Shiprocket 401 on ' . $url . ' - a re-authentication was already attempted in'
+                    . ' this request, so not logging in again. If the token works elsewhere this is a module'
+                    . ' permission on the API user, not an expiry.');
+            } else {
+                self::$refresh_attempted = true;
+                log_message('error', 'Shiprocket returned 401 - refreshing the cached token and retrying once: ' . $url);
+                $refreshed = $this->generate_token(true);
+                if (!empty($refreshed)) {
+                    $this->token = $refreshed;
+                    return $this->curl($url, $method, $data, true);
+                }
+                // Deliberately keep the token we already have. A failed login leaves the cached
+                // token untouched, and here that token demonstrably still works on the endpoints
+                // the API user IS permitted - discarding it would break those too.
             }
         }
 
@@ -273,6 +375,28 @@ class Shiprocket
                 }
             }
             $this->last_error = ($message !== '') ? $message : ('Shiprocket request failed (http ' . $status . ').');
+
+            /*
+             * "token_expired" is what Shiprocket says; it is not usually what is wrong. Passing it
+             * straight through sent sellers and admins chasing an expiry that had not happened -
+             * the token is still valid on every endpoint the API user is permitted. Say what the
+             * caller can actually act on, and keep Shiprocket's own wording alongside it.
+             */
+            if ($status === 429) {
+                // Documented: "You have exceeded the API call rate limit." Distinct from a
+                // rejection - the request was never evaluated, so a caller that reports this as
+                // "Shiprocket refused the shipment" sends someone looking for a fault in the
+                // parcel instead of retrying.
+                $this->last_error = 'Shiprocket is rate-limiting this account (HTTP 429). The request was not'
+                    . ' processed - retry shortly.';
+            } elseif ($status === 401) {
+                $this->last_error = 'Shiprocket rejected the request as unauthorised (it reports "'
+                    . ($message !== '' ? $message : 'unauthorised')
+                    . '"). If shipping works elsewhere the token is valid and the API user is not permitted this'
+                    . ' module - check "Modules to Access" on the API user under Shiprocket > Settings > API.'
+                    . ' Otherwise re-enter the API user credentials under Admin > Shipping Settings.';
+            }
+
             log_message('error', 'Shiprocket error on ' . $url . ' (http ' . $status . '): ' . substr((string) $raw, 0, 300));
         }
 
@@ -317,8 +441,37 @@ class Shiprocket
     {
         $pickup_location = (isset($data['pickup_postcode']) && !empty($data['pickup_postcode'])) ? $data['pickup_postcode'] : "";
         $delivery_pincode = (isset($data['delivery_postcode']) && !empty($data['delivery_postcode'])) ? $data['delivery_postcode'] : "";
-        $weight = (isset($data['weight']) && !empty($data['weight'])) ? $data['weight'] : "";
         $cod = (isset($data['cod']) && !empty($data['cod'])) ? $data['cod'] : 0;
+
+        /*
+         * A zero weight has to become the nominal weight HERE, not at the call sites.
+         *
+         * `!empty($data['weight'])` turned a weight of 0 into the empty string, Shiprocket
+         * answered "Weight Required" with no couriers at all, and the storefront rendered that as
+         * "not deliverable on the selected address". Most product variants on this store carry
+         * weight 0 - the shipping fields were added to the product form after the catalogue was
+         * entered - so that applied to almost the whole shop.
+         *
+         * Three call sites still pass a raw variant weight straight through (the product page's
+         * deliverability check and two in the mobile API), which is exactly why the floor belongs
+         * in the library: every caller is protected, including the next one. The forward-booking
+         * paths already floor it via shiprocket_parcel_weight(); this is the same constant, and
+         * flooring an already-floored value is a no-op.
+         */
+        $weight = (isset($data['weight'])) ? (float) $data['weight'] : 0;
+        if ($weight <= 0) {
+            $weight = defined('SHIPROCKET_NOMINAL_WEIGHT_KG') ? SHIPROCKET_NOMINAL_WEIGHT_KG : 0.5;
+        }
+
+        // Without both pincodes the answer is meaningless, and Shiprocket charges the account an
+        // API call to say so. Fail locally with something a caller can report.
+        if ($pickup_location === "" || $delivery_pincode === "") {
+            $this->last_error = 'A pickup pincode and a delivery pincode are both required to check serviceability.';
+            $this->last_status = null;
+            log_message('error', 'Shiprocket serviceability skipped - pickup="' . $pickup_location
+                . '" delivery="' . $delivery_pincode . '".');
+            return null;
+        }
 
         $query = array(
             "pickup_postcode" => $pickup_location,
@@ -420,13 +573,21 @@ class Shiprocket
      * that column and offers it alongside the label and invoice. Sellers had a permanently empty
      * manifest link.
      *
-     * Takes the same shipment id list as generate; Shiprocket returns {"manifest_url": "..."}.
+     * NOT the same identifier as generate_manifests(), which is the trap this pair sets: step 7
+     * posts `shipment_id`, step 8 posts `order_ids`, and those are two different numbers in
+     * Shiprocket. This method was being handed shipment ids under the `order_ids` key by its only
+     * caller, so even once the account can reach the endpoint it would have manifested the wrong
+     * records (or nothing). Callers must pass order_tracking.shiprocket_order_id here.
+     *
+     * Shiprocket returns {"manifest_url": "..."}.
+     *
+     * @param int|array $shiprocket_order_ids SHIPROCKET order ids, not shipment ids.
      */
-    public function print_manifest($shipment_id)
+    public function print_manifest($shiprocket_order_ids)
     {
         $url = $this->url . 'manifests/print';
         $data = array(
-            'order_ids' => is_array($shipment_id) ? array_values($shipment_id) : [$shipment_id]
+            'order_ids' => is_array($shiprocket_order_ids) ? array_values($shiprocket_order_ids) : [$shiprocket_order_ids]
         );
         return $this->curl($url, 'POST', json_encode($data));
     }

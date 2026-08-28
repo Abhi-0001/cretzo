@@ -619,7 +619,19 @@ function removeSellerFilter() {
 }
 
 
+// Page size for the AJAX list. It has to come from the URL, not from the `var
+// perPage = 20` default: ajaxProductList() overwrites the request's per-page with
+// this value, so opening /products/9?per-page=2 refetched with per-page=20, which
+// is only 5 pages long - page 9 then existed on the server-rendered page but not
+// in the AJAX reply, and the pager came back with no current page and both arrows
+// dead. It also meant ?per-page was silently ignored the moment the page loaded.
+function getPerPageFromUrl() {
+    var value = parseInt(new URLSearchParams(window.location.search).get('per-page'), 10);
+    return (!isNaN(value) && value > 0) ? value : perPage;
+}
+
 // Load products for the currently opened page URL.
+perPage = getPerPageFromUrl();
 currentPage = getCurrentPageFromUrl();
 ajaxProductList(currentPage);
 
@@ -717,34 +729,59 @@ function ajaxProductList(page = 1, append = false) {
     });
 }
 
+/*
+ * The AJAX twin of storefront_pagination() in application/helpers/function_helper.php.
+ *
+ * A filter, sort or page click replaces the server-rendered pager with this one on the
+ * same screen, so the two have to emit the SAME markup - otherwise the control changes
+ * shape the moment it is touched, which is what used to happen (the server pager had
+ * five numbers and one arrow, this one had seven numbers and no disabled edges).
+ *
+ * Structure, identical to the helper's:
+ *   ul.pagination.cz-pagination
+ *     li.page-item.cz-page-prev[.disabled] > a.page-link.ajax-page-link | span.page-link
+ *     li.page-item                         > a.page-link.ajax-page-link
+ *     li.page-item.active                  > span.page-link[aria-current=page]
+ *     li.page-item.cz-page-next[.disabled] > a.page-link.ajax-page-link | span.page-link
+ */
 function renderPagination(total, page, pageSize) {
     var totalPages = Math.ceil(total / pageSize);
     if (totalPages <= 1) {
         return '';
     }
+    // A page outside the range would draw a pager with no current page at all.
+    page = Math.min(Math.max(1, page), totalPages);
 
-    var html = '<ul class="pagination justify-content-center">';
-    var maxLinks = 7;
+    var ARROW_PREV = '<span class="cz-page-arrow" aria-hidden="true"><i class="uil uil-angle-left-b"></i></span>';
+    var ARROW_NEXT = '<span class="cz-page-arrow" aria-hidden="true"><i class="uil uil-angle-right-b"></i></span>';
+
+    // Same window as the helper's num_links = 2, i.e. the current page with up to
+    // two neighbours on each side.
+    var maxLinks = 5;
     var start = Math.max(1, page - Math.floor(maxLinks / 2));
     var end = Math.min(totalPages, start + maxLinks - 1);
     start = Math.max(1, end - maxLinks + 1);
 
-    if (page > 1) {
-        html += '<li class="page-item"><a class="page-link ajax-page-link" href="#" data-page="' + (page - 1) + '"><i class="uil uil-arrow-left"></i></a></li>';
+    function edge(kind, targetPage, arrow, label) {
+        if (targetPage < 1 || targetPage > totalPages) {
+            return '<li class="page-item ' + kind + ' disabled"><span class="page-link">' + arrow + '</span></li>';
+        }
+        return '<li class="page-item ' + kind + '"><a class="page-link ajax-page-link" href="#" data-page="' +
+            targetPage + '" aria-label="' + label + '">' + arrow + '</a></li>';
     }
+
+    var html = '<ul class="pagination cz-pagination">';
+    html += edge('cz-page-prev', page - 1, ARROW_PREV, 'Previous page');
 
     for (var i = start; i <= end; i++) {
         if (i === page) {
-            html += '<li class="page-item active disabled"><a class="page-link" href="#">' + i + '</a></li>';
+            html += '<li class="page-item active"><span class="page-link" aria-current="page">' + i + '</span></li>';
         } else {
             html += '<li class="page-item"><a class="page-link ajax-page-link" href="#" data-page="' + i + '">' + i + '</a></li>';
         }
     }
 
-    if (page < totalPages) {
-        html += '<li class="page-item"><a class="page-link ajax-page-link" href="#" data-page="' + (page + 1) + '"><i class="uil uil-arrow-right"></i></a></li>';
-    }
-
+    html += edge('cz-page-next', page + 1, ARROW_NEXT, 'Next page');
     html += '</ul>';
     return html;
 }

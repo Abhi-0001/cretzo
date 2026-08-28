@@ -1,0 +1,219 @@
+/* ==========================================================================
+   Admin > Sellers > Add / Update Seller
+   --------------------------------------------------------------------------
+   The admin form now uses the SAME design system as the seller's own profile
+   form (assets/seller/css/cretzo/seller-profile.css, which the view loads
+   first): the step rail, card, field grid, upload drop zones, per-field error
+   slots, pills, combo box and modal all come from there, so the two forms
+   cannot drift apart again.
+
+   Everything below is only what the admin screen needs on top of that:
+
+     - an identity header for the seller being edited,
+     - the segmented Status control and the permission switches,
+     - a sticky action bar, because an admin must be able to save from any
+       step without walking through the rail to find the button,
+     - a few Bootstrap/AdminLTE resets, since this page renders inside the
+       AdminLTE shell rather than the seller layout.
+
+   All of it is scoped under .czp - the same wrapper the shared sheet scopes
+   to - so nothing here can leak into the rest of the admin panel.
+   ========================================================================== */
+
+/* AdminLTE already pads .content-wrapper; the card supplies the rest. */
+.czp-page .czp { padding-top: 1rem; }
+
+/* Bootstrap's reboot styles bare form elements globally. The shared sheet
+   covers .czp-input / .czp-label explicitly; these few leak through. */
+.czp fieldset { min-width: 0; }
+.czp p:last-child { margin-bottom: 0; }
+.czp a { color: var(--czp-orange); }
+.czp a:hover { color: var(--czp-orange-dark); }
+.czp h1, .czp h2 { font-family: inherit; }
+
+/* ---- Identity header (edit mode) -------------------------------------- */
+.czp-idcard {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 1rem 1.15rem;
+  margin-bottom: 1.25rem;
+  background: #fff;
+  border: 1px solid var(--czp-line);
+  border-radius: 14px;
+  box-shadow: var(--czp-shadow);
+}
+.czp-idcard-avatar {
+  flex: 0 0 auto;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: var(--czp-orange-soft);
+  color: var(--czp-orange);
+  font-weight: 700;
+  font-size: 18px;
+  border: 1px solid var(--czp-line);
+}
+.czp-idcard-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.czp-idcard-main { flex: 1 1 240px; min-width: 0; }
+.czp-idcard-main h1 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: break-word;
+}
+.czp-idcard-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .2rem .9rem;
+  margin-top: .25rem;
+  font-size: 12.5px;
+  color: var(--czp-ink-soft);
+}
+.czp-idcard-meta span { display: inline-flex; align-items: center; gap: .3rem; min-width: 0; }
+.czp-idcard-side { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+
+/* ---- Status / info pills ---------------------------------------------- */
+.czp-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .25rem .6rem;
+  border-radius: 999px;
+  border: 1px solid var(--czp-line);
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.czp-badge-green { background: var(--czp-green-soft);  border-color: #c9e6d0; color: var(--czp-green); }
+.czp-badge-red   { background: var(--czp-red-soft);    border-color: #f4c1bc; color: #912018; }
+.czp-badge-amber { background: var(--czp-orange-soft); border-color: #f6d8bd; color: #a4550f; }
+.czp-badge-grey  { background: #f4f6f9;                border-color: var(--czp-line-strong); color: var(--czp-ink-soft); }
+
+/* ---- Segmented radio group (Status) ----------------------------------- */
+.czp-seg {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: .6rem;
+}
+.czp-seg-item {
+  display: flex;
+  align-items: flex-start;
+  gap: .55rem;
+  margin: 0;
+  padding: .7rem .85rem;
+  border: 1px solid var(--czp-line-strong);
+  border-radius: 11px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.czp-seg-item:hover { border-color: var(--czp-ink-soft); }
+.czp-seg-item input[type="radio"] {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  accent-color: var(--czp-orange);
+  cursor: pointer;
+}
+.czp-seg-copy { min-width: 0; }
+.czp-seg-copy b { display: block; font-size: 13px; font-weight: 700; }
+.czp-seg-copy small { display: block; font-size: 11.5px; color: var(--czp-muted); line-height: 1.35; }
+.czp-seg-item.is-on { border-color: var(--czp-orange); background: var(--czp-orange-soft); }
+.czp-seg-item.is-on.is-approve { border-color: var(--czp-green); background: var(--czp-green-soft); }
+.czp-seg-item.is-on.is-approve .czp-seg-copy b { color: var(--czp-green); }
+.czp-seg-item.is-on.is-block { border-color: var(--czp-red); background: var(--czp-red-soft); }
+.czp-seg-item.is-on.is-block .czp-seg-copy b { color: #912018; }
+
+/* ---- Permission switches ---------------------------------------------- */
+.czp-switches { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: .6rem; }
+.czp-switch {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin: 0;
+  padding: .7rem .85rem;
+  border: 1px solid var(--czp-line);
+  border-radius: 11px;
+  background: #fbfcfd;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.czp-switch-copy { flex: 1 1 auto; min-width: 0; }
+.czp-switch-copy b { display: block; font-size: 13px; font-weight: 600; }
+.czp-switch-copy small { display: block; font-size: 11.5px; color: var(--czp-muted); line-height: 1.35; }
+/* The checkbox itself is the track - no wrapper markup, no plugin, and the
+   keyboard behaviour stays native. This replaces bootstrap-switch, which
+   needed a JS init pass and rendered as a bare checkbox until it ran. */
+.czp-switch input[type="checkbox"] {
+  flex: 0 0 auto;
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  width: 42px;
+  height: 24px;
+  margin: 0;
+  border-radius: 999px;
+  background: #d7dce3;
+  border: 0;
+  cursor: pointer;
+  transition: background .18s;
+}
+.czp-switch input[type="checkbox"]::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, .3);
+  transition: transform .18s;
+}
+.czp-switch input[type="checkbox"]:checked { background: var(--czp-green); }
+.czp-switch input[type="checkbox"]:checked::after { transform: translateX(18px); }
+.czp-switch input[type="checkbox"]:focus-visible { box-shadow: 0 0 0 3px rgba(242, 130, 46, .3); }
+.czp-switch.is-on { border-color: #c9e6d0; background: var(--czp-green-soft); }
+
+/* ---- Read-only rows (subscription plan / commission) ------------------ */
+.czp-kv { display: grid; gap: .3rem; }
+.czp-kv-row { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; font-size: 13px; }
+.czp-kv-row > b { font-weight: 600; }
+
+/* ---- Sticky action bar ------------------------------------------------ */
+/* An admin edit is often a two-second job (flip Status, save). Hiding the
+   button on the last step would be a step back from the old single-page
+   form, so the bar follows the page instead. */
+.czp-actionbar {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+  padding: .8rem 1rem;
+  background: rgba(255, 255, 255, .96);
+  border: 1px solid var(--czp-line);
+  border-radius: 14px;
+  box-shadow: 0 -2px 18px rgba(16, 24, 40, .1);
+}
+.czp-actionbar-spacer { flex: 1 1 auto; }
+.czp-actionbar-count { font-size: 12px; font-weight: 600; color: var(--czp-muted); }
+@media (max-width: 640px) {
+  .czp-actionbar-count { display: none; }
+  .czp-actionbar .czp-btn { flex: 1 1 auto; }
+}
+
+/* custom.js writes save results into #error_box using .msg_error /
+   .msg_success; keep it out of the layout until it has something to say. */
+#error_box { width: 100%; margin: 0; }
+#error_box .czp-hidden { display: none; }

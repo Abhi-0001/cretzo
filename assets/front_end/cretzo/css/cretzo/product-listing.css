@@ -80,7 +80,11 @@
   margin-top: 10px;
 }
 .product-card-container{
-  padding: 10px;
+  /* Below 1000px the filter panel becomes an off-canvas drawer whose rotated
+     "Filter" tab sticks into this column, so the column needs clearance on the
+     left - see --plp-gutter in the 1000px block below. */
+  --plp-gutter: 10px;
+  padding: 10px 10px 10px var(--plp-gutter);
   flex: 1;
   border: 1px solid rgba(0, 0, 0, 0.1);
   border-left: none;
@@ -214,6 +218,17 @@
       transform: translateX(-240px);
       transition: 0.4s;
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      /* Slid out of sight but still a full-height 280px box over the left of the
+         listing, and it was swallowing every tap that landed there - the pager's
+         Previous arrow could not be tapped on a phone at all. Only the drawer's
+         own "Filter" tab stays clickable while it is closed; the tab is a child,
+         so :hover below still opens the drawer through it. */
+      pointer-events: none;
+  }
+  .filter-container .filter-tag,
+  .filter-container:hover,
+  .filter-container.active{
+      pointer-events: auto;
   }
   .filter-container:hover{
       transform: translateX(0px);
@@ -225,7 +240,11 @@
       display: block;
   }
   .product-card-container{
-      padding-left: 60px;
+      /* Was a flat 60px. The tab measures 36px wide sitting 8px from the edge,
+         so 46px clears it; the extra 14px was a white strip down the side of
+         every phone screen, and it also pushed the pager visibly right of
+         centre. */
+      --plp-gutter: 46px;
   }
 }
 @media screen and (max-width: 800px) {
@@ -338,4 +357,12 @@ input[type="range"]::-moz-range-thumb {
   pointer-events: auto;
   -moz-appearance: none;
   box-shadow: 0 0 6px rgba(0, 0, 0, 0.05);
+}
+
+/* The pager is the last thing in the column and never sits level with the
+   filter tab, so it ignores the tab clearance and centres against the whole
+   column - otherwise it sat ~18px right of centre on a phone. */
+.product-card-container > .cz-pager-nav {
+  margin-left: calc(var(--plp-gutter) * -1);
+  margin-right: -10px;
 }

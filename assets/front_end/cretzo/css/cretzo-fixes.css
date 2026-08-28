@@ -216,51 +216,124 @@ input[type="range"].price-range-slider {
 }
 
 /* ============================================================
-   FIX 11: PAGINATION — visible and styled
+   FIX 11: PAGINATION — the storefront's single pager
+   ------------------------------------------------------------
+   One owner for every buyer-side pager: product listing (server
+   and AJAX), category, search, section, tags, sellers, seller
+   store, brands, blogs, wishlist and my-account orders. The
+   markup all of them emit comes from storefront_pagination() in
+   function_helper.php and from renderPagination() in
+   assets/front_end/cretzo/js/cretzo/product-listing.js:
+
+     nav.cz-pager-nav > ul.pagination.cz-pagination
+       li.page-item.cz-page-prev[.disabled] > a|span.page-link
+       li.page-item                         > a.page-link
+       li.page-item.active                  > span.page-link
+       li.page-item.cz-page-next[.disabled] > a|span.page-link
+
+   Rules that used to fight over this: a per-page 40px override in
+   product-listing-override.css that reached the listing but not
+   the wishlist, and a second block further down this file. Both
+   are gone - sizing lives here only.
 ============================================================ */
-.pagination {
-    display: flex;
-    gap: 4px;
-    justify-content: center;
-    flex-wrap: wrap;
-    margin: 24px 0;
+.cz-pager-nav {
+    display: block;
+    margin: 32px 0 40px;
+    text-align: center;
 }
-.pagination .page-item .page-link {
+/* The listing keeps this element in the DOM even with nothing to page through,
+   because the AJAX renderer writes into it - so it must not hold its margins
+   open under the grid while it is empty. */
+.cz-pager-nav:empty {
+    margin: 0;
+}
+.pagination.cz-pagination {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin: 0;
+    padding: 0 2px 4px;
+    list-style: none;
+    /* A long pager scrolls sideways inside itself rather than wrapping to a
+       second ragged row or pushing the page wider than the screen. */
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+.pagination.cz-pagination::-webkit-scrollbar {
+    display: none;
+}
+.pagination.cz-pagination .page-item {
+    flex: 0 0 auto;
+    margin: 0;
+}
+.pagination.cz-pagination .page-link {
     display: flex;
     align-items: center;
     justify-content: center;
-    min-width: 38px;
-    height: 38px;
-    border: 1.5px solid #ddd;
-    border-radius: 8px !important;
+    /* 40px is the smallest comfortable touch target that still fits a 5-number
+       pager plus both arrows on a 320px screen. */
+    min-width: 40px;
+    height: 40px;
+    padding: 0 8px;
+    border: 1px solid #e4e6ea;
+    border-radius: 10px !important;
+    background: #fff;
     color: #333;
-    font-size: 13px;
-    font-weight: 500;
-    transition: all 0.2s;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1;
     text-decoration: none;
-    padding: 0 10px;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, .04);
+    transition: background-color .15s ease, border-color .15s ease, color .15s ease;
 }
-.pagination .page-item .page-link:hover {
-    background: var(--color-orange, #e07b39);
-    border-color: var(--color-orange, #e07b39);
-    color: #fff;
+.pagination.cz-pagination a.page-link:hover,
+.pagination.cz-pagination a.page-link:focus-visible {
+    border-color: var(--color-orange, #F2822E);
+    background: var(--color-orange-light, #fff4ea);
+    color: var(--color-orange-dark, #d96f1d);
+    outline: none;
 }
-.pagination .page-item.disabled .page-link {
-    background: #f5f5f5;
-    color: #bbb;
-    cursor: not-allowed;
-}
-/* Active (current) page — keep it clearly highlighted even when the
-   markup also tags it `.disabled` (CI's cur_tag adds both classes). The
-   compound `.active.disabled` selector out-ranks the plain `.disabled`
-   rule above, so the current page stays solid orange, not greyed out. */
-.pagination .page-item.active .page-link,
-.pagination .page-item.active.disabled .page-link {
-    background: var(--color-orange, #e07b39);
-    border-color: var(--color-orange, #e07b39);
+/* Current page. It is a <span>, so it can never be hovered or clicked. */
+.pagination.cz-pagination .page-item.active .page-link {
+    border-color: var(--color-orange, #F2822E);
+    background: var(--color-orange, #F2822E);
     color: #fff;
     font-weight: 700;
     cursor: default;
+}
+/* Prev/next at the ends of the range: shown, greyed, not clickable. They stay
+   in place so the control does not change width or lose its shape on page 1. */
+.pagination.cz-pagination .page-item.disabled .page-link {
+    border-color: #ececef;
+    background: #f7f7f8;
+    color: #c3c6cc;
+    box-shadow: none;
+    cursor: default;
+    pointer-events: none;
+}
+.pagination.cz-pagination .cz-page-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    line-height: 1;
+}
+@media screen and (max-width: 480px) {
+    .cz-pager-nav {
+        margin: 24px 0 28px;
+    }
+    .pagination.cz-pagination {
+        gap: 4px;
+    }
+    .pagination.cz-pagination .page-link {
+        min-width: 38px;
+        height: 38px;
+        padding: 0 6px;
+        font-size: 13px;
+    }
 }
 
 /* ============================================================
@@ -757,17 +830,6 @@ textarea:focus {
 }
 .filter-chip .remove-chip:hover {
     color: #c62828;
-}
-
-/* ═══════════════════════════════════════════════════
-   PAGINATION — 
-═══════════════════════════════════════════════════ */
-#products-pagination-nav {
-    display: block;
-}
-#products-pagination-nav .pagination {
-    display: flex;
-    margin-bottom: 0;
 }
 
 /* ═══════════════════════════════════════════════════

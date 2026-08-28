@@ -138,15 +138,18 @@
 }
 
 /* --- Style overrides over default template STARTS --- */
-/* Google and Facebook sit side by side rather than stacked. */
+/* One button per row - see the matching note in login.css. These were two
+   columns of `flex: 1 1 0` (half the container each) holding nowrap labels that
+   need ~190px, so the labels ran out of their boxes and across the button
+   beside them, which is what the overlap on a phone was. */
 #register_div .login-with-container{
     display: flex;
-    flex-direction: row;
+    flex-direction: column;
     gap: 10px;
     align-items: stretch;
 }
 #register_div .login-with-container > a{
-    flex: 1 1 0;
+    flex: 0 0 auto;
     min-width: 0;
 }
 #register_div .media-container{
@@ -162,11 +165,15 @@
     cursor: pointer;
     transition: border-color .15s ease, background-color .15s ease;
 }
-/* The labels are full sentences ("Sign up with Facebook"), so they must not wrap
-   inside these two side-by-side buttons. */
+/* The labels are full sentences ("Sign up with Facebook") and are not wrapped;
+   each button now has a full-width row, so they fit. */
 #register_div .media-container p{
     margin-bottom: 0;
     white-space: nowrap;
+    /* Last resort on a very narrow screen: trim the label rather than let it
+       spill out of the button. */
+    overflow: hidden;
+    text-overflow: ellipsis;
     font-size: 0.8rem;
 }
 #register_div .media-container:hover{

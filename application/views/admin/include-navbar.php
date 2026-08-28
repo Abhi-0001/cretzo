@@ -37,13 +37,24 @@
         $count_noti = fetch_details('system_notification',  ["read_by" => 0],  'count(id) as total');
         ?>
 
-        <div id="refresh_notification">
+        <?php
+        /*
+         * The bell and its panel have to live inside ONE element carrying .dropdown, and the
+         * panel has to be a child of the toggle's parent - that is how Bootstrap finds the menu
+         * belonging to a [data-toggle="dropdown"]. Previously the toggle sat in its own
+         * <div id="refresh_notification"> with the panel as a SIBLING of that div, so Bootstrap
+         * could never manage this dropdown: it did not close on an outside click or on Escape,
+         * and custom.js had to show/hide it by hand. The panel is now where Bootstrap expects
+         * it, so all of that behaviour comes from the framework.
+         */
+        ?>
+        <li class="nav-item dropdown" id="refresh_notification">
             <a href="javascript:void(0);" id="notification_count" data-toggle="dropdown" class="nav-link notification-toggle nav-link-lg">
                 <i class="fas fa-bell fa-2x"></i>
                 <span class="badge badge-danger navbar-badge order_notification mt-1"><?= $count_noti[0]['total'] ?></span>
             </a>
-        </div>
-        <div id="list" class="dropdown-menu dropdown-menu-lg dropdown-menu-right"></div>
+            <div id="list" class="dropdown-menu dropdown-menu-lg dropdown-menu-right"></div>
+        </li>
 
         <!-- end send admin notification  -->
         <li class="nav-item dropdown">

@@ -1,1378 +1,894 @@
 <?php
-// Add-Seller mode has no record to prefill from. Most fields already guard themselves, but
-// the ones passed into render_admin_doc_field() below need a real array to receive.
+/**
+ * Admin > Sellers > Add / Update Seller.
+ *
+ * Rebuilt on the SAME design system as the seller's own profile form
+ * (application/views/seller/pages/forms/profile.php +
+ * assets/seller/css/cretzo/seller-profile.css): one card, five steps toggled
+ * with [hidden], a clickable step rail, a 12-column field grid, drop-zone
+ * uploads, and a [data-czp-error] slot inside every field's own grid cell so a
+ * validation message can only ever render beside the field it belongs to.
+ * Before this, the two screens for the same 60-odd columns looked and behaved
+ * nothing alike - a 1,300-line horizontal AdminLTE form here, a guided wizard
+ * there - which is how they kept drifting apart.
+ *
+ * What is deliberately NOT copied from the seller side:
+ *
+ *   - Navigation is never gated. An admin opening a seller to flip Status to
+ *     Approved cannot be blocked by a document that seller never uploaded, so
+ *     the rail and Back/Next always move and Save (sticky, reachable from
+ *     every step) is what validates everything.
+ *   - The admin-only step: Status, subscription/commission, seller
+ *     permissions, and the verification request panel.
+ *   - The seller's "we are not a registered entity" declaration, which is a
+ *     consent the seller gives, not something an admin ticks for them.
+ *
+ * FIELD NAMES ARE UNCHANGED. admin/Sellers::add_seller() reads them, together
+ * with the old_<name> hidden inputs that keep an already-uploaded document
+ * when the form is saved again without picking a new file.
+ *
+ * The .form-submit-event class is gone on purpose: the save is handled by
+ * assets/admin/js/cretzo/admin-seller-form.js, which routes a server
+ * rejection back to the field it names. Leaving the class on would make
+ * custom.js's delegated handler post the whole form a second time.
+ */
+
+// Add-Seller mode has no record to prefill from.
 $fetched_data = isset($fetched_data) && is_array($fetched_data) ? $fetched_data : [];
+$d = (isset($fetched_data[0]) && is_array($fetched_data[0])) ? $fetched_data[0] : [];
+
+$is_edit       = isset($d['id']);
+$edit_user_id  = isset($d['user_id']) ? (int) $d['user_id'] : 0;
+
+// Rows written before the entity type became a fixed list hold display strings
+// ("Individual", "Partenership Firm" - the typo is in the data). Matched
+// literally, none of them equals an <option> value, so the select fell back to
+// the first option and a save silently rewrote a Partnership Firm as an
+// Individual - which also changes which documents are demanded. Normalise the
+// legacy spellings instead.
+$entity_type = strtolower(str_replace([' ', '-'], '_', trim((string) ($d['entity_type'] ?? 'individual'))));
+$entity_aliases = [
+    'partenership_firm' => 'partnership_firm',
+    'partnership'       => 'partnership_firm',
+    'sole_proprietor'   => 'sole_proprietorship',
+    'proprietorship'    => 'sole_proprietorship',
+    ''                  => 'individual',
+];
+$entity_type = $entity_aliases[$entity_type] ?? $entity_type;
+if (!in_array($entity_type, ['individual', 'sole_proprietorship', 'partnership_firm'], true)) {
+    $entity_type = 'individual';
+}
+$is_non_gst    = isset($d['is_gst_registered']) && (string) $d['is_gst_registered'] === '0';
+$status_value  = isset($d['status']) ? (string) $d['status'] : '2';
+$all_categories = isset($all_categories) && is_array($all_categories) ? $all_categories : [];
+$indian_banks   = isset($indian_banks) && is_array($indian_banks) ? $indian_banks : [];
+
+$permit = [];
+if (!empty($d['permissions'])) {
+    $decoded = json_decode($d['permissions'], true);
+    if (is_array($decoded)) {
+        $permit = $decoded;
+    }
+}
+
+if (!function_exists('asf_attr')) {
+    /**
+     * Escape once, for an attribute.
+     *
+     * The old view ran html_escape(htmlspecialchars($value)) on most fields.
+     * Sellers::manage_seller() already passes the row through
+     * output_escaping(), which only strips slashes - it does not HTML-encode -
+     * so the double call turned a shop name like "Ram & Sons" into
+     * "Ram &amp;amp; Sons" in the input box, and saving it again persisted
+     * that. One pass is correct.
+     */
+    function asf_attr($value)
+    {
+        return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+    }
+
+    /** One text / textarea / select field with its own error slot. */
+    function asf_field(array $o)
+    {
+        $name     = $o['name'];
+        $id       = $o['id'] ?? ('f_' . $name);
+        $col      = isset($o['col']) ? (int) $o['col'] : 6;
+        $type     = $o['type'] ?? 'text';
+        $required = !empty($o['required']);
+        $value    = isset($o['value']) ? (string) $o['value'] : '';
+        ?>
+        <div class="czp-field czp-col-<?= $col ?>" data-czp-field="<?= asf_attr($name) ?>"<?= !empty($o['hidden']) ? ' hidden' : '' ?>>
+          <label class="czp-label" for="<?= asf_attr($id) ?>"<?= isset($o['label_id']) ? ' id="' . asf_attr($o['label_id']) . '"' : '' ?>>
+            <?= $o['label'] ?><?= $required ? ' <i class="czp-req">*</i>' : '' ?>
+          </label>
+          <?php if ($type === 'textarea'): ?>
+            <textarea class="czp-input" id="<?= asf_attr($id) ?>" name="<?= asf_attr($name) ?>"
+                      rows="<?= isset($o['rows']) ? (int) $o['rows'] : 3 ?>"
+                      placeholder="<?= asf_attr($o['placeholder'] ?? '') ?>"><?= asf_attr($value) ?></textarea>
+          <?php elseif ($type === 'select'): ?>
+            <select class="czp-input" id="<?= asf_attr($id) ?>" name="<?= asf_attr($name) ?>">
+              <?php foreach ($o['options'] as $opt_value => $opt_label): ?>
+                <option value="<?= asf_attr($opt_value) ?>" <?= ((string) $opt_value === (string) $value) ? 'selected' : '' ?>>
+                  <?= asf_attr($opt_label) ?>
+                </option>
+              <?php endforeach; ?>
+            </select>
+          <?php else: ?>
+            <input class="czp-input" type="<?= asf_attr($type) ?>"
+                   id="<?= asf_attr($id) ?>" name="<?= asf_attr($name) ?>"
+                   value="<?= asf_attr($value) ?>"
+                   placeholder="<?= asf_attr($o['placeholder'] ?? '') ?>"
+                   <?= isset($o['maxlength']) ? 'maxlength="' . (int) $o['maxlength'] . '"' : '' ?>
+                   <?= isset($o['digits']) ? 'data-czp-digits="' . (int) $o['digits'] . '"' : '' ?>
+                   <?= isset($o['contact']) ? 'data-czp-contact="' . asf_attr($o['contact']) . '"' : '' ?>
+                   <?= isset($o['autocomplete']) ? 'autocomplete="' . asf_attr($o['autocomplete']) . '"' : '' ?>>
+          <?php endif; ?>
+          <?php if (!empty($o['hint'])): ?>
+            <small class="czp-hint"><?= $o['hint'] ?></small>
+          <?php endif; ?>
+          <?php if (!empty($o['status'])): ?>
+            <span class="czp-status" id="<?= asf_attr($o['status']) ?>"></span>
+          <?php endif; ?>
+          <span class="czp-error" data-czp-error></span>
+        </div>
+        <?php
+    }
+
+    /**
+     * One document upload: drop zone, the old_<name> keeper, and a chip for
+     * whatever is already on record (images open in the admin panel's
+     * ekko-lightbox, PDFs open in a new tab).
+     */
+    function asf_file(array $o)
+    {
+        $name     = $o['name'];
+        $id       = $name . '_input';
+        $col      = isset($o['col']) ? (int) $o['col'] : 6;
+        $required = !empty($o['required']);
+        $value    = isset($o['value']) ? (string) $o['value'] : '';
+        $has      = $value !== '';
+        $is_pdf   = $has && preg_match('/\.pdf$/i', $value);
+        $url      = $has ? base_url($value) : '';
+        $accept   = !empty($o['images_only']) ? '.jpg,.jpeg,.png,.gif' : '.jpg,.jpeg,.png,.gif,.pdf';
+        $types    = !empty($o['images_only']) ? 'JPG, PNG or GIF' : 'JPG, PNG, GIF or PDF';
+        ?>
+        <div class="czp-field czp-col-<?= $col ?>"
+             id="<?= asf_attr($name) ?>_field"
+             data-czp-field="<?= asf_attr($name) ?>"
+             data-czp-file-label="<?= asf_attr($o['label']) ?>"
+             <?= $required ? 'data-czp-file-required' : '' ?>
+             <?= !empty($o['images_only']) ? 'data-czp-file-images' : '' ?>
+             <?= !empty($o['hidden']) ? 'hidden' : '' ?>>
+          <label class="czp-label" for="<?= asf_attr($id) ?>">
+            <?= $o['label'] ?><?= $required ? ' <i class="czp-req">*</i>' : '' ?>
+          </label>
+          <small class="czp-hint"><?= $types ?> &middot; up to 8 MB<?= !empty($o['hint']) ? ' &middot; ' . $o['hint'] : '' ?></small>
+          <?php if (!empty($o['extra_hint_id'])): ?>
+            <small class="czp-hint" id="<?= asf_attr($o['extra_hint_id']) ?>" hidden></small>
+          <?php endif; ?>
+
+          <input type="file" class="czp-file" id="<?= asf_attr($id) ?>" name="<?= asf_attr($name) ?>" accept="<?= $accept ?>">
+          <label class="czp-drop" for="<?= asf_attr($id) ?>">
+            <span class="czp-drop-icon" aria-hidden="true">&#8679;</span>
+            <span class="czp-drop-text" data-czp-drop-text>Choose a file <em>or drop it here</em></span>
+          </label>
+
+          <?php // Keeps what is already on record when the form is saved again
+                // without picking a new file. The x button clears it, so
+                // removing a required document without replacing it fails. ?>
+          <input type="hidden" name="old_<?= asf_attr($name) ?>" value="<?= asf_attr($value) ?>">
+
+          <div class="czp-doc" data-czp-doc <?= $has ? '' : 'hidden' ?>>
+            <a data-czp-doc-link target="_blank" rel="noopener"
+               <?= $has ? 'href="' . asf_attr($url) . '"' : '' ?>
+               <?= ($has && !$is_pdf) ? 'data-toggle="lightbox" data-gallery="seller_documents" data-title="' . asf_attr(strip_tags($o['label'])) . '"' : '' ?>>
+              <img class="czp-doc-thumb" data-czp-doc-thumb alt=""
+                   <?= ($has && !$is_pdf) ? 'src="' . asf_attr($url) . '"' : '' ?>
+                   <?= ($has && !$is_pdf) ? '' : 'hidden' ?>>
+            </a>
+            <span class="czp-doc-file" data-czp-doc-file <?= $is_pdf ? '' : 'hidden' ?>>PDF</span>
+            <span class="czp-doc-name" data-czp-doc-name><?= $has ? asf_attr(basename($value)) : '' ?></span>
+            <button type="button" class="czp-doc-remove" data-czp-doc-remove
+                    aria-label="Remove <?= asf_attr(strip_tags($o['label'])) ?>">&times;</button>
+          </div>
+          <small class="czp-hint" data-czp-doc-hint <?= $has ? '' : 'hidden' ?>>Already on record - leave blank to keep it.</small>
+          <span class="czp-error" data-czp-error></span>
+        </div>
+        <?php
+    }
+}
+
+// Which step each incomplete profile section belongs to, for the "Fix this"
+// jumps in the verification panel. seller_profile_sections() keys the bank
+// section 'account'; the step is called 'bank' here.
+$section_step = ['personal' => 'personal', 'store' => 'store', 'account' => 'bank'];
+
+$seller_missing = (isset($seller_missing_sections) && is_array($seller_missing_sections)) ? $seller_missing_sections : [];
+$verification_requested_at = !empty($d['verification_request_at']) ? $d['verification_request_at'] : '';
+$seller_is_approved = ($status_value === '1');
+
+$seller_photo_url = get_user_avatar_url($d['image'] ?? '');
+$display_name = trim(($d['first_name'] ?? '') . ' ' . ($d['last_name'] ?? ''));
+if ($display_name === '') {
+    $display_name = $d['shop_name'] ?? 'Seller';
+}
+
+// The seller's current subscription plan is where commission actually comes
+// from (Seller_model::settle_seller_commission() reads the plan slabs, never
+// seller_data.commission), so the Admin step links to it rather than offering
+// a rate box that no calculation would consult.
+$plan_row = null;
+if ($edit_user_id > 0) {
+    $CI = &get_instance();
+    $CI->load->model('Seller_subscription_model');
+    $plan_row = $CI->Seller_subscription_model->get_current_plan($edit_user_id);
+}
+
+// Deep link: ?edit_id=73&section=admin opens straight on Admin Controls, which
+// is what the "Review & approve" button in the header links to. Anything else
+// starts at the top, so the page stays predictable for an ordinary edit.
+$step_keys = ['personal', 'store', 'business', 'bank', 'admin'];
+$requested_section = isset($_GET['section']) ? (string) $_GET['section'] : '';
+$initial_step = in_array($requested_section, $step_keys, true) ? $requested_section : 'personal';
+
+$rail = [
+    ['personal', 'Personal &amp; Account', 'Name, login, ID proof'],
+    ['store',    'Store Details',          'Shop, pickup, categories'],
+    ['business', 'Business &amp; Legal',   'Entity, PAN &amp; GST'],
+    ['bank',     'Bank Account',           'Where payouts land'],
+    ['admin',    'Admin Controls',         'Status &amp; permissions'],
+];
 ?>
-<div class="content-wrapper">
-    <!-- Content Header (Page header) -->
-    <!-- Main content -->
-    <section class="content-header">
-        <div class="container-fluid">
-            <div class="row mb-2">
-                <div class="col-sm-6">
-                    <h4><?= (isset($fetched_data[0]['id'])) ? 'Update Seller' : 'Add Seller' ?></h4>
-                </div>
-                <div class="col-sm-6">
-                    <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="<?= base_url('admin/home') ?>">Home</a></li>
-                        <li class="breadcrumb-item active">Seller</li>
-                    </ol>
-                </div>
+
+<?php // The seller form's stylesheet IS the design system for both screens -
+      // loaded first, then only the admin-specific pieces on top of it. ?>
+<link rel="stylesheet" href="<?= base_url('assets/seller/css/cretzo/seller-profile.css') ?>?v=<?= @filemtime(FCPATH . 'assets/seller/css/cretzo/seller-profile.css') ?: time() ?>">
+<link rel="stylesheet" href="<?= base_url('assets/admin/css/cretzo/admin-seller-form.css') ?>?v=<?= @filemtime(FCPATH . 'assets/admin/css/cretzo/admin-seller-form.css') ?: time() ?>">
+
+<div class="content-wrapper czp-page">
+  <section class="content">
+    <div class="container-fluid">
+      <div class="czp">
+
+        <?php // Inside .czp on purpose: the colour tokens this toast uses are
+              // declared there, and a fixed-position element styles the same
+              // wherever it sits in the tree. ?>
+        <div id="czp_toast" class="czp-toast" role="status" aria-live="polite"></div>
+
+        <?php if ($is_edit): ?>
+          <div class="czp-idcard">
+            <div class="czp-idcard-avatar">
+              <?php if ($seller_photo_url !== ''): ?>
+                <img src="<?= asf_attr($seller_photo_url) ?>" alt="<?= asf_attr($display_name) ?>">
+              <?php else: ?>
+                <?= asf_attr(strtoupper(mb_substr($display_name, 0, 1))) ?>
+              <?php endif; ?>
             </div>
-        </div><!-- /.container-fluid -->
-    </section>
-
-    <section class="content">
-        <div class="container-fluid">
-            <div class="row">
-                <?php // The "Categories & Commission(%)" modal that lived here has been removed
-                      // along with its trigger button. It saved per-category rates into the
-                      // seller_commission table, which nothing reads: commission comes from the
-                      // seller's subscription plan slabs. Keeping a working-looking form that
-                      // wrote to a table no calculation consults was worse than not having it. ?>
-
-                <div class="category-picker-modal" id="category_picker_modal">
-                    <div class="category-picker-content">
-                        <div class="category-picker-header d-flex justify-content-between align-items-center">
-                            <strong>Select Secondary Categories</strong>
-                            <button type="button" class="category-picker-close" id="close_category_picker_btn" aria-label="Close">&times;</button>
-                        </div>
-                        <div class="category-picker-list" id="category_picker_list">
-                            <?php foreach ($all_categories as $cat): ?>
-                                <?php if ((int) $cat['parent_id'] === 0) continue; // only sub-categories are selectable as "secondary" ?>
-                                <label class="category-picker-item" data-parent="<?= (int) $cat['parent_id'] ?>">
-                                    <input type="checkbox" class="secondary-category-checkbox" value="<?= $cat['id'] ?>">
-                                    <span><?= htmlspecialchars($cat['name'], ENT_QUOTES, 'UTF-8') ?></span>
-                                </label>
-                            <?php endforeach; ?>
-                            <p class="text-muted mb-0" id="category_picker_empty_msg" style="display:none;">Please select a Primary Product Category first.</p>
-                        </div>
-                        <div class="category-picker-footer">
-                            <button type="button" class="btn-add-categories" id="cancel_category_picker_btn">Cancel</button>
-                            <button type="button" class="btn-upload-logo" id="done_category_picker_btn">Done</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-md-12">
-                    <div class="card card-info">
-                        <!-- form start -->
-                        <form class="form-horizontal form-submit-event" action="<?= base_url('admin/sellers/add_seller'); ?>" method="POST" enctype="multipart/form-data" id="add_product_form">
-                            <?php if (isset($fetched_data[0]['id'])) { ?>
-                                <input type="hidden" name="edit_seller" value="<?= html_escape($fetched_data[0]['user_id']) ?>">
-                                <input type="hidden" name="edit_seller_data_id" value="<?= html_escape($fetched_data[0]['id']) ?>">
-                            <?php
-                            } ?>
-                            <div class="card-body">
-                                <textarea cols="20" rows="20" id="cat_data" name="commission_data" style="display:none;"></textarea>
-
-                                <h4>Personal / Account Details</h4>
-                                <hr>
-
-                                <div class="form-group row">
-                                    <label class="col-sm-2 col-form-label">Seller Photo</label>
-                                    <div class="col-sm-10 d-flex align-items-center gap-3">
-                                        <input type="file" class="hidden" name="seller_photo" id="personalPhotoInput" accept="image/*,application/pdf" style="display:none;">
-                                        <input type="hidden" name="old_seller_photo" value="<?= html_escape(htmlspecialchars($fetched_data[0]['image'] ?? '', ENT_QUOTES, 'UTF-8')) ?>">
-                                        <?php
-                                            /* Reuses get_user_avatar_url() (function_helper) instead of
-                                               base_url(USER_IMG_PATH . image): `users`.`image` can name a file that is
-                                               no longer on disk, and the raw concatenation rendered that as a broken
-                                               image. '' means "no usable photo", which is what drives both the
-                                               placeholder icon and whether the thumbnail is clickable below. */
-                                            $seller_photo_url = get_user_avatar_url($fetched_data[0]['image'] ?? '');
-                                            $has_seller_photo = ($seller_photo_url !== '');
-                                        ?>
-                                        <div class="personal-photo-preview" id="personalPhotoContainer">
-                                            <svg class="personal-photo-icon" id="personalPhotoIcon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="<?= $has_seller_photo ? 'display:none;' : '' ?>">
-                                                <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6m2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0m4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4m-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10s-3.516.68-4.168 1.332c-.678.678-.83 1.418-.832 1.664z" />
-                                            </svg>
-                                            <?php /* With a photo on file the thumbnail is a lightbox link so it opens the
-                                                     full-size image, instead of the file dialog it used to open - uploading
-                                                     is the button beside it. data-toggle="lightbox" is picked up by the
-                                                     global ekko-lightbox handler in assets/admin/custom/custom.js, the same
-                                                     way the seller document previews further down this form work. Its own
-                                                     gallery name keeps the arrows from wandering into those documents. */ ?>
-                                            <a href="<?= $seller_photo_url ?>" id="personalPhotoLink" class="personal-photo-link<?= $has_seller_photo ? '' : ' d-none' ?>"
-                                               <?= $has_seller_photo ? 'data-toggle="lightbox" data-gallery="seller_photo" data-title="Seller Photo"' : '' ?>>
-                                                <img id="personalPhotoPreview" src="<?= $seller_photo_url ?>" alt="Seller photo" class="<?= $has_seller_photo ? '' : 'hidden' ?>" style="<?= $has_seller_photo ? '' : 'display:none;' ?>">
-                                            </a>
-                                        </div>
-                                        <label for="personalPhotoInput" class="btn btn-outline-primary btn-sm mb-0">Upload Photo</label>
-                                    </div>
-                                </div>
-
-                                <div class="form-group row">
-                                    <label for="first_name" class="col-sm-2 col-form-label">First Name <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="first_name" placeholder="First Name" name="first_name" value="<?= html_escape(@$fetched_data[0]['first_name']) ?>">
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <label for="middle_name" class="col-sm-2 col-form-label">Middle Name</label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="middle_name" placeholder="Middle Name (optional)" name="middle_name" value="<?= html_escape(@$fetched_data[0]['middle_name']) ?>">
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <label for="last_name" class="col-sm-2 col-form-label">Last Name <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="last_name" placeholder="Last Name" name="last_name" value="<?= html_escape(@$fetched_data[0]['last_name']) ?>">
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <label for="phone" class="col-sm-2 col-form-label">Phone <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="phone" placeholder="Enter Phone Number" name="phone" maxlength="10" value="<?= html_escape(@$fetched_data[0]['phone']) ?>">
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <label for="email" class="col-sm-2 col-form-label">Email <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-sm-10">
-                                        <input type="email" class="form-control" id="email" placeholder="Enter Email" name="email" value="<?= html_escape(@$fetched_data[0]['email']) ?>">
-                                    </div>
-                                </div>
-                                <?php if (!isset($fetched_data[0]['id'])) { ?>
-                                    <div class="form-group row ">
-                                        <label for="password" class="col-sm-2 col-form-label">Password <span class='text-danger text-sm'>*</span></label>
-                                        <div class="col-sm-10">
-                                            <input type="password" class="form-control" id="password" placeholder="Enter Password" name="password">
-                                        </div>
-                                    </div>
-                                    <div class="form-group row ">
-                                        <label for="confirm_password" class="col-sm-2 col-form-label">Confirm Password <span class='text-danger text-sm'>*</span></label>
-                                        <div class="col-sm-10">
-                                            <input type="password" class="form-control" id="confirm_password" placeholder="Enter Confirm Password" name="confirm_password">
-                                        </div>
-                                    </div>
-                                <?php } ?>
-                                <div class="form-group row">
-                                    <label for="address1" class="col-sm-2 col-form-label">Address <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="address1" placeholder="Street" name="address1" value="<?= html_escape(@$fetched_data[0]['address1']) ?>">
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <label for="pin" class="col-sm-2 col-form-label">PIN Code <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="pin" placeholder="Enter PIN Code" name="pin" maxlength="6" value="<?= html_escape(@$fetched_data[0]['pin']) ?>">
-                                        <span id="pin_lookup_status" class="pincode-lookup-status"></span>
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <label for="state" class="col-sm-2 col-form-label">State <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="state" placeholder="Enter State" name="state" value="<?= html_escape(htmlspecialchars($fetched_data[0]['state'] ?? '', ENT_QUOTES, 'UTF-8')) ?>">
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <label for="district" class="col-sm-2 col-form-label">District <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="district" placeholder="Enter District" name="district" value="<?= html_escape(htmlspecialchars($fetched_data[0]['district'] ?? '', ENT_QUOTES, 'UTF-8')) ?>">
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <label for="city" class="col-sm-2 col-form-label">City/Village/Town <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="city" placeholder="Enter City/Village/Town" name="city" value="<?= html_escape(htmlspecialchars($fetched_data[0]['city'] ?? '', ENT_QUOTES, 'UTF-8')) ?>">
-                                    </div>
-                                </div>
-
-                                <?php
-                                // $db_column defaults to $field, but store_logo's underlying seller_data
-                                // column is named "logo" (Seller_model::add_seller() remaps
-                                // store_logo -> logo) - without this override the existing logo would
-                                // never preview and old_store_logo would always post back empty,
-                                // wiping the seller's logo on every save that doesn't re-upload one.
-                                function render_admin_doc_field($field, $fetched_data, $label, $required = true, $db_column = null) {
-                                    $db_column = $db_column ?? $field;
-                                    $value = $fetched_data[0][$db_column] ?? '';
-                                    $is_pdf = !empty($value) && preg_match('/\.pdf$/i', $value);
-                                ?>
-                                    <div class="form-group row" id="<?= $field ?>_field">
-                                        <label for="<?= $field ?>_input" class="col-sm-2 col-form-label"><?= $label ?><?= $required ? " <span class='text-danger text-sm'>*</span>" : '' ?></label>
-                                        <div class="col-sm-10">
-                                            <input type="file" class="form-control" name="<?= $field ?>" id="<?= $field ?>_input" accept="image/*,application/pdf">
-                                            <input type="hidden" name="old_<?= $field ?>" value="<?= html_escape(htmlspecialchars($value, ENT_QUOTES, 'UTF-8')) ?>">
-                                            <div class="doc-upload-preview-wrap<?= empty($value) ? ' hidden' : '' ?>" id="<?= $field ?>_wrap">
-                                                <a href="<?= (!empty($value) && !$is_pdf) ? base_url($value) : '' ?>" target="_blank" id="<?= $field ?>_link" data-toggle="lightbox" data-gallery="gallery_seller">
-                                                    <img id="<?= $field ?>_preview" src="<?= (!empty($value) && !$is_pdf) ? base_url($value) : '' ?>" class="doc-upload-thumb<?= ($is_pdf || empty($value)) ? ' hidden' : '' ?>" alt="<?= $label ?>">
-                                                </a>
-                                                <button type="button" class="doc-remove-btn" data-target="<?= $field ?>" aria-label="Remove <?= $label ?>">&times;</button>
-                                            </div>
-                                            <small class="doc-upload-hint" id="<?= $field ?>_hint" style="<?= empty($value) ? 'display:none;' : '' ?>">Current file on record. Leave blank if there is no change.</small>
-                                        </div>
-                                    </div>
-                                <?php
-                                }
-                                render_admin_doc_field('national_identity_card', $fetched_data, 'Identity Proof');
-                                render_admin_doc_field('authorized_signature', $fetched_data, 'Authorized Signatory');
-                                ?>
-
-                                <h4>Store Details</h4>
-                                <hr>
-                                <?php render_admin_doc_field('store_logo', $fetched_data, 'Store Logo', false, 'logo'); ?>
-                                <div class="form-group row">
-                                    <label for="shop_name" class="col-sm-2 col-form-label">Shop Name <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="shop_name" placeholder="Shop Name" name="shop_name" value="<?= html_escape(@$fetched_data[0]['shop_name']) ?>">
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <label for="social" class="col-sm-2 col-form-label">Social Media Handle</label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="social" placeholder="Enter Social Media" name="social" value="<?= html_escape(@$fetched_data[0]['social']) ?>">
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <label for="shop_phone" class="col-sm-2 col-form-label">Shop Phone Number <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="shop_phone" placeholder="Enter Shop Phone Number" name="shop_phone" maxlength="10" value="<?= html_escape(@$fetched_data[0]['shop_phone']) ?>">
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <label for="pickup_address1" class="col-sm-2 col-form-label">Pickup Address Line 1 <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="pickup_address1" placeholder="Address Line 1" name="pickup_address1" value="<?= html_escape(@$fetched_data[0]['pickup_address1']) ?>">
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <label for="pickup_address2" class="col-sm-2 col-form-label">Pickup Address Line 2</label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="pickup_address2" placeholder="Address Line 2" name="pickup_address2" value="<?= html_escape(@$fetched_data[0]['pickup_address2']) ?>">
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <label for="pickup_pin" class="col-sm-2 col-form-label">Pickup PIN Code <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="pickup_pin" placeholder="Enter PIN Code" name="pickup_pin" maxlength="6" value="<?= html_escape(@$fetched_data[0]['pickup_pin']) ?>">
-                                        <span id="pickup_pin_lookup_status" class="pincode-lookup-status"></span>
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <label for="pickup_state" class="col-sm-2 col-form-label">Pickup State</label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="pickup_state" placeholder="Enter State" name="pickup_state" value="<?= html_escape(htmlspecialchars($fetched_data[0]['pickup_state'] ?? '', ENT_QUOTES, 'UTF-8')) ?>">
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <label for="pickup_district" class="col-sm-2 col-form-label">Pickup District</label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="pickup_district" placeholder="Enter District" name="pickup_district" value="<?= html_escape(htmlspecialchars($fetched_data[0]['pickup_district'] ?? '', ENT_QUOTES, 'UTF-8')) ?>">
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <label for="pickup_city" class="col-sm-2 col-form-label">Pickup City</label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="pickup_city" placeholder="Enter City" name="pickup_city" value="<?= html_escape(htmlspecialchars($fetched_data[0]['pickup_city'] ?? '', ENT_QUOTES, 'UTF-8')) ?>">
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <label for="slug_input" class="col-sm-2 col-form-label">Store URL</label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="slug_input" name="slug" placeholder="<?= !empty($fetched_data[0]['shop_name']) ? htmlspecialchars($fetched_data[0]['shop_name'], ENT_QUOTES, 'UTF-8') : 'your-shop-name' ?>" value="<?= html_escape(htmlspecialchars($fetched_data[0]['slug'] ?? '', ENT_QUOTES, 'UTF-8')) ?>">
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <label for="store_description" class="col-sm-2 col-form-label">Store Description</label>
-                                    <div class="col-sm-10">
-                                        <textarea class="form-control" id="store_description" placeholder="Tell customers about the store..." name="store_description"><?= htmlspecialchars($fetched_data[0]['store_description'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <label for="primary_category_id" class="col-sm-2 col-form-label">Primary Product Category <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-sm-10">
-                                        <select name="primary_category_id" id="primary_category_id" class="form-control">
-                                            <option value="">Select a category</option>
-                                            <?php foreach ($all_categories as $cat): ?>
-                                                <?php if ((int) $cat['parent_id'] !== 0) continue; ?>
-                                                <option value="<?= $cat['id'] ?>" <?= (isset($fetched_data[0]['primary_category_id']) && (string) $fetched_data[0]['primary_category_id'] === (string) $cat['id']) ? 'selected' : '' ?>><?= htmlspecialchars($cat['name'], ENT_QUOTES, 'UTF-8') ?></option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <label class="col-sm-2 col-form-label">Secondary Categories <small class="text-muted">(optional)</small></label>
-                                    <div class="col-sm-10">
-                                        <small class="text-muted d-block mb-1">Choose a Primary Product Category first — only its sub-categories can be added here.</small>
-                                        <div id="secondary_category_pills"></div>
-                                        <button type="button" class="btn-add-categories" id="open_category_picker_btn">+ Add Categories</button>
-                                        <input type="hidden" name="secondary_category_ids" id="secondary_category_ids_hidden" value="<?= html_escape(htmlspecialchars($fetched_data[0]['category_ids'] ?? '', ENT_QUOTES, 'UTF-8')) ?>">
-                                    </div>
-                                </div>
-
-                                <h4>Business / Legal Details</h4>
-                                <hr>
-                                <div class="form-group row">
-                                    <label for="entity_type" class="col-sm-2 col-form-label">Entity Type <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-sm-10">
-                                        <?php $selected_entity_type = $fetched_data[0]['entity_type'] ?? 'individual'; ?>
-                                        <select name="entity_type" class="form-control" id="entity_type">
-                                            <option value="individual" <?= $selected_entity_type === 'individual' ? 'selected' : '' ?>>Individual</option>
-                                            <option value="sole_proprietorship" <?= $selected_entity_type === 'sole_proprietorship' ? 'selected' : '' ?>>Sole Proprietorship</option>
-                                            <option value="partnership_firm" <?= $selected_entity_type === 'partnership_firm' ? 'selected' : '' ?>>Partnership Firm</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <label for="legal_business_name_input" class="col-sm-2 col-form-label" id="legal_business_name_label">Legal Business Name</label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="legal_business_name_input" name="legal_business_name" placeholder="Legal Business Name" value="<?= html_escape(htmlspecialchars($fetched_data[0]['legal_business_name'] ?? '', ENT_QUOTES, 'UTF-8')) ?>">
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <label for="pan" class="col-sm-2 col-form-label" id="pan_label">PAN Number <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="pan" placeholder="Enter PAN Number" name="pan" maxlength="10" value="<?= html_escape(@$fetched_data[0]['pan']) ?>">
-                                    </div>
-                                </div>
-                                <?php render_admin_doc_field('pan_card_document', $fetched_data, 'Upload PAN Card'); ?>
-
-                                <h5 class="mt-3">Business Address</h5>
-                                <div class="form-group row">
-                                    <label for="business_address1" class="col-sm-2 col-form-label">Address Line 1 <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="business_address1" placeholder="Street 1" name="business_address1" value="<?= html_escape(htmlspecialchars($fetched_data[0]['business_address1'] ?? '', ENT_QUOTES, 'UTF-8')) ?>">
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <label for="business_address2" class="col-sm-2 col-form-label">Address Line 2</label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="business_address2" placeholder="Street 2" name="business_address2" value="<?= html_escape(htmlspecialchars($fetched_data[0]['business_address2'] ?? '', ENT_QUOTES, 'UTF-8')) ?>">
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <label for="business_pin" class="col-sm-2 col-form-label">PIN Code <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="business_pin" placeholder="Enter PIN Code" name="business_pin" maxlength="6" value="<?= html_escape(htmlspecialchars($fetched_data[0]['business_pin'] ?? '', ENT_QUOTES, 'UTF-8')) ?>">
-                                        <span id="business_pin_lookup_status" class="pincode-lookup-status"></span>
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <label for="business_state" class="col-sm-2 col-form-label">State <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="business_state" placeholder="Enter State" name="business_state" value="<?= html_escape(htmlspecialchars($fetched_data[0]['business_state'] ?? '', ENT_QUOTES, 'UTF-8')) ?>">
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <label for="business_district" class="col-sm-2 col-form-label">District <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="business_district" placeholder="Enter District" name="business_district" value="<?= html_escape(htmlspecialchars($fetched_data[0]['business_district'] ?? '', ENT_QUOTES, 'UTF-8')) ?>">
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <label for="business_city" class="col-sm-2 col-form-label">City/Village/Town <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="business_city" placeholder="Enter City/Village/Town" name="business_city" value="<?= html_escape(htmlspecialchars($fetched_data[0]['business_city'] ?? '', ENT_QUOTES, 'UTF-8')) ?>">
-                                    </div>
-                                </div>
-
-                                <?php
-                                $is_gst_registered = isset($fetched_data[0]['is_gst_registered']) ? $fetched_data[0]['is_gst_registered'] : 1;
-                                $gst_enrollment_number = isset($fetched_data[0]['gst_enrollment_number']) ? $fetched_data[0]['gst_enrollment_number'] : '';
-                                $is_non_gst = ($is_gst_registered == 0);
-                                ?>
-                                <div class="form-group row" id="gst_number_div" style="<?= $is_non_gst ? 'display:none;' : '' ?>">
-                                    <label for="gst" class="col-sm-2 col-form-label">GST Number <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="gst" placeholder="22ABCDE0000A1Z5" name="gst" maxlength="15" value="<?= html_escape(@$fetched_data[0]['gst']) ?>">
-                                    </div>
-                                </div>
-                                <?php render_admin_doc_field('gstin_document', $fetched_data, 'Upload GSTIN PDF'); ?>
-                                <div class="form-group row" id="gst_enrollment_div" style="<?= $is_non_gst ? '' : 'display:none;' ?>">
-                                    <label for="gst_enrollment_number" class="col-sm-2 col-form-label">GST Enrollment ID <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="gst_enrollment_number" placeholder="Enter GST Enrollment ID" name="gst_enrollment_number" maxlength="64" value="<?= html_escape($gst_enrollment_number) ?>">
-                                        <small class="text-muted d-block mt-1">Seller can sell only within their own state (as per government regulation).</small>
-                                    </div>
-                                </div>
-                                <?php render_admin_doc_field('gst_enrollment_ack_document', $fetched_data, 'Upload GST Enrollment ID Acknowledgement Slip'); ?>
-
-                                <div id="partnership_deed_section" style="display:none;">
-                                    <?php render_admin_doc_field('partnership_deed_document', $fetched_data, 'Upload Partnership Deed'); ?>
-                                </div>
-                                <div id="business_proof_section" style="display:none;">
-                                    <?php
-                                    render_admin_doc_field('business_proof_document', $fetched_data, 'Business Proof');
-                                    render_admin_doc_field('business_address_proof_document', $fetched_data, 'Business Address Proof (electricity bill, rent/lease agreement, or bank statement)');
-                                    ?>
-                                </div>
-
-                                <div class="form-group row">
-                                    <label class="col-sm-2 col-form-label">Not GST Registered?</label>
-                                    <div class="col-sm-10">
-                                        <input type="checkbox" id="gst_check" name="gst_check" value="1" <?= $is_non_gst ? 'checked' : '' ?> data-bootstrap-switch data-off-color="danger" data-on-color="success">
-                                    </div>
-                                </div>
-
-                                <h4>Bank / Account Details</h4>
-                                <hr>
-                                <div class="form-group row">
-                                    <label for="account_number" class="col-sm-2 col-form-label">Account Number <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="account_number" placeholder="Account Number" name="account_number" maxlength="18" value="<?= html_escape(@$fetched_data[0]['account_number']) ?>">
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <label for="confirm_account_number" class="col-sm-2 col-form-label">Confirm Account Number <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="confirm_account_number" placeholder="Confirm Account Number" name="confirm_account_number" maxlength="18" value="<?= html_escape(@$fetched_data[0]['account_number']) ?>">
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <label for="account_holder_name" class="col-sm-2 col-form-label">Account Holder Name <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="account_holder_name" placeholder="Account Holder Name" name="account_holder_name" value="<?= html_escape(@$fetched_data[0]['account_holder_name']) ?>">
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <label for="ifsc" class="col-sm-2 col-form-label">IFSC Code <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="ifsc" placeholder="Enter IFSC Code" name="ifsc" maxlength="11" value="<?= html_escape(@$fetched_data[0]['ifsc']) ?>">
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <label for="branch" class="col-sm-2 col-form-label">Branch Name <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="branch" placeholder="Enter Branch" name="branch" value="<?= html_escape(@$fetched_data[0]['branch']) ?>">
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <label for="bank_name_hidden" class="col-sm-2 col-form-label">Bank Name <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-sm-10" style="position:relative;">
-                                        <?php if (!empty($indian_banks)): ?>
-                                            <input type="text" id="bank_search" class="form-control" placeholder="Search Bank Name..." autocomplete="off">
-                                            <input type="hidden" name="bank_name" id="bank_name_hidden" value="<?= html_escape(@$fetched_data[0]['bank_name']) ?>">
-                                            <div id="bank_dropdown" style="display:none; border:1px solid #ccc; max-height:200px; overflow-y:auto; background:#fff; position:absolute; z-index:999; width:100%;"></div>
-                                        <?php else: ?>
-                                            <input type="text" name="bank_name" id="bank_name_hidden" class="form-control" placeholder="Enter Bank Name" value="<?= html_escape(@$fetched_data[0]['bank_name']) ?>">
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-                                <?php render_admin_doc_field('bank_account_proof_document', $fetched_data, 'Bank Account Proof (passbook, statement, or cancelled cheque)', false); ?>
-
-                                <h4>Admin Controls</h4>
-                                <hr>
-                                <div class="form-group row">
-                                    <label class="col-sm-2 col-form-label">Status <span class='text-danger text-sm'>*</span></label>
-                                    <div id="status" class="btn-group col-sm-4">
-                                        <label class="btn btn-default" data-toggle-class="btn-default" data-toggle-passive-class="btn-default">
-                                            <input type="radio" name="status" value="0" <?= (isset($fetched_data[0]['status']) && $fetched_data[0]['status'] == '0') ? 'Checked' : '' ?>> Deactive
-                                        </label>
-                                        <label class="btn btn-primary" data-toggle-class="btn-primary" data-toggle-passive-class="btn-default">
-                                            <input type="radio" name="status" value="1" <?= (isset($fetched_data[0]['status']) && $fetched_data[0]['status'] == '1') ? 'Checked' : '' ?>> Approved
-                                        </label>
-                                        <label class="btn btn-danger" data-toggle-class="btn-danger" data-toggle-passive-class="btn-default">
-                                            <input type="radio" name="status" value="2" <?= (!isset($fetched_data[0]['status']) || $fetched_data[0]['status'] == '2') ? 'Checked' : '' ?>> Not-Approved
-                                        </label>
-                                    </div>
-                                </div>
-                                <?php
-                                // The global "Commission(%)" input and the per-category commission
-                                // picker that used to sit here wrote to seller_data.commission and the
-                                // seller_commission table - neither of which is read by anything that
-                                // computes money any more. Commission is taken from the seller's
-                                // SUBSCRIPTION PLAN slabs (subscriptions.commission_first50 /
-                                // commission_51_100 / commission_after100), see
-                                // Seller_model::settle_seller_commission(). Leaving the old fields on
-                                // the form meant an admin could carefully set a rate here and see it
-                                // saved, while every settlement quietly ignored it. Replaced with a
-                                // pointer to where the rate actually lives.
-                                $plan_row = null;
-                                if (isset($fetched_data[0]['user_id']) && !empty($fetched_data[0]['user_id'])) {
-                                    $CI = &get_instance();
-                                    $CI->load->model('Seller_subscription_model');
-                                    $plan_row = $CI->Seller_subscription_model->get_current_plan($fetched_data[0]['user_id']);
-                                }
-                                ?>
-                                <div class="form-group row">
-                                    <label class="col-sm-2 col-form-label">Commission</label>
-                                    <div class="col-sm-10">
-                                        <div class="alert alert-info mb-0 py-2">
-                                            <?php if (!empty($plan_row)) { ?>
-                                                Commission is set by this seller's subscription plan
-                                                &mdash; <strong><?= html_escape($plan_row['name']) ?></strong>:
-                                                <span class="badge badge-light">First 50 orders: <?= html_escape($plan_row['commission_first50']) ?>%</span>
-                                                <span class="badge badge-light">Orders 51&ndash;100: <?= html_escape($plan_row['commission_51_100']) ?>%</span>
-                                                <span class="badge badge-light">After 100: <?= html_escape($plan_row['commission_after100']) ?>%</span>
-                                                <div class="small mt-1">
-                                                    Change the rate on the
-                                                    <a href="<?= base_url('admin/subscription') ?>">subscription plan</a>,
-                                                    or see this seller's
-                                                    <a href="<?= base_url('admin/settlement') ?>">settlement records</a>.
-                                                </div>
-                                            <?php } else { ?>
-                                                <i class="fas fa-exclamation-triangle mr-1"></i>
-                                                This seller has <strong>no subscription plan</strong>, so there is no commission
-                                                slab to settle against. Their delivered orders will stay uncredited until they
-                                                are on a plan &mdash; see
-                                                <a href="<?= base_url('admin/settlement') ?>">Commission &amp; Settlements</a>.
-                                            <?php } ?>
-                                        </div>
-                                    </div>
-                                </div>
-                                <?php if (isset($fetched_data[0]['permissions']) && !empty($fetched_data[0]['permissions'])) {
-                                    $permit = json_decode($fetched_data[0]['permissions'], true);
-                                } ?>
-                                <div class="form-group row">
-                                    <label for="require_products_approval" class="col-sm-2 form-label">Require Product's Approval? <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-sm-1">
-                                        <input type="checkbox" name="require_products_approval" <?= (isset($permit['require_products_approval']) && $permit['require_products_approval'] == '1') ? 'Checked' : '' ?> data-bootstrap-switch data-off-color="danger" data-on-color="success">
-                                    </div>
-                                    <label for="customer_privacy" class="form-label">View Customer's Details? <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-sm-1">
-                                        <input type="checkbox" name="customer_privacy" <?= (isset($permit['customer_privacy']) && $permit['customer_privacy'] == '1') ? 'Checked' : '' ?> data-bootstrap-switch data-off-color="danger" data-on-color="success">
-                                    </div>
-                                    <label for="view_order_otp" class="form-label">View Order's OTP? & Can change deliver status? <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-sm-1">
-                                        <input type="checkbox" name="view_order_otp" <?= (isset($permit['view_order_otp']) && $permit['view_order_otp'] == '1') ? 'Checked' : '' ?> data-bootstrap-switch data-off-color="danger" data-on-color="success">
-                                    </div>
-                                    <label for="assign_delivery_boy" class="form-label">Can assign delivery boy? <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-sm-1">
-                                        <input type="checkbox" name="assign_delivery_boy" <?= (isset($permit['assign_delivery_boy']) && $permit['assign_delivery_boy'] == '1') ? 'Checked' : '' ?> data-bootstrap-switch data-off-color="danger" data-on-color="success">
-                                    </div>
-                                </div>
-
-                                <?php if (isset($fetched_data[0]['id'])) {
-                                    // Read-only on purpose. The admin's own "verification note"
-                                    // textarea that used to live here was write-only - nothing
-                                    // ever showed it to the seller, and its column is a
-                                    // varchar(40) that truncated anything worth writing. What
-                                    // the admin actually needs here is whether there is a
-                                    // complete profile waiting, and where to approve it.
-                                    $verification_requested_at = !empty($fetched_data[0]['verification_request_at']) ? $fetched_data[0]['verification_request_at'] : '';
-                                    $seller_is_approved = isset($fetched_data[0]['status']) && (string) $fetched_data[0]['status'] === '1';
-                                    $seller_missing = isset($seller_missing_sections) && is_array($seller_missing_sections) ? $seller_missing_sections : [];
-                                    $seller_missing_labels = array_unique(array_column($seller_missing, 'label'));
-                                ?>
-                                    <h5 class="mt-4">Verification Request</h5>
-                                    <div class="form-group row">
-                                        <div class="col-sm-10 offset-sm-2">
-                                            <?php if ($seller_is_approved) { ?>
-                                                <div class="alert alert-success mb-2 py-2">
-                                                    <i class="fas fa-check-circle mr-1"></i>
-                                                    This seller is <strong>approved</strong> and can list products.
-                                                </div>
-                                            <?php } elseif ($verification_requested_at !== '') { ?>
-                                                <div class="alert alert-warning mb-2 py-2">
-                                                    <i class="fas fa-hourglass-half mr-1"></i>
-                                                    Awaiting your review since
-                                                    <strong><?= html_escape(date('d M Y, h:i A', strtotime($verification_requested_at))) ?></strong>.
-                                                </div>
-                                            <?php } else { ?>
-                                                <div class="alert alert-secondary mb-2 py-2">
-                                                    <i class="fas fa-info-circle mr-1"></i>
-                                                    Not submitted for verification yet. The seller's profile is sent here
-                                                    automatically once they have filled in every section.
-                                                </div>
-                                            <?php } ?>
-
-                                            <?php if (empty($seller_missing)) { ?>
-                                                <p class="mb-1 text-success"><i class="fas fa-check mr-1"></i>All profile sections are complete (personal, store and bank details).</p>
-                                            <?php } else { ?>
-                                                <p class="mb-1 text-danger">
-                                                    <i class="fas fa-exclamation-triangle mr-1"></i>
-                                                    Still incomplete: <strong><?= html_escape(implode(', ', $seller_missing_labels)) ?></strong>.
-                                                </p>
-                                            <?php } ?>
-                                            <p class="text-muted small mb-0">
-                                                To verify this seller, set <strong>Status</strong> above to
-                                                <strong>Approved</strong> and press <strong>Update Seller</strong>.
-                                            </p>
-                                        </div>
-                                    </div>
-                                <?php } ?>
-
-                                <div class="form-group border-top pt-3 mt-4 mb-2">
-                                    <button type="reset" class="btn btn-warning mr-2">Reset</button>
-                                    <button type="submit" class="btn btn-success" id="submit_btn"><?= (isset($fetched_data[0]['id'])) ? 'Update Seller' : 'Add Seller' ?></button>
-                                </div>
-                            </div>
-                            <div class="d-flex justify-content-center">
-                                <div class="form-group" id="error_box">
-                                    <div class="card text-white d-none mb-3">
-                                    </div>
-                                </div>
-                            </div>
-                            <!-- /.card-footer -->
-                        </form>
-                    </div>
-                    <!--/.card-->
-                </div>
-                <!--/.col-md-12-->
+            <div class="czp-idcard-main">
+              <h1><?= asf_attr($display_name) ?></h1>
+              <div class="czp-idcard-meta">
+                <span>#<?= $edit_user_id ?></span>
+                <?php if (!empty($d['shop_name'])): ?><span><?= asf_attr($d['shop_name']) ?></span><?php endif; ?>
+                <?php if (!empty($d['email'])): ?><span><?= asf_attr($d['email']) ?></span><?php endif; ?>
+                <?php if (!empty($d['phone'])): ?><span><?= asf_attr($d['phone']) ?></span><?php endif; ?>
+              </div>
             </div>
-            <!-- /.row -->
-        </div><!-- /.container-fluid -->
-    </section>
-    <!-- /.content -->
+            <div class="czp-idcard-side">
+              <?php if ($status_value === '1'): ?>
+                <span class="czp-badge czp-badge-green">Approved</span>
+              <?php elseif ($status_value === '0'): ?>
+                <span class="czp-badge czp-badge-grey">Deactivated</span>
+              <?php elseif ($status_value === '7'): ?>
+                <span class="czp-badge czp-badge-red">Removed</span>
+              <?php else: ?>
+                <span class="czp-badge czp-badge-amber">Not approved</span>
+              <?php endif; ?>
+              <?php if (!empty($plan_row['name'])): ?>
+                <span class="czp-badge czp-badge-grey"><?= asf_attr($plan_row['name']) ?></span>
+              <?php endif; ?>
+              <button type="button" class="czp-btn czp-btn-ghost czp-btn-sm"
+                      onclick="openSellerFormSection('admin')">Review &amp; approve</button>
+              <?php if ($seller_is_approved && !empty($d['slug'])): ?>
+                <a class="czp-btn czp-btn-ghost czp-btn-sm" target="_blank" rel="noopener"
+                   href="<?= base_url('sellers/' . rawurlencode($d['slug'])) ?>">View storefront</a>
+              <?php endif; ?>
+              <a class="czp-btn czp-btn-ghost czp-btn-sm" href="<?= base_url('admin/sellers') ?>">All sellers</a>
+            </div>
+          </div>
+        <?php else: ?>
+          <header class="czp-head">
+            <h1>Add a Seller</h1>
+            <p>The same five sections the seller sees on their own profile. Everything except the login password can be edited later.</p>
+          </header>
+        <?php endif; ?>
+
+        <nav class="czp-rail" aria-label="Seller form sections">
+          <?php foreach ($rail as $i => $r): ?>
+            <button type="button" class="czp-rail-item" data-czp-goto="<?= $i ?>">
+              <span class="czp-rail-num"><span><?= $i + 1 ?></span></span>
+              <span class="czp-rail-txt"><b><?= $r[1] ?></b><small><?= $r[2] ?></small></span>
+            </button>
+          <?php endforeach; ?>
+        </nav>
+
+        <div class="czp-card">
+          <form id="seller_admin_form" class="czp-form" method="POST"
+                action="<?= base_url('admin/sellers/add_seller') ?>"
+                enctype="multipart/form-data" novalidate>
+
+            <?php if ($is_edit): ?>
+              <input type="hidden" name="edit_seller" value="<?= (int) $d['user_id'] ?>">
+              <input type="hidden" name="edit_seller_data_id" value="<?= (int) $d['id'] ?>">
+            <?php endif; ?>
+
+            <!-- ==================== STEP 1: PERSONAL / ACCOUNT ============== -->
+            <section class="czp-step" data-czp-step="personal" data-czp-label="Personal &amp; Account" hidden>
+              <div class="czp-step-head">
+                <h2>Personal &amp; Account Details</h2>
+                <p>Who the seller is, how the platform reaches them, and the two identity documents that get verified.</p>
+              </div>
+              <div class="czp-alert" data-czp-alert hidden></div>
+
+              <div class="czp-avatar-row czp-field" data-czp-field="seller_photo"
+                   data-czp-file-label="Seller photo" data-czp-file-images>
+                <input type="file" class="czp-file" id="seller_photo_input" name="seller_photo" accept=".jpg,.jpeg,.png,.gif">
+                <input type="hidden" name="old_seller_photo" value="<?= asf_attr($d['image'] ?? '') ?>">
+                <div class="czp-avatar" data-czp-avatar tabindex="0" role="button" aria-label="Upload seller photo">
+                  <svg data-czp-avatar-icon xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" <?= $seller_photo_url !== '' ? 'hidden' : '' ?>>
+                    <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6m2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0m4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4m-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10s-3.516.68-4.168 1.332c-.678.678-.83 1.418-.832 1.664z"/>
+                  </svg>
+                  <img data-czp-avatar-img alt=""
+                       <?= $seller_photo_url !== '' ? 'src="' . asf_attr($seller_photo_url) . '"' : '' ?>
+                       <?= $seller_photo_url !== '' ? '' : 'hidden' ?>>
+                </div>
+                <div class="czp-avatar-copy">
+                  <b>Seller photo</b>
+                  <small class="czp-hint">Optional. JPG, PNG or GIF, up to 8 MB.</small>
+                  <span class="czp-error" data-czp-error></span>
+                </div>
+                <label class="czp-btn czp-btn-ghost czp-btn-sm" for="seller_photo_input">Choose photo</label>
+              </div>
+
+              <fieldset class="czp-group">
+                <legend>Name</legend>
+                <div class="czp-grid">
+                  <?php
+                  asf_field(['name' => 'first_name', 'label' => 'First Name', 'value' => $d['first_name'] ?? '', 'required' => true, 'col' => 4, 'id' => 'first_name', 'placeholder' => 'First name', 'maxlength' => 50]);
+                  asf_field(['name' => 'middle_name', 'label' => 'Middle Name', 'value' => $d['middle_name'] ?? '', 'col' => 4, 'id' => 'middle_name', 'placeholder' => 'Optional', 'maxlength' => 50]);
+                  asf_field(['name' => 'last_name', 'label' => 'Last Name', 'value' => $d['last_name'] ?? '', 'required' => true, 'col' => 4, 'id' => 'last_name', 'placeholder' => 'Last name', 'maxlength' => 50]);
+                  ?>
+                </div>
+              </fieldset>
+
+              <fieldset class="czp-group">
+                <legend>Login &amp; contact</legend>
+                <div class="czp-grid">
+                  <?php
+                  asf_field([
+                      'name' => 'phone', 'label' => 'Phone Number', 'value' => $d['phone'] ?? '', 'required' => true,
+                      'id' => 'phone', 'placeholder' => '10-digit mobile number', 'digits' => 10, 'contact' => 'phone',
+                      'hint' => 'The seller signs in with this number, and order/payout alerts go to it.',
+                  ]);
+                  asf_field([
+                      'name' => 'email', 'label' => 'Email', 'value' => $d['email'] ?? '', 'required' => true,
+                      'id' => 'email', 'type' => 'email', 'placeholder' => 'name@example.com', 'maxlength' => 254, 'contact' => 'email',
+                  ]);
+                  if (!$is_edit) {
+                      asf_field([
+                          'name' => 'password', 'label' => 'Password', 'required' => true, 'type' => 'password',
+                          'id' => 'password', 'placeholder' => 'Set a password', 'autocomplete' => 'new-password',
+                          'hint' => 'Eight characters or more is recommended. The seller can change it from their own profile.',
+                      ]);
+                      asf_field([
+                          'name' => 'confirm_password', 'label' => 'Confirm Password', 'required' => true, 'type' => 'password',
+                          'id' => 'confirm_password', 'placeholder' => 'Re-type the password', 'autocomplete' => 'new-password',
+                      ]);
+                  }
+                  ?>
+                </div>
+                <?php if ($is_edit): ?>
+                  <small class="czp-hint">The password is not shown or changed here. The seller resets it from their own account.</small>
+                <?php endif; ?>
+              </fieldset>
+
+              <fieldset class="czp-group">
+                <legend>Address</legend>
+                <div class="czp-grid">
+                  <?php
+                  asf_field(['name' => 'address1', 'label' => 'Address', 'value' => $d['address1'] ?? '', 'required' => true, 'col' => 12, 'id' => 'address1', 'placeholder' => 'House / street']);
+                  asf_field([
+                      'name' => 'pin', 'label' => 'PIN Code', 'value' => $d['pin'] ?? '', 'required' => true,
+                      'id' => 'pin', 'placeholder' => '6-digit PIN code', 'digits' => 6, 'status' => 'pin_status',
+                  ]);
+                  asf_field(['name' => 'state', 'label' => 'State', 'value' => $d['state'] ?? '', 'required' => true, 'id' => 'state', 'placeholder' => 'State']);
+                  asf_field(['name' => 'district', 'label' => 'District', 'value' => $d['district'] ?? '', 'required' => true, 'id' => 'district', 'placeholder' => 'District']);
+                  // id="seller_city", not "city": custom.js binds a stray
+                  // $('#city').on('change') left over from the customer address book,
+                  // which POSTs to my-account/get-areas and then blows up on an
+                  // undefined `Toast` - which it did every time an admin edited this
+                  // field on the old form. The name attribute is what the server
+                  // reads, so renaming the id changes nothing else.
+                  asf_field(['name' => 'city', 'label' => 'City/Village/Town', 'value' => $d['city'] ?? '', 'required' => true, 'id' => 'seller_city', 'placeholder' => 'City, village or town']);
+                  ?>
+                </div>
+              </fieldset>
+
+              <fieldset class="czp-group">
+                <legend>Identity documents</legend>
+                <div class="czp-grid">
+                  <?php
+                  asf_file(['name' => 'national_identity_card', 'label' => 'Identity Proof', 'value' => $d['national_identity_card'] ?? '', 'required' => true, 'hint' => 'Aadhaar, passport, voter ID or driving licence']);
+                  asf_file(['name' => 'authorized_signature', 'label' => 'Authorized Signatory', 'value' => $d['authorized_signature'] ?? '', 'required' => true, 'hint' => 'A clear scan of the signature']);
+                  ?>
+                </div>
+              </fieldset>
+            </section>
+
+            <!-- ==================== STEP 2: STORE ========================== -->
+            <section class="czp-step" data-czp-step="store" data-czp-label="Store Details" hidden>
+              <div class="czp-step-head">
+                <h2>Store Details</h2>
+                <p>How buyers see the shop, where the courier collects, and what the seller is allowed to list.</p>
+              </div>
+              <div class="czp-alert" data-czp-alert hidden></div>
+
+              <?php // store_logo lands in seller_data.logo (Seller_model::add_seller()
+                    // remaps the key), which is why old_store_logo is fed from `logo` -
+                    // reading it from `store_logo` would post back empty and wipe the
+                    // logo on every save that did not re-upload one. ?>
+              <div class="czp-avatar-row czp-field" data-czp-field="store_logo"
+                   data-czp-file-label="Store logo" data-czp-file-images>
+                <input type="file" class="czp-file" id="store_logo_input" name="store_logo" accept=".jpg,.jpeg,.png,.gif">
+                <input type="hidden" name="old_store_logo" value="<?= asf_attr($d['logo'] ?? '') ?>">
+                <div class="czp-avatar is-square" data-czp-avatar tabindex="0" role="button" aria-label="Upload store logo">
+                  <svg data-czp-avatar-icon xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" <?= !empty($d['logo']) ? 'hidden' : '' ?>>
+                    <path d="M14.5 3h-13a.5.5 0 0 0-.5.5v9a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5v-9a.5.5 0 0 0-.5-.5M2 4h12v5.5l-2.6-2.1a.5.5 0 0 0-.63 0L7.5 10 5.6 8.6a.5.5 0 0 0-.6 0L2 10.8zm3.5 1.5a1 1 0 1 1 0 2 1 1 0 0 1 0-2"/>
+                  </svg>
+                  <img data-czp-avatar-img alt=""
+                       <?= !empty($d['logo']) ? 'src="' . asf_attr(base_url($d['logo'])) . '"' : '' ?>
+                       <?= !empty($d['logo']) ? '' : 'hidden' ?>>
+                </div>
+                <div class="czp-avatar-copy">
+                  <b>Store logo</b>
+                  <small class="czp-hint">Optional. JPG, PNG or GIF, up to 8 MB.</small>
+                  <span class="czp-error" data-czp-error></span>
+                </div>
+                <label class="czp-btn czp-btn-ghost czp-btn-sm" for="store_logo_input">Choose logo</label>
+              </div>
+
+              <fieldset class="czp-group">
+                <legend>Shop identity</legend>
+                <div class="czp-grid">
+                  <?php
+                  asf_field(['name' => 'shop_name', 'label' => 'Shop Name', 'value' => $d['shop_name'] ?? '', 'required' => true, 'id' => 'shop_name', 'placeholder' => 'Shop name', 'maxlength' => 100, 'hint' => 'Must be unique across Cretzo.']);
+                  asf_field([
+                      'name' => 'slug', 'label' => 'Store URL', 'value' => $d['slug'] ?? '', 'id' => 'slug_input', 'maxlength' => 255,
+                      'placeholder' => !empty($d['shop_name']) ? $d['shop_name'] : 'your-shop-name',
+                      'hint' => 'Leave blank and it is built from the shop name.',
+                  ]);
+                  asf_field([
+                      'name' => 'shop_phone', 'label' => 'Shop Phone Number', 'value' => $d['shop_phone'] ?? '', 'required' => true,
+                      'id' => 'shop_phone', 'placeholder' => '10-digit mobile number', 'digits' => 10, 'contact' => 'shop_phone',
+                      'hint' => 'May be the same as the personal number above.',
+                  ]);
+                  asf_field(['name' => 'social', 'label' => 'Social Media Handle', 'value' => $d['social'] ?? '', 'id' => 'social', 'placeholder' => 'Instagram, Facebook or website']);
+                  asf_field(['name' => 'store_description', 'label' => 'Store Description', 'value' => $d['store_description'] ?? '', 'col' => 12, 'type' => 'textarea', 'id' => 'store_description', 'placeholder' => 'Tell customers about the store...']);
+                  ?>
+                </div>
+              </fieldset>
+
+              <fieldset class="czp-group">
+                <legend>Pickup address</legend>
+                <div class="czp-grid">
+                  <?php
+                  asf_field(['name' => 'pickup_address1', 'label' => 'Pickup Address Line 1', 'value' => $d['pickup_address1'] ?? '', 'required' => true, 'id' => 'pickup_address1', 'placeholder' => 'Address line 1']);
+                  asf_field(['name' => 'pickup_address2', 'label' => 'Pickup Address Line 2', 'value' => $d['pickup_address2'] ?? '', 'id' => 'pickup_address2', 'placeholder' => 'Address line 2 (optional)']);
+                  asf_field([
+                      'name' => 'pickup_pin', 'label' => 'PIN Code', 'value' => $d['pickup_pin'] ?? '', 'required' => true,
+                      'id' => 'pickup_pin', 'placeholder' => '6-digit PIN code', 'digits' => 6, 'status' => 'pickup_pin_status',
+                  ]);
+                  asf_field(['name' => 'pickup_state', 'label' => 'State', 'value' => $d['pickup_state'] ?? '', 'required' => true, 'id' => 'pickup_state', 'placeholder' => 'State']);
+                  asf_field(['name' => 'pickup_district', 'label' => 'District', 'value' => $d['pickup_district'] ?? '', 'required' => true, 'id' => 'pickup_district', 'placeholder' => 'District']);
+                  asf_field(['name' => 'pickup_city', 'label' => 'City', 'value' => $d['pickup_city'] ?? '', 'required' => true, 'id' => 'pickup_city', 'placeholder' => 'City']);
+                  ?>
+                </div>
+                <small class="czp-hint">Shiprocket collects from this address, so State, District and City all have to be filled in.</small>
+              </fieldset>
+
+              <fieldset class="czp-group">
+                <legend>What this seller sells</legend>
+                <div class="czp-grid">
+                  <?php
+                  $primary_options = ['' => 'Select a category'];
+                  foreach ($all_categories as $cat) {
+                      if ((int) $cat['parent_id'] !== 0) continue; // top-level only
+                      $primary_options[$cat['id']] = $cat['name'];
+                  }
+                  asf_field([
+                      'name' => 'primary_category_id', 'label' => 'Primary Product Category', 'required' => true,
+                      'type' => 'select', 'id' => 'primary_category_id', 'options' => $primary_options,
+                      'value' => $d['primary_category_id'] ?? '',
+                  ]);
+                  ?>
+                  <div class="czp-field czp-col-6" data-czp-field="secondary_category_ids">
+                    <label class="czp-label">Secondary Categories <small class="czp-hint" style="display:inline">(optional)</small></label>
+                    <small class="czp-hint">Only sub-categories of the primary category can be added.</small>
+                    <div class="czp-pills" id="category_pills"></div>
+                    <input type="hidden" name="secondary_category_ids" id="secondary_category_ids" value="<?= asf_attr($d['category_ids'] ?? '') ?>">
+                    <button type="button" class="czp-btn czp-btn-ghost czp-btn-sm" id="category_open">+ Add categories</button>
+                    <span class="czp-error" data-czp-error></span>
+                  </div>
+                </div>
+              </fieldset>
+            </section>
+
+            <!-- ==================== STEP 3: BUSINESS ======================= -->
+            <section class="czp-step" data-czp-step="business" data-czp-label="Business &amp; Legal" hidden>
+              <div class="czp-step-head">
+                <h2>Business &amp; Legal Details</h2>
+                <p>The entity type decides which documents apply - the form shows only the ones this seller needs, and the save enforces exactly the same set.</p>
+              </div>
+              <div class="czp-alert" data-czp-alert hidden></div>
+
+              <fieldset class="czp-group">
+                <legend>Entity</legend>
+                <div class="czp-grid">
+                  <?php
+                  asf_field([
+                      'name' => 'entity_type', 'label' => 'Entity Type', 'required' => true, 'col' => 4,
+                      'type' => 'select', 'id' => 'entity_type', 'value' => $entity_type,
+                      'options' => [
+                          'individual' => 'Individual',
+                          'sole_proprietorship' => 'Sole Proprietorship',
+                          'partnership_firm' => 'Partnership Firm',
+                      ],
+                  ]);
+                  asf_field([
+                      'name' => 'legal_business_name', 'label' => 'Legal Business Name', 'col' => 4,
+                      'label_id' => 'legal_business_name_label', 'id' => 'legal_business_name_input',
+                      'value' => $d['legal_business_name'] ?? '', 'maxlength' => 255, 'placeholder' => 'Legal business name',
+                      'hint' => 'For an individual this is their own name - filled in automatically.',
+                  ]);
+                  asf_field([
+                      'name' => 'pan', 'label' => 'PAN Number', 'required' => true, 'col' => 4,
+                      'label_id' => 'pan_label', 'id' => 'pan', 'value' => $d['pan'] ?? '',
+                      'maxlength' => 10, 'placeholder' => 'ABCDE1234F',
+                      'hint' => 'The statutory TDS rate is picked from this, so a malformed PAN costs the seller money.',
+                  ]);
+                  ?>
+                </div>
+              </fieldset>
+
+              <fieldset class="czp-group">
+                <legend>Business address</legend>
+                <div class="czp-grid">
+                  <?php
+                  asf_field(['name' => 'business_address1', 'label' => 'Address Line 1', 'value' => $d['business_address1'] ?? '', 'required' => true, 'id' => 'business_address1', 'placeholder' => 'Street 1']);
+                  asf_field(['name' => 'business_address2', 'label' => 'Address Line 2', 'value' => $d['business_address2'] ?? '', 'id' => 'business_address2', 'placeholder' => 'Street 2 (optional)']);
+                  asf_field([
+                      'name' => 'business_pin', 'label' => 'PIN Code', 'value' => $d['business_pin'] ?? '', 'required' => true,
+                      'id' => 'business_pin', 'placeholder' => '6-digit PIN code', 'digits' => 6, 'status' => 'business_pin_status',
+                  ]);
+                  asf_field(['name' => 'business_state', 'label' => 'State', 'value' => $d['business_state'] ?? '', 'required' => true, 'id' => 'business_state', 'placeholder' => 'State']);
+                  asf_field(['name' => 'business_district', 'label' => 'District', 'value' => $d['business_district'] ?? '', 'required' => true, 'id' => 'business_district', 'placeholder' => 'District']);
+                  asf_field(['name' => 'business_city', 'label' => 'City/Village/Town', 'value' => $d['business_city'] ?? '', 'required' => true, 'id' => 'business_city', 'placeholder' => 'City, village or town']);
+                  ?>
+                </div>
+              </fieldset>
+
+              <fieldset class="czp-group">
+                <legend>Tax registration</legend>
+                <div class="czp-grid">
+                  <div class="czp-col-12">
+                    <div class="czp-check">
+                      <input type="checkbox" id="gst_check" name="gst_check" value="1" <?= $is_non_gst ? 'checked' : '' ?>>
+                      <div class="czp-check-body">
+                        <label for="gst_check">This seller is not GST registered</label>
+                        <small class="czp-hint">Asks for a GST Enrollment ID instead of a GSTIN. Without a valid GSTIN no TCS is ever collected from them.</small>
+                      </div>
+                    </div>
+                  </div>
+                  <?php
+                  asf_field([
+                      'name' => 'gst', 'label' => 'GST Number', 'value' => $d['gst'] ?? '', 'required' => true,
+                      'id' => 'gst', 'maxlength' => 15, 'placeholder' => '22ABCDE0000A1Z5', 'hidden' => $is_non_gst,
+                  ]);
+                  asf_field([
+                      'name' => 'gst_enrollment_number', 'label' => 'GST Enrollment ID', 'value' => $d['gst_enrollment_number'] ?? '', 'required' => true,
+                      'id' => 'gst_enrollment_number', 'maxlength' => 64, 'placeholder' => 'Enrollment ID', 'hidden' => !$is_non_gst,
+                      'hint' => 'Such a seller can sell only within their own state (government regulation).',
+                  ]);
+                  ?>
+                </div>
+              </fieldset>
+
+              <?php // All of this step's uploads in one group: a grid row is as tall as
+                    // its tallest cell, so pairing a plain text field with an upload
+                    // (label + hint + picker + file chip) leaves a tall blank gap under
+                    // the text one. PAN Card is always required, so the group can never
+                    // be empty. ?>
+              <fieldset class="czp-group">
+                <legend>Documents</legend>
+                <div class="czp-grid">
+                  <?php
+                  $wants_proof = $is_non_gst && !in_array($entity_type, ['individual', ''], true);
+                  asf_file(['name' => 'pan_card_document', 'label' => 'PAN Card', 'value' => $d['pan_card_document'] ?? '', 'required' => true]);
+                  asf_file(['name' => 'gstin_document', 'label' => 'GSTIN Document', 'value' => $d['gstin_document'] ?? '', 'required' => true, 'hidden' => $is_non_gst]);
+                  asf_file(['name' => 'gst_enrollment_ack_document', 'label' => 'GST Enrollment Acknowledgement Slip', 'value' => $d['gst_enrollment_ack_document'] ?? '', 'required' => true, 'hidden' => !$is_non_gst]);
+                  asf_file(['name' => 'partnership_deed_document', 'label' => 'Partnership Deed', 'value' => $d['partnership_deed_document'] ?? '', 'required' => true, 'hidden' => ($entity_type !== 'partnership_firm')]);
+                  asf_file(['name' => 'business_proof_document', 'label' => 'Business Proof', 'value' => $d['business_proof_document'] ?? '', 'required' => true, 'hidden' => !$wants_proof, 'extra_hint_id' => 'business_proof_document_hint_extra']);
+                  asf_file(['name' => 'business_address_proof_document', 'label' => 'Business Address Proof', 'value' => $d['business_address_proof_document'] ?? '', 'required' => true, 'hidden' => !$wants_proof, 'hint' => 'Electricity bill, rent/lease agreement or bank statement']);
+                  ?>
+                </div>
+              </fieldset>
+            </section>
+
+            <!-- ==================== STEP 4: BANK =========================== -->
+            <section class="czp-step" data-czp-step="bank" data-czp-label="Bank Account" hidden>
+              <div class="czp-step-head">
+                <h2>Bank Account</h2>
+                <p>Where this seller's payouts land. A wrong digit in the account number sends settlement money to the wrong place.</p>
+              </div>
+              <div class="czp-alert" data-czp-alert hidden></div>
+
+              <fieldset class="czp-group">
+                <legend>Account</legend>
+                <div class="czp-grid">
+                  <?php
+                  asf_field(['name' => 'account_number', 'label' => 'Account Number', 'value' => $d['account_number'] ?? '', 'required' => true, 'id' => 'account_number', 'digits' => 18, 'placeholder' => 'Account number']);
+                  asf_field(['name' => 'confirm_account_number', 'label' => 'Confirm Account Number', 'value' => $d['account_number'] ?? '', 'required' => true, 'id' => 'confirm_account_number', 'digits' => 18, 'placeholder' => 'Re-type the account number']);
+                  asf_field(['name' => 'account_holder_name', 'label' => "Account Holder's Name", 'value' => $d['account_holder_name'] ?? '', 'required' => true, 'id' => 'account_holder_name', 'placeholder' => 'Name exactly as on the account']);
+                  asf_field(['name' => 'ifsc', 'label' => 'IFSC Code', 'value' => $d['ifsc'] ?? '', 'required' => true, 'id' => 'ifsc', 'maxlength' => 11, 'placeholder' => 'SBIN0001234']);
+                  asf_field(['name' => 'branch', 'label' => 'Branch Name', 'value' => $d['branch'] ?? '', 'required' => true, 'id' => 'branch', 'placeholder' => 'Branch']);
+                  ?>
+
+                  <div class="czp-field czp-col-6" data-czp-field="bank_name">
+                    <label class="czp-label" for="bank_search">Bank Name <i class="czp-req">*</i></label>
+                    <?php if (!empty($indian_banks)): ?>
+                      <div class="czp-combo">
+                        <input type="text" class="czp-input" id="bank_search" placeholder="Start typing the bank name..." autocomplete="off">
+                        <div class="czp-combo-list" id="bank_dropdown"></div>
+                      </div>
+                      <?php // The hidden input is what gets submitted and what the
+                            // validator reads - the visible box is only the search field. ?>
+                      <input type="hidden" name="bank_name" id="bank_name_hidden" data-czp-control value="<?= asf_attr($d['bank_name'] ?? '') ?>">
+                      <small class="czp-hint">Not in the list? Type it in - whatever is typed is saved.</small>
+                    <?php else: ?>
+                      <input type="text" class="czp-input" name="bank_name" id="bank_name_hidden" data-czp-control
+                             value="<?= asf_attr($d['bank_name'] ?? '') ?>" placeholder="Bank name">
+                    <?php endif; ?>
+                    <span class="czp-error" data-czp-error></span>
+                  </div>
+
+                  <?php asf_file(['name' => 'bank_account_proof_document', 'label' => 'Bank Account Proof', 'value' => $d['bank_account_proof_document'] ?? '', 'required' => false, 'hint' => 'Passbook, statement or cancelled cheque']); ?>
+                </div>
+              </fieldset>
+            </section>
+
+            <!-- ==================== STEP 5: ADMIN CONTROLS ================= -->
+            <section class="czp-step" data-czp-step="admin" data-czp-label="Admin Controls" hidden>
+              <div class="czp-step-head">
+                <h2>Admin Controls</h2>
+                <p>Approval, what this seller is allowed to do, and where their commission rate actually comes from.</p>
+              </div>
+              <div class="czp-alert" data-czp-alert hidden></div>
+
+              <?php if ($is_edit): ?>
+                <?php
+                // Read-only on purpose. The admin's own "verification note"
+                // textarea that used to live here was write-only - nothing ever
+                // showed it to the seller, and its column is a varchar(40) that
+                // truncated anything worth writing. What is needed here is
+                // whether there is a complete profile waiting to be reviewed.
+                $missing_labels = array_unique(array_column($seller_missing, 'label'));
+                ?>
+                <?php if ($seller_is_approved): ?>
+                  <div class="czp-alert czp-alert-success">
+                    <b>This seller is approved</b>
+                    They can list products and take orders. Setting Status back to Not-Approved or Deactive stops that.
+                  </div>
+                <?php elseif ($verification_requested_at !== ''): ?>
+                  <div class="czp-alert czp-alert-warn">
+                    <b>Awaiting your review since <?= asf_attr(date('d M Y, h:i A', strtotime($verification_requested_at))) ?></b>
+                    Set Status to Approved below and save to verify this seller.
+                  </div>
+                <?php else: ?>
+                  <div class="czp-alert czp-alert-info">
+                    <b>Not submitted for verification yet</b>
+                    A seller's profile arrives here automatically once they have filled in every section. You can still approve them by hand.
+                  </div>
+                <?php endif; ?>
+
+                <fieldset class="czp-group">
+                  <legend>Profile completeness</legend>
+                  <?php if (empty($seller_missing)): ?>
+                    <p class="czp-hint" style="color:var(--czp-green);font-weight:600">
+                      All profile sections are complete (personal, store and bank details).
+                    </p>
+                  <?php else: ?>
+                    <ul class="czp-review-list">
+                      <?php foreach ($seller_missing as $section): ?>
+                        <li class="is-todo">
+                          <span class="czp-dot" aria-hidden="true">!</span>
+                          <span><?= asf_attr($section['label']) ?> is incomplete</span>
+                          <?php $step_key = $section_step[$section['key']] ?? 'personal'; ?>
+                          <button type="button" class="czp-btn czp-btn-ghost czp-btn-sm"
+                                  onclick="openSellerFormSection('<?= asf_attr($step_key) ?>')">Fill this in</button>
+                        </li>
+                      <?php endforeach; ?>
+                    </ul>
+                    <small class="czp-hint">
+                      Missing: <?= asf_attr(implode(', ', $missing_labels)) ?>. You can approve regardless, but the
+                      seller's own dashboard keeps prompting them until these are filled in.
+                    </small>
+                  <?php endif; ?>
+                </fieldset>
+              <?php endif; ?>
+
+              <fieldset class="czp-group">
+                <legend>Status</legend>
+                <div class="czp-field" data-czp-field="status" data-czp-radio>
+                  <div class="czp-seg">
+                    <label class="czp-seg-item is-approve">
+                      <input type="radio" name="status" value="1" <?= $status_value === '1' ? 'checked' : '' ?>>
+                      <span class="czp-seg-copy">
+                        <b>Approved</b>
+                        <small>Verified. Can list products, subscribe and receive orders.</small>
+                      </span>
+                    </label>
+                    <label class="czp-seg-item">
+                      <input type="radio" name="status" value="2" <?= $status_value === '2' ? 'checked' : '' ?>>
+                      <span class="czp-seg-copy">
+                        <b>Not approved</b>
+                        <small>Can sign in and complete their profile, but not sell yet.</small>
+                      </span>
+                    </label>
+                    <label class="czp-seg-item is-block">
+                      <input type="radio" name="status" value="0" <?= $status_value === '0' ? 'checked' : '' ?>>
+                      <span class="czp-seg-copy">
+                        <b>Deactive</b>
+                        <small>Blocked from the seller panel. Existing listings stop showing.</small>
+                      </span>
+                    </label>
+                  </div>
+                  <span class="czp-error" data-czp-error></span>
+                </div>
+              </fieldset>
+
+              <fieldset class="czp-group">
+                <legend>Commission</legend>
+                <?php
+                // The global "Commission(%)" input and the per-category commission
+                // picker that used to sit here wrote to seller_data.commission and the
+                // seller_commission table - neither of which is read by anything that
+                // computes money any more. Commission comes from the seller's
+                // SUBSCRIPTION PLAN slabs (subscriptions.commission_first50 /
+                // commission_51_100 / commission_after100), see
+                // Seller_model::settle_seller_commission(). Leaving the old fields here
+                // meant an admin could carefully set a rate, see it saved, and have
+                // every settlement quietly ignore it.
+                ?>
+                <?php if (!empty($plan_row)): ?>
+                  <div class="czp-alert czp-alert-info">
+                    <b>Set by this seller's subscription plan: <?= asf_attr($plan_row['name']) ?></b>
+                    <div class="czp-kv">
+                      <div class="czp-kv-row">
+                        <span class="czp-badge czp-badge-grey">First 50 orders: <?= asf_attr($plan_row['commission_first50']) ?>%</span>
+                        <span class="czp-badge czp-badge-grey">Orders 51&ndash;100: <?= asf_attr($plan_row['commission_51_100']) ?>%</span>
+                        <span class="czp-badge czp-badge-grey">After 100: <?= asf_attr($plan_row['commission_after100']) ?>%</span>
+                      </div>
+                      <div class="czp-kv-row">
+                        Change the rate on the <a href="<?= base_url('admin/subscription') ?>">subscription plan</a>,
+                        or see this seller's <a href="<?= base_url('admin/settlement') ?>">settlement records</a>.
+                      </div>
+                    </div>
+                  </div>
+                <?php else: ?>
+                  <div class="czp-alert czp-alert-warn">
+                    <b>No subscription plan</b>
+                    There is no commission slab to settle against, so delivered orders stay uncredited until
+                    this seller is on a plan &mdash; see <a href="<?= base_url('admin/settlement') ?>">Commission &amp; Settlements</a>.
+                  </div>
+                <?php endif; ?>
+              </fieldset>
+
+              <fieldset class="czp-group">
+                <legend>Seller permissions</legend>
+                <div class="czp-switches">
+                  <label class="czp-switch">
+                    <span class="czp-switch-copy">
+                      <b>Products need approval</b>
+                      <small>New and edited listings wait for an admin before going live.</small>
+                    </span>
+                    <input type="checkbox" name="require_products_approval" value="1"
+                           <?= (isset($permit['require_products_approval']) && $permit['require_products_approval'] == '1') ? 'checked' : '' ?>>
+                  </label>
+                  <label class="czp-switch">
+                    <span class="czp-switch-copy">
+                      <b>Can see customer details</b>
+                      <small>Buyer name, phone and address on their own orders.</small>
+                    </span>
+                    <input type="checkbox" name="customer_privacy" value="1"
+                           <?= (isset($permit['customer_privacy']) && $permit['customer_privacy'] == '1') ? 'checked' : '' ?>>
+                  </label>
+                  <label class="czp-switch">
+                    <span class="czp-switch-copy">
+                      <b>Can see order OTP &amp; set delivery status</b>
+                      <small>Lets the seller move their own orders through to delivered.</small>
+                    </span>
+                    <input type="checkbox" name="view_order_otp" value="1"
+                           <?= (isset($permit['view_order_otp']) && $permit['view_order_otp'] == '1') ? 'checked' : '' ?>>
+                  </label>
+                  <label class="czp-switch">
+                    <span class="czp-switch-copy">
+                      <b>Can assign a delivery boy</b>
+                      <small>Legacy: Cretzo ships through Shiprocket, so there are no delivery boy accounts to assign.</small>
+                    </span>
+                    <input type="checkbox" name="assign_delivery_boy" value="1"
+                           <?= (isset($permit['assign_delivery_boy']) && $permit['assign_delivery_boy'] == '1') ? 'checked' : '' ?>>
+                  </label>
+                </div>
+              </fieldset>
+            </section>
+
+            <!-- ==================== ACTION BAR ============================= -->
+            <?php // Inside the form so the button is a real submit, and sticky so an
+                  // admin who only came to change Status never has to hunt for it. ?>
+            <footer class="czp-actionbar">
+              <button type="button" class="czp-btn czp-btn-ghost czp-btn-sm" data-czp-back>Back</button>
+              <button type="button" class="czp-btn czp-btn-ghost czp-btn-sm" data-czp-next>Next</button>
+              <span class="czp-actionbar-count" data-czp-step-count></span>
+              <span class="czp-actionbar-spacer"></span>
+              <?php if ($is_edit): ?>
+                <button type="button" class="czp-btn czp-btn-ghost" data-czp-discard>Discard changes</button>
+              <?php endif; ?>
+              <button type="submit" class="czp-btn czp-btn-primary" id="submit_btn">
+                <?= $is_edit ? 'Update Seller' : 'Add Seller' ?>
+              </button>
+            </footer>
+
+            <div id="error_box"></div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<?php // The picker lives outside the form: it is a chooser, not submitted data.
+      // Its checkboxes carry no name - the chosen ids are synced into the
+      // secondary_category_ids hidden input inside the form. ?>
+<div class="czp-modal czp" id="category_modal" role="dialog" aria-modal="true" aria-label="Select secondary categories">
+  <div class="czp-modal-box">
+    <div class="czp-modal-head">
+      <strong>Select secondary categories</strong>
+      <button type="button" class="czp-modal-close" data-czp-modal-close aria-label="Close">&times;</button>
+    </div>
+    <div class="czp-modal-body">
+      <?php foreach ($all_categories as $cat): ?>
+        <?php if ((int) $cat['parent_id'] === 0) continue; // sub-categories only ?>
+        <label class="czp-pick" data-parent="<?= (int) $cat['parent_id'] ?>" data-label="<?= asf_attr($cat['name']) ?>" hidden>
+          <input type="checkbox" value="<?= (int) $cat['id'] ?>">
+          <span><?= asf_attr($cat['name']) ?></span>
+        </label>
+      <?php endforeach; ?>
+      <p class="czp-hint" id="category_empty">Choose a Primary Product Category first.</p>
+    </div>
+    <div class="czp-modal-foot">
+      <button type="button" class="czp-btn czp-btn-ghost" data-czp-modal-close>Cancel</button>
+      <button type="button" class="czp-btn czp-btn-primary" id="category_done">Done</button>
+    </div>
+  </div>
 </div>
 
 <script>
-    // ── Personal photo: click to enlarge when one is on file, click to upload
-    //    when there isn't ──────────────────────────────────────────────────
-    (function() {
-        var input = document.getElementById('personalPhotoInput');
-        var container = document.getElementById('personalPhotoContainer');
-        var preview = document.getElementById('personalPhotoPreview');
-        var icon = document.getElementById('personalPhotoIcon');
-        var link = document.getElementById('personalPhotoLink');
-        if (!input || !preview) return;
-
-        if (container) {
-            container.addEventListener('click', function(e) {
-                // A saved photo makes the thumbnail a lightbox link; let that click through
-                // to the ekko-lightbox handler rather than opening the file dialog on top of
-                // it. Everything else on the circle still opens the dialog, so an empty
-                // avatar behaves exactly as before.
-                if (link && link.hasAttribute('data-toggle') && e.target.closest('#personalPhotoLink')) {
-                    return;
-                }
-                input.click();
-            });
-        }
-
-        input.addEventListener('change', function() {
-            var file = this.files[0];
-            if (file && file.type.startsWith('image/')) {
-                var reader = new FileReader();
-                reader.onload = function(e) {
-                    preview.src = e.target.result;
-                    preview.style.display = '';
-                    preview.classList.remove('hidden');
-                    if (icon) icon.style.display = 'none';
-                    if (link) {
-                        link.classList.remove('d-none');
-                        // The picked file is not saved yet, and the lightbox resolves its
-                        // type from the href - a data: URL is not something it handles. So
-                        // the thumbnail stays a plain preview until the form is saved, and
-                        // a click falls through to the dialog again in case the wrong file
-                        // was chosen. Reloading after save restores the enlarge link.
-                        link.removeAttribute('data-toggle');
-                        link.removeAttribute('href');
-                    }
-                };
-                reader.readAsDataURL(file);
-            }
-        });
-    })();
-
-    // ── Document upload preview / remove (images get a thumbnail; PDFs just
-    //    show the "on record" hint and the remove button) ────────────────
-    function bindDocPreviewFlexible(fieldName) {
-        var input = document.getElementById(fieldName + '_input');
-        var preview = document.getElementById(fieldName + '_preview');
-        var wrap = document.getElementById(fieldName + '_wrap');
-        var link = document.getElementById(fieldName + '_link');
-        var hint = document.getElementById(fieldName + '_hint');
-        if (!input || !preview) return;
-        input.addEventListener('change', function() {
-            var file = this.files[0];
-            if (!file) return;
-            if (file.type === 'application/pdf') {
-                preview.classList.add('hidden');
-                if (link) link.removeAttribute('href');
-                if (wrap) wrap.classList.remove('hidden');
-                if (hint) hint.style.display = 'none';
-            } else if (file.type.startsWith('image/')) {
-                var reader = new FileReader();
-                reader.onload = function(e) {
-                    preview.src = e.target.result;
-                    preview.classList.remove('hidden');
-                    if (link) link.href = e.target.result;
-                    if (wrap) wrap.classList.remove('hidden');
-                    if (hint) hint.style.display = 'none';
-                };
-                reader.readAsDataURL(file);
-            }
-        });
-    }
-    function bindDocRemove(fieldName) {
-        var btn = document.querySelector('.doc-remove-btn[data-target="' + fieldName + '"]');
-        var input = document.getElementById(fieldName + '_input');
-        var oldHidden = document.querySelector('input[name="old_' + fieldName + '"]');
-        var wrap = document.getElementById(fieldName + '_wrap');
-        var hint = document.getElementById(fieldName + '_hint');
-        if (!btn) return;
-        btn.addEventListener('click', function() {
-            if (!confirm('Remove this file? You will need to upload a new one to replace it.')) return;
-            if (input) input.value = '';
-            if (oldHidden) oldHidden.value = '';
-            if (wrap) wrap.classList.add('hidden');
-            if (hint) hint.style.display = 'none';
-        });
-    }
-    [
-        'national_identity_card', 'authorized_signature', 'store_logo',
-        'pan_card_document', 'gstin_document', 'gst_enrollment_ack_document',
-        'business_proof_document', 'business_address_proof_document',
-        'partnership_deed_document', 'bank_account_proof_document'
-    ].forEach(function(fieldName) {
-        bindDocPreviewFlexible(fieldName);
-        bindDocRemove(fieldName);
-    });
-
-    // ── Bank searchable dropdown ─────────────────────────────────────────
-    <?php if (!empty($indian_banks)): ?>
-        var bankData = [
-            <?php foreach ($indian_banks as $bank): ?>
-                {
-                    label: "<?= addslashes($bank['bank_name']) ?>",
-                    id: "<?= addslashes($bank['bank_name']) ?>"
-                },
-            <?php endforeach; ?>
-        ];
-        (function() {
-            var searchEl = document.getElementById('bank_search');
-            var hiddenEl = document.getElementById('bank_name_hidden');
-            var dropdownEl = document.getElementById('bank_dropdown');
-            if (!searchEl || !hiddenEl || !dropdownEl) return;
-            if (hiddenEl.value) searchEl.value = hiddenEl.value;
-
-            function renderDropdown(items) {
-                dropdownEl.innerHTML = '';
-                if (!items.length) { dropdownEl.style.display = 'none'; return; }
-                items.forEach(function(item) {
-                    var div = document.createElement('div');
-                    div.textContent = item.label;
-                    div.style.cssText = 'padding:8px 12px; cursor:pointer;';
-                    div.addEventListener('mouseenter', function() { this.style.background = '#f0f0f0'; });
-                    div.addEventListener('mouseleave', function() { this.style.background = '#fff'; });
-                    div.addEventListener('click', function() {
-                        searchEl.value = item.label;
-                        hiddenEl.value = item.label;
-                        dropdownEl.style.display = 'none';
-                    });
-                    dropdownEl.appendChild(div);
-                });
-                dropdownEl.style.display = 'block';
-            }
-            searchEl.addEventListener('input', function() {
-                var q = this.value.toLowerCase();
-                hiddenEl.value = this.value.trim();
-                if (!q) { dropdownEl.style.display = 'none'; return; }
-                renderDropdown(bankData.filter(function(item) { return item.label.toLowerCase().includes(q); }));
-            });
-            document.addEventListener('click', function(e) {
-                if (e.target !== searchEl) dropdownEl.style.display = 'none';
-            });
-        })();
-    <?php endif; ?>
-
-    // ── Entity-type / GST toggle + legal-name auto-fill ──────────────────
-    (function() {
-        var gstCheck = document.getElementById('gst_check');
-        var entityType = document.getElementById('entity_type');
-        if (!gstCheck || !entityType) return;
-
-        var PAN_LABELS = {
-            individual: 'PAN Number',
-            sole_proprietorship: "Proprietor's PAN Number",
-            partnership_firm: "Firm's PAN Number"
-        };
-        var LEGAL_NAME_LABELS = {
-            individual: 'Legal Business Name',
-            sole_proprietorship: 'Legal Business Name',
-            partnership_firm: "Legal Firm's Name"
-        };
-
-        function syncGstFields() {
-            var nonGst = gstCheck.checked;
-            var numDiv = document.getElementById('gst_number_div');
-            var enrDiv = document.getElementById('gst_enrollment_div');
-            if (numDiv) numDiv.style.display = nonGst ? 'none' : '';
-            if (enrDiv) enrDiv.style.display = nonGst ? '' : 'none';
-
-            var gstinField = document.getElementById('gstin_document_field');
-            var ackField = document.getElementById('gst_enrollment_ack_document_field');
-            if (gstinField) gstinField.style.display = nonGst ? 'none' : '';
-            if (ackField) ackField.style.display = nonGst ? '' : 'none';
-
-            updateBusinessProofVisibility();
-        }
-
-        function updateBusinessProofVisibility() {
-            var type = entityType.value;
-            var section = document.getElementById('business_proof_section');
-            var visible = gstCheck.checked && type !== 'individual' && type !== '';
-            if (section) section.style.display = visible ? '' : 'none';
-        }
-
-        function updateEntityTypeUI() {
-            var type = entityType.value;
-            var panLabelEl = document.getElementById('pan_label');
-            var legalLabelEl = document.getElementById('legal_business_name_label');
-            var legalInput = document.getElementById('legal_business_name_input');
-            var partnershipSection = document.getElementById('partnership_deed_section');
-
-            if (panLabelEl) panLabelEl.innerHTML = (PAN_LABELS[type] || 'PAN Number') + '<span class="text-danger text-sm">*</span>';
-            if (legalLabelEl) legalLabelEl.textContent = LEGAL_NAME_LABELS[type] || 'Legal Business Name';
-
-            if (type === 'individual' && legalInput && (!legalInput.value.trim() || legalInput.dataset.autofilled === '1')) {
-                var firstName = document.querySelector('input[name="first_name"]');
-                var lastName = document.querySelector('input[name="last_name"]');
-                var fullName = [firstName ? firstName.value.trim() : '', lastName ? lastName.value.trim() : ''].filter(Boolean).join(' ');
-                if (fullName) {
-                    legalInput.value = fullName;
-                    legalInput.dataset.autofilled = '1';
-                }
-            }
-
-            if (partnershipSection) partnershipSection.style.display = (type === 'partnership_firm') ? '' : 'none';
-
-            syncGstFields();
-        }
-
-        gstCheck.addEventListener('change', syncGstFields);
-        entityType.addEventListener('change', updateEntityTypeUI);
-        var firstNameInput = document.querySelector('input[name="first_name"]');
-        var lastNameInput = document.querySelector('input[name="last_name"]');
-        if (firstNameInput) firstNameInput.addEventListener('blur', updateEntityTypeUI);
-        if (lastNameInput) lastNameInput.addEventListener('blur', updateEntityTypeUI);
-        var legalNameInput = document.getElementById('legal_business_name_input');
-        if (legalNameInput) legalNameInput.addEventListener('input', function() { legalNameInput.dataset.autofilled = ''; });
-        syncGstFields();
-        updateEntityTypeUI();
-    })();
-
-    // ── Secondary Categories picker ──────────────────────────────────────
-    (function() {
-        var modal = document.getElementById('category_picker_modal');
-        var openBtn = document.getElementById('open_category_picker_btn');
-        var closeBtn = document.getElementById('close_category_picker_btn');
-        var cancelBtn = document.getElementById('cancel_category_picker_btn');
-        var doneBtn = document.getElementById('done_category_picker_btn');
-        var hiddenInput = document.getElementById('secondary_category_ids_hidden');
-        var pillsContainer = document.getElementById('secondary_category_pills');
-        var primarySelect = document.getElementById('primary_category_id');
-        var emptyMsg = document.getElementById('category_picker_empty_msg');
-        if (!modal || !hiddenInput || !pillsContainer || !primarySelect) return;
-        var items = Array.prototype.slice.call(document.querySelectorAll('.category-picker-item'));
-        var checkboxes = Array.prototype.slice.call(document.querySelectorAll('.secondary-category-checkbox'));
-
-        var categoryNames = {};
-        var categoryParent = {};
-        items.forEach(function(item) {
-            var cb = item.querySelector('.secondary-category-checkbox');
-            var label = item.querySelector('span');
-            if (!cb) return;
-            categoryNames[cb.value] = label ? label.textContent : cb.value;
-            categoryParent[cb.value] = item.getAttribute('data-parent');
-        });
-
-        function getSelectedIds() {
-            return hiddenInput.value ? hiddenInput.value.split(',').filter(function(v) { return v !== ''; }) : [];
-        }
-
-        function renderPills() {
-            var ids = getSelectedIds();
-            pillsContainer.innerHTML = '';
-            ids.forEach(function(id) {
-                var pill = document.createElement('span');
-                pill.className = 'category-pill';
-                pill.textContent = categoryNames[id] || id;
-                var removeBtn = document.createElement('button');
-                removeBtn.type = 'button';
-                removeBtn.innerHTML = '&times;';
-                removeBtn.setAttribute('aria-label', 'Remove category');
-                removeBtn.addEventListener('click', function() {
-                    hiddenInput.value = getSelectedIds().filter(function(x) { return x !== id; }).join(',');
-                    syncCheckboxes();
-                    renderPills();
-                });
-                pill.appendChild(removeBtn);
-                pillsContainer.appendChild(pill);
-            });
-        }
-
-        function syncCheckboxes() {
-            var ids = getSelectedIds();
-            checkboxes.forEach(function(cb) { cb.checked = ids.indexOf(cb.value) !== -1; });
-        }
-
-        function filterByPrimary() {
-            var primaryId = primarySelect.value;
-            var anyVisible = false;
-            items.forEach(function(item) {
-                var visible = !!primaryId && item.getAttribute('data-parent') === primaryId;
-                item.style.display = visible ? '' : 'none';
-                if (visible) anyVisible = true;
-            });
-            if (emptyMsg) emptyMsg.style.display = anyVisible ? 'none' : '';
-            if (openBtn) {
-                openBtn.disabled = !primaryId;
-                openBtn.style.opacity = primaryId ? '1' : '0.5';
-                openBtn.style.cursor = primaryId ? 'pointer' : 'not-allowed';
-            }
-        }
-
-        function pruneSelectionsOutsidePrimary() {
-            var primaryId = primarySelect.value;
-            var kept = getSelectedIds().filter(function(id) { return categoryParent[id] === primaryId; });
-            hiddenInput.value = kept.join(',');
-            renderPills();
-        }
-
-        function openModal() {
-            if (primarySelect.value === '') return;
-            syncCheckboxes();
-            filterByPrimary();
-            modal.style.display = 'flex';
-        }
-        function closeModal() { modal.style.display = 'none'; }
-        function applyAndClose() {
-            var ids = checkboxes.filter(function(cb) { return cb.checked && cb.closest('.category-picker-item').style.display !== 'none'; }).map(function(cb) { return cb.value; });
-            hiddenInput.value = ids.join(',');
-            renderPills();
-            modal.style.display = 'none';
-        }
-
-        if (openBtn) openBtn.addEventListener('click', openModal);
-        if (closeBtn) closeBtn.addEventListener('click', closeModal);
-        if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
-        if (doneBtn) doneBtn.addEventListener('click', applyAndClose);
-        modal.addEventListener('click', function(e) { if (e.target === modal) closeModal(); });
-        primarySelect.addEventListener('change', function() {
-            pruneSelectionsOutsidePrimary();
-            filterByPrimary();
-        });
-
-        filterByPrimary();
-        renderPills();
-    })();
-
-    // Store URL placeholder mirrors Shop Name live
-    (function() {
-        var shopNameInput = document.querySelector('input[name="shop_name"]');
-        var slugInput = document.getElementById('slug_input');
-        if (!shopNameInput || !slugInput) return;
-        shopNameInput.addEventListener('input', function() {
-            slugInput.placeholder = shopNameInput.value.trim() || 'your-shop-name';
-        });
-    })();
-
-    // ── Pincode autofill (India Post, falls back to Zippopotam) ──────────
-    function setPincodeStatus(statusElement, message, type) {
-        if (!statusElement) return;
-        statusElement.textContent = message || '';
-        statusElement.classList.remove('error', 'success', 'info');
-        if (type) statusElement.classList.add(type);
-    }
-    function getFirstAvailableValue(source, keys) {
-        for (var i = 0; i < keys.length; i++) {
-            if (source && source[keys[i]]) return source[keys[i]];
-        }
-        return '';
-    }
-    function setLocationInputValue(inputId, value) {
-        var input = document.getElementById(inputId);
-        if (input && value) input.value = value;
-    }
-    function bindPincodeAutofill(options) {
-        var pinInput = document.getElementById(options.pinId);
-        var statusElement = document.getElementById(options.statusId);
-        var lookupTimer = null;
-        var latestPincode = '';
-        if (!pinInput) return;
-
-        function firstMeaningful() {
-            for (var i = 0; i < arguments.length; i++) {
-                var v = (arguments[i] || '').toString().trim();
-                if (v && !/^(na|nil|none)$/i.test(v)) return v;
-            }
-            return '';
-        }
-        function applyLocation(loc) {
-            setLocationInputValue(options.stateInputId, loc.state);
-            setLocationInputValue(options.districtInputId, loc.district);
-            setLocationInputValue(options.cityInputId, loc.city);
-        }
-        function lookupIndiaPost(pincode) {
-            return fetch('https://api.postalpincode.in/pincode/' + encodeURIComponent(pincode))
-                .then(function(r) { if (!r.ok) throw new Error('http'); return r.json(); })
-                .then(function(data) {
-                    var rec = Array.isArray(data) ? data[0] : null;
-                    var offices = (rec && Array.isArray(rec.PostOffice)) ? rec.PostOffice : [];
-                    if (!rec || rec.Status !== 'Success' || !offices.length) throw new Error('not found');
-                    var po = offices[0];
-                    return { state: po.State || '', district: po.District || '', city: firstMeaningful(po.Block, po.Name, po.District) };
-                });
-        }
-        function lookupZippopotam(pincode) {
-            return fetch('https://api.zippopotam.us/in/' + encodeURIComponent(pincode))
-                .then(function(r) { if (!r.ok) throw new Error('http'); return r.json(); })
-                .then(function(data) {
-                    var place = (Array.isArray(data.places) ? data.places : [])[0] || {};
-                    var placeName = getFirstAvailableValue(place, ['place name', 'place_name', 'city', 'town', 'locality']);
-                    var state = getFirstAvailableValue(place, ['state', 'state name', 'state_name']);
-                    var district = getFirstAvailableValue(place, ['district', 'district name', 'district_name', 'county', 'region']) || placeName;
-                    if (!placeName && !state && !district) throw new Error('empty');
-                    return { state: state, district: district, city: placeName };
-                });
-        }
-        function fillAddressFromPincode() {
-            var pincode = pinInput.value.replace(/\D/g, '').slice(0, 6);
-            pinInput.value = pincode;
-            if (pincode.length < 6) {
-                latestPincode = '';
-                setPincodeStatus(statusElement, '', '');
-                return;
-            }
-            latestPincode = pincode;
-            setPincodeStatus(statusElement, 'Fetching state, district and city…', 'info');
-            lookupIndiaPost(pincode)
-                .catch(function() { return lookupZippopotam(pincode); })
-                .then(function(loc) {
-                    if (latestPincode !== pincode) return;
-                    applyLocation(loc);
-                    setPincodeStatus(statusElement, 'State, district and city filled from pincode.', 'success');
-                })
-                .catch(function() {
-                    if (latestPincode !== pincode) return;
-                    setPincodeStatus(statusElement, 'Could not auto-detect this pincode. Please enter manually.', 'info');
-                });
-        }
-        pinInput.addEventListener('input', function() {
-            clearTimeout(lookupTimer);
-            lookupTimer = setTimeout(fillAddressFromPincode, 400);
-        });
-        pinInput.addEventListener('blur', fillAddressFromPincode);
-    }
-    bindPincodeAutofill({ pinId: 'pin', stateInputId: 'state', districtInputId: 'district', cityInputId: 'city', statusId: 'pin_lookup_status' });
-    bindPincodeAutofill({ pinId: 'pickup_pin', stateInputId: 'pickup_state', districtInputId: 'pickup_district', cityInputId: 'pickup_city', statusId: 'pickup_pin_lookup_status' });
-    bindPincodeAutofill({ pinId: 'business_pin', stateInputId: 'business_state', districtInputId: 'business_district', cityInputId: 'business_city', statusId: 'business_pin_lookup_status' });
-
-    // ── Contact validation: Phone / Shop Phone / Email ────────────────────────────
-    // Format is checked as the admin types; uniqueness is confirmed against the server
-    // on blur. add_seller() re-runs both on save, so this is purely a faster signal.
-    (function() {
-        var CONTACT_FIELDS = ['phone', 'shop_phone', 'email'];
-
-        function digitsOnly(el) {
-            el.value = el.value.replace(/\D/g, '').slice(0, 10);
-        }
-
-        function setMsg(id, text, isError) {
-            var $help = $('#' + id + '_contact_msg');
-            if (!$help.length) {
-                $help = $('<small class="d-block mt-1" id="' + id + '_contact_msg"></small>');
-                $('#' + id).after($help);
-            }
-            $help.text(text || '').css('color', isError ? '#dc3545' : '#28a745');
-            $('#' + id).toggleClass('is-invalid', !!isError);
-        }
-
-        function formatError(field, value) {
-            if (!value) return '';
-            if (field === 'email') {
-                if (value.length > 254) return 'Email must be 254 characters or less.';
-                return /^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(value) ? '' : 'Enter a valid email (example: name@example.com).';
-            }
-            if (!/^\d{10}$/.test(value)) return 'Must be exactly 10 digits.';
-            if (!/^[6-9]/.test(value)) return 'Must start with 6, 7, 8 or 9.';
-            return '';
-        }
-
-        CONTACT_FIELDS.forEach(function(field) {
-            var $el = $('#' + field);
-            if (!$el.length) return;
-
-            if (field !== 'email') {
-                $el.attr('maxlength', 10).attr('inputmode', 'numeric');
-                $el.on('input', function() { digitsOnly(this); });
-            }
-
-            $el.on('input', function() {
-                var err = formatError(field, $.trim(this.value));
-                setMsg(field, err, !!err);
-            });
-
-            $el.on('blur', function() {
-                var value = $.trim(this.value);
-                if (!value) { setMsg(field, '', false); return; }
-                var err = formatError(field, value);
-                if (err) { setMsg(field, err, true); return; }
-                setMsg(field, 'Checking…', false);
-                var payload = {
-                    field: field,
-                    value: value,
-                    phone: $.trim($('#phone').val() || ''),
-                    edit_seller: $('input[name="edit_seller"]').val() || 0
-                };
-                payload[csrfName] = csrfHash; // built by key so the CSRF field name stays dynamic
-                $.ajax({
-                    type: 'POST',
-                    url: '<?= base_url('admin/sellers/check_contact') ?>',
-                    data: payload,
-                    dataType: 'json',
-                    success: function(res) {
-                        setMsg(field, res.valid ? 'Available' : res.message, !res.valid);
-                    },
-                    error: function() { setMsg(field, '', false); }
-                });
-            });
-        });
-
-        // Block the submit on a known-bad format so the admin is not sent round-trip for
-        // something the browser already knows is wrong. Uniqueness stays server-side.
-        // Bound directly on the form (not delegated on document) so it runs BEFORE the
-        // delegated .form-submit-event AJAX handler in custom.js and can stop it.
-        $('#add_product_form').on('submit', function(e) {
-            var bad = null;
-            CONTACT_FIELDS.forEach(function(field) {
-                var $el = $('#' + field);
-                if (!$el.length) return;
-                var err = formatError(field, $.trim($el.val()));
-                if (err) {
-                    setMsg(field, err, true);
-                    if (!bad) bad = $el;
-                }
-            });
-            if (bad) {
-                e.preventDefault();
-                e.stopPropagation();
-                e.stopImmediatePropagation();
-                if (typeof iziToast !== 'undefined') {
-                    iziToast.error({ message: 'Please correct the highlighted phone/email fields.' });
-                }
-                bad.focus();
-            }
-        });
-    })();
-
+window.ASF_CONFIG = {
+  checkContactUrl: <?= json_encode(base_url('admin/sellers/check_contact')) ?>,
+  listUrl: <?= json_encode(base_url('admin/sellers')) ?>,
+  isEdit: <?= $is_edit ? 'true' : 'false' ?>,
+  editSellerId: <?= $edit_user_id ?>,
+  initialStep: <?= json_encode($initial_step) ?>,
+  banks: <?= json_encode(array_column($indian_banks, 'bank_name')) ?>
+};
 </script>
-
-<style>
-    .pincode-lookup-status {
-        display: block;
-        font-size: 12px;
-        margin-top: 4px;
-    }
-
-    .pincode-lookup-status.error {
-        color: #dc3545;
-    }
-
-    .pincode-lookup-status.success {
-        color: #198754;
-    }
-
-    .pincode-lookup-status.info {
-        color: #6c757d;
-    }
-
-    .category-pill {
-        display: inline-flex;
-        align-items: center;
-        background: #eef2ff;
-        color: #3730a3;
-        border-radius: 999px;
-        padding: 4px 10px;
-        font-size: 12px;
-        margin: 4px 6px 0 0;
-    }
-
-    .category-pill button {
-        background: none;
-        border: none;
-        color: #3730a3;
-        cursor: pointer;
-        font-weight: bold;
-        margin-left: 4px;
-        padding: 0;
-        line-height: 1;
-    }
-
-    .category-picker-modal {
-        position: fixed;
-        inset: 0;
-        background: rgba(0, 0, 0, 0.45);
-        display: none;
-        align-items: center;
-        justify-content: center;
-        z-index: 10000;
-    }
-
-    .category-picker-content {
-        background: #fff;
-        width: min(640px, 92vw);
-        max-height: 80vh;
-        border-radius: 10px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, .2);
-        display: flex;
-        flex-direction: column;
-    }
-
-    .category-picker-header,
-    .category-picker-footer {
-        padding: 12px 16px;
-        border-bottom: 1px solid #e5e7eb;
-    }
-
-    .category-picker-footer {
-        border-top: 1px solid #e5e7eb;
-        border-bottom: 0;
-        display: flex;
-        justify-content: flex-end;
-        gap: 8px;
-    }
-
-    .category-picker-list {
-        padding: 12px 16px;
-        overflow-y: auto;
-    }
-
-    /* Cancel and Done are two DIFFERENT button classes - .btn-add-categories is the outlined
-       one used for "+ Add Categories" out on the form, .btn-upload-logo the solid one used for
-       the photo pickers - so side by side in this footer they came out different heights:
-       13px vs 0.9rem font, 1px border vs none, and .btn-add-categories additionally carries
-       margin-top:0.5rem for its standalone use, which pushed Cancel out of line. Normalise the
-       box for both, only inside the footer, so the classes keep behaving as before elsewhere. */
-    .category-picker-footer .btn-add-categories,
-    .category-picker-footer .btn-upload-logo {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        margin-top: 0;
-        min-height: 40px;
-        padding: 0.5rem 1.25rem;
-        font-size: 14px;
-        font-weight: 600;
-        line-height: 1.4;
-        border-radius: 0.6rem;
-        /* A transparent border on the solid button too, so the outlined one's 1px cannot
-           make it the shorter of the two. */
-        border: 1px solid transparent;
-    }
-
-    .category-picker-footer .btn-add-categories {
-        border-color: var(--color-orange, #F2822E);
-    }
-
-    .category-picker-item {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 6px 0;
-    }
-
-    .category-picker-close {
-        background: none;
-        border: none;
-        font-size: 20px;
-        line-height: 1;
-        cursor: pointer;
-        color: #6c757d;
-    }
-
-    .btn-add-categories {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.4rem;
-        background-color: #fff;
-        color: var(--color-orange, #F2822E);
-        border: 1px solid var(--color-orange, #F2822E);
-        border-radius: 0.6rem;
-        padding: 0.4rem 0.9rem;
-        font-size: 13px;
-        cursor: pointer;
-        margin-top: 0.5rem;
-    }
-
-    .btn-add-categories:hover {
-        background-color: var(--color-orange, #F2822E);
-        color: #fff;
-    }
-
-    .personal-photo-preview {
-        border-radius: 50%;
-        width: 4rem;
-        height: 4rem;
-        flex-shrink: 0;
-        background-color: #f7f7f7;
-        border: 2px solid #ccc;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        overflow: hidden;
-        cursor: pointer;
-    }
-
-    .personal-photo-preview img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-    }
-
-    /* Fills the circle so the whole thumbnail is the click target for the lightbox. */
-    .personal-photo-link {
-        display: block;
-        width: 100%;
-        height: 100%;
-        line-height: 0;
-    }
-
-    /* Only hint at zooming while the link is live - once a new file is picked the
-       data-toggle comes off and the thumbnail goes back to being upload-on-click. */
-    .personal-photo-link[data-toggle="lightbox"] {
-        cursor: zoom-in;
-    }
-
-    .personal-photo-link[data-toggle="lightbox"]:hover img {
-        transform: scale(1.08);
-        transition: transform 0.15s ease;
-    }
-
-    .personal-photo-icon {
-        width: 2rem;
-        height: 2rem;
-        color: #999;
-    }
-
-    .doc-upload-thumb {
-        max-height: 90px;
-        border-radius: 6px;
-        border: 1px solid #ddd;
-        margin-top: 8px;
-        display: block;
-    }
-
-    .doc-upload-hint {
-        font-size: 12px;
-        color: #6c757d;
-        display: block;
-        margin-top: 4px;
-    }
-
-    .doc-upload-preview-wrap {
-        position: relative;
-        display: inline-block;
-    }
-
-    .doc-upload-preview-wrap.hidden {
-        display: none;
-    }
-
-    .doc-remove-btn {
-        position: absolute;
-        top: 2px;
-        right: -8px;
-        width: 22px;
-        height: 22px;
-        border-radius: 50%;
-        background: #dc3545;
-        color: #fff;
-        border: 2px solid #fff;
-        font-size: 14px;
-        line-height: 1;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 0;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-    }
-
-    .doc-remove-btn:hover {
-        background: #bb2d3b;
-    }
-</style>
+<script src="<?= base_url('assets/admin/js/cretzo/admin-seller-form.js') ?>?v=<?= @filemtime(FCPATH . 'assets/admin/js/cretzo/admin-seller-form.js') ?: time() ?>"></script>

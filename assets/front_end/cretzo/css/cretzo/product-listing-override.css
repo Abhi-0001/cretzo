@@ -106,15 +106,10 @@ input[type=checkbox] {
   border: 1px solid var(--color-orange-dark);
 }
 
-#products-pagination-nav > * {
-  margin: auto;
-  margin-bottom: 1rem;
-}
-
-#products-pagination-nav .pagination .page-link {
-  width: 40px;
-  height: 40px;
-}
+/* Pagination sizing lives in cretzo-fixes.css (FIX 11) for the whole
+   storefront. The rules that were here only ever loaded on the product
+   listing - include-css.php loads <main_page>-override.css - so the wishlist,
+   brands, sellers and blogs pagers were a different size from this one. */
 
 
 .addwishlist-btn{

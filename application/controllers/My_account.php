@@ -104,48 +104,17 @@ class My_account extends CI_Controller
             $total = fetch_orders(false, $this->data['user']->id, false, false, 1, NULL, NULL, NULL, NULL, $search_2);
             
             $limit = 10;
-            $config['base_url'] = base_url('my-account/orders');
-            $config['total_rows'] = $total['total'];
-            $config['per_page'] = $limit;
-            $config['num_links'] = 2;
-            $config['use_page_numbers'] = TRUE;
-            $config['reuse_query_string'] = TRUE;
-            $config['page_query_string'] = FALSE;
-            $config['uri_segment'] = 3;
-            $config['attributes'] = array('class' => 'page-link');
-
-            $config['full_tag_open'] = '<ul class="pagination justify-content-center">';
-            $config['full_tag_close'] = '</ul>';
-
-            $config['first_tag_open'] = '<li class="page-item">';
-            $config['first_link'] = 'First';
-            $config['first_tag_close'] = '</li>';
-
-            $config['last_tag_open'] = '<li class="page-item">';
-            $config['last_link'] = 'Last';
-            $config['last_tag_close'] = '</li>';
-
-            $config['prev_tag_open'] = '<li class="page-item">';
-            $config['prev_link'] = '<i class="fa fa-arrow-left"></i>';
-            $config['prev_tag_close'] = '</li>';
-
-            $config['next_tag_open'] = '<li class="page-item">';
-            $config['next_link'] = '<i class="fa fa-arrow-right"></i>';
-            $config['next_tag_close'] = '</li>';
-
-            $config['cur_tag_open'] = '<li class="page-item active"><a class="page-link">';
-            $config['cur_tag_close'] = '</a></li>';
-
-            $config['num_tag_open'] = '<li class="page-item">';
-            $config['num_tag_close'] = '</li>';
-
             $page_no = (empty($this->uri->segment(3))) ? 1 : $this->uri->segment(3);
             if (!is_numeric($page_no)) {
                 redirect(base_url('my-account/orders'));
             }
             $offset = ($page_no - 1) * $limit;
-            $this->pagination->initialize($config);
-            $this->data['links'] =  $this->pagination->create_links();
+            $this->data['links'] = storefront_pagination(
+                base_url('my-account/orders'),
+                $total['total'],
+                $limit,
+                ['uri_segment' => 3]
+            );
             $this->data['orders'] = fetch_orders(false, $this->data['user']->id, false, false, $limit, $offset, 'date_added', 'DESC', NULL, NULL, NULL, NULL, NULL, NULL, NULL, '', true, $search_2);
             $this->data['payment_methods'] = get_settings('payment_method', true);
             $this->data['users'] = $this->ion_auth->user()->row();
@@ -905,51 +874,17 @@ class My_account extends CI_Controller
             $limit = 12;
             $total_rows = get_favorites($this->data['user']->id, NULL, NULL, TRUE);
             $theme = fetch_details('themes', ['status' => 1], 'name');
-            $config['base_url'] = base_url('my-account/favorites');
-            $config['total_rows'] = $total_rows;
-            $config['per_page'] = $limit;
-            $config['num_links'] = 7;
-            $config['use_page_numbers'] = TRUE;
-            $config['reuse_query_string'] = TRUE;
-            $config['page_query_string'] = FALSE;
-            $config['uri_segment'] = 3;
-            $config['attributes'] = array('class' => 'page-link');
-            $config['full_tag_open'] = '<ul class="pagination justify-content-center">';
-            $config['full_tag_close'] = '</ul>';
-            /* Match the Shop All / product-listing pagination look: on the
-               modern/cretzo theme show arrow-only prev/next (no First/Last). */
-            if (isset($theme[0]['name']) && (strtolower($theme[0]['name']) == 'modern' || strtolower($theme[0]['name']) == 'cretzo')) {
-                $config['prev_tag_open'] = '<li class="page-item">';
-                $config['prev_link'] = '<i class="uil uil-arrow-left"></i>';
-                $config['prev_tag_close'] = '</li>';
-                $config['next_tag_open'] = '<li class="page-item">';
-                $config['next_link'] = '<i class="uil uil-arrow-right"></i>';
-                $config['next_tag_close'] = '</li>';
-            } else {
-                $config['first_tag_open'] = '<li class="page-item">';
-                $config['first_link'] = 'First';
-                $config['first_tag_close'] = '</li>';
-                $config['last_tag_open'] = '<li class="page-item">';
-                $config['last_link'] = 'Last';
-                $config['last_tag_close'] = '</li>';
-                $config['prev_tag_open'] = '<li class="page-item">';
-                $config['prev_link'] = '<i class="fa fa-arrow-left"></i>';
-                $config['prev_tag_close'] = '</li>';
-                $config['next_tag_open'] = '<li class="page-item">';
-                $config['next_link'] = '<i class="fa fa-arrow-right"></i>';
-                $config['next_tag_close'] = '</li>';
-            }
-            $config['cur_tag_open'] = '<li class="page-item active disabled"><a class="page-link">';
-            $config['cur_tag_close'] = '</a></li>';
-            $config['num_tag_open'] = '<li class="page-item">';
-            $config['num_tag_close'] = '</li>';
             $page_no = (empty($this->uri->segment(3))) ? 1 : $this->uri->segment(3);
             if (!is_numeric($page_no)) {
                 redirect(base_url('my-account/favorites'));
             }
             $offset = ($page_no - 1) * $limit;
-            $this->pagination->initialize($config);
-            $this->data['links'] = $this->pagination->create_links();
+            $this->data['links'] = storefront_pagination(
+                base_url('my-account/favorites'),
+                $total_rows,
+                $limit,
+                ['uri_segment' => 3]
+            );
             $this->data['total_rows'] = $total_rows;
             $this->data['page_no'] = $page_no;
             $this->data['per_page'] = $limit;

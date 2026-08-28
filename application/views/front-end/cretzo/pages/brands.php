@@ -24,8 +24,8 @@
             <?php } ?>
 
         </div>
-        <nav class="text-center mt-7 mb-5 d-flex overflow-auto" aria-label="pagination">
-            <?= (isset($links)) ? $links : '' ?>
-        </nav>
+        <?php if (!empty($links)) { ?>
+            <nav class="cz-pager-nav" aria-label="<?= storefront_pagination_label('brands') ?>"><?= $links ?></nav>
+        <?php } ?>
     </div>
 </section>
