@@ -1766,8 +1766,10 @@ section #progressbar div.active:after {
 }
 
 #chat-button-icon {
-    width: 34px;
-    height: 34px;
+    /* The PNG carries a transparent ring so the round chat avatars do not clip the
+       tail, so the drawn bird is ~70% of the box - hence 56px here, not 40px. */
+    width: 56px;
+    height: 56px;
     object-fit: contain;
     transition: transform 0.2s ease, opacity 0.2s ease;
 }

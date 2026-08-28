@@ -226,15 +226,21 @@
       pointer-events: none;
   }
   .filter-container .filter-tag,
-  .filter-container:hover,
   .filter-container.active{
       pointer-events: auto;
   }
-  .filter-container:hover{
-      transform: translateX(0px);
-  }
   .filter-container.active{
       transform: translateX(0px);
+  }
+  /* :hover must never drive this drawer on touch screens. A tap on the "Filter"
+     tab leaves a sticky :hover on the container, so the drawer stayed open even
+     after the JS removed .active - tapping the tab again looked like it did
+     nothing. Mouse-driven devices keep the hover-to-open behaviour. */
+  @media (hover: hover) and (pointer: fine) {
+      .filter-container:hover{
+          pointer-events: auto;
+          transform: translateX(0px);
+      }
   }
   .filter-tag{
       display: block;

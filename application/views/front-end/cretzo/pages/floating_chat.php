@@ -137,7 +137,9 @@ body {
     overflow: hidden;
 }
 
-.cw-avatar img { width: 100%; height: 100%; object-fit: cover; }
+/* contain, not cover: cover crops the mascot's sides inside these round frames.
+   The PNG is square with only a hair of transparent margin, so it fills them. */
+.cw-avatar img { width: 100%; height: 100%; object-fit: contain; }
 
 .cw-id { flex: 1 1 auto; min-width: 0; }
 
@@ -250,7 +252,7 @@ body {
     box-shadow: 0 0 0 1px var(--line);
 }
 
-.cw-face img { width: 100%; height: 100%; object-fit: cover; }
+.cw-face img { width: 100%; height: 100%; object-fit: contain; }
 
 .cw-turn.me .cw-face { background: #33363c; box-shadow: none; }
 .cw-turn.me .cw-face svg { width: 15px; height: 15px; }
@@ -539,7 +541,7 @@ body {
 
     <header class="cw-head">
         <div class="cw-head-row">
-            <div class="cw-avatar" aria-hidden="true"><img src="<?= base_url('assets/front_end/cretzo/img/chat-fab-icon.png') ?>" alt=""></div>
+            <div class="cw-avatar" aria-hidden="true"><img src="<?= add_ver(base_url('assets/front_end/cretzo/img/chat-fab-icon.png')) ?>" alt=""></div>
             <div class="cw-id">
                 <div class="cw-title"><?= html_escape($store_name) ?> Assistant</div>
                 <div class="cw-status"><span class="cw-dot" aria-hidden="true"></span> Online · replies instantly</div>
@@ -586,7 +588,7 @@ body {
     var CSRF_HASH  = <?= json_encode($this->security->get_csrf_hash()) ?>;
     var SEND_URL   = <?= json_encode(base_url('chat/send')) ?>;
     var HIST_URL   = <?= json_encode(base_url('chat/history')) ?>;
-    var BOT_AVATAR = <?= json_encode(base_url('assets/front_end/cretzo/img/chat-fab-icon.png')) ?>;
+    var BOT_AVATAR = <?= json_encode(add_ver(base_url('assets/front_end/cretzo/img/chat-fab-icon.png'))) ?>;
     var USER_AVATAR_SVG = '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">' +
         '<circle cx="12" cy="8" r="3.6" fill="currentColor"/>' +
         '<path d="M4.5 19.2c1.2-3.6 4.2-5.6 7.5-5.6s6.3 2 7.5 5.6c.25.75-.3 1.3-1 1.3H5.5c-.7 0-1.25-.55-1-1.3z" fill="currentColor"/>' +

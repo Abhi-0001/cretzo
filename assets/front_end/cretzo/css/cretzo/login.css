@@ -73,27 +73,23 @@
 #forgot_password_div .field-container{
     margin: 40px 0 20px 0;
 }
-/* One button per row.
-   These were two columns of `flex: 1 1 0`, i.e. half the container each, while
-   their labels are nowrap sentences ("Sign in with Google") that need ~190px.
-   This modal is about 360px wide on a desktop and narrower on a phone, so half
-   of it was never enough: the labels ran out of their boxes and across the
-   button beside them - which is what the overlap on a phone was. A full-width
-   row fits the label at every screen size, and is how social sign-in buttons
-   are normally stacked anyway. */
+/* Two buttons on ONE row, matching the signup modal.
+   An earlier two-column attempt overlapped on a phone, but that was because the
+   labels were nowrap sentences ("Sign in with Google") needing ~190px each in a
+   ~360px modal. They are single words now, so half the container is plenty. */
 #login_div .login-with-container{
     margin: 16px 0;
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     gap: 10px;
     align-items: stretch;
 }
 #login_div .login-with-container > a{
-    flex: 0 0 auto;
+    flex: 1 1 0;
     min-width: 0;
 }
 #login_div .media-container{
-    padding: 10px 8px;
+    padding: 8px 6px;
     border: 1px solid rgba(0, 0, 0, 0.14);
     border-radius: 10px;
     width: 100%;
@@ -395,5 +391,75 @@ body.modal-open{
     #login_div .login-left,
     #forgot_password_div .login-left{
         padding: 12px 24px;
+    }
+}
+/* ===========================================================================
+   Forgot-password panel polish.
+   The bottom of this panel used to sit right under the Send OTP button: the only
+   bottom padding came from .login-left, which drops to 10-12px at the phone
+   breakpoints, so the button was flush against the modal edge.
+   =========================================================================== */
+#forgot_password_div .login-left.fp-panel{
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 34px 40px 34px 40px;
+}
+#forgot_password_div .fp-panel .heading-n{
+    margin-bottom: 6px;
+}
+/* 40px above the field was tuned for the login panel, which has more below it. */
+#forgot_password_div .field-container{
+    margin: 22px 0 6px 0;
+}
+#forgot_password_div .btn-container{
+    margin-top: 14px;
+}
+/* Full-width pill, matching the primary buttons in the signup modal, instead of
+   a narrow padding-driven button floating in the middle. */
+#forgot_password_div .cretzo.btn{
+    width: 100%;
+    padding: 10px 24px;
+    min-height: 46px;
+}
+#forgot_password_div .fp-back{
+    margin: 14px 0 0;
+    font-size: 0.88rem;
+}
+#forgot_password_div .fp-back a{
+    text-decoration: none;
+    font-weight: 600;
+    color: var(--color-orange);
+}
+#forgot_password_div .fp-back a:hover{
+    text-decoration: underline;
+}
+#forgot_password_div #forgot_pass_error_box:empty,
+#forgot_password_div #set_password_error_box:empty{
+    display: none;
+}
+/* The reCAPTCHA host is invisible but still an element; without this it added an
+   empty gap between the field and the button. */
+#forgot_password_div #recaptcha-password-reset:empty{
+    display: none;
+}
+
+/* Phone: the breakpoint rules above set a 10-12px bottom padding on .login-left,
+   which is what left no room under the button. These win by coming later. */
+@media screen and (max-width: 600px){
+    #forgot_password_div .login-left.fp-panel{
+        padding: 26px 22px 30px 22px;
+    }
+}
+@media screen and (max-width: 500px){
+    #forgot_password_div .login-left.fp-panel{
+        width: 100%;
+        padding: 24px 22px 30px 22px;
+    }
+    /* The form under it is short, so the photo carries the top of the sheet. */
+    #forgot_password_div .login-right{
+        min-height: 260px;
+        height: 34vh;
+        max-height: 320px;
     }
 }
