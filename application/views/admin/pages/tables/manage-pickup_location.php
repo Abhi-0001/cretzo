@@ -211,11 +211,8 @@
            hidden form card, so the two competed for the same height.
 
        So the document scrolls again - every row and the pager are always reachable - and the
-       table body is given a generous bounded height instead of a computed one. Inside that
-       height the body scrolls both ways, with the column headers sticky above the rows; when
-       the viewport is too short for even that, the page scroll takes over. No ancestor may
-       carry overflow: hidden, or it becomes the sticky header's scrollport and the header
-       stops sticking.
+       table body carries no height cap at all: it grows to fit its rows and only scrolls
+       sideways, for the twelve columns.
        ===================================================================== */
     .admin-pickup-location-page .attribute-card { width: 100%; }
 
@@ -231,22 +228,10 @@
         padding-bottom: 0 !important;
     }
     .admin-pickup-location-page .fixed-table-body {
-        /* 486px is measured, not guessed: the navbar, page header, card header, seller
-           filter and table toolbar stack to 402px above this element, and the pager plus its
-           gap takes 76px below it (402 + 76 = 478, plus 8px of breathing room). So on a
-           768-800px screen the sticky header, the rows and the pager are all on screen at
-           once, and a taller screen simply gets more rows. min-height keeps it usable on a
-           short screen, where the document scroll - which this page no longer suppresses -
-           takes over. */
-        max-height: calc(100vh - 486px);
-        min-height: 260px;
-        overflow: auto;
-    }
-    .admin-pickup-location-page .fixed-table-body thead th {
-        position: sticky;
-        top: 0;
-        z-index: 2;
-        background: #fafafa;
+        /* No bounded height: the body grows to fit all its rows and the document scroll
+           handles the page. Only sideways scrolling is kept, for the twelve columns. */
+        overflow-x: auto;
+        overflow-y: visible;
     }
     /* Twelve columns, so the body scrolls sideways rather than squeezing every column. */
     .admin-pickup-location-page table.table { min-width: 1500px; }
@@ -281,13 +266,6 @@
         flex: 0 0 auto;
         margin-top: 10px;
         padding-bottom: 4px;
-    }
-
-    @media (max-width: 991px) {
-        .admin-pickup-location-page .fixed-table-body {
-            max-height: none;
-            min-height: 0;
-        }
     }
 
     .admin-pickup-location-page .btn-primary-theme {
