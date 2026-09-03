@@ -162,6 +162,17 @@ ob_start(); ?>
                         $attributes = array_combine($names, $values);
                     }
                 }
+                /* Rate & review.
+                   The page showed a buyer's existing star rating but offered no way to
+                   CREATE one, and nothing anywhere else in the account links to the
+                   review form - so after buying something there was no route to it at
+                   all. save_rating() accepts a review for any item the customer owns
+                   that was not returned, so the link is offered on the same basis. */
+                $can_review_item = !empty($item['slug'])
+                    && !in_array($item['active_status'], ['returned', 'cancelled'], true);
+                $review_url = $can_review_item
+                    ? base_url('products/details/' . $item['slug']) . '#review-section'
+                    : '';
                 ?>
                 <li class="czap-item">
                     <div class="czap-item__bar">
@@ -224,8 +235,14 @@ ob_start(); ?>
                         </div>
                     </div>
 
-                    <?php if ($can_cancel || $can_return) { ?>
+                    <?php if ($can_cancel || $can_return || $can_review_item) { ?>
                         <div class="czap-item__foot">
+                            <?php if ($can_review_item) { ?>
+                                <a class="czap-btn czap-btn--ghost czap-btn--sm" href="<?= $review_url ?>">
+                                    <i class="uil uil-star"></i>
+                                    <?= $item['product_rating'] > 0 ? 'Edit your review' : 'Rate &amp; review' ?>
+                                </a>
+                            <?php } ?>
                             <?php if ($can_cancel) { ?>
                                 <?php /* data-czap-order carries everything the popup needs to name the
                                          item, so it does not have to scrape the DOM back out again. */ ?>

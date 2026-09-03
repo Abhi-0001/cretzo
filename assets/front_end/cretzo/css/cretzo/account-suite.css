@@ -1978,9 +1978,34 @@ body.czap-locked {
 }
 
 @media (max-width: 600px) {
+    /* On a phone the avatar + text row leaves the meta column too narrow: the
+       email wraps awkwardly and the avatar floats beside the middle of a tall
+       block. Stack and centre the identity block instead. */
+    .czap-hero {
+        gap: 14px;
+        text-align: center;
+    }
+
+    .czap-hero__id {
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        flex-basis: 100%;
+        width: 100%;
+    }
+
+    .czap-hero__meta {
+        width: 100%;
+    }
+
+    .czap-hero__contact,
+    .czap-hero__chips {
+        justify-content: center;
+    }
+
     .czap-avatar {
-        width: 62px;
-        height: 62px;
+        width: 72px;
+        height: 72px;
     }
 
     .czap-hero__name {

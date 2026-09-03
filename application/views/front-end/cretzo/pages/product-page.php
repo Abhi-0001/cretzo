@@ -227,9 +227,22 @@
                 $init_availability = isset($init_variant['availability']) ? $init_variant['availability'] : 1;
                 $is_out_of_stock = $is_single_variant && ($init_availability === '0' || $init_availability === 0);
                 $init_stock = (isset($init_variant['stock']) && $init_variant['stock'] !== '') ? $init_variant['stock'] : null;
+
+                /* This page is only reachable for an unlisted product when the signed-in
+                   customer has already bought it (see Products::details()). They may read
+                   it and review it, but it must not be orderable again from here. */
+                $is_archived = !empty($is_archived_purchase);
             ?>
+            <?php if ($is_archived) { ?>
+                <div class="czrev-note mb-3">
+                    <i class="uil uil-archive"></i>
+                    <p class="text-n">This product is no longer listed in the shop. You can still see it and review it because you have ordered it.</p>
+                </div>
+            <?php } ?>
             <div class="product-stock mb-4">
-                <?php if ($is_out_of_stock) { ?>
+                <?php if ($is_archived) { ?>
+                    <p id="stock-quantity" class="text-n text-danger fw-b">No longer available</p>
+                <?php } elseif ($is_out_of_stock) { ?>
                     <p id="stock-quantity" class="text-n text-danger fw-b">Out of Stock</p>
                 <?php } else { ?>
                     <img class="green-tick-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/orange-tick.png') ?>" alt="checkmark">
@@ -287,8 +300,10 @@
                     data-step="<?= (isset($product['product'][0]['minimum_order_quantity']) && !empty($product['product'][0]['quantity_step_size'])) ? $product['product'][0]['quantity_step_size'] : 1 ?>" 
                     data-min="<?= (isset($product['product'][0]['minimum_order_quantity']) && !empty($product['product'][0]['minimum_order_quantity'])) ? $product['product'][0]['minimum_order_quantity'] : 1 ?>" 
                     data-max="<?= (isset($product['product'][0]['total_allowed_quantity']) && !empty($product['product'][0]['total_allowed_quantity'])) ? $product['product'][0]['total_allowed_quantity'] : '' ?>"
-                    data-product-variant-id="<?= $variant_id ?>" <?= $is_out_of_stock ? 'disabled' : '' ?>>
-                    <?php if ($is_out_of_stock) { ?>
+                    data-product-variant-id="<?= $variant_id ?>" <?= ($is_out_of_stock || $is_archived) ? 'disabled' : '' ?>>
+                    <?php if ($is_archived) { ?>
+                        No longer available
+                    <?php } elseif ($is_out_of_stock) { ?>
                         Out of Stock
                     <?php } else { ?>
                         <i class="uil uil-shopping-bag mr-2"></i> Add to Cart
@@ -793,6 +808,7 @@
     $mbb_current  = $mbb_discount ? $mbb_special : $mbb_price;
 ?>
 <!-- P4.3: sticky mobile add-to-cart bar -->
+<?php if (empty($is_archived_purchase)) { ?>
 <div class="mobile-buy-bar">
     <div class="mbb-price">
         <span class="mbb-current" id="mbb-current-price">&#8377; <?= number_format($mbb_current, 2) ?></span>
@@ -804,6 +820,7 @@
         <i class="uil uil-shopping-bag"></i> Add to Cart
     </button>
 </div>
+<?php } ?>
 
 <!-- product description -->
 <section class="product-description-container">
