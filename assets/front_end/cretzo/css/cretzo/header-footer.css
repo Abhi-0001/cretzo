@@ -145,6 +145,7 @@ body{
 .icon-img-m.icon-img--photo{
     width: auto;
     aspect-ratio: 1 / 1;
+    object-position: center;
     border-radius: 50%;
     object-fit: cover;
     border: 1px solid rgba(0, 0, 0, 0.08);
@@ -279,6 +280,9 @@ body{
    The desktop .icon-container zeroes both; this one never did, so the mobile icon row
    was indented and pulled off the logo's centre line. */
 .icon-container-m{
+    /* One knob for the whole mobile icon row - cells, images and the hamburger
+       all derive from it, so a breakpoint only re-declares this. */
+    --m-icon: 30px;
     display: flex;
     list-style: none;
     align-items: center;
@@ -302,10 +306,20 @@ body{
     margin: 0;
     padding: 0;
     transition: 0.4s;
+    /* Each cell is a square sized from the icon height, so the profile photo,
+       the line icons and the hamburger all sit on one centre line and the
+       badges hang off a predictable box instead of off each image's own
+       (varying) intrinsic width. */
+    width: var(--m-icon);
+    height: var(--m-icon);
+    flex: none;
 }
 .icon-container-m > li > a{
     display: flex;
     align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
     line-height: 1;
 }
 /* The badge is absolutely positioned, but as a <p> it still contributes the default
@@ -323,15 +337,23 @@ body{
     line-height: 1;
     margin: 0 !important;
     padding: 0 !important;
-    font-size: 24px;
+    /* The hamburger is an icon-font glyph, and a glyph only fills part of its
+       em box - so matching the images' pixel height needs a slightly larger
+       font-size than the cell, not a smaller one. */
+    width: 100%;
+    height: 100%;
+    font-size: calc(var(--m-icon) + 10px);
 }
 .icon-m{
     position: relative;
     transition: 0.4s;
 }
 .icon-img-m{
-    height: 35px;
+    display: block;
+    height: var(--m-icon);
     width: auto;
+    max-width: 100%;
+    object-fit: contain;
 }
 .menu-icon{
     height: 40px;
@@ -350,16 +372,25 @@ body{
 } */
 .icon-num-m{
     position: absolute;
-    top: -6px;
-    right: -6px;
-    height: 1.6em;
-    width: 1.6em;
-    text-align: center;
+    top: -5px;
+    right: -7px;
+    /* grid + place-items centres the digit; the old rule set no line-height, so
+       the number sat high inside the circle. min-width keeps "99+" a pill
+       rather than clipping it to the 1.6em circle. */
+    display: grid;
+    place-items: center;
+    height: 1.55em;
+    min-width: 1.55em;
+    padding: 0 .3em;
+    box-sizing: border-box;
+    line-height: 1;
     white-space: nowrap;
     background-color: var(--color-orange);
     color: var(--color-primary);
-    border-radius: 50%;
-    font-size: 12px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    pointer-events: none;
 }
 /* Logged-in profile dropdown (mobile).
    The avatar sits four icons in from the right edge, so a menu anchored to its own <li>
@@ -699,13 +730,9 @@ body{
         height: 40px;
     }
     .icon-container-m{
-        gap: 14px;
-    }
-    .icon-img-m{
-        height: 24px;
-    }
-    .icon-container-m .offcanvas-nav-btn{
-        font-size: 22px;
+        --m-icon: 28px;
+        gap: 10px;
+        margin-top: 12px;
     }
     .menu-icon{
         height: 36px;
@@ -746,13 +773,8 @@ body{
         height: 30px;
     }
     .icon-container-m{
-        gap: 11px;
-    }
-    .icon-img-m{
-        height: 20px;
-    }
-    .icon-container-m .offcanvas-nav-btn{
-        font-size: 20px;
+        --m-icon: 26px;
+        gap: 8px;
     }
     .menu-icon{
         height: 24px;

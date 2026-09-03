@@ -278,6 +278,12 @@ $this->load->view('front-end/' . THEME . '/partials/account-layout', [
     }
 
     .czap .wishlist-card .bag-btn {
+        /* favorites.css sets .bag-btn { width: 100% }, which with the side
+           margins below made the button overflow the card. Size it from the
+           card box instead. */
+        display: block;
+        width: auto;
+        box-sizing: border-box;
         margin: auto 10px 10px;
         padding: 0;
         border: 1px solid var(--czap-orange);

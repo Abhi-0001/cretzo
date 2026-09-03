@@ -445,6 +445,27 @@ class Products extends CI_Controller
         // state-restricted product; the state filter makes the fetch return empty for them.
         $product = fetch_product($user_id, ['slug' => $slug, 'customer_state' => get_customer_state()], NULL, NULL, NULL, NULL, NULL, NULL, NULL, $valid_zipcode);
 
+        /*
+         * A customer who has bought the product must still be able to open its page.
+         *
+         * The storefront read filters on p.status / pv.status / sd.status /
+         * p.listing_visibility, and listing_visibility drops to 2 whenever a seller
+         * goes over their plan's listing limit. That is correct for browsing - but it
+         * also made the detail page redirect to /products for the people who had
+         * already ordered the item, so they could never reach the review form, could
+         * not re-read what they bought, and their order history linked to a dead page.
+         * Nothing about the purchase is undone by the seller's plan.
+         *
+         * Re-fetch without the storefront filters for that buyer only, and flag it so
+         * the view can hide the buy controls (an unlisted product must not be
+         * purchasable again from here).
+         */
+        $this->data['is_archived_purchase'] = false;
+        if (empty($product['product']) && !empty($user_id) && $this->has_purchased_slug($user_id, $slug)) {
+            $product = fetch_product($user_id, ['slug' => $slug, 'show_only_active_products' => 0], NULL, NULL, NULL, NULL, NULL, NULL, NULL, $valid_zipcode);
+            $this->data['is_archived_purchase'] = !empty($product['product']);
+        }
+
         // Empty check moved above the variant access so a restricted/not-found product
         // redirects cleanly instead of erroring on a missing variant.
         if (empty($product['product'])) {
@@ -477,17 +498,7 @@ class Products extends CI_Controller
          */
         $this->data['can_review'] = false;
         if ($this->data['is_logged_in']) {
-            $purchased = $this->db->select('oi.id')
-                ->join('product_variants pv', 'pv.id = oi.product_variant_id')
-                ->where([
-                    'pv.product_id'      => $product['product'][0]['id'],
-                    'oi.user_id'         => $user_id,
-                    'oi.active_status!=' => 'returned',
-                ])
-                ->limit(1)
-                ->get('order_items oi')
-                ->result_array();
-            $this->data['can_review'] = !empty($purchased);
+            $this->data['can_review'] = $this->has_purchased($user_id, $product['product'][0]['id']);
         }
         $this->data['related_products'] = fetch_product($user_id, NULL, NULL, $product['product'][0]['category_id'], 12);
 
@@ -968,6 +979,53 @@ class Products extends CI_Controller
         $this->data['is_category_page'] = false;
         $this->data['page_main_bread_crumb'] = $page_title;
         $this->load->view('front-end/' . THEME . '/template', $this->data);
+    }
+
+    /**
+     * Has this customer bought this product (any variant, not returned)?
+     *
+     * The one definition of "purchased" for the product page: the review gate, the
+     * server-side check in save_rating() and the archived-product fallback in
+     * details() all read it, so they cannot drift apart again - the view used to gate
+     * the form on a stricter rule than the server enforced, which is why buyers were
+     * shown no form on orders the server would have accepted a review for.
+     */
+    private function has_purchased($user_id, $product_id)
+    {
+        if (empty($user_id) || empty($product_id)) {
+            return false;
+        }
+        $purchased = $this->db->select('oi.id')
+            ->join('product_variants pv', 'pv.id = oi.product_variant_id')
+            ->where([
+                'pv.product_id'      => $product_id,
+                'oi.user_id'         => $user_id,
+                'oi.active_status!=' => 'returned',
+            ])
+            ->limit(1)
+            ->get('order_items oi')
+            ->result_array();
+        return !empty($purchased);
+    }
+
+    /** Same question, asked by slug - used before the product row has been fetched. */
+    private function has_purchased_slug($user_id, $slug)
+    {
+        if (empty($user_id) || $slug === '') {
+            return false;
+        }
+        $purchased = $this->db->select('oi.id')
+            ->join('product_variants pv', 'pv.id = oi.product_variant_id')
+            ->join('products p', 'p.id = pv.product_id')
+            ->where([
+                'p.slug'             => $slug,
+                'oi.user_id'         => $user_id,
+                'oi.active_status!=' => 'returned',
+            ])
+            ->limit(1)
+            ->get('order_items oi')
+            ->result_array();
+        return !empty($purchased);
     }
 
     // 9 save_rating
