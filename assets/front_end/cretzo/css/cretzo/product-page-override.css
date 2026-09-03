@@ -708,3 +708,269 @@ label.product-attr-label-general:has(> .product-attr-input:checked){
 }
 
 /* Image Gallery Modal Style Ends */
+
+
+/* ---------------------------------------------------------------------------
+ * Write-a-review panel (#czrev).
+ * Sits at the bottom of the ratings column on the product page. Uses the
+ * theme's own tokens so it inherits the storefront palette.
+ * ------------------------------------------------------------------------- */
+.czrev {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--color-light-grey);
+}
+
+.czrev-note {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.9rem 1rem;
+    border: 1px dashed var(--color-light-grey);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.02);
+}
+
+.czrev-note i {
+    font-size: 1.5rem;
+    color: var(--color-orange);
+    line-height: 1;
+}
+
+.czrev-note p {
+    margin: 0;
+}
+
+.czrev-note a {
+    color: var(--color-orange);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.czrev-note a:hover {
+    text-decoration: underline;
+}
+
+.czrev-field {
+    margin-bottom: 1.1rem;
+}
+
+.czrev-label {
+    display: block;
+    margin-bottom: 0.4rem;
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: #222;
+}
+
+.czrev-req {
+    color: var(--color-fail);
+}
+
+.czrev-hint {
+    font-weight: 400;
+    font-size: 0.8rem;
+    color: var(--color-grey);
+}
+
+/* Visually hidden, still read out - the star labels carry their value here. */
+.czrev-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* --- stars --- */
+.czrev-stars {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    width: fit-content;
+}
+
+.czrev-stars.czrev-invalid {
+    border-color: var(--color-fail);
+    background: rgba(255, 0, 0, 0.04);
+}
+
+.czrev-star {
+    margin: 0;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.czrev-star input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+}
+
+.czrev-star i {
+    font-size: 1.9rem;
+    color: #d8d8d8;
+    transition: color 0.12s ease, transform 0.12s ease;
+}
+
+.czrev-star.is-on i {
+    color: var(--color-orange);
+}
+
+.czrev-star:hover i {
+    transform: scale(1.08);
+}
+
+/* Keyboard focus has to stay visible even though the radio itself is hidden. */
+.czrev-star input:focus-visible + i {
+    outline: 2px solid var(--color-orange);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+.czrev-star-caption {
+    margin-left: 0.5rem;
+    font-size: 0.9rem;
+    color: var(--color-grey);
+}
+
+/* --- comment --- */
+.czrev-textarea {
+    width: 100%;
+    padding: 0.7rem 0.9rem;
+    border: 1px solid var(--color-light-grey);
+    border-radius: 10px;
+    font-size: 0.95rem;
+    resize: vertical;
+    background: #fff;
+}
+
+.czrev-textarea:focus {
+    outline: none;
+    border-color: var(--color-orange);
+    box-shadow: 0 0 0 3px var(--color-orange-light);
+}
+
+/* --- photos --- */
+.czrev-file {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+}
+
+.czrev-file-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0 0.6rem 0 0;
+    padding: 0.45rem 0.9rem;
+    border: 1px solid var(--color-orange);
+    border-radius: 999px;
+    color: var(--color-orange);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    background: #fff;
+}
+
+.czrev-file-btn:hover {
+    background: var(--color-orange);
+    color: #fff;
+}
+
+.czrev-file:focus-visible + .czrev-file-btn {
+    outline: 2px solid var(--color-orange);
+    outline-offset: 2px;
+}
+
+.czrev-file-count {
+    font-size: 0.85rem;
+    color: var(--color-grey);
+}
+
+.czrev-previews {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.6rem;
+}
+
+.czrev-preview {
+    display: block;
+    width: 72px;
+    height: 72px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--color-light-grey);
+}
+
+.czrev-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* --- actions --- */
+.czrev-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.czrev-submit {
+    padding: 0.6rem 1.6rem;
+    border: none;
+    border-radius: 999px;
+    background: var(--color-orange);
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.czrev-submit:hover:not(:disabled) {
+    background: var(--color-orange-dark);
+}
+
+.czrev-submit:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+.czrev-delete {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.6rem 1.2rem;
+    border: 1px solid var(--color-light-grey);
+    border-radius: 999px;
+    background: #fff;
+    color: var(--color-theme-red);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.czrev-delete:hover:not(:disabled) {
+    border-color: var(--color-theme-red);
+}
+
+@media (max-width: 480px) {
+    .czrev-star i {
+        font-size: 1.7rem;
+    }
+
+    .czrev-submit,
+    .czrev-delete {
+        flex: 1 1 auto;
+        justify-content: center;
+    }
+}

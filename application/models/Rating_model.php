@@ -5,7 +5,17 @@ class Rating_model extends CI_Model
 
     public function set_rating($data)
     {
-        $data = escape_array($data);
+        /*
+         * escape_array() ran db->escape_str() over every field and the result was then
+         * handed to the query builder, which escapes AGAIN on the way into the INSERT.
+         * A review reading "It's great" was stored as "It\'s great", and because
+         * editing a review re-reads and re-writes it, every edit added another
+         * backslash. The builder binds `comment` safely on its own, so only the two ids
+         * that get concatenated into the raw statistics SQL below need sanitising - and
+         * for those an integer cast is both correct and stronger than escaping.
+         */
+        $data['product_id'] = (int) $data['product_id'];
+        $data['user_id'] = (int) $data['user_id'];
 
         $rating = array(
             'user_id' => $data['user_id'],
@@ -63,7 +73,11 @@ class Rating_model extends CI_Model
         $images = json_decode($rating_details[0]['images'], 1);
         if (!empty($images)) {
             for ($i = 0; $i < count($images); $i++) {
-                unlink(FCPATH . $images[$i]);
+                /* An unlink() on a path that is already gone raises a PHP warning, which
+                   prints into the JSON response and breaks the caller's parse. */
+                if (is_file(FCPATH . $images[$i])) {
+                    unlink(FCPATH . $images[$i]);
+                }
             }
         }
 

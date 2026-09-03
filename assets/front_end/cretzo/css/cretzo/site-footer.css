@@ -1,0 +1,338 @@
+/* ==========================================================================
+   Cretzo - site footer (`czfoot`)
+   --------------------------------------------------------------------------
+   Loaded on every storefront page from include-css.php, after header-footer.css
+   so it wins without !important. header-footer.css still carries the OLD
+   `.footer-*` rules; footer.php no longer renders those classes, so they match
+   nothing and are left alone rather than surgically removed - `.media-icon` in
+   particular is also used outside the footer.
+
+   Three bands only: brand, link columns, legal bar. A USP strip and a seller
+   CTA card were tried and removed at the owner's request; the styles for them
+   went with the markup.
+
+   Palette follows legal-page.css / faq.css so the footer belongs to the same
+   design language as the content pages above it.
+   ========================================================================== */
+
+.czfoot {
+    --czfo-orange: var(--color-orange, #F2822E);
+    --czfo-orange-dark: var(--color-orange-dark, #db7323);
+    --czfo-cream: var(--color-secondary, #fbe3bf);
+
+    --czfo-ink: #241d14;
+    --czfo-ink-2: #5f5648;
+    --czfo-ink-3: #8b8071;
+    --czfo-line: rgba(36, 29, 20, .12);
+
+    --czfo-r-pill: 999px;
+    --czfo-max: 1220px;
+
+    width: 100%;
+    background: var(--czfo-cream);
+    color: var(--czfo-ink-2);
+    font-family: "K2D", "Assistant", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    /* The old .footer-container carried flex:auto so a short page still pushed
+       the footer down. Preserved. */
+    flex: auto;
+}
+
+.czfoot *,
+.czfoot *::before,
+.czfoot *::after {
+    box-sizing: border-box;
+}
+
+.czfoot a {
+    text-decoration: none;
+    transition: color .15s ease;
+}
+
+/* The theme's global `a::before` decoration leaks into anything not opted out
+   of it - the old footer had to disable it per-link too. */
+.czfoot a::before {
+    content: none;
+    display: none;
+}
+
+/* --------------------------------- layout --------------------------------- */
+.czfoot__main {
+    display: grid;
+    /* brand | Information | Shop | Account */
+    grid-template-columns: minmax(0, 1.45fr) repeat(3, minmax(0, 1fr));
+    gap: 28px 40px;
+    max-width: var(--czfo-max);
+    margin: 0 auto;
+    padding: 44px 28px 38px;
+}
+
+/* ------------------------------ brand column ------------------------------ */
+.czfoot__logo {
+    display: inline-block;
+    margin-bottom: 14px;
+}
+
+.czfoot__logo img {
+    height: 52px;
+    width: auto;
+}
+
+.czfoot__about {
+    /* The stored description is long; a narrow measure keeps it from becoming a
+       wall of text beside three short link lists. */
+    max-width: 36ch;
+    margin: 0 0 20px;
+    color: var(--czfo-ink-2);
+    font-size: 13.5px;
+    line-height: 1.65;
+}
+
+.czfoot__contact {
+    list-style: none;
+    margin: 0 0 22px;
+    padding: 0;
+}
+
+.czfoot__contact li {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 9px;
+    font-size: 13.5px;
+}
+
+.czfoot__contact i {
+    flex: none;
+    margin-top: 1px;
+    color: var(--czfo-orange);
+    font-size: 16px;
+}
+
+.czfoot__contact a,
+.czfoot__contact span {
+    color: var(--czfo-ink-2);
+}
+
+.czfoot__contact a:hover {
+    color: var(--czfo-orange-dark);
+}
+
+.czfoot__social-label {
+    margin: 0 0 10px;
+    color: var(--czfo-ink-3);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+}
+
+.czfoot__social-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+/* Four consistent circles, replacing the four mismatched brand PNGs. */
+.czfoot__social-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--czfo-line);
+    border-radius: 50%;
+    background: rgba(255, 255, 255, .7);
+    color: var(--czfo-ink-2);
+    font-size: 17px;
+    transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+
+.czfoot__social-link:hover {
+    border-color: transparent;
+    background: var(--czfo-orange);
+    color: #fff;
+}
+
+/* ------------------------------ link columns ------------------------------ */
+.czfoot__col {
+    min-width: 0;
+}
+
+.czfoot__col-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 6px 0 16px;
+    color: var(--czfo-ink);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    list-style: none;
+}
+
+.czfoot__col-title::-webkit-details-marker {
+    display: none;
+}
+
+/* Desktop: the <details> is presentational only. The chevron is hidden and the
+   summary is inert, so a column can never be collapsed on a wide screen. */
+.czfoot__col-title i {
+    display: none;
+}
+
+@media (min-width: 768px) {
+    .czfoot__col-title {
+        pointer-events: none;
+    }
+}
+
+.czfoot__links {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.czfoot__links li {
+    margin-bottom: 7px;
+}
+
+.czfoot__links a {
+    display: inline-block;
+    color: var(--czfo-ink-2);
+    font-size: 13.5px;
+    line-height: 1.7;
+}
+
+.czfoot__links a:hover {
+    color: var(--czfo-orange-dark);
+}
+
+/* -------------------------------- legal bar ------------------------------- */
+.czfoot__bar {
+    border-top: 1px solid var(--czfo-line);
+}
+
+.czfoot__bar-inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px 26px;
+    max-width: var(--czfo-max);
+    margin: 0 auto;
+    padding: 16px 28px;
+}
+
+.czfoot__copy {
+    margin: 0;
+    color: var(--czfo-ink-3);
+    font-size: 12.5px;
+}
+
+.czfoot__pay {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.czfoot__pay-label {
+    color: var(--czfo-ink-3);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+}
+
+/* The eight marks are supplied at wildly different aspect ratios, so each sits
+   in a fixed white chip rather than being sized directly. Muted by default so a
+   row of loud brand logos does not out-shout the footer's own content. */
+.czfoot__pay-mark {
+    height: 22px;
+    width: auto;
+    max-width: 54px;
+    padding: 3px 6px;
+    border: 1px solid var(--czfo-line);
+    border-radius: 5px;
+    background: #fff;
+    object-fit: contain;
+    opacity: .8;
+    transition: opacity .15s ease;
+    /* Overrides the theme's global img hover transform. */
+    transform: none !important;
+}
+
+.czfoot__pay:hover .czfoot__pay-mark {
+    opacity: 1;
+}
+
+/* -------------------------------- responsive ------------------------------ */
+@media (max-width: 991px) {
+    .czfoot__main {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 26px 32px;
+        padding: 34px 20px 30px;
+    }
+
+    .czfoot__brand {
+        grid-column: 1 / -1;
+    }
+
+    .czfoot__about {
+        max-width: 60ch;
+    }
+}
+
+@media (max-width: 767px) {
+    .czfoot__main {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0;
+        padding: 28px 18px 22px;
+    }
+
+    .czfoot__brand {
+        margin-bottom: 20px;
+    }
+
+    /* Accordion mode: 18 links stacked is most of a phone screen. */
+    .czfoot__col {
+        border-top: 1px solid var(--czfo-line);
+    }
+
+    .czfoot__col-title {
+        margin: 0;
+        padding: 14px 2px;
+        cursor: pointer;
+    }
+
+    .czfoot__col-title i {
+        display: inline-block;
+        color: var(--czfo-ink-3);
+        font-size: 20px;
+        transition: transform .2s ease;
+    }
+
+    .czfoot__col[open] .czfoot__col-title i {
+        transform: rotate(180deg);
+    }
+
+    .czfoot__links {
+        padding: 0 2px 14px;
+    }
+
+    .czfoot__bar-inner {
+        flex-direction: column-reverse;
+        align-items: flex-start;
+        gap: 14px;
+        padding: 16px 18px 22px;
+    }
+}
+
+@media print {
+    .czfoot {
+        display: none !important;
+    }
+}

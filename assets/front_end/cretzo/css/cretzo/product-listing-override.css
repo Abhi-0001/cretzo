@@ -359,3 +359,445 @@ input[type="range"]:active::-moz-range-thumb {
 .range-min { z-index: 3; }
 .range-max { z-index: 4; }
 .range-input input.is-active { z-index: 6; }
+
+/* =====================================================================
+   MOBILE SORT / FILTER  (<= 1000px)
+   =====================================================================
+
+   Replaces two desktop-only controls on small screens:
+
+     - the rotated orange "Filter" tab, a 280px sidebar parked off the left edge
+       that had to be tapped open and then covered the grid while open;
+     - the "Sort By:" select in the toolbar, a 170px dropdown pinned to the right
+       gutter with 3px-tall option rows.
+
+   Both are replaced by a fixed bottom action bar plus two sheets. The filter sheet
+   IS the existing .filter-container, restyled - not a duplicate - so every input keeps
+   the id/class that product-listing.js binds and the filter logic is untouched.
+
+   Nothing in this block applies above 1000px: the desktop sidebar and the custom sort
+   dropdown are exactly as they were.
+   ===================================================================== */
+
+.plp-mbar,
+.plp-scrim,
+.plp-sheet--sort,
+.filter-container > .plp-sheet__head,
+.filter-container > .plp-sheet__foot {
+  display: none;
+}
+
+@media screen and (max-width: 1000px) {
+
+  /* ------------------------------------------------ bottom action bar */
+  .plp-mbar {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1150;
+    background: #fff;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.1);
+    /* Clears the iOS home bar so the buttons are not half underneath it. */
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .plp-mbar__btn {
+    flex: 1 1 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    /* 48px of tap target, which is most of the point of moving these controls
+       out of a 170px dropdown in the corner. */
+    min-height: 48px;
+    padding: 12px 8px;
+    border: 0;
+    background: transparent;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: #1a1a1a;
+    cursor: pointer;
+  }
+
+  .plp-mbar__btn i {
+    font-size: 18px;
+    line-height: 1;
+    color: #4a4a4a;
+  }
+
+  .plp-mbar__btn:active {
+    background: rgba(0, 0, 0, 0.04);
+  }
+
+  .plp-mbar__sep {
+    width: 1px;
+    margin: 10px 0;
+    background: rgba(0, 0, 0, 0.12);
+  }
+
+  /* Count of active filter groups, so a customer can tell the listing is filtered
+     without opening the sheet - the old drawer gave no such signal at all. */
+  .plp-mbar__badge {
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: var(--color-orange);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 18px;
+    text-align: center;
+  }
+
+  /* The bar is fixed over the page, so the last row of products and the pager
+     need room to clear it. */
+  .products-container {
+    padding-bottom: 64px;
+  }
+
+  /* This theme's Bootstrap build carries no `[hidden]{display:none!important}` rule, so
+     the UA default for the `hidden` attribute is beaten by ANY author `display`
+     declaration - including the ones just below. Without these guards the scrim and the
+     sort sheet would both be on screen from first paint. */
+  .plp-scrim[hidden],
+  .plp-sheet--sort[hidden],
+  .plp-mbar__badge[hidden] {
+    display: none;
+  }
+
+  /* ------------------------------------------------ shared scrim */
+  .plp-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 1180;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+
+  .plp-scrim.is-open {
+    opacity: 1;
+  }
+
+  /* ------------------------------------------------ sheet chrome (both sheets) */
+  .plp-sheet__head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 0 0 auto;
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    background: #fff;
+  }
+
+  .plp-sheet__title {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #1a1a1a;
+    margin: 0;
+  }
+
+  .plp-sheet__count {
+    margin-left: auto;
+    font-size: 12.5px;
+    color: #7a7a7a;
+  }
+
+  .plp-sheet__back,
+  .plp-sheet__x {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: #1a1a1a;
+    font-size: 20px;
+    cursor: pointer;
+  }
+
+  .plp-sheet__x {
+    margin-left: auto;
+  }
+
+  .plp-sheet__back:active,
+  .plp-sheet__x:active {
+    background: rgba(0, 0, 0, 0.06);
+  }
+
+  /* ------------------------------------------------ sort sheet */
+  .plp-sheet--sort {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1200;
+    max-height: 70vh;
+    background: #fff;
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.22);
+    transform: translateY(100%);
+    transition: transform 0.28s ease;
+    overflow: hidden;
+  }
+
+  .plp-sheet--sort.is-open {
+    transform: translateY(0);
+  }
+
+  .plp-sortlist {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    list-style: none;
+    margin: 0;
+    padding: 6px 0 calc(10px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .plp-sortlist li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    /* Full-width row, not a 3px-padded dropdown line: the whole row is the target. */
+    min-height: 48px;
+    padding: 12px 18px;
+    font-size: 14.5px;
+    color: #1a1a1a;
+    cursor: pointer;
+  }
+
+  .plp-sortlist li:active {
+    background: rgba(0, 0, 0, 0.04);
+  }
+
+  /* A drawn radio rather than a real input: the value still lives on the one
+     #product_sort_by select, which stays the single source of truth. */
+  .plp-sortlist li::before {
+    content: "";
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid rgba(0, 0, 0, 0.35);
+    background: #fff;
+    box-sizing: border-box;
+  }
+
+  .plp-sortlist li.is-selected {
+    font-weight: 600;
+    color: var(--color-orange);
+  }
+
+  .plp-sortlist li.is-selected::before {
+    border-color: var(--color-orange);
+    border-width: 5px;
+  }
+
+  /* ------------------------------------------------ filter sheet
+     .filter-container was an absolutely positioned 280px drawer sliding in from the
+     left, opened by :hover or by tapping the rotated tab. It becomes a near-full-height
+     bottom sheet. The transform/pointer-events pair is what hides it - deliberately NOT
+     visibility, because the legacy rule below lets children re-declare themselves
+     visible, and they would then show through a hidden parent. */
+  .filter-tag {
+    display: none !important;
+  }
+
+  .filter-container {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    height: 90vh;
+    max-height: 90vh;
+    padding: 0;
+    border: 0;
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.22);
+    background: #fff;
+    z-index: 1200;
+    transform: translateY(100%);
+    transition: transform 0.28s ease;
+    pointer-events: none;
+    overflow: hidden;
+  }
+
+  .filter-container.active {
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+
+  /* The old drawer's "everything except the tag is hidden until open" rule existed to
+     stop content bleeding through the 40px sliver the closed drawer left on screen.
+     The sheet is fully off-screen when closed, so that sliver no longer exists and the
+     rule would now just blank the sheet's own contents. */
+  .filter-container:not(.active) > *:not(.filter-tag) {
+    visibility: visible;
+  }
+
+  /* :hover must not open a sheet. On a touch screen the tap that closes it leaves a
+     sticky hover behind, which reopened the old drawer immediately; and in a desktop
+     browser at a narrow width, merely crossing the bottom of the window would now
+     slide the whole filter panel up over the page. */
+  @media (hover: hover) and (pointer: fine) {
+    .filter-container:hover {
+      transform: translateY(100%);
+      pointer-events: none;
+    }
+    .filter-container.active:hover {
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+    .filter-container:hover > *:not(.filter-tag) {
+      visibility: visible;
+    }
+  }
+
+  .filter-container > .plp-sheet__head {
+    display: flex;
+  }
+
+  /* The desktop "Filters / Clear All" strip is replaced by the sheet title bar
+     and footer. */
+  .filter-label-section {
+    display: none;
+  }
+
+  /* The "viewing products from this seller" notice is a direct child of the container,
+     so as a flex item it would stretch. Pinned to its own height above the scroll area. */
+  .filter-container > .alert {
+    flex: 0 0 auto;
+    margin: 12px 16px 0;
+  }
+
+  .filter-container-inner {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 16px;
+    margin: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .filter-container-inner-section {
+    padding-bottom: 8px;
+  }
+
+  .filter-section {
+    padding: 16px 0;
+  }
+
+  .filter-section:last-child {
+    border-bottom: 0;
+  }
+
+  .filter-heading {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #7a7a7a;
+    margin-bottom: 10px;
+  }
+
+  .filter-list {
+    margin-left: 0;
+  }
+
+  /* Checkbox rows were 4px apart with an 0.8-opacity label - fine for a mouse,
+     far too tight for a thumb. */
+  .filter-list-item {
+    gap: 12px;
+    min-height: 40px;
+    margin-bottom: 0;
+    opacity: 1;
+  }
+
+  .filter-list-item input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+    accent-color: var(--color-orange);
+  }
+
+  .filter-name {
+    flex: 1 1 auto;
+    margin: 0;
+    font-size: 14.5px;
+    color: #1a1a1a;
+  }
+
+  /* ------------------------------------------------ filter sheet footer */
+  .filter-container > .plp-sheet__foot {
+    display: flex;
+    flex: 0 0 auto;
+    border-top: 1px solid rgba(0, 0, 0, 0.12);
+    background: #fff;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .plp-sheet__btn {
+    flex: 1 1 0;
+    min-height: 50px;
+    border: 0;
+    background: #fff;
+    font-size: 14.5px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+  }
+
+  .plp-sheet__btn--ghost {
+    color: #1a1a1a;
+    border-right: 1px solid rgba(0, 0, 0, 0.12);
+  }
+
+  .plp-sheet__btn--primary {
+    background: var(--color-orange);
+    color: #fff;
+  }
+
+  .plp-sheet__btn:active {
+    filter: brightness(0.95);
+  }
+
+  /* ------------------------------------------------ toolbar cleanup
+     The sort control moved to the bottom bar, so the toolbar keeps only the
+     "Showing X of Y" count. The gutter that reserved room for the rotated tab is
+     not needed any more either. */
+  #sort-select-wrapper,
+  .product-filter .sort-select,
+  .product-filter .plp-sortlabel {
+    display: none;
+  }
+
+  .product-card-container {
+    --plp-gutter: 10px;
+  }
+
+  /* Scroll lock while a sheet is open - without it the grid scrolls behind the sheet
+     and the page is left at a random offset when it closes. */
+  body.plp-sheet-open {
+    overflow: hidden;
+  }
+}

@@ -317,9 +317,23 @@ if (auth_settings == "firebase") {
     });
 
     window.onload = function () {
-        document.getElementById("send-otp-form").addEventListener("submit", onSignInSubmit),
-            document.getElementById("phone-number").addEventListener("keyup", updateSignInButtonUI),
-            document.getElementById("phone-number").addEventListener("change", updateSignInButtonUI)
+        // #send-otp-form and #phone-number only exist on the login/signup screens.
+        // These three lookups were unguarded, so on EVERY other page of the site
+        // window.onload threw "Cannot read properties of null (reading
+        // 'addEventListener')" - a red console error on every page load, which in
+        // practice masks the real errors you are actually looking for. The throw
+        // also aborted the rest of this handler, so the two #phone-number bindings
+        // never ran even on a page where only the form was missing.
+        var otpForm = document.getElementById("send-otp-form");
+        var phoneInput = document.getElementById("phone-number");
+
+        if (otpForm) {
+            otpForm.addEventListener("submit", onSignInSubmit);
+        }
+        if (phoneInput) {
+            phoneInput.addEventListener("keyup", updateSignInButtonUI);
+            phoneInput.addEventListener("change", updateSignInButtonUI);
+        }
     }
     function getPhoneNumberFromUserInput() {
         return $(".selected-dial-code").html() + $("#phone-number").val()
@@ -3062,6 +3076,20 @@ function customer_wallet_query_paramss(e) {
                     icon: "error",
                     title: e.message
                 }), $("#contact-us-submit-btn").html(t).attr("disabled", !1)
+            },
+            // Sending this form goes through SMTP, which is the slowest and least
+            // reliable thing on the site - a timeout or a 500 is a realistic
+            // outcome. Without an error branch the button was left reading
+            // "Please Wait..." and disabled for ever, with nothing said, and the
+            // visitor's message lost with no way to retry.
+            error: function (xhr) {
+                Toast.fire({
+                    icon: "error",
+                    title: xhr.status === 403
+                        ? "Your session expired. Please reload the page and send again."
+                        : "We could not send your message just now. Please try again, or email us directly."
+                });
+                $("#contact-us-submit-btn").html(t).attr("disabled", !1)
             }
         })
     }), $("#product-rating-form").on("submit", function (e) {

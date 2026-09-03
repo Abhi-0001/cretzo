@@ -147,6 +147,12 @@ class Orders extends CI_Controller
                     // the view only uses it as a fallback. Fall back to the line total.
                     $temp['row_price'] = isset($row['row_price']) ? $row['row_price'] : (isset($row['sub_total']) ? $row['sub_total'] : $row['price']);
                     $temp['active_status'] = $row['oi_active_status'];
+                    /* Why the customer cancelled or returned this item (migration 076).
+                     * $items is assembled field-by-field rather than passed through from
+                     * get_order_details(), so a new column has to be named here or the
+                     * view cannot see it. */
+                    $temp['return_reason'] = isset($row['return_reason']) ? $row['return_reason'] : null;
+                    $temp['return_reason_at'] = isset($row['return_reason_at']) ? $row['return_reason_at'] : null;
                     // A deleted staff account, or an order nobody has touched yet, leaves these
                     // lookups empty - they were indexed straight into regardless.
                     $temp['updated_by'] = !empty($updated_username) ? $updated_username[0]['username'] : '';

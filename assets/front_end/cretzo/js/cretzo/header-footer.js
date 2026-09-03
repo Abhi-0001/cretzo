@@ -103,3 +103,33 @@ document.addEventListener("click", function (event) {
         }
     }
 });
+/* ============================================================
+   Footer link columns (czfoot).
+   The three columns render as <details open> so that with JS off,
+   or if this never runs, every link is visible - a footer that
+   hides its own navigation is worse than a long one. On a phone
+   they are collapsed here, where an expanded 24-link stack would
+   be most of the screen, and re-opened if the viewport grows.
+   ============================================================ */
+(function () {
+    var cols = document.querySelectorAll('.czfoot__col');
+    if (!cols.length) return;
+
+    var mq = window.matchMedia('(max-width: 767px)');
+
+    function sync(e) {
+        var narrow = e.matches;
+        Array.prototype.forEach.call(cols, function (col) {
+            col.open = !narrow;
+        });
+    }
+
+    sync(mq);
+    /* addEventListener on a MediaQueryList is the modern form; older WebKit
+       only has addListener. */
+    if (mq.addEventListener) {
+        mq.addEventListener('change', sync);
+    } else if (mq.addListener) {
+        mq.addListener(sync);
+    }
+})();

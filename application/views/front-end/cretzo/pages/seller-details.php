@@ -77,7 +77,20 @@
             foreach ($seller_categories as $category) { ?>
                 <a class="text-decoration-none cretzo-link" href="<?= base_url('products?seller=' . $sellers[0]['slug'] . '&category=' . $category['id']) ?>">
                     <div class="catagory-container">
-                        <img class="catagory-img" src="<?= $category['image'] ?>" alt="<?= html_escape($category['name']) ?>">
+                        <?php
+                            /* A category with no image (Uncategorised, here) drew the browser's
+                               broken-image icon inside the white circle. An empty column is not
+                               empty by the time it gets here - Category_model prefixes base_url()
+                               unconditionally, so the src arrives as the site root - hence the
+                               comparison against base_url() rather than a plain empty() check. */
+                            $category_image = trim((string)($category['image'] ?? ''));
+                            $has_category_image = ($category_image !== '' && rtrim($category_image, '/') !== rtrim(base_url(), '/'));
+                        ?>
+                        <?php if ($has_category_image) { ?>
+                            <img class="catagory-img" src="<?= $category_image ?>" alt="<?= html_escape($category['name']) ?>">
+                        <?php } else { ?>
+                            <span class="catagory-img catagory-img--empty" aria-hidden="true"><?= html_escape(mb_strtoupper(mb_substr($category['name'], 0, 1))) ?></span>
+                        <?php } ?>
                         <p class="text-n"><?= $category['name'] ?></p>
                     </div>
                 </a>

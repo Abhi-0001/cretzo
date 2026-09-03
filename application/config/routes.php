@@ -68,7 +68,9 @@ $route['about-us'] = 'home/about_us';
 $route['terms-and-conditions'] = 'home/terms_and_conditions';
 $route['privacy-policy'] = 'home/privacy_policy';
 $route['contact-us'] = 'home/contact_us';
-$route['terms-and-conditions'] = 'home/terms_and_conditions';
+/* 'terms-and-conditions' was declared twice, three lines apart, to the same
+ * controller method - harmless, but it is the kind of duplicate that gets
+ * "fixed" later by editing the copy that is not the one taking effect. */
 $route['return-policy'] = 'home/return_policy';
 $route['shipping-policy'] = 'home/shipping_policy';
 

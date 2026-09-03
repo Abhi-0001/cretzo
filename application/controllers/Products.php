@@ -463,6 +463,32 @@ class Products extends CI_Controller
         if ($this->ion_auth->logged_in()) {
             $this->data['my_rating'] = $this->rating_model->fetch_rating($product['product'][0]['id'], $this->data['user']->id);
         }
+
+        /*
+         * Whether this signed-in customer is allowed to write a review.
+         *
+         * This deliberately mirrors the check inside save_rating() one-for-one - the
+         * customer has an order item for some variant of this product that has not been
+         * returned. The view used to gate its (long-disabled) review form on
+         * $product['product'][0]['is_purchased'] instead, which fetch_product() only sets
+         * when EVERY variant the customer bought is already 'delivered'. Buyers whose
+         * order the server would happily accept a review for were therefore shown no form
+         * at all, and there was no way to tell that from the page.
+         */
+        $this->data['can_review'] = false;
+        if ($this->data['is_logged_in']) {
+            $purchased = $this->db->select('oi.id')
+                ->join('product_variants pv', 'pv.id = oi.product_variant_id')
+                ->where([
+                    'pv.product_id'      => $product['product'][0]['id'],
+                    'oi.user_id'         => $user_id,
+                    'oi.active_status!=' => 'returned',
+                ])
+                ->limit(1)
+                ->get('order_items oi')
+                ->result_array();
+            $this->data['can_review'] = !empty($purchased);
+        }
         $this->data['related_products'] = fetch_product($user_id, NULL, NULL, $product['product'][0]['category_id'], 12);
 
 
@@ -955,7 +981,14 @@ class Products extends CI_Controller
             comment: 'Done' {optional}
         */
         if (!$this->ion_auth->logged_in()) {
-            return false;
+            /* This used to `return false`, so a signed-out (or session-expired) customer
+               got an empty 200 body. The caller asks for JSON, so the parse failed and the
+               submit button was left spinning with nothing explaining why. */
+            $this->response['error'] = true;
+            $this->response['message'] = 'Please sign in to review this product.';
+            $this->response['data'] = array();
+            echo json_encode($this->response);
+            return;
         }
         $this->form_validation->set_rules('product_id', 'Product Id', 'trim|numeric|xss_clean|required');
         $this->form_validation->set_rules('rating', 'Rating', 'trim|numeric|xss_clean|greater_than[0]|less_than[6]|required');
@@ -1015,12 +1048,14 @@ class Products extends CI_Controller
                 }
 
                 //Deleting Uploaded Images if any overall error occured
-                if ($images_info_error != NULL || !$this->form_validation->run()) {
-                    if (isset($images_new_name_arr) && !empty($images_new_name_arr || !$this->form_validation->run())) {
-                        foreach ($images_new_name_arr as $key => $val) {
-                            if (file_exists(FCPATH . REVIEW_IMG_PATH . $images_new_name_arr[$key])) {
-                                unlink(FCPATH . REVIEW_IMG_PATH . $images_new_name_arr[$key]);
-                            }
+                if ($images_info_error != NULL) {
+                    /* $images_new_name_arr entries ALREADY start with REVIEW_IMG_PATH (see the
+                       assignment above), so prefixing it again built a path that never exists -
+                       file_exists() was always false and every partially-uploaded review left
+                       its images orphaned on disk for ever. */
+                    foreach ($images_new_name_arr as $val) {
+                        if (is_file(FCPATH . $val)) {
+                            unlink(FCPATH . $val);
                         }
                     }
                 }
@@ -1067,7 +1102,12 @@ class Products extends CI_Controller
     public function delete_rating()
     {
         if (!$this->ion_auth->logged_in()) {
-            return false;
+            // Same as save_rating() - answer with JSON, not an empty body.
+            $this->response['error'] = true;
+            $this->response['message'] = 'Please sign in to manage your review.';
+            $this->response['data'] = array();
+            echo json_encode($this->response);
+            return;
         }
         $this->form_validation->set_rules('rating_id', 'Rating Id', 'trim|numeric|required|xss_clean');
         if (!$this->form_validation->run()) {

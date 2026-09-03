@@ -14,7 +14,7 @@ class Home extends CI_Controller
     public function __construct()
     {
         parent::__construct();
-        $this->load->database();
+        $this->load->database(); 
         $this->load->helper(['url', 'language', 'timezone_helper']);
         $this->load->library(['Jwt', 'Key']);
         $this->load->model(['address_model', 'category_model', 'product_model', 'brand_model', 'cart_model', 'faq_model', 'blog_model', 'ion_auth_model']);
@@ -503,6 +503,67 @@ if ($user_id === null && defined('HOME_SECTIONS_CACHE_TTL') && HOME_SECTIONS_CAC
         $this->data['description'] = 'About US | ' . $this->data['web_settings']['meta_description'];
         $this->data['meta_description'] = 'About US | ' . $this->data['web_settings']['site_title'];
         $this->data['about_us'] = get_settings('about_us');
+
+        /*
+         * Real imagery and real numbers for the About page, rather than stock
+         * photography and invented figures. Everything below comes out of the
+         * catalogue, so the page stays true as the store grows and there is
+         * nothing to keep in sync by hand.
+         *
+         * Deliberately NOT shown: the seller count and the order count. Both are
+         * small enough right now that printing them would undersell the store,
+         * and the seller list still contains test accounts ("Test Seller Store",
+         * "Developer's Den") that must not appear on a public marketing page.
+         * The counts that ARE shown are ones the catalogue can stand behind.
+         */
+        $this->data['about_stats'] = [
+            'products'   => (int) $this->db->where('status', 1)->count_all_results('products'),
+            'categories' => (int) $this->db->where(['status' => 1, 'parent_id' => 0])->count_all_results('categories'),
+        ];
+
+        /*
+         * A non-empty `image` column is NOT a promise that the file is on disk -
+         * product 295 has a path whose file is missing, and get_image_url() then
+         * hands back the theme's "NO IMAGE" placeholder. On a page whose whole
+         * job is to look good, a grey NO IMAGE tile in the hero collage is worse
+         * than one fewer photo. So both sets are over-fetched and filtered by
+         * what actually exists, then trimmed.
+         */
+        $on_disk = function (array $rows, $take) {
+            $kept = [];
+            foreach ($rows as $row) {
+                if (!empty($row['image']) && is_file(FCPATH . $row['image'])) {
+                    $kept[] = $row;
+                    if (count($kept) >= $take) {
+                        break;
+                    }
+                }
+            }
+            return $kept;
+        };
+
+        /* Top-level categories with an image to show. Ordered by the admin's own
+         * row_order so the About page agrees with the navigation. */
+        $this->data['about_categories'] = $on_disk($this->db
+            ->select('id, name, slug, image')
+            ->where(['status' => 1, 'parent_id' => 0])
+            ->where('image !=', '')
+            ->order_by('row_order', 'ASC')
+            ->limit(16)
+            ->get('categories')
+            ->result_array(), 8);
+
+        /* Real products for the hero collage. Newest first - the most recently
+         * listed work is the most representative of the store today. */
+        $this->data['about_products'] = $on_disk($this->db
+            ->select('id, name, slug, image')
+            ->where('status', 1)
+            ->where('image !=', '')
+            ->order_by('id', 'DESC')
+            ->limit(20)
+            ->get('products')
+            ->result_array(), 5);
+
         $this->load->view('front-end/' . THEME . '/template', $this->data);
     }
 
@@ -526,6 +587,20 @@ if ($user_id === null && defined('HOME_SECTIONS_CACHE_TTL') && HOME_SECTIONS_CAC
         $this->data['meta_description'] = 'Contact US | ' . $this->data['web_settings']['site_title'];
         $this->data['contact_us'] = get_settings('contact_us');
         $this->data['web_settings'] = get_settings('web_settings', true);
+
+        /*
+         * Contact Us keeps ONE url - it is linked from the footer, from the
+         * dashboard's Help tile and from the account sidebar - but it renders
+         * inside the My Account shell for a signed-in CUSTOMER, so reaching it
+         * from the account does not throw the customer out of the account.
+         *
+         * Gated on group 2 the same way My_account's constructor is: a seller or
+         * admin session must not get the customer sidebar, since every link in
+         * it goes to a customer route they have no business on.
+         */
+        $this->data['is_customer'] = ($this->ion_auth->logged_in()
+            && $this->ion_auth_model->in_group(2, $this->session->userdata('user_id'))) ? 1 : 0;
+
         $this->load->view('front-end/' . THEME . '/template', $this->data);
     }
 

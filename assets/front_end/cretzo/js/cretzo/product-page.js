@@ -205,3 +205,234 @@ $(function () {
         obs.observe(mainPrice, { childList: true, characterData: true, subtree: true });
     }
 });
+
+
+/* ---------------------------------------------------------------------------
+ * Write-a-review panel (#czrev-form).
+ *
+ * Everything the customer needs to rate the product lives here: the star
+ * picker, the photo picker with previews and client-side validation, the AJAX
+ * submit, and deleting their own review.
+ *
+ * Why this is not left to custom.js's #product-rating-form handler:
+ *   - that handler has no `error:` branch, so any 403/500/timeout left the
+ *     button stuck on "Please Wait..." with nothing said to the customer;
+ *   - it posts whatever the Krajee star plugin left in the field, which is 0
+ *     when the plugin has not initialised - the server then answers with a
+ *     validation error about a field the customer cannot see;
+ *   - it does no file checking at all, so an oversized or wrong-typed photo
+ *     was only rejected after a full upload.
+ * The form deliberately uses a different id so BOTH handlers never fire for
+ * one submit.
+ * ------------------------------------------------------------------------- */
+(function () {
+    var form = document.getElementById('czrev-form');
+    if (!form) {
+        return;
+    }
+
+    var CAPTIONS = ['', 'Poor', 'Fair', 'Good', 'Very good', 'Excellent'];
+    var MAX_FILES = 5;
+    /* Products.php configures the upload with 'max_size' => 8000, which CodeIgniter
+       reads as kilobytes. Stay just under it so the browser rejects the file rather
+       than the customer waiting for an upload that cannot succeed. */
+    var MAX_BYTES = 7 * 1024 * 1024;
+    var ALLOWED = ['image/jpeg', 'image/pjpeg', 'image/png', 'image/gif'];
+
+    var $form = $(form);
+    var ratingField = document.getElementById('czrev-rating-value');
+    var caption = document.getElementById('czrev-star-caption');
+    var fileInput = document.getElementById('czrev-images');
+    var fileCount = document.getElementById('czrev-file-count');
+    var previews = document.getElementById('czrev-previews');
+    var submitBtn = document.getElementById('czrev-submit');
+
+    function toast(icon, title) {
+        if (window.Toast && typeof Toast.fire === 'function') {
+            Toast.fire({ icon: icon, title: title });
+        } else {
+            alert(title);
+        }
+    }
+
+    /* --- stars ------------------------------------------------------------ */
+    function paintStars(value) {
+        $form.find('.czrev-star').each(function (i) {
+            $(this).toggleClass('is-on', (i + 1) <= value);
+        });
+        if (caption) {
+            caption.textContent = value ? CAPTIONS[value] : '';
+        }
+    }
+
+    function selectedStar() {
+        var checked = form.querySelector('input[name="czrev_star"]:checked');
+        return checked ? parseInt(checked.value, 10) : 0;
+    }
+
+    $form.on('change', 'input[name="czrev_star"]', function () {
+        var value = selectedStar();
+        ratingField.value = value ? value : '';
+        paintStars(value);
+        $form.find('.czrev-stars').removeClass('czrev-invalid');
+    });
+
+    /* Hover preview, mouse only - the radios keep the keyboard path working. */
+    $form.on('mouseenter', '.czrev-star', function () {
+        paintStars($form.find('.czrev-star').index(this) + 1);
+    }).on('mouseleave', '.czrev-stars', function () {
+        paintStars(selectedStar());
+    });
+
+    paintStars(selectedStar());
+
+    /* --- photos ----------------------------------------------------------- */
+    function czrevValidateFiles(files) {
+        if (files.length > MAX_FILES) {
+            return 'Please choose at most ' + MAX_FILES + ' photos.';
+        }
+        for (var i = 0; i < files.length; i++) {
+            var f = files[i];
+            /* Some Windows/Android pickers hand over an empty type for a .jpg, so
+               fall back to the extension rather than rejecting a valid photo. */
+            var typeOk = ALLOWED.indexOf((f.type || '').toLowerCase()) !== -1 ||
+                /\.(jpe?g|png|gif)$/i.test(f.name || '');
+            if (!typeOk) {
+                return '"' + f.name + '" is not a JPG, PNG or GIF.';
+            }
+            if (f.size > MAX_BYTES) {
+                return '"' + f.name + '" is larger than 7 MB.';
+            }
+        }
+        return '';
+    }
+
+    function renderPreviews(files) {
+        previews.innerHTML = '';
+        if (!files.length) {
+            fileCount.textContent = 'No photos selected';
+            return;
+        }
+        fileCount.textContent = files.length + (files.length === 1 ? ' photo selected' : ' photos selected');
+        Array.prototype.forEach.call(files, function (file) {
+            var url = URL.createObjectURL(file);
+            var wrap = document.createElement('span');
+            wrap.className = 'czrev-preview';
+            var img = document.createElement('img');
+            img.src = url;
+            img.alt = file.name;
+            /* Free the object URL once the browser has decoded it. */
+            img.onload = function () { URL.revokeObjectURL(url); };
+            wrap.appendChild(img);
+            previews.appendChild(wrap);
+        });
+    }
+
+    if (fileInput) {
+        fileInput.addEventListener('change', function () {
+            var problem = czrevValidateFiles(this.files);
+            if (problem) {
+                toast('error', problem);
+                this.value = '';
+                renderPreviews([]);
+                return;
+            }
+            renderPreviews(this.files);
+        });
+    }
+
+    /* --- submit ----------------------------------------------------------- */
+    $form.on('submit', function (e) {
+        e.preventDefault();
+
+        if (!ratingField.value) {
+            $form.find('.czrev-stars').addClass('czrev-invalid');
+            toast('error', 'Please pick a star rating first.');
+            return;
+        }
+        if (fileInput && fileInput.files.length) {
+            var problem = czrevValidateFiles(fileInput.files);
+            if (problem) {
+                toast('error', problem);
+                return;
+            }
+        }
+
+        var original = submitBtn.innerHTML;
+        var data = new FormData(form);
+        /* The radios are UI only; `rating` is the field the server validates. */
+        data.delete('czrev_star');
+        if (window.csrfName && window.csrfHash) {
+            data.append(csrfName, csrfHash);
+        }
+
+        $.ajax({
+            type: 'POST',
+            url: form.getAttribute('action'),
+            data: data,
+            dataType: 'json',
+            cache: false,
+            contentType: false,
+            processData: false,
+            beforeSend: function () {
+                submitBtn.innerHTML = 'Please wait...';
+                submitBtn.disabled = true;
+            },
+            success: function (res) {
+                if (res && res.csrfName) { csrfName = res.csrfName; }
+                if (res && res.csrfHash) { csrfHash = res.csrfHash; }
+                if (res && res.error === false) {
+                    toast('success', res.message || 'Thanks for your review!');
+                    window.location.reload();
+                    return;
+                }
+                /* save_rating() returns validation_errors(), which is HTML. */
+                var message = (res && res.message) ? $('<div>').html(res.message).text().trim() : '';
+                toast('error', message || 'We could not save your review. Please try again.');
+                submitBtn.innerHTML = original;
+                submitBtn.disabled = false;
+            },
+            error: function (xhr) {
+                toast('error', xhr.status === 403
+                    ? 'Your session expired. Please reload the page and try again.'
+                    : 'We could not save your review just now. Please try again.');
+                submitBtn.innerHTML = original;
+                submitBtn.disabled = false;
+            }
+        });
+    });
+
+    /* --- delete ----------------------------------------------------------- */
+    $('#czrev-delete').on('click', function () {
+        var btn = this;
+        if (!window.confirm('Delete your review of this product?')) {
+            return;
+        }
+        var payload = { rating_id: $(btn).data('rating-id') };
+        if (window.csrfName && window.csrfHash) {
+            payload[csrfName] = csrfHash;
+        }
+        $.ajax({
+            type: 'POST',
+            url: $(btn).data('url'),
+            data: payload,
+            dataType: 'json',
+            beforeSend: function () { btn.disabled = true; },
+            success: function (res) {
+                if (res && res.csrfName) { csrfName = res.csrfName; }
+                if (res && res.csrfHash) { csrfHash = res.csrfHash; }
+                if (res && res.error === false) {
+                    toast('success', res.message || 'Review deleted.');
+                    window.location.reload();
+                    return;
+                }
+                toast('error', (res && res.message) || 'We could not delete your review.');
+                btn.disabled = false;
+            },
+            error: function () {
+                toast('error', 'We could not delete your review just now. Please try again.');
+                btn.disabled = false;
+            }
+        });
+    });
+})();

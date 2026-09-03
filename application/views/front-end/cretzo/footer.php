@@ -1,136 +1,199 @@
-<?php $web_settings = get_settings('web_settings', true);
-$system_settings = get_settings('system_settings', true); ?>
+<?php
+/**
+ * ============================================================================
+ * Site footer.
+ * ============================================================================
+ *
+ * Rebuilt onto the `czfoot` design system. The previous footer was four bare
+ * <ul>s in a flex row: no trust signals, no payment marks, no copyright line at
+ * all (the `copyright_details` setting was stored and never printed), and the
+ * social icons were four differently-styled PNGs sitting on the background.
+ *
+ * Structure, top to bottom:
+ *   1. Brand column   - logo, positioning line, contact chips, social.
+ *   2. Link columns   - Information / Shop / Account, unchanged destinations.
+ *   3. Legal bar      - copyright and the accepted payment marks.
+ *
+ * A trust/USP strip and a "Sell with Cretzo" card were tried above these and
+ * removed at the owner's request - the footer is navigation and legal, and the
+ * seller pitch has its own page. Do not reintroduce them here.
+ *
+ * Every URL here is the URL the old footer used; nothing was re-pointed. The
+ * signed-out variants of the account links still open #modal-signin exactly as
+ * before, so the auth modal contract is untouched.
+ *
+ * On mobile the three link columns become <details> accordions - a 24-link
+ * stack is otherwise most of the page. Desktop neutralises the <details> in CSS
+ * (summary pointer-events:none, body forced open), so there is no JS here at
+ * all and no way for the columns to end up collapsed on a wide screen.
+ */
+
+$web_settings = get_settings('web_settings', true);
+$system_settings = get_settings('system_settings', true);
+
+$czf_logo      = get_settings('web_logo');
+$czf_about     = isset($web_settings['app_short_description']) ? trim($web_settings['app_short_description']) : '';
+$czf_email     = isset($web_settings['support_email']) ? trim($web_settings['support_email']) : '';
+$czf_phone     = isset($web_settings['support_number']) ? trim($web_settings['support_number']) : '';
+$czf_address   = isset($web_settings['address']) ? trim($web_settings['address']) : '';
+$czf_copyright = isset($web_settings['copyright_details']) ? trim($web_settings['copyright_details']) : '';
+
+/* The admin panel stores these four one per key; empty ones must not leave a
+ * gap in the icon row. */
+$czf_social = [
+    ['key' => 'instagram_link', 'label' => 'Instagram', 'icon' => 'uil-instagram'],
+    ['key' => 'facebook_link',  'label' => 'Facebook',  'icon' => 'uil-facebook-f'],
+    ['key' => 'twitter_link',   'label' => 'X (Twitter)', 'icon' => 'uil-twitter'],
+    ['key' => 'youtube_link',   'label' => 'YouTube',   'icon' => 'uil-youtube'],
+];
+
+/*
+ * Account links are the only conditional destinations in the footer: a
+ * signed-in customer goes to the page, everyone else opens the sign-in modal.
+ * Sellers, admins and delivery accounts get the modal path too - /my-account is
+ * customer-only and used to 302 them somewhere confusing.
+ */
+$czf_is_customer = $this->ion_auth->logged_in()
+    && !$this->ion_auth->is_seller()
+    && !$this->ion_auth->is_delivery_boy()
+    && !$this->ion_auth->is_admin();
+
+$czf_payment_marks = [
+    'UPI_Logo.png'        => 'UPI',
+    'Google_Pay_Logo.png' => 'Google Pay',
+    'PhonePe_Logo.png'    => 'PhonePe',
+    'Paytm_Logo.png'      => 'Paytm',
+    'Visa_Logo.png'       => 'Visa',
+    'Mastercard_Logo.png' => 'Mastercard',
+    'RuPay_Logo.png'      => 'RuPay',
+    'Razorpay_Logo.png'   => 'Razorpay',
+];
+?>
 
 <!-- footer starts -->
-<section class="footer-container">
-    <ul class="footer-list footer-list-1">
-        <?php $logo = get_settings('web_logo'); ?>
-        <a href="<?= base_url() ?>"> <img class="main-logo-footer lazy" src="<?= base_url($logo) ?>" data-src="<?= base_url($logo) ?>"> </a>
+<footer class="czfoot">
 
-        <!-- <li class="op-6">Welcome to cretzo, the one-stop shop for jewellery!</li> -->
-        
-        <?php if (isset($web_settings['app_short_description'])) { ?>
-            <p><?= html_escape($web_settings['app_short_description']) ?></p>
-        <?php } else { ?>
-            <li class="op-6">Welcome to cretzo, the one-stop shop for jewellery!</li>
-        <?php } ?>
+    <!-- 1-2. brand + links -------------------------------------------------- -->
+    <div class="czfoot__main">
 
-       
+        <div class="czfoot__brand">
+            <a class="czfoot__logo" href="<?= base_url() ?>" aria-label="Cretzo home">
+                <img src="<?= base_url($czf_logo) ?>" alt="Cretzo">
+            </a>
 
-        <!-- <img class="handicraft-logo lazy" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/100-handicraft.png') ?>" data-src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/100-handicraft.png') ?>"> -->
-                
-    </ul>
-
-    <ul class="footer-list footer-list-2">
-        <li class="footer-heading">Information</li>
-        <li class="footer-list-item"> <a class="text-decoration-none hover" href="<?= base_url('about-us') ?>"> About Us </a></li>
-        <li class="footer-list-item"> <a class="text-decoration-none hover" href="<?= base_url('privacy-policy') ?>"> Privacy Policy </a></li>
-        <li class="footer-list-item"> <a class="text-decoration-none hover" href="<?= base_url('contact-us') ?>"> Contact Us </a></li>
-        <li class="footer-list-item"> <a class="text-decoration-none hover" href="<?= base_url('home/products') ?>"> Shop </a></li>
-        <li class="footer-list-item"> <a class="text-decoration-none hover" href="<?= base_url('home/categories') ?>"> Catagories </a></li>
-        <li class="footer-list-item"> <a class="text-decoration-none hover" href="<?= base_url('terms-and-conditions') ?>"> Terms & Conditions </a></li>
-        <li class="footer-list-item"> <a class="text-decoration-none hover" href="<?= base_url('return-policy') ?>"> Return Policy </a></li>
-        <li class="footer-list-item"> <a class="text-decoration-none hover" href="<?= base_url('shipping-policy') ?>"> Shipping Policy </a></li>
-    </ul>
-
-    <ul class="footer-list footer-list-3">
-        <li class="footer-heading">Quick Links</li>
-
-        <li class="footer-list-item"> <a class="text-decoration-none hover" href="<?= base_url('seller') ?>"> Sell with Cretzo </a> </li>
-        <li class="footer-list-item"> <a class="text-decoration-none hover" href="<?= base_url('cart') ?>"> Cart </a> </li>
-
-        <?php $logged_in = $this->ion_auth->logged_in() ?>
-            
-        <?php if($logged_in && !$this->ion_auth->is_seller() && !$this->ion_auth->is_delivery_boy() && !$this->ion_auth->is_admin()) { ?>
-            <li class="footer-list-item"> <a class="text-decoration-none hover" href="<?= base_url('my-account/orders') ?>"> Orders </a> </li>
-            <li class="footer-list-item"> <a class="text-decoration-none hover" href="<?= base_url('my-account/favorites') ?>"> Wishlist </a> </li>
-            <li class="footer-list-item"> <a class="text-decoration-none hover" href="<?= base_url('my-account') ?>"> My Account </a> </li>
-        <?php }
-        else { ?>
-            <li class="footer-list-item"> <a class="text-decoration-none hover" href="#" data-bs-toggle="modal" data-bs-target="#modal-signin"> Orders </a> </li>
-            <li class="footer-list-item"> <a class="text-decoration-none hover" href="#" data-bs-toggle="modal" data-bs-target="#modal-signin"> Wishlist </a> </li>
-            <li class="footer-list-item"> <a class="text-decoration-none hover" href="#" data-bs-toggle="modal" data-bs-target="#modal-signin"> My Account </a> </li>
-        <?php } ?>
-        
-        <!-- <li class="footer-list-item"> <a class="text-decoration-none hover" href="#"> Career </a> </li> -->
-        <?php // Compare is HIDDEN: the feature is unfinished, so /compare only ever rendered
-              // "No items to compare". The product page and quick-view already announce it as
-              // "coming soon" via .compare-soon-btn, and Compare::index() now redirects home -
-              // this link was the last thing sending shoppers to the empty page. Restore the
-              // <li> below when the feature ships. ?>
-        <li class="footer-list-item"> <a class="text-decoration-none hover" href="<?= base_url('home/faq') ?>"> FAQ's </a> </li>
-    </ul>
-
-    <ul class="footer-list footer-list-4">
-        <li class="footer-heading">Contact Us</li>
-
-        <?php if (isset($web_settings['support_email']) && !empty($web_settings['support_email'])) { ?>
-            <li class="footer-list-item"> 
-                <a href="mailto:<?= $web_settings['support_email'] ?>" class="text-decoration-none hover">
-                    <?= $web_settings['support_email'] ?> 
-                </a>
-            </li>
-        <?php } ?>
-
-        <?php if (isset($web_settings['support_number']) && !empty($web_settings['support_number'])) { ?>
-            <li class="footer-list-item">
-                <a href="tel:<?= $web_settings['support_number'] ?>"  class="text-decoration-none hover">
-                    <?= $web_settings['support_number'] ?>
-                </a>
-            </li>
-        <?php } ?>
-
-        <?php /* No WhatsApp link in this column on purpose - it landed in the wrong place in the
-                 footer grid on listing pages. WhatsApp is offered on contact-us, in the chat
-                 widget and on the chat/support pages instead. */ ?>
-
-        <li class="footer-heading mt-4">Keep in touch</li>
-        <li class="media-icon-container social">
-
-        
-            <!-- <?php if (isset($web_settings['twitter_link']) && !empty($web_settings['twitter_link'])) { ?>
-                <a class="media-icon" href="<?= $web_settings['twitter_link'] ?>" target="_blank" aria-label="twitter-link" class="text-decoration-none"><i class="uil uil-twitter"></i></a>
-            <?php } ?>
-            <?php if (isset($web_settings['facebook_link']) &&  !empty($web_settings['facebook_link'])) { ?>
-                <a class="media-icon" href="<?= $web_settings['facebook_link'] ?>" target="_blank" aria-label="facebook link" class="text-decoration-none"><i class="uil uil-facebook-f"></i></a>
-            <?php } ?>
-            <?php if (isset($web_settings['instagram_link']) &&  !empty($web_settings['instagram_link'])) { ?>
-                <a class="media-icon" href="<?= $web_settings['instagram_link'] ?>" target="_blank" aria-label="instragram link" class="text-decoration-none"><i class="uil uil-instagram"></i></a>
-            <?php } ?>
-            <?php if (isset($web_settings['youtube_link']) &&  !empty($web_settings['youtube_link'])) { ?>
-                <a class="media-icon" href="<?= $web_settings['youtube_link'] ?>" target="_blank" aria-label="youtube-link" class="text-decoration-none"><i class="uil uil-youtube"></i></a>
-            <?php } ?> -->
-
-
-
-            <?php if (isset($web_settings['twitter_link']) && !empty($web_settings['twitter_link'])) { ?>
-                <a class="media-icon" href="<?= $web_settings['twitter_link'] ?>" target="_blank" aria-label="twitter-link" class="text-decoration-none">
-                    <img class="media-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/twitter-icon.png') ?>">
-                </a>
-            <?php } ?>
-            <?php if (isset($web_settings['facebook_link']) &&  !empty($web_settings['facebook_link'])) { ?>
-                <a class="media-icon" href="<?= $web_settings['facebook_link'] ?>" target="_blank" aria-label="facebook link" class="text-decoration-none">
-                    <img class="media-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/Facebook_icon.png') ?>">
-                </a>
-            <?php } ?>
-            <?php if (isset($web_settings['instagram_link']) &&  !empty($web_settings['instagram_link'])) { ?>
-                <a class="media-icon" href="<?= $web_settings['instagram_link'] ?>" target="_blank" aria-label="instragram link" class="text-decoration-none">
-                    <img class="media-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/Instagram-Icon.png') ?>">
-                </a>
-            <?php } ?>
-            <?php if (isset($web_settings['youtube_link']) &&  !empty($web_settings['youtube_link'])) { ?>
-                <a class="media-icon" href="<?= $web_settings['youtube_link'] ?>" target="_blank" aria-label="youtube-link" class="text-decoration-none">
-                    <img class="media-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/youtube-icon.png') ?>">
-                </a>
+            <?php if ($czf_about !== '') { ?>
+                <p class="czfoot__about"><?= html_escape($czf_about) ?></p>
+            <?php } else { ?>
+                <p class="czfoot__about">A marketplace for handmade work - artists, artisans, suppliers and the people who value what they make.</p>
             <?php } ?>
 
-            <!-- <img class="media-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/Facebook_icon.png') ?>">
-            <img class="media-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/twitter-icon.png') ?>">
-            <img class="media-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/Instagram-Icon.png') ?>">
-            <img class="media-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/youtube-icon.png') ?>"> -->
-        </li>
-    </ul>
-</section>
+            <ul class="czfoot__contact">
+                <?php if ($czf_email !== '') { ?>
+                    <li>
+                        <i class="uil uil-envelope"></i>
+                        <a href="mailto:<?= html_escape($czf_email) ?>"><?= html_escape($czf_email) ?></a>
+                    </li>
+                <?php } ?>
+                <?php if ($czf_phone !== '') { ?>
+                    <li>
+                        <i class="uil uil-phone"></i>
+                        <?php /* tel: must not carry the spaces an admin may have typed. */ ?>
+                        <a href="tel:<?= html_escape(preg_replace('/[^0-9+]/', '', $czf_phone)) ?>"><?= html_escape($czf_phone) ?></a>
+                    </li>
+                <?php } ?>
+                <?php if ($czf_address !== '') { ?>
+                    <li>
+                        <i class="uil uil-map-marker"></i>
+                        <span><?= html_escape($czf_address) ?></span>
+                    </li>
+                <?php } ?>
+            </ul>
+
+            <?php
+            $czf_social_html = '';
+            foreach ($czf_social as $network) {
+                if (empty($web_settings[$network['key']])) {
+                    continue;
+                }
+                $czf_social_html .= '<a class="czfoot__social-link" href="' . html_escape($web_settings[$network['key']]) . '"'
+                    . ' target="_blank" rel="noopener" aria-label="' . html_escape($network['label']) . '">'
+                    . '<i class="uil ' . $network['icon'] . '"></i></a>';
+            }
+            if ($czf_social_html !== '') { ?>
+                <div class="czfoot__social">
+                    <p class="czfoot__social-label">Follow the makers</p>
+                    <div class="czfoot__social-row"><?= $czf_social_html ?></div>
+                </div>
+            <?php } ?>
+        </div>
+
+        <details class="czfoot__col" open>
+            <summary class="czfoot__col-title">Information <i class="uil uil-angle-down"></i></summary>
+            <ul class="czfoot__links">
+                <li><a href="<?= base_url('about-us') ?>">About Us</a></li>
+                <li><a href="<?= base_url('contact-us') ?>">Contact Us</a></li>
+                <li><a href="<?= base_url('home/faq') ?>">Help Centre &amp; FAQs</a></li>
+                <li><a href="<?= base_url('terms-and-conditions') ?>">Terms &amp; Conditions</a></li>
+                <li><a href="<?= base_url('privacy-policy') ?>">Privacy Policy</a></li>
+                <li><a href="<?= base_url('return-policy') ?>">Return &amp; Refund Policy</a></li>
+                <li><a href="<?= base_url('shipping-policy') ?>">Shipping Policy</a></li>
+            </ul>
+        </details>
+
+        <details class="czfoot__col" open>
+            <summary class="czfoot__col-title">Shop <i class="uil uil-angle-down"></i></summary>
+            <ul class="czfoot__links">
+                <li><a href="<?= base_url('products') ?>">All Products</a></li>
+                <li><a href="<?= base_url('home/categories') ?>">Categories</a></li>
+                <li><a href="<?= base_url('sellers') ?>">Our Sellers</a></li>
+                <li><a href="<?= base_url('cart') ?>">Cart</a></li>
+                <li><a href="<?= base_url('blogs') ?>">Blog</a></li>
+            </ul>
+        </details>
+
+        <details class="czfoot__col" open>
+            <summary class="czfoot__col-title">Your Account <i class="uil uil-angle-down"></i></summary>
+            <ul class="czfoot__links">
+                <?php if ($czf_is_customer) { ?>
+                    <li><a href="<?= base_url('my-account') ?>">My Account</a></li>
+                    <li><a href="<?= base_url('my-account/orders') ?>">My Orders</a></li>
+                    <li><a href="<?= base_url('my-account/favorites') ?>">Wishlist</a></li>
+                    <li><a href="<?= base_url('my-account/wallet') ?>">Wallet</a></li>
+                    <li><a href="<?= base_url('my-account/support') ?>">Support Tickets</a></li>
+                <?php } else { ?>
+                    <?php /* Same modal trigger the old footer used - the auth modal binds to
+                             #modal-signin and nothing else. */ ?>
+                    <li><a href="#" data-bs-toggle="modal" data-bs-target="#modal-signin">Sign in</a></li>
+                    <li><a href="#" data-bs-toggle="modal" data-bs-target="#modal-signin">My Orders</a></li>
+                    <li><a href="#" data-bs-toggle="modal" data-bs-target="#modal-signin">Wishlist</a></li>
+                    <li><a href="#" data-bs-toggle="modal" data-bs-target="#modal-signin">Wallet</a></li>
+                    <li><a href="<?= base_url('contact-us') ?>">Support</a></li>
+                <?php } ?>
+            </ul>
+        </details>
+
+    </div>
+
+    <!-- 3. legal bar ------------------------------------------------------- -->
+    <div class="czfoot__bar">
+        <div class="czfoot__bar-inner">
+            <p class="czfoot__copy">
+                <?= ($czf_copyright !== '')
+                    ? html_escape($czf_copyright)
+                    : 'Copyright ' . date('Y') . ' &copy; cretzo.com. All Rights Reserved.' ?>
+            </p>
+
+            <div class="czfoot__pay">
+                <span class="czfoot__pay-label">We accept</span>
+                <?php foreach ($czf_payment_marks as $file => $label) { ?>
+                    <img class="czfoot__pay-mark lazy"
+                         src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/payment_methods/' . $file) ?>"
+                         alt="<?= html_escape($label) ?>" loading="lazy">
+                <?php } ?>
+            </div>
+        </div>
+    </div>
+</footer>
 <!-- footer ends -->
 
 

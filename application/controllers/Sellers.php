@@ -37,40 +37,73 @@ class Sellers extends CI_Controller
         if (!empty($_GET) && !$this->form_validation->run()) {
             redirect(base_url('sellers'));
         }
-        $sellers = $this->Seller_model->get_sellers();
-        $limit = ($this->input->get('per-page')) ? $this->input->get('per-page', true) : 12;
-        $sort_by = ($this->input->get('sort')) ? $this->input->get('sort', true) : '';
-        $seller_search = ($this->input->get('seller_search')) ? $this->input->get('seller_search', true) : '';
-        if (!empty($category_id)) {
-            $category_id = explode('|', $category_id);
+
+        /*
+         * per-page is echoed back into the toolbar and used as the SQL limit, so it is
+         * pinned to the four values the control actually offers - anything else (?per-page=9999
+         * or a negative) falls back to 12 instead of being trusted.
+         */
+        $allowed_limits = [12, 16, 20, 24];
+        $limit = (int) ($this->input->get('per-page', true) ?: 12);
+        if (!in_array($limit, $allowed_limits, true)) {
+            $limit = 12;
         }
 
-        //Seller Sorting
-        $sort = $order = '';
+        $sort_by = (string) $this->input->get('sort', true);
+        $seller_search = (string) $this->input->get('seller_search', true);
+        $view_type = ($this->input->get('type', true) === 'list') ? 'list' : 'grid';
+
+        /*
+         * Sorting. The old code left $sort/$order as empty strings for the default case,
+         * which reached the model as order_by('', '') - so "Relevance" produced whatever
+         * order MySQL felt like returning, and the same seller could appear on two pages
+         * while another appeared on none. Every branch now names a real column.
+         */
+        $sort = 'u.id';
+        $order = 'DESC';
         if ($sort_by == "top-rated") {
-            $sort = 'rating';
+            $sort = 'sd.rating';
             $order = 'DESC';
         } elseif ($sort_by == "date-desc") {
             $sort = 'u.id';
-            $order = 'desc';
+            $order = 'DESC';
         } elseif ($sort_by == "date-asc") {
             $sort = 'u.id';
-            $order = 'asc';
+            $order = 'ASC';
+        } else {
+            $sort_by = '';
         }
 
         $page_no = (empty($this->uri->segment(2))) ? 1 : $this->uri->segment(2);
         if (!is_numeric($page_no)) {
             redirect(base_url('sellers'));
         }
+        $page_no = max(1, (int) $page_no);
         $offset = ($page_no - 1) * $limit;
-        $this->data['links'] = storefront_pagination(base_url('sellers'), $sellers['total'], $limit);
 
+        /*
+         * ONE query, not two. get_sellers() used to be called twice: once with no arguments
+         * purely to read $sellers['total'], then again with the real filters. The first call
+         * ignored the search term, so the pager was built from the UNFILTERED count - a search
+         * matching two sellers still rendered pages 1..9 of nothing - and it also ran the
+         * per-seller product-count subquery for every seller in the database on every page
+         * load. The filtered call already returns its own filter-aware total, so use that.
+         */
+        $sellers = $this->Seller_model->get_sellers("", $limit, $offset, $sort, $order, $seller_search);
+        $total_sellers = (int) $sellers['total'];
+
+        $this->data['links'] = storefront_pagination(base_url('sellers'), $total_sellers, $limit);
         $this->data['main_page'] = 'seller-listing';
         $this->data['title'] = 'Seller Listing | ' . $this->data['web_settings']['site_title'];
         $this->data['keywords'] = 'Seller Listing, ' . $this->data['web_settings']['meta_keywords'];
         $this->data['description'] = 'Seller Listing | ' . $this->data['web_settings']['meta_description'];
         $this->data['seller_search'] = $seller_search;
-        $sellers = $this->Seller_model->get_sellers("", $limit, $offset, $sort, $order, $seller_search);
+        $this->data['sort_by'] = $sort_by;
+        $this->data['per_page'] = $limit;
+        $this->data['per_page_options'] = $allowed_limits;
+        $this->data['view_type'] = $view_type;
+        $this->data['page_no'] = $page_no;
+        $this->data['total_sellers'] = $total_sellers;
         $this->data['sellers'] = $sellers['data'];
         $this->data['page_main_bread_crumb'] = "Seller Listing";
         $this->load->view('front-end/' . THEME . '/template', $this->data);

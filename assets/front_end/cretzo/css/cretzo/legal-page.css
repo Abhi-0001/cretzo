@@ -1,0 +1,815 @@
+/* ==========================================================================
+   Cretzo - policy documents (Terms, Privacy, Returns, Shipping)
+   --------------------------------------------------------------------------
+   All four render through partials/legal-page.php. Every selector is `czlegal`
+   prefixed, and include-css.php emits this after the per-page sheets.
+
+   The prose inside `.czlegal__doc` is admin-authored HTML from a WYSIWYG, so
+   this file styles BARE TAGS within that one container - it cannot rely on any
+   class being present on the content.
+   ========================================================================== */
+
+.czlegal {
+    --czl-orange: var(--color-orange, #F2822E);
+    --czl-orange-dark: var(--color-orange-dark, #db7323);
+    --czl-orange-soft: #fff4ea;
+    --czl-orange-line: #fbd9bb;
+
+    --czl-ink: #1f2430;
+    --czl-ink-2: #4a5160;
+    --czl-ink-3: #8b919e;
+    --czl-line: #e9eaee;
+    --czl-line-2: #f2f3f5;
+    --czl-bg: #f7f8fa;
+
+    --czl-r: 14px;
+    --czl-r-sm: 10px;
+    --czl-r-pill: 999px;
+    --czl-shadow: 0 1px 2px rgba(23, 26, 33, .04), 0 8px 24px -14px rgba(23, 26, 33, .16);
+
+    /* Sticky offset for the in-page anchors, so a clause jumped to from the
+       contents list is not hidden behind the header. */
+    --czl-anchor-offset: 90px;
+
+    width: 100%;
+    max-width: 1220px;
+    margin: 0 auto;
+    padding: 24px 22px 80px;
+    font-family: "K2D", "Assistant", system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--czl-ink);
+    -webkit-font-smoothing: antialiased;
+}
+
+body.czlegal-body {
+    background: #f7f8fa;
+}
+
+.czlegal *,
+.czlegal *::before,
+.czlegal *::after {
+    box-sizing: border-box;
+}
+
+/* ------------------------------- breadcrumb ------------------------------- */
+.czlegal__crumbs {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    color: var(--czl-ink-3);
+    flex-wrap: wrap;
+}
+
+.czlegal__crumbs a {
+    color: var(--czl-ink-3);
+    text-decoration: none;
+}
+
+.czlegal__crumbs a:hover {
+    color: var(--czl-orange);
+}
+
+.czlegal__crumbs span[aria-hidden] {
+    opacity: .5;
+}
+
+.czlegal__crumbs-now {
+    color: var(--czl-ink);
+    font-weight: 600;
+}
+
+/* ---------------------------------- hero ---------------------------------- */
+.czlegal__hero {
+    position: relative;
+    overflow: hidden;
+    padding: 30px 32px;
+    margin-bottom: 24px;
+    border: 1px solid var(--czl-orange-line);
+    border-radius: 18px;
+    background:
+        radial-gradient(120% 160% at 100% 0%, #ffe9d5 0%, rgba(255, 233, 213, 0) 60%),
+        linear-gradient(180deg, #fffaf5 0%, #ffffff 100%);
+    box-shadow: var(--czl-shadow);
+}
+
+.czlegal__hero::after {
+    content: "";
+    position: absolute;
+    right: -70px;
+    top: -90px;
+    width: 280px;
+    height: 280px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(242, 130, 46, .15) 0%, rgba(242, 130, 46, 0) 70%);
+    pointer-events: none;
+}
+
+.czlegal__hero-text {
+    position: relative;
+    max-width: 720px;
+}
+
+.czlegal__title {
+    margin: 0 0 10px;
+    font-size: 34px;
+    line-height: 1.2;
+    font-weight: 700;
+    color: var(--czl-ink);
+}
+
+.czlegal__intro {
+    margin: 0 0 16px;
+    font-size: 16px;
+    line-height: 1.65;
+    color: var(--czl-ink-2);
+}
+
+.czlegal__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.czlegal__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 14px;
+    border-radius: var(--czl-r-pill);
+    background: #fff;
+    border: 1px solid var(--czl-line);
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--czl-ink-2);
+    white-space: nowrap;
+}
+
+.czlegal__chip i {
+    font-size: 15px;
+    color: var(--czl-orange);
+}
+
+.czlegal__chip--btn {
+    cursor: pointer;
+    transition: border-color .15s ease, background-color .15s ease, color .15s ease;
+}
+
+.czlegal__chip--btn:hover {
+    border-color: var(--czl-orange);
+    background: var(--czl-orange-soft);
+    color: var(--czl-orange-dark);
+}
+
+/* --------------------------------- shell --------------------------------- */
+.czlegal__shell {
+    display: grid;
+    grid-template-columns: 282px minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+}
+
+.czlegal__main {
+    min-width: 0;
+}
+
+/* ------------------------------ contents list ------------------------------ */
+.czlegal__aside {
+    position: sticky;
+    top: 16px;
+    display: grid;
+    gap: 14px;
+    /* A 25-clause contents list is taller than the viewport, so it scrolls
+       inside itself rather than making the sticky column taller than the
+       screen (which would stop it sticking at all). */
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+    scrollbar-width: thin;
+}
+
+.czlegal__toc,
+.czlegal__aside-links {
+    background: #fff;
+    border: 1px solid var(--czl-line);
+    border-radius: var(--czl-r);
+    padding: 16px;
+    box-shadow: var(--czl-shadow);
+}
+
+.czlegal__toc-label {
+    margin: 0 0 10px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--czl-ink-3);
+}
+
+.czlegal__toc-list {
+    list-style: none;
+    counter-reset: czl;
+    margin: 0;
+    padding: 0;
+}
+
+.czlegal__toc-list li {
+    counter-increment: czl;
+}
+
+.czlegal__toc-list a {
+    display: block;
+    padding: 7px 10px;
+    border-radius: 8px;
+    border-left: 2px solid transparent;
+    font-size: 13.5px;
+    line-height: 1.45;
+    color: var(--czl-ink-2);
+    text-decoration: none;
+    transition: background-color .15s ease, color .15s ease, border-color .15s ease;
+}
+
+.czlegal__toc-list a:hover,
+.czlegal__toc-list a:focus-visible {
+    background: var(--czl-line-2);
+    color: var(--czl-ink);
+    text-decoration: none;
+    outline: none;
+}
+
+/* Which clause you are reading, set by legal-page.js. Carried by the bar AND
+   the weight AND the colour, not by colour alone. */
+.czlegal__toc-list a.is-current {
+    background: var(--czl-orange-soft);
+    border-left-color: var(--czl-orange);
+    color: var(--czl-orange-dark);
+    font-weight: 700;
+}
+
+.czlegal__side-link {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 9px 10px;
+    border-radius: 8px;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--czl-ink-2);
+    text-decoration: none;
+    transition: background-color .15s ease, color .15s ease;
+}
+
+.czlegal__side-link i {
+    font-size: 17px;
+    color: var(--czl-ink-3);
+}
+
+.czlegal__side-link:hover {
+    background: var(--czl-orange-soft);
+    color: var(--czl-orange-dark);
+    text-decoration: none;
+}
+
+.czlegal__side-link:hover i {
+    color: var(--czl-orange);
+}
+
+/* ================================ the prose ================================ */
+.czlegal__doc {
+    background: #fff;
+    border: 1px solid var(--czl-line);
+    border-radius: 18px;
+    box-shadow: var(--czl-shadow);
+    padding: 40px 44px;
+    /* Measure. The old pages ran the prose across the full 1000px container -
+       roughly 130 characters a line, about double what is comfortable - so the
+       eye lost its place on every return sweep. */
+    font-size: 16.5px;
+    line-height: 1.75;
+    color: var(--czl-ink-2);
+}
+
+.czlegal__doc > *:first-child {
+    margin-top: 0;
+}
+
+.czlegal__doc > *:last-child {
+    margin-bottom: 0;
+}
+
+/* The stored documents wrap themselves in a <section>/<div>; neutralise it so
+   it does not add a second box inside the card. */
+.czlegal__doc > section,
+.czlegal__doc > div {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    max-width: 74ch;
+}
+
+.czlegal__doc p,
+.czlegal__doc ul,
+.czlegal__doc ol,
+.czlegal__doc blockquote {
+    max-width: 74ch;
+}
+
+.czlegal__doc h2 {
+    /* scroll-margin-top is what makes the contents links land correctly instead
+       of putting the clause title under the sticky header. */
+    scroll-margin-top: var(--czl-anchor-offset);
+    margin: 44px 0 14px;
+    padding-top: 4px;
+    font-size: 22px;
+    line-height: 1.3;
+    font-weight: 700;
+    /* Was pure black against slate body text, which read as two unrelated
+       documents stacked together. */
+    color: var(--czl-ink);
+    letter-spacing: -.01em;
+}
+
+.czlegal__doc h2:first-child {
+    margin-top: 0;
+}
+
+.czlegal__doc h3 {
+    scroll-margin-top: var(--czl-anchor-offset);
+    margin: 28px 0 10px;
+    font-size: 17.5px;
+    font-weight: 700;
+    color: var(--czl-ink);
+}
+
+.czlegal__doc h4,
+.czlegal__doc h5,
+.czlegal__doc h6 {
+    margin: 22px 0 8px;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--czl-ink);
+}
+
+.czlegal__doc p {
+    margin: 0 0 16px;
+}
+
+.czlegal__doc strong,
+.czlegal__doc b {
+    font-weight: 700;
+    color: var(--czl-ink);
+}
+
+.czlegal__doc a {
+    color: var(--czl-orange-dark);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    overflow-wrap: anywhere;
+}
+
+.czlegal__doc a:hover {
+    color: var(--czl-orange);
+}
+
+.czlegal__doc ul,
+.czlegal__doc ol {
+    margin: 0 0 18px;
+    padding-left: 22px;
+}
+
+.czlegal__doc li {
+    margin-bottom: 8px;
+}
+
+.czlegal__doc li::marker {
+    color: var(--czl-orange);
+}
+
+.czlegal__doc ul ul,
+.czlegal__doc ol ol,
+.czlegal__doc ul ol,
+.czlegal__doc ol ul {
+    margin: 8px 0 0;
+}
+
+/* The <hr>s between clauses. The theme's global `hr { margin: 4.5rem 0 }` is
+   sized for full-page section dividers; used as a clause rule 25 times over it
+   left the page mostly empty space. */
+.czlegal__doc hr {
+    height: 1px;
+    border: 0;
+    margin: 34px 0;
+    background: var(--czl-line);
+    opacity: 1;
+    max-width: 74ch;
+}
+
+.czlegal__doc blockquote {
+    margin: 0 0 18px;
+    padding: 14px 18px;
+    border-left: 3px solid var(--czl-orange);
+    border-radius: 0 var(--czl-r-sm) var(--czl-r-sm) 0;
+    background: var(--czl-orange-soft);
+    color: var(--czl-ink-2);
+}
+
+.czlegal__doc blockquote > *:last-child {
+    margin-bottom: 0;
+}
+
+.czlegal__doc code {
+    padding: 2px 6px;
+    border-radius: 5px;
+    background: var(--czl-line-2);
+    font-size: .9em;
+}
+
+/* Tables: the shipping policy has a delivery-timeline table, and the stored
+   markup carries no classes, so bare <table> has to be presentable. It also has
+   to be able to scroll on a phone without widening the page - hence the wrapper
+   legal-page.js puts around it. */
+.czlegal__doc .czlegal__table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 0 20px;
+    max-width: 100%;
+}
+
+.czlegal__doc table {
+    width: 100%;
+    max-width: 74ch;
+    border-collapse: separate;
+    border-spacing: 0;
+    border: 1px solid var(--czl-line);
+    border-radius: var(--czl-r-sm);
+    overflow: hidden;
+    font-size: 15px;
+}
+
+.czlegal__doc thead th,
+.czlegal__doc tr:first-child td strong {
+    background: #fbfbfc;
+}
+
+.czlegal__doc th {
+    text-align: left;
+    padding: 12px 16px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--czl-ink-3);
+    background: #fbfbfc;
+    border-bottom: 1px solid var(--czl-line);
+}
+
+.czlegal__doc td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--czl-line-2);
+    vertical-align: top;
+}
+
+.czlegal__doc tr:last-child td {
+    border-bottom: 0;
+}
+
+.czlegal__doc img {
+    max-width: 100%;
+    height: auto;
+    border-radius: var(--czl-r-sm);
+}
+
+/* A clause linked to from the contents list gets a brief highlight, so it is
+   obvious WHICH heading you just landed on. */
+.czlegal__doc h2:target,
+.czlegal__doc h3:target {
+    animation: czlFlash 1.6s ease-out 1;
+}
+
+@keyframes czlFlash {
+    0%, 25% { background: var(--czl-orange-soft); box-shadow: -12px 0 0 var(--czl-orange-soft), 12px 0 0 var(--czl-orange-soft); }
+    100% { background: transparent; box-shadow: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .czlegal__doc h2:target,
+    .czlegal__doc h3:target {
+        animation: none;
+    }
+}
+
+/* ------------------------------ empty state ------------------------------ */
+.czlegal__empty {
+    background: #fff;
+    border: 1px solid var(--czl-line);
+    border-radius: 18px;
+    box-shadow: var(--czl-shadow);
+    padding: 60px 32px;
+    text-align: center;
+}
+
+.czlegal__empty i {
+    font-size: 44px;
+    color: var(--czl-orange);
+}
+
+.czlegal__empty h2 {
+    margin: 14px 0 8px;
+    font-size: 21px;
+    font-weight: 700;
+    color: var(--czl-ink);
+}
+
+.czlegal__empty p {
+    margin: 0 auto;
+    max-width: 460px;
+    font-size: 15px;
+    line-height: 1.7;
+    color: var(--czl-ink-3);
+}
+
+.czlegal__empty a {
+    color: var(--czl-orange-dark);
+    font-weight: 600;
+}
+
+/* -------------------------------- footer -------------------------------- */
+.czlegal__footer {
+    margin-top: 24px;
+    padding: 22px 24px;
+    background: #fff;
+    border: 1px solid var(--czl-line);
+    border-radius: var(--czl-r);
+    box-shadow: var(--czl-shadow);
+}
+
+.czlegal__footer-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 0 0 16px;
+    font-size: 14.5px;
+    line-height: 1.65;
+    color: var(--czl-ink-2);
+}
+
+.czlegal__footer-note i {
+    font-size: 18px;
+    color: var(--czl-orange);
+    flex: none;
+    margin-top: 2px;
+}
+
+/* The prose is one <span> so it is one flex item (see the note in the partial),
+   and min-width:0 lets it shrink below its min-content width and wrap. */
+.czlegal__footer-note > span {
+    min-width: 0;
+}
+
+.czlegal__footer-note a {
+    color: var(--czl-orange-dark);
+    font-weight: 600;
+}
+
+.czlegal__footer-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 9px;
+}
+
+.czlegal__pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 16px;
+    border: 1px solid var(--czl-line);
+    border-radius: var(--czl-r-pill);
+    background: #fff;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--czl-ink-2);
+    text-decoration: none;
+    transition: border-color .15s ease, background-color .15s ease, color .15s ease;
+}
+
+.czlegal__pill i {
+    font-size: 16px;
+    color: var(--czl-ink-3);
+}
+
+.czlegal__pill:hover {
+    border-color: var(--czl-orange);
+    background: var(--czl-orange-soft);
+    color: var(--czl-orange-dark);
+    text-decoration: none;
+}
+
+.czlegal__pill:hover i {
+    color: var(--czl-orange);
+}
+
+/* ------------------------------ back to top ------------------------------ */
+.czlegal__top {
+    position: fixed;
+    right: 22px;
+    bottom: 22px;
+    z-index: 40;
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--czl-orange-line);
+    border-radius: 50%;
+    background: #fff;
+    color: var(--czl-orange-dark);
+    font-size: 20px;
+    cursor: pointer;
+    box-shadow: 0 8px 24px -10px rgba(23, 26, 33, .35);
+    transition: background-color .15s ease, transform .15s ease;
+}
+
+.czlegal__top:hover {
+    background: var(--czl-orange-soft);
+    transform: translateY(-2px);
+}
+
+/* The floating support widget already sits bottom-right, so on small screens
+   this moves left of it rather than on top of it. */
+@media (max-width: 900px) {
+    .czlegal__top {
+        right: auto;
+        left: 18px;
+        bottom: 18px;
+    }
+}
+
+/* --------------------------------- toggle --------------------------------- */
+/* Hidden on desktop, where the sidebar is always open; the responsive block
+   BELOW turns it back on. Declared before that block on purpose - it used to sit
+   after it, so this `display:none` overrode the media query's `display:flex` at
+   every width and the mobile contents toggle was never visible. */
+.czlegal__toc-toggle {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--czl-ink-2);
+    cursor: pointer;
+}
+
+.czlegal__toc-toggle i {
+    margin-left: auto;
+    font-size: 20px;
+    color: var(--czl-orange);
+    transition: transform .2s ease;
+}
+
+.czlegal__toc.is-collapsed .czlegal__toc-toggle i {
+    transform: rotate(-90deg);
+}
+
+/* ------------------------------- responsive ------------------------------- */
+@media (max-width: 1024px) {
+    .czlegal__shell {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    /* The contents list becomes a collapsible block above the document - a
+       sticky sidebar has nowhere to live in one column. */
+    .czlegal__aside {
+        position: static;
+        max-height: none;
+        overflow: visible;
+    }
+
+    .czlegal__toc-list {
+        max-height: 46vh;
+        overflow-y: auto;
+    }
+
+    .czlegal__aside-links {
+        display: none;
+    }
+
+    /* Collapsed by default on narrow screens: 25 links above the document would
+       otherwise push the prose off the first screen entirely. legal-page.js
+       adds the toggle. */
+    .czlegal__toc.is-collapsed .czlegal__toc-list {
+        display: none;
+    }
+
+    .czlegal__toc-toggle {
+        display: flex;
+    }
+}
+
+@media (max-width: 720px) {
+    .czlegal {
+        padding: 18px 14px 70px;
+    }
+
+    .czlegal__hero {
+        padding: 22px 20px;
+    }
+
+    .czlegal__title {
+        font-size: 27px;
+    }
+
+    .czlegal__doc {
+        padding: 24px 20px;
+        font-size: 16px;
+        border-radius: var(--czl-r);
+    }
+
+    .czlegal__doc h2 {
+        font-size: 20px;
+        margin-top: 34px;
+    }
+
+    .czlegal__footer {
+        padding: 18px;
+    }
+
+    .czlegal__footer-links .czlegal__pill {
+        flex: 1 1 auto;
+        justify-content: center;
+    }
+}
+
+/* ---------------------------------- print ---------------------------------- */
+/* A policy document is the one page people genuinely do print or save as PDF. */
+@media print {
+    body.czlegal-body {
+        background: #fff;
+    }
+
+    .czlegal {
+        max-width: none;
+        padding: 0;
+    }
+
+    .czlegal__crumbs,
+    .czlegal__aside,
+    .czlegal__meta,
+    .czlegal__footer-links,
+    .czlegal__top {
+        display: none !important;
+    }
+
+    .czlegal__shell {
+        display: block;
+    }
+
+    .czlegal__hero {
+        border: 0;
+        background: none;
+        box-shadow: none;
+        padding: 0 0 12px;
+        margin-bottom: 12px;
+        border-bottom: 2px solid #000;
+    }
+
+    .czlegal__hero::after {
+        display: none;
+    }
+
+    .czlegal__doc,
+    .czlegal__footer {
+        border: 0;
+        box-shadow: none;
+        padding: 0;
+        font-size: 11pt;
+        line-height: 1.5;
+        color: #000;
+    }
+
+    /* Never split a clause title from the text it introduces. */
+    .czlegal__doc h2,
+    .czlegal__doc h3 {
+        break-after: avoid;
+        page-break-after: avoid;
+        color: #000;
+    }
+
+    .czlegal__doc p,
+    .czlegal__doc li,
+    .czlegal__doc tr {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    .czlegal__doc a {
+        color: #000;
+        text-decoration: none;
+    }
+}

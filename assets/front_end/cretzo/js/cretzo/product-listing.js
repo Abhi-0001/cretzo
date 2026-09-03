@@ -748,6 +748,7 @@ function ajaxProductList(page = 1, append = false) {
  *   ul.pagination.cz-pagination
  *     li.page-item.cz-page-prev[.disabled] > a.page-link.ajax-page-link | span.page-link
  *     li.page-item                         > a.page-link.ajax-page-link
+ *     li.page-item.cz-page-gap             > span.page-link (an ellipsis, not clickable)
  *     li.page-item.active                  > span.page-link[aria-current=page]
  *     li.page-item.cz-page-next[.disabled] > a.page-link.ajax-page-link | span.page-link
  */
@@ -762,13 +763,6 @@ function renderPagination(total, page, pageSize) {
     var ARROW_PREV = '<span class="cz-page-arrow" aria-hidden="true"><i class="uil uil-angle-left-b"></i></span>';
     var ARROW_NEXT = '<span class="cz-page-arrow" aria-hidden="true"><i class="uil uil-angle-right-b"></i></span>';
 
-    // Same window as the helper's num_links = 2, i.e. the current page with up to
-    // two neighbours on each side.
-    var maxLinks = 5;
-    var start = Math.max(1, page - Math.floor(maxLinks / 2));
-    var end = Math.min(totalPages, start + maxLinks - 1);
-    start = Math.max(1, end - maxLinks + 1);
-
     function edge(kind, targetPage, arrow, label) {
         if (targetPage < 1 || targetPage > totalPages) {
             return '<li class="page-item ' + kind + ' disabled"><span class="page-link">' + arrow + '</span></li>';
@@ -780,17 +774,60 @@ function renderPagination(total, page, pageSize) {
     var html = '<ul class="pagination cz-pagination">';
     html += edge('cz-page-prev', page - 1, ARROW_PREV, 'Previous page');
 
-    for (var i = start; i <= end; i++) {
+    var keep = paginationKeepPages(page, totalPages, 1);
+    var previous = 0;
+    for (var k = 0; k < keep.length; k++) {
+        var i = keep[k];
+        if (previous !== 0 && i > previous + 1) {
+            html += '<li class="page-item cz-page-gap" aria-hidden="true"><span class="page-link">&hellip;</span></li>';
+        }
         if (i === page) {
             html += '<li class="page-item active"><span class="page-link" aria-current="page">' + i + '</span></li>';
         } else {
             html += '<li class="page-item"><a class="page-link ajax-page-link" href="#" data-page="' + i + '">' + i + '</a></li>';
         }
+        previous = i;
     }
 
     html += edge('cz-page-next', page + 1, ARROW_NEXT, 'Next page');
     html += '</ul>';
     return html;
+}
+
+/*
+ * Port of storefront_pagination_keep_pages() in function_helper.php - the two must
+ * agree, or the pager changes which numbers it offers the moment a filter or sort
+ * replaces the server-rendered one.
+ *
+ * Always the first and the last page, plus `spread` pages either side of the
+ * current one, with the slots clipped at an end spent on the other side so the
+ * control keeps its width. Ascending, no duplicates.
+ */
+function paginationKeepPages(current, totalPages, spread) {
+    /* Not named `window`: that would shadow the global inside this function. */
+    spread = (typeof spread === 'number') ? spread : 1;
+    current = Math.min(Math.max(1, current), totalPages);
+
+    var pages = [1, totalPages];
+    var p;
+    for (p = current - spread; p <= current + spread; p++) {
+        if (p >= 1 && p <= totalPages) { pages.push(p); }
+    }
+
+    var unique = function (list) {
+        return list.filter(function (v, i) { return list.indexOf(v) === i; });
+    };
+
+    var target = Math.min(totalPages, 2 + (2 * spread + 1));
+    for (p = 1; unique(pages).length < target && p <= totalPages; p++) {
+        if (current <= spread + 2) {
+            pages.push(Math.min(totalPages, current + spread + p));
+        } else {
+            pages.push(Math.max(1, current - spread - p));
+        }
+    }
+
+    return unique(pages).sort(function (a, b) { return a - b; });
 }
 
 $(document).on('click', '#products-pagination-nav .ajax-page-link', function(e) {

@@ -1,338 +1,380 @@
 <?php
-    // List of Indian states and union territories (currently only India is supported)
-    $indian_states = [
-        'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
-        'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka',
-        'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram',
-        'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu',
-        'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
-        'Andaman and Nicobar Islands', 'Chandigarh',
-        'Dadra and Nagar Haveli and Daman and Diu', 'Delhi', 'Jammu and Kashmir',
-        'Ladakh', 'Lakshadweep', 'Puducherry',
-    ];
+/**
+ * My Account > Saved addresses.
+ *
+ * Rebuilt on the shared account shell. The add/edit forms were already popups;
+ * they keep every id and form id that assets/front_end/cretzo/js/cretzo/address.js
+ * binds to (#add-address-form, #edit-address-form, #pincode / #edit_pincode and
+ * the fields the pincode lookup fills, #save-address-submit-btn,
+ * #edit-address-submit-btn, #save-address-result, #edit-address-result, and the
+ * .address-action-btn-{edit,remove,default} buttons with their data-row/data-id),
+ * so the endpoints and the India Post pincode auto-fill are untouched.
+ *
+ * What changed beyond the styling:
+ *  - The cards show the WHOLE address (locality, city, district, state, pincode,
+ *    landmark, alternate number), not just the free-text first line. Everything
+ *    below it was already stored and already used at checkout, but was invisible
+ *    here - so a customer could not tell two addresses in the same street apart.
+ *  - Remove and Set-as-default confirm in a popup instead of window.confirm().
+ */
+
+// List of Indian states and union territories (currently only India is supported)
+$indian_states = [
+    'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
+    'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka',
+    'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram',
+    'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu',
+    'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
+    'Andaman and Nicobar Islands', 'Chandigarh',
+    'Dadra and Nagar Haveli and Daman and Diu', 'Delhi', 'Jammu and Kashmir',
+    'Ladakh', 'Lakshadweep', 'Puducherry',
+];
+
+$address_rows = (isset($addresses['rows']) && is_array($addresses['rows'])) ? $addresses['rows'] : [];
+
+$type_icons = ['home' => 'uil-home', 'office' => 'uil-building', 'other' => 'uil-map-pin-alt'];
+
+/*
+ * Builds the "locality, city, district, state - pincode" line, skipping the
+ * parts that are empty or that just repeat one another. Several rows in this
+ * install have `area` holding a bare pincode (a legacy of the old area picker),
+ * so a part that is identical to the pincode or to an earlier part is dropped
+ * rather than printed twice.
+ */
+function czap_address_locality($row)
+{
+    $parts = [];
+    foreach (['city', 'area', 'state'] as $key) {
+        $value = isset($row[$key]) ? trim((string) $row[$key]) : '';
+        if ($value === '' || $value === (string) $row['pincode']) {
+            continue;
+        }
+        if (in_array(strtolower($value), array_map('strtolower', $parts), true)) {
+            continue;
+        }
+        $parts[] = $value;
+    }
+    $line = implode(', ', $parts);
+    if (!empty($row['pincode'])) {
+        $line .= ($line === '' ? '' : ' - ') . $row['pincode'];
+    }
+    return $line;
+}
+
+/* ---------------------------------------------------------------- actions -- */
+ob_start(); ?>
+<button type="button" class="czap-btn czap-btn--primary add-address-btn" data-czap-open="#add-address-modal">
+    <i class="uil uil-plus"></i> Add new address
+</button>
+<?php $page_actions = ob_get_clean();
+
+/* ---------------------------------------------------------------- content -- */
+ob_start(); ?>
+
+<?php if (empty($address_rows)) { ?>
+    <div class="czap-empty">
+        <div class="czap-empty__icon"><i class="uil uil-map-marker-plus"></i></div>
+        <h3 class="czap-empty__title">No saved addresses yet</h3>
+        <p class="czap-empty__text">
+            Save an address now and checkout becomes a single tap. You can keep as many as you like
+            and pick one per order.
+        </p>
+        <button type="button" class="czap-btn czap-btn--primary add-address-btn" data-czap-open="#add-address-modal">
+            <i class="uil uil-plus"></i> Add your first address
+        </button>
+    </div>
+<?php } else { ?>
+
+    <?php
+    /* Default first. The old view relied on the query's own ordering and then
+     * printed a "DEFAULT ADDRESS" heading only when row 0 happened to be the
+     * default one - so on an account whose default was not first, neither
+     * heading appeared and the default card was indistinguishable. */
+    usort($address_rows, function ($a, $b) {
+        return ((int) $b['is_default']) <=> ((int) $a['is_default']);
+    });
+    $default_rows = array_values(array_filter($address_rows, function ($r) {
+        return (int) $r['is_default'] === 1;
+    }));
+    $other_rows = array_values(array_filter($address_rows, function ($r) {
+        return (int) $r['is_default'] !== 1;
+    }));
+    ?>
+
+    <?php
+    $groups = [];
+    if (!empty($default_rows)) {
+        $groups[] = ['label' => 'Default address', 'rows' => $default_rows];
+    }
+    if (!empty($other_rows)) {
+        $groups[] = ['label' => empty($default_rows) ? 'Saved addresses' : 'Other addresses', 'rows' => $other_rows];
+    }
+
+    foreach ($groups as $group) { ?>
+        <p class="czap-sec"><?= $group['label'] ?></p>
+        <div class="czap-cols" style="margin-bottom:8px">
+            <?php foreach ($group['rows'] as $row) {
+                $is_default = ((int) $row['is_default'] === 1);
+                $type = strtolower((string) $row['type']);
+                $icon = isset($type_icons[$type]) ? $type_icons[$type] : 'uil-map-pin-alt';
+                /* One JSON blob per card, read by address.js to fill the edit form. */
+                $row_json = htmlspecialchars(json_encode($row), ENT_QUOTES, 'UTF-8');
+                ?>
+                <div class="czap-addr <?= $is_default ? 'is-default' : '' ?>">
+                    <div class="czap-addr__head">
+                        <h3 class="czap-addr__name"><?= html_escape($row['name']) ?></h3>
+                        <span class="czap-badge czap-badge--brand" style="text-transform:capitalize">
+                            <?= html_escape($row['type']) ?>
+                        </span>
+                        <?php if ($is_default) { ?>
+                            <span class="czap-badge czap-badge--ok">Default</span>
+                        <?php } ?>
+                    </div>
+
+                    <p class="czap-addr__lines">
+                        <i class="uil <?= $icon ?>" style="color:var(--czap-orange)"></i>
+                        <?= html_escape($row['address']) ?>
+                        <?php $locality = czap_address_locality($row);
+                        if ($locality !== '') { ?>
+                            <br><?= html_escape($locality) ?>
+                        <?php } ?>
+                        <?php if (!empty($row['landmark'])) { ?>
+                            <br><span class="czap-muted">Landmark:</span> <?= html_escape($row['landmark']) ?>
+                        <?php } ?>
+                    </p>
+
+                    <p class="czap-addr__lines">
+                        <i class="uil uil-phone" style="color:var(--czap-orange)"></i>
+                        <strong><?= html_escape($row['mobile']) ?></strong>
+                        <?php if (!empty($row['alternate_mobile'])) { ?>
+                            <span class="czap-muted">&nbsp;/&nbsp;<?= html_escape($row['alternate_mobile']) ?></span>
+                        <?php } ?>
+                    </p>
+
+                    <div class="czap-addr__actions">
+                        <button type="button" class="czap-btn czap-btn--ghost czap-btn--sm address-action-btn address-action-btn-edit"
+                                data-row="<?= $row_json ?>">
+                            <i class="uil uil-edit-alt"></i> Edit
+                        </button>
+                        <?php if (!$is_default) { ?>
+                            <button type="button" class="czap-btn czap-btn--ghost czap-btn--sm address-action-btn address-action-btn-default"
+                                    data-id="<?= (int) $row['id'] ?>">
+                                <i class="uil uil-check-circle"></i> Set as default
+                            </button>
+                        <?php } ?>
+                        <button type="button" class="czap-btn czap-btn--danger czap-btn--sm address-action-btn address-action-btn-remove"
+                                data-id="<?= (int) $row['id'] ?>"
+                                data-name="<?= html_escape($row['name']) ?>">
+                            <i class="uil uil-trash-alt"></i> Remove
+                        </button>
+                    </div>
+                </div>
+            <?php } ?>
+        </div>
+    <?php } ?>
+
+<?php }
+
+$page_content = ob_get_clean();
+
+$this->load->view('front-end/' . THEME . '/partials/account-layout', [
+    'active_menu'  => $main_page,
+    'page_title'   => 'Saved addresses',
+    'page_sub'     => 'Where we deliver your orders',
+    'page_icon'    => 'uil-map-marker',
+    'page_actions' => $page_actions,
+    'page_content' => $page_content,
+]);
+
+/*
+ * ============================================================================
+ * The add and edit popups.
+ *
+ * They are the same form twice over, so the fields are generated from one list -
+ * the two used to be hand-maintained copies of each other, which is how the edit
+ * form ended up without the alternate-mobile and landmark inputs that the add
+ * form had. `$prefix` produces the `edit_`-prefixed ids address.js expects.
+ * ============================================================================
+ */
+$address_forms = [
+    [
+        'id'          => 'add-address-modal',
+        'form_id'     => 'add-address-form',
+        'action'      => base_url('my-account/add-address'),
+        'title'       => 'Add a new address',
+        'sub'         => 'Fill in the pincode first and we will complete the rest.',
+        'submit_id'   => 'save-address-submit-btn',
+        'submit_text' => 'Add address',
+        'result_id'   => 'save-address-result',
+        'prefix'      => '',
+        'hidden_id'   => false,
+    ],
+    [
+        'id'          => 'edit-address-modal',
+        'form_id'     => 'edit-address-form',
+        'action'      => base_url('my-account/edit-address'),
+        'title'       => !empty($this->lang->line('edit_address')) ? $this->lang->line('edit_address') : 'Edit address',
+        'sub'         => 'Changes apply to future orders, not to orders already placed.',
+        'submit_id'   => 'edit-address-submit-btn',
+        'submit_text' => 'Save changes',
+        'result_id'   => 'edit-address-result',
+        'prefix'      => 'edit_',
+        'hidden_id'   => true,
+    ],
+];
+
+foreach ($address_forms as $f):
+    $p = $f['prefix'];
+    /* address.js reads these exact ids. The add form's name/mobile inputs are
+       #address_name / #mobile_number rather than #name / #mobile, which is a
+       quirk of the original markup that the checkout flow also relies on. */
+    $id_name    = ($p === '') ? 'address_name' : 'edit_name';
+    $id_mobile  = ($p === '') ? 'mobile_number' : 'edit_mobile';
+    $id_alt     = $p . 'alternate_mobile';
+    $id_address = ($p === '') ? 'address' : 'edit_address';
+    $id_landmark = $p . 'landmark';
+    $id_pincode = $p . 'pincode';
+    $id_pin_status = $p . 'pincode_status';
+    $id_city    = $p . 'city_name';
+    $id_city_hidden = ($p === '') ? 'city' : 'edit_city';
+    $id_district = $p . 'district';
+    $id_state   = $p . 'state';
+    $id_country = $p . 'country';
 ?>
-<div class="overview-side-container">
-    <h1 class="heading-b">Account</h1>
-    <p class="text-n"><?= $users->username ?></p>
-    <div class="overview-container">
+<div class="czap-modal czap-modal--lg" id="<?= $f['id'] ?>" hidden aria-hidden="true"
+     role="dialog" aria-modal="true" aria-labelledby="<?= $f['id'] ?>-title">
+    <div class="czap-modal__scrim" data-czap-close></div>
+    <div class="czap-modal__panel" role="document">
 
-        <?php $this->load->view('front-end/' . THEME . '/partials/my-account-sidebar', ['active_menu' => $main_page]); ?>
-        
-        <div class="overview-right">
-            <h1 class="heading-n overview-right-heading mb-8">Saved Address</h1>
+        <form action="<?= $f['action'] ?>" method="POST" id="<?= $f['form_id'] ?>">
+            <?php if ($f['hidden_id']) { ?>
+                <input type="hidden" name="id" id="address_id" value="">
+            <?php } ?>
 
-            <?php 
-                if (!empty($addresses['rows'])) {
-                    $display_default_header = false;
-                    foreach ($addresses['rows'] as $key => $row) {
+            <div class="czap-modal__head">
+                <div>
+                    <h2 class="czap-modal__title" id="<?= $f['id'] ?>-title">
+                        <i class="uil uil-map-marker"></i> <?= html_escape($f['title']) ?>
+                    </h2>
+                    <p class="czap-modal__sub"><?= html_escape($f['sub']) ?></p>
+                </div>
+                <button type="button" class="czap-modal__x" data-czap-close aria-label="Close">&times;</button>
+            </div>
 
-                        $is_default = $row['is_default'] == 1;
+            <div class="czap-modal__body">
+                <div class="czap-grid">
 
-                        if($key == 0 && $is_default){
-                            echo '<h1 class="text-s">DEFAULT ADDRESS</h1>';
-                            $display_default_header = true;
-                        }
-                        else if($key == 1){
-                            if($display_default_header){
-                                echo '<h1 class="text-s">OTHER ADDRESS</h1>';
-                            }
-                        }
-            ?>
-                        <ul class="list cart-left-two-left <?= $is_default ? 'cart-left-two-left-upper' : '';?>">
-                            <li class="address-container <?=$key == 0 ? 'selected-address' : ''?>" data-row="<?= htmlspecialchars(json_encode($row)) ?>">
-                                <h1 class="text-n address-name"><?=$row['name']?> <span class="address-type <?=$row['type']?>-address"><?=ucfirst($row['type'])?></span></h1>
-                                <p class="text-n address-text"><?=$row['address']?></p>
-                                <!-- <p class="text-n address-text">Mobile: <strong><?=$row['mobile']?></strong></p> -->
-                                <p class="text-n address-text">Mobile: <?=$row['mobile']?> </p>
-                                <?=
-                                    (isset($row['alternate_mobile']) && !empty($row['alternate_mobile'])) ? '<p class="text-n address-text">Alternate Mobile: ' . $row['alternate_mobile'] . '</p>' : '';
-                                ?>
-                                <?=
-                                    (isset($row['landmark']) && !empty($row['landmark'])) ? '<p class="text-n address-text">Landmark: ' . $row['landmark'] . '</p>' : '';
-                                ?>
-                                <!-- <p class="text-n address-text">Pay on Delivery Available</p> -->
-                                <div>
-                                    
-                                    <button class="cretzo btn btn-light address-action-btn address-action-btn-remove" data-id="<?= $row['id'] ?>">REMOVE</button>
-                                    
-                                    <button class="cretzo btn btn-light address-action-btn address-action-btn-edit" data-row="<?= htmlspecialchars(json_encode($row)) ?>">EDIT</button>
-
-                                    <?php
-                                        if(!$is_default){
-                                    ?>
-                                        <button class="cretzo btn <?= $is_default ? 'btn-dark' : 'btn-light' ?> address-action-btn address-action-btn-default" data-id="<?= $row['id'] ?>" <?= $is_default ? 'disabled' : ''?>><?= $is_default ? 'Default' : 'Set as Default'?></button>
-                                    <?php
-                                        }
-                                    ?>
-                                    
-                                </div>
-                            </li>
-                        </ul>
-            <?php   }
-                }
-            ?>
-            
-            <!-- <h1 class="text-s">DEFAULT ADDRESS</h1>
-            <ul class="list cart-left-two-left cart-left-two-left-upper">
-                <li class="address-container selected-address">
-                    <h1 class="text-n address-name">Shubham Nagar <span class="home-address">HOME</span></h1>
-                    <p class="text-n address-text">1260 sector 14, Escort company Faridabad, Haryana - 121007</p>
-                    <p class="text-n address-text">Mobile: <strong>9871233530</strong></p>
-                    <p class="text-n address-text">Pay on Delivery Available</p>
-                    <div>
-                        <button class="cretzo btn btn-dark" disabled>SELECT</button>
-                        <button class="cretzo btn btn-light">REMOVE</button>
-                        <button class="cretzo btn btn-light">EDIT</button>
+                    <div class="czap-field czap-span-2">
+                        <label class="czap-field__label" for="<?= $id_name ?>">
+                            <?= !empty($this->lang->line('name')) ? $this->lang->line('name') : 'Full name' ?><span class="czap-req">*</span>
+                        </label>
+                        <input type="text" class="czap-input" id="<?= $id_name ?>" name="name"
+                               placeholder="Who should we ask for on delivery?" data-czap-autofocus>
                     </div>
-                </li>
-            </ul>
 
-            <h1 class="text-s">OTHER ADDRESS</h1>
-            <ul class="list cart-left-two-left">
-                <li class="address-container">
-                    <h1 class="text-n address-name">Shubham Nagar <span class="work-address">WORK</span></h1>
-                    <p class="text-n address-text">1260 sector 14, Escort company Faridabad, Haryana - 121007</p>
-                    <p class="text-n address-text">Mobile: <strong>9871233530</strong></p>
-                    <p class="text-n address-text">Pay on Delivery Available</p>
-                    <div>
-                        <button class="cretzo btn btn-dark">SELECT</button>
-                        <button class="cretzo btn btn-light">REMOVE</button>
-                        <button class="cretzo btn btn-light">EDIT</button>
+                    <div class="czap-field">
+                        <label class="czap-field__label" for="<?= $id_mobile ?>">
+                            <?= !empty($this->lang->line('mobile_number')) ? $this->lang->line('mobile_number') : 'Mobile number' ?><span class="czap-req">*</span>
+                        </label>
+                        <input type="tel" class="czap-input" id="<?= $id_mobile ?>" name="mobile"
+                               placeholder="10 digit mobile number" inputmode="numeric" maxlength="10" data-czap-digits>
                     </div>
-                </li>
-            </ul> -->
 
-            <button class="cretzo btn btn-light add-address-btn" data-toggle="modal" data-target="#add-address-modal">+ Add New Address</button>
-            
-        </div>
-    </div>
-</div>
+                    <div class="czap-field">
+                        <label class="czap-field__label" for="<?= $id_alt ?>">
+                            <?= !empty($this->lang->line('alternate_mobile')) ? $this->lang->line('alternate_mobile') : 'Alternate mobile' ?>
+                        </label>
+                        <input type="tel" class="czap-input" id="<?= $id_alt ?>" name="alternate_mobile"
+                               placeholder="Optional" inputmode="numeric" maxlength="10" data-czap-digits>
+                    </div>
 
-<!-- Add Address Modal -->
-<div class="modal fade edit-modal-lg" id="add-address-modal" tabindex="-1" role="dialog" aria-labelledby="myLargeModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header pt-6 pb-1">
-                <h4 class="modal-title w-100 ta-c" id="exampleModalLongTitle"> Add Address </h4>
-                <button type="button" class="close" data-bs-dismiss="modal" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <div class="modal-body ps-10 pt-0 pb-6">
+                    <div class="czap-field czap-span-2">
+                        <label class="czap-field__label" for="<?= $id_address ?>">
+                            <?= !empty($this->lang->line('address')) ? $this->lang->line('address') : 'Address' ?><span class="czap-req">*</span>
+                        </label>
+                        <textarea name="address" class="czap-textarea" id="<?= $id_address ?>" rows="3"
+                                  placeholder="Flat / house no, building, street, locality"></textarea>
+                    </div>
 
-                    <form action="<?= base_url('my-account/add-address') ?>" method="POST" id="add-address-form" class="mt-3 px-4">
-                        <div class="row">
-                            <div class="col-md-12 col-sm-12 col-xs-12 form-group mb-3">
-                                <label for="name" class="control-label required"><?= !empty($this->lang->line('name')) ? $this->lang->line('name') : 'Name' ?></label>
-                                <input type="text" class="form-control" id="address_name" name="name" placeholder="Name" />
-                            </div>
-                            <div class="col-md-6 col-sm-12 col-xs-12 form-group mb-3">
-                                <label for="mobile_number" class="control-label required"><?= !empty($this->lang->line('mobile_number')) ? $this->lang->line('mobile_number') : 'Mobile Number' ?></label>
-                                <input type="text" class="form-control" id="mobile_number" name="mobile" placeholder="Mobile Number" />
-                            </div>
-                            <div class="col-md-6 col-sm-12 col-xs-12 form-group mb-3">
-                                <label for="alternate_mobile" class="control-label"><?= !empty($this->lang->line('alternate_mobile')) ? $this->lang->line('alternate_mobile') : 'Alternate Mobile Number' ?></label>
-                                <input type="text" class="form-control" id="alternate_mobile" name="alternate_mobile" placeholder="Alternate Mobile Number" />
-                            </div>
-                            <div class="col-md-12 col-sm-12 col-xs-12 form-group mb-3">
-                                <label for="address" class="control-label required"><?= !empty($this->lang->line('address')) ? $this->lang->line('address') : 'Address' ?></label>
-                                <textarea name="address" class="form-control" id="address" cols="30" rows="4" placeholder="#Door no, Street Address, Locality, Area, Pincode"></textarea>
-                            </div>
-                            <div class="col-md-12 col-sm-12 col-xs-12 form-group mb-3">
-                                <label for="landmark" class="control-label"><?= !empty($this->lang->line('landmark')) ? $this->lang->line('landmark') : 'Landmark' ?></label>
-                                <input type="text" class="form-control" id="landmark" name="landmark" placeholder="Landmark (optional)" />
-                            </div>
-                            <!-- Pincode first: entering it auto-fills city, district and state -->
-                            <div class="col-md-6 col-sm-12 col-xs-12 form-group mb-3">
-                                <label for="pincode" class="control-label required"><?= !empty($this->lang->line('pincode')) ? $this->lang->line('pincode') : 'Zipcode' ?></label>
-                                <input type="text" class="form-control" id="pincode" name="pincode" placeholder="Zipcode" maxlength="6" inputmode="numeric" pattern="[0-9]*" />
-                                <small id="pincode_status" class="form-text text-muted"></small>
-                            </div>
-                            <div class="col-md-6 col-sm-12 col-xs-12 form-group mb-3">
-                                <label for="city_name" class="control-label required"><?= !empty($this->lang->line('city')) ? $this->lang->line('city') : 'City' ?></label>
-                                <input type="text" class="form-control" id="city_name" name="city_name" placeholder="City" />
-                                <input type="hidden" name="city_id" id="city" value="" />
-                            </div>
-                            <div class="col-md-6 col-sm-12 col-xs-12 form-group mb-3">
-                                <label for="district" class="control-label required">District</label>
-                                <input type="text" class="form-control" id="district" name="general_area_name" placeholder="District" />
-                            </div>
-                            <div class="col-md-6 col-sm-12 col-xs-12 form-group mb-3">
-                                <label for="state" class="control-label required"><?= !empty($this->lang->line('state')) ? $this->lang->line('state') : 'State' ?></label>
-                                <select class="form-control" id="state" name="state">
-                                    <option value="">-- Select State --</option>
-                                    <?php foreach ($indian_states as $state_name) { ?>
-                                        <option value="<?= $state_name ?>"><?= $state_name ?></option>
-                                    <?php } ?>
-                                </select>
-                            </div>
-                            <!-- Country section commented out - currently only India is supported
-                            <div class="col-md-6 col-sm-12 col-xs-12 form-group mb-3">
-                                <label for="country" class="control-label required"><?= !empty($this->lang->line('country')) ? $this->lang->line('country') : 'Country' ?></label>
-                                <input type="text" class="form-control" name="country" id="country" placeholder="Country" />
-                            </div>
-                            -->
-                            <input type="hidden" name="country" id="country" value="India" />
-                            <div class="col-md-12 col-sm-12 col-xs-12 form-group mb-4 mt-2">
-                                <label for="country" class="control-label"><?= !empty($this->lang->line('type')) ? $this->lang->line('type') : 'Type : ' ?></label>
-                                <div class="form-check form-check-inline">
-                                    <input type="radio" class="form-check-input" name="type" id="home" value="home" />
-                                    <label for="home" class="form-check-label text-dark"><?= !empty($this->lang->line('home')) ? $this->lang->line('home') : 'Home' ?></label>
-                                </div>
-                                <div class="form-check form-check-inline">
-                                    <input type="radio" class="form-check-input" name="type" id="office" value="office" placeholder="Office" />
-                                    <label for="office" class="form-check-label text-dark"><?= !empty($this->lang->line('office')) ? $this->lang->line('office') : 'Office' ?></label>
-                                </div>
-                                <div class="form-check form-check-inline">
-                                    <input type="radio" class="form-check-input" name="type" id="other" value="other" placeholder="Other" />
-                                    <label for="other" class="form-check-label text-dark"><?= !empty($this->lang->line('other')) ? $this->lang->line('other') : 'Other' ?></label>
-                                </div>
-                            </div>
+                    <div class="czap-field czap-span-2">
+                        <label class="czap-field__label" for="<?= $id_landmark ?>">
+                            <?= !empty($this->lang->line('landmark')) ? $this->lang->line('landmark') : 'Landmark' ?>
+                        </label>
+                        <input type="text" class="czap-input" id="<?= $id_landmark ?>" name="landmark"
+                               placeholder="Optional - e.g. opposite the metro station">
+                    </div>
 
-                            <div class="col-md-12 col-sm-12 col-xs-12">
-                                <input type="submit" class="cretzo btn btn-dark btn-primary btn-sm d-flex m-auto px-16" id="save-address-submit-btn" value="Add Address" />
-                            </div>
-                            <div class="col-md-12 col-sm-12 col-xs-12 text-center">
-                                <div id="save-address-result"></div>
-                            </div>
+                    <?php // Pincode first: entering it auto-fills city, district and state
+                          // from the India Post public API (see setupPincodeAutofill). All
+                          // three stay editable so the user can correct the lookup. ?>
+                    <div class="czap-field">
+                        <label class="czap-field__label" for="<?= $id_pincode ?>">
+                            <?= !empty($this->lang->line('pincode')) ? $this->lang->line('pincode') : 'Pincode' ?><span class="czap-req">*</span>
+                        </label>
+                        <input type="text" class="czap-input" id="<?= $id_pincode ?>" name="pincode"
+                               placeholder="6 digit pincode" maxlength="6" inputmode="numeric" pattern="[0-9]*">
+                        <small id="<?= $id_pin_status ?>" class="czap-help"></small>
+                    </div>
+
+                    <div class="czap-field">
+                        <label class="czap-field__label" for="<?= $id_city ?>">
+                            <?= !empty($this->lang->line('city')) ? $this->lang->line('city') : 'City' ?><span class="czap-req">*</span>
+                        </label>
+                        <input type="text" class="czap-input" id="<?= $id_city ?>" name="city_name" placeholder="City">
+                        <input type="hidden" name="city_id" id="<?= $id_city_hidden ?>" value="">
+                    </div>
+
+                    <div class="czap-field">
+                        <label class="czap-field__label" for="<?= $id_district ?>">District<span class="czap-req">*</span></label>
+                        <input type="text" class="czap-input" id="<?= $id_district ?>" name="general_area_name" placeholder="District">
+                    </div>
+
+                    <div class="czap-field">
+                        <label class="czap-field__label" for="<?= $id_state ?>">
+                            <?= !empty($this->lang->line('state')) ? $this->lang->line('state') : 'State' ?><span class="czap-req">*</span>
+                        </label>
+                        <select class="czap-select" id="<?= $id_state ?>" name="state">
+                            <option value="">Select a state</option>
+                            <?php foreach ($indian_states as $state_name) { ?>
+                                <option value="<?= $state_name ?>"><?= $state_name ?></option>
+                            <?php } ?>
+                        </select>
+                    </div>
+
+                    <?php // Country is fixed: this store only ships within India, and the
+                          // serviceability check downstream assumes it. ?>
+                    <input type="hidden" name="country" id="<?= $id_country ?>" value="India">
+
+                    <div class="czap-field czap-span-2">
+                        <label class="czap-field__label">
+                            <?= !empty($this->lang->line('type')) ? $this->lang->line('type') : 'Address type' ?>
+                        </label>
+                        <div class="czap-radios">
+                            <?php foreach (['home' => 'uil-home', 'office' => 'uil-building', 'other' => 'uil-map-pin-alt'] as $value => $icon) { ?>
+                                <label class="czap-radio" for="<?= $p . $value ?>">
+                                    <input type="radio" name="type" id="<?= $p . $value ?>" value="<?= $value ?>">
+                                    <i class="uil <?= $icon ?>"></i>
+                                    <?= !empty($this->lang->line($value)) ? $this->lang->line($value) : ucfirst($value) ?>
+                                </label>
+                            <?php } ?>
                         </div>
-                    </form>
-                    
+                    </div>
+                </div>
+
+                <?php /* address.js injects Bootstrap `alert alert-success` / `alert-danger`
+                         markup into this box, so it carries no styling of its own. */ ?>
+                <div id="<?= $f['result_id'] ?>" style="margin-top:16px"></div>
             </div>
-        </div>
+
+            <div class="czap-modal__foot">
+                <button type="button" class="czap-btn czap-btn--quiet" data-czap-close>Cancel</button>
+                <?php /* An <input type="submit">, not a <button>: address.js sets its label
+                         with .val("Please Wait...") on send and .val("Save") on failure,
+                         which only works on an input. */ ?>
+                <input type="submit" class="czap-btn czap-btn--primary" id="<?= $f['submit_id'] ?>"
+                       value="<?= html_escape($f['submit_text']) ?>">
+            </div>
+        </form>
     </div>
 </div>
-
-<!-- Edit Address Modal - mirrors the Add Address modal (same layout + pincode auto-fill) -->
-<div class="modal fade edit-modal-lg" id="edit-address-modal" tabindex="-1" role="dialog" aria-labelledby="myLargeModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header pt-6 pb-1">
-                <h4 class="modal-title w-100 ta-c" id="exampleModalLongTitle"><?= !empty($this->lang->line('edit_address')) ? $this->lang->line('edit_address') : 'Edit Address' ?></h4>
-                <button type="button" class="close" data-bs-dismiss="modal" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <div class="modal-body ps-10 pt-0 pb-6">
-
-                    <form action="<?= base_url('my-account/edit-address') ?>" method="POST" id="edit-address-form" class="mt-3 px-4">
-                        <input type="hidden" name="id" id="address_id" value="" />
-                        <div class="row">
-                            <div class="col-md-12 col-sm-12 col-xs-12 form-group mb-3">
-                                <label for="edit_name" class="control-label required"><?= !empty($this->lang->line('name')) ? $this->lang->line('name') : 'Name' ?></label>
-                                <input type="text" class="form-control" id="edit_name" name="name" placeholder="Name" />
-                            </div>
-                            <div class="col-md-6 col-sm-12 col-xs-12 form-group mb-3">
-                                <label for="edit_mobile" class="control-label required"><?= !empty($this->lang->line('mobile_number')) ? $this->lang->line('mobile_number') : 'Mobile Number' ?></label>
-                                <input type="text" class="form-control" id="edit_mobile" name="mobile" placeholder="Mobile Number" />
-                            </div>
-                            <div class="col-md-6 col-sm-12 col-xs-12 form-group mb-3">
-                                <label for="edit_alternate_mobile" class="control-label"><?= !empty($this->lang->line('alternate_mobile')) ? $this->lang->line('alternate_mobile') : 'Alternate Mobile Number' ?></label>
-                                <input type="text" class="form-control" id="edit_alternate_mobile" name="alternate_mobile" placeholder="Alternate Mobile Number" />
-                            </div>
-                            <div class="col-md-12 col-sm-12 col-xs-12 form-group mb-3">
-                                <label for="edit_address" class="control-label required"><?= !empty($this->lang->line('address')) ? $this->lang->line('address') : 'Address' ?></label>
-                                <textarea name="address" class="form-control" id="edit_address" cols="30" rows="4" placeholder="#Door no, Street Address, Locality, Area, Pincode"></textarea>
-                            </div>
-                            <div class="col-md-12 col-sm-12 col-xs-12 form-group mb-3">
-                                <label for="edit_landmark" class="control-label"><?= !empty($this->lang->line('landmark')) ? $this->lang->line('landmark') : 'Landmark' ?></label>
-                                <input type="text" class="form-control" id="edit_landmark" name="landmark" placeholder="Landmark (optional)" />
-                            </div>
-                            <!-- Pincode first: entering it auto-fills city, district and state -->
-                            <div class="col-md-6 col-sm-12 col-xs-12 form-group mb-3">
-                                <label for="edit_pincode" class="control-label required"><?= !empty($this->lang->line('pincode')) ? $this->lang->line('pincode') : 'Zipcode' ?></label>
-                                <input type="text" class="form-control" id="edit_pincode" name="pincode" placeholder="Zipcode" maxlength="6" inputmode="numeric" pattern="[0-9]*" />
-                                <small id="edit_pincode_status" class="form-text text-muted"></small>
-                            </div>
-                            <div class="col-md-6 col-sm-12 col-xs-12 form-group mb-3">
-                                <label for="edit_city_name" class="control-label required"><?= !empty($this->lang->line('city')) ? $this->lang->line('city') : 'City' ?></label>
-                                <input type="text" class="form-control" id="edit_city_name" name="city_name" placeholder="City" />
-                                <input type="hidden" name="city_id" id="edit_city" value="" />
-                            </div>
-                            <div class="col-md-6 col-sm-12 col-xs-12 form-group mb-3">
-                                <label for="edit_district" class="control-label required">District</label>
-                                <input type="text" class="form-control" id="edit_district" name="general_area_name" placeholder="District" />
-                            </div>
-                            <div class="col-md-6 col-sm-12 col-xs-12 form-group mb-3">
-                                <label for="edit_state" class="control-label required"><?= !empty($this->lang->line('state')) ? $this->lang->line('state') : 'State' ?></label>
-                                <select class="form-control" id="edit_state" name="state">
-                                    <option value="">-- Select State --</option>
-                                    <?php foreach ($indian_states as $state_name) { ?>
-                                        <option value="<?= $state_name ?>"><?= $state_name ?></option>
-                                    <?php } ?>
-                                </select>
-                            </div>
-                            <input type="hidden" name="country" id="edit_country" value="India" />
-                            <div class="col-md-12 col-sm-12 col-xs-12 form-group mb-4 mt-2">
-                                <label class="control-label"><?= !empty($this->lang->line('type')) ? $this->lang->line('type') : 'Type : ' ?></label>
-                                <div class="form-check form-check-inline">
-                                    <input type="radio" class="form-check-input" name="type" id="edit_home" value="home" />
-                                    <label for="edit_home" class="form-check-label text-dark"><?= !empty($this->lang->line('home')) ? $this->lang->line('home') : 'Home' ?></label>
-                                </div>
-                                <div class="form-check form-check-inline">
-                                    <input type="radio" class="form-check-input" name="type" id="edit_office" value="office" />
-                                    <label for="edit_office" class="form-check-label text-dark"><?= !empty($this->lang->line('office')) ? $this->lang->line('office') : 'Office' ?></label>
-                                </div>
-                                <div class="form-check form-check-inline">
-                                    <input type="radio" class="form-check-input" name="type" id="edit_other" value="other" />
-                                    <label for="edit_other" class="form-check-label text-dark"><?= !empty($this->lang->line('other')) ? $this->lang->line('other') : 'Other' ?></label>
-                                </div>
-                            </div>
-
-                            <div class="col-md-12 col-sm-12 col-xs-12">
-                                <input type="submit" class="cretzo btn btn-dark btn-primary btn-sm d-flex m-auto px-16" id="edit-address-submit-btn" value="Save" />
-                            </div>
-                            <div class="col-md-12 col-sm-12 col-xs-12 text-center">
-                                <div id="edit-address-result"></div>
-                            </div>
-                        </div>
-                    </form>
-
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- <script>
-    window.editAddress = {
-        'click .edit-address': function(e, value, row, index) {
-            console.log(row);
-            $("#address_id").val(row.id);
-            $("#edit_name").val(row.name);
-            $("#edit_area").val(row.area);
-            // $("#edit_area").empty();
-            $("#edit_mobile").val(row.mobile);
-            $("#edit_address").val(row.address);
-            $("#edit_state").val(row.state);
-            $("#edit_country").val(row.country);
-            $("#edit_pincode").val(row.pincode);
-           
-            if (row.city_id == 0 || row.city_id == "") {
-                console.log("in if");
-                // alert("here2");
-                $('.edit_area').addClass('d-none');
-                // $('.edit_city').addClass('d-none');
-                $('.edit_pincode').addClass('d-none');
-                // $('.other_areas').removeClass('d-none');
-                $("#other_areas_value").val(row.area);
-                // $('.other_city').removeClass('d-none');
-                $("#other_city_value").val(row.area);
-                $('.other_pincode').removeClass('d-none');
-                $("#other_pincode_value").val(row.pincode);
-                $("#edit_city").val(row.city_id);
-            } else if (row.system_pincode == 0) {
-
-                $("#edit_city").val(row.city_id).trigger('change', [row.pincode]);
-                // $('.edit_pincode').addClass('d-none');
-                $('.other_pincode').removeClass('d-none');
-                $("#other_pincode_value").val(row.pincode);
-            } else {
-                console.log("in else");
-                $("#edit_city").val(row.city_id).trigger('change', [row.pincode]);
-            }
-            if(row.type !="")
-            {
-                $('input[type=radio][value=' + row.type.toLowerCase() + ']').attr('checked', true);
-            }        }
-    };
-</script> -->
+<?php endforeach; ?>

@@ -44,7 +44,30 @@ class My_account extends CI_Controller
             $this->data['description'] = 'Dashboard | ' . $this->data['web_settings']['meta_description'];
 
             $this->data['users'] = $this->ion_auth->user()->row();
-            
+
+            /*
+             * Counts for the dashboard's stat row and its most-recent-orders block.
+             * The dashboard used to be six static tiles with no numbers on it at
+             * all, so it could not answer the questions people actually open it
+             * for ("did that order ship?", "what is my balance?").
+             */
+            $user_id = (int) $this->data['user']->id;
+
+            $order_totals = fetch_orders(false, $user_id, false, false, 1, NULL, NULL, NULL, NULL);
+            $this->data['stat_orders'] = isset($order_totals['total']) ? (int) $order_totals['total'] : 0;
+
+            $this->data['stat_wishlist']  = (int) get_favorites($user_id, NULL, NULL, TRUE);
+            $addresses                    = $this->address_model->get_address_list($user_id, false, false);
+            $this->data['stat_addresses'] = isset($addresses['rows']) ? count($addresses['rows']) : 0;
+
+            $this->load->model('notification_model');
+            $this->data['stat_unread'] = (int) $this->notification_model->count_user_unread($user_id);
+
+            /* Three most recent order ITEMS, newest first - same call the orders
+             * page makes, just capped, so the two can never disagree. */
+            $recent = fetch_orders(false, $user_id, false, false, 3, 0, 'date_added', 'DESC', NULL, NULL, NULL, NULL, NULL, NULL, NULL, '', true);
+            $this->data['recent_orders'] = isset($recent['order_data']) ? $recent['order_data'] : [];
+
             $this->load->view('front-end/' . THEME . '/template', $this->data);
         } else {
             redirect(base_url(), 'refresh');
@@ -101,8 +124,39 @@ class My_account extends CI_Controller
             /* Added search for Cretzo, for filtering order items based on search query */
             $search_2 = ($this->input->get('search')) ? $this->input->get('search') : null;
 
-            $total = fetch_orders(false, $this->data['user']->id, false, false, 1, NULL, NULL, NULL, NULL, $search_2);
-            
+            /*
+             * Status filter. fetch_orders()'s 3rd argument takes an ARRAY of
+             * `order_items`.`active_status` values, so the filtering happens in
+             * SQL - the counts, the pagination and the rows all agree. The tabs
+             * are groups rather than raw statuses because "Active" spans four
+             * steps and "Returns" spans four more, and nobody thinks in terms of
+             * `return_request_decline`.
+             *
+             * storefront_pagination() is configured with reuse_query_string, so
+             * ?status= and ?search= survive paging without extra work here.
+             */
+            $status_groups = [
+                'active'    => ['received', 'processed', 'shipped', 'out_for_delivery'],
+                'delivered' => ['delivered'],
+                'cancelled' => ['cancelled'],
+                'returned'  => ['returned', 'return_request_pending', 'return_request_approved', 'return_request_decline'],
+            ];
+            $status_key = (string) $this->input->get('status');
+            $status_filter = isset($status_groups[$status_key]) ? $status_groups[$status_key] : false;
+            $this->data['status_key'] = isset($status_groups[$status_key]) ? $status_key : '';
+
+            /*
+             * $search_2 is fetch_orders()'s EIGHTEENTH argument. This count call
+             * used to pass it tenth - i.e. as $start_date - so the total ignored
+             * the search term entirely and fed it to a date comparison instead.
+             * The row query below (which does pass it in the right slot) would
+             * return, say, 2 matching items while this total still said 10, and
+             * the pager then offered pages 2..10 that rendered nothing at all.
+             * Named through the same positional list as the row query so the two
+             * cannot drift again.
+             */
+            $total = fetch_orders(false, $this->data['user']->id, $status_filter, false, 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '', true, $search_2);
+
             $limit = 10;
             $page_no = (empty($this->uri->segment(3))) ? 1 : $this->uri->segment(3);
             if (!is_numeric($page_no)) {
@@ -115,7 +169,10 @@ class My_account extends CI_Controller
                 $limit,
                 ['uri_segment' => 3]
             );
-            $this->data['orders'] = fetch_orders(false, $this->data['user']->id, false, false, $limit, $offset, 'date_added', 'DESC', NULL, NULL, NULL, NULL, NULL, NULL, NULL, '', true, $search_2);
+            $this->data['orders'] = fetch_orders(false, $this->data['user']->id, $status_filter, false, $limit, $offset, 'date_added', 'DESC', NULL, NULL, NULL, NULL, NULL, NULL, NULL, '', true, $search_2);
+            $this->data['total_orders'] = isset($total['total']) ? (int) $total['total'] : 0;
+            $this->data['page_no'] = (int) $page_no;
+            $this->data['per_page'] = $limit;
             $this->data['payment_methods'] = get_settings('payment_method', true);
             $this->data['users'] = $this->ion_auth->user()->row();
             $this->load->view('front-end/' . THEME . '/template', $this->data);
@@ -248,6 +305,8 @@ class My_account extends CI_Controller
 
         $this->form_validation->set_rules('order_item_id', 'Order item id', 'trim|required|numeric|xss_clean');
         $this->form_validation->set_rules('status', 'Status', 'trim|required|xss_clean|in_list[cancelled,returned]');
+        // See update_order() below - same optional reason, same column (migration 076).
+        $this->form_validation->set_rules('reason', 'Reason', 'trim|xss_clean|max_length[191]');
         if (!$this->form_validation->run()) {
             $this->response['error'] = true;
             $this->response['message'] = strip_tags(validation_errors());
@@ -271,6 +330,16 @@ class My_account extends CI_Controller
             if ($this->response['error'] == false && trim($_POST['status']) == 'cancelled') {
                 restore_order_item_stock($_POST['order_item_id'], 'Order item cancelled by customer');
             }
+
+            // Non-fatal, for the reasons given in update_order() below.
+            $reason = trim((string) $this->input->post('reason', true));
+            if ($reason !== '' && $this->response['error'] == false) {
+                $this->db->where('id', (int) $_POST['order_item_id'])
+                    ->update('order_items', [
+                        'return_reason'    => $reason,
+                        'return_reason_at' => date('Y-m-d H:i:s'),
+                    ]);
+            }
         }
         print_r(json_encode($this->response));
     }
@@ -289,6 +358,13 @@ class My_account extends CI_Controller
 
         $this->form_validation->set_rules('order_id', 'Order id', 'trim|required|numeric|xss_clean');
         $this->form_validation->set_rules('status', 'Status', 'trim|required|xss_clean|in_list[cancelled,returned]');
+        /*
+         * Optional, and capped at the column width (migration 076). The storefront
+         * popup offers a fixed list, but this is a public endpoint so the value is
+         * treated as free text and stored escaped rather than trusted to be one of
+         * the options - the admin and seller screens render it.
+         */
+        $this->form_validation->set_rules('reason', 'Reason', 'trim|xss_clean|max_length[191]');
         if (!$this->form_validation->run()) {
             $this->response['error'] = true;
             $this->response['message'] = validation_errors();
@@ -331,6 +407,27 @@ class My_account extends CI_Controller
                     if (trim($_POST['status']) == 'cancelled') {
                         restore_order_stock($_POST['order_id'], 'Order cancelled by customer');
                     }
+
+                    /*
+                     * Store the customer's reason against every item of this order -
+                     * update_order() above sets the status on all of them, so the
+                     * reason belongs on all of them too. Written last, and its
+                     * failure is deliberately NOT fatal: the status change and the
+                     * refund have already happened, and losing a free-text note is
+                     * not worth telling the customer their cancellation failed.
+                     *
+                     * NOT escape_array(): the query builder parameter-escapes on its
+                     * own, and pre-escaping compounds backslashes on every write.
+                     */
+                    $reason = trim((string) $this->input->post('reason', true));
+                    if ($reason !== '') {
+                        $this->db->where('order_id', (int) $_POST['order_id'])
+                            ->update('order_items', [
+                                'return_reason'    => $reason,
+                                'return_reason_at' => date('Y-m-d H:i:s'),
+                            ]);
+                    }
+
                     $this->response['error'] = false;
                     $this->response['message'] = 'Order Updated Successfully';
                     $this->response['data'] = array();

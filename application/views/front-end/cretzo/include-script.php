@@ -130,6 +130,34 @@ $path = ($is_rtl == 1) ? 'rtl/' : "";
 <script src="<?= add_ver(THEME_ASSETS_URL . 'js/' . $path . THEME . '/' . $path . 'navbar.js') ?>"></script>
 <?php
 /*
+ * My Account shared behaviour: the popup controller (window.CzAccount) plus the
+ * small field behaviours the account views declare with data- attributes.
+ * BEFORE the per-page script below, because address.js, orders.js, wallet.js and
+ * profile.js all call CzAccount at DOM-ready.
+ *
+ * include-css.php runs first (template.php loads it in the <head>) and sets this;
+ * recomputed defensively for pages that pull this file in directly.
+ */
+$storefront_is_account_page = isset($storefront_is_account_page)
+    ? $storefront_is_account_page
+    : (strpos(strtolower(current_url()), 'my-account') !== false
+        || strpos(strtolower(current_url()), 'my_account') !== false
+        || $main_page === 'contact-us');
+if ($storefront_is_account_page) { ?>
+    <script src="<?= add_ver(THEME_ASSETS_URL . 'js/' . $path . THEME . '/' . $path . 'account-suite.js') ?>"></script>
+<?php }
+
+/* The four policy documents share one script - see the matching block in
+ * include-css.php. Everything it does is progressive enhancement; the contents
+ * list and its anchors are built server-side and work without it. */
+$storefront_is_legal_page = isset($storefront_is_legal_page)
+    ? $storefront_is_legal_page
+    : in_array($main_page, ['terms-and-conditions', 'privacy-policy', 'return-policy', 'shipping-policy'], true);
+if ($storefront_is_legal_page) { ?>
+    <script src="<?= add_ver(THEME_ASSETS_URL . 'js/' . $path . THEME . '/' . $path . 'legal-page.js') ?>"></script>
+<?php }
+
+/*
  * Per-page script, named after $main_page. This was emitted unconditionally, but only
  * 12 of the theme's pages actually have a matching file - and because this app sets
  * $route['404_override'] = 'error_404', a missing .js does NOT 404: Apache/CI answer with

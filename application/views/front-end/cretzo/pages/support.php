@@ -13,21 +13,16 @@ $has_types = !empty($ticket_types);
 // A ticket is the written trail; WhatsApp is the fast lane. Offer both, and keep offering
 // WhatsApp when tickets cannot be raised at all (no categories configured).
 $support_whatsapp = whatsapp_support_link('Hello Cretzo Support, I need help with my order.');
-?>
 
-<div class="overview-side-container">
-    <h1 class="heading-b">Account</h1>
-    <p class="text-n"><?= (is_object($users) && isset($users->username)) ? html_escape($users->username) : '' ?></p>
-    <div class="overview-container">
-
-        <?php $this->load->view('front-end/' . THEME . '/partials/my-account-sidebar', ['active_menu' => $main_page]); ?>
-
-        <div class="overview-right">
-
-            <h1 class="heading-n overview-right-heading">Support
-                <br><span class="text-s op-6">Raise a ticket and track our replies</span>
-            </h1>
-
+/* --------------------------------------------------------------- content --
+ *
+ * Rebuilt on the shared account shell (partials/account-layout.php). The list
+ * view, the thread view and all of the JS below are unchanged in behaviour; the
+ * "Raise a new ticket" form moved from a third in-page view into a popup, and
+ * the cs-support__* styles now read from the account design system's tokens so
+ * this page stops looking like a different product from the rest of My Account.
+ */
+ob_start(); ?>
             <div class="cs-support" id="cs-support"
                  data-open-ticket="<?= (int) $open_ticket_id ?>"
                  data-list-url="<?= base_url('my-account/get-my-tickets') ?>"
@@ -47,16 +42,6 @@ $support_whatsapp = whatsapp_support_link('Hello Cretzo Support, I need help wit
                                 <?php } ?>
                             </select>
                             <input type="text" id="cs-search" class="cs-support__search" placeholder="Search your tickets...">
-                        </div>
-                        <div class="cs-support__bar-actions">
-                            <?php if (!empty($support_whatsapp)) { ?>
-                                <a class="cs-support__whatsapp" href="<?= html_escape($support_whatsapp) ?>" target="_blank" rel="noopener">
-                                    <i class="uil uil-whatsapp"></i> WhatsApp support
-                                </a>
-                            <?php } ?>
-                            <button type="button" class="cs-support__primary" id="cs-new-btn" <?= $has_types ? '' : 'disabled' ?>>
-                                <i class="uil uil-plus"></i> New ticket
-                            </button>
                         </div>
                     </div>
 
@@ -82,36 +67,6 @@ $support_whatsapp = whatsapp_support_link('Hello Cretzo Support, I need help wit
                         <span class="cs-support__pageinfo" id="cs-pageinfo"></span>
                         <button type="button" class="cs-support__ghost" id="cs-next">Next</button>
                     </div>
-                </div>
-
-                <!-- ============================= NEW TICKET ============================= -->
-                <div id="cs-new-view" hidden>
-                    <button type="button" class="cs-support__back" data-back>&larr; Back to my tickets</button>
-                    <h2 class="cs-support__h2">Raise a new ticket</h2>
-
-                    <form id="cs-new-form" class="cs-support__form" novalidate>
-                        <label class="cs-support__label" for="cs-type">What is this about?</label>
-                        <select id="cs-type" name="ticket_type_id" class="cs-support__select cs-support__select--block" required>
-                            <option value="">Select a category</option>
-                            <?php foreach ($ticket_types as $type) { ?>
-                                <option value="<?= (int) $type['id'] ?>"><?= html_escape($type['title']) ?></option>
-                            <?php } ?>
-                        </select>
-
-                        <label class="cs-support__label" for="cs-subject">Subject</label>
-                        <input type="text" id="cs-subject" name="subject" class="cs-support__input" maxlength="190"
-                               placeholder="Short summary, e.g. Order #123 not delivered" required>
-
-                        <label class="cs-support__label" for="cs-description">Describe the issue</label>
-                        <textarea id="cs-description" name="description" class="cs-support__textarea" rows="6" maxlength="5000"
-                                  placeholder="Include the order id and anything that helps us find it faster." required></textarea>
-
-                        <div class="cs-support__actions">
-                            <button type="submit" class="cs-support__primary" id="cs-create-submit">Create ticket</button>
-                            <button type="button" class="cs-support__ghost" data-back>Cancel</button>
-                        </div>
-                        <p class="cs-support__error" id="cs-new-error" hidden></p>
-                    </form>
                 </div>
 
                 <!-- ============================= THREAD ============================= -->
@@ -155,96 +110,429 @@ $support_whatsapp = whatsapp_support_link('Hello Cretzo Support, I need help wit
                 </div>
 
             </div>
-        </div>
+
+<?php $page_content = ob_get_clean();
+
+/* --------------------------------------------------------------- actions -- */
+ob_start(); ?>
+<?php if (!empty($support_whatsapp)) { ?>
+    <a class="czap-btn czap-btn--wa" href="<?= html_escape($support_whatsapp) ?>" target="_blank" rel="noopener">
+        <i class="uil uil-whatsapp"></i> WhatsApp
+    </a>
+<?php } ?>
+<button type="button" class="czap-btn czap-btn--primary" id="cs-new-btn" <?= $has_types ? '' : 'disabled' ?>>
+    <i class="uil uil-plus"></i> New ticket
+</button>
+<?php $page_actions = ob_get_clean();
+
+$this->load->view('front-end/' . THEME . '/partials/account-layout', [
+    'active_menu'  => $main_page,
+    'page_title'   => 'Support tickets',
+    'page_sub'     => 'Raise a ticket and track our replies',
+    'page_icon'    => 'uil-ticket',
+    'page_actions' => $page_actions,
+    'page_content' => $page_content,
+]);
+?>
+
+<!-- ====================== POPUP: raise a new ticket ====================== -->
+<div class="czap-modal czap-modal--lg" id="czap-ticket-modal" hidden aria-hidden="true"
+     role="dialog" aria-modal="true" aria-labelledby="czap-ticket-modal-title">
+    <div class="czap-modal__scrim" data-czap-close></div>
+    <div class="czap-modal__panel" role="document">
+
+        <?php /* Same #cs-new-form the script below already binds - only its container
+                 changed, from a third full-page view to this popup. */ ?>
+        <form id="cs-new-form" class="cs-support__form" novalidate>
+
+            <div class="czap-modal__head">
+                <div>
+                    <h2 class="czap-modal__title" id="czap-ticket-modal-title">
+                        <i class="uil uil-ticket"></i> Raise a new ticket
+                    </h2>
+                    <p class="czap-modal__sub">We reply by email and in your notifications.</p>
+                </div>
+                <button type="button" class="czap-modal__x" data-czap-close aria-label="Close">&times;</button>
+            </div>
+
+            <div class="czap-modal__body">
+                        <label class="cs-support__label" for="cs-type">What is this about?</label>
+                        <select id="cs-type" name="ticket_type_id" class="cs-support__select cs-support__select--block" required>
+                            <option value="">Select a category</option>
+                            <?php foreach ($ticket_types as $type) { ?>
+                                <option value="<?= (int) $type['id'] ?>"><?= html_escape($type['title']) ?></option>
+                            <?php } ?>
+                        </select>
+
+                        <label class="cs-support__label" for="cs-subject">Subject</label>
+                        <input type="text" id="cs-subject" name="subject" class="cs-support__input" maxlength="190"
+                               placeholder="Short summary, e.g. Order #123 not delivered" required>
+
+                        <label class="cs-support__label" for="cs-description">Describe the issue</label>
+                        <textarea id="cs-description" name="description" class="cs-support__textarea" rows="6" maxlength="5000"
+                                  placeholder="Include the order id and anything that helps us find it faster." required></textarea>
+
+                <p class="cs-support__error" id="cs-new-error" hidden></p>
+            </div>
+
+            <div class="czap-modal__foot">
+                <button type="button" class="czap-btn czap-btn--quiet" data-czap-close>Cancel</button>
+                <button type="submit" class="czap-btn czap-btn--primary" id="cs-create-submit">
+                    <i class="uil uil-check"></i> Create ticket
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 
 <style>
-    .cs-support { margin-top: 8px; }
-    .cs-support__bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 18px; }
-    .cs-support__filters { display: flex; gap: 10px; flex-wrap: wrap; }
-    .cs-support__select, .cs-support__search, .cs-support__input, .cs-support__textarea {
-        padding: 10px 14px; border: 1px solid #e3e3e3; border-radius: 10px; font-size: 14px;
-        background: #fff; color: #1f2937; outline: none;
+    /*
+     * These class names are the ones the script below generates, so they stay -
+     * but the values are the account design system's tokens (account-suite.css)
+     * rather than a second, slightly-different palette. Before this the support
+     * page had its own greys, its own radii and its own orange gradient, so it
+     * read as a different product from the page it sits inside.
+     */
+    .cs-support__bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 20px;
     }
-    .cs-support__select--block, .cs-support__input, .cs-support__textarea { width: 100%; display: block; }
-    .cs-support__select:focus, .cs-support__search:focus, .cs-support__input:focus, .cs-support__textarea:focus { border-color: #f4a742; }
-    .cs-support__textarea { resize: vertical; font-family: inherit; }
-    .cs-support__primary {
-        padding: 10px 20px; border: none; border-radius: 10px; cursor: pointer; font-size: 14px; font-weight: 600;
-        color: #fff; background: linear-gradient(135deg, #ff9a3d 0%, #ff7a1a 100%);
+
+    .cs-support__filters {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        flex: 1 1 260px;
     }
-    .cs-support__primary:disabled { opacity: .5; cursor: not-allowed; }
-    .cs-support__bar-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-    .cs-support__whatsapp {
-        display: inline-flex; align-items: center; gap: 7px; padding: 10px 18px; border-radius: 10px;
-        font-size: 14px; font-weight: 600; color: #fff; background: #25d366; text-decoration: none;
-    }
-    .cs-support__whatsapp:hover, .cs-support__whatsapp:focus { color: #fff; background: #1fbe5b; text-decoration: none; }
-    /* Matches the numbered pager in cretzo-fixes.css (FIX 11). */
-    .cs-support__ghost {
-        min-height: 40px; padding: 0 16px; border: 1px solid #e4e6ea; border-radius: 10px;
-        background: #fff; cursor: pointer; font-size: 14px; font-weight: 600; color: #333;
-        box-shadow: 0 1px 2px rgba(16, 24, 40, .04);
-        transition: background-color .15s ease, border-color .15s ease, color .15s ease;
-    }
-    .cs-support__ghost:hover:not(:disabled), .cs-support__ghost:focus-visible:not(:disabled) {
-        border-color: var(--color-orange, #F2822E);
-        background: var(--color-orange-light, #fff4ea);
-        color: var(--color-orange-dark, #d96f1d);
+
+    .cs-support__select,
+    .cs-support__search,
+    .cs-support__input,
+    .cs-support__textarea {
+        min-height: 46px;
+        padding: 11px 14px;
+        border: 1px solid var(--czap-line);
+        border-radius: var(--czap-r-sm);
+        background: #fff;
+        font: inherit;
+        font-size: 15px;
+        color: var(--czap-ink);
         outline: none;
     }
-    .cs-support__ghost:disabled {
-        border-color: #ececef; background: #f7f7f8; color: #c3c6cc;
-        box-shadow: none; cursor: default;
+
+    .cs-support__search { flex: 1 1 180px; }
+
+    .cs-support__select--block,
+    .cs-support__input,
+    .cs-support__textarea {
+        width: 100%;
+        display: block;
     }
-    .cs-support__back { border: none; background: none; padding: 0 0 14px; color: #b96d00; cursor: pointer; font-size: 14px; }
-    .cs-support__h2 { font-size: 20px; font-weight: 700; color: #1f2937; margin: 0 0 6px; }
-    .cs-support__label { display: block; margin: 16px 0 6px; font-size: 13px; font-weight: 600; color: #374151; }
-    .cs-support__form { max-width: 620px; }
+
+    .cs-support__select:focus,
+    .cs-support__search:focus,
+    .cs-support__input:focus,
+    .cs-support__textarea:focus {
+        border-color: var(--czap-orange);
+        box-shadow: 0 0 0 3px rgba(242, 130, 46, .16);
+    }
+
+    .cs-support__textarea {
+        resize: vertical;
+        font-family: inherit;
+        line-height: 1.6;
+        min-height: 120px;
+    }
+
+    /* Same caret the account design system draws on .czap-select, so the two
+       kinds of dropdown on an account page look like one control. */
+    .cs-support__select {
+        -webkit-appearance: none;
+        appearance: none;
+        padding-right: 40px;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%238b919e' d='M1.4 0 6 4.6 10.6 0 12 1.4 6 7.4 0 1.4z'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 15px center;
+    }
+
+    /* .cs-support__primary / __ghost are generated by the script for the reply
+       and status buttons; aliased to the shared button shape so there is one
+       button on the page rather than two families of them. */
+    .cs-support__primary,
+    .cs-support__ghost {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 42px;
+        padding: 0 20px;
+        border: 1px solid transparent;
+        border-radius: var(--czap-r-pill);
+        font: inherit;
+        font-size: 14.5px;
+        font-weight: 600;
+        line-height: 1;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+    }
+
+    .cs-support__primary {
+        background: linear-gradient(180deg, #f78e3c 0%, var(--czap-orange) 100%);
+        color: #fff;
+        box-shadow: 0 8px 18px -10px rgba(242, 130, 46, .85);
+    }
+
+    .cs-support__primary:hover:not(:disabled) { background: var(--czap-orange-dark); }
+
+    .cs-support__ghost {
+        background: #fff;
+        border-color: var(--czap-line);
+        color: var(--czap-ink);
+    }
+
+    .cs-support__ghost:hover:not(:disabled),
+    .cs-support__ghost:focus-visible:not(:disabled) {
+        border-color: var(--czap-orange);
+        background: var(--czap-orange-soft);
+        color: var(--czap-orange-dark);
+        outline: none;
+    }
+
+    .cs-support__primary:disabled,
+    .cs-support__ghost:disabled {
+        opacity: .55;
+        cursor: not-allowed;
+        box-shadow: none;
+    }
+
+
+    .cs-support__back {
+        border: 0;
+        background: none;
+        padding: 0 0 14px;
+        color: var(--czap-orange-dark);
+        cursor: pointer;
+        font: inherit;
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    .cs-support__h2 { font-size: 20px; font-weight: 700; color: var(--czap-ink); margin: 0 0 6px; }
+
+    .cs-support__label {
+        display: block;
+        margin: 16px 0 6px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--czap-ink-2);
+    }
+
+    .cs-support__label:first-child { margin-top: 0; }
+
+    .cs-support__form { max-width: none; }
     .cs-support__actions { display: flex; gap: 10px; margin-top: 20px; }
     .cs-support__list { display: flex; flex-direction: column; gap: 12px; }
-    .cs-support__loading, .cs-support__empty { padding: 28px 0; text-align: center; color: #6b7280; font-size: 14px; }
-    .cs-support__card {
-        display: flex; gap: 14px; align-items: flex-start; justify-content: space-between;
-        padding: 16px 18px; border: 1px solid #eee; border-radius: 12px; background: #fff; cursor: pointer;
-        transition: box-shadow .2s ease, border-color .2s ease;
+
+    .cs-support__loading,
+    .cs-support__empty {
+        padding: 44px 10px;
+        text-align: center;
+        color: var(--czap-ink-3);
+        font-size: 14.5px;
     }
-    .cs-support__card:hover { border-color: #f4a742; box-shadow: 0 6px 18px rgba(244,167,66,.18); }
+
+    /* Ticket row - same shape as .czap-item elsewhere in the account. */
+    .cs-support__card {
+        display: flex;
+        gap: 14px;
+        align-items: flex-start;
+        justify-content: space-between;
+        padding: 16px 18px;
+        border: 1px solid var(--czap-line);
+        border-radius: var(--czap-r);
+        background: #fff;
+        cursor: pointer;
+        transition: box-shadow .15s ease, border-color .15s ease;
+    }
+
+    .cs-support__card:hover,
+    .cs-support__card:focus-visible {
+        border-color: var(--czap-orange-line);
+        box-shadow: var(--czap-shadow);
+        outline: none;
+    }
+
     .cs-support__cardmain { min-width: 0; }
-    .cs-support__cardtitle { font-size: 15px; font-weight: 600; color: #1f2937; margin: 0 0 4px; word-break: break-word; }
-    .cs-support__meta { font-size: 12.5px; color: #6b7280; margin: 0; }
-    .cs-support__cardside { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex-shrink: 0; }
-    .cs-support__badge { display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
-    .cs-support__badge--secondary { background: #f1f5f9; color: #475569; }
-    .cs-support__badge--info { background: #e0f2fe; color: #0369a1; }
-    .cs-support__badge--success { background: #dcfce7; color: #15803d; }
-    .cs-support__badge--danger { background: #fee2e2; color: #b91c1c; }
-    .cs-support__badge--warning { background: #fef3c7; color: #b45309; }
-    .cs-support__unread { background: #ff7a1a; color: #fff; border-radius: 999px; font-size: 11px; font-weight: 700; padding: 2px 8px; }
-    .cs-support__pager { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 20px; }
-    .cs-support__pageinfo { font-size: 13px; color: #6b7280; }
-    .cs-support__threadhead { display: flex; gap: 14px; align-items: flex-start; justify-content: space-between; padding-bottom: 14px; border-bottom: 1px solid #eee; }
-    .cs-support__messages { display: flex; flex-direction: column; gap: 12px; padding: 18px 0; max-height: 460px; overflow-y: auto; }
-    .cs-support__msg { max-width: 78%; padding: 12px 14px; border-radius: 12px; font-size: 14px; line-height: 1.6; word-break: break-word; }
-    .cs-support__msg--mine { margin-left: auto; background: #ffe9cc; color: #3f2d16; }
-    .cs-support__msg--support { background: #f6f7f9; color: #1f2937; }
-    .cs-support__msgauthor { display: block; font-size: 11.5px; font-weight: 700; opacity: .65; margin-bottom: 4px; }
-    .cs-support__msgtime { display: block; font-size: 11px; opacity: .55; margin-top: 6px; }
-    .cs-support__files { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-    .cs-support__files img { max-width: 130px; max-height: 130px; border-radius: 8px; display: block; }
-    .cs-support__filelink { font-size: 12.5px; color: #b96d00; text-decoration: underline; }
-    .cs-support__replyform { border-top: 1px solid #eee; padding-top: 16px; }
-    .cs-support__replyrow { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-top: 10px; }
+
+    .cs-support__cardtitle {
+        font-size: 15.5px;
+        font-weight: 600;
+        color: var(--czap-ink);
+        margin: 0 0 4px;
+        word-break: break-word;
+    }
+
+    .cs-support__meta { font-size: 13px; color: var(--czap-ink-3); margin: 0; }
+
+    .cs-support__cardside {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+
+    .cs-support__badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: var(--czap-r-pill);
+        font-size: 11.5px;
+        font-weight: 700;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    /* status_class comes from the controller: secondary | info | success | danger | warning */
+    .cs-support__badge--secondary { background: var(--czap-line-2); color: var(--czap-ink-2); }
+    .cs-support__badge--info { background: var(--czap-info-soft); color: var(--czap-info); }
+    .cs-support__badge--success { background: var(--czap-ok-soft); color: var(--czap-ok); }
+    .cs-support__badge--danger { background: var(--czap-bad-soft); color: var(--czap-bad); }
+    .cs-support__badge--warning { background: var(--czap-warn-soft); color: var(--czap-warn); }
+
+    .cs-support__unread {
+        background: var(--czap-orange);
+        color: #fff;
+        border-radius: var(--czap-r-pill);
+        font-size: 11px;
+        font-weight: 700;
+        padding: 3px 9px;
+        white-space: nowrap;
+    }
+
+    .cs-support__pager {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        margin-top: 22px;
+    }
+
+    .cs-support__pageinfo { font-size: 13px; color: var(--czap-ink-3); }
+
+    .cs-support__threadhead {
+        display: flex;
+        gap: 14px;
+        align-items: flex-start;
+        justify-content: space-between;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--czap-line-2);
+    }
+
+    .cs-support__messages {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 20px 0;
+        max-height: 460px;
+        overflow-y: auto;
+    }
+
+    .cs-support__msg {
+        max-width: 78%;
+        padding: 13px 15px;
+        border-radius: var(--czap-r);
+        font-size: 14.5px;
+        line-height: 1.6;
+        word-break: break-word;
+    }
+
+    /* The customer's own messages sit right and warm; ours sit left and neutral -
+       side AND colour, so the two are distinguishable either way. */
+    .cs-support__msg--mine {
+        margin-left: auto;
+        background: var(--czap-orange-soft);
+        border: 1px solid var(--czap-orange-line);
+        color: #40301c;
+    }
+
+    .cs-support__msg--support {
+        background: #f7f8fa;
+        border: 1px solid var(--czap-line);
+        color: var(--czap-ink);
+    }
+
+    .cs-support__msgauthor {
+        display: block;
+        font-size: 11.5px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        opacity: .6;
+        margin-bottom: 4px;
+    }
+
+    .cs-support__msgtime { display: block; font-size: 11.5px; opacity: .55; margin-top: 6px; }
+
+    .cs-support__files { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .cs-support__files img { max-width: 130px; max-height: 130px; border-radius: var(--czap-r-sm); display: block; }
+    .cs-support__filelink { font-size: 12.5px; color: var(--czap-orange-dark); text-decoration: underline; }
+
+    .cs-support__replyform { border-top: 1px solid var(--czap-line-2); padding-top: 18px; }
+
+    .cs-support__replyrow {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 12px;
+    }
+
     .cs-support__replybtns { display: flex; gap: 10px; flex-wrap: wrap; }
-    .cs-support__attach { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13.5px; color: #374151; }
-    .cs-support__hint { font-size: 12px; color: #9ca3af; margin: 8px 0 0; }
-    .cs-support__error { color: #b91c1c; font-size: 13px; margin: 10px 0 0; }
-    .cs-support__notice { padding: 14px 16px; border-radius: 10px; background: #fff7ed; color: #92400e; font-size: 13.5px; margin: 14px 0; }
+
+    .cs-support__attach {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--czap-ink-2);
+        padding: 9px 16px;
+        border: 1px solid var(--czap-line);
+        border-radius: var(--czap-r-pill);
+    }
+
+    .cs-support__attach:hover { border-color: var(--czap-orange); color: var(--czap-orange-dark); }
+
+    .cs-support__hint { font-size: 12.5px; color: var(--czap-ink-3); margin: 10px 0 0; }
+    .cs-support__error { color: var(--czap-bad); font-size: 13.5px; margin: 12px 0 0; font-weight: 600; }
+
+    .cs-support__notice {
+        padding: 13px 16px;
+        border-radius: var(--czap-r-sm);
+        background: var(--czap-warn-soft);
+        color: #8d5c0f;
+        font-size: 14px;
+        line-height: 1.55;
+        margin: 14px 0;
+    }
+
+    .cs-support__notice a { color: inherit; font-weight: 700; }
+
     @media (max-width: 575px) {
         .cs-support__msg { max-width: 92%; }
         .cs-support__card { flex-direction: column; }
         .cs-support__cardside { align-items: flex-start; flex-direction: row; }
+        .cs-support__replybtns { width: 100%; }
+        .cs-support__replybtns .cs-support__primary,
+        .cs-support__replybtns .cs-support__ghost { flex: 1 1 auto; }
     }
 </style>
 
@@ -265,7 +553,7 @@ $support_whatsapp = whatsapp_support_link('Hello Cretzo Support, I need help wit
 
     var views = {
         list:   document.getElementById('cs-list-view'),
-        create: document.getElementById('cs-new-view'),
+        create: document.getElementById('czap-ticket-modal'),
         thread: document.getElementById('cs-thread-view')
     };
 
@@ -311,10 +599,47 @@ $support_whatsapp = whatsapp_support_link('Hello Cretzo Support, I need help wit
             .then(function (json) { adoptCsrf(json); return json; });
     }
 
+    /*
+     * 'create' is a POPUP now, not a third in-page view - so it is layered over
+     * the list rather than replacing it, and every other show() call closes it.
+     * views.create is the <form>'s popup container; keeping the same three keys
+     * means the rest of the script did not have to change.
+     */
+    /*
+     * window.CzAccount comes from account-suite.js, which include-script.php emits in the
+     * page FOOTER - i.e. AFTER this inline script has already run. Calling it unguarded
+     * threw "CzAccount is undefined" out of show(), and because show('thread') is the
+     * FIRST thing openThread() does, the throw happened before the list was hidden and
+     * before loadList() could run: the ?ticket_id= deep link from a ticket notification
+     * left the page frozen on its static "Loading your tickets..." placeholder forever.
+     * (Clicking a ticket by hand was fine - by then the footer script had loaded.)
+     * The popup is optional chrome, so a missing controller must not break the views.
+     */
+    function modal(action) {
+        if (window.CzAccount && typeof window.CzAccount[action] === 'function') {
+            window.CzAccount[action]('#czap-ticket-modal');
+            return true;
+        }
+        return false;
+    }
+
     function show(which) {
-        Object.keys(views).forEach(function (key) {
-            if (views[key]) { views[key].hidden = (key !== which); }
-        });
+        if (which === 'create') {
+            if (views.list) { views.list.hidden = false; }
+            if (views.thread) { views.thread.hidden = true; }
+            if (!modal('open') && views.create) {
+                // Bare fallback so "New ticket" still does something without the controller.
+                views.create.hidden = false;
+                views.create.setAttribute('aria-hidden', 'false');
+            }
+            return;
+        }
+        if (!modal('close') && views.create) {
+            views.create.hidden = true;
+            views.create.setAttribute('aria-hidden', 'true');
+        }
+        if (views.list) { views.list.hidden = (which !== 'list'); }
+        if (views.thread) { views.thread.hidden = (which !== 'thread'); }
     }
 
     function esc(value) {
@@ -493,7 +818,7 @@ $support_whatsapp = whatsapp_support_link('Hello Cretzo Support, I need help wit
         show('create');
     });
 
-    root.querySelectorAll('[data-back]').forEach(function (btn) {
+    document.querySelectorAll('[data-back]').forEach(function (btn) {
         btn.addEventListener('click', function () {
             show('list');
             loadList();
@@ -628,12 +953,30 @@ $support_whatsapp = whatsapp_support_link('Hello Cretzo Support, I need help wit
     document.getElementById('cs-resolve-btn').addEventListener('click', function () { changeStatus('resolve'); });
     document.getElementById('cs-reopen-btn').addEventListener('click', function () { changeStatus('reopen'); });
 
-    /* Deep link from the notification email / bot widget: ?ticket_id=N opens that thread. */
-    var initial = parseInt(root.dataset.openTicket, 10);
-    if (initial > 0) {
-        openThread(initial);
+    /* Deep link from a ticket notification / the bot widget: ?ticket_id=N opens that thread.
+     *
+     * Deferred to DOMContentLoaded so account-suite.js (footer) has defined CzAccount by the
+     * time the first show() runs. show() no longer depends on it, but the popup controller
+     * being ready before the first view switch is the behaviour the rest of My Account has.
+     *
+     * The list is loaded alongside the thread on a deep link. It used to be skipped
+     * entirely, which left "Back to my tickets" fetching from scratch, and meant one failed
+     * thread request stranded the customer on a page with no way to reach their other
+     * tickets. */
+    function init() {
+        var initial = parseInt(root.dataset.openTicket, 10);
+        if (initial > 0) {
+            loadList();
+            openThread(initial);
+        } else {
+            loadList();
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
     } else {
-        loadList();
+        init();
     }
 })();
 </script>

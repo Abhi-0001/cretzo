@@ -578,6 +578,12 @@ class Orders extends CI_Controller
                     $temp['updated_by'] = !empty($updated_username[0]['username']) ? $updated_username[0]['username'] : '';
                     $temp['deliver_by'] = !empty($deliver_by[0]['username']) ? $deliver_by[0]['username'] : '';
                     $temp['active_status'] = $row['oi_active_status'];
+                    /* Why the customer cancelled or returned this item (migration 076).
+                     * $items is assembled field-by-field rather than passed through from
+                     * get_order_details(), so a new column has to be named here or the
+                     * view cannot see it. */
+                    $temp['return_reason'] = isset($row['return_reason']) ? $row['return_reason'] : null;
+                    $temp['return_reason_at'] = isset($row['return_reason_at']) ? $row['return_reason_at'] : null;
                     $temp['product_image'] = $row['product_image'];
                     $temp['product_variants'] = get_variants_values_by_id($row['product_variant_id']);
                     $temp['product_type'] = $row['type'];
