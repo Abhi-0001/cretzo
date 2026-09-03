@@ -1,477 +1,525 @@
 <?php
+/**
+ * My Account > Order details (one order item).
+ *
+ * Rebuilt on the shared account shell. Beyond the styling, this rewrite fixes
+ * two real defects in the page it replaces:
+ *
+ *  1. WRONG PRODUCT SHOWN. The old view found the requested item and stored it
+ *     in $order_item, then rendered the product name, short description,
+ *     attributes and quantity from `$item` - the leftover variable from the
+ *     `foreach ($order['order_items'] as $item)` loop used to FIND it. On a
+ *     multi-item order that loop's last value is whichever item happened to be
+ *     last in the array, so the page showed one item's photo, status and price
+ *     next to a different item's name, description and quantity.
+ *
+ *  2. A 500-page in place of a redirect. When the id in the URL matched no item
+ *     the view `echo`'d "Something broke :(" and `die`'d mid-document, leaving a
+ *     half-rendered page with no header or footer. It redirects to the orders
+ *     list now, which is what the controller already does for an unknown order.
+ *
+ * It also drops ~200 lines of `display:none` dead markup that duplicated the
+ * whole page inside a hidden <div> - a second, older layout that was never
+ * shown but was still executed, still queried settings, and still contained the
+ * `$item['cancelable_till']` reads that fataled when $item was unset.
+ */
 
-/* echo '<pre>';
-print_r(var_dump($order));
-die; */
+$currency = isset($settings['currency']) ? $settings['currency'] : '';
 
-$order_item = '';
-$url = $_SERVER['REQUEST_URI']; // Get the current URL
-$url_parts = explode('/', $url); // Split the URL by '/'
-$last_part = end($url_parts); // Get the last part of the URL
+/*
+ * Which item of the order is being viewed. The id is the LAST url segment:
+ * my-account/order-details/{order_id}/{order_item_id}. Read from the CI uri
+ * object rather than by exploding $_SERVER['REQUEST_URI'], which included the
+ * query string and so failed on any url with one.
+ */
+$requested_item_id = (int) $this->uri->segment(4);
 
-// Find the order item with the matching ID
-foreach ($order['order_items'] as $item) {
-    if ($item['id'] == $last_part) {
-        $order_item = $item;
-        break; 
+$order_item = null;
+foreach ($order['order_items'] as $candidate) {
+    if ((int) $candidate['id'] === $requested_item_id) {
+        $order_item = $candidate;
+        break;
     }
 }
 
-/* echo '<pre>';
-print_r(var_dump($order_item));
-die; */
-
-if(empty($order_item)){
-    echo '<pre>';
-    echo 'Something broke :( <br>';
-    echo 'Please contact support.';
-    die;
+/* An unknown or missing item id means a hand-edited url or a deleted item.
+ * order_details() already redirects for an unknown ORDER; do the same here
+ * rather than rendering a broken page. */
+if ($order_item === null) {
+    redirect(base_url('my-account/orders'), 'refresh');
+    return;
 }
 
-?>
+$image = (!empty($order_item['variant_image'])) ? $order_item['variant_image'] : $order_item['image'];
+$tone  = order_status_tone($order_item['active_status']);
+$label = order_status_label($order_item['active_status']);
 
-<!-- products starts -->
-<section class="accounts-container">
-    <!-- order detail -->
-    <div class="overview-side-container">
-        <h1 class="heading-b">Account</h1>
-        <p class="text-n"><?= $users->username ?></p>
-        <div class="overview-container">
+$history = isset($order_item['status']) && is_array($order_item['status']) ? $order_item['status'] : [];
+$last_update = !empty($history) ? orderStatusTimeToHumanReadableString($history[array_key_last($history)][1]) : '';
 
-            <?php $this->load->view('front-end/' . THEME . '/partials/my-account-sidebar', ['active_menu' => $main_page]); ?>
+/* Product attributes ("Size: M, Colour: Blue") arrive as two parallel
+ * comma-joined strings. array_combine() fatals when the two do not have the
+ * same number of parts, so the counts are checked first. */
+$attributes = [];
+if (!empty($order_item['attr_name'])) {
+    $names = explode(', ', $order_item['attr_name']);
+    $values = explode(', ', $order_item['variant_values']);
+    if (count($names) === count($values)) {
+        $attributes = array_combine($names, $values);
+    }
+}
 
-            <div class="overview-right">
-                
-                <div class="d-flex flex-col my-auto">
-                    <h6 class="mr-3 mb-2">
-                        <a href="<?= base_url('my-account/orders/') ?>" class='btn btn-sm btn-outline-primary'> <i class="uil uil-arrow-left fs-20" style="margin: -100px 0px;"></i> Back to List </a>
-                        <a target="_blank" href="<?= base_url('my-account/order-invoice/' . $order['id']) ?>" class='btn btn-sm btn-outline-primary'> <i class="uil uil-invoice fs-20 mr-1" style="margin: -100px 0px;"></i> Get Invoice </a>
-                    </h6>
-                </div>
+/* ---- return window ----
+ * order_status_history_date() returns '' until the item has actually been
+ * DELIVERED. (The array_search() it replaced searched a list of
+ * [status, timestamp] PAIRS for the bare string 'delivered', which can never
+ * match, so this block could not render for any order at all.) */
+$return_days = isset($settings['max_product_return_days']) ? (int) $settings['max_product_return_days'] : 0;
+$delivered_date = order_status_history_date($history, 'delivered');
+$return_till = ($delivered_date !== '')
+    ? date('Y-m-d', strtotime($delivered_date . ' + ' . $return_days . ' days'))
+    : '';
 
-                <div class="order-details-container">
-                    <div class="order-details-one">
-                        <p class="text-n help-text flex"><span class="flex-1"></span><span class="c-p">Help <img class="help-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/help-center-icon.png') ?>"></span></p>
-                    </div>
-                    <div class="order-details-two">
-                        <img class="product-img" src="<?= isset($order_item['variant_image']) && !empty($order_item['variant_image']) ? $order_item['variant_image'] : $order_item['image'] ?>">
-                        
-                        <h1 class="sub-heading mt-2"><?= $item['product_name'] ?></h1>
-                        <p class="text-n"><?= $item['short_description'] ?></p>
+/* ---- can this item still be cancelled? ---- */
+$ladder = ['awaiting', 'received', 'processed', 'shipped', 'delivered', 'cancelled', 'returned'];
+$cancel_index = array_search($order_item['cancelable_till'], $ladder, true);
+$active_index = array_search($order_item['active_status'], $ladder, true);
+$can_cancel = !$order_item['is_already_cancelled']
+    && $order_item['is_cancelable']
+    && $cancel_index !== false
+    && $active_index !== false
+    && $active_index <= $cancel_index
+    && $order_item['type'] !== 'digital_product';
 
-                        <!-- Print product attributes -->
-                        <?php
-                            if(!empty($item['attr_name'])){
-                                $vari_names = explode(", ", $item['attr_name']);
-                                $vari_values = explode(", ", $item['variant_values']);
-                                $product_attributes = array_combine($vari_names, $vari_values);
-                                
-                                foreach ($product_attributes as $name => $value) { ?>
-                                    <p class="text-n"><?= htmlspecialchars($name) ?>: <?= htmlspecialchars($value) ?></p>
-                                <?php }
-                            }
-                        ?>
+$can_return = ($order_item['is_returnable']
+    && !$order_item['is_already_returned']
+    && $order_item['type'] !== 'digital_product'
+    && $return_till !== ''
+    && date('Y-m-d') < $return_till);
 
-                        <p class="text-muted"> <?= !empty($this->lang->line('quantity')) ? $this->lang->line('quantity') : 'Quantity' ?> : <?= $item['quantity'] ?></p>
-                        
-                        <p class="mb-1"></p>
+/* ---- money ----
+ * `main_price` is what the product lists at, `special_price` what it sold for. */
+$main_price = is_numeric($order_item['main_price'] ?? null) ? (float) $order_item['main_price'] : 0;
+$special_price = is_numeric($order_item['special_price'] ?? null) ? (float) $order_item['special_price'] : 0;
+$saved = ($main_price > $special_price && $special_price > 0)
+    ? ($main_price - $special_price) * (int) $order_item['quantity']
+    : 0;
 
-                        <div class="delivery-date <?=$order_item['active_status']?>">
-                            <img class="delivered-icon" src="<?= order_status_icon_url($order_item['active_status']) ?>">
-                            <div class="ml-2" style="text-align: start;">
-                                <p class="text-s"><?= order_status_label($order_item['active_status']) ?></p>
-                                <!-- <p class="sub-heading delivered-text"><?= ucwords($order_item['active_status']) ?></h1>                                     -->
-                                <p class="text-es delivered-date">On <?= orderStatusTimeToHumanReadableString($order_item['status'][array_key_last($order_item['status'])][1]) ?></p>
+$is_digital = ($order_item['type'] === 'digital_product');
+$can_download = ($is_digital
+    && $order_item['download_allowed'] == 1
+    && in_array($order_item['active_status'], ['received', 'delivered'], true));
+
+/* ---- delivery timeline ----
+ * The recorded history, then the steps still to come. A cancelled or returned
+ * item has no "still to come": the ladder stopped there. */
+$done_statuses = array_map(function ($row) {
+    return $row[0];
+}, $history);
+$is_stopped = (bool) array_intersect($done_statuses, ['cancelled', 'returned', 'return_request_pending']);
+$upcoming = $is_stopped || $is_digital
+    ? []
+    : array_values(array_diff(['received', 'processed', 'shipped', 'delivered'], $done_statuses));
+
+/* --------------------------------------------------------------- actions -- */
+ob_start(); ?>
+<a class="czap-btn czap-btn--ghost czap-btn--sm" href="<?= base_url('my-account/orders') ?>">
+    <i class="uil uil-arrow-left"></i> All orders
+</a>
+<a class="czap-btn czap-btn--ghost czap-btn--sm" target="_blank" rel="noopener"
+   href="<?= base_url('my-account/order-invoice/' . $order['id']) ?>">
+    <i class="uil uil-file-download-alt"></i> Invoice
+</a>
+<?php $page_actions = ob_get_clean();
+
+/* --------------------------------------------------------------- content -- */
+ob_start(); ?>
+
+<section class="czap-card">
+    <div class="czap-card__head">
+        <div class="czap-card__titles">
+            <h2 class="czap-card__title"><i class="uil uil-box"></i> Order #<?= (int) $order['id'] ?></h2>
+            <p class="czap-card__sub">
+                Placed <?= html_escape(date('d M Y', strtotime($order['date_added']))) ?>
+                &middot; <?= html_escape($order['payment_method']) ?>
+            </p>
+        </div>
+        <div class="czap-card__actions"><?= $page_actions ?></div>
+    </div>
+
+    <div class="czap-card__body">
+
+        <!-- ---------------------------- the item ---------------------------- -->
+        <div class="czap-media" style="margin-bottom:20px">
+            <?php /* Every field below reads from $order_item. The old view read the
+                     name, description, attributes and quantity from `$item`, the
+                     leftover loop variable - see the note at the top of this file. */ ?>
+            <a href="<?= base_url('products/details/' . $order_item['slug']) ?>" style="flex:none">
+                <img class="czap-media__img" style="width:120px;height:120px" src="<?= $image ?>"
+                     alt="<?= html_escape($order_item['product_name']) ?>">
+            </a>
+            <div class="czap-media__body">
+                <h3 class="czap-media__title" style="font-size:19px">
+                    <a href="<?= base_url('products/details/' . $order_item['slug']) ?>">
+                        <?= html_escape($order_item['product_name']) ?>
+                    </a>
+                </h3>
+
+                <?php if (!empty($order_item['short_description'])) { ?>
+                    <p class="czap-media__text"><?= html_escape(strip_tags($order_item['short_description'])) ?></p>
+                <?php } ?>
+
+                <?php if (!empty($attributes)) { ?>
+                    <ul class="czap-attrs">
+                        <?php foreach ($attributes as $name => $value) { ?>
+                            <li><?= html_escape($name) ?>: <b><?= html_escape($value) ?></b></li>
+                        <?php } ?>
+                    </ul>
+                <?php } ?>
+
+                <p style="margin:0 0 8px">
+                    <span class="czap-money" style="font-size:19px"><?= html_escape($currency) ?><?= number_format($order_item['sub_total'], 2) ?></span>
+                    <span class="czap-muted">
+                        &nbsp;&middot;&nbsp;<?= !empty($this->lang->line('quantity')) ? $this->lang->line('quantity') : 'Qty' ?> <?= (int) $order_item['quantity'] ?>
+                    </span>
+                </p>
+
+                <?php if ($saved > 0) { ?>
+                    <p class="czap-help">
+                        <i class="uil uil-tag-alt"></i>
+                        You saved <span class="czap-save"><?= html_escape($currency) ?><?= number_format($saved, 2) ?></span> on this item.
+                    </p>
+                <?php } ?>
+
+                <p style="margin:10px 0 0">
+                    <span class="czap-muted">Sold by</span>
+                    <strong style="color:var(--czap-orange-dark)"><?= html_escape($order_item['store_name']) ?></strong>
+                </p>
+            </div>
+        </div>
+
+        <!-- --------------------------- status strip --------------------------- -->
+        <div class="czap-panel czap-panel--soft" style="display:flex;flex-wrap:wrap;align-items:center;gap:12px">
+            <img src="<?= order_status_icon_url($order_item['active_status']) ?>" alt="" height="34" style="flex:none">
+            <div style="min-width:0">
+                <p style="margin:0;font-size:16px;font-weight:700"><?= html_escape($label) ?></p>
+                <?php if ($last_update !== '') { ?>
+                    <p class="czap-help" style="margin:2px 0 0">Last updated <?= html_escape($last_update) ?></p>
+                <?php } ?>
+            </div>
+            <span class="czap-badge czap-badge--<?= $tone ?>" style="margin-left:auto"><?= html_escape($label) ?></span>
+            <button type="button" class="czap-btn czap-btn--ghost czap-btn--sm" data-czap-open="#czap-track-modal">
+                <i class="uil uil-map-marker-info"></i> Track
+            </button>
+        </div>
+
+        <?php if ($can_download) { ?>
+            <div class="czap-alert czap-alert--ok" style="margin:18px 0 0">
+                <i class="uil uil-download-alt"></i>
+                <span>
+                    This is a digital product and it is ready.
+                    <a href="<?= base_url('products/download_link_hash/' . $order_item['id']) ?>">Download it here</a>.
+                </span>
+            </div>
+        <?php } elseif ($is_digital && $order_item['download_allowed'] == 0) { ?>
+            <div class="czap-alert czap-alert--info" style="margin:18px 0 0">
+                <i class="uil uil-envelope"></i>
+                <span>This is a digital product - the seller will email it to you directly.</span>
+            </div>
+        <?php } ?>
+
+        <?php if ($can_cancel || $can_return) { ?>
+            <div class="czap-item__foot" style="padding:18px 0 0">
+                <?php if ($can_cancel) { ?>
+                    <button type="button" class="czap-btn czap-btn--danger czap-order-action"
+                            data-status="cancelled"
+                            data-order-id="<?= (int) $order['id'] ?>"
+                            data-product="<?= html_escape($order_item['product_name']) ?>">
+                        <i class="uil uil-times-circle"></i> Cancel this order
+                    </button>
+                <?php } ?>
+                <?php if ($can_return) { ?>
+                    <button type="button" class="czap-btn czap-btn--ghost czap-order-action"
+                            data-status="returned"
+                            data-order-id="<?= (int) $order['id'] ?>"
+                            data-product="<?= html_escape($order_item['product_name']) ?>">
+                        <i class="uil uil-history-alt"></i> Return this order
+                    </button>
+                <?php } ?>
+            </div>
+        <?php } ?>
+
+        <hr class="czap-hr">
+
+        <!-- ---------------------------- return window ---------------------------- -->
+        <?php
+        if (!$order_item['is_returnable'] || $is_digital) {
+            $return_note = ['info', 'uil-info-circle', 'Returns are not available for this product.'];
+        } elseif (in_array($order_item['active_status'], ['cancelled', 'returned'], true)) {
+            $return_note = ['warn', 'uil-info-circle', 'This order has been ' . $order_item['active_status'] . '.'];
+        } elseif ($return_till !== '') {
+            $return_note = (date('Y-m-d') < $return_till)
+                ? ['ok', 'uil-shield-check', 'You can return this item until ' . date('d M Y', strtotime($return_till)) . '.']
+                : ['info', 'uil-info-circle', 'The return window closed on ' . date('d M Y', strtotime($return_till)) . '.'];
+        } else {
+            $return_note = ['info', 'uil-shield-check', 'Returns will be open for ' . $return_days . ' day' . ($return_days === 1 ? '' : 's') . ' from the day this is delivered.'];
+        }
+        ?>
+        <div class="czap-alert czap-alert--<?= $return_note[0] ?>" style="margin-bottom:0">
+            <i class="uil <?= $return_note[1] ?>"></i>
+            <span><?= html_escape($return_note[2]) ?></span>
+        </div>
+    </div>
+</section>
+
+<!-- ======================= delivery / courier / totals ======================= -->
+<section class="czap-card">
+    <div class="czap-card__head">
+        <div class="czap-card__titles">
+            <h2 class="czap-card__title"><i class="uil uil-truck"></i> Delivery &amp; payment</h2>
+        </div>
+    </div>
+    <div class="czap-card__body">
+        <div class="czap-cols">
+
+            <div class="czap-panel">
+                <p class="czap-panel__title"><i class="uil uil-map-marker"></i> Delivery address</p>
+                <p class="czap-addr__lines">
+                    <strong><?= html_escape($order['order_recipient_person']) ?></strong><br>
+                    <?= html_escape($order['address']) ?><br>
+                    <span class="czap-muted">Mobile:</span> <?= html_escape($order['mobile']) ?>
+                </p>
+            </div>
+
+            <div class="czap-panel">
+                <p class="czap-panel__title"><i class="uil uil-shipping-fast"></i> Courier</p>
+                <?php if (!empty($order_item['courier_agency'])) { ?>
+                    <div class="czap-dl">
+                        <div class="czap-dl__row">
+                            <span><?= !empty($this->lang->line('courier_agency')) ? $this->lang->line('courier_agency') : 'Agency' ?></span>
+                            <span>
+                                <?php if (!empty($order_item['url'])) { ?>
+                                    <a href="<?= html_escape($order_item['url']) ?>" target="_blank" rel="noopener"
+                                       title="Trace this order with the courier"><?= html_escape($order_item['courier_agency']) ?></a>
+                                <?php } else { ?>
+                                    <?= html_escape($order_item['courier_agency']) ?>
+                                <?php } ?>
+                            </span>
+                        </div>
+                        <?php if (!empty($order_item['tracking_id'])) { ?>
+                            <div class="czap-dl__row">
+                                <span><?= !empty($this->lang->line('tracking_id')) ? $this->lang->line('tracking_id') : 'Tracking ID' ?></span>
+                                <span>
+                                    <?= html_escape($order_item['tracking_id']) ?>
+                                    <?php /* A tracking id is only useful pasted into the courier's own
+                                             site, so give the customer a way to copy it - it used to be
+                                             plain text with a tooltip that said "Copy this Tracking ID". */ ?>
+                                    <button type="button" class="czap-btn czap-btn--quiet czap-btn--sm"
+                                            data-czap-copy="<?= html_escape($order_item['tracking_id']) ?>"
+                                            title="Copy tracking ID" style="min-height:26px;padding:0 8px">
+                                        <i class="uil uil-copy"></i>
+                                    </button>
+                                </span>
                             </div>
-                            
-                            <a class="cretzo link ml-auto mr-2 mt-1" data-bs-toggle="modal" data-bs-target="#orderStatusModal">
-                                <p class="text-s">View Details</p>
-                            </a>
-                        </div>
+                        <?php } ?>
                     </div>
-                    
-                    
-                    <div class="order-details-three">
-                        <ul>
-                            <?php
-                            // See order_status_history_date(). The array_search() this replaces
-                            // searched a list of [status, timestamp] PAIRS for the bare string
-                            // 'delivered', which never matches - so $delivered_date was never set and
-                            // the return-window line below could not render for any order.
-                            $delivered_date = order_status_history_date($order_item['status'], 'delivered');
+                <?php } else { ?>
+                    <p class="czap-help" style="margin:0">
+                        Tracking appears here once your order has been shipped.
+                    </p>
+                <?php } ?>
+            </div>
 
-                            if (!$order_item['is_returnable'] || $order_item['type'] == 'digital_product') { ?>
-                                <li class="text-n">Return not available for this product.</li>
-                            <?php }
-                            else if ($order_item['active_status'] == 'cancelled' || $order_item['active_status'] == 'returned') { ?>
-                                <li class="text-n">Order has been <?=$order_item['active_status']?>.</li>
-                            <?php }
-                            else if (isset($delivered_date) && !empty($delivered_date) /* && !$order_item['is_already_returned'] */) { ?>
-                                <?php
-                                $settings = get_settings('system_settings', true);
-                                $today = date('d-m-Y');
-                                $return_till = date('d-m-Y', strtotime($delivered_date . ' + ' . $settings['max_product_return_days'] . ' days'));
-                                if ($today < $return_till) { ?>
-                                    <li class="text-n">Return window will close on <?= $return_till ?></li>
-                                <?php 
-                                } else { ?>
-                                    <li class="text-n">Return window closed on <?= $return_till ?></li>
-                                <?php 
-                                }
-                            }
-                            else { 
-                                $settings = get_settings('system_settings', true);
-                            ?>
-                                <li class="text-n">Return window will be open for <?=$settings['max_product_return_days']?> day/s from the day of delivery.</li>
-                            <?php } ?>
-                            
-                        </ul>
-                    </div>
+            <div class="czap-panel">
+                <p class="czap-panel__title"><i class="uil uil-bell"></i> Updates sent to</p>
+                <p class="czap-addr__lines">
+                    <?php if (!empty($order['mobile'])) { ?>
+                        <i class="uil uil-phone" style="color:var(--czap-orange)"></i> +91 <?= html_escape($order['mobile']) ?><br>
+                    <?php } ?>
+                    <?php if (!empty($order['email'])) { ?>
+                        <i class="uil uil-envelope-alt" style="color:var(--czap-orange)"></i> <?= html_escape($order['email']) ?>
+                    <?php } ?>
+                </p>
+            </div>
 
-                    <div class="order-details-four">
-                        <img class="product-img" src="<?= isset($order_item['variant_image']) && !empty($order_item['variant_image']) ? $order_item['variant_image'] : $order_item['image'] ?>">
-                        <div>
-                            <h1 class="text-n">Rate the Product</h1>
-
-                            <div class="ml-0 pl-0 product-rating-small mt-1" dir="ltr">
-                                <input id="input" name="rating" class="rating rating-loading d-none" data-size="xs" value="<?= $order_item['product_rating'] ?>" data-show-clear="false" data-show-caption="false" readonly>
-                            </div>
-                            <!-- <p class="text-s">
-                                <?php 
-                                for ($i = 0; $i < 5; $i++) {
-                                    if($i < $order_item['product_rating']) { ?>
-                                        <img class="star-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/rating-star.png') ?>">
-                                <?php 
-                                    } else { ?>
-                                        <img class="star-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/rating-star-grey.png') ?>">
-                                <?php
-                                    }
-                                } ?>
-                            </p> -->
-                            
+            <div class="czap-panel">
+                <p class="czap-panel__title"><i class="uil uil-receipt"></i> Order total</p>
+                <div class="czap-dl">
+                    <div class="czap-dl__row">
+                        <span><?= !empty($this->lang->line('total_order_price')) ? $this->lang->line('total_order_price') : 'Items' ?></span>
+                        <span><?= html_escape($currency) ?><?= number_format($order['total'], 2) ?></span>
+                    </div>
+                    <?php if (!$is_digital) { ?>
+                        <?php /* Read off the ORDER, not off the current setting: an order placed
+                                 while customers were still charged freight must keep showing what
+                                 it charged. Only a genuinely uncharged order is labelled FREE. */ ?>
+                        <div class="czap-dl__row <?= round((float) $order['delivery_charge'], 2) == 0 ? 'czap-dl__row--free' : '' ?>">
+                            <span><?= !empty($this->lang->line('delivery_charge')) ? $this->lang->line('delivery_charge') : 'Delivery' ?></span>
+                            <span><?= round((float) $order['delivery_charge'], 2) == 0
+                                ? 'FREE'
+                                : html_escape($currency) . number_format($order['delivery_charge'], 2) ?></span>
                         </div>
-                    </div>
-                    <div class="order-details-five">
-                        <h1 class="text-n heading">Delivery Address</h1>
-                        <h1 class="text-n"><?= $order['order_recipient_person'] ?> : <?= $order['mobile'] ?></h1>
-                        <p class="text-n address-text"><?= $order['address'] ?></p>
-                    </div>
-                    <div class="order-details-six">
-                        <div class="order-details-six-left">
-                            <h1 class="text-n heading">Total Order Price</h1>
-                            <?php
-                            $main_price = is_numeric($order_item['main_price'] ?? null) ? (float) $order_item['main_price'] : 0;
-                            $special_price = is_numeric($order_item['special_price'] ?? null) ? (float) $order_item['special_price'] : 0;
-                            $saved_amount = $main_price - $special_price;
-                            ?>
-                            <?php if ($saved_amount > 0) { ?>
-                                <p class="text-n">You saved <span class="green">₹ <?= $saved_amount ?></span> on this order</p>
-                            <?php } ?>
+                    <?php } ?>
+                    <?php if (!empty($order['promo_code']) && !empty($order['promo_discount'])) { ?>
+                        <div class="czap-dl__row czap-dl__row--free">
+                            <span><?= !empty($this->lang->line('promocode_discount')) ? $this->lang->line('promocode_discount') : 'Promo' ?> (<?= html_escape($order['promo_code']) ?>)</span>
+                            <span>- <?= html_escape($currency) ?><?= number_format($order['promo_discount'], 2) ?></span>
                         </div>
-                        <h1 class="sub-heading order-details-six-right"><h4 class="mt-1 bold"> <span class="mt-5"><i><?= $settings['currency'] ?></i></span> <?= number_format($order_item['sub_total'], 2) ?> <span class="small text-muted"> <?= !empty($this->lang->line('via')) ? $this->lang->line('via') : 'via' ?> (<?= $order['payment_method'] ?>) </span></h4></h1>
-                    </div>
-                    <div class="order-details-seven">
-                        <!-- <img class="visa-icon-two" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/visa-icon2.png') ?>">
-                        <p class="text-n flex-1">Paid By ICICI card ending in **** **** 0003</p> -->
-                        <p class="text-n">Item sold by: <span class="orange fw-bold"><?= $order_item['store_name'] ?></span> </p>
-                        <a target="_blank" href="<?= base_url('my-account/order-invoice/' . $order['id']) ?>" class='text-decoration-none w-100 mt-2'> <button class="cretzo btn light-btn w-100 get-invoice">Get Invoice</button> </a>
-                    </div>
-                    <div class="order-details-five">
-                        <h1 class="text-n heading">Courier Details</h1>
-                        <!-- <h1 class="text-n"><?= $order['order_recipient_person'] ?> : <?= $order['mobile'] ?></h1>
-                        <p class="text-n address-text"><?= $order['address'] ?></p> -->
-                        <ul class="mb-0">
-                            <?php if (isset($order_item['courier_agency']) && !empty($order_item['courier_agency'])) { ?>
-                                <p> <span class="text-muted"> <?= !empty($this->lang->line('courier_agency')) ? $this->lang->line('courier_agency') : 'Courier Agency' ?> : </span><a href="<?= $order_item['url'] ?>" title="click here to trace the order"><?= $order_item['courier_agency'] ?></a> </p>
-                                <p class="text-muted" data-toggle="tooltip" data-placement="top" title="Copy this Tracking ID and trace your order with Courier Agency."> <?= !empty($this->lang->line('tracking_id')) ? $this->lang->line('tracking_id') : 'Tracking ID' ?> <span class="font-weight-bold text-dark"> : <?= $order_item['tracking_id'] ?></span> </p>
-                            <?php } else { ?>
-                                <p class="text-muted"> Tracking will be available once your order has been shipped </p>
-                            <?php } ?>
-                        </ul>
-                    </div>
-                    <div class="order-details-eight">
-                        <h1 class="text-n heading">Updates sent to</h1>
-                        <p class="text-n"><i class="uil uil-phone"></i> +91 <?= $order['mobile'] ?></p>
-                        <p class="text-n"><i class="uil uil-envelope-alt"></i> <?= $order['email'] ?></p>
-                    </div>
-                    <div class="order-details-nine">
-                        <p class="text-n">Order Id: <span class="font-weight-bold text-dark"><?= $order['id'] ?></span></p>
+                    <?php } ?>
+                    <?php if (round((float) $order['wallet_balance'], 2) > 0) { ?>
+                        <div class="czap-dl__row czap-dl__row--free">
+                            <span><?= !empty($this->lang->line('wallet_used')) ? $this->lang->line('wallet_used') : 'Wallet used' ?></span>
+                            <span>- <?= html_escape($currency) ?><?= number_format($order['wallet_balance'], 2) ?></span>
+                        </div>
+                    <?php } ?>
+                    <div class="czap-dl__row czap-dl__row--total">
+                        <span><?= !empty($this->lang->line('final_total')) ? $this->lang->line('final_total') : 'Paid' ?></span>
+                        <span><?= html_escape($currency) ?><?= number_format($order['final_total'], 2) ?></span>
                     </div>
                 </div>
+                <p class="czap-help">
+                    <?= !empty($this->lang->line('via')) ? $this->lang->line('via') : 'via' ?>
+                    <?= html_escape($order['payment_method']) ?>
+                </p>
             </div>
         </div>
     </div>
 </section>
-<!-- products ends -->
 
-<hr> 
-<div style="display: none;"> 
-    <!-- Demo header-->
-    <section class="header settings-tab">
-        <div class="container pb-15">
-            <div class="row">
-                <div class="col-md-12 orders-section settings-tab-content">
-                    <div class="mb-4 border-0 shadow-xl p-10">
-                        <div class="card-header bg-white">
-                            <div class="d-flex justify-content-between">
-                                <div class="col">
-                                    <p class="text-muted"> <?= !empty($this->lang->line('order_id')) ? $this->lang->line('order_id') : 'Order ID' ?><span class="font-weight-bold text-dark"> : <?= $order['id'] ?></span></p>
-                                    <p class="text-muted"> <?= !empty($this->lang->line('place_on')) ? $this->lang->line('place_on') : 'Place On' ?><span class="font-weight-bold text-dark"> : <?= $order['date_added'] ?></span> </p>
-                                </div>
+<?php $page_content = ob_get_clean();
 
-                                <div class="flex-col my-auto">
-                                    <h6 class="ml-auto mr-3">
-                                        <a target="_blank" href="<?= base_url('my-account/order-invoice/' . $order['id']) ?>" class='btn btn-sm btn-outline-primary'><?= !empty($this->lang->line('invoice')) ? $this->lang->line('invoice') : 'Invoice' ?></a>
-                                        <a href="<?= base_url('my-account/orders/') ?>" class='btn btn-sm btn-outline-danger'><?= !empty($this->lang->line('back_to_list')) ? $this->lang->line('back_to_list') : 'Back to List' ?></a>
-                                    </h6>
-                                </div>
-                            </div>
-                            <br>
-                        </div>
-                        <div class="card-body">
-                            <?php foreach ($order['order_items'] as $key => $item) { ?>
+$this->load->view('front-end/' . THEME . '/partials/account-layout', [
+    'active_menu'  => $main_page,
+    'page_title'   => 'Order #' . (int) $order['id'],
+    'page_content' => $page_content,
+    'page_card'    => false,
+]);
+?>
 
-                                <div class="media flex-column flex-sm-row">
-                                    <div class="media-body ">
-
-                                        <a href="<?= base_url('products/details/' . $item['slug']) ?>" class="text-decoration-none">
-                                            <h5 class="bold"><?= ($key + 1) . '. ' . $item['name'] ?></h5>
-                                        </a>
-                                        <p class="text-muted"> <?= !empty($this->lang->line('quantity')) ? $this->lang->line('quantity') : 'Quantity' ?> : <?= $item['quantity'] ?></p>
-                                        <?php if ($item['otp'] != 0) { ?>
-                                            <p class="text-muted"> <?= !empty($this->lang->line('otp')) ? $this->lang->line('otp') : 'OTP' ?> <span class="font-weight-bold text-dark"> : <?= $item['otp'] ?></span> </p>
-                                        <?php } ?>
-                                        <?php if (isset($item['courier_agency']) && !empty($item['courier_agency'])) { ?>
-                                            <p> <span class="text-muted"> <?= !empty($this->lang->line('courier_agency')) ? $this->lang->line('courier_agency') : 'Courier Agency' ?> : </span><a href="<?= $item['url'] ?>" title="click here to trace the order"><?= $item['courier_agency'] ?></a> </p>
-                                            <p class="text-muted" data-toggle="tooltip" data-placement="top" title="Copy this Tracking ID and trace your order with Courier Agency."> <?= !empty($this->lang->line('tracking_id')) ? $this->lang->line('tracking_id') : 'Tracking ID' ?> <span class="font-weight-bold text-dark"> : <?= $item['tracking_id'] ?></span> </p>
-                                        <?php } ?>
-                                        <h4 class="mt-3 mb-2 bold"> <span class="mt-5"><i><?= $settings['currency'] ?></i></span> <?= number_format(($item['price'] * $item['quantity']), 2) ?> <span class="small text-muted"></span></h4>
-                                        <?php
-                                        $status = ["awaiting", "received", "processed", "shipped", "delivered", "cancelled", "returned"];
-                                        $cancelable_till = $item['cancelable_till'];
-                                        $active_status = $item['active_status'];
-                                        $cancellable_index = array_search($cancelable_till, $status);
-                                        $active_index = array_search($active_status, $status);
-                                        if (!$item['is_already_cancelled'] && $item['is_cancelable'] && $active_index <= $cancellable_index && $item['type'] != 'digital_product') { ?>
-                                            <button class="btn btn-danger btn-sm update-order-item" data-status="cancelled" data-item-id="<?= $item['id'] ?>"><?= !empty($this->lang->line('cancel')) ? $this->lang->line('cancel') : 'Cancel' ?></button>
-                                        <?php } ?>
-                                        <?php $order_date = isset($order['order_items'][0]['status'][3][1]) ? $order['order_items'][0]['status'][3][1] : null;
-                                        if ($order['is_returnable'] && !$order['is_already_returned'] && isset($order_date) && !empty($order_date)) { ?>
-                                            <?php
-                                            $settings = get_settings('system_settings', true);
-                                            $timestemp = strtotime($order_date);
-                                            $date = date('Y-m-d', $timestemp);
-                                            $today = date('Y-m-d');
-                                            $return_till = date('Y-m-d', strtotime($order_date . ' + ' . $settings['max_product_return_days'] . ' days'));
-                                            echo "<br>";
-                                            if ($today < $return_till && $item['type'] != 'digital_product') { ?>
-                                                <div class="col my-auto ">
-                                                    <a class="update-order block btn btn-sm btn-danger text-white mt-3 m-0" data-status="returned" data-order-id="<?= $order['id'] ?>"><?= !empty($this->lang->line('return')) ? $this->lang->line('return') : 'Return' ?></a>
-                                                </div>
-                                            <?php } ?>
-                                        <?php } ?>
-
-                                        <?php if ($item['type'] == 'digital_product' &&  $item['download_allowed'] == 1 && ($item['active_status'] == 'received' || $item['active_status'] == 'delivered')) {
-                                            $download_link = $item['hash_link'];
-                                        ?>
-                                            <div class="media-body mt-3">
-                                                <a href="<?= base_url('products/download_link_hash/' . $item['id']) ?>" title="Download Product" class="btn btn-outline-info"><i class="uil uil-download-alt"></i> Download</a>
-                                            </div>
-                                        <?php }
-                                        if ($item['type'] == 'digital_product' &&  $item['download_allowed'] == 0) { ?>
-                                            <div class="media-body mt-3">
-                                                <span class="text-danger">You will receive this item from seller via email.</span>
-                                            </div>
-                                        <?php } ?>
-                                    </div>
-                                    <div class="align-self-center img-fluid">
-                                        <a href="<?= base_url('products/details/' . $item['slug']) ?>"><img src="<?= $item['image_sm'] ?>" width="180 " height="180" style="object-fit: cover;"></a>
-                                    </div>
-                                </div>
-
-                                <?php if ($item['type'] != 'digital_product') { ?>
-                                    <section class="wrapper bg-light">
-                                        <div class="container py-14 py-md-16">
-                                            <div class="row gx-lg-8 gx-xl-12 gy-6 process-wrapper line" id="progressbar">
-                                                <?php
-                                                $status = array('received', 'processed', 'shipped', 'delivered');
-                                                $i = 1;
-                                                // echo "<pre>";
-                                                // print_R($item['status']);
-                                                foreach ($item['status'] as $value) { ?>
-                                                    <?php
-                                                    $class = '';
-                                                    if ($value[0] == "cancelled" || $value[0] == "returned" || $value[0] == "return_request_pending") {
-                                                        $class = 'cancel';
-                                                        $status = array();
-                                                    } elseif (($ar_key = array_search($value[0], $status)) !== false) {
-                                                        unset($status[$ar_key]);
-                                                    }
-                                                    ?>
-                                                    <div class="col-md-6 col-lg-3 active <?= $class ?>">
-                                                        <span class="icon btn btn-circle btn-lg btn-primary pe-none mb-4">
-                                                            <span class="number" id="step<?= $i ?>"></span>
-                                                        </span>
-                                                        <h4 class="mb-1"><?= str_replace('_', ' ', strtoupper($value[0]))  ?></h4>
-                                                        <p class="mb-0"><?= $value[1] ?></p>
-                                                    </div>
-                                                    <!--/column -->
-                                                <?php
-                                                    $i++;
-                                                } ?>
-
-                                                <?php
-
-                                                foreach ($status as $value) { ?>
-                                                    <div class="col-md-6 col-lg-3">
-                                                        <span class="icon btn btn-circle btn-lg btn-soft-primary pe-none mb-4">
-                                                            <span class="number" id="step<?= $i ?>"></span>
-                                                        </span>
-                                                        <p class="mb-0"><?= str_replace('_', ' ', strtoupper($value)) ?></p>
-                                                    </div>
-                                                <?php $i++;
-                                                } ?>
-
-                                            </div>
-                                            <!--/.row -->
-                                        </div>
-                                        <!-- /.container -->
-                                    </section>
-                                    <!-- /section -->
-                                <?php } ?>
-                                <hr class="mt-5 mb-5">
-                            <?php  } ?>
-
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <h6 class="h5"><?= !empty($this->lang->line('shipping_details')) ? $this->lang->line('shipping_details') : 'Shipping Details' ?></h6>
-                                    <hr class="mt-5 mb-5">
-                                    <span><?= $order['username'] ?></span> <br>
-                                    <span><?= $order['address'] ?></span> <br>
-                                    <span><?= $order['mobile'] ?></span> <br>
-                                    <span><?= $order['delivery_time'] ?></span> <br>
-                                    <span><?= $order['delivery_date'] ?></span> <br>
-                                </div>
-                                <div class="col-md-6">
-                                    <h6 class="h5"><?= !empty($this->lang->line('price_details')) ? $this->lang->line('price_details') : 'Price Details' ?></h6>
-                                    <hr class="mt-5 mb-5">
-                                    <div class="table-responsive">
-                                        <table class="table table-borderless">
-                                            <tbody>
-                                                <tr>
-                                                    <th><?= !empty($this->lang->line('total_order_price')) ? $this->lang->line('total_order_price') : 'Total Order Price' ?></th>
-                                                    <td>+ <?= $settings['currency'] . number_format($order['total'], 2) ?></td>
-                                                </tr>
-                                                <?php if ($item['type'] != 'digital_product') { ?>
-                                                    <tr>
-                                                        <th><?= !empty($this->lang->line('delivery_charge')) ? $this->lang->line('delivery_charge') : 'Delivery Charge' ?></th>
-                                                        <?php // Read off the ORDER, not off the current setting: an order placed while
-                                                              // customers were still charged freight must keep showing what it charged.
-                                                              // Only a genuinely uncharged order is labelled FREE. ?>
-                                                        <?php if (round((float) $order['delivery_charge'], 2) == 0) { ?>
-                                                            <td style="color: var(--color-success);">FREE</td>
-                                                        <?php } else { ?>
-                                                            <td>+ <?= $settings['currency'] . number_format($order['delivery_charge'], 2) ?></td>
-                                                        <?php } ?>
-                                                    </tr>
-                                                <?php } ?>
-                                                <tr class="d-none">
-                                                    <th><?= !empty($this->lang->line('tax')) ? $this->lang->line('tax') : 'Tax' ?> - (<?= $order['total_tax_percent'] ?>%)</th>
-                                                    <td>+ <?= $settings['currency'] . number_format($order['total_tax_amount'], 2) ?></td>
-                                                </tr>
-                                                <?php if (!empty($order['promo_code']) && !empty($order['promo_discount'])) { ?>
-                                                    <tr>
-                                                        <th><?= !empty($this->lang->line('promocode_discount')) ? $this->lang->line('promocode_discount') : 'Promocode Discount' ?> - (<?= $order['promo_code'] ?>)
-                                                        </th>
-                                                        <td>- <?= $settings['currency'] . number_format($order['promo_discount'], 2) ?></td>
-                                                    </tr>
-                                                <?php } ?>
-                                                <tr>
-                                                    <th><?= !empty($this->lang->line('wallet_used')) ? $this->lang->line('wallet_used') : 'Wallet Used' ?></th>
-                                                    <td>- <?= $settings['currency'] . number_format($order['wallet_balance'], 2) ?></td>
-                                                </tr>
-                                                <tr class="h6">
-                                                    <th><?= !empty($this->lang->line('final_total')) ? $this->lang->line('final_total') : 'Final Total' ?></th>
-                                                    <td><?= $settings['currency'] . number_format($order['final_total'], 2) ?><span class="small text-muted"> <?= !empty($this->lang->line('via')) ? $this->lang->line('via') : 'via' ?> (<?= $order['payment_method'] ?>) </span></td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                        <!-- /.col -->
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="card-footer bg-white px-sm-3 pt-sm-4 px-0">
-                            <div class="row text-center ">
-                                <?php
-                                $status = ["awaiting", "received", "processed", "shipped", "delivered", "cancelled", "returned"];
-                                $cancelable_till = $item['cancelable_till'];
-                                $active_status = $item['active_status'];
-                                $cancellable_index = array_search($cancelable_till, $status);
-                                $active_index = array_search($active_status, $status);
-                                if (!$item['is_already_cancelled'] && $item['is_cancelable'] && $active_index <= $cancellable_index) { ?>
-                                    <div class="col my-auto">
-                                        <a class="update-order block btn-sm btn btn-danger text-white mt-3 m-0" data-status="cancelled" data-order-id="<?= $order['id'] ?>"><?= !empty($this->lang->line('cancel')) ? $this->lang->line('cancel') : 'Cancel' ?></a>
-                                    </div>
-                                <?php } ?>
-                                <?php
-                                $order_date = isset($order['order_items'][0]['status'][3][1]) ? $order['order_items'][0]['status'][3][1] : null;
-                                if ($order['is_returnable'] && !$order['is_already_returned'] && isset($order_date) && !empty($order_date)) { ?>
-                                    <?php
-                                    $settings = get_settings('system_settings', true);
-
-                                    $timestemp = strtotime($order_date);
-                                    $date = date('Y-m-d', $timestemp);
-                                    $today = date('Y-m-d');
-                                    $return_till = date('Y-m-d', strtotime($order_date . ' + ' . $settings['max_product_return_days'] . ' days'));
-                                    echo "<br>";
-                                    if ($today < $return_till) { ?>
-                                        <div class="col my-auto ">
-                                            <a class="update-order block buttons button-sm btn-6-3 mt-3 m-0" data-status="returned" data-order-id="<?= $order['id'] ?>"><?= !empty($this->lang->line('return')) ? $this->lang->line('return') : 'Return' ?></a>
-                                        </div>
-                                    <?php } ?>
-                                <?php } ?>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+<!-- ==================== POPUP: full delivery timeline ==================== -->
+<div class="czap-modal" id="czap-track-modal" hidden aria-hidden="true"
+     role="dialog" aria-modal="true" aria-labelledby="czap-track-modal-title">
+    <div class="czap-modal__scrim" data-czap-close></div>
+    <div class="czap-modal__panel" role="document">
+        <div class="czap-modal__head">
+            <div>
+                <h2 class="czap-modal__title" id="czap-track-modal-title">
+                    <i class="uil uil-map-marker-info"></i> Delivery timeline
+                </h2>
+                <p class="czap-modal__sub">Order #<?= (int) $order['id'] ?> &middot; <?= html_escape($order_item['product_name']) ?></p>
             </div>
+            <button type="button" class="czap-modal__x" data-czap-close aria-label="Close">&times;</button>
         </div>
+        <div class="czap-modal__body">
+            <?php if (empty($history)) { ?>
+                <p class="czap-help" style="text-align:center;margin:0">
+                    No status updates have been recorded for this item yet.
+                </p>
+            <?php } else { ?>
+                <ol class="czap-track">
+                    <?php $last = array_key_last($history);
+                    foreach ($history as $key => $step) {
+                        $name = $step[0];
+                        $step_class = 'is-done';
+                        if (in_array($name, ['cancelled', 'returned', 'return_request_decline'], true)) {
+                            $step_class = 'is-bad';
+                        } elseif ($key === $last) {
+                            $step_class = 'is-now';
+                        }
+                        ?>
+                        <li class="czap-track__step <?= $step_class ?>">
+                            <p class="czap-track__name"><?= html_escape(order_status_label($name)) ?></p>
+                            <p class="czap-track__when"><?= html_escape(orderStatusTimeToHumanReadableString($step[1])) ?></p>
+                        </li>
+                    <?php } ?>
 
-    </section>
-</div>
+                    <?php /* The steps still to come, greyed out - so the customer can see how
+                             many stages are left, not just where the item is now. */ ?>
+                    <?php foreach ($upcoming as $step) { ?>
+                        <li class="czap-track__step is-todo">
+                            <p class="czap-track__name"><?= html_escape(order_status_label($step)) ?></p>
+                            <p class="czap-track__when">Pending</p>
+                        </li>
+                    <?php } ?>
+                </ol>
+            <?php } ?>
 
-<!-- Bootstrap Modal -->
-<div class="modal fade" id="orderStatusModal" tabindex="-1" aria-labelledby="orderStatusModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header px-8 py-4">
-                <h5 class="modal-title" id="orderStatusModalLabel">
-                    <i class="uil uil-info-circle"></i> Order Status
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body px-8 py-1">
-                <?php if (!empty($order_item['status'])): ?>
-                    <ul class="list-group">
-                        <?php foreach ($order_item['status'] as $status): ?>
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
-                                <span>
-                                    <i class="uil uil-check-circle text-success me-2"></i>
-                                    <?= htmlspecialchars(ucfirst($status[0])); ?>
-                                </span>
-                                <!-- <small class="text-muted"><?= htmlspecialchars($status[1]); ?></small> -->
-                                <small class="text-muted"><?= orderStatusTimeToHumanReadableString($status[1]) ?></small>
-                            </li>
-                        <?php endforeach; ?>
-                    </ul>
-                <?php else: ?>
-                    <p class="text-center text-muted">No status updates available for this order.</p>
-                <?php endif; ?>
-            </div>
-            <div class="modal-footer px-8 py-4">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-            </div>
+            <?php if (!empty($order_item['courier_agency']) && !empty($order_item['url'])) { ?>
+                <div class="czap-alert czap-alert--info" style="margin:18px 0 0">
+                    <i class="uil uil-shipping-fast"></i>
+                    <span>
+                        For live courier scans, track it with
+                        <a href="<?= html_escape($order_item['url']) ?>" target="_blank" rel="noopener"><?= html_escape($order_item['courier_agency']) ?></a>.
+                    </span>
+                </div>
+            <?php } ?>
+        </div>
+        <div class="czap-modal__foot">
+            <button type="button" class="czap-btn czap-btn--quiet" data-czap-close>Close</button>
+            <a class="czap-btn czap-btn--ghost" target="_blank" rel="noopener"
+               href="<?= base_url('my-account/order-invoice/' . $order['id']) ?>">
+                <i class="uil uil-file-download-alt"></i> Get invoice
+            </a>
         </div>
     </div>
 </div>
+
+<?php /* The cancel/return popup is the orders list's, reused verbatim so the two
+         screens cannot offer the same action with different wording. Its
+         behaviour lives in js/cretzo/orders.js, which this page also needs -
+         include-script.php only auto-loads the script named after $main_page
+         ('order-details'), so it is pulled in explicitly here. */ ?>
+<div class="czap-modal" id="czap-order-modal" hidden aria-hidden="true"
+     role="dialog" aria-modal="true" aria-labelledby="czap-order-modal-title">
+    <div class="czap-modal__scrim" data-czap-close></div>
+    <div class="czap-modal__panel" role="document">
+        <div class="czap-modal__head">
+            <div>
+                <h2 class="czap-modal__title" id="czap-order-modal-title">
+                    <i class="uil uil-exclamation-circle"></i> <span id="czap-order-heading">Cancel order</span>
+                </h2>
+                <p class="czap-modal__sub" id="czap-order-sub"></p>
+            </div>
+            <button type="button" class="czap-modal__x" data-czap-close aria-label="Close">&times;</button>
+        </div>
+
+        <div class="czap-modal__body">
+            <div class="czap-panel czap-panel--soft" style="margin-bottom:18px">
+                <p class="czap-panel__title" style="margin:0"><i class="uil uil-box"></i> <span id="czap-order-product"></span></p>
+                <p class="czap-help" style="margin-top:6px">Order #<span id="czap-order-number"></span></p>
+            </div>
+
+            <div id="czap-order-reason-wrap" hidden>
+                <label class="czap-field__label" for="czap-order-reason">Why are you returning this?<span class="czap-req">*</span></label>
+                <select class="czap-select" id="czap-order-reason">
+                    <option value="">Select a reason</option>
+                    <option>Wrong size or fit</option>
+                    <option>Item damaged or defective</option>
+                    <option>Not what I expected</option>
+                    <option>Received the wrong item</option>
+                    <option>Changed my mind</option>
+                </select>
+                <p class="czap-help">
+                    This helps us send the right pickup and sort the refund faster. Anything else we
+                    should know? <a href="<?= base_url('my-account/support') ?>">Raise a support ticket</a>.
+                </p>
+            </div>
+
+            <div class="czap-alert czap-alert--warn" style="margin:18px 0 0">
+                <i class="uil uil-exclamation-triangle"></i>
+                <span id="czap-order-warning"></span>
+            </div>
+
+            <div id="czap-order-msg" style="display:none;margin:16px 0 0"></div>
+        </div>
+
+        <div class="czap-modal__foot">
+            <button type="button" class="czap-btn czap-btn--quiet" data-czap-close>Keep my order</button>
+            <button type="button" class="czap-btn czap-btn--solid-danger" id="czap-order-confirm">
+                <i class="uil uil-check"></i> <span>Confirm</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<script src="<?= add_ver(THEME_ASSETS_URL . 'js/' . THEME . '/orders.js') ?>"></script>

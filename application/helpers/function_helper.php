@@ -757,17 +757,31 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
 
     if ($sort == 'pv.price' && !empty($sort) && $sort != NULL) {
 
-        // $t->db->order_by("IF( pv.special_price > 0 , pv.special_price , pv.price )" . $order, False);
-        $t->db->order_by("IF(pv.special_price > 0,
-             IF(p.is_prices_inclusive_tax = 1,
-                  pv.special_price,
-                  pv.special_price + ((pv.special_price * p.tax )/100)
-             ),
-            IF(p.is_prices_inclusive_tax = 1,
-                 pv.price,
-                 pv.price  + ((pv.price * p.tax )/100)
-            )
-               ) " . $order, false);
+        /*
+         * Price sorting used to silently do nothing.
+         *
+         * The old expression added tax with `p.tax`, but `p.tax` is a foreign key into
+         * `taxes` (see the LEFT JOIN on `taxes tax` below), not a percentage - and it is
+         * NULL for every product on this catalogue. `price + ((price * NULL)/100)` is NULL,
+         * so the whole ORDER BY key was NULL on every row and MySQL kept the rows in their
+         * natural order: "Price - Low To High" returned exactly the default listing.
+         *
+         * The tax component now comes from `tax.percentage` (COALESCEd to 0 so a product
+         * with no tax row still sorts on its own price), matching how tax_percentage is
+         * resolved further down when the price fields are built for the response.
+         *
+         * The key is also aggregated, because this query GROUP BYs p.id while LEFT JOINing
+         * product_variants - a variable product has several prices and an un-aggregated
+         * ORDER BY would pick an arbitrary one. Ascending sorts on the cheapest variant and
+         * descending on the dearest, which is what the grid shows as the product's price.
+         */
+        $effective_price = "IF(pv.special_price > 0,
+                 pv.special_price * (1 + IF(p.is_prices_inclusive_tax = 1, 0, COALESCE(tax.percentage, 0) / 100)),
+                 pv.price * (1 + IF(p.is_prices_inclusive_tax = 1, 0, COALESCE(tax.percentage, 0) / 100))
+            )";
+
+        $aggregate = (strtoupper(trim((string)$order)) == 'DESC') ? 'MAX' : 'MIN';
+        $t->db->order_by($aggregate . '(' . $effective_price . ') ' . $order, false);
     }
 
 
@@ -11469,6 +11483,281 @@ function order_status_label($status)
 }
 
 /**
+ * Badge tone for an order status, for the `czap-badge--*` classes in
+ * account-suite.css.
+ *
+ * Lives beside order_status_label() so the three storefront order screens
+ * (dashboard, orders list, order details) cannot drift into colouring the same
+ * status three different ways. Returns 'ok' | 'bad' | 'info' | 'warn'.
+ */
+/**
+ * Prepares the admin-authored About Us copy for the About page.
+ *
+ * The stored blob is 50 flat <p> tags with no headings at all - the section
+ * titles are written as paragraphs containing nothing but a <strong>, which is
+ * what a WYSIWYG produces when someone bolds a line and presses return. Printed
+ * raw that is an unscannable wall of text.
+ *
+ * So those paragraphs are promoted to real <h2>s. NOT all of them: of the ten
+ * such paragraphs in the current copy, four are emphasised SENTENCES rather than
+ * titles ("Our mission is simple:", "But our dream is global."). Promoting those
+ * would invent nonsense headings, so a line only counts as a title when it is
+ * short and does not read as a sentence - no trailing colon or full stop. The
+ * rest keep their emphasis and stay in the prose where they belong.
+ *
+ * Returns ['html' => ..., 'sections' => [['id' => .., 'text' => ..], ..]].
+ */
+function about_page_prepare($html)
+{
+    $html = (string) $html;
+    if (trim($html) === '') {
+        return ['html' => '', 'sections' => []];
+    }
+
+    $sections = [];
+    $used = [];
+
+    $promoted = preg_replace_callback(
+        // A paragraph whose entire content is one <strong>/<b>.
+        '#<p>\s*<(strong|b)>(.*?)</\1>\s*</p>#is',
+        function ($m) use (&$sections, &$used) {
+            $raw = trim(preg_replace('/\s+/u', ' ', html_entity_decode(strip_tags($m[2]), ENT_QUOTES, 'UTF-8')));
+
+            $is_title = ($raw !== ''
+                // Long enough to be prose is not a heading.
+                && mb_strlen($raw) <= 45
+                // A heading does not end in punctuation that continues a thought.
+                && !preg_match('/[:.,;!?]$/u', $raw)
+                // Nor does it contain sentence-internal punctuation.
+                && strpos($raw, '.') === false);
+
+            if (!$is_title) {
+                return $m[0];
+            }
+
+            $slug = strtolower(preg_replace('/[^a-z0-9]+/i', '-', $raw));
+            $slug = 'about-' . trim($slug, '-');
+            if (isset($used[$slug])) {
+                $used[$slug]++;
+                $slug .= '-' . $used[$slug];
+            } else {
+                $used[$slug] = 1;
+            }
+
+            $sections[] = ['id' => $slug, 'text' => $raw];
+
+            return '<h2 id="' . $slug . '">' . html_escape($raw) . '</h2>';
+        },
+        $html
+    );
+
+    return ['html' => $promoted, 'sections' => $sections];
+}
+
+/**
+ * Prepares an admin-authored policy document (Terms, Privacy, Return, Shipping)
+ * for the shared legal-page layout.
+ *
+ * These four documents are stored as HTML blobs in `settings` and were printed
+ * raw into a bare container, which left three problems the reader could see:
+ *
+ *  - TWO <h1>s on the page. The Return and Shipping documents open with their
+ *    own <h1>, and the view printed a second <h1> of its own above it. (Terms
+ *    and Privacy do not, so the duplication appeared on half the pages - which
+ *    is exactly the sort of inconsistency you get from four copy-pasted views.)
+ *  - No way to navigate 25 numbered clauses other than scrolling, and no way to
+ *    link anyone to one of them.
+ *  - "Last Updated: ..." buried as the first paragraph of the prose instead of
+ *    presented as document metadata.
+ *
+ * Returns ['html' => prose with id="" anchors on every clause,
+ *          'toc'  => [['id' => .., 'text' => ..], ..],
+ *          'updated' => 'July 19, 2026' | ''].
+ *
+ * Done server-side with DOM rather than in JS so the anchors are real (a
+ * /terms-and-conditions#refunds link works on first paint, and for a crawler),
+ * and rather than with regex because these blobs are hand-edited in a WYSIWYG
+ * and their exact tag soup is not something to pattern-match against.
+ */
+function legal_page_prepare($html)
+{
+    $empty = ['html' => '', 'toc' => [], 'updated' => ''];
+
+    $html = (string) $html;
+    if (trim($html) === '') {
+        return $empty;
+    }
+
+    if (!class_exists('DOMDocument')) {
+        // No dom extension: degrade to the raw document rather than a blank page.
+        return ['html' => $html, 'toc' => [], 'updated' => ''];
+    }
+
+    $doc = new DOMDocument();
+    // The blob is a FRAGMENT. Wrapping it keeps libxml from inventing <html>
+    // structure, and the XML declaration is what makes it treat the input as
+    // UTF-8 (without it, "&" and non-ASCII in the prose come out mojibake).
+    $previous = libxml_use_internal_errors(true);
+    $loaded = $doc->loadHTML(
+        '<?xml encoding="UTF-8"?><div id="czlegal-root">' . $html . '</div>',
+        LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD
+    );
+    libxml_clear_errors();
+    libxml_use_internal_errors($previous);
+
+    if (!$loaded) {
+        return ['html' => $html, 'toc' => [], 'updated' => ''];
+    }
+
+    $root = $doc->getElementById('czlegal-root');
+    if ($root === null) {
+        return ['html' => $html, 'toc' => [], 'updated' => ''];
+    }
+
+    $xpath = new DOMXPath($doc);
+    $updated = '';
+
+    /* ---- 1. drop the document's own <h1>; the layout renders the title ---- */
+    foreach (iterator_to_array($xpath->query('.//h1', $root)) as $h1) {
+        $h1->parentNode->removeChild($h1);
+    }
+
+    /* ---- 2. lift "Last Updated: <date>" out of the prose ----
+     * Matched on <p> AND <h2>/<h3>: three of the four documents put the line in
+     * a paragraph but the Privacy one puts it in an <h2>, where it would
+     * otherwise become the first entry in the table of contents ("Last Updated:
+     * 19/07/2026" as a clause). Whichever element carries it is removed, so the
+     * date is shown once, as metadata. */
+    foreach (iterator_to_array($xpath->query('.//p | .//h2 | .//h3', $root)) as $node) {
+        $text = trim(preg_replace('/\s+/u', ' ', $node->textContent));
+        if (preg_match('/^last\s+updated\s*:?\s*(.+)$/iu', $text, $m)) {
+            $updated = trim($m[1], " \t\n\r\0\x0B.:");
+            $node->parentNode->removeChild($node);
+            // Only the first one - a document that mentions the phrase again
+            // further down is talking about something else.
+            break;
+        }
+    }
+
+    /* ---- 2b. drop now-orphaned leading/trailing rules ----
+     * The documents put an <hr> after their title block. With the title and the
+     * "Last Updated" line lifted out, that rule is left stranded at the very top
+     * of the prose, drawing a line under nothing. Same at the end. Walks into
+     * the wrapper element the documents use (<section class="terms-conditions">)
+     * because that is where the rules actually live. */
+    $container = $root;
+    // Descend past a single wrapper that holds the whole document.
+    while (true) {
+        $elements = [];
+        foreach ($container->childNodes as $child) {
+            if ($child->nodeType === XML_ELEMENT_NODE) {
+                $elements[] = $child;
+            } elseif ($child->nodeType === XML_TEXT_NODE && trim($child->textContent) !== '') {
+                $elements[] = $child;
+            }
+        }
+        if (count($elements) === 1 && $elements[0]->nodeType === XML_ELEMENT_NODE
+            && in_array(strtolower($elements[0]->nodeName), ['div', 'section', 'article'], true)) {
+            $container = $elements[0];
+            continue;
+        }
+        break;
+    }
+
+    $edge = function ($reverse) use ($container) {
+        $children = iterator_to_array($container->childNodes);
+        if ($reverse) {
+            $children = array_reverse($children);
+        }
+        foreach ($children as $child) {
+            if ($child->nodeType === XML_TEXT_NODE) {
+                if (trim($child->textContent) === '') {
+                    continue; // whitespace between tags
+                }
+                return null;
+            }
+            if ($child->nodeType === XML_COMMENT_NODE) {
+                continue;
+            }
+            return $child;
+        }
+        return null;
+    };
+
+    foreach ([false, true] as $fromEnd) {
+        $node = $edge($fromEnd);
+        while ($node !== null && strtolower($node->nodeName) === 'hr') {
+            $node->parentNode->removeChild($node);
+            $node = $edge($fromEnd);
+        }
+    }
+
+    /* ---- 3. anchor every clause and build the contents list ---- */
+    $toc = [];
+    $used = [];
+    foreach ($xpath->query('.//h2', $root) as $index => $h2) {
+        $text = trim(preg_replace('/\s+/u', ' ', $h2->textContent));
+        if ($text === '') {
+            continue;
+        }
+
+        // Slug from the heading, minus the leading clause number ("1. About
+        // Cretzo" -> "about-cretzo") so an anchor survives a clause being
+        // renumbered when a new one is inserted above it.
+        $slug = preg_replace('/^\d+[\.\)]?\s*/u', '', $text);
+        $slug = strtolower(trim($slug));
+        $slug = preg_replace('/[^a-z0-9]+/', '-', $slug);
+        $slug = trim($slug, '-');
+        if ($slug === '') {
+            $slug = 'clause';
+        }
+        $slug = 'clause-' . $slug;
+
+        // Two clauses can legitimately share a title across a long document.
+        if (isset($used[$slug])) {
+            $used[$slug]++;
+            $slug .= '-' . $used[$slug];
+        } else {
+            $used[$slug] = 1;
+        }
+
+        $h2->setAttribute('id', $slug);
+        $toc[] = ['id' => $slug, 'text' => $text];
+    }
+
+    /* ---- 4. serialise the children, not the wrapper ---- */
+    $out = '';
+    foreach ($root->childNodes as $child) {
+        $out .= $doc->saveHTML($child);
+    }
+
+    return ['html' => $out, 'toc' => $toc, 'updated' => $updated];
+}
+
+function order_status_tone($status)
+{
+    switch (trim(strtolower((string) $status))) {
+        case 'delivered':
+        case 'return_request_approved':
+            return 'ok';
+
+        case 'cancelled':
+        case 'returned':
+        case 'return_request_decline':
+            return 'bad';
+
+        case 'shipped':
+        case 'out_for_delivery':
+            return 'info';
+
+        /* awaiting / received / processed / return_request_pending: in flight,
+         * nothing has gone wrong and nothing is finished. */
+        default:
+            return 'warn';
+    }
+}
+
+/**
  * When an order item reached a given status, or '' if it never did.
  *
  * `order_items`.`status` is the status HISTORY: a list of [status, timestamp] PAIRS. Both
@@ -12384,9 +12673,22 @@ function storefront_pagination($base_url, $total_rows, $per_page, $extra = [])
         'base_url' => $base_url,
         'total_rows' => $total_rows,
         'per_page' => $per_page,
-        // 5 numbers keeps the control inside a phone screen without scrolling;
-        // the CSS lets it scroll horizontally if a caller asks for more.
-        'num_links' => 2,
+        /*
+         * Ask the library for EVERY page number, then trim the list down in
+         * storefront_pagination_window() below.
+         *
+         * num_links used to be 2, which is CI's "n either side of the current
+         * page" - so the pager showed a bare sliding window (". . . 3 4 [5] 6 7")
+         * with no way to see how many pages there are or to reach the first or
+         * last one: from page 1 you could only ever see pages 1-3, then 2-4, and
+         * so on. The first and last page now always show, with an ellipsis
+         * standing in for each hidden run.
+         *
+         * Rendering all the numbers first and then trimming keeps CI in charge of
+         * building the hrefs, which differ per caller (uri_segment 3/4/5, and
+         * reuse_query_string), so none of that URL logic is duplicated here.
+         */
+        'num_links' => max(1, (int) ceil($total_rows / $per_page)),
         'use_page_numbers' => true,
         'reuse_query_string' => true,
         'page_query_string' => false,
@@ -12430,6 +12732,8 @@ function storefront_pagination($base_url, $total_rows, $per_page, $extra = [])
         return '';
     }
 
+    $html = storefront_pagination_window($html);
+
     // Symmetry: put back whichever arrow the library dropped because we are on
     // the first or the last page.
     if (strpos($html, 'cz-page-prev') === false) {
@@ -12448,6 +12752,107 @@ function storefront_pagination($base_url, $total_rows, $per_page, $extra = [])
     }
 
     return $html;
+}
+
+/**
+ * Trims a full list of page numbers down to first + a window around the current
+ * page + last, with an ellipsis standing in for each hidden run.
+ *
+ * storefront_pagination() hands the library a num_links big enough to emit every
+ * page, then calls this. Working on the finished markup - rather than building the
+ * numbers here - means the hrefs are still the library's, so segment-based and
+ * query-string pagers keep working unchanged.
+ *
+ *   page 1 of 9    ->  <  [1] 2 ... 9  >
+ *   page 5 of 9    ->  <  1 ... 4 [5] 6 ... 9  >
+ *   page 9 of 9    ->  <  1 ... 8 [9]  >
+ *
+ * A gap of exactly one page is filled with that page's own number instead of an
+ * ellipsis: "1 ... 3" would hide a single page behind a wider control than just
+ * showing "1 2 3".
+ */
+function storefront_pagination_window($html, $window = 1)
+{
+    // Only the numbered items: the prev/next items carry extra classes
+    // (cz-page-prev / cz-page-next) and so do not match.
+    $pattern = '#<li class="page-item(?: active)?">.*?</li>#s';
+    if (!preg_match_all($pattern, $html, $matches, PREG_OFFSET_CAPTURE)) {
+        return $html;
+    }
+
+    $items = $matches[0];
+    $total_pages = count($items);
+    if ($total_pages < 2) {
+        return $html;
+    }
+
+    // 1-based position of the current page among the numbered items.
+    $current = 1;
+    foreach ($items as $i => $item) {
+        if (strpos($item[0], 'page-item active') !== false) {
+            $current = $i + 1;
+            break;
+        }
+    }
+
+    $keep = storefront_pagination_keep_pages($current, $total_pages, $window);
+
+    // Rebuild the run of numbered items in place, so whatever the library put
+    // before (prev) and after (next) them is preserved untouched.
+    $first_offset = $items[0][1];
+    $last_offset = $items[$total_pages - 1][1] + strlen($items[$total_pages - 1][0]);
+
+    $ellipsis = '<li class="page-item cz-page-gap" aria-hidden="true"><span class="page-link">&hellip;</span></li>';
+    $rebuilt = '';
+    $previous = 0;
+    foreach ($keep as $page) {
+        if ($previous !== 0 && $page > $previous + 1) {
+            $rebuilt .= $ellipsis;
+        }
+        $rebuilt .= $items[$page - 1][0];
+        $previous = $page;
+    }
+
+    return substr($html, 0, $first_offset) . $rebuilt . substr($html, $last_offset);
+}
+
+/**
+ * The page numbers a pager shows: always the first and the last, plus $window
+ * pages either side of the current one. Shared with the AJAX twin in
+ * assets/front_end/cretzo/js/cretzo/product-listing.js - keep the two in step.
+ *
+ * Returns an ascending, de-duplicated list of 1-based page numbers.
+ */
+function storefront_pagination_keep_pages($current, $total_pages, $window = 1)
+{
+    $current = min(max(1, (int) $current), (int) $total_pages);
+
+    $pages = [1, $total_pages];
+    for ($p = $current - $window; $p <= $current + $window; $p++) {
+        if ($p >= 1 && $p <= $total_pages) {
+            $pages[] = $p;
+        }
+    }
+
+    /*
+     * Near an end the window is clipped ("1 [2] 3 ... 9" is one number shorter
+     * than "1 ... 4 [5] 6 ... 9"), which made the control visibly change width
+     * as you paged. Spend the clipped slots on the other side so the number of
+     * pages shown stays the same wherever you are.
+     */
+    $target = min($total_pages, 2 + (2 * $window + 1));
+    for ($p = 1; count(array_unique($pages)) < $target && $p <= $total_pages; $p++) {
+        if ($current <= $window + 2) {
+            $pages[] = min($total_pages, $current + $window + $p);
+        } else {
+            $pages[] = max(1, $current - $window - $p);
+        }
+    }
+
+    $pages = array_values(array_unique($pages));
+    sort($pages);
+
+    return $pages;
 }
 
 /**

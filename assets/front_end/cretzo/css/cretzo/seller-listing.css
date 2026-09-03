@@ -1,0 +1,750 @@
+/* ==========================================================================
+   Cretzo - seller directory (/sellers)
+   --------------------------------------------------------------------------
+   Every selector is `czsl` prefixed and scoped under `.czsl`, so nothing here
+   can reach the product-listing / card styles this page used to borrow.
+   Loaded automatically by include-css.php from $main_page = 'seller-listing'.
+   ========================================================================== */
+
+.czsl {
+    --czs-orange: var(--color-orange, #F2822E);
+    --czs-orange-dark: var(--color-orange-dark, #db7323);
+    --czs-orange-soft: #fff4ea;
+    --czs-orange-line: #fbd9bb;
+
+    --czs-ink: #1f2430;
+    --czs-ink-2: #4a5160;
+    --czs-ink-3: #8b919e;
+    --czs-line: #e9eaee;
+    --czs-line-2: #f2f3f5;
+    --czs-bg: #f7f8fa;
+
+    --czs-r: 16px;
+    --czs-r-sm: 10px;
+    --czs-r-pill: 999px;
+    --czs-shadow: 0 1px 2px rgba(23, 26, 33, .04), 0 8px 24px -14px rgba(23, 26, 33, .16);
+    --czs-shadow-hover: 0 2px 4px rgba(23, 26, 33, .05), 0 18px 34px -18px rgba(23, 26, 33, .28);
+
+    display: block;
+    width: 100%;
+    max-width: 1220px;
+    margin: 0 auto;
+    padding: 20px 18px 72px;
+    font-family: "K2D", "Assistant", system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--czs-ink);
+    -webkit-font-smoothing: antialiased;
+}
+
+.czsl *,
+.czsl *::before,
+.czsl *::after {
+    box-sizing: border-box;
+}
+
+.czsl__sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* ------------------------------- breadcrumb ------------------------------- */
+.czsl__crumbs {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 14px;
+    font-size: 13px;
+    color: var(--czs-ink-3);
+    flex-wrap: wrap;
+}
+
+.czsl__crumbs a {
+    color: var(--czs-ink-3);
+    text-decoration: none;
+}
+
+.czsl__crumbs a:hover {
+    color: var(--czs-orange);
+}
+
+.czsl__crumbs span {
+    color: var(--czs-ink);
+    font-weight: 600;
+}
+
+/* ---------------------------------- hero ---------------------------------- */
+.czsl__hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 22px 24px;
+    border: 1px solid var(--czs-orange-line);
+    border-radius: var(--czs-r);
+    background:
+        radial-gradient(120% 160% at 100% 0%, #fff7ef 0%, #ffffff 62%);
+    box-shadow: var(--czs-shadow);
+}
+
+.czsl__title {
+    margin: 0 0 6px;
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -.01em;
+    color: var(--czs-ink);
+}
+
+.czsl__subtitle {
+    margin: 0;
+    max-width: 62ch;
+    font-size: 14.5px;
+    line-height: 1.6;
+    color: var(--czs-ink-2);
+}
+
+.czsl__hero-stat {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 108px;
+    padding: 12px 16px;
+    border-radius: var(--czs-r-sm);
+    background: var(--czs-orange-soft);
+    border: 1px solid var(--czs-orange-line);
+}
+
+.czsl__hero-stat-num {
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--czs-orange-dark);
+}
+
+.czsl__hero-stat-label {
+    margin-top: 4px;
+    font-size: 12px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--czs-ink-3);
+}
+
+/* -------------------------------- toolbar --------------------------------- */
+.czsl__toolbar {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin: 18px 0 14px;
+    padding: 14px 16px;
+    border: 1px solid var(--czs-line);
+    border-radius: var(--czs-r);
+    background: #fff;
+    box-shadow: var(--czs-shadow);
+}
+
+.czsl__search {
+    position: relative;
+    flex: 1 1 300px;
+    min-width: 240px;
+}
+
+.czsl__search input {
+    width: 100%;
+    height: 44px;
+    padding: 0 38px 0 38px;
+    font-size: 14.5px;
+    color: var(--czs-ink);
+    background: var(--czs-bg);
+    border: 1px solid var(--czs-line);
+    border-radius: var(--czs-r-pill);
+    outline: none;
+    transition: border-color .15s, box-shadow .15s, background .15s;
+}
+
+.czsl__search input::placeholder {
+    color: var(--czs-ink-3);
+}
+
+.czsl__search input:focus {
+    background: #fff;
+    border-color: var(--czs-orange);
+    box-shadow: 0 0 0 3px rgba(242, 130, 46, .16);
+}
+
+/* Chrome draws its own clear "x" on type=search, which would sit under ours. */
+.czsl__search input::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.czsl__search-icon {
+    position: absolute;
+    top: 50%;
+    left: 14px;
+    transform: translateY(-50%);
+    font-size: 17px;
+    color: var(--czs-ink-3);
+    pointer-events: none;
+}
+
+.czsl__search-clear {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    transform: translateY(-50%);
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    color: var(--czs-ink-3);
+    background: transparent;
+    border: 0;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.czsl__search-clear:hover {
+    color: var(--czs-ink);
+    background: var(--czs-line-2);
+}
+
+.czsl__controls {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.czsl__field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.czsl__field-label {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--czs-ink-3);
+}
+
+.czsl__select {
+    height: 44px;
+    min-width: 158px;
+    padding: 0 34px 0 12px;
+    font-size: 14px;
+    font-family: inherit;
+    color: var(--czs-ink);
+    background-color: #fff;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%238b919e' d='M1.4 0 6 4.6 10.6 0 12 1.4 6 7.4 0 1.4z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    border: 1px solid var(--czs-line);
+    border-radius: var(--czs-r-sm);
+    -webkit-appearance: none;
+    appearance: none;
+    cursor: pointer;
+    outline: none;
+    transition: border-color .15s, box-shadow .15s;
+}
+
+.czsl__select--narrow {
+    min-width: 82px;
+}
+
+.czsl__select:focus {
+    border-color: var(--czs-orange);
+    box-shadow: 0 0 0 3px rgba(242, 130, 46, .16);
+}
+
+.czsl__viewtoggle {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    background: var(--czs-bg);
+    border: 1px solid var(--czs-line);
+    border-radius: var(--czs-r-sm);
+}
+
+.czsl__viewbtn {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    font-size: 17px;
+    color: var(--czs-ink-3);
+    background: transparent;
+    border: 0;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background .15s, color .15s;
+}
+
+.czsl__viewbtn:hover {
+    color: var(--czs-ink);
+}
+
+.czsl__viewbtn.is-active {
+    color: var(--czs-orange-dark);
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(23, 26, 33, .12);
+}
+
+.czsl__apply {
+    height: 44px;
+    padding: 0 18px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    background: var(--czs-orange);
+    border: 0;
+    border-radius: var(--czs-r-sm);
+    cursor: pointer;
+}
+
+.czsl__resultline {
+    margin: 0 0 16px;
+    padding-left: 2px;
+    font-size: 13.5px;
+    color: var(--czs-ink-3);
+}
+
+.czsl__resultline strong {
+    color: var(--czs-ink);
+    font-weight: 600;
+}
+
+/* --------------------------------- grid ----------------------------------- */
+.czsl__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+    gap: 18px;
+}
+
+.czsl-card {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid var(--czs-line);
+    border-radius: var(--czs-r);
+    box-shadow: var(--czs-shadow);
+    transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+
+.czsl-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--czs-orange-line);
+    box-shadow: var(--czs-shadow-hover);
+}
+
+.czsl-card__media {
+    position: relative;
+    display: grid;
+    place-items: center;
+    height: 168px;
+    overflow: hidden;
+    background: linear-gradient(180deg, #fbfbfc 0%, #f4f5f7 100%);
+    border-bottom: 1px solid var(--czs-line-2);
+}
+
+.czsl-card__media img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    padding: 18px;
+    transition: transform .3s ease;
+}
+
+.czsl-card:hover .czsl-card__media img {
+    transform: scale(1.04);
+}
+
+.czsl-card__monogram {
+    display: grid;
+    place-items: center;
+    width: 76px;
+    height: 76px;
+    font-size: 27px;
+    font-weight: 700;
+    letter-spacing: .02em;
+    color: var(--czs-orange-dark);
+    background: var(--czs-orange-soft);
+    border: 1px solid var(--czs-orange-line);
+    border-radius: 50%;
+}
+
+.czsl-card__body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1 1 auto;
+    padding: 16px;
+}
+
+.czsl-card__name {
+    margin: 0;
+    font-size: 16.5px;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.czsl-card__name a {
+    color: var(--czs-ink);
+    text-decoration: none;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.czsl-card__name a:hover {
+    color: var(--czs-orange-dark);
+}
+
+.czsl-card__seller {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin: -2px 0 0;
+    font-size: 13px;
+    color: var(--czs-ink-3);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.czsl-card__meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.czsl-card__rating {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--czs-ink-2);
+}
+
+.czsl-card__rating.is-empty .czsl-card__rating-count {
+    color: var(--czs-ink-3);
+}
+
+.czsl-card__rating-num {
+    font-weight: 700;
+    color: var(--czs-ink);
+}
+
+.czsl-card__rating-count {
+    font-size: 12.5px;
+    color: var(--czs-ink-3);
+}
+
+/* Partial-fill stars: a grey row of five with an orange row clipped over it. */
+.czsl-stars {
+    display: inline-flex;
+    gap: 1px;
+    font-size: 14px;
+    line-height: 1;
+}
+
+.czsl-star {
+    position: relative;
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+}
+
+.czsl-star__bg,
+.czsl-star__fg i {
+    display: block;
+    font-size: 1em;
+    line-height: 1;
+}
+
+.czsl-star__bg {
+    color: #dcdee3;
+}
+
+.czsl-star__fg {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    color: #f5a623;
+}
+
+.czsl-card__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--czs-ink-2);
+    background: var(--czs-bg);
+    border: 1px solid var(--czs-line);
+    border-radius: var(--czs-r-pill);
+    white-space: nowrap;
+}
+
+.czsl-card__desc {
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: var(--czs-ink-2);
+
+    /* Two lines, so a seller with a 500-word blurb cannot stretch its row. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.czsl-card__actions {
+    display: flex;
+    gap: 8px;
+    margin-top: auto;
+    padding-top: 4px;
+}
+
+/* -------------------------------- buttons --------------------------------- */
+.czsl-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 38px;
+    padding: 0 14px;
+    font-size: 13.5px;
+    font-weight: 600;
+    text-decoration: none;
+    border-radius: var(--czs-r-pill);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: background .15s, color .15s, border-color .15s;
+}
+
+.czsl-btn--primary {
+    flex: 1 1 auto;
+    color: #fff;
+    background: var(--czs-orange);
+}
+
+.czsl-btn--primary:hover,
+.czsl-btn--primary:focus {
+    color: #fff;
+    background: var(--czs-orange-dark);
+}
+
+.czsl-btn--ghost {
+    color: var(--czs-ink-2);
+    background: #fff;
+    border-color: var(--czs-line);
+}
+
+.czsl-btn--ghost:hover,
+.czsl-btn--ghost:focus {
+    color: var(--czs-orange-dark);
+    border-color: var(--czs-orange-line);
+    background: var(--czs-orange-soft);
+}
+
+/* ------------------------------- list view -------------------------------- */
+.czsl--list .czsl__grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+}
+
+.czsl--list .czsl-card {
+    flex-direction: row;
+    align-items: stretch;
+}
+
+.czsl--list .czsl-card__media {
+    flex: 0 0 190px;
+    height: auto;
+    min-height: 150px;
+    border-bottom: 0;
+    border-right: 1px solid var(--czs-line-2);
+}
+
+.czsl--list .czsl-card__body {
+    padding: 16px 18px;
+}
+
+.czsl--list .czsl-card__desc {
+    -webkit-line-clamp: 3;
+}
+
+.czsl--list .czsl-card__actions {
+    padding-top: 8px;
+}
+
+.czsl--list .czsl-btn--primary {
+    flex: 0 0 auto;
+    min-width: 148px;
+}
+
+/* --------------------------------- empty ---------------------------------- */
+.czsl__empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 56px 24px 60px;
+    background: #fff;
+    border: 1px solid var(--czs-line);
+    border-radius: var(--czs-r);
+    box-shadow: var(--czs-shadow);
+}
+
+.czsl__empty-icon {
+    display: grid;
+    place-items: center;
+    width: 66px;
+    height: 66px;
+    margin-bottom: 16px;
+    font-size: 30px;
+    color: var(--czs-orange);
+    background: var(--czs-orange-soft);
+    border-radius: 50%;
+}
+
+.czsl__empty-title {
+    margin: 0 0 8px;
+    font-size: 20px;
+    font-weight: 700;
+}
+
+.czsl__empty-text {
+    margin: 0 0 20px;
+    max-width: 46ch;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--czs-ink-2);
+}
+
+.czsl__empty-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+/* ------------------------------- pagination ------------------------------- */
+.czsl__pager {
+    margin-top: 28px;
+}
+
+/* -------------------------------- responsive ------------------------------ */
+@media (max-width: 860px) {
+    .czsl__hero {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .czsl__hero-stat {
+        flex-direction: row;
+        gap: 8px;
+        align-items: baseline;
+        min-width: 0;
+    }
+
+    .czsl__title {
+        font-size: 24px;
+    }
+
+    .czsl__controls {
+        width: 100%;
+    }
+
+    .czsl__field {
+        flex: 1 1 140px;
+    }
+
+    .czsl__select {
+        width: 100%;
+        min-width: 0;
+    }
+}
+
+@media (max-width: 640px) {
+    .czsl {
+        padding: 16px 14px 56px;
+    }
+
+    .czsl__grid {
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    }
+
+    /* One column of stacked cards on a phone - the 190px media rail plus the
+       body does not fit, and squeezing it makes the logo unreadable. */
+    .czsl--list .czsl-card {
+        flex-direction: column;
+    }
+
+    .czsl--list .czsl-card__media {
+        flex: 0 0 auto;
+        height: 150px;
+        border-right: 0;
+        border-bottom: 1px solid var(--czs-line-2);
+    }
+
+    .czsl--list .czsl-btn--primary {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+}
+
+@media (max-width: 420px) {
+    .czsl__grid {
+        grid-template-columns: 1fr;
+    }
+
+    .czsl-card__actions {
+        flex-direction: column;
+    }
+}
+
+/* RTL: only the direction-bound bits need flipping. */
+[dir="rtl"] .czsl__search input {
+    padding: 0 38px;
+}
+
+[dir="rtl"] .czsl__search-icon {
+    left: auto;
+    right: 14px;
+}
+
+[dir="rtl"] .czsl__search-clear {
+    right: auto;
+    left: 8px;
+}
+
+[dir="rtl"] .czsl__select {
+    padding: 0 12px 0 34px;
+    background-position: left 12px center;
+}
+
+[dir="rtl"] .czsl--list .czsl-card__media {
+    border-right: 0;
+    border-left: 1px solid var(--czs-line-2);
+}

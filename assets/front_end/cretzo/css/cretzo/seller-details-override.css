@@ -52,13 +52,20 @@
    margin-bottom hacks (150px / 280px / 460px) so the "Featured
    Products" section below wouldn't collide with the overflow.
    Let the band size to its content and use a normal gap instead.
+
+   `height: auto` is the declaration that actually does the work and
+   it MUST stay live: it was previously commented out, which left the
+   base 60px in force, so the circles kept spilling out of the strip
+   and landed on top of "Featured Products" and the first row of cards
+   on narrow screens (the guessed margin-bottom can only ever match
+   one particular number of wrapped rows).
    ============================================================ */
 .aboutus-three{
-    /* height: auto; */
+    height: auto;
     min-height: 0;
     margin: 0 auto 48px;
     padding: 22px 16px;
-    align-items: center;
+    align-items: flex-start;
     row-gap: 20px;
 }
 .aboutus-three .catagory-container p{
@@ -67,12 +74,58 @@
     font-weight: 600;
     text-align: center;
 }
+/* Long names ("Jewellery and Accessories", "Uncategorised") used to run
+   into the neighbouring circle or get clipped by the strip. Cap the cell
+   to the circle's width and let the label wrap under it instead. */
+.aboutus-three .catagory-container{
+    width: 96px;
+    max-width: 96px;
+}
+.aboutus-three .catagory-container p{
+    width: 100%;
+    overflow-wrap: break-word;
+    line-height: 1.25;
+}
 .catagory-img{
     height: 96px;
     width: 96px;
+    flex: 0 0 auto;
 }
 @media screen and (max-width: 600px){
-    .aboutus-three{ gap: 18px; padding: 18px 12px; }
+    /* Base seller-details.css re-declares height/gap/margin-bottom inside its
+       own max-width:400px block; these win because this file loads after it. */
+    .aboutus-three{
+        height: auto;
+        gap: 18px;
+        padding: 18px 12px;
+        margin: 0 auto 28px;
+    }
     .catagory-img{ height: 70px; width: 70px; border-width: 2px; }
+    .aboutus-three .catagory-container{ width: 74px; max-width: 74px; }
     .aboutus-three .catagory-container p{ font-size: 12px; }
+}
+@media screen and (max-width: 400px){
+    .aboutus-three{
+        height: auto;
+        gap: 14px;
+        margin: 0 auto 24px;
+    }
+    .catagory-img{ height: 62px; width: 62px; }
+    .aboutus-three .catagory-container{ width: 66px; max-width: 66px; }
+    .aboutus-three .catagory-container p{ font-size: 11px; }
+}
+/* Initial-letter stand-in for a category with no image (see seller-details.php). */
+.catagory-img--empty{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 32px;
+    line-height: 1;
+    color: var(--color-orange);
+    background-color: #fff;
+    text-transform: uppercase;
+}
+@media screen and (max-width: 600px){
+    .catagory-img--empty{ font-size: 24px; }
 }

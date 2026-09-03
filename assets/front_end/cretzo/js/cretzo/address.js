@@ -100,53 +100,103 @@ function setupActionButtons(){
 
         var row = $(this).data("row");
         updateEditAddressForm(row);
-        $("#edit-address-modal").modal('show');
+        CzAccount.open('#edit-address-modal');
     });
 
     /* Set As Default Address */
-    $('.address-action-btn.address-action-btn-default').click(function(e) {
-        e.preventDefault(), confirm("Are you sure ? You want to set this address as default?") && $.ajax({
-            type: "POST",
-            data: {
-                id: $(this).data("id"),
-                [csrfName]: csrfHash
-            },
-            url: base_url + "my-account/set-default-address",
-            dataType: "json",
-            success: function (e) {
-                csrfName = e.csrfName, csrfHash = e.csrfHash, 0 == e.error ? (Toast.fire({
-                    icon: "success",
-                    title: e.message
-                }),
-                window.location.reload()
-                /* , setTimeout(function () {
-                    window.location.reload()
-                }, 1e3) */
-                ) : Toast.fire({
-                    icon: "error",
-                    title: e.message
-                })
+    $('.address-action-btn.address-action-btn-default').click(function (e) {
+        e.preventDefault();
+        var id = $(this).data("id");
+
+        /* Was window.confirm(). That dialog cannot be styled, does not say WHICH
+           address it is about, and some mobile browsers suppress it after a few
+           uses - which turned this button into a no-op with no feedback at all. */
+        CzAccount.confirm({
+            title: 'Make this your default address?',
+            text: 'New orders will be delivered here unless you pick another address at checkout.',
+            confirmText: 'Set as default',
+            icon: 'uil-check-circle'
+        }).then(function (ok) {
+            if (!ok) {
+                return;
             }
-        })
+            $.ajax({
+                type: "POST",
+                data: {
+                    id: id,
+                    [csrfName]: csrfHash
+                },
+                url: base_url + "my-account/set-default-address",
+                dataType: "json",
+                success: function (res) {
+                    csrfName = res.csrfName;
+                    csrfHash = res.csrfHash;
+                    if (res.error == 0) {
+                        Toast.fire({ icon: "success", title: res.message });
+                        window.location.reload();
+                    } else {
+                        Toast.fire({ icon: "error", title: res.message });
+                    }
+                },
+                /* Without this a rejected POST (403 on an expired session, 500)
+                   did nothing visible whatsoever. */
+                error: function (xhr) {
+                    Toast.fire({
+                        icon: "error",
+                        title: xhr.status === 403
+                            ? "Your session expired. Please reload the page."
+                            : "Could not update the address. Please try again."
+                    });
+                }
+            });
+        });
     });
 
     /* Delete Address */
-    $('.address-action-btn.address-action-btn-remove').click(function(e) {
-        e.preventDefault(), confirm("Are you sure ? You want to delete this address?") && $.ajax({
-            type: "POST",
-            data: {
-                id: $(this).data("id"),
-                [csrfName]: csrfHash
-            },
-            url: base_url + "my-account/delete-address",
-            dataType: "json",
-            success: function (e) {
-                csrfName = e.csrfName, csrfHash = e.csrfHash, 0 == e.error ? window.location.reload() : Toast.fire({
-                    icon: "error",
-                    title: e.message
-                })
+    $('.address-action-btn.address-action-btn-remove').click(function (e) {
+        e.preventDefault();
+        var id = $(this).data("id");
+        var name = $(this).data("name");
+
+        CzAccount.confirm({
+            title: 'Remove this address?',
+            text: (name ? '"' + name + '" ' : 'This address ') +
+                'will be deleted from your account. Orders already placed to it are not affected.',
+            confirmText: 'Remove address',
+            tone: 'danger',
+            icon: 'uil-trash-alt'
+        }).then(function (ok) {
+            if (!ok) {
+                return;
             }
-        })    
+            $.ajax({
+                type: "POST",
+                data: {
+                    id: id,
+                    [csrfName]: csrfHash
+                },
+                url: base_url + "my-account/delete-address",
+                dataType: "json",
+                success: function (res) {
+                    csrfName = res.csrfName;
+                    csrfHash = res.csrfHash;
+                    if (res.error == 0) {
+                        Toast.fire({ icon: "success", title: res.message || "Address removed." });
+                        window.location.reload();
+                    } else {
+                        Toast.fire({ icon: "error", title: res.message });
+                    }
+                },
+                error: function (xhr) {
+                    Toast.fire({
+                        icon: "error",
+                        title: xhr.status === 403
+                            ? "Your session expired. Please reload the page."
+                            : "Could not remove the address. Please try again."
+                    });
+                }
+            });
+        });
     });
 }
 
@@ -173,8 +223,15 @@ function updateEditAddressForm(row){
     /* clear any pincode helper text left over from a previous edit */
     $("#edit_pincode_status").text('').removeClass('text-danger text-success');
 
+    /* The address-type pills read their state from a .is-checked class that
+       account-suite.js mirrors off the `change` event. .prop("checked") does not
+       fire one, so both the input and the pill are set here - otherwise the
+       stored type was selected in the form but no pill looked selected. */
+    $('#edit-address-form .czap-radio').removeClass('is-checked');
     if (row.type) {
-        $('#edit-address-form input[type=radio][value=' + row.type.toLowerCase() + ']').prop('checked', true);
+        $('#edit-address-form input[type=radio][value=' + row.type.toLowerCase() + ']')
+            .prop('checked', true)
+            .closest('.czap-radio').addClass('is-checked');
     }
 }
 
@@ -201,7 +258,7 @@ $("#edit-address-form").on("submit", function (e) {
                         // $("#edit-address-form")[0].reset(), 
                         // $("#address_list_table").bootstrapTable("refresh"), 
                         setTimeout(function () {
-                            $("#edit-address-modal").modal("hide");
+                            CzAccount.close('#edit-address-modal');
                             $("#edit-address-form")[0].reset();
                             
                             // Check if the URL contains 'redirect=cart'
@@ -247,7 +304,7 @@ $("#add-address-form").on("submit", function (e) {
                     // $("#add-address-form")[0].reset(), 
                     // $("#address_list_table").bootstrapTable("refresh"),
                     setTimeout(function () {
-                        $("#add-address-modal").modal("hide");
+                        CzAccount.close('#add-address-modal');
                         $("#add-address-form")[0].reset();
 
                         // Check if the URL contains 'redirect=cart'

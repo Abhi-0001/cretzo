@@ -1,0 +1,2056 @@
+/* ==========================================================================
+   Cretzo - My Account design system  ("czap" = CretZo Account Page)
+   --------------------------------------------------------------------------
+   One stylesheet for every page under /my-account. include-css.php emits it
+   AFTER the per-page stylesheets so it always wins, and every selector is
+   prefixed `czap-` so the older per-page sheets (my-account.css, orders.css,
+   address.css, dashboard.css, ...) no longer match anything the rewritten
+   views render - they are inert rather than fighting this file.
+
+   Contents
+     1. tokens
+     2. page shell (hero + sidebar + content card)
+     3. navigation
+     4. primitives: buttons, chips, badges, fields
+     5. blocks: stat tiles, action tiles, lists, timeline, empty states
+     6. data tables (bootstrap-table skin)
+     7. popup system (.czap-modal)
+     8. responsive
+   ========================================================================== */
+
+/* ============================== 1. tokens ============================== */
+.czap {
+    /* Brand. Literal fallbacks so the file still works if cretzo-global.css is
+       ever loaded after it. */
+    --czap-orange: var(--color-orange, #F2822E);
+    --czap-orange-dark: var(--color-orange-dark, #db7323);
+    --czap-orange-soft: #fff4ea;
+    --czap-orange-line: #fbd9bb;
+
+    --czap-ink: #1f2430;
+    --czap-ink-2: #59606e;
+    --czap-ink-3: #8b919e;
+    --czap-line: #e9eaee;
+    --czap-line-2: #f2f3f5;
+    --czap-bg: #f7f8fa;
+    --czap-card: #ffffff;
+
+    --czap-ok: #1d9d5c;
+    --czap-ok-soft: #e8f7ee;
+    --czap-warn: #b8791a;
+    --czap-warn-soft: #fff6e3;
+    --czap-bad: #d13a3a;
+    --czap-bad-soft: #fdecec;
+    --czap-info: #2b6fd6;
+    --czap-info-soft: #ecf3fd;
+
+    --czap-r-lg: 18px;
+    --czap-r: 14px;
+    --czap-r-sm: 10px;
+    --czap-r-pill: 999px;
+
+    --czap-shadow: 0 1px 2px rgba(23, 26, 33, .04), 0 8px 24px -14px rgba(23, 26, 33, .16);
+    --czap-shadow-lg: 0 2px 6px rgba(23, 26, 33, .05), 0 24px 60px -28px rgba(23, 26, 33, .3);
+
+    --czap-gap: 22px;
+
+    font-family: "K2D", "Assistant", system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--czap-ink);
+    -webkit-font-smoothing: antialiased;
+}
+
+/* The account pages sit on a tinted ground so the white cards read as cards.
+   Scoped to a body class the layout partial sets, not to `body` globally. */
+body.czap-body {
+    background: #f7f8fa;
+}
+
+.czap *,
+.czap *::before,
+.czap *::after {
+    box-sizing: border-box;
+}
+
+/* ============================ 2. page shell ============================ */
+.czap {
+    /* width:100% + flex-basis matter: on some storefront pages `body` ends up a
+       flex container (a rule that arrives from one of the theme's bundled
+       sheets), and a flex item with only `max-width` set shrink-to-fits to its
+       CONTENT. That is why the wishlist - the one account page whose content is
+       narrower than the cap - rendered in a 982px column while every other page
+       filled 1320px. Declared so the shell fills its parent whether that parent
+       is a block or a flex container. */
+    width: 100%;
+    flex: 0 0 auto;
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 26px 22px 72px;
+}
+
+/* ---- breadcrumb ---- */
+.czap-crumbs {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin: 0 0 16px;
+    font-size: 13px;
+    color: var(--czap-ink-3);
+    flex-wrap: wrap;
+}
+
+.czap-crumbs a {
+    color: var(--czap-ink-3);
+    text-decoration: none;
+}
+
+.czap-crumbs a:hover {
+    color: var(--czap-orange);
+}
+
+.czap-crumbs__sep {
+    opacity: .5;
+}
+
+.czap-crumbs__now {
+    color: var(--czap-ink);
+    font-weight: 600;
+}
+
+/* ---- hero ---- */
+.czap-hero {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 20px;
+    padding: 24px 26px;
+    margin-bottom: var(--czap-gap);
+    border: 1px solid var(--czap-orange-line);
+    border-radius: var(--czap-r-lg);
+    background:
+        radial-gradient(120% 160% at 100% 0%, #ffe9d5 0%, rgba(255, 233, 213, 0) 60%),
+        linear-gradient(180deg, #fffaf5 0%, #ffffff 100%);
+    box-shadow: var(--czap-shadow);
+}
+
+/* Decorative brand wash in the corner. */
+.czap-hero::after {
+    content: "";
+    position: absolute;
+    right: -60px;
+    top: -80px;
+    width: 260px;
+    height: 260px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(242, 130, 46, .16) 0%, rgba(242, 130, 46, 0) 70%);
+    pointer-events: none;
+}
+
+.czap-hero__id {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    min-width: 0;
+    flex: 1 1 320px;
+}
+
+.czap-avatar {
+    position: relative;
+    width: 76px;
+    height: 76px;
+    flex: none;
+    border-radius: 50%;
+    padding: 3px;
+    background: linear-gradient(135deg, var(--czap-orange) 0%, #ffb268 100%);
+}
+
+.czap-avatar img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    border-radius: 50%;
+    object-fit: cover;
+    background: #fff;
+    border: 2px solid #fff;
+}
+
+/* The default line-drawing placeholder is full-bleed; cropping it to a circle
+   cuts the shoulders off, so letterbox that one instead. */
+.czap-avatar img.is-placeholder {
+    object-fit: contain;
+    padding: 8px;
+}
+
+.czap-hero__meta {
+    min-width: 0;
+}
+
+.czap-hero__name {
+    margin: 0 0 4px;
+    font-size: 26px;
+    line-height: 1.2;
+    font-weight: 700;
+    color: var(--czap-ink);
+    word-break: break-word;
+}
+
+.czap-hero__contact {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    margin: 0;
+    font-size: 14px;
+    color: var(--czap-ink-2);
+}
+
+.czap-hero__contact span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.czap-hero__contact i {
+    color: var(--czap-orange);
+    font-size: 16px;
+}
+
+.czap-hero__contact b {
+    font-weight: 600;
+    color: var(--czap-ink);
+    overflow-wrap: anywhere;
+}
+
+.czap-hero__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.czap-hero__side {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+}
+
+/* ---- shell ---- */
+.czap-shell {
+    display: grid;
+    grid-template-columns: 268px minmax(0, 1fr);
+    gap: var(--czap-gap);
+    align-items: start;
+}
+
+.czap-main {
+    min-width: 0;
+}
+
+/* ---- content card ---- */
+.czap-card {
+    background: var(--czap-card);
+    border: 1px solid var(--czap-line);
+    border-radius: var(--czap-r-lg);
+    box-shadow: var(--czap-shadow);
+    overflow: hidden;
+}
+
+.czap-card + .czap-card {
+    margin-top: var(--czap-gap);
+}
+
+.czap-card__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--czap-line-2);
+}
+
+.czap-card__titles {
+    min-width: 0;
+    flex: 1 1 220px;
+}
+
+.czap-card__title {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.25;
+    color: var(--czap-ink);
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.czap-card__title i {
+    color: var(--czap-orange);
+    font-size: 22px;
+}
+
+.czap-card__sub {
+    margin: 4px 0 0;
+    font-size: 13.5px;
+    color: var(--czap-ink-3);
+    line-height: 1.5;
+}
+
+.czap-card__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 9px;
+    margin-left: auto;
+}
+
+.czap-card__body {
+    padding: 24px;
+}
+
+.czap-card__body--flush {
+    padding: 0;
+}
+
+.czap-card__foot {
+    padding: 16px 24px;
+    border-top: 1px solid var(--czap-line-2);
+    background: #fcfcfd;
+}
+
+/* A quiet section heading inside a card body. */
+.czap-sec {
+    margin: 0 0 12px;
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--czap-ink-3);
+}
+
+.czap-sec:not(:first-child) {
+    margin-top: 28px;
+}
+
+.czap-hr {
+    height: 1px;
+    border: 0;
+    margin: 24px 0;
+    background: var(--czap-line-2);
+}
+
+/* ============================ 3. navigation ============================ */
+.czap-nav {
+    position: sticky;
+    top: 16px;
+    background: var(--czap-card);
+    border: 1px solid var(--czap-line);
+    border-radius: var(--czap-r-lg);
+    box-shadow: var(--czap-shadow);
+    padding: 10px;
+}
+
+.czap-nav__group + .czap-nav__group {
+    margin-top: 6px;
+    padding-top: 10px;
+    border-top: 1px solid var(--czap-line-2);
+}
+
+.czap-nav__label {
+    margin: 8px 12px 6px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--czap-ink-3);
+}
+
+.czap-nav__link {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 10px 12px;
+    border-radius: var(--czap-r-sm);
+    font-size: 14.5px;
+    font-weight: 500;
+    color: var(--czap-ink-2);
+    text-decoration: none;
+    transition: background-color .15s ease, color .15s ease;
+}
+
+.czap-nav__link i {
+    font-size: 19px;
+    width: 21px;
+    text-align: center;
+    flex: none;
+    color: var(--czap-ink-3);
+    transition: color .15s ease;
+}
+
+.czap-nav__link:hover,
+.czap-nav__link:focus-visible {
+    background: var(--czap-line-2);
+    color: var(--czap-ink);
+    text-decoration: none;
+    outline: none;
+}
+
+.czap-nav__link:hover i {
+    color: var(--czap-orange);
+}
+
+.czap-nav__link.is-active {
+    background: var(--czap-orange-soft);
+    color: var(--czap-orange-dark);
+    font-weight: 700;
+}
+
+.czap-nav__link.is-active i {
+    color: var(--czap-orange);
+}
+
+/* Active state is carried by the bar AND the weight/colour, not colour alone. */
+.czap-nav__link.is-active::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 22px;
+    border-radius: 0 3px 3px 0;
+    background: var(--czap-orange);
+}
+
+.czap-nav__link--danger {
+    color: var(--czap-bad);
+}
+
+.czap-nav__link--danger i {
+    color: var(--czap-bad);
+}
+
+.czap-nav__link--danger:hover {
+    background: var(--czap-bad-soft);
+    color: var(--czap-bad);
+}
+
+.czap-nav__count {
+    margin-left: auto;
+    min-width: 21px;
+    height: 21px;
+    padding: 0 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--czap-r-pill);
+    background: var(--czap-orange);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.czap-nav__count:empty,
+.czap-nav__count[data-count="0"] {
+    display: none;
+}
+
+/* ========================= 4. buttons & chips ========================= */
+.czap-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 42px;
+    padding: 0 20px;
+    border: 1px solid transparent;
+    border-radius: var(--czap-r-pill);
+    background: none;
+    font: inherit;
+    font-size: 14.5px;
+    font-weight: 600;
+    line-height: 1;
+    text-decoration: none;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease, transform .12s ease;
+}
+
+.czap-btn:focus-visible {
+    outline: 2px solid var(--czap-orange);
+    outline-offset: 2px;
+}
+
+.czap-btn i {
+    font-size: 17px;
+}
+
+.czap-btn:disabled,
+.czap-btn.is-busy {
+    opacity: .6;
+    cursor: default;
+    transform: none;
+}
+
+.czap-btn--primary {
+    background: linear-gradient(180deg, #f78e3c 0%, var(--czap-orange) 100%);
+    color: #fff;
+    box-shadow: 0 8px 18px -10px rgba(242, 130, 46, .85);
+}
+
+.czap-btn--primary:hover:not(:disabled) {
+    background: var(--czap-orange-dark);
+    color: #fff;
+    text-decoration: none;
+    transform: translateY(-1px);
+}
+
+.czap-btn--ghost {
+    background: #fff;
+    border-color: var(--czap-line);
+    color: var(--czap-ink);
+}
+
+.czap-btn--ghost:hover:not(:disabled) {
+    border-color: var(--czap-orange);
+    background: var(--czap-orange-soft);
+    color: var(--czap-orange-dark);
+    text-decoration: none;
+}
+
+.czap-btn--quiet {
+    background: transparent;
+    color: var(--czap-ink-2);
+    padding: 0 12px;
+}
+
+.czap-btn--quiet:hover:not(:disabled) {
+    background: var(--czap-line-2);
+    color: var(--czap-ink);
+    text-decoration: none;
+}
+
+.czap-btn--danger {
+    background: #fff;
+    border-color: #f3c9c9;
+    color: var(--czap-bad);
+}
+
+.czap-btn--danger:hover:not(:disabled) {
+    background: var(--czap-bad);
+    border-color: var(--czap-bad);
+    color: #fff;
+    text-decoration: none;
+}
+
+.czap-btn--solid-danger {
+    background: var(--czap-bad);
+    color: #fff;
+}
+
+.czap-btn--solid-danger:hover:not(:disabled) {
+    background: #b32e2e;
+    color: #fff;
+    text-decoration: none;
+}
+
+.czap-btn--wa {
+    background: #25d366;
+    color: #fff;
+}
+
+.czap-btn--wa:hover:not(:disabled) {
+    background: #1eb956;
+    color: #fff;
+    text-decoration: none;
+}
+
+.czap-btn--sm {
+    min-height: 34px;
+    padding: 0 14px;
+    font-size: 13px;
+}
+
+.czap-btn--block {
+    width: 100%;
+}
+
+/* ---- chips (read-only facts) ---- */
+.czap-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 13px;
+    border-radius: var(--czap-r-pill);
+    background: #fff;
+    border: 1px solid var(--czap-line);
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--czap-ink-2);
+    white-space: nowrap;
+}
+
+.czap-chip i {
+    font-size: 15px;
+    color: var(--czap-orange);
+}
+
+.czap-chip--brand {
+    background: var(--czap-orange-soft);
+    border-color: var(--czap-orange-line);
+    color: var(--czap-orange-dark);
+}
+
+.czap-chip--ok {
+    background: var(--czap-ok-soft);
+    border-color: #c6ecd6;
+    color: var(--czap-ok);
+}
+
+.czap-chip--ok i {
+    color: var(--czap-ok);
+}
+
+/* ---- status badges ---- */
+.czap-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 11px;
+    border-radius: var(--czap-r-pill);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .02em;
+    background: var(--czap-line-2);
+    color: var(--czap-ink-2);
+    white-space: nowrap;
+}
+
+.czap-badge::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+    flex: none;
+}
+
+.czap-badge--ok { background: var(--czap-ok-soft); color: var(--czap-ok); }
+.czap-badge--warn { background: var(--czap-warn-soft); color: var(--czap-warn); }
+.czap-badge--bad { background: var(--czap-bad-soft); color: var(--czap-bad); }
+.czap-badge--info { background: var(--czap-info-soft); color: var(--czap-info); }
+.czap-badge--brand { background: var(--czap-orange-soft); color: var(--czap-orange-dark); }
+
+/* ---- money ---- */
+.czap-money {
+    font-weight: 700;
+    color: var(--czap-ink);
+    white-space: nowrap;
+}
+
+.czap-money--lg {
+    font-size: 30px;
+    line-height: 1.1;
+}
+
+.czap-strike {
+    text-decoration: line-through;
+    color: var(--czap-ink-3);
+    font-weight: 500;
+    margin-left: 6px;
+}
+
+.czap-save {
+    color: var(--czap-ok);
+    font-weight: 700;
+}
+
+.czap-muted {
+    color: var(--czap-ink-3);
+    font-weight: 500;
+    font-size: 13px;
+}
+
+/* ============================= 4b. fields ============================= */
+.czap-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px 18px;
+}
+
+.czap-grid--1 { grid-template-columns: minmax(0, 1fr); }
+.czap-grid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.czap-span-2 { grid-column: 1 / -1; }
+
+.czap-field {
+    min-width: 0;
+}
+
+.czap-field__label {
+    display: block;
+    margin: 0 0 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--czap-ink-2);
+}
+
+.czap-req {
+    color: var(--czap-bad);
+    margin-left: 2px;
+}
+
+.czap-input,
+.czap-select,
+.czap-textarea {
+    display: block;
+    width: 100%;
+    min-height: 46px;
+    padding: 11px 14px;
+    border: 1px solid var(--czap-line);
+    border-radius: var(--czap-r-sm);
+    background: #fff;
+    font: inherit;
+    font-size: 15px;
+    color: var(--czap-ink);
+    transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.czap-textarea {
+    min-height: 110px;
+    resize: vertical;
+    line-height: 1.6;
+}
+
+.czap-input::placeholder,
+.czap-textarea::placeholder {
+    color: #b6bac3;
+}
+
+.czap-input:focus,
+.czap-select:focus,
+.czap-textarea:focus {
+    outline: none;
+    border-color: var(--czap-orange);
+    box-shadow: 0 0 0 3px rgba(242, 130, 46, .16);
+}
+
+.czap-input[readonly],
+.czap-input:disabled,
+.czap-textarea[readonly] {
+    background: #f4f5f7;
+    color: var(--czap-ink-2);
+    cursor: not-allowed;
+}
+
+/* `appearance:none` above removes the platform arrow, so draw our own caret. */
+.czap-select {
+    padding-right: 40px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%238b919e' d='M1.4 0 6 4.6 10.6 0 12 1.4 6 7.4 0 1.4z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 15px center;
+}
+
+.czap-help {
+    margin: 6px 0 0;
+    font-size: 12.5px;
+    color: var(--czap-ink-3);
+    line-height: 1.5;
+}
+
+.czap-help.is-bad { color: var(--czap-bad); }
+.czap-help.is-ok { color: var(--czap-ok); }
+
+/* radio row */
+.czap-radios {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 9px;
+}
+
+.czap-radio {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 16px;
+    border: 1px solid var(--czap-line);
+    border-radius: var(--czap-r-pill);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--czap-ink-2);
+    cursor: pointer;
+    background: #fff;
+    transition: border-color .15s ease, background-color .15s ease, color .15s ease;
+}
+
+.czap-radio input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.czap-radio i {
+    font-size: 16px;
+}
+
+.czap-radio:hover {
+    border-color: var(--czap-orange-line);
+}
+
+/* account-suite.js mirrors :checked onto .is-checked, so the control is styled
+   even on engines without :has(). Both selectors are listed for the engines
+   that do support it and paint before the script runs. */
+.czap-radio:has(input:checked),
+.czap-radio.is-checked {
+    border-color: var(--czap-orange);
+    background: var(--czap-orange-soft);
+    color: var(--czap-orange-dark);
+}
+
+.czap-radio:focus-within {
+    box-shadow: 0 0 0 3px rgba(242, 130, 46, .16);
+}
+
+/* form-wide feedback */
+.czap-alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 15px;
+    border-radius: var(--czap-r-sm);
+    font-size: 14px;
+    line-height: 1.55;
+    margin: 0 0 16px;
+}
+
+.czap-alert i {
+    font-size: 18px;
+    flex: none;
+    margin-top: 1px;
+}
+
+.czap-alert--ok { background: var(--czap-ok-soft); color: #147644; }
+.czap-alert--bad { background: var(--czap-bad-soft); color: #a72d2d; }
+.czap-alert--info { background: var(--czap-info-soft); color: #1e559f; }
+.czap-alert--warn { background: var(--czap-warn-soft); color: #8d5c0f; }
+
+.czap-alert a { color: inherit; font-weight: 700; }
+
+/* ---- avatar picker (profile) ---- */
+.czap-photo {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+}
+
+.czap-photo__preview {
+    width: 92px;
+    height: 92px;
+    flex: none;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid var(--czap-line);
+    background: #fafafa;
+}
+
+.czap-photo__preview.is-placeholder {
+    object-fit: contain;
+    padding: 8px;
+    background: #fff;
+}
+
+.czap-photo__actions {
+    min-width: 0;
+}
+
+/* ========================= 5. blocks ========================= */
+
+/* ---- stat tiles ---- */
+.czap-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 14px;
+}
+
+.czap-stat {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    padding: 16px 18px;
+    border: 1px solid var(--czap-line);
+    border-radius: var(--czap-r);
+    background: #fff;
+    text-decoration: none;
+    color: inherit;
+    transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+
+a.czap-stat:hover {
+    border-color: var(--czap-orange-line);
+    box-shadow: var(--czap-shadow);
+    transform: translateY(-2px);
+    text-decoration: none;
+    color: inherit;
+}
+
+.czap-stat__icon {
+    width: 44px;
+    height: 44px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    border-radius: 12px;
+    background: var(--czap-orange-soft);
+    color: var(--czap-orange);
+    font-size: 21px;
+}
+
+.czap-stat__icon--ok { background: var(--czap-ok-soft); color: var(--czap-ok); }
+.czap-stat__icon--info { background: var(--czap-info-soft); color: var(--czap-info); }
+.czap-stat__icon--warn { background: var(--czap-warn-soft); color: var(--czap-warn); }
+
+.czap-stat__value {
+    display: block;
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1.15;
+    color: var(--czap-ink);
+}
+
+.czap-stat__label {
+    display: block;
+    margin-top: 2px;
+    font-size: 12.5px;
+    color: var(--czap-ink-3);
+}
+
+/* ---- action tiles (dashboard) ---- */
+.czap-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 14px;
+}
+
+.czap-tile {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 20px;
+    border: 1px solid var(--czap-line);
+    border-radius: var(--czap-r);
+    background: #fff;
+    text-decoration: none;
+    color: inherit;
+    overflow: hidden;
+    transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+
+.czap-tile:hover {
+    border-color: var(--czap-orange-line);
+    box-shadow: var(--czap-shadow);
+    transform: translateY(-2px);
+    text-decoration: none;
+    color: inherit;
+}
+
+.czap-tile__icon {
+    width: 46px;
+    height: 46px;
+    display: grid;
+    place-items: center;
+    border-radius: 13px;
+    background: var(--czap-orange-soft);
+    color: var(--czap-orange);
+    font-size: 23px;
+    margin-bottom: 4px;
+}
+
+.czap-tile__title {
+    margin: 0;
+    font-size: 16.5px;
+    font-weight: 700;
+    color: var(--czap-ink);
+}
+
+.czap-tile__text {
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: var(--czap-ink-3);
+}
+
+.czap-tile__go {
+    position: absolute;
+    right: 16px;
+    top: 20px;
+    font-size: 20px;
+    color: var(--czap-ink-3);
+    transition: transform .15s ease, color .15s ease;
+}
+
+.czap-tile:hover .czap-tile__go {
+    color: var(--czap-orange);
+    transform: translateX(3px);
+}
+
+/* ---- generic record list ---- */
+.czap-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 14px;
+}
+
+.czap-item {
+    position: relative;
+    border: 1px solid var(--czap-line);
+    border-radius: var(--czap-r);
+    background: #fff;
+    overflow: hidden;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.czap-item:hover {
+    border-color: var(--czap-orange-line);
+    box-shadow: var(--czap-shadow);
+}
+
+.czap-item__bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    padding: 13px 18px;
+    background: #fbfbfc;
+    border-bottom: 1px solid var(--czap-line-2);
+}
+
+.czap-item__body {
+    padding: 18px;
+}
+
+.czap-item__foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    padding: 0 18px 18px;
+}
+
+.czap-item__spacer {
+    margin-left: auto;
+}
+
+/* order row: image + text */
+.czap-media {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    min-width: 0;
+}
+
+.czap-media__img {
+    width: 88px;
+    height: 88px;
+    flex: none;
+    border-radius: 12px;
+    object-fit: cover;
+    background: var(--czap-line-2);
+    border: 1px solid var(--czap-line);
+}
+
+.czap-media__body {
+    min-width: 0;
+    flex: 1;
+}
+
+.czap-media__title {
+    margin: 0 0 4px;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.35;
+    color: var(--czap-ink);
+}
+
+.czap-media__title a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.czap-media__title a:hover {
+    color: var(--czap-orange);
+}
+
+.czap-media__text {
+    margin: 0 0 6px;
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: var(--czap-ink-3);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* A button that sits at the end of a media row (e.g. "Details" on the
+   dashboard's recent orders). It drops onto its own full-width line on a
+   phone - see the 600px block - where the three-across layout squeezed the
+   text column to a couple of words per line. */
+.czap-media__action {
+    align-self: center;
+    flex: none;
+}
+
+/* key/value attribute pills (size, colour, ...) */
+.czap-attrs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0 0 8px;
+    padding: 0;
+    list-style: none;
+}
+
+.czap-attrs li {
+    font-size: 12px;
+    padding: 3px 10px;
+    border-radius: var(--czap-r-pill);
+    background: var(--czap-line-2);
+    color: var(--czap-ink-2);
+}
+
+.czap-attrs b {
+    font-weight: 600;
+    color: var(--czap-ink);
+}
+
+/* definition list used for addresses, price breakdowns, contact blocks */
+.czap-dl {
+    margin: 0;
+    display: grid;
+    gap: 9px;
+}
+
+.czap-dl__row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    font-size: 14.5px;
+}
+
+.czap-dl__row dt,
+.czap-dl__row > span:first-child {
+    color: var(--czap-ink-3);
+    margin: 0;
+    font-weight: 500;
+}
+
+.czap-dl__row dd,
+.czap-dl__row > span:last-child {
+    margin: 0;
+    text-align: right;
+    font-weight: 600;
+    color: var(--czap-ink);
+}
+
+.czap-dl__row--total {
+    margin-top: 4px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--czap-line);
+    font-size: 17px;
+}
+
+.czap-dl__row--total dt,
+.czap-dl__row--total > span:first-child {
+    color: var(--czap-ink);
+    font-weight: 700;
+}
+
+.czap-dl__row--free dd,
+.czap-dl__row--free > span:last-child {
+    color: var(--czap-ok);
+}
+
+/* ---- panel: a bordered sub-block inside a card ---- */
+.czap-panel {
+    border: 1px solid var(--czap-line);
+    border-radius: var(--czap-r);
+    padding: 18px;
+    background: #fff;
+}
+
+.czap-panel--soft {
+    background: #fbfbfc;
+}
+
+.czap-panel--brand {
+    background: var(--czap-orange-soft);
+    border-color: var(--czap-orange-line);
+}
+
+.czap-panel__title {
+    margin: 0 0 12px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--czap-ink);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.czap-panel__title i {
+    color: var(--czap-orange);
+    font-size: 17px;
+}
+
+.czap-cols {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+/* ---- address card ---- */
+.czap-addr {
+    position: relative;
+    border: 1px solid var(--czap-line);
+    border-radius: var(--czap-r);
+    padding: 18px;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.czap-addr:hover {
+    border-color: var(--czap-orange-line);
+    box-shadow: var(--czap-shadow);
+}
+
+.czap-addr.is-default {
+    border-color: var(--czap-orange);
+    background: linear-gradient(180deg, #fffaf5 0%, #fff 60%);
+}
+
+.czap-addr__head {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    flex-wrap: wrap;
+}
+
+.czap-addr__name {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--czap-ink);
+}
+
+.czap-addr__lines {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.65;
+    color: var(--czap-ink-2);
+}
+
+.czap-addr__lines strong {
+    color: var(--czap-ink);
+    font-weight: 600;
+}
+
+.czap-addr__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: auto;
+    padding-top: 6px;
+}
+
+/* ---- timeline (order status history) ---- */
+.czap-track {
+    list-style: none;
+    margin: 0;
+    padding: 0 0 0 26px;
+    position: relative;
+}
+
+.czap-track::before {
+    content: "";
+    position: absolute;
+    left: 8px;
+    top: 8px;
+    bottom: 8px;
+    width: 2px;
+    background: var(--czap-line);
+}
+
+.czap-track__step {
+    position: relative;
+    padding: 0 0 20px;
+}
+
+.czap-track__step:last-child {
+    padding-bottom: 0;
+}
+
+.czap-track__step::before {
+    content: "";
+    position: absolute;
+    left: -26px;
+    top: 3px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #fff;
+    border: 2px solid var(--czap-line);
+    box-shadow: 0 0 0 3px #fff;
+}
+
+.czap-track__step.is-done::before {
+    border-color: var(--czap-ok);
+    background: var(--czap-ok);
+}
+
+.czap-track__step.is-now::before {
+    border-color: var(--czap-orange);
+    background: var(--czap-orange);
+}
+
+.czap-track__step.is-bad::before {
+    border-color: var(--czap-bad);
+    background: var(--czap-bad);
+}
+
+.czap-track__name {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--czap-ink);
+    text-transform: capitalize;
+}
+
+.czap-track__step.is-todo .czap-track__name {
+    color: var(--czap-ink-3);
+    font-weight: 500;
+}
+
+.czap-track__when {
+    margin: 2px 0 0;
+    font-size: 13px;
+    color: var(--czap-ink-3);
+}
+
+/* ---- empty state ---- */
+.czap-empty {
+    text-align: center;
+    padding: 54px 20px;
+}
+
+.czap-empty__icon {
+    width: 84px;
+    height: 84px;
+    margin: 0 auto 18px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--czap-orange-soft);
+    color: var(--czap-orange);
+    font-size: 38px;
+}
+
+.czap-empty img {
+    max-width: 200px;
+    margin: 0 auto 18px;
+    display: block;
+}
+
+.czap-empty__title {
+    margin: 0 0 8px;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--czap-ink);
+}
+
+.czap-empty__text {
+    margin: 0 auto 20px;
+    max-width: 420px;
+    font-size: 14.5px;
+    line-height: 1.65;
+    color: var(--czap-ink-3);
+}
+
+/* ---- search / toolbar row ---- */
+.czap-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.czap-search {
+    position: relative;
+    flex: 1 1 260px;
+    min-width: 0;
+}
+
+.czap-search > i {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 18px;
+    color: var(--czap-ink-3);
+    pointer-events: none;
+}
+
+.czap-search .czap-input {
+    padding-left: 42px;
+    padding-right: 44px;
+}
+
+.czap-search__clear {
+    position: absolute;
+    right: 9px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 28px;
+    height: 28px;
+    display: none;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    background: var(--czap-line-2);
+    color: var(--czap-ink-2);
+    cursor: pointer;
+    font-size: 15px;
+    line-height: 1;
+}
+
+.czap-search__clear.is-on {
+    display: grid;
+}
+
+.czap-search__clear:hover {
+    background: var(--czap-bad-soft);
+    color: var(--czap-bad);
+}
+
+/* ---- pager ---- */
+.czap-pager {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 22px;
+}
+
+.czap-pager__info {
+    font-size: 13px;
+    color: var(--czap-ink-3);
+}
+
+.czap-pager__btns {
+    display: flex;
+    gap: 8px;
+}
+
+/* Keep the server-rendered CI pager (.cz-pager-nav) inside the card rhythm. */
+.czap .cz-pager-nav {
+    margin-top: 22px;
+}
+
+/* ===================== 6. data tables (bootstrap-table) ===================== */
+.czap-table {
+    font-size: 14px;
+}
+
+/*
+ * bootstrap-table builds this toolbar out of two `float-right` divs (the
+ * refresh/columns button group, and the search box) with no clearfix or width
+ * management of its own. Floated side by side they overflow the toolbar, and
+ * the search box - the second one - ends up laid out PAST the right edge of the
+ * page: measured at x=1565 in a 1440px viewport, i.e. invisible. It looked like
+ * `data-search="true"` was being ignored on the wallet and transaction tables.
+ *
+ * Flex row + float:none puts both back inside the box, search first.
+ */
+.czap-table .fixed-table-toolbar {
+    padding: 0 0 14px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
+.czap-table .fixed-table-toolbar::before,
+.czap-table .fixed-table-toolbar::after {
+    display: none;
+}
+
+.czap-table .fixed-table-toolbar > .search,
+.czap-table .fixed-table-toolbar > .columns {
+    float: none !important;
+    margin: 0;
+}
+
+/*
+ * AND the search wrapper has to be pulled back into the flow. custom.css - the
+ * site-wide sheet - carries a bare `.search { position:absolute; left:643px;
+ * top:81px; ... }` written for an unrelated header widget, and it also matches
+ * bootstrap-table's own `.search` toolbar wrapper, dragging it ~640px to the
+ * right of the card (measured at x=1565 in a 1440px viewport). my-account-override.css
+ * already carried this reset scoped to `.overview-right`, which the rewritten
+ * views no longer render - so it moves here, scoped to .czap-table.
+ */
+.czap-table .fixed-table-toolbar > .search {
+    order: 1;
+    position: relative;
+    left: auto;
+    right: auto;
+    top: auto;
+    height: auto;
+    flex: 1 1 200px;
+    min-width: 0;
+    max-width: 340px;
+}
+
+.czap-table .fixed-table-toolbar > .columns {
+    order: 2;
+    margin-left: auto !important;
+}
+
+.czap-table .fixed-table-toolbar .search input {
+    width: 100%;
+    min-height: 42px;
+    border: 1px solid var(--czap-line);
+    border-radius: var(--czap-r-pill);
+    padding: 0 16px;
+    font-size: 14px;
+}
+
+.czap-table .fixed-table-toolbar .search input:focus {
+    outline: none;
+    border-color: var(--czap-orange);
+    box-shadow: 0 0 0 3px rgba(242, 130, 46, .16);
+}
+
+.czap-table .fixed-table-toolbar .btn {
+    min-height: 38px;
+    border-radius: var(--czap-r-sm);
+    border: 1px solid var(--czap-line);
+    background: #fff;
+    color: var(--czap-ink-2);
+    font-size: 13px;
+    box-shadow: none;
+}
+
+.czap-table .fixed-table-toolbar .btn:hover {
+    border-color: var(--czap-orange);
+    color: var(--czap-orange-dark);
+    background: var(--czap-orange-soft);
+}
+
+.czap-table table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.czap-table thead th {
+    background: #fbfbfc !important;
+    border: 0 !important;
+    border-bottom: 1px solid var(--czap-line) !important;
+    padding: 13px 14px !important;
+    font-size: 11.5px !important;
+    font-weight: 700 !important;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--czap-ink-3) !important;
+    white-space: nowrap;
+}
+
+.czap-table tbody td {
+    border: 0 !important;
+    border-bottom: 1px solid var(--czap-line-2) !important;
+    padding: 14px !important;
+    vertical-align: middle !important;
+    color: var(--czap-ink);
+}
+
+.czap-table tbody tr:hover td {
+    background: #fdfaf7 !important;
+}
+
+.czap-table .pagination > li > a,
+.czap-table .pagination > li > span,
+.czap-table .page-link {
+    border: 1px solid var(--czap-line);
+    border-radius: var(--czap-r-sm) !important;
+    margin: 0 3px;
+    color: var(--czap-ink-2);
+    min-width: 38px;
+    text-align: center;
+}
+
+.czap-table .pagination > .active > a,
+.czap-table .pagination > .active > span,
+.czap-table .page-item.active .page-link {
+    background: var(--czap-orange);
+    border-color: var(--czap-orange);
+    color: #fff;
+}
+
+.czap-table .fixed-table-pagination {
+    padding-top: 12px;
+    font-size: 13px;
+    color: var(--czap-ink-3);
+}
+
+/* A wide table scrolls inside its own box so the page body never scrolls
+   sideways. */
+.czap-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* ========================= 7. popup system ========================= */
+/*
+ * Deliberately NOT Bootstrap. This theme loads plugins.js (Bootstrap 5.2.2) and
+ * then bootstrap.min.js (Bootstrap 4.0.0), so `$.fn.modal` is v4's while the
+ * `data-bs-*` data-api belongs to v5 - the two disagree about backdrops and
+ * body locking, which is exactly the orphaned-backdrop / frozen-scroll bug
+ * address.js already carries a workaround for. These popups are one small
+ * controller in account-suite.js with one owner.
+ */
+.czap-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 20000;
+    display: none;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 5vh 16px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.czap-modal.is-open {
+    display: flex;
+}
+
+.czap-modal__scrim {
+    position: fixed;
+    inset: 0;
+    background: rgba(19, 22, 28, .55);
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+    animation: czapFade .18s ease both;
+}
+
+.czap-modal__panel {
+    position: relative;
+    width: 100%;
+    max-width: 560px;
+    margin: auto;
+    background: #fff;
+    border-radius: var(--czap-r-lg, 18px);
+    box-shadow: var(--czap-shadow-lg, 0 24px 60px -28px rgba(23, 26, 33, .3));
+    animation: czapPop .2s cubic-bezier(.2, .8, .3, 1) both;
+    display: flex;
+    flex-direction: column;
+    max-height: 90vh;
+}
+
+.czap-modal--lg .czap-modal__panel { max-width: 760px; }
+.czap-modal--sm .czap-modal__panel { max-width: 430px; }
+
+@keyframes czapFade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes czapPop {
+    from { opacity: 0; transform: translateY(14px) scale(.985); }
+    to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .czap-modal__panel,
+    .czap-modal__scrim {
+        animation: none;
+    }
+}
+
+/*
+ * Two things have to be true for a tall popup to SCROLL its body instead of
+ * spilling its lower half onto the scrim (which is what the address popup did
+ * on a short viewport - "Type", the type pills and the footer painted outside
+ * the white panel):
+ *
+ *  1. In several popups the head/body/foot are wrapped in a <form>, so they are
+ *     grandchildren of the panel and never joined its flex column. The form has
+ *     to become the column itself and pass the height constraint through.
+ *  2. A flex item in a column defaults to `min-height:auto`, which refuses to
+ *     shrink below its content - so `overflow-y:auto` on the body had nothing to
+ *     scroll within and the panel simply overflowed its own max-height.
+ */
+.czap-modal__panel > form {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.czap-modal__head {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 20px 22px 16px;
+    border-bottom: 1px solid #f2f3f5;
+    flex: 0 0 auto;
+}
+
+.czap-modal__title {
+    margin: 0;
+    font-size: 19px;
+    font-weight: 700;
+    color: #1f2430;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+}
+
+.czap-modal__title i {
+    color: var(--czap-orange, #F2822E);
+    font-size: 21px;
+}
+
+.czap-modal__sub {
+    margin: 5px 0 0;
+    font-size: 13.5px;
+    color: #8b919e;
+    line-height: 1.5;
+}
+
+.czap-modal__x {
+    margin-left: auto;
+    width: 36px;
+    height: 36px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    background: #f2f3f5;
+    color: #59606e;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color .15s ease, color .15s ease;
+}
+
+.czap-modal__x:hover {
+    background: #fdecec;
+    color: #d13a3a;
+}
+
+.czap-modal__body {
+    padding: 22px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    flex: 1 1 auto;
+    /* See the note above - without this the body will not shrink below its
+       content, so it cannot scroll and the panel overflows instead. */
+    min-height: 0;
+}
+
+.czap-modal__foot {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 16px 22px;
+    border-top: 1px solid #f2f3f5;
+    background: #fcfcfd;
+    border-radius: 0 0 var(--czap-r-lg, 18px) var(--czap-r-lg, 18px);
+    flex: 0 0 auto;
+}
+
+.czap-modal__foot--split {
+    justify-content: space-between;
+}
+
+/* confirm dialog flavour */
+.czap-confirm {
+    text-align: center;
+    padding: 30px 26px 8px;
+}
+
+.czap-confirm__icon {
+    width: 66px;
+    height: 66px;
+    margin: 0 auto 16px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    font-size: 30px;
+    background: #fff6e3;
+    color: #b8791a;
+}
+
+.czap-confirm__icon--bad { background: #fdecec; color: #d13a3a; }
+.czap-confirm__icon--ok { background: #e8f7ee; color: #1d9d5c; }
+
+.czap-confirm__title {
+    margin: 0 0 8px;
+    font-size: 19px;
+    font-weight: 700;
+    color: #1f2430;
+}
+
+.czap-confirm__text {
+    margin: 0;
+    font-size: 14.5px;
+    line-height: 1.65;
+    color: #59606e;
+}
+
+/* body scroll lock while a popup is open */
+body.czap-locked {
+    overflow: hidden;
+}
+
+/* The popups live outside .czap (they are appended to <body>), so they need the
+   font and the button/field primitives re-declared at their own root. */
+.czap-modal {
+    font-family: "K2D", "Assistant", system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: #1f2430;
+    --czap-orange: var(--color-orange, #F2822E);
+    --czap-orange-dark: var(--color-orange-dark, #db7323);
+    --czap-orange-soft: #fff4ea;
+    --czap-orange-line: #fbd9bb;
+    --czap-ink: #1f2430;
+    --czap-ink-2: #59606e;
+    --czap-ink-3: #8b919e;
+    --czap-line: #e9eaee;
+    --czap-line-2: #f2f3f5;
+    --czap-ok: #1d9d5c;
+    --czap-ok-soft: #e8f7ee;
+    --czap-warn: #b8791a;
+    --czap-warn-soft: #fff6e3;
+    --czap-bad: #d13a3a;
+    --czap-bad-soft: #fdecec;
+    --czap-info: #2b6fd6;
+    --czap-info-soft: #ecf3fd;
+    --czap-r-lg: 18px;
+    --czap-r: 14px;
+    --czap-r-sm: 10px;
+    --czap-r-pill: 999px;
+    --czap-shadow: 0 1px 2px rgba(23, 26, 33, .04), 0 8px 24px -14px rgba(23, 26, 33, .16);
+    --czap-shadow-lg: 0 2px 6px rgba(23, 26, 33, .05), 0 24px 60px -28px rgba(23, 26, 33, .3);
+}
+
+.czap-modal *,
+.czap-modal *::before,
+.czap-modal *::after {
+    box-sizing: border-box;
+}
+
+/* ========================= 8. responsive ========================= */
+@media (max-width: 1080px) {
+    .czap-shell {
+        grid-template-columns: 232px minmax(0, 1fr);
+    }
+
+    .czap {
+        --czap-gap: 18px;
+    }
+}
+
+@media (max-width: 900px) {
+    .czap {
+        padding: 18px 14px 60px;
+    }
+
+    .czap-shell {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    /* The sidebar becomes a sticky, horizontally scrollable rail of chips. Same
+       markup - the group labels drop out and the links lay out in a row. */
+    .czap-nav {
+        position: sticky;
+        top: 0;
+        z-index: 30;
+        display: flex;
+        gap: 8px;
+        padding: 10px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: none;
+        border-radius: var(--czap-r);
+    }
+
+    .czap-nav::-webkit-scrollbar {
+        display: none;
+    }
+
+    .czap-nav__group {
+        display: flex;
+        gap: 8px;
+    }
+
+    .czap-nav__group + .czap-nav__group {
+        margin: 0;
+        padding: 0 0 0 8px;
+        border-top: 0;
+        border-left: 1px solid var(--czap-line-2);
+    }
+
+    .czap-nav__label {
+        display: none;
+    }
+
+    .czap-nav__link {
+        white-space: nowrap;
+        border: 1px solid var(--czap-line);
+        padding: 8px 14px;
+        border-radius: var(--czap-r-pill);
+        font-size: 13.5px;
+    }
+
+    .czap-nav__link.is-active {
+        border-color: var(--czap-orange);
+    }
+
+    .czap-nav__link.is-active::before {
+        display: none;
+    }
+
+    .czap-hero {
+        padding: 20px;
+    }
+
+    .czap-hero__name {
+        font-size: 22px;
+    }
+
+    .czap-hero__side {
+        margin-left: 0;
+        width: 100%;
+    }
+
+    .czap-hero__side .czap-btn {
+        flex: 1 1 auto;
+    }
+
+    .czap-grid,
+    .czap-grid--3 {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .czap-card__head,
+    .czap-card__body {
+        padding: 18px;
+    }
+
+    .czap-card__actions {
+        margin-left: 0;
+        width: 100%;
+    }
+}
+
+@media (max-width: 600px) {
+    .czap-avatar {
+        width: 62px;
+        height: 62px;
+    }
+
+    .czap-hero__name {
+        font-size: 20px;
+    }
+
+    .czap-media {
+        flex-wrap: wrap;
+    }
+
+    .czap-media__img {
+        width: 68px;
+        height: 68px;
+    }
+
+    .czap-media__action {
+        flex: 1 0 100%;
+        align-self: stretch;
+        margin-top: 4px;
+    }
+
+    .czap-money--lg {
+        font-size: 25px;
+    }
+
+    .czap-modal {
+        padding: 0;
+        align-items: flex-end;
+    }
+
+    /* Full-width sheet on phones - reads as a native bottom sheet. */
+    .czap-modal__panel {
+        max-width: none;
+        margin: 0;
+        border-radius: 18px 18px 0 0;
+        max-height: 94vh;
+        animation-name: czapSheet;
+    }
+
+    .czap-modal__foot {
+        border-radius: 0;
+    }
+
+    .czap-modal__foot .czap-btn,
+    .czap-item__foot .czap-btn,
+    .czap-addr__actions .czap-btn {
+        flex: 1 1 auto;
+    }
+}
+
+@keyframes czapSheet {
+    from { transform: translateY(24px); opacity: 0; }
+    to { transform: none; opacity: 1; }
+}
+
+/* Print: drop the furniture so an order page prints as a record. */
+@media print {
+    .czap-nav,
+    .czap-hero__side,
+    .czap-card__actions,
+    .czap-toolbar,
+    .czap-modal {
+        display: none !important;
+    }
+
+    .czap-shell {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .czap-card {
+        box-shadow: none;
+    }
+}

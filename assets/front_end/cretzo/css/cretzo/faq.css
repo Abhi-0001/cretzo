@@ -1,0 +1,669 @@
+/* ==========================================================================
+   Cretzo - FAQ / Help Centre
+   --------------------------------------------------------------------------
+   Every selector is `czfaq` prefixed. Tokens deliberately mirror legal-page.css
+   so the Help Centre and the four policy documents read as one section of the
+   site; keep the two palettes in step if either changes.
+
+   include-css.php picks this up automatically from $main_page === 'faq'.
+   ========================================================================== */
+
+.czfaq {
+    --czf-orange: var(--color-orange, #F2822E);
+    --czf-orange-dark: var(--color-orange-dark, #db7323);
+    --czf-orange-soft: #fff4ea;
+    --czf-orange-line: #fbd9bb;
+
+    --czf-ink: #1f2430;
+    --czf-ink-2: #4a5160;
+    --czf-ink-3: #8b919e;
+    --czf-line: #e9eaee;
+    --czf-line-2: #f2f3f5;
+
+    --czf-r: 14px;
+    --czf-r-sm: 10px;
+    --czf-r-pill: 999px;
+    --czf-shadow: 0 1px 2px rgba(23, 26, 33, .04), 0 8px 24px -14px rgba(23, 26, 33, .16);
+
+    width: 100%;
+    max-width: 1220px;
+    margin: 0 auto;
+    padding: 24px 22px 80px;
+    font-family: "K2D", "Assistant", system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--czf-ink);
+    -webkit-font-smoothing: antialiased;
+}
+
+.czfaq *,
+.czfaq *::before,
+.czfaq *::after {
+    box-sizing: border-box;
+}
+
+/* ------------------------------- breadcrumb ------------------------------- */
+.czfaq__crumbs {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    color: var(--czf-ink-3);
+    flex-wrap: wrap;
+}
+
+.czfaq__crumbs a {
+    color: var(--czf-ink-3);
+    text-decoration: none;
+}
+
+.czfaq__crumbs a:hover {
+    color: var(--czf-orange);
+}
+
+.czfaq__crumbs span[aria-hidden] {
+    opacity: .5;
+}
+
+.czfaq__crumbs-now {
+    color: var(--czf-ink);
+    font-weight: 600;
+}
+
+/* ---------------------------------- hero ---------------------------------- */
+.czfaq__hero {
+    position: relative;
+    overflow: hidden;
+    padding: 40px 32px 34px;
+    border: 1px solid var(--czf-line);
+    border-radius: var(--czf-r);
+    background:
+        radial-gradient(900px 240px at 12% -40%, #fff1e3 0%, rgba(255, 241, 227, 0) 70%),
+        #fff;
+    box-shadow: var(--czf-shadow);
+    text-align: center;
+}
+
+.czfaq__eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 12px;
+    padding: 5px 13px;
+    border: 1px solid var(--czf-orange-line);
+    border-radius: var(--czf-r-pill);
+    background: var(--czf-orange-soft);
+    color: var(--czf-orange-dark);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.czfaq__title {
+    margin: 0 0 10px;
+    font-size: clamp(28px, 4vw, 40px);
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -.02em;
+}
+
+.czfaq__intro {
+    max-width: 620px;
+    margin: 0 auto;
+    color: var(--czf-ink-2);
+    font-size: 15px;
+    line-height: 1.65;
+}
+
+/* --------------------------------- search --------------------------------- */
+.czfaq__search {
+    position: relative;
+    display: flex;
+    align-items: center;
+    max-width: 560px;
+    margin: 24px auto 0;
+}
+
+.czfaq__search > .uil-search {
+    position: absolute;
+    left: 16px;
+    color: var(--czf-ink-3);
+    font-size: 19px;
+    pointer-events: none;
+}
+
+.czfaq__search-input {
+    width: 100%;
+    height: 52px;
+    padding: 0 46px 0 44px;
+    border: 1px solid var(--czf-line);
+    border-radius: var(--czf-r-pill);
+    background: #fff;
+    color: var(--czf-ink);
+    font: inherit;
+    font-size: 15px;
+    outline: none;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.czfaq__search-input::placeholder {
+    color: var(--czf-ink-3);
+}
+
+.czfaq__search-input:focus {
+    border-color: var(--czf-orange);
+    box-shadow: 0 0 0 4px rgba(242, 130, 46, .14);
+}
+
+/* The UA's own clear button would sit on top of ours. */
+.czfaq__search-input::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.czfaq__search-clear {
+    position: absolute;
+    right: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: var(--czf-line-2);
+    color: var(--czf-ink-2);
+    cursor: pointer;
+    line-height: 1;
+}
+
+.czfaq__search-clear:hover {
+    background: var(--czf-orange-soft);
+    color: var(--czf-orange-dark);
+}
+
+.czfaq__count {
+    min-height: 20px;
+    margin: 12px 0 0;
+    color: var(--czf-ink-3);
+    font-size: 13px;
+}
+
+/* ---------------------------------- shell --------------------------------- */
+.czfaq__shell {
+    display: grid;
+    grid-template-columns: 268px minmax(0, 1fr);
+    gap: 26px;
+    align-items: start;
+    margin-top: 26px;
+}
+
+/* --------------------------------- sidebar -------------------------------- */
+.czfaq__aside {
+    position: sticky;
+    /* Clears the fixed storefront header when a topic is clicked. */
+    top: 90px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.czfaq__topics,
+.czfaq__aside-links {
+    padding: 16px;
+    border: 1px solid var(--czf-line);
+    border-radius: var(--czf-r);
+    background: #fff;
+    box-shadow: var(--czf-shadow);
+}
+
+.czfaq__aside-label {
+    margin: 0 0 10px;
+    color: var(--czf-ink-3);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.czfaq__topic {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+    margin-bottom: 4px;
+    padding: 10px 12px;
+    border: 1px solid transparent;
+    border-radius: var(--czf-r-sm);
+    background: transparent;
+    color: var(--czf-ink-2);
+    font: inherit;
+    font-size: 14px;
+    text-align: left;
+    cursor: pointer;
+    transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+
+.czfaq__topic span:first-child {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+}
+
+.czfaq__topic i {
+    color: var(--czf-ink-3);
+    font-size: 17px;
+}
+
+.czfaq__topic:hover {
+    background: var(--czf-line-2);
+    color: var(--czf-ink);
+}
+
+.czfaq__topic.is-active {
+    border-color: var(--czf-orange-line);
+    background: var(--czf-orange-soft);
+    color: var(--czf-orange-dark);
+    font-weight: 600;
+}
+
+.czfaq__topic.is-active i {
+    color: var(--czf-orange);
+}
+
+.czfaq__topic-n {
+    flex: none;
+    min-width: 24px;
+    padding: 1px 7px;
+    border-radius: var(--czf-r-pill);
+    background: var(--czf-line-2);
+    color: var(--czf-ink-3);
+    font-size: 12px;
+    font-weight: 600;
+    text-align: center;
+}
+
+.czfaq__topic.is-active .czfaq__topic-n {
+    background: #fff;
+    color: var(--czf-orange-dark);
+}
+
+/* A topic emptied by the current search is dimmed rather than removed, so the
+   list does not jump around under the cursor as someone types. */
+.czfaq__topic.is-empty {
+    opacity: .4;
+}
+
+.czfaq__side-link {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 9px 12px;
+    border-radius: var(--czf-r-sm);
+    color: var(--czf-ink-2);
+    font-size: 14px;
+    text-decoration: none;
+    transition: background .15s ease, color .15s ease;
+}
+
+.czfaq__side-link i {
+    color: var(--czf-ink-3);
+    font-size: 17px;
+}
+
+.czfaq__side-link:hover {
+    background: var(--czf-line-2);
+    color: var(--czf-orange-dark);
+}
+
+.czfaq__side-link:hover i {
+    color: var(--czf-orange);
+}
+
+/* --------------------------------- groups --------------------------------- */
+.czfaq__group {
+    margin-bottom: 30px;
+}
+
+.czfaq__group[hidden] {
+    display: none;
+}
+
+.czfaq__group-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 14px;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -.01em;
+    scroll-margin-top: 100px;
+}
+
+.czfaq__group-title i {
+    color: var(--czf-orange);
+    font-size: 20px;
+}
+
+.czfaq__list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* ------------------------------ accordion item ---------------------------- */
+.czfaq__item {
+    border: 1px solid var(--czf-line);
+    border-radius: var(--czf-r);
+    background: #fff;
+    box-shadow: var(--czf-shadow);
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.czfaq__item[hidden] {
+    display: none;
+}
+
+.czfaq__item:hover {
+    border-color: var(--czf-orange-line);
+}
+
+.czfaq__item[open] {
+    border-color: var(--czf-orange-line);
+    box-shadow: 0 1px 2px rgba(23, 26, 33, .04), 0 14px 30px -18px rgba(242, 130, 46, .5);
+}
+
+.czfaq__q {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 18px;
+    color: var(--czf-ink);
+    font-size: 15.5px;
+    font-weight: 600;
+    line-height: 1.5;
+    cursor: pointer;
+    list-style: none;
+    /* Safari draws its own disclosure triangle otherwise. */
+    -webkit-tap-highlight-color: transparent;
+}
+
+.czfaq__q::-webkit-details-marker {
+    display: none;
+}
+
+.czfaq__q:focus-visible {
+    outline: 2px solid var(--czf-orange);
+    outline-offset: -2px;
+    border-radius: var(--czf-r);
+}
+
+.czfaq__item[open] .czfaq__q {
+    color: var(--czf-orange-dark);
+}
+
+.czfaq__q-mark {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--czf-line-2);
+    color: var(--czf-ink-2);
+    font-size: 19px;
+    transition: transform .2s ease, background .15s ease, color .15s ease;
+}
+
+.czfaq__item[open] .czfaq__q-mark {
+    transform: rotate(180deg);
+    background: var(--czf-orange);
+    color: #fff;
+}
+
+.czfaq__a {
+    padding: 0 18px 18px;
+    /* Aligns the answer with the question text, clear of the chevron column. */
+    max-width: 78ch;
+}
+
+.czfaq__a p {
+    margin: 0;
+    color: var(--czf-ink-2);
+    font-size: 14.5px;
+    line-height: 1.75;
+}
+
+/* Highlight of the matched substring, injected by faq.js. */
+.czfaq__hit {
+    padding: 0 2px;
+    border-radius: 3px;
+    background: #ffe6cd;
+    color: var(--czf-orange-dark);
+    font-weight: 700;
+}
+
+/* ------------------------- empty / no-result states ----------------------- */
+.czfaq__empty,
+.czfaq__noresult {
+    margin-top: 26px;
+    padding: 44px 26px;
+    border: 1px dashed var(--czf-orange-line);
+    border-radius: var(--czf-r);
+    background: var(--czf-orange-soft);
+    text-align: center;
+}
+
+.czfaq__noresult[hidden] {
+    display: none;
+}
+
+.czfaq__empty i,
+.czfaq__noresult i {
+    color: var(--czf-orange);
+    font-size: 40px;
+}
+
+.czfaq__empty h2,
+.czfaq__noresult h2 {
+    margin: 10px 0 6px;
+    font-size: 19px;
+    font-weight: 700;
+}
+
+.czfaq__empty p,
+.czfaq__noresult p {
+    margin: 0 0 18px;
+    color: var(--czf-ink-2);
+    font-size: 14.5px;
+}
+
+.czfaq__noresult-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+}
+
+/* --------------------------------- buttons -------------------------------- */
+.czfaq__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 18px;
+    border: 1px solid transparent;
+    border-radius: var(--czf-r-pill);
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background .15s ease, color .15s ease, border-color .15s ease, transform .1s ease;
+}
+
+.czfaq__btn:active {
+    transform: translateY(1px);
+}
+
+.czfaq__btn--primary {
+    background: var(--czf-orange);
+    color: #fff;
+}
+
+.czfaq__btn--primary:hover {
+    background: var(--czf-orange-dark);
+    color: #fff;
+}
+
+.czfaq__btn--wa {
+    background: #25d366;
+    color: #fff;
+}
+
+.czfaq__btn--wa:hover {
+    background: #1eb956;
+    color: #fff;
+}
+
+.czfaq__btn--ghost {
+    border-color: var(--czf-line);
+    background: #fff;
+    color: var(--czf-ink-2);
+}
+
+.czfaq__btn--ghost:hover {
+    border-color: var(--czf-orange-line);
+    color: var(--czf-orange-dark);
+}
+
+/* -------------------------------- help card ------------------------------- */
+.czfaq__help {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    margin-top: 6px;
+    padding: 26px 28px;
+    border: 1px solid var(--czf-line);
+    border-radius: var(--czf-r);
+    background:
+        radial-gradient(600px 200px at 85% 120%, #fff1e3 0%, rgba(255, 241, 227, 0) 70%),
+        #fff;
+    box-shadow: var(--czf-shadow);
+}
+
+.czfaq__help[hidden] {
+    display: none;
+}
+
+.czfaq__help-text h2 {
+    margin: 0 0 4px;
+    font-size: 19px;
+    font-weight: 700;
+}
+
+.czfaq__help-text p {
+    margin: 0;
+    max-width: 46ch;
+    color: var(--czf-ink-2);
+    font-size: 14.5px;
+    line-height: 1.6;
+}
+
+.czfaq__help-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+/* -------------------------------- responsive ------------------------------ */
+@media (max-width: 991px) {
+    .czfaq__shell {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    /* The sidebar becomes a horizontal pill rail above the answers - a sticky
+       268px column has nowhere to live on a phone. */
+    .czfaq__aside {
+        position: static;
+    }
+
+    .czfaq__topics {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 8px;
+        overflow-x: auto;
+        padding: 12px;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+
+    .czfaq__topics::-webkit-scrollbar {
+        display: none;
+    }
+
+    .czfaq__aside-label {
+        display: none;
+    }
+
+    .czfaq__topic {
+        flex: none;
+        width: auto;
+        margin-bottom: 0;
+        border-color: var(--czf-line);
+        border-radius: var(--czf-r-pill);
+        white-space: nowrap;
+    }
+
+    .czfaq__aside-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+}
+
+@media (max-width: 575px) {
+    .czfaq {
+        padding: 16px 14px 60px;
+    }
+
+    .czfaq__hero {
+        padding: 28px 18px 24px;
+    }
+
+    .czfaq__q {
+        padding: 14px;
+        font-size: 15px;
+    }
+
+    .czfaq__a {
+        padding: 0 14px 16px;
+    }
+
+    .czfaq__help {
+        padding: 22px 18px;
+    }
+
+    .czfaq__btn {
+        flex: 1 1 auto;
+        justify-content: center;
+    }
+}
+
+@media print {
+    .czfaq__aside,
+    .czfaq__search,
+    .czfaq__help,
+    .czfaq__crumbs {
+        display: none !important;
+    }
+
+    /* Print must not be a page of collapsed headings. */
+    .czfaq__a {
+        display: block !important;
+    }
+}

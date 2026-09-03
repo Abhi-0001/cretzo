@@ -324,7 +324,7 @@ $notif_unread = $this->ion_auth->logged_in()
                 
                 <!-- display profile icon depending on whether the user is logged in or not -->
                 <?php if( $this->ion_auth->logged_in() && !$this->ion_auth->is_seller() && !$this->ion_auth->is_delivery_boy() && !$this->ion_auth->is_admin()) { ?>
-                    <li class="nav-item dropdown active">
+                    <li class="icon-m nav-item dropdown active profile-dropdown-m">
                         <a class="text-decoration-none" data-toggle="dropdown" href="#" aria-label="profile">
                             <?php
                                 // Match the desktop avatar (P1.4): user photo if set, else default, with fallback.
@@ -338,11 +338,32 @@ $notif_unread = $this->ion_auth->logged_in()
                                  onerror="this.onerror=null;this.src='<?= $default_avatar_m ?>';this.classList.remove('icon-img--photo');this.classList.add('icon-img--brand');">
                         </a>
 
-                        <div class="dropdown-menu dropdown-menu-lg">
-                            <a href="<?= base_url('my-account/wallet') ?>" class="dropdown-item text-decoration-none" aria-label="wallet"><i class="uil uil-wallet mr-2 text-primary link-color"></i> <?= $settings['currency']  ?><?= ' ' . isset($user->balance) && !empty($user->balance) ? number_format($user->balance, 2) : 0.0 ?></a>
-                            <a href="<?= base_url('my-account') ?>" class="dropdown-item text-decoration-none" aria-label="my profile"><i class="uil uil-user text-primary link-color mr-2"></i> <?= !empty($this->lang->line('profile')) ? $this->lang->line('profile') : 'Profile' ?> </a>
-                            <a href="<?= base_url('my-account/orders') ?>" class="dropdown-item text-decoration-none" aria-label="orders"><i class="link-color mr-2 text-primary uil uil-history"></i> <?= !empty($this->lang->line('orders')) ? $this->lang->line('orders') : 'Orders' ?> </a>
-                            <a href="<?= base_url('login/logout') ?>" class="dropdown-item text-decoration-none" aria-label="logout"><i class="link-color mr-2 text-primary uil uil-signout"></i><?= !empty($this->lang->line('logout')) ? $this->lang->line('logout') : 'Logout' ?></a>
+                        <?php /* The mobile menu carried only Bootstrap's bare .dropdown-menu classes, so it
+                                 rendered unstyled and ran off the right edge of the screen. It now uses the
+                                 theme's own .profile-menu-m (anchored to the header row, not to this <li>,
+                                 so it always stays on screen) and mirrors the desktop card's layout. */ ?>
+                        <div class="dropdown-menu profile-menu-m">
+                            <div class="profile-menu-m__head">
+                                <span class="profile-menu-m__name">Welcome <?= (isset($user->username) && !empty($user->username)) ? output_escaping($user->username) : 'Guest' ?></span>
+                                <span class="profile-menu-m__sub">To manage profile and orders</span>
+                            </div>
+
+                            <?php
+                                /* The old line read `' ' . isset($user->balance) && !empty($user->balance) ? ... : 0.0`.
+                                 * `.` binds tighter than `&&`, so the test was really ((" " . "1") && !empty(...)) -
+                                 * the leading space was concatenated into the condition instead of the output and
+                                 * a zero balance printed "0" rather than "0.00". Computed plainly instead. */
+                                $header_balance = (isset($user->balance) && $user->balance !== null && $user->balance !== '')
+                                    ? (float) $user->balance
+                                    : 0.0;
+                            ?>
+                            <a href="<?= base_url('my-account/wallet') ?>" class="dropdown-item text-decoration-none" aria-label="wallet"><i class="uil uil-wallet"></i><span><?= $settings['currency'] ?><?= number_format($header_balance, 2) ?></span></a>
+                            <a href="<?= base_url('my-account') ?>" class="dropdown-item text-decoration-none" aria-label="my profile"><i class="uil uil-user"></i><span><?= !empty($this->lang->line('profile')) ? $this->lang->line('profile') : 'Profile' ?></span></a>
+                            <a href="<?= base_url('my-account/orders') ?>" class="dropdown-item text-decoration-none" aria-label="orders"><i class="uil uil-history"></i><span><?= !empty($this->lang->line('orders')) ? $this->lang->line('orders') : 'Orders' ?></span></a>
+
+                            <div class="profile-menu-m__divider"></div>
+
+                            <a href="<?= base_url('login/logout') ?>" class="dropdown-item text-decoration-none profile-menu-m__logout" aria-label="logout"><i class="uil uil-signout"></i><span><?= !empty($this->lang->line('logout')) ? $this->lang->line('logout') : 'Logout' ?></span></a>
                         </div>
                     </li>
                 <?php } else { ?>
@@ -361,7 +382,7 @@ $notif_unread = $this->ion_auth->logged_in()
                     </li>
                 <?php } ?>
 
-                <li class="icon">
+                <li class="icon-m">
                     <a href="<?= base_url('my-account/favorites') ?>" class="nav-link" aria-label="favorites">
                         <!-- <img class="icon-img-m" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/heart-icon.png') ?>"> -->
                         <img class="icon-img-m" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/love.png') ?>">
@@ -372,14 +393,14 @@ $notif_unread = $this->ion_auth->logged_in()
                 <!-- checkout/cart icon functionality based on whether user is on checkout page already or not -->
                 <?php $page = $this->uri->segment(2) == 'checkout' ? 'checkout' : '' ?>
                 <?php if ($page == 'checkout') { ?>
-                    <li class="icon">
+                    <li class="icon-m">
                         <a href="<?= base_url('cart') ?>">
                             <img class="icon-img-m" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/shopping-bag.png') ?>">
                         </a>
                         <p class="icon-num-m"><?= ($header_cart_count != 0 ? $header_cart_count : '0'); ?></p>
                     </li>
                 <?php } else { ?>
-                    <li class="icon">
+                    <li class="icon-m">
                         <a href="javascript:void(0);" data-bs-toggle="offcanvas" data-bs-target="#offcanvas-cart">
                             <img class="icon-img-m" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/shopping-bag.png') ?>">
                         </a>
@@ -388,7 +409,7 @@ $notif_unread = $this->ion_auth->logged_in()
                 <?php } ?>
 
 
-                <li class="icon">
+                <li class="icon-m">
                     <?php if ($this->ion_auth->logged_in()) { ?>
                         <a href="<?= base_url('my-account/notifications') ?>" aria-label="Notifications">
                     <?php } else { ?>
@@ -405,7 +426,7 @@ $notif_unread = $this->ion_auth->logged_in()
 
                 <!-- the class offcanvas-nav-btn is the only thing needed to toggle the original style sidebar on click -->
                 <li class="nav-item d-lg-none">
-                    <button class="btn btn-link btn-sm fs-20 text-body mr-2 offcanvas-nav-btn p-0 text-decoration-none uil uil-bars"><span></span></button>
+                    <button class="btn btn-link btn-sm fs-20 text-body offcanvas-nav-btn p-0 text-decoration-none uil uil-bars"><span></span></button>
                 </li>
 
             </ul>

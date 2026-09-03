@@ -629,6 +629,24 @@
                                                                                             <div class="oi-row"><span class="oi-label">Variants</span><span class="oi-value"><?= str_replace(',', ' | ', $item['product_variants'][0]['variant_values']) ?></span></div>
                                                                                         <?php } ?>
                                                                                         <div class="oi-row"><span class="oi-label">Quantity</span><span class="oi-value"><?= $item['quantity'] ?></span></div>
+                                                                                        <?php
+                                                                                        /* Why the customer cancelled or returned it. Collected by the
+                                                                                         * storefront's My Account > Orders popup and stored on the item
+                                                                                         * (migration 076); the old flow asked nothing at all, so a return
+                                                                                         * could only ever be counted, never explained. Shown only when
+                                                                                         * there is one - most items have none, and an empty row on every
+                                                                                         * card is just noise. */
+                                                                                        if (!empty($item['return_reason'])) { ?>
+                                                                                            <div class="oi-row">
+                                                                                                <span class="oi-label">Customer reason</span>
+                                                                                                <span class="oi-value" style="font-weight:600">
+                                                                                                    <?= html_escape($item['return_reason']) ?>
+                                                                                                    <?php if (!empty($item['return_reason_at'])) { ?>
+                                                                                                        <small class="text-muted d-block"><?= date('d M Y, g:i a', strtotime($item['return_reason_at'])) ?></small>
+                                                                                                    <?php } ?>
+                                                                                                </span>
+                                                                                            </div>
+                                                                                        <?php } ?>
                                                                                         <div class="oi-row"><span class="oi-label">Price</span><span class="oi-value"><?= $item['price'] ?></span></div>
                                                                                         <div class="oi-row"><span class="oi-label">Discounted Price</span><span class="oi-value"><?= $item['discounted_price'] ?></span></div>
                                                                                         <div class="oi-row"><span class="oi-label">Subtotal</span><span class="oi-value"><?= $item['price'] * $item['quantity'] ?></span></div>
