@@ -18,9 +18,12 @@ FROM php:8.0-apache
 # download failure. A package that did not install has to fail the apt step, which
 # is the thing the retry loop exists to retry.
 #
-# The header loop then proves the libraries gd needs are really on disk, so a
-# partial install is caught there with a readable message rather than inside
-# ./configure output.
+# The dpkg -s line then confirms the gd/zip build dependencies are really
+# installed, so a partial install is caught there rather than inside ./configure
+# output. It asks dpkg rather than looking for header files: header paths are
+# arch-dependent (an earlier attempt globbed /usr/include/*/jpeglib.h, but Debian
+# ships that at /usr/include/jpeglib.h and only jconfig.h under the multiarch
+# directory, so the check failed a build that was in fact fine).
 #
 # curl and mbstring are NOT in the ext-install list: php:8.0-apache is built
 # --with-curl and --enable-mbstring (both visible in the image's own config blob),
@@ -48,9 +51,7 @@ RUN set -eux; \
         sleep $((attempt * 5)); \
     done; \
     [ "$installed" = 1 ]; \
-    for header in /usr/include/png.h /usr/include/*/jpeglib.h /usr/include/freetype2/ft2build.h; do \
-        ls $header > /dev/null 2>&1 || { echo "MISSING BUILD HEADER: $header - apt did not install everything"; exit 1; }; \
-    done; \
+    dpkg -s libpng-dev libjpeg62-turbo-dev libfreetype6-dev libzip-dev > /dev/null; \
     docker-php-ext-configure gd --with-freetype --with-jpeg; \
     docker-php-ext-install -j"$(nproc)" mysqli pdo_mysql gd zip bcmath exif; \
     a2enmod rewrite; \
