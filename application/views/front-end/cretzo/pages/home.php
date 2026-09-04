@@ -587,68 +587,60 @@
     /*
      * Instagram strip (`czig`).
      *
-     * Our own markup over self-hosted copies of @cretzo_'s posts, read from the
-     * manifest that tools/refresh-instagram.php writes. Run that script to
-     * refresh the pictures - this section is a snapshot, deliberately.
+     * Live posts from @cretzo_, newest first: instagram_feed() in
+     * function_helper.php reads the feed and caches it, so a new Instagram post
+     * shows up here on its own - see that helper for where the posts come from,
+     * how long they are cached and what happens when the feed is unreachable.
      *
-     * It replaced Curator.io's embed widget, which had three problems that could
-     * not be fixed from this side: the free plan injects a black "Powered by
-     * Curator.io" tile INTO the grid (and its script checks that the credit is
-     * still in the DOM, so the tile cannot be hidden, only paid off); the tile
-     * geometry came from their config, so post captions kept overflowing the
-     * artwork; and the whole strip only painted after two round-trips to
-     * cdn.curator.io. Nothing third-party runs here now.
+     * Our own markup, not an embed. Curator.io's widget used to render this band
+     * and could not be fixed from here: its free plan injects a black "Powered by
+     * Curator.io" tile INTO the grid and its script checks that credit is still
+     * in the DOM, the tile geometry came from their config so captions overflowed
+     * the artwork, and the strip only painted after two round-trips to their CDN.
+     * Reading the feed as data leaves the layout, the post count and the render
+     * timing to us. The pictures are still served from the feed's CDN.
      *
      * Layout is a mosaic - one large tile flanked by small ones - so it reads as
      * a designed band rather than a dump of thumbnails. Only CZIG_TILES posts are
      * shown; the last cell is the "see the rest on Instagram" link, which is why
      * there is no load-more here.
      */
+    /* 8 pictures + the CTA cell fills the mosaic exactly. */
+    $czig_posts = instagram_feed(8);
+
     $czig_settings = get_settings('web_settings', true);
     $czig_url = isset($czig_settings['instagram_link']) ? trim($czig_settings['instagram_link']) : '';
-
-    $czig_dir  = 'assets/front_end/cretzo/img/instagram/';
-    $czig_feed = FCPATH . $czig_dir . 'feed.json';
-    $czig_data = is_file($czig_feed) ? json_decode(file_get_contents($czig_feed), true) : null;
-    $czig_posts = (is_array($czig_data) && !empty($czig_data['posts'])) ? $czig_data['posts'] : [];
-
-    /* 8 pictures + the CTA cell fills the mosaic exactly. Fewer posts than that
-     * is fine - the grid reflows - but the section is skipped entirely if the
-     * manifest is missing, rather than rendering an empty band. */
-    $czig_posts = array_slice($czig_posts, 0, 8);
-
     if ($czig_url === '') {
-        $czig_profile = !empty($czig_data['profile']) ? $czig_data['profile'] : 'cretzo_';
-        $czig_url = 'https://www.instagram.com/' . $czig_profile . '/';
+        $czig_url = 'https://www.instagram.com/cretzo_/';
     }
-    /* "https://instagram.com/cretzo_" -> "@cretzo_" for the button label. */
+    /* "https://instagram.com/cretzo_" -> "@cretzo_" for the chip label. */
     $czig_path   = parse_url($czig_url, PHP_URL_PATH);
     $czig_handle = trim(($czig_path !== null && $czig_path !== false) ? $czig_path : '', '/');
     $czig_handle = ($czig_handle !== '') ? '@' . $czig_handle : '@cretzo';
     ?>
+    <?php /* No feed, no band - better than a heading over an empty grid. */ ?>
     <?php if (!empty($czig_posts)) { ?>
         <section class="home-part-container czig">
             <div class="czig__head">
                 <h2 class="czig__title">Follow Us On <span>Instagram</span></h2>
                 <p class="czig__sub">Real pieces, real makers - straight from the studio.</p>
-                <!-- <a class="czig__handle" href="<?= html_escape($czig_url) ?>" target="_blank" rel="noopener">
-                    <i class="uil uil-instagram"></i><?= html_escape($czig_handle) ?>
-                </a> -->
             </div>
 
             <div class="czig__grid">
-                <?php foreach ($czig_posts as $czig_i => $czig_post) {
-                    /* Every tile opens the post itself; a post whose permalink did not
-                       survive the refresh falls back to the profile. */
+                <?php foreach ($czig_posts as $czig_post) {
+                    /* Every tile opens the post itself; a post whose permalink the feed
+                       did not carry falls back to the profile. */
                     $czig_link = !empty($czig_post['url']) ? $czig_post['url'] : $czig_url;
                     $czig_alt  = !empty($czig_post['caption'])
                         ? $czig_post['caption']
                         : 'Cretzo on Instagram';
                     ?>
                     <a class="czig__tile" href="<?= html_escape($czig_link) ?>" target="_blank" rel="noopener">
-                        <img src="<?= base_url($czig_dir . $czig_post['file']) ?>"
+                        <?php /* Remote image: the feed's CDN, so the tile follows the account
+                                 without anything being re-downloaded here. */ ?>
+                        <img src="<?= html_escape($czig_post['image']) ?>"
                              alt="<?= html_escape($czig_alt) ?>"
-                             loading="lazy" decoding="async">
+                             loading="lazy" decoding="async" referrerpolicy="no-referrer">
                         <span class="czig__tile-veil">
                             <i class="uil uil-instagram"></i>
                         </span>
@@ -660,7 +652,10 @@
                 <a class="czig__tile czig__tile--cta" href="<?= html_escape($czig_url) ?>" target="_blank" rel="noopener">
                     <i class="uil uil-instagram"></i>
                     <span class="czig__cta-title">See more</span>
-                    <?php ?>
+                    <?php /* The handle chip replaces the "on Instagram" line that used to sit
+                             here: between it and the glyph above, that line said nothing the
+                             rest of the tile did not. It is a <span>, not a second <a> - the
+                             whole tile is already the link. */ ?>
                     <span class="czig__cta-handle">
                         <i class="uil uil-instagram"></i><?= html_escape($czig_handle) ?>
                     </span>
