@@ -65,10 +65,334 @@
 }
 
 
-/* instagram items container to scale down overall size, since curator doesn't allow resize for free users */
-.instagram-items-container{
-    zoom: 0.72;
-    -moz-transform: scale(0.62);
+/* ==========================================================================
+   Instagram strip (`czig`)
+   --------------------------------------------------------------------------
+   Markup: pages/home.php. Pictures: assets/.../img/instagram/, refreshed by
+   tools/refresh-instagram.php.
+
+   Two earlier versions are worth knowing about, so they are not reinvented:
+
+   1. Curator.io's embed widget, sized with `zoom: 0.72` on the wrapper. zoom
+      scaled the widget after layout - it shrank the artwork but not the space
+      it reserved, and left every hover hit-area offset from what was drawn.
+   2. The same widget with its grid config tuned from the view. Better, but the
+      tile height still came from the vendor's template, so captions on the
+      picture-with-text posts overflowed the artwork, and the free plan's black
+      "Powered by Curator.io" tile sat in the middle of the first row with no
+      way to remove it from this side.
+
+   Now the geometry is ours: an explicit mosaic of square cells with one 2x2
+   feature tile, so nothing can overflow and every tile crops to a known ratio.
+   ========================================================================== */
+.czig {
+    --czig-ink: #241d14;
+    --czig-ink-3: #8b8071;
+    --czig-orange: var(--color-orange, #F2822E);
+    --czig-cream: var(--color-secondary, #fbe3bf);
+    --czig-line: rgba(36, 29, 20, .12);
+    --czig-gap: 12px;
+    --czig-radius: 16px;
+}
+
+.czig__head {
+    max-width: 640px;
+    margin: 0 auto 26px;
+    text-align: center;
+}
+
+.czig__eyebrow {
+    margin: 0 0 6px;
+    color: var(--czig-ink-3);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+}
+
+.czig__title {
+    margin: 0 0 8px;
+    color: var(--czig-ink);
+    font-size: clamp(24px, 3.2vw, 36px);
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.czig__title span {
+    color: var(--czig-orange);
+}
+
+.czig__sub {
+    margin: 0 0 16px;
+    color: var(--czig-ink-3);
+    font-size: 14px;
+}
+
+.czig__handle {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 3px;
+    border: 1px solid var(--czig-line);
+    border-radius: 999px;
+    background: #fff;
+    color: var(--czig-ink);
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+
+.czig__handle i {
+    font-size: 10px;
+    color: var(--czig-orange);
+    transition: color .15s ease;
+}
+
+.czig__handle:hover {
+    border-color: transparent;
+    background: var(--czig-orange);
+    color: #fff;
+}
+
+.czig__handle:hover i {
+    color: #fff;
+}
+
+/* ---------------------------------- mosaic -------------------------------- */
+/*
+   Desktop: 6 columns x 2 rows of square cells.
+
+     [1][2][   3   ][6][7]
+     [4][5][   3   ][8][cta]
+
+   The feature tile (3rd child) spans 2x2. Because every column is the same
+   width and each single tile is aspect-ratio 1, the row height equals the
+   column width, so the feature tile's 2x2 span is square too and the rows stay
+   flush. Anything that changes the column count must keep that property.
+*/
+.czig__grid {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: var(--czig-gap);
+    max-width: 1220px;
+    margin: 0 auto;
+}
+
+.czig__tile {
+    position: relative;
+    display: block;
+    aspect-ratio: 1 / 1;
+    border-radius: var(--czig-radius);
+    overflow: hidden;
+    background: var(--czig-cream);
+    text-decoration: none;
+    /* A square with nothing but a photo in it needs an edge, or the pale tiles
+       bleed into the page background. */
+    box-shadow: 0 1px 2px rgba(36, 29, 20, .08), inset 0 0 0 1px var(--czig-line);
+}
+
+/* The theme decorates every <a> with an ::before underline; it would sit on top
+   of the artwork. */
+.czig__tile::before,
+.czig__handle::before {
+    content: none;
+    display: none;
+}
+
+.czig__grid > .czig__tile:nth-child(3) {
+    grid-column: span 2;
+    grid-row: span 2;
+}
+
+.czig__tile img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform .45s ease;
+    /* The theme applies a hover transform to every img. */
+    transform: none;
+}
+
+.czig__tile:hover img {
+    transform: scale(1.07);
+}
+
+/* Hover veil - the only thing drawn over a photo, so the artwork is never
+   competing with caption text the way the widget's tiles were. */
+.czig__tile-veil {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(to top, rgba(36, 29, 20, .55), rgba(242, 130, 46, .3));
+    color: #fff;
+    font-size: 28px;
+    opacity: 0;
+    transition: opacity .25s ease;
+}
+
+.czig__tile:hover .czig__tile-veil,
+.czig__tile:focus-visible .czig__tile-veil {
+    opacity: 1;
+}
+
+.czig__tile-veil i {
+    transform: translateY(6px);
+    transition: transform .25s ease;
+}
+
+.czig__tile:hover .czig__tile-veil i {
+    transform: translateY(0);
+}
+
+/* ------------------------------- the way out ------------------------------ */
+/* Last cell: only 8 posts are on the page, the rest are on Instagram. */
+.czig__tile--cta {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 10px;
+    background: var(--czig-cream);
+    color: var(--czig-ink);
+    text-align: center;
+    transition: background .2s ease, color .2s ease;
+}
+
+.czig__tile--cta i {
+    margin-bottom: 4px;
+    color: var(--czig-orange);
+    font-size: 26px;
+    transition: color .2s ease;
+}
+
+.czig__cta-title {
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.czig__cta-sub {
+    color: var(--czig-ink-3);
+    font-size: 12px;
+    transition: color .2s ease;
+}
+
+/*
+   The handle chip inside the CTA tile. Deliberately NOT .czig__handle - that is
+   the header pill, sized for a 640px-wide heading block, and at that size it
+   filled most of a 190px tile. This one is a chip: small type, tight padding,
+   and it keeps its white ground when the tile turns orange underneath so it
+   reads as a button rather than dissolving into the fill.
+*/
+.czig__cta-handle {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    max-width: 100%;
+    margin-top: 8px;
+    padding: 4px 11px;
+    border: 1px solid var(--czig-line);
+    border-radius: 999px;
+    background: #fff;
+    color: var(--czig-ink);
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: .01em;
+    line-height: 1.5;
+    /* Long handles must not push the chip past the tile edge. */
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    transition: background .2s ease, border-color .2s ease, color .2s ease, transform .2s ease;
+}
+
+.czig__cta-handle i {
+    /* Overrides the tile's own 26px glyph size. */
+    margin: 0;
+    font-size: 13px;
+    color: var(--czig-orange);
+}
+
+.czig__tile--cta:hover {
+    background: var(--czig-orange);
+    color: #fff;
+}
+
+.czig__tile--cta:hover i,
+.czig__tile--cta:hover .czig__cta-sub {
+    color: #fff;
+}
+
+.czig__tile--cta:hover .czig__cta-handle {
+    border-color: #fff;
+    background: #fff;
+    color: var(--czig-orange);
+    transform: translateY(-1px);
+}
+
+.czig__tile--cta:hover .czig__cta-handle i {
+    color: var(--czig-orange);
+}
+
+/* -------------------------------- responsive ------------------------------ */
+/*
+   Tablet: 4 columns. The feature tile stays 2x2 and lands on the second row,
+   which keeps the mosaic from reading as a plain 4x3 contact sheet.
+
+     [1][2][3][4]
+     [5][  6  ][7]   <- 6th child is the feature here
+*/
+@media (max-width: 991px) {
+    .czig__grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .czig__grid > .czig__tile:nth-child(3) {
+        grid-column: auto;
+        grid-row: auto;
+    }
+
+    .czig__grid > .czig__tile:nth-child(6) {
+        grid-column: span 2;
+        grid-row: span 2;
+    }
+}
+
+/* Phone: a 2-up grid, feature tile full width at the top of the second row. */
+@media (max-width: 575px) {
+    .czig {
+        --czig-gap: 8px;
+        --czig-radius: 12px;
+    }
+
+    .czig__grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .czig__grid > .czig__tile:nth-child(6) {
+        grid-column: auto;
+        grid-row: auto;
+    }
+
+    .czig__grid > .czig__tile:nth-child(3) {
+        grid-column: span 2;
+        grid-row: span 2;
+    }
+
+    .czig__head {
+        margin-bottom: 18px;
+    }
+
+    .czig__cta-handle {
+        margin-top: 6px;
+        padding: 3px 9px;
+        font-size: 10.5px;
+    }
 }
 
 .container-heading{

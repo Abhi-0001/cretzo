@@ -60,8 +60,8 @@
 /* --------------------------------- layout --------------------------------- */
 .czfoot__main {
     display: grid;
-    /* brand | Information | Shop | Account */
-    grid-template-columns: minmax(0, 1.45fr) repeat(3, minmax(0, 1fr));
+    /* brand | Information | Shop | Account | Get in touch */
+    grid-template-columns: minmax(0, 1.45fr) repeat(3, minmax(0, 1fr)) minmax(0, 1.05fr);
     gap: 28px 40px;
     /* max-width: var(--czfo-max); */
     margin: 0 auto;
@@ -175,6 +175,12 @@
 
 .czfoot__col-title::-webkit-details-marker {
     display: none;
+}
+
+/* The repeated contact column is a plain <div>, not a <details>, so its heading
+   never needs the accordion affordances. */
+.czfoot__col-title--static {
+    display: block;
 }
 
 /* Desktop: the <details> is presentational only. The chevron is hidden and the

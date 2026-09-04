@@ -10,8 +10,9 @@
  * social icons were four differently-styled PNGs sitting on the background.
  *
  * Structure, top to bottom:
- *   1. Brand column   - logo, positioning line, contact chips, social.
- *   2. Link columns   - Information / Shop / Account, unchanged destinations.
+ *   1. Brand column   - logo and positioning line.
+ *   2. Link columns   - Information / Shop / Account, unchanged destinations,
+ *                       then a "Get in touch" column: contact chips + social.
  *   3. Legal bar      - copyright and the accepted payment marks.
  *
  * A trust/USP strip and a "Sell with Cretzo" card were tried above these and
@@ -38,8 +39,6 @@ $czf_phone     = isset($web_settings['support_number']) ? trim($web_settings['su
 $czf_address   = isset($web_settings['address']) ? trim($web_settings['address']) : '';
 $czf_copyright = isset($web_settings['copyright_details']) ? trim($web_settings['copyright_details']) : '';
 
-/* The admin panel stores these four one per key; empty ones must not leave a
- * gap in the icon row. */
 $czf_social = [
     ['key' => 'instagram_link', 'label' => 'Instagram', 'icon' => 'uil-instagram'],
     ['key' => 'facebook_link',  'label' => 'Facebook',  'icon' => 'uil-facebook-f'],
@@ -57,6 +56,48 @@ $czf_is_customer = $this->ion_auth->logged_in()
     && !$this->ion_auth->is_seller()
     && !$this->ion_auth->is_delivery_boy()
     && !$this->ion_auth->is_admin();
+
+/*
+ * Contact chips + social row, rendered as the last footer column. Built up here
+ * rather than inline so the empty-value skipping stays readable: an unset
+ * support email or social link must not leave a hole in the list or icon row.
+ */
+$czf_contact_rows = '';
+if ($czf_email !== '') {
+    $czf_contact_rows .= '<li><i class="uil uil-envelope"></i>'
+        . '<a href="mailto:' . html_escape($czf_email) . '">' . html_escape($czf_email) . '</a></li>';
+}
+if ($czf_phone !== '') {
+    /* tel: must not carry the spaces an admin may have typed. */
+    $czf_contact_rows .= '<li><i class="uil uil-phone"></i>'
+        . '<a href="tel:' . html_escape(preg_replace('/[^0-9+]/', '', $czf_phone)) . '">' . html_escape($czf_phone) . '</a></li>';
+}
+if ($czf_address !== '') {
+    $czf_contact_rows .= '<li><i class="uil uil-map-marker"></i><span>' . html_escape($czf_address) . '</span></li>';
+}
+
+/* The admin panel stores the four social links one per key; empty ones must not
+ * leave a gap in the icon row. */
+$czf_social_html = '';
+foreach ($czf_social as $network) {
+    if (empty($web_settings[$network['key']])) {
+        continue;
+    }
+    $czf_social_html .= '<a class="czfoot__social-link" href="' . html_escape($web_settings[$network['key']]) . '"'
+        . ' target="_blank" rel="noopener" aria-label="' . html_escape($network['label']) . '">'
+        . '<i class="uil ' . $network['icon'] . '"></i></a>';
+}
+
+$czf_reach_html = '';
+if ($czf_contact_rows !== '') {
+    $czf_reach_html .= '<ul class="czfoot__contact">' . $czf_contact_rows . '</ul>';
+}
+if ($czf_social_html !== '') {
+    $czf_reach_html .= '<div class="czfoot__social">'
+        . '<p class="czfoot__social-label">Follow the makers</p>'
+        . '<div class="czfoot__social-row">' . $czf_social_html . '</div>'
+        . '</div>';
+}
 
 $czf_payment_marks = [
     'UPI_Logo.png'        => 'UPI',
@@ -96,44 +137,6 @@ $hide_footer = !empty($hide_footer);
                 <p class="czfoot__about">A marketplace for handmade work - artists, artisans, suppliers and the people who value what they make.</p>
             <?php } ?>
 
-            <ul class="czfoot__contact">
-                <?php if ($czf_email !== '') { ?>
-                    <li>
-                        <i class="uil uil-envelope"></i>
-                        <a href="mailto:<?= html_escape($czf_email) ?>"><?= html_escape($czf_email) ?></a>
-                    </li>
-                <?php } ?>
-                <?php if ($czf_phone !== '') { ?>
-                    <li>
-                        <i class="uil uil-phone"></i>
-                        <?php /* tel: must not carry the spaces an admin may have typed. */ ?>
-                        <a href="tel:<?= html_escape(preg_replace('/[^0-9+]/', '', $czf_phone)) ?>"><?= html_escape($czf_phone) ?></a>
-                    </li>
-                <?php } ?>
-                <?php if ($czf_address !== '') { ?>
-                    <li>
-                        <i class="uil uil-map-marker"></i>
-                        <span><?= html_escape($czf_address) ?></span>
-                    </li>
-                <?php } ?>
-            </ul>
-
-            <?php
-            $czf_social_html = '';
-            foreach ($czf_social as $network) {
-                if (empty($web_settings[$network['key']])) {
-                    continue;
-                }
-                $czf_social_html .= '<a class="czfoot__social-link" href="' . html_escape($web_settings[$network['key']]) . '"'
-                    . ' target="_blank" rel="noopener" aria-label="' . html_escape($network['label']) . '">'
-                    . '<i class="uil ' . $network['icon'] . '"></i></a>';
-            }
-            if ($czf_social_html !== '') { ?>
-                <div class="czfoot__social">
-                    <p class="czfoot__social-label">Follow the makers</p>
-                    <div class="czfoot__social-row"><?= $czf_social_html ?></div>
-                </div>
-            <?php } ?>
         </div>
 
         <details class="czfoot__col" open>
@@ -180,6 +183,13 @@ $hide_footer = !empty($hide_footer);
                 <?php } ?>
             </ul>
         </details>
+
+        <?php if ($czf_reach_html !== '') { ?>
+            <div class="czfoot__col czfoot__col--reach">
+                <p class="czfoot__col-title czfoot__col-title--static">Get in touch</p>
+                <?= $czf_reach_html ?>
+            </div>
+        <?php } ?>
 
     </div>
 
