@@ -149,6 +149,30 @@
   left: 20px;
 }
 
+/* See the note on .cart-mobile-logo in pages/cart.php: the header is not rendered on
+   this page, and .company-logo cannot show on a narrow screen, so a phone had no brand
+   mark and no way back to the home page from the cart. */
+.cart-mobile-logo{
+  display: none;
+}
+@media screen and (max-width: 800px){
+  .cart-mobile-logo{
+    display: flex;
+    justify-content: center;
+    padding: 12px 10px 0 10px;
+  }
+  .cart-mobile-logo .main-logo{
+    height: 40px;
+    width: auto;
+    max-width: 55vw;
+    object-fit: contain;
+  }
+  /* Only one logo per breakpoint - the clipped desktop one stays out of the way. */
+  .company-logo{
+    display: none;
+  }
+}
+
 /* Item selection checkbox, clear cart (remove) and wishlist buttons input style overrides */
 .cart-left-three-btn{
   opacity: 1;

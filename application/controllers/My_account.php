@@ -39,6 +39,11 @@ class My_account extends CI_Controller
         }
         if ($this->data['is_logged_in']) {
             $this->data['main_page'] = 'dashboard';
+            /* No site footer on the account dashboard - the page is a self-contained
+               shell with its own left-hand nav, and the storefront footer's four link
+               columns just repeat what that nav already offers. footer.php honours
+               this flag and still loads its modals/scripts. */
+            $this->data['hide_footer'] = true;
             $this->data['title'] = 'Dashboard | ' . $this->data['web_settings']['site_title'];
             $this->data['keywords'] = 'Dashboard, ' . $this->data['web_settings']['meta_keywords'];
             $this->data['description'] = 'Dashboard | ' . $this->data['web_settings']['meta_description'];

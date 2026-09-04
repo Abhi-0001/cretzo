@@ -63,7 +63,7 @@
     /* brand | Information | Shop | Account */
     grid-template-columns: minmax(0, 1.45fr) repeat(3, minmax(0, 1fr));
     gap: 28px 40px;
-    max-width: var(--czfo-max);
+    /* max-width: var(--czfo-max); */
     margin: 0 auto;
     padding: 44px 28px 38px;
 }

@@ -723,8 +723,11 @@ body{
 }
 @media screen and (max-width: 600px) {
     /* header mobile starts */
+    /* Mobile only: the header is the first thing on screen, so any top padding here
+       reads as dead space between the browser chrome and the logo. Keep the side and
+       bottom breathing room, drop the top gap. */
     .mobile-header-container{
-        padding: 10px;
+        padding: 2px 10px 10px 10px;
     }
     .main-logo-m{
         height: 40px;
@@ -767,7 +770,8 @@ body{
 }
 @media screen and (max-width: 400px) {
     .mobile-header-container{
-        padding-top: 20px;
+        /* Same reasoning as the 600px block - no top gap above the logo. */
+        padding-top: 2px;
     }
     .main-logo-m{
         height: 30px;

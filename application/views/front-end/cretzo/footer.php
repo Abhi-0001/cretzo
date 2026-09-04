@@ -71,6 +71,15 @@ $czf_payment_marks = [
 ?>
 
 <!-- footer starts -->
+<?php
+/* A page can drop the visible site footer by setting $hide_footer in its controller.
+   Only this <footer> is skipped - everything else in this view (auth + quick-view
+   modals, the support chat launcher, the toast styling and the shared scripts below)
+   still loads, which is why this is a flag here rather than $hide_header_footer:
+   that one skips the whole view and would take those with it. */
+$hide_footer = !empty($hide_footer);
+?>
+<?php if (!$hide_footer) { ?>
 <footer class="czfoot">
 
     <!-- 1-2. brand + links -------------------------------------------------- -->
@@ -194,6 +203,7 @@ $czf_payment_marks = [
         </div>
     </div>
 </footer>
+<?php } ?>
 <!-- footer ends -->
 
 
@@ -500,10 +510,16 @@ body.swal2-toast-shown .swal2-container.swal2-top-end {
     top: 55px !important;   /* just below the desktop header / cart & profile icons */
 }
 @media (max-width: 768px) {
+    /* On a phone, clearing the whole mobile header (logo row + search bar) pushed the
+       toast ~140px down - a third of the way into a 400px-tall screen, well away from
+       where the eye is and easy to miss entirely. There is no room to sit "below the
+       header" on mobile, so the toast overlays the top of it instead: it already
+       carries z-index 100060 (see cretzo-override.css), so it draws over the sticky
+       header and disappears again on its 3s timer. */
     body.swal2-toast-shown .swal2-container.swal2-top,
     body.swal2-toast-shown .swal2-container.swal2-top-start,
     body.swal2-toast-shown .swal2-container.swal2-top-end {
-        top: 140px !important; /* mobile header + search bar is ~131px tall */
+        top: 8px !important;
     }
 }
 
@@ -521,7 +537,9 @@ body.swal2-toast-shown .swal2-container.swal2-top-end {
     pointer-events: auto;
 }
 @media (max-width: 768px) {
-    #toast-container.toast-top-center { top: 70px; } /* shorter mobile header */
+    /* Same reasoning as the SweetAlert2 block above - keep it at the top of the
+       screen rather than below the mobile header. */
+    #toast-container.toast-top-center { top: 8px; }
 }
 
 /* Target the success toast specifically */

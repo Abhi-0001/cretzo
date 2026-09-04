@@ -336,6 +336,20 @@
   border: 1px solid var(--color-orange-dark);
 }
 
+/* Touch devices have no hover, so the reveal above could never fire: the button stayed
+   at opacity 0, parked 2rem below the card, unreachable. On those devices it becomes a
+   normal in-flow element at the end of the card body instead of a hover overlay. */
+@media (hover: none) {
+  .cart-btn{
+    position: static;
+    opacity: 1;
+    bottom: auto;
+    margin-top: 0.5rem;
+    padding: 0.5rem !important;
+    border-radius: 6px;
+  }
+}
+
 /* 'Add To Cart' button style ends */
 /* --------------------------------------------------- */
 
@@ -824,4 +838,37 @@ body:not(.swal2-toast-shown) .swal2-container{
     .policy-content h2 {
         margin: 1.75rem 0 0.5rem;
     }
+}
+
+/* ------------------------------------------------------------------
+ * Lightbox close button.
+ *
+ * lightbox.js prints it inside .lb-dataContainer, which sits UNDER the
+ * photo - so on a phone the cross ended up at the bottom-right of the
+ * image, under the caption. Lift it to the top-right corner of the
+ * viewer where people look for it.
+ * ------------------------------------------------------------------ */
+.lb-outerContainer{
+  position: relative;
+}
+.lb-data .lb-close{
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  z-index: 10001;
+  float: none;
+  width: 34px;
+  height: 34px;
+  background-color: rgba(0, 0, 0, 0.55);
+  background-size: 18px 18px;
+  background-position: center;
+  border-radius: 50%;
+  opacity: 1;
+}
+.lb-data .lb-close:hover{
+  background-color: rgba(0, 0, 0, 0.8);
+}
+.lb-data .lb-details{
+  width: 100%;
+  float: none;
 }

@@ -6,12 +6,35 @@ FROM php:8.0-apache
 # deb.debian.org resets connections mid-download often enough to fail CI on a
 # clean tree (seen as "read (104: Connection reset by peer)" on a random .deb),
 # so give apt its own retries/timeouts and retry the whole update+install cycle.
+#
+# NOTE: every comment about this step lives OUT here. Docker joins a backslash-
+# continued RUN into a SINGLE shell line, so a '#' placed inside the block below
+# would comment out every command that follows it on that line.
+#
+# There is deliberately no --fix-missing on the apt-get install. It makes apt exit
+# 0 while SKIPPING any package it could not fetch, so the retry loop sets
+# installed=1, breaks, and reports success - and the build then dies further down
+# in the gd configure with a confusing "png.h not found" instead of the actual
+# download failure. A package that did not install has to fail the apt step, which
+# is the thing the retry loop exists to retry.
+#
+# The dpkg -s line then confirms the gd/zip build dependencies are really
+# installed, so a partial install is caught there rather than inside ./configure
+# output. It asks dpkg rather than looking for header files: header paths are
+# arch-dependent (an earlier attempt globbed /usr/include/*/jpeglib.h, but Debian
+# ships that at /usr/include/jpeglib.h and only jconfig.h under the multiarch
+# directory, so the check failed a build that was in fact fine).
+#
+# curl and mbstring are NOT in the ext-install list: php:8.0-apache is built
+# --with-curl and --enable-mbstring (both visible in the image's own config blob),
+# so they are compiled into the binary already and rebuilding them just produces a
+# second copy of an extension that is always resident.
 RUN set -eux; \
     printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' \
         > /etc/apt/apt.conf.d/99-network-resilience; \
     installed=0; \
     for attempt in 1 2 3 4 5; do \
-        if apt-get update && apt-get install -y --no-install-recommends --fix-missing \
+        if apt-get update && apt-get install -y --no-install-recommends \
                 libzip-dev \
                 libpng-dev \
                 libjpeg62-turbo-dev \
@@ -28,8 +51,9 @@ RUN set -eux; \
         sleep $((attempt * 5)); \
     done; \
     [ "$installed" = 1 ]; \
+    dpkg -s libpng-dev libjpeg62-turbo-dev libfreetype6-dev libzip-dev > /dev/null; \
     docker-php-ext-configure gd --with-freetype --with-jpeg; \
-    docker-php-ext-install -j"$(nproc)" mysqli pdo_mysql gd curl mbstring zip bcmath exif; \
+    docker-php-ext-install -j"$(nproc)" mysqli pdo_mysql gd zip bcmath exif; \
     a2enmod rewrite; \
     rm -rf /var/lib/apt/lists/*
 

@@ -38,6 +38,44 @@ $(document).ready(function() {
         // Show the description element corresponding to the clicked button
         $('.des').eq(index).removeClass('d-none');
     });
+
+    /* The ratings block is a tab panel now, so the "N Ratings" link under the
+       product name (and any #review-section hash) has to open that tab before
+       scrolling - otherwise it jumps to a hidden element and nothing happens. */
+    function openReviewsTab(scroll) {
+        var $panel = $('#review-section');
+        if (!$panel.length) {
+            return;
+        }
+        $('.des-btn').eq($('.des').index($panel)).trigger('click');
+        if (scroll) {
+            $('html, body').animate({
+                scrollTop: $panel.offset().top - 90
+            }, 300);
+        }
+    }
+
+    /* The write/edit-review form is collapsed until the customer asks for it. */
+    $('#czrev-toggle').on('click', function() {
+        var $form = $('#czrev');
+        var open = $form.prop('hidden');
+        $form.prop('hidden', !open);
+        $(this).attr('aria-expanded', open ? 'true' : 'false');
+        if (open) {
+            $('html, body').animate({ scrollTop: $form.offset().top - 90 }, 250);
+            $form.find('textarea, input:not([type=hidden])').first().focus();
+        }
+    });
+
+    $('a[href="#review-section"]').on('click', function(e) {
+        e.preventDefault();
+        openReviewsTab(true);
+    });
+
+    if (window.location.hash === '#review-section') {
+        openReviewsTab(true);
+    }
+
     
     setupScrollMagicEffect();
     setupThumbnailHoverPreview();
@@ -84,9 +122,33 @@ function setupProductImageZoom() {
         return window.innerWidth > 992 && window.matchMedia('(hover: hover)').matches;
     }
 
+    var HOVER_DELAY = 1000;
+    var armTimer = null;
+    var armed = false;
+    var lastEvent = null;
+
     function hide() {
         lens.style.display = 'none';
         pane.style.display = 'none';
+    }
+
+    function disarm() {
+        if (armTimer) {
+            clearTimeout(armTimer);
+            armTimer = null;
+        }
+        armed = false;
+        lastEvent = null;
+        hide();
+    }
+
+    function arm() {
+        if (armed || armTimer) return;
+        armTimer = setTimeout(function () {
+            armTimer = null;
+            armed = true;
+            if (lastEvent) render(lastEvent);
+        }, HOVER_DELAY);
     }
 
     function render(e) {
@@ -123,9 +185,20 @@ function setupProductImageZoom() {
         lens.style.top = Math.max(0, Math.min(imgRect.height - lensH, y - lensH / 2)) + 'px';
     }
 
-    wrap.addEventListener('mousemove', render);
-    wrap.addEventListener('mouseleave', hide);
-    window.addEventListener('scroll', hide, { passive: true });
+    wrap.addEventListener('mousemove', function (e) {
+        if (!canZoom()) {
+            disarm();
+            return;
+        }
+        lastEvent = { clientX: e.clientX, clientY: e.clientY };
+        if (armed) {
+            render(e);
+        } else {
+            arm();
+        }
+    });
+    wrap.addEventListener('mouseleave', disarm);
+    window.addEventListener('scroll', disarm, { passive: true });
 }
 
 function setupScrollMagicEffect(){
@@ -195,6 +268,31 @@ $(function () {
             $mainAdd.trigger('click');
         });
     }
+    /* "Go to cart" shortcut in the same bar.
+
+       There is no add-to-cart success event to hook: the handler lives in custom.js
+       and its only observable effect on this page is writing the new count into the
+       header's #cart-count badge. So mirror that badge - it covers both the initial
+       server-rendered count (button already visible if the cart has items) and the
+       AJAX update right after this product is added, with no change to the cart
+       logic itself. */
+    var $cartLink = $('#mbb-cart-link');
+    var cartBadge = document.getElementById('cart-count');
+    if ($cartLink.length && cartBadge) {
+        var syncCartLink = function () {
+            var n = parseInt(($(cartBadge).text() || '').replace(/[^0-9]/g, ''), 10);
+            if (isNaN(n)) n = 0;
+            $('#mbb-cart-count').text(n > 99 ? '99+' : n);
+            $cartLink.prop('hidden', n <= 0);
+        };
+        syncCartLink();
+        if (window.MutationObserver) {
+            new MutationObserver(syncCartLink).observe(cartBadge, {
+                childList: true, characterData: true, subtree: true
+            });
+        }
+    }
+
     var mainPrice = document.querySelector('.detail-container .current-price');
     var barPrice = document.getElementById('mbb-current-price');
     if (mainPrice && barPrice && window.MutationObserver) {
@@ -307,37 +405,90 @@ $(function () {
         return '';
     }
 
-    function renderPreviews(files) {
+    /* Picking photos a second time used to replace the first pick outright -
+       that is what a file input does natively. Keep our own list, add each new
+       pick to it, and write the result back into the input through a
+       DataTransfer so the form still submits real files. Each preview carries
+       a cross to drop that one photo. */
+    var selectedFiles = [];
+    var canRewriteInput = (typeof DataTransfer !== 'undefined');
+
+    function syncInput() {
+        if (!canRewriteInput || !fileInput) {
+            return;
+        }
+        var dt = new DataTransfer();
+        selectedFiles.forEach(function (f) { dt.items.add(f); });
+        fileInput.files = dt.files;
+    }
+
+    function renderPreviews() {
         previews.innerHTML = '';
-        if (!files.length) {
+        if (!selectedFiles.length) {
             fileCount.textContent = 'No photos selected';
             return;
         }
-        fileCount.textContent = files.length + (files.length === 1 ? ' photo selected' : ' photos selected');
-        Array.prototype.forEach.call(files, function (file) {
+        fileCount.textContent = selectedFiles.length +
+            (selectedFiles.length === 1 ? ' photo selected' : ' photos selected');
+        selectedFiles.forEach(function (file, index) {
             var url = URL.createObjectURL(file);
             var wrap = document.createElement('span');
-            wrap.className = 'czrev-preview';
+            wrap.className = 'czrev-preview czrev-preview-new';
             var img = document.createElement('img');
             img.src = url;
             img.alt = file.name;
             /* Free the object URL once the browser has decoded it. */
             img.onload = function () { URL.revokeObjectURL(url); };
             wrap.appendChild(img);
+
+            var remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'czrev-preview-remove';
+            remove.setAttribute('aria-label', 'Remove ' + file.name);
+            remove.title = 'Remove photo';
+            remove.innerHTML = '&times;';
+            remove.addEventListener('click', function () {
+                selectedFiles.splice(index, 1);
+                syncInput();
+                renderPreviews();
+            });
+            wrap.appendChild(remove);
+
             previews.appendChild(wrap);
         });
     }
 
     if (fileInput) {
         fileInput.addEventListener('change', function () {
-            var problem = czrevValidateFiles(this.files);
-            if (problem) {
-                toast('error', problem);
-                this.value = '';
-                renderPreviews([]);
+            var picked = Array.prototype.slice.call(this.files);
+            if (!picked.length) {
                 return;
             }
-            renderPreviews(this.files);
+            /* Without DataTransfer we cannot merge picks, so the input keeps
+               its native replace-everything behaviour. */
+            var merged = canRewriteInput ? selectedFiles.slice() : [];
+            picked.forEach(function (f) {
+                var already = merged.some(function (existing) {
+                    return existing.name === f.name &&
+                        existing.size === f.size &&
+                        existing.lastModified === f.lastModified;
+                });
+                if (!already) {
+                    merged.push(f);
+                }
+            });
+
+            var problem = czrevValidateFiles(merged);
+            if (problem) {
+                toast('error', problem);
+                syncInput();
+                renderPreviews();
+                return;
+            }
+
+            selectedFiles = merged;
+            syncInput();
+            renderPreviews();
         });
     }
 

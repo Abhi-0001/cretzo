@@ -320,8 +320,22 @@ $this->load->view('front-end/' . THEME . '/partials/account-layout', [
            a missing CSRF token, an expired session) left the button looking dead -
            nothing changed and nothing was said. */
         function markRead(id, then) {
-            $.ajax({ url: readUrl, type: 'POST', dataType: 'json', data: id ? { notification_id: id } : {} })
+            /* CSRF protection is on site-wide and this url is not excluded, so a
+               post without the token is rejected with a 403 before it reaches the
+               controller - which is exactly what made "Mark all as read" dead. The
+               token pair is published globally by include-css.php and refreshed from
+               every response, the same way the cart/address posts do it. */
+            var payload = id ? { notification_id: id } : {};
+            if (typeof csrfName !== 'undefined' && csrfName) {
+                payload[csrfName] = csrfHash;
+            }
+
+            $.ajax({ url: readUrl, type: 'POST', dataType: 'json', data: payload })
                 .done(function (res) {
+                    if (res && res.csrfHash) {
+                        csrfName = res.csrfName;
+                        csrfHash = res.csrfHash;
+                    }
                     if (res && !res.error) {
                         updateBell(res.unread);
                         if (then) {
