@@ -583,40 +583,86 @@
     } ?>
 
     <!-- instagram section starts -->
-    <section class="home-part-container">
-        <h1 class="heading-b container-heading">Instagram</h1>
-        <p class="text-n op-8 container-des">Display an Instagram feed from your Instagram account.</p>
-        <!-- <p class="ta-c"><img class="container-img" src="<?= base_url('assets/front_end/cretzo/img/arrow.png') ?>"></p> -->
+    <?php
+    /*
+     * Instagram strip (`czig`).
+     *
+     * Live posts from @cretzo_, newest first: instagram_feed() in
+     * function_helper.php reads the feed and caches it, so a new Instagram post
+     * shows up here on its own - see that helper for where the posts come from,
+     * how long they are cached and what happens when the feed is unreachable.
+     *
+     * Our own markup, not an embed. Curator.io's widget used to render this band
+     * and could not be fixed from here: its free plan injects a black "Powered by
+     * Curator.io" tile INTO the grid and its script checks that credit is still
+     * in the DOM, the tile geometry came from their config so captions overflowed
+     * the artwork, and the strip only painted after two round-trips to their CDN.
+     * Reading the feed as data leaves the layout, the post count and the render
+     * timing to us. The pictures are still served from the feed's CDN.
+     *
+     * Layout is a mosaic - one large tile flanked by small ones - so it reads as
+     * a designed band rather than a dump of thumbnails. Only CZIG_TILES posts are
+     * shown; the last cell is the "see the rest on Instagram" link, which is why
+     * there is no load-more here.
+     */
+    /* 8 pictures + the CTA cell fills the mosaic exactly. */
+    $czig_posts = instagram_feed(8);
 
-        <!-- instagram -->
-        <!-- <div class="container-fluid my-3 instagram-container"> -->
-        <div class="container-fluid my-3 instagram-container container">
-            <div class="container-fluid my-1">
-
-                <div class="row justify-content-center instagram-items-container">
-                    
-                    <div id="curator-feed-default-feed-layout"></div>
-
-                    <!-- The Javascript can be moved to the end of the html page before the </body> tag -->
-                    <script type="text/javascript">
-                        /* curator-feed-default-feed-layout */
-                        (function() {
-                            var i, e, d = document,
-                                s = "script";
-                            i = d.createElement("script");
-                            i.async = 1;
-                            i.charset = "UTF-8";
-                            i.src = "https://cdn.curator.io/published/b22ac81e-28c4-4e42-8277-146ac29a87b1.js";
-                            e = d.getElementsByTagName(s)[0];
-                            e.parentNode.insertBefore(i, e);
-                        })();
-                    </script>
-                </div>
-
+    $czig_settings = get_settings('web_settings', true);
+    $czig_url = isset($czig_settings['instagram_link']) ? trim($czig_settings['instagram_link']) : '';
+    if ($czig_url === '') {
+        $czig_url = 'https://www.instagram.com/cretzo_/';
+    }
+    /* "https://instagram.com/cretzo_" -> "@cretzo_" for the chip label. */
+    $czig_path   = parse_url($czig_url, PHP_URL_PATH);
+    $czig_handle = trim(($czig_path !== null && $czig_path !== false) ? $czig_path : '', '/');
+    $czig_handle = ($czig_handle !== '') ? '@' . $czig_handle : '@cretzo';
+    ?>
+    <?php /* No feed, no band - better than a heading over an empty grid. */ ?>
+    <?php if (!empty($czig_posts)) { ?>
+        <section class="home-part-container czig">
+            <div class="czig__head">
+                <h2 class="czig__title">Follow Us On <span>Instagram</span></h2>
+                <p class="czig__sub">Real pieces, real makers - straight from the studio.</p>
             </div>
-        </div>
-    </section>
 
+            <div class="czig__grid">
+                <?php foreach ($czig_posts as $czig_post) {
+                    /* Every tile opens the post itself; a post whose permalink the feed
+                       did not carry falls back to the profile. */
+                    $czig_link = !empty($czig_post['url']) ? $czig_post['url'] : $czig_url;
+                    $czig_alt  = !empty($czig_post['caption'])
+                        ? $czig_post['caption']
+                        : 'Cretzo on Instagram';
+                    ?>
+                    <a class="czig__tile" href="<?= html_escape($czig_link) ?>" target="_blank" rel="noopener">
+                        <?php /* Remote image: the feed's CDN, so the tile follows the account
+                                 without anything being re-downloaded here. */ ?>
+                        <img src="<?= html_escape($czig_post['image']) ?>"
+                             alt="<?= html_escape($czig_alt) ?>"
+                             loading="lazy" decoding="async" referrerpolicy="no-referrer">
+                        <span class="czig__tile-veil">
+                            <i class="uil uil-instagram"></i>
+                        </span>
+                    </a>
+                <?php } ?>
+
+                <?php /* Last cell of the mosaic, not a picture: the rest of the feed lives
+                         on Instagram and this is the way out to it. */ ?>
+                <a class="czig__tile czig__tile--cta" href="<?= html_escape($czig_url) ?>" target="_blank" rel="noopener">
+                    <i class="uil uil-instagram"></i>
+                    <span class="czig__cta-title">See more</span>
+                    <?php /* The handle chip replaces the "on Instagram" line that used to sit
+                             here: between it and the glyph above, that line said nothing the
+                             rest of the tile did not. It is a <span>, not a second <a> - the
+                             whole tile is already the link. */ ?>
+                    <span class="czig__cta-handle">
+                        <i class="uil uil-instagram"></i><?= html_escape($czig_handle) ?>
+                    </span>
+                </a>
+            </div>
+        </section>
+    <?php } ?>
     <!-- instagram section ends -->
 
 </section>

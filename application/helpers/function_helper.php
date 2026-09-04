@@ -12915,3 +12915,159 @@ function plan_listings_text($listings_limit)
 
     return $limit . ' listing' . ($limit === 1 ? '' : 's');
 }
+
+/**
+ * =============================================================================
+ *  HOMEPAGE INSTAGRAM STRIP
+ * =============================================================================
+ *
+ * Live posts for the homepage `czig` band, newest first, each entry:
+ *
+ *     ['image' => <https url>, 'url' => <permalink>, 'caption' => <short text>]
+ *
+ * WHERE THE POSTS COME FROM
+ * -------------------------
+ * The public Curator.io feed that already aggregates @cretzo_ - the same feed
+ * the old embed widget used. Curator polls Instagram; we read the JSON. So a new
+ * Instagram post appears on the homepage on its own, delayed by Curator's poll
+ * interval plus this cache's TTL.
+ *
+ * Images are served straight from Curator's CDN rather than copied into
+ * assets/. An earlier version of this section did copy them, with a CLI script
+ * to re-pull - that made the strip a snapshot that only changed when someone
+ * remembered to run the script, which defeats the point.
+ *
+ * WHY NOT INSTAGRAM'S OWN API
+ * ---------------------------
+ * The Graph API is the one route with no third party in it, and it needs a Meta
+ * app plus a long-lived token on the business account, renewed every 60 days.
+ * When that token exists, replace instagram_fetch_posts() only - it is the sole
+ * function that knows where posts come from, and the shape above is what the
+ * view consumes.
+ *
+ * WHY NOT THE EMBED WIDGET
+ * ------------------------
+ * The free plan injects a black "Powered by Curator.io" tile into the grid and
+ * its script verifies that credit is still in the DOM, so the tile cannot be
+ * removed from our side. Reading the feed as data leaves the tile sizes, the
+ * post count and the render timing to us.
+ *
+ * FAILURE BEHAVIOUR
+ * -----------------
+ * A slow or broken feed must never cost a shopper the homepage, so the fetch has
+ * a short timeout and every failure path returns the last good copy, which is
+ * kept for a month under its own key. If there is no last good copy either, the
+ * caller gets [] and the view omits the section entirely.
+ */
+
+/** Public Curator feed id for @cretzo_ - the widget's old feed, read as JSON. */
+define('INSTAGRAM_FEED_ID', 'b22ac81e-28c4-4e42-8277-146ac29a87b1');
+
+/** How long a fetched feed is served before refetching. */
+define('INSTAGRAM_FEED_TTL', 1800);
+
+/** How long the last successful fetch is retained as the failure fallback. */
+define('INSTAGRAM_FEED_FALLBACK_TTL', 2592000);
+
+/**
+ * One HTTP read of the feed, mapped to the shape above. Returns null on any
+ * failure - never a partial or empty list, so the caller can tell "the fetch
+ * failed" from "the account has no photo posts".
+ */
+function instagram_fetch_posts($limit = 12)
+{
+    if (!function_exists('curl_init')) {
+        return null;
+    }
+
+    $url = 'https://api.curator.io/v1.1/feeds/' . INSTAGRAM_FEED_ID . '/posts?limit=' . (int) $limit;
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        /* This runs inside a page render. Better a stale strip than a homepage
+           that waits on someone else's API. */
+        CURLOPT_CONNECTTIMEOUT => 2,
+        CURLOPT_TIMEOUT        => 4,
+        CURLOPT_USERAGENT      => 'cretzo-storefront/1.0',
+    ]);
+    $body = curl_exec($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($body === false || $code !== 200) {
+        log_message('error', 'instagram_fetch_posts: HTTP ' . $code);
+        return null;
+    }
+
+    $data = json_decode($body, true);
+    if (!is_array($data) || empty($data['posts']) || !is_array($data['posts'])) {
+        log_message('error', 'instagram_fetch_posts: unexpected feed payload');
+        return null;
+    }
+
+    $posts = [];
+    foreach ($data['posts'] as $post) {
+        /* Text-only posts have nothing to show in a photo grid. */
+        if (empty($post['has_image'])) {
+            continue;
+        }
+
+        /* image_large is 850px - enough for the 2x2 feature tile; `image` is the
+           480px thumbnail and is the fallback when the large one is missing. */
+        $image = '';
+        foreach (['image_large', 'image'] as $key) {
+            if (!empty($post[$key])) {
+                $image = $post[$key];
+                break;
+            }
+        }
+        if ($image === '') {
+            continue;
+        }
+
+        /* Captions run to hashtag walls; only a short alt text is needed. */
+        $caption = isset($post['text']) ? trim(preg_replace('/\s+/u', ' ', $post['text'])) : '';
+        if ($caption !== '' && function_exists('mb_substr') && mb_strlen($caption, 'UTF-8') > 120) {
+            $caption = rtrim(mb_substr($caption, 0, 117, 'UTF-8')) . '...';
+        }
+
+        $posts[] = [
+            'image'   => $image,
+            'url'     => !empty($post['url']) ? $post['url'] : '',
+            'caption' => $caption,
+        ];
+    }
+
+    return $posts !== [] ? $posts : null;
+}
+
+/**
+ * Cached feed for the view. Never throws, never blocks for long, and returns []
+ * only when there is nothing at all to show.
+ */
+function instagram_feed($limit = 8)
+{
+    $posts = app_cache_remember('instagram_feed', INSTAGRAM_FEED_TTL, function () {
+        $fetched = instagram_fetch_posts();
+
+        /* Kept separately and for far longer than the feed itself: this is what
+           the section falls back to while the API is unreachable. */
+        if ($fetched !== null) {
+            app_cache_set('instagram_feed_last_good', $fetched, INSTAGRAM_FEED_FALLBACK_TTL);
+        }
+
+        return $fetched;
+    });
+
+    if (empty($posts)) {
+        $posts = app_cache_get('instagram_feed_last_good');
+    }
+
+    if (empty($posts) || !is_array($posts)) {
+        return [];
+    }
+
+    return array_slice($posts, 0, (int) $limit);
+}
