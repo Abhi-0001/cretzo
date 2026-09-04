@@ -40,8 +40,12 @@ jobs:
       # build itself before calling it a real failure.
       - name: Build the app image
         run: |
+          # --progress=plain: the default (auto) collapses each step to a live-updating
+          # summary, so a failure shows only BuildKit's "failed to solve" line plus the
+          # Dockerfile source around it - the actual apt / configure error scrolls away
+          # and never reaches the saved log. Plain keeps every line.
           for attempt in 1 2 3; do
-            if docker compose build; then
+            if docker compose build --progress=plain; then
               exit 0
             fi
             echo "::warning::Image build attempt $attempt failed (usually a package-mirror hiccup); retrying"
