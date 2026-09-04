@@ -363,8 +363,23 @@
     margin: 20px;
     padding: 20px;
   }
+  /* Mobile only: one row of three, then the section's "More from"/"More Similar
+     Products" button right under it.
+
+     These grids limited themselves to one row with `max-height` + `overflow:hidden`
+     and an 80px row gap - clipping by pixels, not by card. Whatever height the row
+     did not use stayed as an empty band between the cards and the button, which is
+     the gap that made the button look detached. Hiding every card past the third is
+     height-independent, so the button always sits just below the row. The markup
+     still renders 6 products, which is what the wider breakpoints show. */
   .card-container-more-seller{
     grid-template-columns: repeat(3, 1fr);
+    max-height: none;
+    gap: 20px 10px;
+    padding: 10px 10px 0 10px;
+  }
+  .card-container-more-seller > *:nth-child(n + 4){
+    display: none;
   }
 }
 @media screen and (max-width: 500px) {
@@ -378,9 +393,6 @@
   .review{
     flex-direction: column;
     gap: 5px;
-  }
-  .card-container-more-seller{
-    max-height: 250px;
   }
 }
 @media screen and (max-width: 450px) {
@@ -407,14 +419,16 @@
     margin: 10px;
   }
   .card-container-more-seller{
-    max-height: 250px;
     grid-template-columns: repeat(3, 1fr);
   }
 }
 @media screen and (max-width: 400px) {
+  /* Two columns here, so the one-row cap moves from the 4th card to the 3rd. */
   .card-container-more-seller{
-    max-height: 280px;
     grid-template-columns: repeat(2, 1fr);
+  }
+  .card-container-more-seller > *:nth-child(n + 3){
+    display: none;
   }
 }
 /* responsive ends */

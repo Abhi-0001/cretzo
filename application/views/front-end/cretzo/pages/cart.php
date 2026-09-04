@@ -15,6 +15,16 @@ $logo = get_settings('web_logo');
 <section class="cart-container">
     <!-- <h1 class="heading-n ta-c">Cart</h1> -->
 
+    <!-- Mobile-only brand header. This page renders with $hide_header_footer, so the
+         site header (and its logo) is not on the page at all; the only logo is
+         .company-logo below, which is absolutely positioned inside the step-indicator
+         pill - a `width: fit-content; overflow: hidden` box - so on a phone it is
+         clipped out of sight. A separate block avoids disturbing that desktop
+         placement; CSS shows exactly one of the two per breakpoint. -->
+    <div class="cart-mobile-logo">
+        <a href="<?= base_url() ?>"><img src="<?= base_url($logo) ?>" class="main-logo" alt="site-logo image"></a>
+    </div>
+
     <!-- card indicator -->
     <div class="cart-indicator-container">
         <div class="company-logo">

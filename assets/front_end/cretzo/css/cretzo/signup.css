@@ -28,14 +28,14 @@
 #register_div .login-left{
     width: 58%;
     /* Trimmed from 36/28 - the panel was taller than it needed to be on a laptop. */
-    padding: 24px 36px 20px 36px;
+    padding: 20px 60px 20px 60px;
 }
 #register_div .input{
     margin-bottom: 10px;
-    height: 42px;
+    height: 35px;
     border: 1px solid rgba(0, 0, 0, 0.14);
     border-radius: 10px;
-    font-size: 0.95rem;
+    font-size: 14px;
     transition: border-color .15s ease, box-shadow .15s ease;
 }
 /* #phone-number is excluded: intlTelInput sets its padding-left itself (via the
@@ -58,7 +58,7 @@
 }
 #register_div .login .heading-n{
     margin-bottom: 6px;
-    font-size: 1.5rem;
+    font-size: 1.1rem;
 }
 #register_div .field-container{
     margin: 12px 0 10px;
@@ -287,8 +287,8 @@
     display: flex;
     align-items: flex-start;
     justify-content: center;
-    gap: 6px;
-    margin: 12px 0 2px;
+    gap: 3px;
+    margin: 12px 40px 20px;
 }
 #register_div .signup-step{
     display: flex;
@@ -299,13 +299,13 @@
     width: 68px;
 }
 #register_div .signup-step span{
-    width: 30px;
-    height: 30px;
+    width: 23px;
+    height: 23px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.9rem;
+    font-size: 14px;
     font-weight: 600;
     color: rgba(0, 0, 0, 0.45);
     background-color: #fff;

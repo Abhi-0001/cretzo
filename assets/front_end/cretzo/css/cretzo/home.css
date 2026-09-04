@@ -67,9 +67,41 @@
     }
 }
 @media screen and (max-width: 600px) {
+    /* Mobile only: the two-up product cards used to sit inside 20px of
+       .home-part-container padding plus the 1rem the 1600px block puts on the grid,
+       so ~36px was eaten off each edge and the cards came out much narrower than the
+       same cards on the product listing page. Match the listing's 10px gutter here so
+       both surfaces render cards at the same width. */
+    .home-part-container{
+        padding: 0 10px;
+    }
+    /* Mobile only: two cards, one row, nothing else.
+
+       This used to be done with `max-height` + `overflow:hidden`, which clips by pixels
+       rather than by card - so any change to card height (a longer product name, the
+       wider cards above) let a sliced second row bleed back into view. Capping the
+       column count and hiding every card past the second is deterministic: the section
+       shows exactly one full row at any card height, and "See All" covers the rest. */
     .card-container-one{
-        gap: 100px 10px;
-        max-height: 260px;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 20px 10px;
+        max-height: none;
+        padding: 1em 0;
+    }
+    .card-container-one > *:nth-child(n + 3){
+        display: none;
+    }
+    /* Mobile only: pull the section's "See All" button back up to the cards. The row of
+       cards, the grid's own bottom padding and the button wrapper's inline `margin-top:
+       1em` used to stack into a wide empty band under every section. The wrapper's
+       margin is inline in generateSeeAllButton(), so overriding it needs !important -
+       :has() keeps this off the .container-des paragraph that shares the class. */
+    .card-container-one{
+        padding-bottom: 0;
+    }
+    .home-part-container div.container-des:has(button.see-all){
+        margin-top: 0.25em !important;
+        margin-bottom: 0.5em !important;
     }
     .card-container-two{
         grid-template-columns: repeat(4, 1fr);
@@ -78,9 +110,6 @@
     }
 }
 @media screen and (max-width: 500px) {
-    .card-container-one{
-        grid-template-columns: repeat(2, 1fr);
-    }
     .card-container-two{
         grid-template-columns: repeat(3, 1fr);
         padding: 1em 0;
@@ -88,8 +117,5 @@
     }
 }
 @media screen and (max-width: 400px) {
-    .card-container-one {
-        max-height: 220px;
-    }
 }
 /* responsive ends */

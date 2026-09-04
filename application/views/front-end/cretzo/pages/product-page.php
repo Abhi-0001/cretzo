@@ -527,271 +527,6 @@
 
             </div>
 
-            <div class="customer-rating-container" id="review-section">
-                <h1 class="heading-n">Ratings</h1>
-                <div class="customer-rating">
-                    <div class="customer-rating-number">
-                        <p class="heading-b"><?= (float)($product['product'][0]['rating']) ?><img class="rating-star-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/rating-star.png') ?>"></h1>
-                        <!-- <p>381 Verified Buyers</p> -->
-                        <p><?= $product['product'][0]['no_of_ratings'] ?> Ratings</p>
-                    </div>
-                    <div class="customer-rating-star">
-
-                        <?php
-                            $total_ratings = $product['product'][0]['no_of_ratings'];
-                        ?>
-
-                        <div class="customer-progress-bar-container">
-                            <span class="text-s">5<span><img class="rating-star-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/rating-star.png') ?>"></span></span>
-                            <progress id="file" value="<?=($total_ratings > 0) ? ($product_ratings['star_5'] / $total_ratings) * 100 : 0?>" max="100"></progress>
-                            <span class="text-s"><?=$product_ratings?$product_ratings['star_5']:0?></span>
-                        </div>
-
-                        <div class="customer-progress-bar-container">
-                            <span class="text-s">4<span><img class="rating-star-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/rating-star.png') ?>"></span></span>
-                            <progress id="file" value="<?=($total_ratings > 0) ? ($product_ratings['star_4'] / $total_ratings) * 100 : 0?>" max="100"></progress>
-                            <span class="text-s"><?=$product_ratings?$product_ratings['star_4']:0?></span>
-                        </div>
-
-                        <div class="customer-progress-bar-container">
-                            <span class="text-s">3<span><img class="rating-star-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/rating-star.png') ?>"></span></span>
-                            <progress id="file" value="<?=($total_ratings > 0) ? ($product_ratings['star_3'] / $total_ratings) * 100 : 0?>" max="100"></progress>
-                            <span class="text-s"><?=$product_ratings?$product_ratings['star_3']:0?></span>
-                        </div>
-
-                        <div class="customer-progress-bar-container">
-                            <span class="text-s">2<span><img class="rating-star-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/rating-star.png') ?>"></span></span>
-                            <progress id="file" value="<?=($total_ratings > 0) ? ($product_ratings['star_2'] / $total_ratings) * 100 : 0?>" max="100"></progress>
-                            <span class="text-s"><?=$product_ratings?$product_ratings['star_2']:0?></span>
-                        </div>
-
-                        <div class="customer-progress-bar-container">
-                            <span class="text-s">1<span><img class="rating-star-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/rating-star.png') ?>"></span></span>
-                            <progress id="file" value="<?=($total_ratings > 0) ? ($product_ratings['star_1'] / $total_ratings) * 100 : 0?>" max="100"></progress>
-                            <span class="text-s"><?=$product_ratings?$product_ratings['star_1']:0?></span>
-                        </div>
-                    </div>
-                </div>
-
-                <?php if (isset($product_ratings) && !empty($product_ratings)) { ?>
-                    <h1 class="heading-n mt-2">Customer Photos (<?=$product_ratings['total_images_count']?>)</h1>
-                    <div class="customer-photos">
-                        <?php
-                            $img_count = 0;
-                            foreach ($product_ratings['product_rating'] as $row) {
-                                if($img_count >= 4)
-                                    break;
-
-                                foreach ($row['images'] as $image) {
-                                    if($img_count >= 4){
-                                        break;
-                                    }
-                                    else if($img_count == 3 && $product_ratings['total_images_count'] > 4){
-                                    ?>
-                                        <div class="more-photo-container">
-                                            <img class="customer-photos-img lazy" src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= $image; ?>" alt="Review Image">
-                                            <a href="#" data-toggle="modal" data-target="#imageGalleryModal">
-                                                <p class="more-photo-btn">+<?= $product_ratings['total_images_count']-3 ?></p>
-                                            </a>
-                                        </div>
-                                    <?php
-                                    }
-                                    else{
-                                    ?>
-                                        <a href="<?= $image; ?>" data-lightbox="review-images-all" data-gallery="review-images-all">
-                                            <img class="customer-photos-img lazy" src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= $image; ?>" alt="Review Image">
-                                        </a>
-                                    <?php
-                                    }
-                                    $img_count += 1;
-                                }
-                            }
-                        } ?>
-                    </div>
-
-                <?php if($product['product'][0]['no_of_ratings'] > 0){ ?>
-                    
-                    <h1 class="heading-n mt-8">Customer Reviews (<?= $product['product'][0]['no_of_ratings'] ?>)</h1>
-
-                    <!-- single review -->
-                    <div class="customer-reviews">
-
-                        <?php if (isset($product_ratings) && !empty($product_ratings)) {
-                            foreach ($product_ratings['product_rating'] as $row) { 
-                            ?>
-                                <div class="customer-review-container">
-                                    <div class="rating-star-container">
-                                        <p class="text-s"><?= $row['rating'] ?></p>
-                                        <img class="rating-star-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/rating-star.png') ?>">
-                                    </div>
-                                    <div>
-                                        <p class="text-n"><?= $row['comment'] ?></p>
-                                        <?php if (count($row['images']) > 0) { ?>
-                                            <?php
-                                            /*
-                                             * This used to loop over $product_ratings['product_rating'] again
-                                             * INSIDE each review, reusing $row as the inner variable - so every
-                                             * review showed the same first four photos of the whole product, and
-                                             * the clobbered $row then printed the wrong name underneath. Show
-                                             * this review's own images.
-                                             */
-                                            $review_img_count = 0;
-                                            $review_img_total = count($row['images']);
-                                            ?>
-                                            <div class="customer-photo-contianer">
-                                                <?php foreach ($row['images'] as $image) {
-                                                    if ($review_img_count >= 4) {
-                                                        break;
-                                                    }
-                                                    if ($review_img_count == 3 && $review_img_total > 4) { ?>
-                                                        <div class="more-photo-container">
-                                                            <img class="customer-photos-img lazy" src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= $image; ?>" alt="Review Image">
-                                                            <a href="#" data-toggle="modal" data-target="#imageGalleryModal">
-                                                                <p class="more-photo-btn">+<?= $review_img_total - 3 ?></p>
-                                                            </a>
-                                                        </div>
-                                                    <?php } else { ?>
-                                                        <a href="<?= $image; ?>" data-lightbox="review-images-<?= $row['id'] ?>">
-                                                            <img class="customer-photos-img lazy" src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= $image; ?>" alt="Review Image">
-                                                        </a>
-                                                    <?php }
-                                                    $review_img_count += 1;
-                                                } ?>
-                                            </div>
-                                        <?php } ?>
-                                        <div class="name-date-container">
-                                            <?php // Was a hardcoded "30 Apr 2022" on every single review. ?>
-                                            <p class="text-n"><span><?= $row['user_name'] ?></span> | <span><?= !empty($row['data_added']) ? date('d M Y', strtotime($row['data_added'])) : '' ?></span></p>
-                                        </div>
-                                    </div>
-                                </div>       
-                            <?php 
-                            }
-                        }
-                        ?>
-
-                    </div>
-                
-                <?php } ?>
-
-                <?php
-                /*
-                 * WRITE A REVIEW.
-                 *
-                 * The theme shipped with its whole review form wrapped in an HTML comment
-                 * further down this file, so a buyer had no way to give a star rating, write
-                 * a comment or attach a photo - the page only ever displayed other people's
-                 * reviews. This is the working replacement, rendered inside the ratings
-                 * panel it belongs to.
-                 *
-                 * The old markup also depended on the Krajee bootstrap-star-rating plugin to
-                 * turn a text input into clickable stars; when that failed to initialise the
-                 * rating silently posted as 0 and the server rejected it with a validation
-                 * error the customer could not act on. The stars here are plain radio inputs,
-                 * so they work (and are keyboard accessible) with no plugin at all.
-                 */
-                $my_review = (isset($my_rating['product_rating'][0])) ? $my_rating['product_rating'][0] : null;
-                ?>
-                <div class="czrev" id="czrev">
-                    <h1 class="heading-n mt-8" id="czrev-heading">
-                        <?= $my_review ? 'Your review' : 'Write a review' ?>
-                    </h1>
-
-                    <?php if (!$this->ion_auth->logged_in()) { ?>
-                        <div class="czrev-note">
-                            <i class="uil uil-user-circle"></i>
-                            <p class="text-n">
-                                Please <a href="#" data-bs-toggle="modal" data-bs-target="#modal-signin">sign in</a>
-                                to rate and review this product.
-                            </p>
-                        </div>
-                    <?php } elseif (empty($can_review) && !$my_review) { ?>
-                        <div class="czrev-note">
-                            <i class="uil uil-shopping-bag"></i>
-                            <p class="text-n">Only customers who have bought this product can review it.</p>
-                        </div>
-                    <?php } else { ?>
-
-                        <form class="czrev-form" id="czrev-form" method="POST"
-                              action="<?= base_url('products/save-rating') ?>" enctype="multipart/form-data"
-                              novalidate>
-                            <input type="hidden" name="product_id" value="<?= $product['product'][0]['id'] ?>">
-                            <?php if ($my_review) { ?>
-                                <input type="hidden" name="rating_id" value="<?= $my_review['id'] ?>">
-                            <?php } ?>
-                            <?php // The star widget writes into this; it is what the server validates. ?>
-                            <input type="hidden" name="rating" id="czrev-rating-value"
-                                   value="<?= $my_review ? (int) $my_review['rating'] : '' ?>">
-
-                            <div class="czrev-field">
-                                <label class="czrev-label">Your rating <span class="czrev-req">*</span></label>
-                                <div class="czrev-stars" id="czrev-stars" role="radiogroup" aria-label="Your rating">
-                                    <?php for ($star = 1; $star <= 5; $star++) {
-                                        $checked = ($my_review && (int) round($my_review['rating']) === $star); ?>
-                                        <label class="czrev-star" title="<?= $star ?> star<?= ($star > 1) ? 's' : '' ?>">
-                                            <input type="radio" name="czrev_star" value="<?= $star ?>" <?= $checked ? 'checked' : '' ?>>
-                                            <i class="uil uil-star" aria-hidden="true"></i>
-                                            <span class="czrev-sr"><?= $star ?> star<?= ($star > 1) ? 's' : '' ?></span>
-                                        </label>
-                                    <?php } ?>
-                                    <span class="czrev-star-caption" id="czrev-star-caption"></span>
-                                </div>
-                            </div>
-
-                            <div class="czrev-field">
-                                <label class="czrev-label" for="czrev-comment">Your review</label>
-                                <textarea class="czrev-textarea" id="czrev-comment" name="comment" rows="4"
-                                          maxlength="1000"
-                                          placeholder="What did you like or dislike? How was the quality and the delivery?"><?= $my_review ? $my_review['comment'] : '' ?></textarea>
-                            </div>
-
-                            <div class="czrev-field">
-                                <label class="czrev-label" for="czrev-images">Add photos <span class="czrev-hint">(JPG, PNG or GIF &middot; up to 5 photos &middot; max 7 MB each)</span></label>
-                                <?php /* accept= filters the picker only - czrevValidateFiles() in
-                                        product-page.js enforces the same rules the upload config does. */ ?>
-                                <input type="file" class="czrev-file" id="czrev-images" name="images[]"
-                                       accept="image/png,image/jpeg,image/gif" multiple>
-                                <label class="czrev-file-btn" for="czrev-images">
-                                    <i class="uil uil-camera-plus"></i> Choose photos
-                                </label>
-                                <span class="czrev-file-count" id="czrev-file-count">No photos selected</span>
-                                <div class="czrev-previews" id="czrev-previews"></div>
-                            </div>
-
-                            <?php if ($my_review && !empty($my_review['images'])) { ?>
-                                <div class="czrev-field">
-                                    <label class="czrev-label">Photos already on your review</label>
-                                    <div class="czrev-previews">
-                                        <?php foreach ($my_review['images'] as $image) { ?>
-                                            <a class="czrev-preview" href="<?= $image ?>" data-lightbox="czrev-mine">
-                                                <img src="<?= $image ?>" alt="Your review photo">
-                                            </a>
-                                        <?php } ?>
-                                    </div>
-                                    <?php /* save_rating() merges new uploads onto the stored list and has no
-                                            per-image delete, so say so rather than offering a control that
-                                            cannot work. */ ?>
-                                    <p class="czrev-hint">New photos are added to these. To remove a photo, delete the review and post it again.</p>
-                                </div>
-                            <?php } ?>
-
-                            <div class="czrev-actions">
-                                <button type="submit" class="czrev-submit" id="czrev-submit">
-                                    <?= $my_review ? 'Update review' : 'Submit review' ?>
-                                </button>
-                                <?php if ($my_review) { ?>
-                                    <button type="button" class="czrev-delete" id="czrev-delete"
-                                            data-url="<?= base_url('products/delete-rating') ?>"
-                                            data-rating-id="<?= $my_review['id'] ?>">
-                                        <i class="uil uil-trash-alt"></i> Delete review
-                                    </button>
-                                <?php } ?>
-                            </div>
-                        </form>
-                    <?php } ?>
-                </div>
-
-            </div>
 
         </div>
 
@@ -816,6 +551,14 @@
             <span class="mbb-previous">&#8377; <?= number_format($mbb_price, 2) ?></span>
         <?php } ?>
     </div>
+    <!-- Shortcut straight to the cart, sitting to the left of Add to Cart. Hidden
+         until the cart actually has something in it - JS below mirrors #cart-count
+         from the header, so it appears the moment this product is added and stays
+         put on reload. -->
+    <a href="<?= base_url('cart') ?>" class="mbb-cart" id="mbb-cart-link" aria-label="Go to cart" hidden>
+        <i class="uil uil-shopping-cart"></i>
+        <span class="mbb-cart-count" id="mbb-cart-count">0</span>
+    </a>
     <button type="button" class="mbb-btn" id="mobile-add-cart">
         <i class="uil uil-shopping-bag"></i> Add to Cart
     </button>
@@ -825,9 +568,10 @@
 <!-- product description -->
 <section class="product-description-container">
     <div class="des-btn-container">
-        <button class="text-n des-btn active-des-btn">Description</button>
-        <button class="text-n des-btn">Information</button>
-        <button class="text-n des-btn">FAQ's</button>
+        <button class="text-n des-btn active-des-btn"><i class="uil uil-file-alt"></i> Description</button>
+        <button class="text-n des-btn"><i class="uil uil-list-ul"></i> Information</button>
+        <button class="text-n des-btn"><i class="uil uil-question-circle"></i> FAQ's</button>
+        <button class="text-n des-btn"><i class="uil uil-star"></i> Reviews (<?= (int) $product['product'][0]['no_of_ratings'] ?>)</button>
     </div>
 
     <?php
@@ -868,7 +612,7 @@
                         <?php if ((!isset($faq['data']) && empty($faq['data'])) || $faq['data'] == []) { ?>
                             <div class="d-flex flex-column align-items-center">
                                 <div class="d-flex flex-column">
-                                    <img class="" src="<?= base_url('assets/front_end/modern/img/no-faq.jpg') ?>" alt="No Faq" width="160px" />
+                                    <img class="" src="<?= base_url('assets/front_end/cretzo/img/no-faq.jpg') ?>" alt="No Faq" width="160px" />
                                     <h4>No FAQs Found.</h4>
                                 </div>
                                 <div>
@@ -918,6 +662,289 @@
             </div>
         </div>
     </div>
+
+                <div class="des d-none czrv-panel" id="review-section">
+                
+                    <div class="customer-rating">
+                        <div class="customer-rating-number">
+                            <p class="heading-b"><?= (float)($product['product'][0]['rating']) ?><img class="rating-star-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/rating-star.png') ?>"></p>
+                            <!-- <p>381 Verified Buyers</p> -->
+                            <p><?= $product['product'][0]['no_of_ratings'] ?> Ratings</p>
+                        </div>
+                        <div class="customer-rating-star">
+
+                            <?php
+                                $total_ratings = $product['product'][0]['no_of_ratings'];
+                            ?>
+
+                            <div class="customer-progress-bar-container">
+                                <span class="text-s">5<span><img class="rating-star-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/rating-star.png') ?>"></span></span>
+                                <progress id="file" value="<?=($total_ratings > 0) ? ($product_ratings['star_5'] / $total_ratings) * 100 : 0?>" max="100"></progress>
+                                <span class="text-s"><?=$product_ratings?$product_ratings['star_5']:0?></span>
+                            </div>
+
+                            <div class="customer-progress-bar-container">
+                                <span class="text-s">4<span><img class="rating-star-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/rating-star.png') ?>"></span></span>
+                                <progress id="file" value="<?=($total_ratings > 0) ? ($product_ratings['star_4'] / $total_ratings) * 100 : 0?>" max="100"></progress>
+                                <span class="text-s"><?=$product_ratings?$product_ratings['star_4']:0?></span>
+                            </div>
+
+                            <div class="customer-progress-bar-container">
+                                <span class="text-s">3<span><img class="rating-star-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/rating-star.png') ?>"></span></span>
+                                <progress id="file" value="<?=($total_ratings > 0) ? ($product_ratings['star_3'] / $total_ratings) * 100 : 0?>" max="100"></progress>
+                                <span class="text-s"><?=$product_ratings?$product_ratings['star_3']:0?></span>
+                            </div>
+
+                            <div class="customer-progress-bar-container">
+                                <span class="text-s">2<span><img class="rating-star-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/rating-star.png') ?>"></span></span>
+                                <progress id="file" value="<?=($total_ratings > 0) ? ($product_ratings['star_2'] / $total_ratings) * 100 : 0?>" max="100"></progress>
+                                <span class="text-s"><?=$product_ratings?$product_ratings['star_2']:0?></span>
+                            </div>
+
+                            <div class="customer-progress-bar-container">
+                                <span class="text-s">1<span><img class="rating-star-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/rating-star.png') ?>"></span></span>
+                                <progress id="file" value="<?=($total_ratings > 0) ? ($product_ratings['star_1'] / $total_ratings) * 100 : 0?>" max="100"></progress>
+                                <span class="text-s"><?=$product_ratings?$product_ratings['star_1']:0?></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <?php /* This `if` used to close inside the PHP block below, BEFORE the
+                             </div> that ends .customer-photos - so with no ratings the page
+                             emitted a stray </div> that closed the whole tab panel early and
+                             spilled the reviews and the review form outside it. It now wraps
+                             the markup it opens, and only renders when there are photos. */ ?>
+                    <?php if (!empty($product_ratings) && !empty($product_ratings['total_images_count'])) { ?>
+                        <h1 class="heading-n mt-2">Customer Photos (<?=$product_ratings['total_images_count']?>)</h1>
+                        <div class="customer-photos">
+                            <?php
+                                $img_count = 0;
+                                foreach ($product_ratings['product_rating'] as $row) {
+                                    if($img_count >= 4)
+                                        break;
+
+                                    foreach ($row['images'] as $image) {
+                                        if($img_count >= 4){
+                                            break;
+                                        }
+                                        else if($img_count == 3 && $product_ratings['total_images_count'] > 4){
+                                        ?>
+                                            <div class="more-photo-container">
+                                                <img class="customer-photos-img lazy" src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= $image; ?>" alt="Review Image">
+                                                <a href="#" data-toggle="modal" data-target="#imageGalleryModal">
+                                                    <p class="more-photo-btn">+<?= $product_ratings['total_images_count']-3 ?></p>
+                                                </a>
+                                            </div>
+                                        <?php
+                                        }
+                                        else{
+                                        ?>
+                                            <a href="<?= $image; ?>" data-lightbox="review-images-all" data-gallery="review-images-all">
+                                                <img class="customer-photos-img lazy" src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= $image; ?>" alt="Review Image">
+                                            </a>
+                                        <?php
+                                        }
+                                        $img_count += 1;
+                                    }
+                                }
+                            ?>
+                        </div>
+                    <?php } ?>
+
+                    <?php if($product['product'][0]['no_of_ratings'] > 0){ ?>
+                    
+                        <h1 class="heading-n mt-8">Customer Reviews (<?= $product['product'][0]['no_of_ratings'] ?>)</h1>
+
+                        <!-- single review -->
+                        <div class="customer-reviews">
+
+                            <?php if (isset($product_ratings) && !empty($product_ratings)) {
+                                foreach ($product_ratings['product_rating'] as $row) { 
+                                ?>
+                                    <div class="customer-review-container">
+                                        <div class="rating-star-container">
+                                            <p class="text-s"><?= $row['rating'] ?></p>
+                                            <img class="rating-star-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/rating-star.png') ?>">
+                                        </div>
+                                        <div>
+                                            <p class="text-n"><?= $row['comment'] ?></p>
+                                            <?php if (count($row['images']) > 0) { ?>
+                                                <?php
+                                                /*
+                                                 * This used to loop over $product_ratings['product_rating'] again
+                                                 * INSIDE each review, reusing $row as the inner variable - so every
+                                                 * review showed the same first four photos of the whole product, and
+                                                 * the clobbered $row then printed the wrong name underneath. Show
+                                                 * this review's own images.
+                                                 */
+                                                $review_img_count = 0;
+                                                $review_img_total = count($row['images']);
+                                                ?>
+                                                <div class="customer-photo-contianer">
+                                                    <?php foreach ($row['images'] as $image) {
+                                                        if ($review_img_count >= 4) {
+                                                            break;
+                                                        }
+                                                        if ($review_img_count == 3 && $review_img_total > 4) { ?>
+                                                            <div class="more-photo-container">
+                                                                <img class="customer-photos-img lazy" src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= $image; ?>" alt="Review Image">
+                                                                <a href="#" data-toggle="modal" data-target="#imageGalleryModal">
+                                                                    <p class="more-photo-btn">+<?= $review_img_total - 3 ?></p>
+                                                                </a>
+                                                            </div>
+                                                        <?php } else { ?>
+                                                            <a href="<?= $image; ?>" data-lightbox="review-images-<?= $row['id'] ?>">
+                                                                <img class="customer-photos-img lazy" src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= $image; ?>" alt="Review Image">
+                                                            </a>
+                                                        <?php }
+                                                        $review_img_count += 1;
+                                                    } ?>
+                                                </div>
+                                            <?php } ?>
+                                            <div class="name-date-container">
+                                                <?php // Was a hardcoded "30 Apr 2022" on every single review. ?>
+                                                <p class="text-n"><span><?= $row['user_name'] ?></span> | <span><?= !empty($row['data_added']) ? date('d M Y', strtotime($row['data_added'])) : '' ?></span></p>
+                                            </div>
+                                        </div>
+                                    </div>       
+                                <?php 
+                                }
+                            }
+                            ?>
+
+                        </div>
+                
+                    <?php } ?>
+
+                    <?php
+                    /*
+                     * WRITE A REVIEW.
+                     *
+                     * The theme shipped with its whole review form wrapped in an HTML comment
+                     * further down this file, so a buyer had no way to give a star rating, write
+                     * a comment or attach a photo - the page only ever displayed other people's
+                     * reviews. This is the working replacement, rendered inside the ratings
+                     * panel it belongs to.
+                     *
+                     * The old markup also depended on the Krajee bootstrap-star-rating plugin to
+                     * turn a text input into clickable stars; when that failed to initialise the
+                     * rating silently posted as 0 and the server rejected it with a validation
+                     * error the customer could not act on. The stars here are plain radio inputs,
+                     * so they work (and are keyboard accessible) with no plugin at all.
+                     */
+                    $my_review = (isset($my_rating['product_rating'][0])) ? $my_rating['product_rating'][0] : null;
+                    ?>
+                    <?php /* The form is collapsed behind this button - it used to sit open at
+                             the bottom of the tab all the time, which made the panel enormous
+                             and buried the reviews themselves. */ ?>
+                    <div class="czrev-toggle-row">
+                        <button type="button" class="czrev-toggle" id="czrev-toggle"
+                                aria-expanded="false" aria-controls="czrev">
+                            <i class="uil <?= $my_review ? 'uil-edit' : 'uil-star' ?>"></i>
+                            <span><?= $my_review ? 'Edit your review' : 'Write a review' ?></span>
+                        </button>
+                    </div>
+
+                    <div class="czrev" id="czrev" hidden>
+                        <h1 class="heading-n" id="czrev-heading">
+                            <?= $my_review ? 'Your review' : 'Write a review' ?>
+                        </h1>
+
+                        <?php if (!$this->ion_auth->logged_in()) { ?>
+                            <div class="czrev-note">
+                                <i class="uil uil-user-circle"></i>
+                                <p class="text-n">
+                                    Please <a href="#" data-bs-toggle="modal" data-bs-target="#modal-signin">sign in</a>
+                                    to rate and review this product.
+                                </p>
+                            </div>
+                        <?php } elseif (empty($can_review) && !$my_review) { ?>
+                            <div class="czrev-note">
+                                <i class="uil uil-shopping-bag"></i>
+                                <p class="text-n">Only customers who have bought this product can review it.</p>
+                            </div>
+                        <?php } else { ?>
+
+                            <form class="czrev-form" id="czrev-form" method="POST"
+                                  action="<?= base_url('products/save-rating') ?>" enctype="multipart/form-data"
+                                  novalidate>
+                                <input type="hidden" name="product_id" value="<?= $product['product'][0]['id'] ?>">
+                                <?php if ($my_review) { ?>
+                                    <input type="hidden" name="rating_id" value="<?= $my_review['id'] ?>">
+                                <?php } ?>
+                                <?php // The star widget writes into this; it is what the server validates. ?>
+                                <input type="hidden" name="rating" id="czrev-rating-value"
+                                       value="<?= $my_review ? (int) $my_review['rating'] : '' ?>">
+
+                                <div class="czrev-field">
+                                    <label class="czrev-label">Your rating <span class="czrev-req">*</span></label>
+                                    <div class="czrev-stars" id="czrev-stars" role="radiogroup" aria-label="Your rating">
+                                        <?php for ($star = 1; $star <= 5; $star++) {
+                                            $checked = ($my_review && (int) round($my_review['rating']) === $star); ?>
+                                            <label class="czrev-star" title="<?= $star ?> star<?= ($star > 1) ? 's' : '' ?>">
+                                                <input type="radio" name="czrev_star" value="<?= $star ?>" <?= $checked ? 'checked' : '' ?>>
+                                                <i class="uil uil-star" aria-hidden="true"></i>
+                                                <span class="czrev-sr"><?= $star ?> star<?= ($star > 1) ? 's' : '' ?></span>
+                                            </label>
+                                        <?php } ?>
+                                        <span class="czrev-star-caption" id="czrev-star-caption"></span>
+                                    </div>
+                                </div>
+
+                                <div class="czrev-field">
+                                    <label class="czrev-label" for="czrev-comment">Your review</label>
+                                    <textarea class="czrev-textarea" id="czrev-comment" name="comment" rows="4"
+                                              maxlength="1000"
+                                              placeholder="What did you like or dislike? How was the quality and the delivery?"><?= $my_review ? $my_review['comment'] : '' ?></textarea>
+                                </div>
+
+                                <div class="czrev-field">
+                                    <label class="czrev-label" for="czrev-images">Add photos <span class="czrev-hint">(JPG, PNG or GIF &middot; up to 5 photos &middot; max 7 MB each)</span></label>
+                                    <?php /* accept= filters the picker only - czrevValidateFiles() in
+                                            product-page.js enforces the same rules the upload config does. */ ?>
+                                    <input type="file" class="czrev-file" id="czrev-images" name="images[]"
+                                           accept="image/png,image/jpeg,image/gif" multiple>
+                                    <label class="czrev-file-btn" for="czrev-images">
+                                        <i class="uil uil-camera-plus"></i> Choose photos
+                                    </label>
+                                    <span class="czrev-file-count" id="czrev-file-count">No photos selected</span>
+                                    <div class="czrev-previews" id="czrev-previews"></div>
+                                </div>
+
+                                <?php if ($my_review && !empty($my_review['images'])) { ?>
+                                    <div class="czrev-field">
+                                        <label class="czrev-label">Photos already on your review</label>
+                                        <div class="czrev-previews">
+                                            <?php foreach ($my_review['images'] as $image) { ?>
+                                                <a class="czrev-preview" href="<?= $image ?>" data-lightbox="czrev-mine">
+                                                    <img src="<?= $image ?>" alt="Your review photo">
+                                                </a>
+                                            <?php } ?>
+                                        </div>
+                                        <?php /* save_rating() merges new uploads onto the stored list and has no
+                                                per-image delete, so say so rather than offering a control that
+                                                cannot work. */ ?>
+                                        <p class="czrev-hint">New photos are added to these. To remove a photo, delete the review and post it again.</p>
+                                    </div>
+                                <?php } ?>
+
+                                <div class="czrev-actions">
+                                    <button type="submit" class="czrev-submit" id="czrev-submit">
+                                        <?= $my_review ? 'Update review' : 'Submit review' ?>
+                                    </button>
+                                    <?php if ($my_review) { ?>
+                                        <button type="button" class="czrev-delete" id="czrev-delete"
+                                                data-url="<?= base_url('products/delete-rating') ?>"
+                                                data-rating-id="<?= $my_review['id'] ?>">
+                                            <i class="uil uil-trash-alt"></i> Delete review
+                                        </button>
+                                    <?php } ?>
+                                </div>
+                            </form>
+                        <?php } ?>
+                    </div>
+
+                </div>
 
     <!-- <p id="review" class="text-n des d-none">review Lorem ipsum dolor sit amet consectetur adipisicing elit. Nostrum debitis dignissimos nesciunt dolorem velit itaque, quaerat eaque voluptates culpa fugiat!</p> -->
 
