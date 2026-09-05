@@ -37,6 +37,13 @@ class Subscription extends CI_Controller
             $this->data['lapsed_subscription'] = $this->Seller_subscription_model->get_lapsed_plan_before_free_tier($user_id);
             $this->data['launch_offer_active'] = $this->Seller_subscription_model->is_launch_offer_active();
 
+            // The wallet can now pay for a plan, so the page has to know what is in it.
+            // Referral credit is shown separately because it is the part that CANNOT be
+            // withdrawn - spending it here is the main thing it is for.
+            $wallet = fetch_details('users', ['id' => $user_id], 'balance, referral_credit');
+            $this->data['wallet_balance'] = !empty($wallet) ? (float) $wallet[0]['balance'] : 0;
+            $this->data['referral_credit'] = !empty($wallet) ? (float) $wallet[0]['referral_credit'] : 0;
+
             $this->load->view('seller/template', $this->data);
         } else {
             redirect('seller/login', 'refresh');
@@ -71,6 +78,17 @@ class Subscription extends CI_Controller
         // meant to be able to read the plan's commission slabs and inclusions first, and
         // only meets the gate when they actually try to pay.
         $this->data['seller_approval'] = seller_approval_state($this->session->userdata('user_id'));
+
+        // The wallet is a payment method on this screen now, so the page needs the
+        // balance - and the amount actually payable, which is the plan price less any
+        // proration credit, not the sticker price.
+        $seller_id = $this->session->userdata('user_id');
+        $wallet = fetch_details('users', ['id' => $seller_id], 'balance, referral_credit');
+        $this->data['wallet_balance'] = !empty($wallet) ? (float) $wallet[0]['balance'] : 0;
+        $this->data['referral_credit'] = !empty($wallet) ? (float) $wallet[0]['referral_credit'] : 0;
+        $this->data['amount_payable'] = !empty($plan)
+            ? (float) $this->Seller_subscription_model->calculate_proration($seller_id, $plan)['payable']
+            : 0;
 
         $this->data['main_page'] = VIEW . 'subscription_details';
         $this->data['title'] = 'Subscription Detail | ' . $settings['app_name'];
@@ -193,6 +211,109 @@ class Subscription extends CI_Controller
                 'csrfName' => $this->security->get_csrf_token_name(),
                 'csrfHash' => $this->security->get_csrf_hash(),
                 'message' => $success ? $message : 'Failed to activate subscription.',
+            ];
+            echo json_encode($response);
+            return;
+        }
+
+        // ------------------------------------------------------------------
+        // Pay from the wallet.
+        //
+        // This is what makes a referral reward worth earning: the programme pays
+        // sellers in spend-only credit, and until now there was nothing on this
+        // platform a seller could spend it on - subscription checkout took
+        // Razorpay and nothing else.
+        //
+        // WHOLE FEE ONLY. A wallet that cannot cover the whole amount is refused
+        // rather than part-paid: splitting a fee across the wallet and a gateway
+        // means a refund story where half the money came back through Razorpay
+        // and half has to be re-credited, and that is a bigger change than this
+        // one. The owner asked for wallet payment; if they want it split, that is
+        // a deliberate follow-up.
+        //
+        // update_wallet_balance() is the only debit path used here: it writes the
+        // balance and the ledger row inside one transaction, and it is where the
+        // spend-only counter is decremented, so referral credit is consumed
+        // before any withdrawable money.
+        // ------------------------------------------------------------------
+        if ($this->input->post('payment_method', true) === 'wallet') {
+            $wallet = fetch_details('users', ['id' => $seller_id], 'balance');
+            $balance = !empty($wallet) ? (float) $wallet[0]['balance'] : 0;
+
+            if ($balance + 0.001 < $amount_value) {
+                $response = [
+                    'error' => true,
+                    'requires_payment' => false,
+                    'csrfName' => $this->security->get_csrf_token_name(),
+                    'csrfHash' => $this->security->get_csrf_hash(),
+                    'message' => 'Your wallet has ' . number_format($balance, 2) . '. This plan costs '
+                        . number_format($amount_value, 2) . ', and a subscription has to be paid in full from the wallet.',
+                ];
+                echo json_encode($response);
+                return;
+            }
+
+            $debit = update_wallet_balance(
+                'debit',
+                $seller_id,
+                $amount_value,
+                'Subscription: ' . $plan['name'],
+                '',
+                0,
+                'wallet'
+            );
+
+            if (!empty($debit['error'])) {
+                $response = [
+                    'error' => true,
+                    'requires_payment' => false,
+                    'csrfName' => $this->security->get_csrf_token_name(),
+                    'csrfHash' => $this->security->get_csrf_hash(),
+                    'message' => $debit['message'],
+                ];
+                echo json_encode($response);
+                return;
+            }
+
+            $success = $this->Seller_subscription_model->assign_subscription(
+                $seller_id,
+                $subscription_id,
+                isset($plan['validity']) ? $plan['validity'] : null,
+                true
+            );
+
+            // The money is already gone if this fails, so it goes straight back.
+            // Assigning a subscription is a local write and has no reason to fail,
+            // but "no reason to fail" is not a refund policy.
+            if (!$success) {
+                update_wallet_balance(
+                    'credit',
+                    $seller_id,
+                    $amount_value,
+                    'Refund: subscription could not be activated',
+                    '',
+                    1,
+                    'wallet'
+                );
+
+                $response = [
+                    'error' => true,
+                    'requires_payment' => false,
+                    'csrfName' => $this->security->get_csrf_token_name(),
+                    'csrfHash' => $this->security->get_csrf_hash(),
+                    'message' => 'Failed to activate subscription. Your wallet has been refunded.',
+                ];
+                echo json_encode($response);
+                return;
+            }
+
+            $response = [
+                'error' => false,
+                'requires_payment' => false,
+                'csrfName' => $this->security->get_csrf_token_name(),
+                'csrfHash' => $this->security->get_csrf_hash(),
+                'message' => 'Subscription activated. ' . number_format($amount_value, 2)
+                    . ' was paid from your wallet.',
             ];
             echo json_encode($response);
             return;

@@ -51,8 +51,13 @@ class Payment_request extends CI_Controller
             $this->data['seller_id'] = $seller_id;
             // The form asked for an amount with no indication of what was actually available
             // or what the minimum was, so the only way to discover either was to be rejected.
-            $balance = fetch_details('users', ['id' => $seller_id], 'balance');
-            $this->data['wallet_balance'] = isset($balance[0]['balance']) ? (float) $balance[0]['balance'] : 0;
+            // What the form shows must be what the model will accept, or a seller reads
+            // their full balance here and is refused for it on submit. Referral credit is
+            // spend-only, so it counts in the wallet but not in what can be withdrawn.
+            $balance = fetch_details('users', ['id' => $seller_id], 'balance, referral_credit');
+            $this->load->library('referral_engine');
+            $this->data['wallet_balance'] = $this->referral_engine->withdrawable_balance($seller_id);
+            $this->data['referral_credit'] = isset($balance[0]['referral_credit']) ? (float) $balance[0]['referral_credit'] : 0;
             $this->data['min_withdrawal'] = Payment_request_model::MIN_WITHDRAWAL_AMOUNT;
             $this->data['has_pending'] = (bool) $this->db
                 ->where('user_id', $seller_id)

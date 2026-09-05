@@ -153,7 +153,188 @@ function appendSignupDetails(formData) {
     formData.append("email", $.trim($("#signup-email").val()));
     formData.append("mobile", $("#phone-number").val());
     formData.append("country_code", $(".selected-dial-code").text());
+    // Referral code. Sent as friends_code because that is the users column it
+    // lands in, and the name every registration path already reads.
+    formData.append("friends_code", normaliseReferralCode($("#signup-referral").val()));
+    // Which channel the code arrived on, so the ledger can tell a scanned card
+    // from a forwarded message. 'typed' is the honest default: if no link put a
+    // code in the field, the user entered it themselves.
+    formData.append("referral_source", storedReferralSource() || "typed");
 }
+
+/* ---------------------------------------------------------------------------
+ * Referral code on signup.
+ *
+ * Codes travel two ways: typed from a message, or carried on a ?ref= share link.
+ * The link case is the common one, so arriving with ?ref= opens the field and
+ * fills it in - a code the visitor never has to notice is a code that cannot be
+ * lost between landing and signing up. It is kept in sessionStorage because the
+ * signup usually happens several pages after the landing.
+ *
+ * Codes are stored upper-case and unpunctuated server-side, so the same
+ * normalisation runs here - otherwise a pasted "hj4k-cd2p" fails a check that
+ * the server would have passed.
+ * ------------------------------------------------------------------------- */
+var REFERRAL_STORAGE_KEY = "cretzo_ref";
+var REFERRAL_SOURCE_KEY = "cretzo_ref_src";
+
+function normaliseReferralCode(value) {
+    return $.trim(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+function rememberReferralCode(code) {
+    // Private browsing and blocked site data both throw on access rather than
+    // returning null, and a referral code is never worth an exception on a page
+    // the user is trying to read.
+    try {
+        if (code) window.sessionStorage.setItem(REFERRAL_STORAGE_KEY, code);
+    } catch (e) {}
+}
+
+function storedReferralCode() {
+    try {
+        return window.sessionStorage.getItem(REFERRAL_STORAGE_KEY) || "";
+    } catch (e) {
+        return "";
+    }
+}
+
+function rememberReferralSource(source) {
+    try {
+        if (source) window.sessionStorage.setItem(REFERRAL_SOURCE_KEY, source);
+    } catch (e) {}
+}
+
+function storedReferralSource() {
+    try {
+        return window.sessionStorage.getItem(REFERRAL_SOURCE_KEY) || "";
+    } catch (e) {
+        return "";
+    }
+}
+
+/* ---------------------------------------------------------------------------
+ * The banner a scan lands on.
+ *
+ * Someone who has just scanned a card at a stall is holding a phone and needs to
+ * see that something happened - the silent field-prefill that serves a clicked
+ * link is not enough feedback for a scan. Shown once per session, and never to
+ * somebody who is already signed in: a referral code only applies to a new
+ * account, and telling an existing customer otherwise invites a support ticket.
+ * ------------------------------------------------------------------------- */
+var REFERRAL_BANNER_KEY = "cretzo_ref_seen";
+
+function showReferralBanner(code) {
+    try {
+        if (window.sessionStorage.getItem(REFERRAL_BANNER_KEY) === code) return;
+    } catch (e) {}
+
+    if ($("body").hasClass("logged-in") || $("#is-logged-in").val() === "1") {
+        return;
+    }
+
+    var $bar = $(
+        '<div class="cz-ref-banner" role="status">' +
+        '<span class="cz-ref-banner__text">Invite applied &mdash; code <strong>' + code + '</strong>. ' +
+        'Sign up to use it on your first order.</span>' +
+        '<button type="button" class="cz-ref-banner__cta" data-bs-toggle="modal" data-bs-target="#modal-signup">Sign up</button>' +
+        '<button type="button" class="cz-ref-banner__close" aria-label="Dismiss">&times;</button>' +
+        '</div>'
+    );
+
+    $("body").prepend($bar);
+    try { window.sessionStorage.setItem(REFERRAL_BANNER_KEY, code); } catch (e) {}
+
+    $bar.on("click", ".cz-ref-banner__close", function () { $bar.remove(); });
+}
+
+function showReferralFeedback(message, ok) {
+    $("#referral-feedback").text(message || "")
+        .toggleClass("is-valid", !!ok)
+        .toggleClass("is-invalid", !!message && !ok);
+}
+
+// Server-side check of a typed code, so a typo is caught before the account is
+// created rather than silently costing the referrer their reward.
+function checkReferralCode() {
+    var code = normaliseReferralCode($("#signup-referral").val());
+    $("#signup-referral").val(code);
+
+    if (!code) {
+        showReferralFeedback("", false);
+        return;
+    }
+
+    var payload = { code: code };
+    payload[csrfName] = csrfHash;
+
+    $.ajax({
+        type: "POST",
+        url: base_url + "auth/validate_referral",
+        data: payload,
+        dataType: "json",
+        success: function (e) {
+            csrfName = e.csrfName;
+            csrfHash = e.csrfHash;
+            showReferralFeedback(e.message, !e.error);
+        },
+        error: function () {
+            // A failed check must not block the signup - the binding is validated
+            // again server-side at registration either way.
+            showReferralFeedback("", false);
+        }
+    });
+}
+
+$(document).on("click", "#referral-toggle", function (e) {
+    e.preventDefault();
+    $("#referral-field").removeClass("d-none");
+    $(this).addClass("d-none");
+    $("#signup-referral").focus();
+});
+
+$(document).on("blur", "#signup-referral", checkReferralCode);
+
+/* Put a remembered code back into the form and open the row for it.
+ *
+ * Called on page load AND every time the signup modal opens, because the modal's
+ * show.bs.modal handler calls .reset() on the step-1 form - which clears this
+ * field along with the rest. A visitor who lands on a share link or a scanned QR
+ * and opens signup a few pages later would otherwise lose the code silently and
+ * the referral would never be attributed: the commonest path of all, and the one
+ * a curl-driven test cannot see, because it posts the field directly. */
+function applyStoredReferral() {
+    var code = storedReferralCode();
+    if (!code) return;
+
+    $("#signup-referral").val(code);
+    $("#referral-field").removeClass("d-none");
+    $("#referral-toggle").addClass("d-none");
+    checkReferralCode();
+}
+
+$(function () {
+    var fromUrl = "";
+    var source = "";
+    try {
+        var params = new URLSearchParams(window.location.search);
+        fromUrl = normaliseReferralCode(params.get("ref"));
+        // Only the values we generate are honoured; anything else is a plain link.
+        source = (params.get("src") === "qr") ? "qr" : (fromUrl ? "link" : "");
+    } catch (e) {}
+
+    if (fromUrl) {
+        rememberReferralCode(fromUrl);
+        rememberReferralSource(source);
+        showReferralBanner(fromUrl);
+    }
+
+    applyStoredReferral();
+
+    // 'shown', not 'show': the reset runs on 'show', so restoring the code has to
+    // happen after it rather than racing it.
+    $(document).on("shown.bs.modal", "#modal-signup", applyStoredReferral);
+});
 
 function showOtpError(message) {
     $("#otp-error").html(message).show();

@@ -210,6 +210,9 @@ if (!empty($fb_auth['authentication_method']) && $fb_auth['authentication_method
 
 
 
+<?php if (isset($main_page) && $main_page === 'refer-and-earn') { ?>
+    <link rel="stylesheet" href="<?= add_ver(base_url('assets/referral-qr.css')) ?>">
+<?php } ?>
 <!-- --------------------------------------------------------------------------------------------------------------------- -->
 <!-- Some stylesheets that might be required but we will load before the final main page stylesheets to prevent overrides -->
 

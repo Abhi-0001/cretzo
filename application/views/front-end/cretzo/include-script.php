@@ -171,6 +171,15 @@ if ($main_page !== '' && is_file(FCPATH . $page_script_rel)) { ?>
     <script src="<?= add_ver(THEME_ASSETS_URL . 'js/' . $path . THEME . '/' . $path . $main_page . '.js') ?>"></script>
 <?php } ?>
 <script src="<?= add_ver(base_url('assets/front_end/cretzo/js/cretzo-fixes.js')) ?>"></script>
+<?php
+/* Referral QR: the generator and its renderer, on the one storefront page that
+ * draws a code. Vendored rather than loaded from a CDN, and rendered in the
+ * browser rather than by an image service, so a user's referral code never
+ * leaves their machine to become a picture. */
+if (isset($main_page) && $main_page === 'refer-and-earn') { ?>
+    <script src="<?= add_ver(base_url('assets/vendor/qrcode.min.js')) ?>"></script>
+    <script src="<?= add_ver(base_url('assets/referral-qr.js')) ?>"></script>
+<?php } ?>
 <!-- <script src="<?//= add_ver(base_url('assets/front_end/classic/js/custom.js')) ?>"></script> -->
 <?php if ($this->session->flashdata('message')) { ?>
     <script>

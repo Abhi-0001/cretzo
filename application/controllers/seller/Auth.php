@@ -310,10 +310,28 @@ class Auth extends CI_Controller
                 return;
             }
 
+            // Referral code, if this seller was invited by another seller. Validated
+            // here so a typo is reported on the form; the binding itself happens
+            // inside Ion_auth_model::register() for every signup path at once.
+            $friends_code = referral_normalize_code($this->input->post('friends_code', true));
+            if ($friends_code !== '') {
+                $referral_check = referral_validate_code($friends_code);
+                if (!$referral_check['valid']) {
+                    $response['message'] = $referral_check['message'];
+                    $this->output->set_content_type('application/json')->set_output(json_encode($response));
+                    return;
+                }
+            }
+
             // Register user. Group 2 ("members") as well as 4 ("seller") so a seller can
             // also shop on the storefront - the storefront login refuses anyone who is not
             // in group 2, so seller-only accounts previously could not buy anything.
-            $user_id = $this->ion_auth->register($mobile, $password, $email, ['name' => $name], [2, 4]);
+            $user_id = $this->ion_auth->register($mobile, $password, $email, [
+                'name' => $name,
+                // A real `users` column, so ion_auth keeps it and the referral hook in
+                // register() binds this account to whoever's code it is.
+                'friends_code' => $friends_code,
+            ], [2, 4]);
 
             if (!$user_id) {
                 $response['message'] = 'Registration failed. ' . $this->ion_auth->messages();

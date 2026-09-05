@@ -842,6 +842,34 @@ class Ion_auth_model extends CI_Model
             log_message('debug', ''. $num_of_group_added .'');
         }
 
+        // ---------------------------------------------------------------------
+        // Referral program: every new account gets its own code, and honours the
+        // code it was given.
+        //
+        // This sits here, in the one function all fifteen registration paths call
+        // (web customer, app customer, three seller paths, social login, delivery
+        // boy, POS walk-in, admin-created seller), rather than in the controllers.
+        // The old refer-and-earn generated a code in the mobile API only, and only
+        // when the client happened to post one - so a web-registered customer had
+        // no code to share and the code they had been given could never be matched.
+        // Attribution has to be universal or it is not attribution.
+        //
+        // Deliberately AFTER add_to_group(): the program a referral falls under is
+        // decided by the two accounts' roles, and until the groups are written this
+        // account has none. Nothing in here can fail a registration - both helpers
+        // swallow their own errors and the whole block is best-effort.
+        // ---------------------------------------------------------------------
+        if (!empty($id) && function_exists('referral_assign_code')) {
+            referral_assign_code($id);
+
+            // friends_code is the raw code the user typed; it is a real column on
+            // `users`, so _filter_data() above has already kept it in $user_data
+            // whichever caller passed it.
+            if (!empty($user_data['friends_code'])) {
+                referral_bind($id, $user_data['friends_code']);
+            }
+        }
+
         $this->trigger_events('post_register');
 
         return (isset($id)) ? $id : FALSE;

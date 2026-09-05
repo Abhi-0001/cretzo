@@ -299,6 +299,13 @@ textarea.czp-input { min-height: 84px; resize: vertical; }
 .czp-check.has-error { border-color: var(--czp-red); background: var(--czp-red-soft); }
 
 /* ---- Avatar / logo picker -------------------------------------------- */
+/* Every rule below is scoped to .czp-avatar-row on purpose. `.czp-avatar` is
+   ALSO the navbar's user badge (assets/admin/css/cretzo/cretzo.css: a 32px
+   orange circle). Both panels load cretzo.css in <head> and this file later
+   from <body>, so an unscoped `.czp-avatar` here won on document order and
+   turned the header badge into this 72px grey picker circle - blowing out the
+   navbar height on the two pages that load this stylesheet. The picker is
+   always inside .czp-avatar-row; the navbar badge never is. */
 /* A solid border, not dashed: dashed reads as "empty dropzone", which is wrong
    the moment a photo is actually set. */
 .czp-avatar-row {
@@ -311,7 +318,7 @@ textarea.czp-input { min-height: 84px; resize: vertical; }
   background: #fbfcfd;
   margin-bottom: 1.25rem;
 }
-.czp-avatar {
+.czp-avatar-row .czp-avatar {
   flex: 0 0 auto;
   width: 72px;
   height: 72px;
@@ -324,8 +331,8 @@ textarea.czp-input { min-height: 84px; resize: vertical; }
   cursor: pointer;
   transition: border-color .15s, box-shadow .15s;
 }
-.czp-avatar.is-square { border-radius: 12px; }
-.czp-avatar:hover {
+.czp-avatar-row .czp-avatar.is-square { border-radius: 12px; }
+.czp-avatar-row .czp-avatar:hover {
   border-color: var(--czp-orange);
   box-shadow: 0 0 0 4px rgba(242, 130, 46, .14);
 }
@@ -333,23 +340,23 @@ textarea.czp-input { min-height: 84px; resize: vertical; }
    Only one of the two is ever meant to be visible, but if both ever are, they
    overlay and the photo simply covers the silhouette - instead of the circle
    splitting into an icon half and a squashed-photo half. */
-.czp-avatar > * { grid-area: 1 / 1; }
-.czp-avatar img {
+.czp-avatar-row .czp-avatar > * { grid-area: 1 / 1; }
+.czp-avatar-row .czp-avatar img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   /* Above the placeholder in the shared cell. */
   z-index: 1;
 }
-.czp-avatar img[hidden] { display: none; }
-.czp-avatar svg {
+.czp-avatar-row .czp-avatar img[hidden] { display: none; }
+.czp-avatar-row .czp-avatar svg {
   width: 30px;
   height: 30px;
   justify-self: center;
   align-self: center;
   color: #b3bac3;
 }
-.czp-avatar svg[hidden] { display: none; }
+.czp-avatar-row .czp-avatar svg[hidden] { display: none; }
 
 .czp-avatar-copy { min-width: 0; flex: 1 1 auto; }
 .czp-avatar-copy b { display: block; font-size: 13.5px; }

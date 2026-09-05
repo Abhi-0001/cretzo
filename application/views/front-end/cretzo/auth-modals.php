@@ -225,6 +225,31 @@
                                     <input id="signup-name" name="name" class="form-input form-control input" type="text" placeholder="Full Name" autocomplete="name" required>
                                     <input id="signup-email" name="email" class="form-input form-control input" type="email" placeholder="Email Address (optional)" autocomplete="email">
                                     <input id="phone-number" class="form-input form-control input" type="text" placeholder="Mobile Number" required>
+
+                                    <?php /* Referral code. Collapsed behind a link because it is optional
+                                             and most signups have no code - a permanently visible field
+                                             invites people to hunt for one. custom.js opens the row and
+                                             fills it in automatically when the visitor arrived on a
+                                             ?ref= link, which is how most codes actually travel. */ ?>
+                                    <div class="referral-row">
+                                        <button type="button" id="referral-toggle" class="referral-toggle">
+                                            <i class="uil uil-gift"></i>
+                                            <span>Have a referral code?</span>
+                                        </button>
+                                        <div id="referral-field" class="referral-field d-none">
+                                            <?php /* The toggle hides itself once the field is open, and a code that
+                                                     arrived on a share link or a scanned QR fills the input - which
+                                                     hides the placeholder too. Without this label the commonest path
+                                                     ends with an unexplained box of eight characters above the
+                                                     signup button. */ ?>
+                                            <label class="referral-label" for="signup-referral">
+                                                <i class="uil uil-gift"></i> Referral code
+                                            </label>
+                                            <input id="signup-referral" name="friends_code" class="form-input form-control input" type="text"
+                                                   placeholder="Referral code" autocomplete="off" spellcheck="false" maxlength="16">
+                                            <p id="referral-feedback" class="referral-feedback"></p>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div class="hide text-danger ta-c" id="error-msg"></div>

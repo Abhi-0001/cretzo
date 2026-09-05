@@ -1,0 +1,891 @@
+/* ==========================================================================
+   Admin > Refer & Earn
+   --------------------------------------------------------------------------
+   The five referral screens (programs, queue, ledger, ambassadors, report)
+   were built out of bare AdminLTE parts - `small-box bg-light` tiles, default
+   `card`s, `badge-secondary` pills and `form-row` grids - so they read as
+   unstyled scaffolding next to the rest of the panel, which uses the czp
+   system from the seller form.
+
+   This sheet gives the section the same visual language: the czp palette and
+   card treatment, one page header, one stat row, one table style and one set
+   of status pills, so the five screens look like one feature rather than five
+   separate pages.
+
+   Everything is scoped under .czr-page. The referral views render inside the
+   AdminLTE shell alongside every other admin screen, so an unscoped rule here
+   would leak into all of them.
+   ========================================================================== */
+
+.czr-page {
+  /* Same tokens as assets/seller/css/cretzo/seller-profile.css. Redeclared
+     rather than imported because these admin views do not load that sheet. */
+  --czr-orange: #F2822E;
+  --czr-orange-dark: #d96f1d;
+  --czr-orange-soft: #fff4ea;
+  --czr-ink: #23282e;
+  --czr-ink-soft: #5c6570;
+  --czr-ink-faint: #8a939e;
+  --czr-line: #e4e8ed;
+  --czr-line-strong: #cfd6de;
+  --czr-bg: #f6f7f9;
+  --czr-green: #17915d;
+  --czr-green-soft: #e8f6ef;
+  --czr-amber: #a86a12;
+  --czr-amber-soft: #fdf3e2;
+  --czr-red: #c0392b;
+  --czr-red-soft: #fdecea;
+  --czr-blue: #2b6cb0;
+  --czr-blue-soft: #eaf1f9;
+  --czr-shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 8px 24px rgba(16, 24, 40, .06);
+  --czr-radius: 14px;
+
+  color: var(--czr-ink);
+}
+
+/* AdminLTE pads .content-wrapper; the sections below supply their own rhythm. */
+.czr-page .content-header { padding: 1.25rem .5rem .25rem; }
+.czr-page .content { padding-top: .25rem; }
+.czr-page a { color: var(--czr-orange); }
+.czr-page a:hover { color: var(--czr-orange-dark); }
+
+/* ---- Page header ------------------------------------------------------- */
+.czr-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.1rem;
+}
+.czr-head__title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -.01em;
+}
+.czr-head__sub {
+  margin: .3rem 0 0;
+  font-size: 13px;
+  color: var(--czr-ink-soft);
+  max-width: 68ch;
+}
+.czr-head__actions { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+
+/* Breadcrumb, rebuilt so it does not depend on AdminLTE's float-based one. */
+.czr-crumbs {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  flex-wrap: wrap;
+  margin: 0 0 .55rem;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+  color: var(--czr-ink-faint);
+}
+.czr-crumbs li { display: inline-flex; align-items: center; gap: .4rem; }
+.czr-crumbs li + li::before { content: "/"; color: var(--czr-line-strong); }
+.czr-crumbs a { color: var(--czr-ink-soft); }
+.czr-crumbs a:hover { color: var(--czr-orange); }
+.czr-crumbs [aria-current] { color: var(--czr-ink); font-weight: 600; }
+
+/* ---- Stat row ---------------------------------------------------------- */
+.czr-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: .85rem;
+  margin-bottom: 1.15rem;
+}
+.czr-stat {
+  position: relative;
+  background: #fff;
+  border: 1px solid var(--czr-line);
+  border-radius: var(--czr-radius);
+  box-shadow: var(--czr-shadow);
+  padding: .95rem 1.05rem 1rem;
+  overflow: hidden;
+}
+/* Accent rail carries the state, so the tile itself stays readable - the old
+   bg-danger/bg-warning tiles turned the whole card a colour and dropped the
+   text contrast with it. */
+.czr-stat::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--czr-line-strong);
+}
+.czr-stat--good::before { background: var(--czr-green); }
+.czr-stat--warn::before { background: var(--czr-orange); }
+.czr-stat--danger::before { background: var(--czr-red); }
+.czr-stat__label {
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--czr-ink-faint);
+}
+.czr-stat__value {
+  margin: .3rem 0 0;
+  font-size: 1.55rem;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -.02em;
+  overflow-wrap: break-word;
+}
+.czr-stat__value--sm { font-size: 1.25rem; }
+.czr-stat__note {
+  margin: .3rem 0 0;
+  font-size: 12px;
+  color: var(--czr-ink-soft);
+}
+.czr-stat__note a { font-weight: 600; }
+
+/* Budget meter: a number alone does not say how close to the cap it is. */
+.czr-meter {
+  margin-top: .5rem;
+  height: 5px;
+  border-radius: 99px;
+  background: var(--czr-line);
+  overflow: hidden;
+}
+.czr-meter__fill { height: 100%; border-radius: 99px; background: var(--czr-green); transition: width .3s ease; }
+.czr-meter__fill--warn { background: var(--czr-orange); }
+.czr-meter__fill--danger { background: var(--czr-red); }
+
+/* ---- Card -------------------------------------------------------------- */
+.czr-card {
+  background: #fff;
+  border: 1px solid var(--czr-line);
+  border-radius: var(--czr-radius);
+  box-shadow: var(--czr-shadow);
+  margin-bottom: 1.15rem;
+  overflow: hidden;
+}
+.czr-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: .95rem 1.15rem;
+  border-bottom: 1px solid var(--czr-line);
+}
+.czr-card__title { margin: 0; font-size: 1rem; font-weight: 700; }
+.czr-card__sub { margin: .25rem 0 0; font-size: 12.5px; color: var(--czr-ink-soft); max-width: 78ch; }
+.czr-card__body { padding: 1.15rem; }
+.czr-card__body--flush { padding: 0; }
+
+/* ---- Program cards ----------------------------------------------------- */
+/* One programme per row. Switching a programme on is the most consequential
+   control in this panel, and a two-across grid made four of them read as a
+   dashboard to skim rather than four decisions to take one at a time. */
+.czr-programs {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+  margin-bottom: 1.15rem;
+}
+
+/* A full-width card would otherwise leave half the screen empty and push the
+   milestones far below the switch they belong to. Settings left, milestones
+   right, and the whole thing stacks under 1080px. */
+.czr-prog__body {
+  display: grid;
+  grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+  gap: 1.4rem;
+  align-items: start;
+}
+.czr-prog__settings { min-width: 0; }
+.czr-prog__milestones { min-width: 0; }
+
+/* Milestones are full-width ROWS, not a grid of cards.
+   Side by side, two milestones squeezed every field onto its own line and made
+   the seller programme twice as tall as the customer one; three left an orphan
+   in the second column. As rows, one milestone and three look the same. */
+.czr-ms-list {
+  display: flex;
+  flex-direction: column;
+  gap: .7rem;
+}
+
+@media (max-width: 1080px) {
+  .czr-prog__body { grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+}
+.czr-prog {
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid var(--czr-line);
+  border-radius: var(--czr-radius);
+  box-shadow: var(--czr-shadow);
+  overflow: hidden;
+}
+/* A live programme is paying real money, so it is marked on the card edge and
+   not only by a pill that scrolls out of view. */
+.czr-prog--live { border-color: #bfe3d0; box-shadow: 0 0 0 1px #d9f0e3 inset, var(--czr-shadow); }
+.czr-prog__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .95rem 1.15rem;
+  border-bottom: 1px solid var(--czr-line);
+  background: #fcfdfe;
+}
+.czr-prog__name { margin: 0; font-size: 1rem; font-weight: 700; }
+.czr-prog__meta {
+  margin: .3rem 0 0;
+  font-size: 12px;
+  color: var(--czr-ink-soft);
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  flex-wrap: wrap;
+}
+.czr-prog__body { padding: 1.05rem 1.15rem; flex: 1 1 auto; }
+.czr-prog__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  flex-wrap: wrap;
+  padding: .8rem 1.15rem;
+  border-top: 1px solid var(--czr-line);
+  background: #fcfdfe;
+}
+
+/* Route code chip. */
+.czr-code {
+  display: inline-block;
+  padding: .1rem .45rem;
+  border-radius: 6px;
+  border: 1px solid var(--czr-line);
+  background: var(--czr-bg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  color: var(--czr-ink);
+}
+
+/* ---- Fields ------------------------------------------------------------ */
+.czr-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: .85rem 1rem;
+}
+.czr-field { min-width: 0; }
+.czr-field--full { grid-column: 1 / -1; }
+.czr-label {
+  display: block;
+  margin: 0 0 .3rem;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--czr-ink);
+}
+.czr-input,
+.czr-select {
+  width: 100%;
+  padding: .5rem .65rem;
+  font-size: 13.5px;
+  color: var(--czr-ink);
+  background: #fff;
+  border: 1px solid var(--czr-line-strong);
+  border-radius: 9px;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.czr-input:focus,
+.czr-select:focus {
+  outline: none;
+  border-color: var(--czr-orange);
+  box-shadow: 0 0 0 3px rgba(242, 130, 46, .15);
+}
+.czr-input[readonly], .czr-input:disabled { background: var(--czr-bg); color: var(--czr-ink-soft); }
+.czr-hint { margin: .3rem 0 0; font-size: 11.5px; color: var(--czr-ink-faint); }
+
+/* ---- Buttons ----------------------------------------------------------- */
+.czr-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  padding: .5rem .95rem;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+  white-space: nowrap;
+}
+.czr-btn:disabled { opacity: .55; cursor: not-allowed; }
+.czr-btn--primary { background: var(--czr-orange); border-color: var(--czr-orange); color: #fff; }
+.czr-btn--primary:hover:not(:disabled) { background: var(--czr-orange-dark); border-color: var(--czr-orange-dark); color: #fff; }
+.czr-btn--ghost { background: #fff; border-color: var(--czr-line-strong); color: var(--czr-ink); }
+.czr-btn--ghost:hover:not(:disabled) { border-color: var(--czr-orange); color: var(--czr-orange); }
+.czr-btn--good { background: var(--czr-green); border-color: var(--czr-green); color: #fff; }
+.czr-btn--good:hover:not(:disabled) { filter: brightness(.94); color: #fff; }
+.czr-btn--danger { background: #fff; border-color: #e8b4ae; color: var(--czr-red); }
+.czr-btn--danger:hover:not(:disabled) { background: var(--czr-red-soft); color: var(--czr-red); }
+.czr-btn--sm { padding: .32rem .6rem; font-size: 12px; border-radius: 7px; }
+
+/* ---- Switch ------------------------------------------------------------ */
+/* Bootstrap's custom-control-switch is styled by AdminLTE and does not match
+   anything else here, so the section brings its own. The <input> stays a real
+   checkbox (visually hidden) so serializeArray, labels and keyboard focus all
+   keep working exactly as before. */
+.czr-switch { display: flex; align-items: flex-start; gap: .65rem; }
+.czr-switch + .czr-switch { margin-top: .85rem; }
+.czr-switch__input {
+  position: absolute;
+  opacity: 0;
+  width: 38px;
+  height: 21px;
+  margin: 0;
+  cursor: pointer;
+}
+.czr-switch__track {
+  position: relative;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 21px;
+  margin-top: 1px;
+  border-radius: 99px;
+  background: var(--czr-line-strong);
+  transition: background .18s ease;
+  cursor: pointer;
+}
+.czr-switch__track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, .2);
+  transition: transform .18s ease;
+}
+.czr-switch__input:checked ~ .czr-switch__track { background: var(--czr-green); }
+.czr-switch__input:checked ~ .czr-switch__track::after { transform: translateX(17px); }
+.czr-switch__input:focus-visible ~ .czr-switch__track { box-shadow: 0 0 0 3px rgba(242, 130, 46, .25); }
+.czr-switch__input:disabled ~ .czr-switch__track { opacity: .5; cursor: not-allowed; }
+.czr-switch__copy { min-width: 0; }
+.czr-switch__title { display: block; font-size: 13px; font-weight: 600; cursor: pointer; }
+.czr-switch__note { display: block; margin-top: .2rem; font-size: 11.5px; color: var(--czr-ink-faint); }
+.czr-switch__note--warn { color: var(--czr-red); }
+
+/* ---- Milestone block --------------------------------------------------- */
+.czr-ms {
+  border: 1px solid var(--czr-line);
+  border-radius: 11px;
+  padding: .8rem .85rem;
+  margin-bottom: .7rem;
+  background: #fcfdfe;
+}
+.czr-ms:last-child { margin-bottom: 0; }
+.czr-ms__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .6rem;
+  margin-bottom: .7rem;
+}
+.czr-ms__name { font-size: 13px; font-weight: 700; }
+.czr-ms__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .6rem;
+  flex-wrap: wrap;
+  margin-top: .7rem;
+}
+.czr-ms .czr-label { font-size: 11.5px; }
+.czr-ms .czr-input, .czr-ms .czr-select { padding: .38rem .5rem; font-size: 12.5px; }
+
+/* Section label above a group. */
+.czr-sublabel {
+  margin: 1.15rem 0 .6rem;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--czr-ink-faint);
+}
+.czr-rule { height: 1px; background: var(--czr-line); border: 0; margin: 1.15rem 0; }
+
+/* ---- Pills ------------------------------------------------------------- */
+.czr-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .16rem .5rem;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+.czr-pill--live { background: var(--czr-green-soft); color: var(--czr-green); border-color: #bfe3d0; }
+.czr-pill--off { background: var(--czr-bg); color: var(--czr-ink-soft); border-color: var(--czr-line-strong); }
+.czr-pill--warn { background: var(--czr-amber-soft); color: var(--czr-amber); border-color: #f0dcb8; }
+.czr-pill--danger { background: var(--czr-red-soft); color: var(--czr-red); border-color: #f0c4bf; }
+.czr-pill--info { background: var(--czr-blue-soft); color: var(--czr-blue); border-color: #c6d9ec; }
+.czr-pill--tier { background: var(--czr-orange-soft); color: var(--czr-orange-dark); border-color: #f6d7ba; }
+
+/* ---- Tabs (queue filter) ----------------------------------------------- */
+.czr-tabs {
+  display: flex;
+  gap: .35rem;
+  flex-wrap: wrap;
+  padding: .7rem 1.15rem;
+  border-bottom: 1px solid var(--czr-line);
+  background: #fcfdfe;
+}
+.czr-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .38rem .75rem;
+  border-radius: 99px;
+  border: 1px solid transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--czr-ink-soft);
+  text-decoration: none;
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+.czr-tab:hover { background: #fff; border-color: var(--czr-line-strong); color: var(--czr-ink); text-decoration: none; }
+.czr-tab.is-active { background: var(--czr-orange); border-color: var(--czr-orange); color: #fff; }
+.czr-tab.is-active:hover { color: #fff; }
+.czr-tab__count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 99px;
+  background: var(--czr-line);
+  color: var(--czr-ink);
+  font-size: 11px;
+  font-weight: 700;
+}
+.czr-tab.is-active .czr-tab__count { background: rgba(255, 255, 255, .28); color: #fff; }
+
+/* ---- Tables ------------------------------------------------------------ */
+.czr-tablewrap { overflow-x: auto; }
+.czr-table {
+  width: 100%;
+  margin: 0;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+.czr-table th,
+.czr-table td {
+  padding: .7rem .95rem;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--czr-line);
+  text-align: left;
+}
+.czr-table thead th {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--czr-ink-faint);
+  background: #fcfdfe;
+  border-bottom: 1px solid var(--czr-line);
+  white-space: nowrap;
+}
+.czr-table tbody tr:last-child td { border-bottom: 0; }
+.czr-table tbody tr:hover { background: #fcfdfe; }
+.czr-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.czr-strong { font-weight: 700; }
+.czr-muted { color: var(--czr-ink-soft); }
+.czr-faint { color: var(--czr-ink-faint); }
+
+/* Rank badge on the ambassador roster. */
+.czr-rank {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--czr-bg);
+  border: 1px solid var(--czr-line);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--czr-ink-soft);
+}
+.czr-rank--1 { background: var(--czr-orange); border-color: var(--czr-orange); color: #fff; }
+.czr-rank--2, .czr-rank--3 { background: var(--czr-orange-soft); border-color: #f6d7ba; color: var(--czr-orange-dark); }
+
+/* Person cell: name over a secondary identifier. */
+.czr-person__name { font-weight: 600; }
+.czr-person__meta { display: block; font-size: 11.5px; color: var(--czr-ink-faint); }
+
+/* Month grouping on the cost report. */
+.czr-table tr.czr-row-month td {
+  background: #fbfcfd;
+  font-weight: 700;
+  border-top: 1px solid var(--czr-line-strong);
+}
+.czr-table tr.czr-row-sub td:first-child { padding-left: 1.9rem; }
+
+/* ---- Empty state ------------------------------------------------------- */
+.czr-empty {
+  padding: 2.6rem 1.15rem;
+  text-align: center;
+  color: var(--czr-ink-soft);
+}
+.czr-empty__icon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  margin: 0 auto .7rem;
+  border-radius: 50%;
+  background: var(--czr-orange-soft);
+  color: var(--czr-orange);
+  font-size: 20px;
+}
+.czr-empty__title { margin: 0 0 .25rem; font-size: 14.5px; font-weight: 700; color: var(--czr-ink); }
+.czr-empty__text { margin: 0 auto; font-size: 13px; max-width: 46ch; }
+
+/* ---- bootstrap-table skin ---------------------------------------------- */
+/* The ledger and queue render through bootstrap-table, which brings its own
+   toolbar and Bootstrap table classes. These rules bring it in line with
+   .czr-table above so the two kinds of list do not look like two products. */
+.czr-page .bootstrap-table .fixed-table-container { border: 0; border-radius: 0; }
+.czr-page .bootstrap-table .fixed-table-toolbar { padding: .5rem .35rem .75rem; }
+.czr-page .bootstrap-table .table { margin: 0; font-size: 13.5px; }
+.czr-page .bootstrap-table .table > thead > tr > th {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--czr-ink-faint);
+  background: #fcfdfe;
+  border-top: 0;
+  border-bottom: 1px solid var(--czr-line);
+  vertical-align: middle;
+}
+.czr-page .bootstrap-table .table > tbody > tr > td {
+  padding: .7rem .95rem;
+  vertical-align: middle;
+  border-top: 0;
+  border-bottom: 1px solid var(--czr-line);
+}
+.czr-page .bootstrap-table .table > tbody > tr:hover > td { background: #fcfdfe; }
+.czr-page .bootstrap-table .table-striped > tbody > tr:nth-of-type(odd) > td { background: transparent; }
+.czr-page .fixed-table-pagination { padding: .75rem 1.15rem; }
+.czr-page .fixed-table-pagination .pagination-detail,
+.czr-page .fixed-table-pagination .pagination { margin: 0; font-size: 12.5px; }
+.czr-page .fixed-table-pagination .page-item.active .page-link {
+  background: var(--czr-orange);
+  border-color: var(--czr-orange);
+  color: #fff;
+}
+.czr-page .fixed-table-pagination .page-link { color: var(--czr-ink); }
+.czr-page .fixed-table-toolbar .search input {
+  border-radius: 9px;
+  border: 1px solid var(--czr-line-strong);
+  font-size: 13px;
+}
+.czr-page .fixed-table-toolbar .search input:focus {
+  border-color: var(--czr-orange);
+  box-shadow: 0 0 0 3px rgba(242, 130, 46, .15);
+}
+.czr-page .fixed-table-loading { background: #fff; }
+
+/* Action buttons rendered into bootstrap-table cells by the formatter. */
+.czr-rowactions { display: inline-flex; gap: .3rem; flex-wrap: wrap; }
+
+/* ---- Responsive -------------------------------------------------------- */
+@media (max-width: 575.98px) {
+  .czr-head__title { font-size: 1.15rem; }
+  .czr-stat__value { font-size: 1.35rem; }
+  .czr-card__head, .czr-prog__head, .czr-prog__body, .czr-prog__foot, .czr-tabs { padding-left: .9rem; padding-right: .9rem; }
+  .czr-table th, .czr-table td { padding: .6rem .7rem; }
+}
+
+/* ---------------------------------------------------------------------------
+   Required-field marker.
+
+   Only on fields where a blank value is genuinely wrong. `Hold days` and
+   `Program budget cap` are left unmarked on purpose - blank means "follow the
+   store's return window" and "no cap of its own", which are settings rather
+   than omissions, and marking them would teach admins to ignore the asterisk.
+   --------------------------------------------------------------------------- */
+.czr-req {
+    margin-left: 3px;
+    color: #c0392b;
+    font-weight: 700;
+}
+
+.czr-formkey {
+    margin: 0 0 1rem;
+    font-size: 12px;
+    color: var(--czr-ink-faint, #6d7d8c);
+}
+
+/* The browser's own "please fill in this field" bubble points at the input, so
+   the field only needs to look wrong once the user has actually submitted. */
+.czr-input:invalid,
+.czr-select:invalid {
+    border-color: #e6b3ac;
+}
+.czr-input:invalid:focus,
+.czr-select:invalid:focus {
+    border-color: #c0392b;
+    box-shadow: 0 0 0 3px rgba(192, 57, 43, .12);
+}
+
+/* ---- Section banner ----------------------------------------------------- */
+/*
+   The five Refer & Earn screens share one header. It carries the section's
+   identity, the page title, and tabs between the screens - previously an admin
+   had to go back to the sidebar to move from Programs to the review queue.
+
+   The tint is a wash, not a solid: a saturated band across the top of a data
+   screen fights every status colour underneath it.
+*/
+.czr-banner {
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 1.15rem;
+  padding: 1.35rem 1.5rem .4rem;
+  border: 1px solid var(--czr-line);
+  border-radius: var(--czr-radius, 14px);
+  background:
+    radial-gradient(90% 130% at 100% 0%, rgba(242, 130, 46, .18), transparent 58%),
+    linear-gradient(180deg, #ffffff, #f8fafc);
+}
+
+/* A soft shape behind the corner wash, so the band has some depth without a
+   photograph or a pattern that would fight the data below it. */
+.czr-banner::after {
+  content: "";
+  position: absolute;
+  right: -60px;
+  top: -90px;
+  width: 260px;
+  height: 260px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(242, 130, 46, .16), transparent 68%);
+  pointer-events: none;
+}
+.czr-banner > * { position: relative; z-index: 1; }
+
+.czr-banner__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.czr-banner__top .czr-crumbs { margin-bottom: 0; }
+
+.czr-banner__main {
+  display: flex;
+  align-items: flex-start;
+  gap: .85rem;
+  margin: .7rem 0 .9rem;
+}
+.czr-banner__mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 15px;
+  background: linear-gradient(145deg, var(--czr-orange), #f4a462);
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(242, 130, 46, .32);
+}
+.czr-banner__mark svg { width: 26px; height: 26px; }
+.czr-banner__copy { min-width: 0; }
+.czr-banner .czr-head__title { font-size: 1.7rem; letter-spacing: -.02em; }
+.czr-banner .czr-head__sub { margin-top: .25rem; }
+
+/* Tabs sit on the banner's bottom edge, so the active one reads as continuous
+   with the content below it. */
+.czr-nav {
+  display: flex;
+  gap: .35rem;
+  flex-wrap: wrap;
+  margin: 0;
+}
+.czr-nav__item {
+  position: relative;
+  padding: .5rem .85rem;
+  margin-bottom: .55rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  color: var(--czr-ink-soft);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+.czr-nav__item:hover {
+  color: var(--czr-ink);
+  background: #fff;
+  border-color: var(--czr-line);
+}
+.czr-nav__item.is-active,
+.czr-nav__item.is-active:hover {
+  background: var(--czr-ink);
+  border-color: var(--czr-ink);
+  color: #fff;
+}
+
+@media (max-width: 575px) {
+  .czr-banner { padding: .9rem 1rem .3rem; }
+  .czr-banner .czr-head__title { font-size: 1.25rem; }
+  .czr-nav { overflow-x: auto; flex-wrap: nowrap; }
+}
+
+/* ==========================================================================
+   Programme cards - redesign
+   ========================================================================== */
+
+/* The card's state on its edge, where it survives scrolling past the pill. */
+.czr-prog {
+  position: relative;
+  padding-left: 5px;
+  background: linear-gradient(90deg, #dfe4ea 0 5px, #fff 5px);
+}
+.czr-prog--live {
+  background: linear-gradient(90deg, var(--czr-green) 0 5px, #fff 5px);
+  border-color: #bfe3d0;
+  box-shadow: 0 0 0 1px #d9f0e3 inset, var(--czr-shadow);
+}
+
+.czr-prog__head {
+  align-items: center;
+  gap: .85rem;
+}
+.czr-prog__ident { min-width: 0; flex: 1; }
+.czr-prog__name { font-size: 1.05rem; letter-spacing: -.01em; }
+.czr-prog__meta {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex-wrap: wrap;
+  margin: .2rem 0 0;
+}
+
+/* Programme mark. Four white cards down a page are hard to navigate by title
+   alone; a shape and a tint give each one something to recognise. */
+.czr-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+}
+.czr-mark--blue   { background: var(--czr-blue-soft);   color: var(--czr-blue); }
+.czr-mark--amber  { background: var(--czr-amber-soft);  color: var(--czr-amber); }
+.czr-mark--green  { background: var(--czr-green-soft);  color: var(--czr-green); }
+.czr-mark--violet { background: #f0ecfb;                color: #6b4bbd; }
+
+.czr-flow {
+  font-size: 12px;
+  color: var(--czr-ink-soft);
+  text-transform: capitalize;
+}
+.czr-flow b { color: var(--czr-ink-faint); font-weight: 400; }
+
+.czr-prog__count {
+  font-size: 11.5px;
+  color: var(--czr-ink-faint);
+  padding-left: .5rem;
+  border-left: 1px solid var(--czr-line);
+}
+
+/* The settings column reads as a panel so the two halves of the card are
+   distinguishable at a glance. */
+.czr-prog__settings {
+  padding: 1rem;
+  border-radius: 12px;
+  background: var(--czr-bg);
+  border: 1px solid var(--czr-line);
+}
+.czr-grid--settings { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem .7rem; }
+.czr-grid--settings .czr-label { font-size: 11.5px; }
+
+.czr-sublabel--tight { margin-top: .1rem; }
+
+/* The live switch, as a control block rather than a line of text. */
+.czr-switch--panel {
+  align-items: center;
+  padding: .7rem .8rem;
+  margin-bottom: .9rem;
+  border-radius: 10px;
+  border: 1px solid var(--czr-line);
+  background: #fff;
+}
+.czr-switch--panel:has(.czr-switch__input:checked) {
+  border-color: #bfe3d0;
+  background: var(--czr-green-soft);
+}
+
+/* ---- Milestone rows ----------------------------------------------------- */
+.czr-ms {
+  padding: .85rem .95rem .7rem;
+  border: 1px solid var(--czr-line);
+  border-radius: 12px;
+  background: #fff;
+}
+.czr-ms:has(.czr-switch__input:not(:checked)) { background: #fbfcfd; }
+
+.czr-ms__head {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  flex-wrap: wrap;
+  margin-bottom: .7rem;
+}
+.czr-ms__step {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--czr-orange-soft);
+  color: var(--czr-orange-dark);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.czr-ms__name { font-weight: 600; font-size: 13.5px; }
+/* Pushes the row's own controls to the right edge. */
+.czr-ms__controls {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+}
+.czr-switch--inline { display: inline-flex; align-items: center; gap: .45rem; }
+.czr-switch--inline .czr-switch__title { font-size: 12.5px; }
+
+/* Five fields, one line, identical in every milestone of every programme. */
+.czr-grid--ms { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .7rem; }
+.czr-ms__hint { margin-top: .6rem; }
+
+@media (max-width: 1400px) {
+  .czr-grid--ms { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 700px) {
+  .czr-grid--ms { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .czr-ms__controls { margin-left: 0; width: 100%; justify-content: space-between; }
+}

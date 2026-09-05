@@ -1,0 +1,64 @@
+/* ---------------------------------------------------------------------------
+   Referral QR - shared styles.
+
+   Loaded by the buyer page, the seller page and the printable card. Only the
+   enlarge overlay and the canvas frame live here; each page styles the panel
+   around the code in its own design system, because the storefront and the
+   seller panel do not agree on anything else.
+   --------------------------------------------------------------------------- */
+.referral-qr__canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 8px;
+    /* Nearest-neighbour: a scaled QR must keep hard module edges. Smoothing is
+       what turns a scannable code into a grey blur on a high-DPI screen. */
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+}
+
+.referral-qr-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 20000;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: rgba(20, 16, 10, .78);
+}
+
+.referral-qr-overlay__box {
+    width: min(420px, 92vw);
+    padding: 22px;
+    border-radius: 18px;
+    background: #fff;
+    text-align: center;
+}
+
+.referral-qr-overlay__canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+}
+
+.referral-qr-overlay__hint {
+    margin: 14px 0 16px;
+    color: #5f5648;
+    font-size: 14px;
+}
+
+.referral-qr-overlay__close {
+    padding: 9px 22px;
+    border: 0;
+    border-radius: 999px;
+    background: #241d14;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.referral-qr-overlay__close:hover { background: #3b3123; }
