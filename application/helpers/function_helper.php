@@ -1824,6 +1824,32 @@ function validate_promo_code($promo_code, $user_id, $final_total, $skip_usage_ch
                 ];
             }
 
+            // A code that belongs to somebody. Referral coupons are issued to one named
+            // customer and sit in their inbox, so "whoever types it first wins" is not an
+            // acceptable rule for money owed to a specific person - and no_of_users cannot
+            // express ownership, only a headcount.
+            //
+            // The guard applies ONLY to codes that have binding rows, so every campaign
+            // that predates promo_code_users behaves exactly as it always has.
+            if ($t->db->table_exists('promo_code_users')) {
+                $bindings = $t->db->where('promo_code_id', $promo_code[0]['id'])
+                    ->count_all_results('promo_code_users');
+
+                if ($bindings > 0) {
+                    $is_owner = $t->db->where('promo_code_id', $promo_code[0]['id'])
+                        ->where('user_id', (int) $user_id)
+                        ->count_all_results('promo_code_users');
+
+                    if (!$is_owner) {
+                        return [
+                            'error'   => true,
+                            'message' => 'This promo code was issued to another account.',
+                            'data'    => ['final_total' => strval(floatval($final_total))],
+                        ];
+                    }
+                }
+            }
+
             // A user who has already used the code is inside the cap regardless of how many
             // distinct users have used it - otherwise a repeat-usage code stops working for
             // its existing users the moment the Nth user joins.
@@ -1978,6 +2004,17 @@ function update_wallet_balance($operation, $user_id, $amount, $message = "Balanc
                 $data['message'] = (isset($message)) ? $message : 'Balance Debited';
                 $data['type'] = 'debit';
                 $t->db->set('balance', '`balance` - ' . $amount, false)->where('id', $user_id)->update('users');
+                // Referral credit is spend-only, so the wallet carries a second figure:
+                // how much of the balance came from the referral programme and therefore
+                // cannot be withdrawn. Spending consumes that restricted part FIRST -
+                // the reading most favourable to the user, and the only rule that needs
+                // no per-transaction tagging, which matters because wallet debits happen
+                // in a dozen places in this codebase. GREATEST() floors it at zero so a
+                // debit larger than the restricted part cannot drive it negative.
+                // This sits inside the same transaction as the balance write for the
+                // same reason that write is here: the two must not be able to disagree.
+                $t->db->set('referral_credit', 'GREATEST(0, `referral_credit` - ' . $amount . ')', false)
+                    ->where('id', $user_id)->update('users');
             } else if ($operation == 'credit') {
                 $data['message'] = (isset($message)) ? $message : 'Balance Credited';
                 $data['type'] = 'credit';
@@ -6062,6 +6099,79 @@ function process_referral_bonus($user_id, $order_id, $status)
         $order_id = 644;            << Order which is being marked as delivered
 
     */
+
+    /* -----------------------------------------------------------------------
+     * This is now the referral programme's hook into order status changes, and
+     * the ONLY thing it does is delegate to Referral_engine.
+     *
+     * The nine call sites - admin, seller, delivery-boy and app paths, web and
+     * API - are deliberately untouched. They already fire at exactly the two
+     * moments the programme cares about, and they already pass the status, so
+     * routing both earning and reversal through this one function means neither
+     * had to be wired into nine controllers a second time.
+     *
+     * Everything the old body did is gone: it credited through the deprecated
+     * customer_model->update_balance() (users.balance written outside a
+     * transaction - the documented cause of balances drifting from the ledger),
+     * keyed idempotency on the ORDER while gating on the referee's LIFETIME
+     * order count (so a new buyer's first few orders each paid the referrer
+     * again), and paid the instant an order was marked delivered, with no hold,
+     * so a returned order kept its bonus. The dead body below is kept for one
+     * release as a reference for anyone comparing behaviour, and goes with the
+     * legacy `is_refer_earn_on` settings group in phase 3.
+     * --------------------------------------------------------------------- */
+    $CI = &get_instance();
+    $CI->load->library('referral_engine');
+
+    if ($status === 'delivered') {
+        /* Two different milestones fire on one delivery, and they belong to two
+         * different people:
+         *   - the BUYER's first delivered order, which pays whoever referred the
+         *     buyer (customer programmes);
+         *   - the referred SELLER's first delivered SALE, which pays whoever
+         *     referred the seller. The call sites only know the buyer, so the
+         *     sellers are read off the order's items inside the engine. */
+        $buyer_side = $CI->referral_engine->order_delivered($user_id, $order_id);
+        $CI->referral_engine->seller_sale_delivered($order_id);
+
+        return $buyer_side;
+    }
+
+    if ($status === 'returned' || $status === 'cancelled') {
+        return $CI->referral_engine->reverse_for_order(
+            $order_id,
+            ($status === 'returned') ? 'Qualifying order returned' : 'Qualifying order cancelled'
+        );
+    }
+
+    return ['ok' => false, 'reason' => 'status_not_relevant'];
+
+    /* -----------------------------------------------------------------------
+     * DEAD CODE BELOW - the legacy implementation, kept for one release.
+     *
+     * This has never paid anybody, because web signup never issued a
+     * referral_code, so no customer's friends_code could ever match one. That
+     * changed with migration 078, which backfilled a code onto every account:
+     * without this guard, the next delivered order would start paying bonuses
+     * through the body below, which has three known defects -
+     *
+     *   1. it credits with customer_model->update_balance(), the path marked
+     *      DEPRECATED - do not call in this repo, because it moves users.balance
+     *      outside a transaction and is the documented cause of stored balances
+     *      drifting from the transactions ledger;
+     *   2. its idempotency key is the ORDER ("refer-and-earn-<order_id>"), while
+     *      its eligibility test counts the referee's LIFETIME orders, so a new
+     *      buyer's first `refer_earn_bonus_times` orders each pay the referrer
+     *      again - nothing is scoped to the referral relationship;
+     *   3. it pays the moment an order is marked delivered, with no hold window,
+     *      so a returned order keeps its bonus.
+     *
+     * The nine call sites are left exactly as they are: they fire at every point
+     * an order reaches "delivered" across web, app, seller and delivery paths,
+     * which is precisely where the phase 2 reward engine needs to be called
+     * from. This function becomes that call; until then it does nothing.
+     *
+     * --------------------------------------------------------------------- */
     $CI = &get_instance();
     $settings = get_settings('system_settings', true);
     if (isset($settings['is_refer_earn_on']) && $settings['is_refer_earn_on'] == 1 && $status == "delivered") {

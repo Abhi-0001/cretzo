@@ -1223,6 +1223,33 @@ class Auth extends CI_Controller
         }
     }
 
+    /**
+     * Live check for the "Have a referral code?" field on the storefront signup,
+     * reachable at auth/validate-referral (translate_uri_dashes is on).
+     *
+     * It answers only "is this a real code" and who it belongs to. Self-referral
+     * cannot be judged here because the account does not exist yet - that check
+     * runs at binding time, inside registration.
+     *
+     * The owner's name is echoed back deliberately: a code is meant to be shared
+     * by a person, and seeing "Referred by Priya" is what tells the user they
+     * typed their friend's code and not a neighbouring one. Nothing else about
+     * that account is exposed.
+     */
+    public function validate_referral()
+    {
+        $this->response['csrfName'] = $this->security->get_csrf_token_name();
+        $this->response['csrfHash'] = $this->security->get_csrf_hash();
+
+        $result = referral_validate_code($this->input->post('code'));
+
+        $this->response['error'] = !$result['valid'];
+        $this->response['message'] = $result['message'];
+        $this->response['data'] = $result['valid'] ? ['code' => $result['code']] : [];
+
+        $this->output->set_content_type('application/json')->set_output(json_encode($this->response));
+    }
+
     public function register_user()
     {
         // print_r($_POST);
@@ -1256,14 +1283,32 @@ class Auth extends CI_Controller
             $this->response['message'] = strip_tags(validation_errors());
             $this->response['data'] = array();
         } else {
-            if (isset($_POST['friends_code']) && !empty($_POST['friends_code'])) {
-                if (!$this->form_validation->is_unique($_POST['friends_code'], 'users.referral_code')) {
-                    $response["error"]   = true;
-                    $response["message"] = "Invalid friends code!";
-                    $response["data"] = array();
-                    echo json_encode($response);
+            // The referral code the new customer was given. This check used to read
+            //     if (!$this->form_validation->is_unique($code, 'users.referral_code'))
+            // which is inverted: is_unique() returns TRUE when the value is NOT in the
+            // column, so a code that really belonged to somebody was rejected as
+            // "Invalid friends code!" while a made-up one sailed through. Nobody
+            // noticed because web signup never issued codes in the first place, so
+            // the branch was unreachable in practice.
+            //
+            // The binding itself is not done here - Ion_auth_model::register() does it
+            // for every registration path once the account exists. This is only the
+            // early "that code is not real" message, so the user can fix a typo
+            // before the account is created rather than losing the referral silently.
+            if (!empty($_POST['friends_code'])) {
+                $referral_check = referral_validate_code($_POST['friends_code']);
+
+                if (!$referral_check['valid']) {
+                    $this->response['error'] = true;
+                    $this->response['message'] = $referral_check['message'];
+                    $this->response['data'] = array();
+                    print_r(json_encode($this->response));
                     return false;
                 }
+
+                // Store the normalised form, so "hj4k cd2p" and "HJ4KCD2P" bind the
+                // same way and the audit trail shows one canonical code.
+                $_POST['friends_code'] = $referral_check['code'];
             }
             if (isset($_POST['type']) && !empty($_POST['type']) && $_POST['type'] == 'phone') {
                 $identity_column = $this->config->item('identity', 'ion_auth');

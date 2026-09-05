@@ -604,6 +604,101 @@ class My_account extends CI_Controller
         }
     }
 
+    /**
+     * Refer & Earn - the customer's own referral page.
+     *
+     * Their code, the share links, what each referral has earned and - the part
+     * that matters most when somebody writes in - WHY a reward is still pending.
+     * A page that shows "0 earned" with no explanation is what generates support
+     * tickets; this one names the milestone and the date.
+     */
+    public function refer_and_earn()
+    {
+        $web_doctor_brown = get_settings('web_doctor_brown', true);
+        $system_settings = get_settings('system_settings', true);
+
+        if ((!isset($web_doctor_brown) || empty($web_doctor_brown))) {
+            redirect(base_url("admin/purchase-code"));
+        }
+        if ((isset($system_settings['is_web_under_maintenance']) && $system_settings['is_web_under_maintenance'] == 1)) {
+            redirect(base_url("maintenance"));
+        }
+        if (!$this->ion_auth->logged_in()) {
+            redirect(base_url(), 'refresh');
+            return;
+        }
+
+        $user_id = $this->session->userdata('user_id');
+        $this->load->library('referral_engine');
+
+        $this->data['main_page'] = 'refer-and-earn';
+        $this->data['title'] = 'Refer & Earn | ' . $this->data['web_settings']['site_title'];
+        $this->data['keywords'] = 'Refer and Earn, ' . $this->data['web_settings']['meta_keywords'];
+        $this->data['description'] = 'Refer & Earn | ' . $this->data['web_settings']['meta_description'];
+        $this->data['users'] = $this->ion_auth->user()->row();
+
+        $this->data['referral'] = referral_stats($user_id);
+        $this->data['referral_rows'] = $this->referral_rows($user_id);
+        $this->data['qualified_count'] = $this->referral_engine->qualified_referral_count($user_id);
+        $this->data['referral_policy'] = $this->referral_engine->settings();
+        $this->data['referral_tiers'] = $this->db->select('m.*')
+            ->from('referral_milestones m')
+            ->join('referral_programs p', 'p.id = m.program_id', 'inner')
+            ->where('p.code', 'ambassador')
+            ->where('m.status', 1)
+            ->order_by('m.sequence', 'asc')
+            ->get()
+            ->result_array();
+
+        $this->load->view('front-end/' . THEME . '/template', $this->data);
+    }
+
+    /**
+     * One row per person this user referred, with the state of their reward in
+     * plain words. Read-only, and scoped to the signed-in user by referrer_id -
+     * this is somebody else's account data on the other side of the join.
+     */
+    private function referral_rows($user_id)
+    {
+        $rows = $this->db->select("r.id, r.created_at, r.status,
+                u.username AS referee_name,
+                COALESCE(SUM(CASE WHEN rw.status = 'credited' AND rw.role = 'referrer' THEN rw.amount ELSE 0 END), 0) AS earned,
+                COALESCE(SUM(CASE WHEN rw.status = 'pending' AND rw.role = 'referrer' THEN rw.amount ELSE 0 END), 0) AS pending,
+                MIN(CASE WHEN rw.status = 'pending' AND rw.role = 'referrer' THEN rw.qualified_at END) AS due_at", false)
+            ->from('referrals r')
+            ->join('users u', 'u.id = r.referee_id', 'left')
+            ->join('referral_rewards rw', 'rw.referral_id = r.id', 'left')
+            ->where('r.referrer_id', (int) $user_id)
+            ->group_by('r.id')
+            ->order_by('r.id', 'desc')
+            ->limit(100)
+            ->get()
+            ->result_array();
+
+        foreach ($rows as &$row) {
+            /* Only a first name. The full name of somebody else's account is not
+             * this page's to publish, and the referrer already knows who they
+             * invited. */
+            $first = trim((string) $row['referee_name']);
+            $row['referee_name'] = ($first !== '') ? strtok($first, ' ') : 'A new member';
+
+            if ((float) $row['earned'] > 0) {
+                $row['state'] = 'earned';
+                $row['state_text'] = 'Reward credited';
+            } elseif ((float) $row['pending'] > 0) {
+                $row['state'] = 'pending';
+                $row['state_text'] = !empty($row['due_at'])
+                    ? 'Reward due ' . date('d M Y', strtotime($row['due_at']))
+                    : 'Reward on the way';
+            } else {
+                $row['state'] = 'waiting';
+                $row['state_text'] = 'Waiting for their first delivered order';
+            }
+        }
+
+        return $rows;
+    }
+
     public function transactions()
     {
         $web_doctor_brown = get_settings('web_doctor_brown', true);

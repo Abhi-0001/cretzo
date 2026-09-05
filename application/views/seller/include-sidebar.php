@@ -199,6 +199,12 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a href="<?= base_url('seller/refer') ?>" class="nav-link">
+                        <i class="nav-icon fas fa-hand-holding-usd text-success"></i>
+                        <p>Refer &amp; Grow</p>
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a href="<?= base_url('seller/payment-request/withdrawal-requests') ?>" class="nav-link">
                         <i class="nav-icon fas fa-money-bill-wave text-danger"></i>
                         <p> Withdrawal Requests</p>

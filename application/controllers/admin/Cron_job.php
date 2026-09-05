@@ -55,6 +55,50 @@ class Cron_job extends CI_Controller
     // hold an admin session - set application/config/cron.php's `secret` before
     // wiring this into an actual scheduled job.
     /**
+     * Credit referral rewards whose hold has elapsed.
+     *
+     *   /admin/cron_job/release_referral_rewards/<token>
+     *
+     * Rewards are created the moment a qualifying order is delivered, but they
+     * are not payable until the return window on that order has closed - so
+     * something has to come along afterwards and pay them. This is that
+     * something, and it is the only scheduled part of the referral programme:
+     * every other trigger is an event that already fires in a request.
+     *
+     * Run it daily, AFTER the settlement job. Verify it with a clean,
+     * unauthenticated request before calling it done - the seller settlement
+     * cron in this project never ran in production because its secret was unset,
+     * and an admin session in the browser masked the bad token during testing.
+     * cron_authorized() lets a logged-in admin through, so a browser check
+     * proves nothing about the cron itself.
+     */
+    public function release_referral_rewards($token = null)
+    {
+        if (!$this->cron_authorized($token)) {
+            return false;
+        }
+
+        $this->load->library('referral_engine');
+        $summary = $this->referral_engine->release_due_rewards();
+
+        log_message('debug', 'release_referral_rewards: ' . json_encode($summary));
+
+        $this->response['error'] = false;
+        $this->response['message'] = sprintf(
+            '%d due, %d settled (%s to wallets, %d benefits issued), %d deferred by cap, %d failed',
+            $summary['considered'],
+            $summary['credited'],
+            get_settings('currency') . $summary['amount'],
+            $summary['benefits'],
+            $summary['deferred'],
+            $summary['failed']
+        );
+        $this->response['data'] = $summary;
+
+        $this->output->set_content_type('application/json')->set_output(json_encode($this->response));
+    }
+
+    /**
      * Shared gate for the token-protected cron endpoints. Returns TRUE when the caller
      * presented the configured secret, otherwise emits the 401 body and returns FALSE.
      * A logged-in admin is also allowed through so these can be triggered by hand from

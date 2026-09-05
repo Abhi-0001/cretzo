@@ -12,6 +12,7 @@ defined('BASEPATH') or exit('No direct script access allowed');
 |   admin/cron_job/subscription_expiry_reminders - emails sellers before/on expiry
 |   admin/cron_job/expire_abandoned_orders       - releases stock held by unpaid orders
 |   admin/cron_job/low_stock_alerts              - emails sellers about low stock
+|   admin/cron_job/release_referral_rewards      - CREDITS REFERRAL REWARDS whose hold has elapsed
 |
 | The env var lets production override this without the value living in git.
 | Rotate by changing SUBSCRIPTION_CRON_SECRET (or this literal) and updating the
@@ -25,6 +26,7 @@ defined('BASEPATH') or exit('No direct script access allowed');
 |   curl -s "https://YOURDOMAIN/admin/cron_job/subscription_expiry_reminders?token=THE_SECRET"
 |   curl -s "https://YOURDOMAIN/admin/cron_job/expire_abandoned_orders?token=THE_SECRET"
 |   curl -s "https://YOURDOMAIN/admin/cron_job/low_stock_alerts?token=THE_SECRET"
+|   curl -s "https://YOURDOMAIN/admin/cron_job/release_referral_rewards?token=THE_SECRET"
 |
 | Suggested schedule:
 |   0 3 * * *   settle_seller_commission      (pays sellers - see the warning below)
@@ -33,6 +35,7 @@ defined('BASEPATH') or exit('No direct script access allowed');
 |   0 * * * *   expire_abandoned_orders       (hourly - the sooner unpaid stock is
 |                                              released, the sooner it can sell)
 |   0 9 * * *   low_stock_alerts              (once daily, at a sensible hour)
+|   0 4 * * *   release_referral_rewards      (daily, after the settlement run)
 |
 | settle_seller_commission is the one job sellers notice the absence of, and it is
 | the easiest to forget because nothing fails loudly when it is missing - orders

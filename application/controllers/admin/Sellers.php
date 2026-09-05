@@ -739,12 +739,34 @@ class Sellers extends CI_Controller
                 }
             };
 
+            /**
+             * The referral programme's seller milestone: a referred seller's shop
+             * going live.
+             *
+             * Fired on the TRANSITION into approved, from the block below that
+             * already detects a status change - not from seller_approval_state(),
+             * which is read on every dashboard load and would re-fire forever. The
+             * engine is idempotent anyway (unique key on referral+milestone+role),
+             * so the worst a double call costs is a wasted lookup, but firing on a
+             * read would still be wrong.
+             */
+            $referral_seller_approved = function ($target_user_id, $new_status, $old_status) {
+                if ((string) $new_status !== '1' || (string) $old_status === '1') {
+                    return;
+                }
+
+                $this->load->library('referral_engine');
+                $this->referral_engine->seller_approved($target_user_id);
+            };
+
             if ($is_edit) {
 
                 $target_user_id = $this->input->post('edit_seller', true);
 
                 $current_status = fetch_details('seller_data', ['user_id' => $target_user_id], 'status');
                 $current_status = !empty($current_status) ? $current_status[0] : ['status' => null];
+
+                $referral_seller_approved($target_user_id, $this->input->post('status', true), $current_status['status']);
 
                 if ($current_status['status'] != $this->input->post('status', true)) {
                     $system_settings = get_settings('system_settings', true);

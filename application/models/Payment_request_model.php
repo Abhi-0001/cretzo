@@ -65,8 +65,14 @@ class Payment_request_model extends CI_Model
 
         // FOR UPDATE holds the row until this transaction commits, which is what serialises
         // two simultaneous withdrawal attempts by the same seller.
+        //
+        // `referral_credit` is read alongside the balance, in the same locked row, because
+        // not every rupee in a wallet may leave it: referral rewards are spend-only by the
+        // owner's decision - usable against orders, subscriptions and seller services, never
+        // paid out to a bank account. Reading it separately would be a race against the very
+        // debit this lock exists to serialise.
         $user = $this->db->query(
-            'SELECT balance FROM users WHERE id = ' . $this->db->escape($user_id) . ' FOR UPDATE'
+            'SELECT balance, referral_credit FROM users WHERE id = ' . $this->db->escape($user_id) . ' FOR UPDATE'
         )->row_array();
 
         if (empty($user)) {
@@ -74,8 +80,29 @@ class Payment_request_model extends CI_Model
             return ['error' => true, 'message' => 'User does not exist.'];
         }
 
-        if ($amount > (float) $user['balance']) {
+        $referral_settings = get_settings('referral_settings', true);
+        $referral_withdrawable = (is_array($referral_settings) && isset($referral_settings['withdrawable']))
+            ? ($referral_settings['withdrawable'] == '1')
+            : false;
+
+        $restricted = $referral_withdrawable ? 0.0 : (float) $user['referral_credit'];
+        $withdrawable = max(0, (float) $user['balance'] - $restricted);
+
+        if ($amount > $withdrawable) {
             $this->db->trans_complete();
+
+            // Two different problems, two different messages. "You don't have enough
+            // balance" in front of a wallet that visibly holds the money reads as a bug,
+            // so a seller whose balance is real but restricted is told exactly that.
+            if ($restricted > 0 && $amount <= (float) $user['balance']) {
+                return [
+                    'error'   => true,
+                    'message' => 'Only ' . $withdrawable . ' of your balance can be withdrawn. '
+                        . $restricted . ' is referral credit, which can be spent on '
+                        . 'subscriptions, listings and orders but not paid out.',
+                ];
+            }
+
             return [
                 'error'   => true,
                 'message' => "You don't have enough balance to sent the withdraw request.",

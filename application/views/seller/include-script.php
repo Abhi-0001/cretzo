@@ -123,6 +123,15 @@ $seller_needs_charts = isset($seller_needs_charts)
 if (isset($main_page) && $main_page === FORMS . 'product') { ?>
     <script src="<?= add_ver(base_url('assets/admin/custom/custom.js')) ?>"></script>
 <?php } ?>
+<?php
+/* Referral QR: only on the page that draws one. Same vendored generator the
+ * storefront uses - the code is rendered in the browser, so a seller's referral
+ * code never travels to an image service to become a picture. */
+if (isset($main_page) && strpos($main_page, 'refer-and-grow') !== false) { ?>
+    <link rel="stylesheet" href="<?= add_ver(base_url('assets/referral-qr.css')) ?>">
+    <script src="<?= add_ver(base_url('assets/vendor/qrcode.min.js')) ?>"></script>
+    <script src="<?= add_ver(base_url('assets/referral-qr.js')) ?>"></script>
+<?php } ?>
 
 <?php if ($this->session->flashdata('message')) { ?>
     <script>

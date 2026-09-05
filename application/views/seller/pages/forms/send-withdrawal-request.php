@@ -30,6 +30,15 @@
                     ?>
                     <div class="alert alert-light border d-flex justify-content-between flex-wrap mb-3">
                         <span>Available balance: <strong><?= $currency . number_format($wallet_balance, 2) ?></strong></span>
+                        <?php /* Referral credit sits in the same wallet but cannot be paid out, so
+                                 the difference between the two numbers is explained here rather
+                                 than discovered at submit time. */ ?>
+                        <?php if (!empty($referral_credit)) { ?>
+                            <span class="d-block text-muted small">
+                                Plus <?= $currency . number_format($referral_credit, 2) ?> referral credit &mdash;
+                                spendable on subscriptions, listings and orders, but not withdrawable.
+                            </span>
+                        <?php } ?>
                         <span class="text-muted">Minimum withdrawal: <?= $currency . number_format($min_withdrawal, 2) ?></span>
                     </div>
                     <?php if (!empty($has_pending)) { ?>

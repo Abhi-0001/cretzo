@@ -2057,7 +2057,10 @@ Defined Methods:-
         $this->form_validation->set_rules('street', 'Street', 'trim|xss_clean');
         $this->form_validation->set_rules('pincode', 'Pincode', 'trim|xss_clean');
         $this->form_validation->set_rules('fcm_id', 'Fcm Id', 'trim|xss_clean');
-        $this->form_validation->set_rules('referral_code', 'Referral code', 'trim|is_unique[users.referral_code]|xss_clean');
+        /* referral_code is accepted for backwards compatibility with older app
+           builds that post one, but it is no longer STORED from the request - see
+           $additional_data below. Codes are issued by the server. */
+        $this->form_validation->set_rules('referral_code', 'Referral code', 'trim|xss_clean');
         $this->form_validation->set_rules('friends_code', 'Friends code', 'trim|xss_clean');
         $this->form_validation->set_rules('latitude', 'Latitude', 'trim|xss_clean');
         $this->form_validation->set_rules('longitude', 'Longitude', 'trim|xss_clean');
@@ -2068,10 +2071,15 @@ Defined Methods:-
             $this->response['message'] = strip_tags(validation_errors());
             $this->response['data'] = array();
         } else {
-            if (isset($_POST['friends_code']) && !empty($_POST['friends_code'])) {
-                $friends_code = $_POST['friends_code'];
-                $friend = fetch_details('users', ['referral_code' => $friends_code], '*');
-                if (empty($friend)) {
+            if (!empty($_POST['friends_code'])) {
+                /* Normalised before the check so a code pasted from a share message
+                   with its formatting intact matches the stored one. The binding
+                   itself is done by Ion_auth_model::register() for every signup
+                   path; this is only the early error the app can show. */
+                $_POST['friends_code'] = referral_normalize_code($_POST['friends_code']);
+                $referral_check = referral_validate_code($_POST['friends_code']);
+
+                if (!$referral_check['valid']) {
                     $response["error"] = true;
                     $response["message"] = "Invalid friends code! Please pass the valid referral code of the inviter";
                     $response["data"] = [];
@@ -2096,7 +2104,12 @@ Defined Methods:-
                 'pincode' => $this->input->post('pincode'),
                 'street' => $this->input->post('street'),
                 'fcm_id' => $this->input->post('fcm_id'),
-                'referral_code' => $this->input->post('referral_code', true),
+                /* referral_code deliberately NOT taken from the request. It used to
+                   be whatever the client sent, so an app build could claim any
+                   unused code it liked - and a code is now the key the whole
+                   referral ledger attributes money by. The server issues it in
+                   Ion_auth_model::register() and returns it in the login/profile
+                   payloads exactly as before. */
                 'friends_code' => $this->input->post('friends_code', true),
                 'latitude' => $this->input->post('latitude'),
                 'longitude' => $this->input->post('longitude'),
@@ -2245,12 +2258,20 @@ Defined Methods:-
             }
 
             $is_updated = false;
-            /* update referral_code if it is empty in user's database */
-            if (isset($_POST['referral_code']) && !empty($_POST['referral_code'])) {
-                $user = fetch_details('users', ['id' => $_POST['user_id']], "referral_code");
-                if (empty($user[0]['referral_code'])) {
-                    update_details(['referral_code' => $_POST['referral_code']], ['id' => $_POST['user_id']], "users");
-                    $is_updated = true;
+            /* A user with no code gets one here - but the server picks it, and a
+               user who already has one keeps it.
+               This used to store whatever `referral_code` the client posted, which
+               let any app build hand itself a chosen code; now that codes are what
+               the referral ledger attributes rewards by, a client-chosen code is a
+               way to intercept somebody else's referrals. The posted value is
+               ignored. */
+            if (!empty($_POST['user_id'])) {
+                $existing = fetch_details('users', ['id' => $_POST['user_id']], 'referral_code');
+                if (empty($existing[0]['referral_code'])) {
+                    /* Only a NEWLY issued code counts as an update - $is_updated
+                       decides whether this request answers with the "profile
+                       updated" payload further down. */
+                    $is_updated = (referral_assign_code($_POST['user_id']) !== '');
                 }
             }
 

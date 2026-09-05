@@ -50,6 +50,48 @@
                                         </div>
                                     </li>
                                 </ul>
+                                <?php
+                                /* Pay from the wallet.
+                                 *
+                                 * Whole fee only, so the option is offered when the balance
+                                 * covers the amount payable and explained rather than hidden
+                                 * when it does not - a seller carrying referral credit needs
+                                 * to know why they cannot spend it here yet, and how much is
+                                 * missing.
+                                 *
+                                 * The amount compared against is what is actually payable
+                                 * after any proration credit, not the plan's sticker price. */
+                                $czw_payable = isset($amount_payable) ? (float) $amount_payable : (float) $plan['price'];
+                                $czw_balance = isset($wallet_balance) ? (float) $wallet_balance : 0;
+                                $czw_referral = isset($referral_credit) ? (float) $referral_credit : 0;
+                                $czw_can_pay = ($czw_payable > 0 && $czw_balance + 0.001 >= $czw_payable);
+                                ?>
+                                <?php if ($czw_payable > 0) { ?>
+                                    <div class="wallet-pay-block border rounded p-3 mb-3">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <strong><i class="fas fa-wallet mr-1"></i> Pay from wallet</strong>
+                                                <div class="small text-muted">
+                                                    Balance ₹<?= number_format($czw_balance, 2) ?>
+                                                    <?php if ($czw_referral > 0) { ?>
+                                                        &middot; includes ₹<?= number_format($czw_referral, 2) ?> referral credit
+                                                    <?php } ?>
+                                                </div>
+                                            </div>
+                                            <?php if ($czw_can_pay) { ?>
+                                                <button id="pay-wallet-btn" class="btn btn-outline-success">
+                                                    Pay ₹<?= number_format($czw_payable, 2) ?> from wallet
+                                                </button>
+                                            <?php } else { ?>
+                                                <button class="btn btn-outline-secondary" disabled
+                                                        title="A subscription has to be paid in full from the wallet">
+                                                    ₹<?= number_format(max(0, $czw_payable - $czw_balance), 2) ?> short
+                                                </button>
+                                            <?php } ?>
+                                        </div>
+                                    </div>
+                                <?php } ?>
+
                                 <div class="mt-auto">
                                     <button id="proceed-pay-btn" class="btn btn-primary-theme btn-lg">Proceed to Pay ₹<?= html_escape($plan['price']); ?>/-</button>
                                 </div>
@@ -193,6 +235,49 @@ $this->load->view('seller/include-approval-modals', ['approval_modal_mode' => 'c
         // 'approved' means no payment may be started - previously an unapproved seller could
         // pay for a plan before the admin had even looked at their profile.
         var approvalStage = <?= json_encode(isset($seller_approval['stage']) ? $seller_approval['stage'] : 'incomplete') ?>;
+
+        // Paying from the wallet is the same request with one extra field, and the
+        // same approval gate: an unapproved seller may not buy a plan with wallet
+        // money either.
+        var $walletBtn = document.getElementById('pay-wallet-btn');
+        if ($walletBtn) {
+            $walletBtn.addEventListener('click', function () {
+                if (approvalStage !== 'approved' && typeof window.czShowApprovalGate === 'function' && window.czShowApprovalGate()) {
+                    return;
+                }
+
+                $walletBtn.disabled = true;
+                var walletText = $walletBtn.textContent;
+                $walletBtn.textContent = 'Please wait...';
+
+                var data = { subscription_id: planId, payment_method: 'wallet' };
+                data[csrfName] = csrfHash;
+
+                fetch(base_url + 'seller/subscription/purchase', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams(data)
+                }).then(function (res) { return res.json(); }).then(function (result) {
+                    if (result.csrfName && result.csrfHash) {
+                        csrfName = result.csrfName; csrfHash = result.csrfHash;
+                    }
+
+                    if (result.error) {
+                        alert(result.message);
+                        $walletBtn.disabled = false;
+                        $walletBtn.textContent = walletText;
+                        return;
+                    }
+
+                    alert(result.message);
+                    window.location.href = base_url + 'seller/subscription/manage_subscriptions';
+                }).catch(function () {
+                    alert('Request failed');
+                    $walletBtn.disabled = false;
+                    $walletBtn.textContent = walletText;
+                });
+            });
+        }
 
         $btn.addEventListener('click', function () {
             if (approvalStage !== 'approved' && typeof window.czShowApprovalGate === 'function' && window.czShowApprovalGate()) {

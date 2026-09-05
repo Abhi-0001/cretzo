@@ -23,6 +23,11 @@ $config['system_modules'] = [
     // offer banners regardless of whether an admin actually granted them update rights.
     'new_offer_images' => array('create', 'read', 'update', 'delete'),
     'promo_code' => array('create', 'read', 'update', 'delete'),
+    // Refer & Earn. No 'create'/'delete': programmes and milestones are seeded by
+    // migration and edited, never added or removed from the panel - a referral
+    // programme with no rules behind it would create rewards nothing can pay, and
+    // deleting one would orphan the rewards already earned under it.
+    'referral' => array('read', 'update'),
     'featured_section' => array('create', 'read', 'update', 'delete'),
     'customers' => array('read', 'update', 'delete'),
     'return_request' => array('read', 'update'),

@@ -444,6 +444,49 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
                         </a>
                     </li>
                 <?php } ?>
+                <?php if (has_permissions('read', 'referral')) { ?>
+                    <li class="nav-item has-treeview">
+                        <a href="#" class="nav-link">
+                            <i class="nav-icon fas fa-hand-holding-usd text-success"></i>
+                            <p>
+                                Refer &amp; Earn
+                                <i class="right fas fa-angle-left"></i>
+                            </p>
+                        </a>
+                        <ul class="nav nav-treeview">
+                            <li class="nav-item">
+                                <a href="<?= base_url('admin/referral/programs') ?>" class="nav-link">
+                                    <i class="fas fa-sliders-h nav-icon"></i>
+                                    <p>Programs</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="<?= base_url('admin/referral/queue?status=queue') ?>" class="nav-link">
+                                    <i class="fas fa-coins nav-icon"></i>
+                                    <p>Rewards</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="<?= base_url('admin/referral/ledger') ?>" class="nav-link">
+                                    <i class="fas fa-project-diagram nav-icon"></i>
+                                    <p>Referral Ledger</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="<?= base_url('admin/referral/ambassadors') ?>" class="nav-link">
+                                    <i class="fas fa-award nav-icon"></i>
+                                    <p>Ambassadors</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="<?= base_url('admin/referral/report') ?>" class="nav-link">
+                                    <i class="fas fa-chart-line nav-icon"></i>
+                                    <p>Cost Report</p>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                <?php } ?>
                 <?php if (has_permissions('read', 'featured_section')) { ?>
                     <li class="nav-item has-treeview">
                         <a href="#" class="nav-link">

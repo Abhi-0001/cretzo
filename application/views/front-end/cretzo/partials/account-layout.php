@@ -99,6 +99,7 @@ $czap_nav = [
         'items' => [
             ['url' => 'my-account/wallet', 'text' => 'Wallet', 'icon' => 'uil-wallet', 'match' => ['wallet']],
             ['url' => 'my-account/transactions', 'text' => 'Transactions', 'icon' => 'uil-receipt-alt', 'match' => ['transactions']],
+            ['url' => 'my-account/refer-and-earn', 'text' => 'Refer & Earn', 'icon' => 'uil-share-alt', 'match' => ['refer-and-earn']],
         ],
     ],
     [

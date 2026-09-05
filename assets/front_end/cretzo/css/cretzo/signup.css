@@ -421,3 +421,155 @@
 #register_div .login{
     min-height: 0;
 }
+
+/* ---------------------------------------------------------------------------
+   Referral code row (step 1 of signup)
+
+   Optional, so it starts as a single control and only becomes an input when the
+   visitor asks for it - or automatically, when they arrived on a ?ref= share
+   link or a scanned QR and custom.js has already filled the code in.
+
+   SPACING. Every input in this stack carries `margin-bottom: 10px`, and this row
+   used to sit 2px under the phone field - close enough to read as part of it, as
+   if the phone number had sprouted a caption. It now sits on the same rhythm as
+   the fields, separated by a hairline so it reads as its own optional step
+   rather than a stray line of orange text.
+   --------------------------------------------------------------------------- */
+#register_div .referral-row{
+    margin: 14px 0 4px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(0, 0, 0, .08);
+}
+
+/* A button, not a link: it performs an action on this page rather than going
+   anywhere, and the theme's global <a> underline decoration had to be undone on
+   it anyway. */
+#register_div .referral-toggle{
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 12px;
+    border: 1px dashed rgba(232, 125, 42, .5);
+    border-radius: 999px;
+    background: rgba(232, 125, 42, .06);
+    color: var(--color-orange, #F2822E);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.2;
+    cursor: pointer;
+    transition: background .15s ease, border-color .15s ease;
+}
+#register_div .referral-toggle:hover{
+    border-style: solid;
+    background: rgba(232, 125, 42, .12);
+}
+#register_div .referral-toggle i{
+    font-size: 15px;
+}
+
+#register_div .referral-field{
+    margin-top: 10px;
+}
+#register_div .referral-label{
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 2px 5px;
+    color: var(--color-orange, #F2822E);
+    font-size: 12.5px;
+    font-weight: 600;
+}
+#register_div .referral-field input{
+    /* Codes are A-Z0-9 and get read back to people, so they are spaced out and
+       never lower-cased by the browser's own styling. */
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    margin-bottom: 0;
+}
+#register_div .referral-feedback{
+    /* Reserves its own line so the button below does not jump when a code is
+       checked and the message appears. */
+    margin: 6px 2px 0;
+    font-size: 12.5px;
+    min-height: 16px;
+}
+#register_div .referral-feedback.is-valid{
+    color: #1a7f4b;
+}
+#register_div .referral-feedback.is-invalid{
+    color: #c0392b;
+}
+
+/* The reCAPTCHA holder is empty unless Firebase draws a widget into it, but it
+   carries Bootstrap's .mb-3 either way - 16px of nothing between the fields and
+   the Send OTP button on every signup that does not use it. */
+#register_div #recaptcha-container:empty{
+    margin-bottom: 0 !important;
+}
+
+/* ---------------------------------------------------------------------------
+   Scan-landing banner.
+
+   Shown once per session when a visitor arrives on a referral link - a scanned
+   QR in particular, where the silent field-prefill that serves a clicked link
+   is not enough feedback for somebody standing at a stall with a phone.
+
+   Fixed to the top rather than inserted in the flow: it is injected into <body>
+   from JS on every storefront page, and no page's layout can be relied on to
+   accept a new first child without shifting.
+   --------------------------------------------------------------------------- */
+.cz-ref-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 9990;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 10px 44px 10px 16px;
+    background: var(--color-orange, #F2822E);
+    color: #fff;
+    font-size: 14px;
+    box-shadow: 0 2px 10px rgba(36, 29, 20, .18);
+}
+
+.cz-ref-banner__text strong { letter-spacing: .06em; }
+
+.cz-ref-banner__cta {
+    padding: 5px 14px;
+    border: 0;
+    border-radius: 999px;
+    background: #fff;
+    color: #241d14;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.cz-ref-banner__close {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    border: 0;
+    background: none;
+    color: #fff;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    opacity: .85;
+}
+
+.cz-ref-banner__close:hover { opacity: 1; }
+
+@media (max-width: 575px) {
+    .cz-ref-banner {
+        flex-wrap: wrap;
+        justify-content: flex-start;
+        gap: 8px;
+        font-size: 13px;
+    }
+}

@@ -84,6 +84,17 @@
                     <span class="error-message error_mobile"></span>
                 </div>
 
+                <?php /* Referral code, optional. A seller invited by another seller earns
+                         that seller a reward once this shop is approved and live, so the
+                         field has to exist on the path sellers actually register through
+                         - the storefront modal is customer signup and never reaches here.
+                         Filled in automatically when the visitor arrived on a ?ref= link. */ ?>
+                <div class="input-group">
+                    <label for="friends_code">Referral Code <span style="opacity:.6;font-weight:400;">(optional)</span></label>
+                    <input type="text" name="friends_code" id="friends_code" placeholder="Referral code" autocomplete="off" spellcheck="false" maxlength="16" style="text-transform:uppercase;letter-spacing:.08em;">
+                    <span class="error-message error_friends_code"></span>
+                </div>
+
                 <input type="hidden" name="phone_verified" id="phone_verified" value="0">
                 <input type="hidden" name="firebase_uid" id="firebase_uid" value="">
                 <?php // Server-verifiable proof of phone ownership - see _owns_existing_account(). ?>
@@ -186,6 +197,31 @@
 $(document).ready(function () {
 
     const base_url = "<?= base_url() ?>";
+
+    /* Referral code from a ?ref= share link.
+     *
+     * Same contract as the storefront signup: codes are stored upper-case and
+     * unpunctuated, so a pasted "hj4k-cd2p" is normalised here rather than being
+     * rejected by a server that would have accepted the same code typed plainly.
+     * There is no live check on this page - the code is validated when the form is
+     * submitted, in seller/Auth::ajax_signup(). */
+    (function () {
+        var field = document.getElementById('friends_code');
+        if (!field) return;
+
+        var normalise = function (value) {
+            return (value || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+        };
+
+        try {
+            var fromUrl = normalise(new URLSearchParams(window.location.search).get('ref'));
+            if (fromUrl) field.value = fromUrl;
+        } catch (e) {}
+
+        field.addEventListener('blur', function () {
+            field.value = normalise(field.value);
+        });
+    })();
     const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
     if (isLocalHost && firebase && firebase.auth && firebase.auth().settings) {
