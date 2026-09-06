@@ -1182,6 +1182,20 @@ class Auth extends CI_Controller
                 return;
             }
 
+            /* Rate limit LAST, after validation and after the "already registered"
+               replies above, so a visitor who simply typed an address that is
+               already on file does not spend their own OTP quota finding that out.
+               The csrf fields were already put on $this->response above, so the
+               client still gets a usable token back with the refusal. */
+            $throttle = otp_rate_limit_guard($_POST['mobile']);
+            if (!$throttle['allowed']) {
+                $this->response['error'] = true;
+                $this->response['message'] = $throttle['message'];
+                $this->response['data'] = array();
+                print_r(json_encode($this->response));
+                return;
+            }
+
             if ($auth_settings['authentication_method'] == "firebase") {
                 $this->response['error'] = false;
                 $this->response['message'] = 'Ready to sent OTP request from firebase!';

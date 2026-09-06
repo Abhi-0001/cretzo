@@ -34,6 +34,33 @@ php_value display_errors 1
 # DO NOT REMOVE OR MODIFY THIS LINE AND THE LINES ABOVE HTID:23028279:
 
 RewriteEngine on
+
+# ===============================
+# CANONICAL HOST: www -> bare
+# ===============================
+# The site answers on both cretzo.com and www.cretzo.com, but Firebase phone auth
+# accepts only ONE of them. The Authorized domains list for Firebase project
+# cretzo-bcb9e contains "cretzo.com" and NOT "www.cretzo.com", and Firebase does
+# not treat the bare domain as covering the www subdomain - so every OTP request
+# made from www died with:
+#
+#     CAPTCHA_CHECK_FAILED : Hostname match not found
+#
+# Adding www in the Firebase console would fix it too, but that console is not
+# reachable right now, so the app is pinned to the host Firebase already trusts.
+# Signup OTP, password reset and Google/Facebook sign-in all go through the same
+# authorized-domain check, so all three are fixed by this one redirect.
+#
+# base_url is derived from HTTP_HOST (see detect_app_url() in config/constants.php),
+# so after the redirect every generated link, asset URL and email link is bare too -
+# nothing else needs changing. Sessions are host-only (cookie_domain is ''), so
+# anyone signed in on www is signed out once, at the moment of the switch.
+#
+# This must stay ABOVE the index.php rewrite below, or the request reaches
+# CodeIgniter on the wrong host before the redirect ever runs.
+RewriteCond %{HTTP_HOST} ^www\.cretzo\.com$ [NC]
+RewriteRule ^(.*)$ https://cretzo.com/$1 [R=301,L]
+
 RewriteCond $1 !^(index\.php|resources|robots\.txt)
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
