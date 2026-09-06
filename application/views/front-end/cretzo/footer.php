@@ -15,9 +15,10 @@
  *                       then a "Get in touch" column: contact chips + social.
  *   3. Legal bar      - copyright and the accepted payment marks.
  *
- * A trust/USP strip and a "Sell with Cretzo" card were tried above these and
- * removed at the owner's request - the footer is navigation and legal, and the
- * seller pitch has its own page. Do not reintroduce them here.
+ * A trust/USP strip was tried above these and removed at the owner's request -
+ * do not reintroduce it. The "Sell with Cretzo" call to action WAS wanted back
+ * (owner, 2026-09-06) and now lives in the brand column as a single pill, not
+ * the full-width card that was removed.
  *
  * Every URL here is the URL the old footer used; nothing was re-pointed. The
  * signed-out variants of the account links still open #modal-signin exactly as
@@ -38,6 +39,9 @@ $czf_email     = isset($web_settings['support_email']) ? trim($web_settings['sup
 $czf_phone     = isset($web_settings['support_number']) ? trim($web_settings['support_number']) : '';
 $czf_address   = isset($web_settings['address']) ? trim($web_settings['address']) : '';
 $czf_copyright = isset($web_settings['copyright_details']) ? trim($web_settings['copyright_details']) : '';
+$czf_store     = (isset($system_settings['app_name']) && trim($system_settings['app_name']) !== '')
+    ? trim($system_settings['app_name'])
+    : 'Cretzo';
 
 $czf_social = [
     ['key' => 'instagram_link', 'label' => 'Instagram', 'icon' => 'uil-instagram'],
@@ -56,6 +60,19 @@ $czf_is_customer = $this->ion_auth->logged_in()
     && !$this->ion_auth->is_seller()
     && !$this->ion_auth->is_delivery_boy()
     && !$this->ion_auth->is_admin();
+
+/*
+ * Seller call to action. A visitor who is not signed in as a seller is a
+ * prospective one, so the pill opens seller/auth/sign_up - the real signup form.
+ * NOT seller/auth/register (no such route) and not base_url('seller'), which is
+ * the seller LOGIN and is the wrong door for someone who has no account yet.
+ * An existing seller gets their dashboard instead of a pitch to sign up again;
+ * seller/home is behind the panel-access check, so a deactivated seller is
+ * bounced to the seller login by that controller rather than by anything here.
+ */
+$czf_seller_is_seller = $this->ion_auth->logged_in() && $this->ion_auth->is_seller();
+$czf_seller_url   = $czf_seller_is_seller ? base_url('seller/home') : base_url('seller/auth/sign_up');
+$czf_seller_label = $czf_seller_is_seller ? 'Seller Dashboard' : 'Sell with ' . $czf_store;
 
 /*
  * Contact chips + social row, rendered as the last footer column. Built up here
@@ -136,6 +153,12 @@ $hide_footer = !empty($hide_footer);
             <?php } else { ?>
                 <p class="czfoot__about">A marketplace for handmade work - artists, artisans, suppliers and the people who value what they make.</p>
             <?php } ?>
+
+            <a class="czfoot__seller" href="<?= $czf_seller_url ?>">
+                <i class="uil uil-store"></i>
+                <span><?= html_escape($czf_seller_label) ?></span>
+                <i class="uil uil-arrow-right czfoot__seller-arrow"></i>
+            </a>
 
         </div>
 

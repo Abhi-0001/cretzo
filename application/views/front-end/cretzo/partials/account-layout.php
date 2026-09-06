@@ -46,12 +46,21 @@ $czap_phone = ($czap_user && !empty($czap_user->mobile)) ? $czap_user->mobile : 
 /* `users`.`image` holds a bare file name inside USER_IMG_PATH, so a row can
  * legitimately name a file that is no longer on disk - get_user_avatar_url()
  * returns '' then, and we fall back to the theme icon rather than rendering a
- * broken image. The placeholder is a full-bleed line drawing, so it is flagged
- * for the CSS to letterbox instead of crop (see .czap-avatar img.is-placeholder). */
+ * broken image. The fallback is user-avatar-placeholder.svg, a bust drawn to
+ * fill a circular frame - NOT the header's user.png, whose ink runs to the edge
+ * of its canvas and loses its shoulders to the crop. The class is what tells the
+ * CSS this is that SVG (see .czap-avatar img.is-placeholder), and account-suite.js
+ * strips it the moment a real photo is picked.
+ *
+ * add_ver(), not a bare base_url(): .htaccess serves every asset as
+ * `Cache-Control: immutable` for a year, so a browser that has fetched this file
+ * once will NEVER refetch it - a bad version survives reloads and hard reloads
+ * alike. The ?v=filemtime is the only thing that makes an edit to it reach
+ * anyone who has already loaded the page. */
 $czap_photo = get_user_avatar_url(($czap_user && isset($czap_user->image)) ? $czap_user->image : '');
 $czap_is_placeholder = ($czap_photo === '');
 if ($czap_is_placeholder) {
-    $czap_photo = base_url('assets/front_end/cretzo/img/new_cretzo/user.png');
+    $czap_photo = add_ver(base_url('assets/front_end/cretzo/img/new_cretzo/user-avatar-placeholder.svg'));
 }
 
 $czap_settings = get_settings('system_settings', true);

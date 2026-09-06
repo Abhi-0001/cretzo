@@ -25,7 +25,10 @@ $profile_image_is_placeholder = ($profile_image === '');
 if ($profile_image_is_placeholder) {
     // NOT the NO_USER_IMAGE constant - that points at assets/no-user-img.png,
     // which does not exist in this install.
-    $profile_image = base_url('assets/front_end/cretzo/img/new_cretzo/user.png');
+    // add_ver() because .htaccess marks every asset immutable for a year: without
+    // the ?v=filemtime, a browser that cached one version of this file never
+    // fetches another (see the same note in partials/account-layout.php).
+    $profile_image = add_ver(base_url('assets/front_end/cretzo/img/new_cretzo/user-avatar-placeholder.svg'));
 }
 
 $gender_options = ['' => 'Prefer not to say', 'male' => 'Male', 'female' => 'Female', 'other' => 'Other'];

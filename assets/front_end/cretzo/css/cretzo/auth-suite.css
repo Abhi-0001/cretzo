@@ -466,12 +466,129 @@
     background: #fff6ec;
 }
 
+/* ---------------------------------------------------------------------------
+   Compact vertical rhythm (owner, 2026-09-06: the signup card was too tall)
+
+   Step 1 is the tallest panel in the suite - heading, subtitle, step indicator,
+   three fields, the referral chip, an error slot, the button, the sign-in line,
+   a divider and two social buttons - and on a 900px laptop the card ran past the
+   viewport. Nothing is removed here; every row just gives back a few pixels, so
+   the layout is identical and roughly 100px shorter.
+
+   This has to live in THIS file, at the end: it re-tunes values that signup.css
+   sets AND values that the blocks above set, and same-specificity rules mean
+   only the later one wins. Trimming signup.css instead would be silently undone
+   by the earlier rules in this file.
+
+   The saving carries to steps 2 and 3 for free: custom.js pins the measured
+   height of step 1 onto them, so a shorter step 1 is a shorter OTP card too.
+   --------------------------------------------------------------------------- */
+#register_div .login-left,
+#login_div .login-left,
+#forgot_password_div .login-left {
+    padding-top: 16px;
+    padding-bottom: 16px;
+}
+
+/* .pb-4 is on the element in the markup, so signup.css already needs
+   !important to beat Bootstrap here and so does this. */
+#register_div .login-left.pb-4 {
+    padding-bottom: 16px !important;
+}
+
+#register_div .login .heading-n,
+#login_div .login .heading-n,
+#forgot_password_div .login .heading-n {
+    font-size: 23px;
+    margin-bottom: 2px;
+}
+
+#register_div .login .heading-n::after,
+#login_div .login .heading-n::after,
+#forgot_password_div .login .heading-n::after {
+    margin-top: 7px;
+}
+
+#register_div .login-left p.op-6,
+#login_div .login-left p.op-6,
+#forgot_password_div .login-left p.op-6 {
+    margin-top: 6px;
+    font-size: 13.5px;
+}
+
+#register_div .signup-steps {
+    margin: 10px 30px 12px;
+}
+
+#register_div .signup-step span {
+    width: 26px;
+    height: 26px;
+}
+
+#register_div .signup-step-line {
+    margin-top: 12px;
+}
+
+/* 42px still clears the 44px tap target once the 1.5px borders and the row gap
+   are counted, and it is the height intlTelInput's flag overlay is matched to
+   just below - the two must move together or the country code floats. */
+#register_div .input,
+#login_div .input,
+#forgot_password_div .input {
+    height: 42px;
+    margin-bottom: 9px;
+}
+
+#register_div .field-container .intl-tel-input .selected-flag,
+#forgot_password_div .field-container .intl-tel-input .selected-flag {
+    height: 42px;
+}
+
+#register_div .field-container {
+    margin: 8px 0 6px;
+}
+
+#register_div .referral-row {
+    margin: 10px 0 2px;
+    padding-top: 9px;
+}
+
+#register_div .btn-container,
+#login_div .btn-container,
+#forgot_password_div .btn-container {
+    margin-top: 12px;
+}
+
+#register_div .cretzo.btn,
+#login_div .cretzo.btn,
+#forgot_password_div .cretzo.btn {
+    padding: 11px 34px;
+}
+
+/* The sign-in / sign-up crossover line carries Bootstrap's .mt-3 (16px). */
+#register_div .login-left p.mt-3,
+#login_div .login-left p.mt-3 {
+    margin-top: 10px !important;
+}
+
+#register_div .or-divider,
+#login_div .or-divider {
+    margin: 9px 0 8px;
+}
+
+#register_div .media-container,
+#login_div .media-container {
+    padding: 7px 8px;
+}
+
 /* ---------- Phone ---------- */
 @media screen and (max-width: 767.98px) {
     #register_div .login .heading-n,
     #login_div .login .heading-n,
     #forgot_password_div .login .heading-n {
-        font-size: 24px;
+        /* Kept just under the desktop 23px, the relationship these two had
+           before the compaction above. */
+        font-size: 22px;
     }
 
     #register_div .cretzo.btn,

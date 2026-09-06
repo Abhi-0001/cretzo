@@ -8,8 +8,9 @@
    particular is also used outside the footer.
 
    Three bands only: brand, link columns, legal bar. A USP strip and a seller
-   CTA card were tried and removed at the owner's request; the styles for them
-   went with the markup.
+   CTA card were tried and removed at the owner's request; the USP styles went
+   with the markup. The seller call to action came back (owner, 2026-09-06) as
+   `.czfoot__seller` - one pill inside the brand column, not the old card.
 
    Palette follows legal-page.css / faq.css so the footer belongs to the same
    design language as the content pages above it.
@@ -87,6 +88,50 @@
     color: var(--czfo-ink-2);
     font-size: 13.5px;
     line-height: 1.65;
+}
+
+/* Seller call to action. The only filled control in the footer, so it reads as
+   the one action here without a second band of chrome: the link columns stay
+   plain text and this is the single orange thing above the legal bar. */
+.czfoot__seller {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 22px;
+    padding: 5px 10px;
+    border: 1px solid var(--czfo-orange);
+    border-radius: var(--czfo-r-pill);
+    background: var(--czfo-orange);
+    color: #fff;
+    font-size: 13.5px;
+    font-weight: 700;
+    letter-spacing: .01em;
+    transition: background .15s ease, border-color .15s ease, color .15s ease, transform .15s ease;
+}
+
+.czfoot__seller i {
+    font-size: 17px;
+    line-height: 1;
+}
+
+/* The arrow is decoration on top of the label, so it leaves on hover-less
+   widths rather than eating room next to a longer store name. */
+.czfoot__seller-arrow {
+    font-size: 15px;
+    transition: transform .15s ease;
+}
+
+.czfoot__seller:hover,
+.czfoot__seller:focus-visible {
+    border-color: var(--czfo-orange-dark);
+    background: var(--czfo-orange-dark);
+    /* The theme's global link colour would otherwise win over the inherited
+       white the moment this is hovered. */
+    color: #fff;
+}
+
+.czfoot__seller:hover .czfoot__seller-arrow {
+    transform: translateX(3px);
 }
 
 .czfoot__contact {
@@ -301,6 +346,14 @@
 
     .czfoot__brand {
         margin-bottom: 20px;
+    }
+
+    /* Full width on a phone: a lone pill floating left under a paragraph reads
+       as a stray tag rather than the footer's one action. */
+    .czfoot__seller {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 4px;
     }
 
     /* Accordion mode: 18 links stacked is most of a phone screen. */
