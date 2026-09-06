@@ -333,32 +333,39 @@
 .czr-btn--sm { padding: .32rem .6rem; font-size: 12px; border-radius: 7px; }
 
 /* ---- Switch ------------------------------------------------------------ */
-/* Bootstrap's custom-control-switch is styled by AdminLTE and does not match
-   anything else here, so the section brings its own. The <input> stays a real
-   checkbox (visually hidden) so serializeArray, labels and keyboard focus all
-   keep working exactly as before. */
-.czr-switch { display: flex; align-items: flex-start; gap: .65rem; }
+/* The checkbox IS the track: appearance:none, with ::after as the knob. The
+   first version hid the input (position:absolute; opacity:0) and drew the track
+   in a sibling <span>, so the only dependable hit target was the title text -
+   the track and knob, the part everyone actually reaches for, took the click
+   and did nothing. Same fix, same reason, as .czp-switch in admin-seller-form.
+   The whole row is a <label>, so a click anywhere on it toggles, and the
+   element that shows the state is the element that receives the click. */
+.czr-switch {
+  display: flex;
+  align-items: flex-start;
+  gap: .65rem;
+  margin: 0;
+  font-weight: 400;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
 .czr-switch + .czr-switch { margin-top: .85rem; }
 .czr-switch__input {
-  position: absolute;
-  opacity: 0;
-  width: 38px;
-  height: 21px;
-  margin: 0;
-  cursor: pointer;
-}
-.czr-switch__track {
-  position: relative;
   flex: 0 0 auto;
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
   width: 38px;
   height: 21px;
-  margin-top: 1px;
+  margin: 1px 0 0;
+  border: 0;
   border-radius: 99px;
   background: var(--czr-line-strong);
-  transition: background .18s ease;
   cursor: pointer;
+  transition: background .18s ease;
 }
-.czr-switch__track::after {
+.czr-switch__input::after {
   content: "";
   position: absolute;
   top: 2px;
@@ -370,14 +377,36 @@
   box-shadow: 0 1px 2px rgba(16, 24, 40, .2);
   transition: transform .18s ease;
 }
-.czr-switch__input:checked ~ .czr-switch__track { background: var(--czr-green); }
-.czr-switch__input:checked ~ .czr-switch__track::after { transform: translateX(17px); }
-.czr-switch__input:focus-visible ~ .czr-switch__track { box-shadow: 0 0 0 3px rgba(242, 130, 46, .25); }
-.czr-switch__input:disabled ~ .czr-switch__track { opacity: .5; cursor: not-allowed; }
+.czr-switch__input:checked { background: var(--czr-green); }
+.czr-switch__input:checked::after { transform: translateX(17px); }
+.czr-switch__input:focus-visible { box-shadow: 0 0 0 3px rgba(242, 130, 46, .25); }
+.czr-switch__input:disabled { opacity: .5; cursor: not-allowed; }
 .czr-switch__copy { min-width: 0; }
-.czr-switch__title { display: block; font-size: 13px; font-weight: 600; cursor: pointer; }
+.czr-switch__title { display: block; font-size: 13px; font-weight: 600; }
 .czr-switch__note { display: block; margin-top: .2rem; font-size: 11.5px; color: var(--czr-ink-faint); }
 .czr-switch__note--warn { color: var(--czr-red); }
+
+/* On/Off in words. The knob alone reads as decoration to anyone who has not
+   used this screen before, and this is the switch that starts paying money. */
+.czr-switch__state {
+  flex: none;
+  align-self: center;
+  margin-left: auto;
+  padding: .18rem .5rem;
+  border-radius: 999px;
+  background: #eceff3;
+  color: var(--czr-ink-faint);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.czr-switch__state::after { content: "Off"; }
+.czr-switch__input:checked ~ .czr-switch__state {
+  background: var(--czr-green-soft);
+  color: var(--czr-green);
+}
+.czr-switch__input:checked ~ .czr-switch__state::after { content: "On"; }
 
 /* ---- Milestone block --------------------------------------------------- */
 .czr-ms {
@@ -834,9 +863,78 @@
   border: 1px solid var(--czr-line);
   background: #fff;
 }
+.czr-switch--panel:hover { border-color: var(--czr-line-strong); }
 .czr-switch--panel:has(.czr-switch__input:checked) {
   border-color: #bfe3d0;
   background: var(--czr-green-soft);
+}
+
+/* ---- How to go live ----------------------------------------------------- */
+/* This screen has three separate saves (programme, milestone, policy) and only
+   one of them flips the switch that starts paying people. Nothing on the page
+   said so, so an admin could fill in a budget, press Save program, and be told
+   the programme is still off. The steps are spelled out where they are needed
+   rather than left to be inferred from the layout. */
+.czr-howto__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: .8rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: czr-howto;
+}
+.czr-howto__list li {
+  position: relative;
+  counter-increment: czr-howto;
+  padding: .75rem .85rem .75rem 2.5rem;
+  border: 1px solid var(--czr-line);
+  border-radius: 11px;
+  background: var(--czr-bg);
+  font-size: 12.5px;
+  color: var(--czr-ink-soft);
+  line-height: 1.45;
+}
+.czr-howto__list li::before {
+  content: counter(czr-howto);
+  position: absolute;
+  top: .7rem;
+  left: .75rem;
+  display: grid;
+  place-items: center;
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  background: var(--czr-orange-soft);
+  color: var(--czr-orange-dark);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.czr-howto__list b { display: block; color: var(--czr-ink); font-size: 13px; }
+.czr-howto__foot {
+  margin: .85rem 0 0;
+  font-size: 12.5px;
+  color: var(--czr-ink-soft);
+}
+
+/* A programme that is switched on but outside its own dates. */
+.czr-window-warn {
+  margin: 0 0 .7rem;
+  padding: .5rem .65rem;
+  border-radius: 9px;
+  border: 1px solid #f0dcb8;
+  background: var(--czr-amber-soft);
+  color: var(--czr-amber);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* The window fields read as a pair, not as two more numbers in the grid. */
+.czr-field--span2 { grid-column: 1 / -1; }
+.czr-window {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .5rem;
 }
 
 /* ---- Milestone rows ----------------------------------------------------- */

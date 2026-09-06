@@ -105,15 +105,21 @@ class Referral extends CI_Controller
             return;
         }
 
-        $starts = trim((string) $this->input->post('starts_at', true));
-        $ends   = trim((string) $this->input->post('ends_at', true));
-
+        /* The form posts plain dates, and the window check in Referral_engine
+         * compares them against a full DATETIME. A bare '2026-09-30' becomes
+         * midnight AT THE START of the 30th, which would have ended a programme
+         * a day early - the last day the admin picked would never run. So the
+         * two ends of the window are pinned to the ends of their own days.
+         *
+         * `per_referrer_monthly_cap` is deliberately NOT written here. There is
+         * no field for it on this form, so every save posted nothing and wrote
+         * NULL over whatever was in the column; the engine reads the per-referrer
+         * cap from referral_settings, never from the programme row. */
         $update = [
-            'status'                   => $this->input->post('status', true) ? 1 : 0,
-            'budget_cap'               => $this->nullable_number($this->input->post('budget_cap', true)),
-            'per_referrer_monthly_cap' => $this->nullable_number($this->input->post('per_referrer_monthly_cap', true)),
-            'starts_at'                => ($starts !== '') ? $starts : null,
-            'ends_at'                  => ($ends !== '') ? $ends : null,
+            'status'     => $this->input->post('status', true) ? 1 : 0,
+            'budget_cap' => $this->nullable_number($this->input->post('budget_cap', true)),
+            'starts_at'  => $this->day_boundary($this->input->post('starts_at', true), '00:00:00'),
+            'ends_at'    => $this->day_boundary($this->input->post('ends_at', true), '23:59:59'),
         ];
 
         $this->db->where('id', $id)->update('referral_programs', $update);
@@ -438,6 +444,34 @@ class Referral extends CI_Controller
     {
         $value = trim((string) $value);
         return ($value === '') ? null : (float) $value;
+    }
+
+    /**
+     * A `type=date` value as a DATETIME at one end of that day.
+     *
+     * Blank stays NULL - "no boundary" is a real setting here and means the
+     * programme runs until it is switched off. Anything that is not a date is
+     * also read as blank rather than handed to MySQL, which would store
+     * 0000-00-00 and silently park the programme outside its own window.
+     */
+    private function day_boundary($value, $time)
+    {
+        $value = trim((string) $value);
+
+        if ($value === '') {
+            return null;
+        }
+
+        $parts = explode('-', substr($value, 0, 10));
+
+        if (count($parts) !== 3 || !checkdate((int) $parts[1], (int) $parts[2], (int) $parts[0])) {
+            /* checkdate, not DateTime: DateTime rolls a nonsense date forward
+             * instead of rejecting it, so a posted '2026-13-45' would have
+             * quietly become February 2027 and moved the window. */
+            return null;
+        }
+
+        return sprintf('%04d-%02d-%02d', $parts[0], $parts[1], $parts[2]) . ' ' . $time;
     }
 
     private function respond($error, $message)

@@ -533,34 +533,46 @@ if (auth_settings == "firebase") {
    OTP is pressed and only raises a challenge for traffic that looks scripted.
    The seller registration form and the password-reset flow already do this;
    the signup modal was the last visible "I'm not a robot" box on the site. */
+var signupRecaptchaSeq = 0;
 function buildSignupRecaptcha() {
-    // Re-opening the modal re-renders into the same container, and grecaptcha
-    // throws "reCAPTCHA has already been rendered" unless the old widget is
-    // torn down first.
+    var host = document.getElementById("recaptcha-container");
+    if (!host || typeof firebase === "undefined" || !firebase.auth) {
+        return Promise.resolve(null);
+    }
     if (window.recaptchaVerifier) {
         try { window.recaptchaVerifier.clear(); } catch (e) { /* already gone */ }
         window.recaptchaVerifier = null;
+        window.recaptchaWidgetId = undefined;
     }
-    $("#recaptcha-container").html("");
-    window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier("recaptcha-container", {
+    /* grecaptcha registers a widget against the DOM NODE it rendered into, and
+       that registration survives both verifier.clear() and wiping the node's
+       innerHTML - so re-opening the modal and rendering into #recaptcha-container
+       a second time threw "reCAPTCHA has already been rendered in this element".
+       Rendering into a fresh child node with a never-reused id sidesteps it
+       entirely: a brand-new element cannot already be rendered. */
+    host.innerHTML = "";
+    var slot = document.createElement("div");
+    slot.id = "recaptcha-slot-" + (++signupRecaptchaSeq);
+    host.appendChild(slot);
+
+    window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier(slot.id, {
         size: "invisible",
         callback: function () { }
     });
     return window.recaptchaVerifier.render().then(function (e) {
         window.recaptchaWidgetId = e;
-        if (typeof grecaptcha !== 'undefined' && typeof grecaptcha.reset === 'function') {
-            try { grecaptcha.reset(e); } catch (ex) { }
-        }
         return window.recaptchaVerifier;
+    }).catch(function (err) {
+        console.warn("Signup reCAPTCHA render failed", err);
+        window.recaptchaVerifier = null;
+        return null;
     });
 }
 
 function resetRecaptcha() {
-    return window.recaptchaVerifier.render().then(function (e) {
-        if (typeof grecaptcha !== 'undefined' && typeof grecaptcha.reset === 'function') {
-            try { grecaptcha.reset(e); } catch (ex) { }
-        }
-    })
+    // Rebuild rather than re-render: the invisible widget's token is consumed by
+    // the send, and a fresh slot is what makes a second Send OTP click work.
+    return buildSignupRecaptcha();
 }
 
 

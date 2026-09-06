@@ -52,23 +52,58 @@ $benefit_types = [
     ];
     ?>
 
-    <section class="content"
+    <section class="content">
         <div class="container-fluid">
 
             <?php $this->load->view('admin/pages/view/referral-stat-row'); ?>
 
-            <?php if ($live_count === 0) { ?>
-                <div class="czr-card">
-                    <div class="czr-card__body" style="display:flex;gap:.7rem;align-items:flex-start;">
-                        <span class="czr-pill czr-pill--warn">Nothing is live</span>
-                        <p class="czr-card__sub" style="margin:0;">
-                            No program is switched on, so no rewards are being created. Referrals are still
-                            recorded and will appear in the ledger &mdash; they simply earn nothing until a
-                            program below is made live.
+            <?php /* Three separate saves live on this page and only one of them flips
+                     the switch that commits money, so the order is spelled out rather
+                     than left to be inferred from the layout. */ ?>
+            <div class="czr-card czr-howto">
+                <div class="czr-card__head">
+                    <div>
+                        <h2 class="czr-card__title">How to make a program live</h2>
+                        <p class="czr-card__sub">
+                            Each program below has its own <b>Save program</b> button, and each milestone
+                            inside it has its own <b>Save</b>. Nothing on this page saves anything else.
                         </p>
                     </div>
+                    <span class="czr-pill <?= $live_count > 0 ? 'czr-pill--live' : 'czr-pill--warn' ?>">
+                        <?= $live_count > 0 ? $live_count . ' live now' : 'Nothing is live' ?>
+                    </span>
                 </div>
-            <?php } ?>
+
+                <div class="czr-card__body">
+                    <ol class="czr-howto__list">
+                        <li><b>Set what it pays</b>
+                            In the milestone row on the right, fill in <i>Referrer gets</i>, <i>New user gets</i>,
+                            <i>Value</i> and <i>Min order</i>, leave <i>Active</i> on, and press that row&rsquo;s
+                            <b>Save</b>. A milestone that is off pays nothing even in a live program.</li>
+                        <li><b>Set the limit and window</b>
+                            On the left, put a <i>Program budget cap</i> (or leave it blank for no per-program cap)
+                            and, if the offer should only run for a period, the <i>Starts</i> and <i>Ends</i> dates.
+                            Blank dates mean it runs until you switch it off.</li>
+                        <li><b>Turn on &ldquo;Program is live&rdquo;</b>
+                            Click the switch at the top of the left panel &mdash; anywhere on that row works. The chip
+                            on it changes to <b>On</b> and the row turns green. Nothing is saved yet.</li>
+                        <li><b>Press &ldquo;Save program&rdquo;</b>
+                            This is the step that commits it. The page reloads and the badge on the program reads
+                            <b>Live</b>. Confirm the header above says <?= $live_count > 0 ? 'the right number of programs live' : '1 live' ?>.</li>
+                    </ol>
+
+                    <p class="czr-howto__foot">
+                        <?php if ($live_count === 0) { ?>
+                            <b>Right now no program is switched on</b>, so no rewards are being created. Referrals
+                            are still recorded and appear in the ledger &mdash; they simply earn nothing until a
+                            program is made live.
+                        <?php } else { ?>
+                            Also check <b>Program settings</b> at the bottom of this page: the monthly budget applies
+                            across every program, and a reward stops at that cap however a program is configured.
+                        <?php } ?>
+                    </p>
+                </div>
+            </div>
 
             <!-- ------------------------------------------------------- programmes -->
             <div class="czr-programs">
@@ -91,9 +126,29 @@ $benefit_types = [
                                 </p>
                             </div>
 
-                            <span class="czr-pill <?= !empty($program['status']) ? 'czr-pill--live' : 'czr-pill--off' ?>">
-                                <?= !empty($program['status']) ? 'Live' : 'Off' ?>
-                            </span>
+                            <?php
+                            /* "Live" on its own is a half-truth for a programme whose
+                               window has not opened or has already closed: the switch is
+                               on, the engine checks the dates too, and nothing pays. The
+                               badge says which of the three it actually is - the same
+                               comparison Referral_engine::active_referral_for() makes. */
+                            $czr_now = date('Y-m-d H:i:s');
+                            $czr_pending = !empty($program['starts_at']) && $program['starts_at'] > $czr_now;
+                            $czr_expired = !empty($program['ends_at']) && $program['ends_at'] < $czr_now;
+
+                            if (empty($program['status'])) {
+                                $czr_state = ['czr-pill--off', 'Off', ''];
+                            } elseif ($czr_pending) {
+                                $czr_state = ['czr-pill--warn', 'Scheduled',
+                                    'On, but not paying yet: it starts ' . date('d M Y', strtotime($program['starts_at'])) . '.'];
+                            } elseif ($czr_expired) {
+                                $czr_state = ['czr-pill--warn', 'Ended',
+                                    'On, but no longer paying: it ended ' . date('d M Y', strtotime($program['ends_at'])) . '. Clear the end date to run it again.'];
+                            } else {
+                                $czr_state = ['czr-pill--live', 'Live', ''];
+                            }
+                            ?>
+                            <span class="czr-pill <?= $czr_state[0] ?>"><?= $czr_state[1] ?></span>
                         </div>
 
                         <div class="czr-prog__body">
@@ -102,16 +157,26 @@ $benefit_types = [
 
                                 <?php /* First, not last: switching a programme on is what starts the
                                          platform paying people, and it was previously below four
-                                         fields most admins never touch. */ ?>
-                                <div class="czr-switch czr-switch--panel">
+                                         fields most admins never touch.
+
+                                         The whole row is the <label>, so a click anywhere on it -
+                                         knob, title or note - toggles the switch. It used to be a
+                                         <div> holding an invisible input and a decorative track
+                                         <span>, which left the title text as the only dependable
+                                         hit target: clicking the knob itself did nothing. */ ?>
+                                <?php if ($czr_state[2] !== '') { ?>
+                                    <p class="czr-window-warn"><?= $czr_state[2] ?></p>
+                                <?php } ?>
+
+                                <label class="czr-switch czr-switch--panel">
                                     <input type="checkbox" class="czr-switch__input" id="prog-status-<?= (int) $program['id'] ?>"
                                            name="status" value="1" <?= !empty($program['status']) ? 'checked' : '' ?>>
-                                    <span class="czr-switch__track" aria-hidden="true"></span>
                                     <span class="czr-switch__copy">
-                                        <label class="czr-switch__title" for="prog-status-<?= (int) $program['id'] ?>">Program is live</label>
-                                        <span class="czr-switch__note">Rewards are created for new qualifying events.</span>
+                                        <span class="czr-switch__title">Program is live</span>
+                                        <span class="czr-switch__note">Click to change, then press Save program below.</span>
                                     </span>
-                                </div>
+                                    <span class="czr-switch__state" aria-hidden="true"></span>
+                                </label>
 
                                 <p class="czr-sublabel czr-sublabel--tight">Limits and window</p>
 
@@ -129,15 +194,26 @@ $benefit_types = [
                                         <input type="text" class="czr-input" id="prog-spent-<?= (int) $program['id'] ?>"
                                                value="<?= $currency . number_format((float) $program['spent_to_date'], 2) ?>" readonly>
                                     </div>
-                                    <div class="czr-field">
-                                        <label class="czr-label" for="prog-start-<?= (int) $program['id'] ?>">Starts</label>
-                                        <input type="datetime-local" class="czr-input" id="prog-start-<?= (int) $program['id'] ?>" name="starts_at"
-                                               value="<?= !empty($program['starts_at']) ? date('Y-m-d\TH:i', strtotime($program['starts_at'])) : '' ?>">
-                                    </div>
-                                    <div class="czr-field">
-                                        <label class="czr-label" for="prog-end-<?= (int) $program['id'] ?>">Ends</label>
-                                        <input type="datetime-local" class="czr-input" id="prog-end-<?= (int) $program['id'] ?>" name="ends_at"
-                                               value="<?= !empty($program['ends_at']) ? date('Y-m-d\TH:i', strtotime($program['ends_at'])) : '' ?>">
+
+                                    <?php /* Dates, not datetimes. A datetime-local field is wider than
+                                             half this panel, so the time part was cut off mid-value and
+                                             took the date down with it - and nobody schedules a referral
+                                             offer to the minute. The controller pins the saved times to
+                                             the start and the end of the chosen days. */ ?>
+                                    <div class="czr-field czr-field--span2">
+                                        <label class="czr-label" for="prog-start-<?= (int) $program['id'] ?>">Runs between (optional)</label>
+                                        <div class="czr-window">
+                                            <input type="date" class="czr-input" id="prog-start-<?= (int) $program['id'] ?>" name="starts_at"
+                                                   aria-label="First day the program runs"
+                                                   value="<?= !empty($program['starts_at']) ? date('Y-m-d', strtotime($program['starts_at'])) : '' ?>">
+                                            <input type="date" class="czr-input" id="prog-end-<?= (int) $program['id'] ?>" name="ends_at"
+                                                   aria-label="Last day the program runs"
+                                                   value="<?= !empty($program['ends_at']) ? date('Y-m-d', strtotime($program['ends_at'])) : '' ?>">
+                                        </div>
+                                        <p class="czr-hint">
+                                            First day &rarr; last day, both included. Leave both blank to run until you
+                                            switch the program off.
+                                        </p>
                                     </div>
                                 </div>
 
@@ -162,14 +238,13 @@ $benefit_types = [
                                         <?php /* Active and Save live in the row's own header, so every
                                                  milestone row is the same height whatever is in it. */ ?>
                                         <span class="czr-ms__controls">
-                                            <span class="czr-switch czr-switch--inline">
+                                            <label class="czr-switch czr-switch--inline">
                                                 <input type="checkbox" class="czr-switch__input" id="ms-status-<?= (int) $milestone['id'] ?>"
                                                        name="status" value="1" <?= !empty($milestone['status']) ? 'checked' : '' ?>>
-                                                <span class="czr-switch__track" aria-hidden="true"></span>
                                                 <span class="czr-switch__copy">
-                                                    <label class="czr-switch__title" for="ms-status-<?= (int) $milestone['id'] ?>">Active</label>
+                                                    <span class="czr-switch__title">Active</span>
                                                 </span>
-                                            </span>
+                                            </label>
                                             <button type="submit" class="czr-btn czr-btn--ghost czr-btn--sm">Save</button>
                                         </span>
                                     </div>
@@ -302,45 +377,45 @@ $benefit_types = [
 
                         <hr class="czr-rule">
 
-                        <div class="czr-switch">
+                        <label class="czr-switch">
                             <input type="checkbox" class="czr-switch__input" id="policy-wallet-orders"
                                    name="wallet_orders_qualify" value="1" <?= $policy['wallet_orders_qualify'] == '1' ? 'checked' : '' ?>>
-                            <span class="czr-switch__track" aria-hidden="true"></span>
                             <span class="czr-switch__copy">
-                                <label class="czr-switch__title" for="policy-wallet-orders">Orders paid with wallet balance still earn a referral reward</label>
+                                <span class="czr-switch__title">Orders paid with wallet balance still earn a referral reward</span>
                                 <span class="czr-switch__note">
                                     Off closes the loop where referral credit buys an order that earns more referral
                                     credit. Turn it off if reward farming appears.
                                 </span>
                             </span>
-                        </div>
+                            <span class="czr-switch__state" aria-hidden="true"></span>
+                        </label>
 
-                        <div class="czr-switch">
+                        <label class="czr-switch">
                             <input type="checkbox" class="czr-switch__input" id="policy-negative"
                                    name="allow_negative_on_reversal" value="1" <?= $policy['allow_negative_on_reversal'] == '1' ? 'checked' : '' ?>>
-                            <span class="czr-switch__track" aria-hidden="true"></span>
                             <span class="czr-switch__copy">
-                                <label class="czr-switch__title" for="policy-negative">A reversal may push a wallet below zero</label>
+                                <span class="czr-switch__title">A reversal may push a wallet below zero</span>
                                 <span class="czr-switch__note">
                                     Off (the current policy): only what is in the wallet is recovered, and the rest is
                                     taken out of that user&rsquo;s next referral reward.
                                 </span>
                             </span>
-                        </div>
+                            <span class="czr-switch__state" aria-hidden="true"></span>
+                        </label>
 
-                        <div class="czr-switch">
+                        <label class="czr-switch">
                             <input type="checkbox" class="czr-switch__input" id="policy-withdrawable"
                                    name="withdrawable" value="1" <?= $policy['withdrawable'] == '1' ? 'checked' : '' ?>>
-                            <span class="czr-switch__track" aria-hidden="true"></span>
                             <span class="czr-switch__copy">
-                                <label class="czr-switch__title" for="policy-withdrawable">Referral credit can be withdrawn as cash</label>
+                                <span class="czr-switch__title">Referral credit can be withdrawn as cash</span>
                                 <span class="czr-switch__note czr-switch__note--warn">
                                     Off (the current policy): referral money can be spent on the platform but never
                                     paid out. Turning this on makes the program a cash-out target and changes its tax
                                     position.
                                 </span>
                             </span>
-                        </div>
+                            <span class="czr-switch__state" aria-hidden="true"></span>
+                        </label>
 
                         <div style="margin-top:1.15rem;">
                             <button type="submit" class="czr-btn czr-btn--primary">Save program settings</button>
