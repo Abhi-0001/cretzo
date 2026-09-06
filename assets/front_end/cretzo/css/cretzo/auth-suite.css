@@ -1,0 +1,499 @@
+/* ===========================================================================
+   CRETZO AUTH SUITE
+
+   One skin for the three auth panels - sign in (#login_div), sign up
+   (#register_div) and forgot password (#forgot_password_div) - built from the
+   same design language as the seller registration screen
+   (assets/admin/css/seller-auth.css): cream-tinted fields on warm sand borders,
+   a gradient pill for the primary action, and a step indicator whose completed
+   segments fill in.
+
+   The palette is that file's, not a second one: --cz-orange #F2822E is already
+   the storefront's --color-orange, and the cream/border values are copied
+   deliberately so the buyer and seller signups do not read as two products. The
+   typeface stays the storefront's K2D rather than the seller page's Playfair,
+   because this markup lives inside storefront pages.
+
+   LOAD ORDER IS PART OF THE CONTRACT. include-css.php pulls this in AFTER
+   signup.css and login.css, and it intentionally overrides the field, button,
+   heading and step-indicator rules in both. Same-specificity selectors are used
+   throughout, so moving the <link> above them would silently undo this file.
+   =========================================================================== */
+
+#register_div,
+#login_div,
+#forgot_password_div {
+    --cza-orange: var(--color-orange, #F2822E);
+    --cza-orange-dark: #d96d1a;
+    --cza-ink: #2b2b2b;
+    --cza-muted: #6b6b6b;
+    --cza-border: #e5d9c3;
+    --cza-field: #fffdf8;
+    --cza-ring: rgba(224, 122, 72, 0.14);
+    --cza-radius: 12px;
+}
+
+/* ---------- The card ---------- */
+#register_div .login,
+#login_div .login,
+#forgot_password_div .login {
+    border: 1px solid rgba(224, 122, 72, 0.14);
+    box-shadow: 0 30px 70px -28px rgba(120, 72, 20, 0.45);
+}
+
+/* A wash rather than flat white, so the form side reads as paper next to the
+   photograph instead of as a gap in it. */
+#register_div .login-left,
+#login_div .login-left,
+#forgot_password_div .login-left {
+    position: relative;
+    background: linear-gradient(180deg, #fffdf8 0%, #ffffff 42%);
+}
+
+/* Absolutely positioned ON PURPOSE: .login-left is a flex column, so a ::before
+   in flow would become a flex item and push the form down the card. */
+#register_div .login-left::before,
+#login_div .login-left::before,
+#forgot_password_div .login-left::before {
+    content: "";
+    position: absolute;
+    top: -70px;
+    left: -70px;
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(224, 122, 72, 0.09), transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* Everything real sits above that glow. */
+#register_div .login-left > *,
+#login_div .login-left > *,
+#forgot_password_div .login-left > * {
+    position: relative;
+    z-index: 1;
+}
+
+/* ---------- Headings ---------- */
+#register_div .login .heading-n,
+#login_div .login .heading-n,
+#forgot_password_div .login .heading-n {
+    font-size: 25px;
+    font-weight: 700;
+    color: var(--cza-ink);
+    letter-spacing: -0.01em;
+    margin-bottom: 4px;
+}
+
+/* The seller form's title rule, centred: a short gradient bar that ties the
+   heading to the primary button without another block of colour. */
+#register_div .login .heading-n::after,
+#login_div .login .heading-n::after,
+#forgot_password_div .login .heading-n::after {
+    content: "";
+    display: block;
+    width: 46px;
+    height: 4px;
+    margin: 9px auto 0;
+    border-radius: 4px;
+    background: linear-gradient(90deg, var(--cza-orange), #f2a973);
+}
+
+/* The subtitles carry .op-6 in the markup - 60% of black is muddier than a
+   proper muted ink, and it dimmed the phone number inside it too. */
+#register_div .login-left p.op-6,
+#login_div .login-left p.op-6,
+#forgot_password_div .login-left p.op-6 {
+    opacity: 1;
+    color: var(--cza-muted);
+    font-size: 14px;
+    margin-top: 10px;
+}
+
+/* ---------- Fields ---------- */
+#register_div .input,
+#login_div .input,
+#forgot_password_div .input {
+    height: 46px;
+    border: 1.5px solid var(--cza-border);
+    border-radius: var(--cza-radius);
+    background: var(--cza-field);
+    color: var(--cza-ink);
+    font-size: 15px;
+    margin-bottom: 12px;
+    transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
+}
+
+#register_div .input::placeholder,
+#login_div .input::placeholder,
+#forgot_password_div .input::placeholder {
+    color: #b8b0a2;
+}
+
+#register_div .input:focus,
+#login_div .input:focus,
+#forgot_password_div .input:focus {
+    border-color: var(--cza-orange);
+    background: #ffffff;
+    box-shadow: 0 0 0 4px var(--cza-ring);
+    outline: none;
+}
+
+/* intlTelInput draws the flag/dial-code as an overlay inside the field, so it
+   has to grow with it - otherwise the country code floats above a taller box. */
+#register_div .field-container .intl-tel-input .selected-flag,
+#forgot_password_div .field-container .intl-tel-input .selected-flag {
+    height: 46px;
+    border-radius: var(--cza-radius) 0 0 var(--cza-radius);
+    /* Transparent, not white: the widget sits ON the field, and its own white
+       left it reading as a separate box glued to a cream one. */
+    background: transparent;
+}
+
+/* ---------- Primary action ---------- */
+#register_div .cretzo.btn,
+#login_div .cretzo.btn,
+#forgot_password_div .cretzo.btn {
+    padding: 12px 38px;
+    min-width: 190px;
+    width: auto;
+    border: none;
+    border-radius: 999px;
+    background: linear-gradient(135deg, var(--cza-orange) 0%, var(--cza-orange-dark) 100%);
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: 600;
+    box-shadow: 0 12px 24px -10px rgba(224, 122, 72, 0.85);
+    transition: transform .15s ease, box-shadow .2s ease, opacity .15s ease;
+}
+
+#register_div .cretzo.btn:hover,
+#login_div .cretzo.btn:hover,
+#forgot_password_div .cretzo.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 16px 30px -10px rgba(224, 122, 72, 0.95);
+    color: #ffffff;
+}
+
+#register_div .cretzo.btn:active,
+#login_div .cretzo.btn:active,
+#forgot_password_div .cretzo.btn:active {
+    transform: translateY(0);
+}
+
+/* "Please Wait..." states: no lift, no glow - a button that still looks
+   pressable while it is working invites a second submit. */
+#register_div .cretzo.btn:disabled,
+#login_div .cretzo.btn:disabled,
+#forgot_password_div .cretzo.btn:disabled {
+    opacity: .65;
+    transform: none;
+    box-shadow: none;
+    cursor: default;
+}
+
+/* The primary action needs air under the control above it: signup.css leaves
+   .btn-container with no margin at all, which put "Verify OTP" flush against the
+   OTP boxes and "Register Now" against the terms checkbox. */
+#register_div .btn-container,
+#login_div .btn-container,
+#forgot_password_div .btn-container {
+    margin-top: 18px;
+}
+
+/* ---------- Secondary links ---------- */
+#register_div .login-left a.text-blue,
+#register_div .signup-back-link,
+#login_div .login-left a.text-blue {
+    color: var(--cza-orange) !important;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+#register_div .signup-back-link {
+    font-size: 13.5px;
+    color: var(--cza-muted) !important;
+}
+
+#register_div .signup-back-link:hover,
+#register_div .login-left a.text-blue:hover,
+#login_div .login-left a.text-blue:hover {
+    color: var(--cza-orange-dark) !important;
+    text-decoration: underline;
+}
+
+/* ---------- Step indicator ---------- */
+#register_div .signup-steps {
+    gap: 4px;
+    margin: 14px 30px 18px;
+}
+
+#register_div .signup-step span {
+    width: 28px;
+    height: 28px;
+    font-size: 13px;
+    font-weight: 700;
+    background: var(--cza-field);
+    border: 1.5px solid var(--cza-border);
+    color: var(--cza-muted);
+}
+
+#register_div .signup-step label {
+    font-size: 11.5px;
+    color: var(--cza-muted);
+    font-weight: 500;
+}
+
+#register_div .signup-step.active span {
+    background: linear-gradient(135deg, var(--cza-orange) 0%, var(--cza-orange-dark) 100%);
+    border-color: var(--cza-orange-dark);
+    color: #ffffff;
+    box-shadow: 0 6px 14px -6px rgba(224, 122, 72, 0.9);
+}
+
+#register_div .signup-step.active label {
+    color: var(--cza-orange-dark);
+    font-weight: 700;
+}
+
+#register_div .signup-step.done span {
+    background: #fff3e3;
+    border-color: var(--cza-orange);
+    color: var(--cza-orange-dark);
+}
+
+#register_div .signup-step-line {
+    height: 3px;
+    border-radius: 3px;
+    margin-top: 13px;
+    background: var(--cza-border);
+}
+
+/* A line leaving a completed step is itself completed - the markup order is
+   step, line, step, line, step, so the sibling selector says exactly that. */
+#register_div .signup-step.done + .signup-step-line {
+    background: linear-gradient(90deg, var(--cza-orange), #f2b184);
+}
+
+/* ---------- OTP entry (step 2) ---------- */
+#register_div .otp-boxes {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin: 18px 0 2px;
+}
+
+#register_div .otp-box {
+    width: 46px;
+    height: 54px;
+    padding: 0;
+    text-align: center;
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--cza-ink);
+    background: var(--cza-field);
+    border: 1.5px solid var(--cza-border);
+    border-radius: var(--cza-radius);
+    transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
+}
+
+/* Each box carries placeholder=" ", so :not(:placeholder-shown) is simply "this
+   box has a digit in it" - a filled state with no JS to keep in sync. */
+#register_div .otp-box:not(:placeholder-shown) {
+    border-color: var(--cza-orange);
+    background: #ffffff;
+}
+
+#register_div .otp-box:focus {
+    outline: none;
+    border-color: var(--cza-orange);
+    background: #ffffff;
+    box-shadow: 0 0 0 4px var(--cza-ring);
+}
+
+#register_div #otp-notice {
+    display: none;
+    margin-top: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #1a7f4b;
+}
+
+#register_div #otp-notice:empty {
+    display: none;
+}
+
+#register_div .otp-resend-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 14px;
+    font-size: 13.5px;
+    color: var(--cza-muted);
+}
+
+#register_div .otp-resend {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--cza-orange);
+    font-size: 13.5px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+#register_div .otp-resend:hover {
+    color: var(--cza-orange-dark);
+    text-decoration: underline;
+}
+
+/* Disabled during the cooldown: greyed and inert, with the countdown beside it
+   so the wait is visibly finite rather than a dead link. */
+#register_div .otp-resend:disabled {
+    color: #b8b0a2;
+    cursor: default;
+    text-decoration: none;
+}
+
+#register_div .otp-resend-timer {
+    font-size: 12.5px;
+    color: var(--cza-muted);
+}
+
+#register_div .otp-resend-timer:empty {
+    display: none;
+}
+
+/* ---------- Passwords, checkboxes, terms (step 3 / sign in) ---------- */
+#register_div .password-field .input,
+#login_div .password-container .input,
+#forgot_password_div .password-container .input {
+    padding-right: 44px;
+}
+
+#register_div .password-toggle,
+#login_div .password-toggle,
+#forgot_password_div .password-toggle {
+    color: #b0a693;
+}
+
+#register_div .password-toggle:hover,
+#login_div .password-toggle:hover,
+#forgot_password_div .password-toggle:hover {
+    color: var(--cza-orange);
+}
+
+#register_div input[type='checkbox'],
+#login_div input[type='checkbox'] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--cza-orange);
+    cursor: pointer;
+}
+
+#register_div .form-check-row .label,
+#login_div .form-check-row .label {
+    font-size: 13.5px;
+    color: var(--cza-muted);
+    cursor: pointer;
+}
+
+#register_div .terms-link {
+    color: var(--cza-orange);
+    font-weight: 600;
+}
+
+#register_div .signup-checks {
+    gap: 8px;
+    margin-top: 8px;
+}
+
+/* ---------- Social row and divider ---------- */
+#register_div .or-divider,
+#login_div .or-divider {
+    color: var(--cza-muted);
+    font-size: 13px;
+}
+
+#register_div .or-divider::before,
+#register_div .or-divider::after,
+#login_div .or-divider::before,
+#login_div .or-divider::after {
+    background-color: var(--cza-border);
+}
+
+#register_div .media-container,
+#login_div .media-container {
+    padding: 9px 8px;
+    border: 1.5px solid var(--cza-border);
+    border-radius: var(--cza-radius);
+    background: var(--cza-field);
+}
+
+#register_div .media-container:hover,
+#login_div .media-container:hover {
+    border-color: var(--cza-orange);
+    background: #ffffff;
+    box-shadow: 0 6px 16px -10px rgba(224, 122, 72, 0.9);
+}
+
+#register_div .media-container p,
+#login_div .media-container p {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--cza-ink);
+}
+
+/* ---------- Errors ---------- */
+#register_div .reg-error,
+#register_div #is-user-exist-error,
+#login_div .text-danger,
+#forgot_password_div .text-danger {
+    font-size: 13px;
+    font-weight: 500;
+}
+
+/* ---------- Referral row (step 1) ---------- */
+#register_div .referral-row {
+    border-top: 1px solid var(--cza-border);
+}
+
+#register_div .referral-toggle {
+    border-color: rgba(224, 122, 72, 0.55);
+    background: #fff6ec;
+}
+
+/* ---------- Phone ---------- */
+@media screen and (max-width: 767.98px) {
+    #register_div .login .heading-n,
+    #login_div .login .heading-n,
+    #forgot_password_div .login .heading-n {
+        font-size: 24px;
+    }
+
+    #register_div .cretzo.btn,
+    #login_div .cretzo.btn,
+    #forgot_password_div .cretzo.btn {
+        width: 100%;
+        min-height: 50px;
+    }
+
+    /* Six boxes plus five gaps have to fit the narrowest handset with the
+       panel's own padding on both sides, so they share the row rather than
+       holding a fixed width. */
+    #register_div .otp-boxes {
+        gap: 8px;
+    }
+
+    #register_div .otp-box {
+        flex: 1 1 0;
+        width: auto;
+        min-width: 0;
+        max-width: 52px;
+        height: 56px;
+        font-size: 20px;
+    }
+}

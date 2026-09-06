@@ -327,17 +327,42 @@
                                     <div class="signup-step "><span>3</span><label>Password</label></div>
                                 </div>
 
-                                    <div class="field-container">
-                                        <input type="text" class='form-input form-control input ta-c' placeholder="Enter OTP" id="otp" name="otp" autocomplete="one-time-code" inputmode="numeric" maxlength="6">
+                                    <?php /* Six single-character boxes, the same control the seller
+                                             registration screen uses. #otp stays in the DOM as a hidden
+                                             field rather than being replaced: it is what name="otp" posts
+                                             to auth/register-user, and what every check in custom.js
+                                             reads. The boxes are only an input surface that writes into
+                                             it, so nothing downstream had to learn about them. */ ?>
+                                    <div class="otp-boxes" id="signup-otp-boxes">
+                                        <input type="text" class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]*" placeholder=" " autocomplete="one-time-code" aria-label="OTP digit 1">
+                                        <input type="text" class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]*" placeholder=" " aria-label="OTP digit 2">
+                                        <input type="text" class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]*" placeholder=" " aria-label="OTP digit 3">
+                                        <input type="text" class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]*" placeholder=" " aria-label="OTP digit 4">
+                                        <input type="text" class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]*" placeholder=" " aria-label="OTP digit 5">
+                                        <input type="text" class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]*" placeholder=" " aria-label="OTP digit 6">
                                     </div>
+                                    <input type="hidden" id="otp" name="otp" value="">
 
                                     <div id="otp-error" class="text-center text-danger reg-error"></div>
+                                    <div id="otp-notice" class="otp-notice ta-c"></div>
 
                                     <div class="ta-c btn-container">
                                         <button type="button" id="verify-otp-button" class="cretzo btn btn-dark">Verify OTP</button>
                                     </div>
 
-                                    <p class="text-n mb-0 ta-c mt-3"><a href="#" id="signup-back-to-details" class="text-decoration-none c-p fw-bold" style="color: var(--color-orange) !important;">&larr; Change mobile number</a></p>
+                                    <?php /* A code that never arrives is the commonest way this screen
+                                             dead-ends. The seller registration screen has carried a
+                                             resend since its redesign; this one only offered "change
+                                             mobile number", which throws away the number and starts
+                                             again. Cooled down for 30s so a stuck user cannot burn the
+                                             hourly per-number OTP allowance in ten seconds. */ ?>
+                                    <div class="otp-resend-row ta-c">
+                                        <span class="otp-resend-q">Didn't get the code?</span>
+                                        <button type="button" class="otp-resend" id="signup-resend-otp">Resend OTP</button>
+                                        <span class="otp-resend-timer" id="signup-resend-timer"></span>
+                                    </div>
+
+                                    <p class="text-n mb-0 ta-c mt-2"><a href="#" id="signup-back-to-details" class="signup-back-link">&larr; Change mobile number</a></p>
                                 </div>
 
                                 <?php /* Step 3 - password + terms. Submitting this form is what
