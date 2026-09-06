@@ -176,11 +176,19 @@ body.czap-body {
     border: 2px solid #fff;
 }
 
-/* The default line-drawing placeholder is full-bleed; cropping it to a circle
-   cuts the shoulders off, so letterbox that one instead. */
+/* The placeholder is user-avatar-placeholder.svg, not the user.png the header
+   avatars use. That PNG is a line drawing whose ink runs edge to edge, so in a
+   circular frame it could only be letterboxed (shrunk until its corners cleared
+   the circle - at which point its 3px strokes fall under a pixel and break up)
+   or clipped through the shoulders. The SVG is drawn for a circle instead: solid
+   shapes, and a bust that is MEANT to meet the bottom edge.
+
+   So it is filled, not fitted - cover with no padding. The SVG's own background
+   square becomes the disc, and nothing has to be scaled down to dodge the crop.
+   See the comment in that file for the geometry. */
 .czap-avatar img.is-placeholder {
-    object-fit: contain;
-    padding: 8px;
+    object-fit: cover;
+    padding: 0;
 }
 
 .czap-hero__meta {
@@ -863,10 +871,10 @@ body.czap-body {
     background: #fafafa;
 }
 
+/* Same SVG, same reasoning as .czap-avatar img.is-placeholder above. */
 .czap-photo__preview.is-placeholder {
-    object-fit: contain;
-    padding: 8px;
-    background: #fff;
+    object-fit: cover;
+    padding: 0;
 }
 
 .czap-photo__actions {

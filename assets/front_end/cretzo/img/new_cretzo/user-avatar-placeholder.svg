@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"
+     role="img" aria-label="No profile photo">
+  <title>No profile photo</title>
+  <desc>Placeholder avatar for the circular frames in the My Account pages:
+    .czap-avatar in the hero and .czap-photo__preview in the profile form.
+
+    It replaces user.png there. That file is a 128px line drawing whose ink runs
+    edge to edge (the head touches row 0, the torso outline sits on row 127), so
+    inside a circular frame it could only be letterboxed until its 3px strokes
+    fell under a pixel, or clipped through the shoulders. user.png is untouched
+    and still used by the header avatars, which are not circular.
+
+    This one is drawn for a circle. Three things make it fit:
+    solid shapes instead of hairlines, so nothing breaks up at 76px;
+    a warm palette taken from the account hero, so it belongs to the card it
+    sits on rather than dropping a grey blob into a peach gradient;
+    and shoulders that deliberately reach the bottom edge, with their widest
+    point (y is about 52) well inside the circle, so the frame crops only the
+    part of the bust that is meant to run off it.
+
+    account-suite.css renders it with object-fit cover and no padding, which
+    turns the background square below into the disc.
+
+    Note for editors: this is XML, so a comment can never contain two hyphens in
+    a row. A CSS custom property written out in full inside a comment makes the
+    whole file unparseable and the browser silently draws a broken image. That
+    is why this text lives in a desc element instead. Note also that .htaccess
+    marks every asset immutable for a year, so the views load this through
+    add_ver() and an edit here only reaches a browser because of that.</desc>
+
+  <defs>
+    <linearGradient id="czapAvatarDisc" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fdf5ee"/>
+      <stop offset="1" stop-color="#f8e7d5"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="64" height="64" fill="url(#czapAvatarDisc)"/>
+
+  <circle cx="32" cy="22.5" r="9.5" fill="#d9a273"/>
+
+  <path d="M32 35.5c-10.2 0-18.5 7.2-18.5 16.1V64h37V51.6c0-8.9-8.3-16.1-18.5-16.1z"
+        fill="#d9a273"/>
+</svg>
