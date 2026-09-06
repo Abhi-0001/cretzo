@@ -1,0 +1,419 @@
+/* ==========================================================================
+   Seller > Price Calculator
+   --------------------------------------------------------------------------
+   Self-contained, and scoped under .czpc so nothing here can reach AdminLTE
+   or the Bootstrap 4 the seller panel loads. Same token names and the same
+   orange as the seller profile form (czp), so the two screens read as one
+   product rather than two.
+
+   Layout: inputs left, summary right, one column under 900px. The summary is
+   the point of the page, so on a narrow screen it comes FIRST in the source
+   and the inputs follow - a seller who has just tapped Calculate should not
+   have to scroll past the form they already filled in to see the answer.
+   ========================================================================== */
+
+.czpc {
+  --czpc-orange: #F2822E;
+  --czpc-orange-dark: #d96f1d;
+  --czpc-orange-soft: #fff4ea;
+  --czpc-orange-line: #f6d8bd;
+  --czpc-ink: #23282e;
+  --czpc-ink-soft: #5c6570;
+  --czpc-muted: #8a939e;
+  --czpc-line: #e4e8ed;
+  --czpc-line-strong: #cfd6de;
+  --czpc-red: #d92d20;
+  --czpc-red-soft: #fef3f2;
+  --czpc-green: #17794a;
+  --czpc-green-soft: #f0faf4;
+  --czpc-radius: 12px;
+  --czpc-shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 8px 24px rgba(16, 24, 40, .06);
+
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: .25rem 0 3rem;
+  color: var(--czpc-ink);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.czpc *,
+.czpc *::before,
+.czpc *::after { box-sizing: border-box; }
+
+/* ---- Page header ------------------------------------------------------- */
+.czpc-head { margin-bottom: 1.1rem; }
+.czpc-head h1 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 .25rem;
+  letter-spacing: -.01em;
+}
+.czpc-head p {
+  margin: 0;
+  color: var(--czpc-ink-soft);
+  font-size: 13.5px;
+  max-width: 62ch;
+}
+
+/* ---- Two-pane shell ---------------------------------------------------- */
+.czpc-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.1rem;
+  align-items: start;
+}
+.czpc-card {
+  background: #fff;
+  border: 1px solid var(--czpc-line);
+  border-radius: var(--czpc-radius);
+  box-shadow: var(--czpc-shadow);
+  padding: 1.25rem;
+}
+.czpc-card.is-summary {
+  background: #fffdfb;
+  border-color: var(--czpc-orange-line);
+  position: sticky;
+  top: 1rem;
+}
+.czpc-legend {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--czpc-muted);
+  margin: 0 0 1rem;
+}
+
+/* ---- Fields ------------------------------------------------------------ */
+.czpc-field { margin-bottom: .95rem; }
+.czpc-field:last-child { margin-bottom: 0; }
+.czpc-label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--czpc-ink-soft);
+  margin: 0 0 .35rem;
+}
+.czpc-label .czpc-opt {
+  font-weight: 400;
+  color: var(--czpc-muted);
+}
+.czpc-input,
+.czpc-select {
+  width: 100%;
+  height: 42px;
+  padding: 0 .75rem;
+  border: 1px solid var(--czpc-line);
+  border-radius: 9px;
+  background: #fff;
+  color: var(--czpc-ink);
+  font: inherit;
+  font-size: 14px;
+  transition: border-color .15s, box-shadow .15s;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.czpc-select {
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a939e' stroke-width='2.5' stroke-linecap='round'%3e%3cpath d='M6 9l6 6 6-6'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right .7rem center;
+  background-size: 15px;
+  padding-right: 2.2rem;
+}
+.czpc-input:focus,
+.czpc-select:focus {
+  outline: none;
+  border-color: var(--czpc-orange);
+  box-shadow: 0 0 0 3px rgba(242, 130, 46, .16);
+}
+.czpc-input::placeholder { color: #b6bdc6; }
+
+/* Prefix / suffix adornment ("₹", "%") */
+.czpc-adorn { position: relative; }
+.czpc-adorn .czpc-input { padding-left: 2rem; }
+.czpc-adorn.is-suffix .czpc-input { padding-left: .75rem; padding-right: 2.2rem; }
+.czpc-adorn .czpc-sign {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: .8rem;
+  display: flex;
+  align-items: center;
+  color: var(--czpc-muted);
+  font-size: 14px;
+  pointer-events: none;
+}
+.czpc-adorn.is-suffix .czpc-sign { left: auto; right: .85rem; }
+
+.czpc-hint {
+  margin: .3rem 0 0;
+  font-size: 11.5px;
+  color: var(--czpc-muted);
+  line-height: 1.45;
+}
+
+/* ---- Derived (read-only) values ---------------------------------------- */
+.czpc-derived {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .6rem;
+  height: 42px;
+  padding: 0 .75rem;
+  border: 1px dashed var(--czpc-line-strong);
+  border-radius: 9px;
+  background: #f8f9fb;
+  color: var(--czpc-ink);
+  font-weight: 600;
+}
+.czpc-derived .czpc-src {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--czpc-orange-dark);
+  text-align: right;
+  line-height: 1.3;
+}
+
+/* ---- Yes / No switch --------------------------------------------------- */
+.czpc-seg {
+  display: flex;
+  border: 1px solid var(--czpc-line);
+  border-radius: 9px;
+  overflow: hidden;
+}
+.czpc-seg input { position: absolute; opacity: 0; pointer-events: none; }
+.czpc-seg label {
+  flex: 1;
+  margin: 0;
+  padding: .55rem 0;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--czpc-ink-soft);
+  background: #fff;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.czpc-seg label + label { border-left: 1px solid var(--czpc-line); }
+.czpc-seg input:checked + label {
+  background: var(--czpc-orange);
+  color: #fff;
+}
+.czpc-seg input:focus-visible + label {
+  box-shadow: inset 0 0 0 2px rgba(242, 130, 46, .5);
+}
+
+/* ---- Buttons ----------------------------------------------------------- */
+.czpc-actions {
+  display: flex;
+  gap: .6rem;
+  margin-top: 1.15rem;
+}
+.czpc-btn {
+  border: 1px solid transparent;
+  border-radius: 9px;
+  padding: .7rem 1.1rem;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.czpc-btn-primary {
+  flex: 1;
+  background: var(--czpc-orange);
+  color: #fff;
+}
+.czpc-btn-primary:hover { background: var(--czpc-orange-dark); }
+.czpc-btn-primary[disabled] { opacity: .6; cursor: progress; }
+.czpc-btn-ghost {
+  background: #fff;
+  border-color: var(--czpc-line);
+  color: var(--czpc-ink-soft);
+}
+.czpc-btn-ghost:hover { border-color: var(--czpc-line-strong); }
+.czpc-btn:focus-visible {
+  outline: 2px solid var(--czpc-orange);
+  outline-offset: 2px;
+}
+
+/* ---- Headline figures -------------------------------------------------- */
+.czpc-hero {
+  background: var(--czpc-orange);
+  border-radius: 11px;
+  padding: .95rem 1.05rem;
+  color: #fff;
+  margin-bottom: .85rem;
+}
+.czpc-hero small {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+  opacity: .92;
+}
+.czpc-hero strong {
+  display: block;
+  font-size: 1.85rem;
+  font-weight: 800;
+  letter-spacing: -.02em;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.czpc-hero span {
+  display: block;
+  font-size: 11.5px;
+  opacity: .92;
+  margin-top: .1rem;
+}
+
+.czpc-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .6rem;
+  margin-bottom: .95rem;
+}
+.czpc-stat {
+  border: 1px solid var(--czpc-orange-line);
+  border-radius: 11px;
+  background: #fff;
+  padding: .7rem .8rem;
+}
+.czpc-stat small {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--czpc-muted);
+}
+.czpc-stat strong {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--czpc-green);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+}
+.czpc-stat.is-loss strong { color: var(--czpc-red); }
+
+/* ---- Statement --------------------------------------------------------- */
+.czpc-lines { margin: 0 0 .5rem; }
+.czpc-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: .8rem;
+  padding: .42rem 0;
+  border-bottom: 1px dashed var(--czpc-orange-line);
+  font-size: 13px;
+  color: var(--czpc-ink-soft);
+}
+.czpc-line:last-child { border-bottom: none; }
+.czpc-line b {
+  font-weight: 500;
+  color: var(--czpc-ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.czpc-line.is-minus b { color: var(--czpc-red); }
+.czpc-line.is-total {
+  border-top: 1px solid var(--czpc-line-strong);
+  border-bottom: none;
+  margin-top: .3rem;
+  padding-top: .6rem;
+  font-weight: 700;
+  color: var(--czpc-ink);
+}
+.czpc-line.is-total b { font-weight: 800; }
+.czpc-line .czpc-note {
+  display: block;
+  font-size: 11px;
+  color: var(--czpc-muted);
+  font-weight: 400;
+}
+
+.czpc-foot {
+  margin: .9rem 0 0;
+  font-size: 11px;
+  color: var(--czpc-muted);
+  line-height: 1.5;
+}
+
+/* ---- Slab strip -------------------------------------------------------- */
+.czpc-slabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .4rem;
+  margin-top: .45rem;
+}
+.czpc-slab {
+  border: 1px solid var(--czpc-line);
+  border-radius: 8px;
+  padding: .45rem .5rem;
+  text-align: center;
+  background: #fff;
+}
+.czpc-slab small {
+  display: block;
+  font-size: 10px;
+  color: var(--czpc-muted);
+  letter-spacing: .04em;
+}
+.czpc-slab b {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--czpc-ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.czpc-slab.is-here {
+  border-color: var(--czpc-orange);
+  background: var(--czpc-orange-soft);
+}
+.czpc-slab.is-here b { color: var(--czpc-orange-dark); }
+
+/* ---- Alerts ------------------------------------------------------------ */
+.czpc-alert {
+  border-radius: 9px;
+  padding: .7rem .85rem;
+  font-size: 12.5px;
+  line-height: 1.5;
+  margin-bottom: .85rem;
+}
+.czpc-alert-error {
+  background: var(--czpc-red-soft);
+  border: 1px solid #fca79a;
+  color: #912018;
+}
+.czpc-alert-info {
+  background: #f4f8ff;
+  border: 1px solid #cfe0fb;
+  color: #1c4a86;
+}
+.czpc-alert[hidden] { display: none !important; }
+
+/* ---- Busy state -------------------------------------------------------- */
+.czpc-summary-body { transition: opacity .15s; }
+.czpc.is-busy .czpc-summary-body { opacity: .45; }
+
+/* ---- Responsive -------------------------------------------------------- */
+@media (max-width: 900px) {
+  .czpc-grid { grid-template-columns: minmax(0, 1fr); }
+  .czpc-card.is-summary {
+    position: static;
+    order: -1; /* answer first on a phone, form below it */
+  }
+}
+@media (max-width: 420px) {
+  .czpc-pair { grid-template-columns: 1fr; }
+  .czpc-slabs { grid-template-columns: 1fr; }
+  .czpc-actions { flex-direction: column-reverse; }
+  .czpc-btn-ghost { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .czpc * { transition: none !important; }
+}
