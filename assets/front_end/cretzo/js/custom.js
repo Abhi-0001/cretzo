@@ -147,7 +147,11 @@ function validateSignupDetails() {
 }
 
 function validateSignupOtp() {
-    if (!$.trim($("#otp").val())) return "Please enter the OTP sent to your phone.";
+    // syncSignupOtp() is what fills #otp from the six boxes; called again here so a
+    // code pasted or autofilled without an input event still counts.
+    var otp = $("#signup-otp-boxes .otp-box").length ? syncSignupOtp() : $.trim($("#otp").val());
+    if (!otp) return "Please enter the OTP sent to your phone.";
+    if (otp.length < 6) return "Please enter all 6 digits of the code.";
     return "";
 }
 
@@ -352,9 +356,154 @@ $(function () {
 });
 
 function showOtpError(message) {
+    $("#otp-notice").html("").hide();
     $("#otp-error").html(message).show();
     $("#verify-otp-button").html("Verify OTP").attr("disabled", !1);
 }
+
+function showOtpNotice(message) {
+    $("#otp-error").html("");
+    $("#otp-notice").html(message).show();
+}
+
+/* ---------------------------------------------------------------------------
+   Step 2's OTP boxes.
+
+   Six single-character inputs, as on the seller registration screen, feeding the
+   hidden #otp that the form actually posts. Everything downstream - the
+   validators, the Firebase confirm(), the register-user POST - still reads #otp
+   and knows nothing about the boxes.
+   ------------------------------------------------------------------------- */
+function signupOtpBoxes() {
+    return $("#signup-otp-boxes .otp-box");
+}
+
+function syncSignupOtp() {
+    var otp = "";
+    signupOtpBoxes().each(function () { otp += this.value; });
+    $("#otp").val(otp);
+    return otp;
+}
+
+function resetSignupOtpBoxes() {
+    signupOtpBoxes().val("");
+    $("#otp").val("");
+}
+
+// The first empty box, so a half-typed code is resumed rather than restarted.
+function focusSignupOtp() {
+    var $boxes = signupOtpBoxes();
+    if (!$boxes.length) return;
+    var $empty = $boxes.filter(function () { return !this.value; }).first();
+    ($empty.length ? $empty : $boxes.last()).trigger("focus").trigger("select");
+}
+
+$(document).on("input", "#signup-otp-boxes .otp-box", function () {
+    // Digits only: a phone keyboard in numeric mode still offers other characters.
+    this.value = this.value.replace(/\D/g, "").slice(0, 1);
+    if (this.value) $(this).next(".otp-box").trigger("focus");
+    syncSignupOtp();
+});
+
+$(document).on("keydown", "#signup-otp-boxes .otp-box", function (e) {
+    if (e.key === "Backspace" && !this.value) {
+        $(this).prev(".otp-box").trigger("focus");
+    } else if (e.key === "ArrowLeft") {
+        $(this).prev(".otp-box").trigger("focus");
+    } else if (e.key === "ArrowRight") {
+        $(this).next(".otp-box").trigger("focus");
+    } else if (e.key === "Enter") {
+        e.preventDefault();
+        $("#verify-otp-button").trigger("click");
+    }
+});
+
+// Codes arrive as one 6-digit string, and people paste them as one. Without this
+// the paste lands entirely in whichever box has focus and five boxes stay empty.
+$(document).on("paste", "#signup-otp-boxes .otp-box", function (e) {
+    var clipboard = e.originalEvent && e.originalEvent.clipboardData ? e.originalEvent.clipboardData : window.clipboardData;
+    var text = clipboard ? (clipboard.getData("text") || "").replace(/\D/g, "") : "";
+    if (!text) return;
+    e.preventDefault();
+
+    var $boxes = signupOtpBoxes();
+    $boxes.each(function (i) { this.value = text.charAt(i) || ""; });
+    syncSignupOtp();
+    $boxes.eq(Math.min(text.length, $boxes.length - 1)).trigger("focus");
+});
+
+/* Resend. The 30s cooldown is not decoration: OTPs are rate limited per number
+   (5/hour), and an unthrottled link lets somebody spend that allowance in ten
+   seconds and then be locked out of their own signup. */
+var signupResendTimer = null;
+
+function stopSignupResendCooldown() {
+    if (signupResendTimer) clearInterval(signupResendTimer);
+    signupResendTimer = null;
+    $("#signup-resend-timer").text("");
+    $("#signup-resend-otp").prop("disabled", !1).text("Resend OTP");
+}
+
+function startSignupResendCooldown(seconds) {
+    var remaining = seconds || 30;
+    var $btn = $("#signup-resend-otp").prop("disabled", !0).text("Resend OTP");
+    var $timer = $("#signup-resend-timer");
+
+    if (signupResendTimer) clearInterval(signupResendTimer);
+    $timer.text("in " + remaining + "s");
+    signupResendTimer = setInterval(function () {
+        remaining--;
+        if (remaining <= 0) {
+            stopSignupResendCooldown();
+        } else {
+            $timer.text("in " + remaining + "s");
+        }
+    }, 1000);
+}
+
+// Shared arrival at step 2 for both auth branches: one place that clears the old
+// code, shows the number it went to, and starts the resend cooldown.
+function enterSignupOtpStep(displayNumber) {
+    $("#registration-error").html("");
+    $("#otp-error").html("");
+    $("#otp-notice").html("").hide();
+    $("#signup-otp-mobile").text(displayNumber);
+    window.otpVerified = !1;
+    showSignupStep(2);
+    resetSignupOtpBoxes();
+    startSignupResendCooldown(30);
+    setTimeout(focusSignupOtp, 50);
+}
+
+/* Each auth branch installs its own window.signupSendOtp (Firebase or the SMS
+   endpoint); this handler drives whichever one is live, so the resend cannot
+   drift away from what Send OTP does. */
+$(document).on("click", "#signup-resend-otp", function (e) {
+    e.preventDefault();
+
+    var $btn = $(this);
+    if ($btn.prop("disabled")) return;
+    if (typeof window.signupSendOtp !== "function") {
+        showOtpError("Please go back and request the code again.");
+        return;
+    }
+
+    $("#otp-error").html("");
+    $("#otp-notice").html("").hide();
+    $btn.prop("disabled", !0).text("Sending...");
+
+    Promise.resolve(window.signupSendOtp()).then(function () {
+        $btn.text("Resend OTP");
+        resetSignupOtpBoxes();
+        var to = $.trim($("#signup-otp-mobile").text());
+        showOtpNotice(to ? "A new code is on its way to " + to + "." : "A new code is on its way.");
+        startSignupResendCooldown(30);
+        focusSignupOtp();
+    }).catch(function (err) {
+        stopSignupResendCooldown();
+        showOtpError((err && err.message) ? err.message : "Could not resend the code. Please try again.");
+    });
+});
 
 // Shared step-2 -> step-3 hand-off for both auth branches.
 function goToPasswordStep() {
@@ -369,8 +518,12 @@ function goToPasswordStep() {
 $(document).on("click", "#signup-back-to-details", function (e) {
     e.preventDefault();
     $("#otp-error").html("");
+    $("#otp-notice").html("").hide();
     $("#registration-error").html("");
+    stopSignupResendCooldown();
+    resetSignupOtpBoxes();
     showSignupStep(1);
+    setTimeout(function () { $("#phone-number").trigger("focus"); }, 50);
 });
 
 function showRegistrationError(message) {
@@ -390,6 +543,20 @@ function onRegistrationSuccess(e) {
 }
 
 if (auth_settings == "firebase") {
+
+    /* The one place an OTP is requested on this branch - Send OTP and the Resend
+       link on step 2 both come through here, so a change to how a code is sent
+       cannot apply to only one of them. The verifier is rebuilt after every send
+       because the invisible widget's token is consumed by it. */
+    window.signupSendOtp = function () {
+        return firebase.auth().signInWithPhoneNumber(getPhoneNumberFromUserInput(), window.recaptchaVerifier)
+            .then(function (confirmation) {
+                window.otpConfirmationResult = confirmation;
+                window.otpVerified = !1;
+                resetRecaptcha();
+                return confirmation;
+            });
+    };
 
     // Firebase's confirmationResult, held at module scope. It used to be captured
     // by a $(document).on("submit", "#verify-otp-form", ...) handler registered
@@ -412,18 +579,11 @@ if (auth_settings == "firebase") {
             if (updateSignInButtonUI(), 1 == t.error) $("#is-user-exist-error").html(t.message), $("#send-otp-button").html("Send OTP");
             else {
                 window.signingIn = !0;
-                var a = getPhoneNumberFromUserInput(),
-                    r = window.recaptchaVerifier;
-                firebase.auth().signInWithPhoneNumber(a, r).then(function (e) {
-                    window.otpConfirmationResult = e;
-                    $("#send-otp-button").html("Send OTP"), $(".send-otp-form").unblock(), window.signingIn = !1, updateSignInButtonUI(), resetRecaptcha();
+                var a = getPhoneNumberFromUserInput();
+                window.signupSendOtp().then(function (e) {
+                    $("#send-otp-button").html("Send OTP"), $(".send-otp-form").unblock(), window.signingIn = !1, updateSignInButtonUI();
                     resetRegisterButton();
-                    $("#registration-error").html("");
-                    $("#otp-error").html("");
-                    $("#signup-otp-mobile").text(getPhoneNumberFromUserInput());
-                    window.otpVerified = !1;
-                    showSignupStep(2);
-                    setTimeout(function () { $("#otp").focus(); }, 50);
+                    enterSignupOtpStep(a);
                 }).catch(function (e) {
                     window.signingIn = !1, $("#is-user-exist-error").html(e.message).show(), $("#send-otp-button").html("Send OTP"), updateSignInButtonUI(), resetRecaptcha()
                 })
@@ -592,6 +752,31 @@ function resetRecaptcha() {
 
 
 if (auth_settings == "sms") {
+    /* The SMS twin of the Firebase sender above: one request path shared by Send
+       OTP and the Resend link, returning a promise so both read the same. */
+    window.signupSendOtp = function () {
+        return $.ajax({
+            type: "POST",
+            url: base_url + "auth/verify_user",
+            data: {
+                mobile: $("#phone-number").val(),
+                [csrfName]: csrfHash
+            },
+            dataType: "json"
+        }).then(function (e) {
+            csrfName = e.csrfName;
+            csrfHash = e.csrfHash;
+            // Never fatal to the send: this branch has no verifier of its own when
+            // Firebase is off, and a throw here used to abort the rest of the
+            // success path - leaving the user on step 1 after a code had gone out.
+            try { resetRecaptcha(); } catch (ex) { }
+            if (e && e.error === true) {
+                return $.Deferred().reject({ message: e.message }).promise();
+            }
+            return e;
+        });
+    };
+
     $(document).on("click", "#send-otp-button", function (e) {
         e.preventDefault();
         var detailsProblem = validateSignupDetails();
@@ -604,29 +789,12 @@ if (auth_settings == "sms") {
         console.log('not valid');
         console.log("in sms ");
         var t = $("#phone-number").val();
-        console.log(t);
-        // $phonenumber = $("#phone-number").val(), $username = $('input[name="username"]').val(), $email = $('input[name="email"]').val(), $passwd = $('input[name="password"]').val();
-        $.ajax({
-            type: "POST",
-            async: !1,
-            url: base_url + "auth/verify_user",
-            data: {
-                mobile: t,
-                [csrfName]: csrfHash
-            },
-            dataType: "json",
-            success: function (e) {
-                csrfName = e.csrfName,
-                    csrfHash = e.csrfHash,
-                    resetRecaptcha();
-                resetRegisterButton();
-                $("#registration-error").html("");
-                $("#otp-error").html("");
-                $("#signup-otp-mobile").text($(".selected-dial-code").text() + t);
-                showSignupStep(2);
-                setTimeout(function () { $("#otp").focus(); }, 50);
-            }
-        })
+        window.signupSendOtp().then(function () {
+            resetRegisterButton();
+            enterSignupOtpStep($(".selected-dial-code").text() + t);
+        }).catch(function (err) {
+            $("#is-user-exist-error").html((err && err.message) ? err.message : "Could not send the OTP. Please try again.").show();
+        });
     });
 
     // No client-side OTP check exists on this branch (the code is validated by
@@ -1811,6 +1979,12 @@ search_products.on("select2:select", function (e) {
                     showSignupStep(1),
                     $("#verify-otp-form")[0].reset(),
                     $("#otp-error").html(""),
+                    // The form reset empties the boxes; this clears the hidden #otp
+                    // they feed and stops a cooldown left running by an abandoned
+                    // attempt from counting down in a closed modal.
+                    resetSignupOtpBoxes(),
+                    stopSignupResendCooldown(),
+                    $("#otp-notice").html("").hide(),
                     window.otpConfirmationResult = null,
                     window.otpVerified = !1,
                     resetRegisterButton(),

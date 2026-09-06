@@ -206,6 +206,10 @@ if (!empty($fb_auth['authentication_method']) && $fb_auth['authentication_method
 <link rel="stylesheet" href="<?= add_ver(THEME_ASSETS_URL  .  'css/'. $path . THEME . '/' . $path . 'header-footer.css') ?>">
 <link rel="stylesheet" href="<?= add_ver(THEME_ASSETS_URL  .  'css/'. $path . THEME . '/' . $path . 'signup.css') ?>">
 <link rel="stylesheet" href="<?= add_ver(THEME_ASSETS_URL  .  'css/'. $path . THEME . '/' . $path . 'login.css') ?>">
+<?php /* The shared auth skin. MUST stay after signup.css and login.css: it
+         deliberately overrides the field, button, heading and step-indicator
+         rules in both, at the same specificity, so order is what makes it win. */ ?>
+<link rel="stylesheet" href="<?= add_ver(THEME_ASSETS_URL  .  'css/'. $path . THEME . '/' . $path . 'auth-suite.css') ?>">
 <link rel="stylesheet" href="<?= add_ver(THEME_ASSETS_URL  .  'css/'. $path . THEME . '/' . $path . 'navbar.css') ?>">
 
 
