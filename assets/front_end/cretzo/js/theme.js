@@ -826,6 +826,14 @@ var theme = {
       // icon threw here and killed the loop for every field after it.
       if (!passInput || !passToggle) continue;
       passToggle.addEventListener('click', (e) => {
+        // Checked HERE, not around the loop: theme.init() runs inline as this
+        // file loads, which is before cretzo-fixes.js is even parsed, so at bind
+        // time the flag is never set yet. By the first click it always is.
+        // Without this, that file's delegated handler and this listener both fired
+        // on one click, flipped the type twice, and the eye looked dead - which is
+        // exactly what happened in the signup modal (data-cretzo-pass-toggle below
+        // is written in a ready callback, far too late to be seen here).
+        if (window.cretzoPassToggleBound) return;
         if (passInput.type === "password") {
           passInput.type = "text";
           passToggle.classList.remove('uil-eye');

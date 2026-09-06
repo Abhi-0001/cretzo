@@ -305,7 +305,17 @@
        bound to the whole .password-toggle rather than just the <i> inside it -
        clicking a few pixels off the glyph used to hit nothing even where the
        handler existed.
+       CLAIMED AT PARSE TIME, NOT AT DOM-READY. The data-cretzo-pass-toggle
+       marker below is written in a ready callback, and theme.js registers its
+       own ready callback first (it is loaded earlier), so theme.passVisibility()
+       ran BEFORE the marker existed, saw nothing to skip, and bound a second
+       listener straight onto the <i>. Two listeners flipped the type twice per
+       click and the eye looked dead. This flag is set while the file is parsed -
+       before any ready handler runs anywhere - so theme.js and header-footer.js
+       can both see it in time.
     ═══════════════════════════════════════════════ */
+    window.cretzoPassToggleBound = true;
+
     $(document).on('click', '.password-field .password-toggle, .password-container .password-toggle', function (e) {
         e.preventDefault();
 

@@ -65,6 +65,14 @@ $(document).ready(function() {
         }
 
         passToggle.addEventListener('click', () => {
+            // cretzo-fixes.js (FIX 12) binds one delegated toggle for every
+            // .password-field / .password-container on the page, and the login
+            // markup carries BOTH classes - so this listener, that handler and
+            // theme.passVisibility() all fired on a single click and the type
+            // flipped back to where it started. Checked at click time rather than
+            // at bind time: this file loads before cretzo-fixes.js, so the flag
+            // does not exist yet while the listeners are being attached.
+            if (window.cretzoPassToggleBound) return;
             let isPassword = passInputs[0].type === "password"; // Check the type of the first input
 
             passInputs.forEach(passInput => {
