@@ -573,3 +573,75 @@
         font-size: 13px;
     }
 }
+
+/* ===========================================================================
+   ONE HEIGHT FOR EVERY SIGNUP STEP
+
+   Step 1 carries name/email/mobile/referral plus the social row; steps 2 and 3
+   carry a single field each. The card was sized purely by its content, so the
+   moment the OTP screen opened it collapsed by ~250px - the photo beside it
+   shrank with it and the whole dialog re-centred itself under the cursor.
+
+   The exact height cannot come from CSS: step 1 lives in #send-otp-form and
+   steps 2-3 in #verify-otp-form, two sibling forms, so no container is sized by
+   both. custom.js therefore measures step 1 as it leaves and pins that height on
+   the verify/password card (showSignupStep). These rules are the static half of
+   that pairing:
+     - a floor, so the card is never a thin strip even if that measurement is
+       skipped (JS error, or a direct jump to step 2);
+     - vertical centring, so a short panel sits in the middle of the tall card
+       instead of hugging the top over a void.
+   =========================================================================== */
+#register_div .login{
+    min-height: 480px;
+}
+#register_div .login-left{
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+/* The OTP box: one 6-digit code, so it reads as a code entry rather than as a
+   full-width text field left over from the details step. */
+#register_div #otp{
+    display: block;
+    width: 100%;
+    max-width: 260px;
+    height: 52px;
+    margin: 0 auto;
+    font-size: 1.3rem;
+    font-weight: 600;
+    letter-spacing: 8px;
+}
+/* Placeholders inherit letter-spacing, which rendered "Enter OTP" as
+   "E n t e r  O T P". The spacing is for digits only. */
+#register_div #otp::placeholder{
+    letter-spacing: normal;
+    font-size: 0.95rem;
+    font-weight: 400;
+    color: rgba(0, 0, 0, 0.4);
+}
+/* The masked number the code went to - the one thing on this screen the user
+   needs to check before typing. */
+#register_div #signup-otp-mobile{
+    color: #241d14;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+@media screen and (max-width: 767.98px){
+    /* Full-height sheet on a phone. !important because showSignupStep writes the
+       measured height as an INLINE style, which would otherwise win: a card
+       measured before a rotation (or on a desktop width, then resized) would
+       leave the sheet short of the bottom of the screen. */
+    #register_div .login{
+        min-height: 100vh !important;
+    }
+    #register_div .login-left{
+        justify-content: flex-start;
+    }
+    #register_div #otp{
+        max-width: 100%;
+        height: 56px;
+    }
+}

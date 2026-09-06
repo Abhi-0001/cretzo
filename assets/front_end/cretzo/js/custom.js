@@ -104,11 +104,26 @@ console.log(auth_settings);
 //   2 Verify  (OTP, #signup-step-2 inside #verify-otp-form)
 //   3 Password(#signup-step-3 inside the same form - submitting it registers)
 // Steps 2 and 3 share one form so a single FormData carries the whole signup.
+// The two cards are separate forms (#send-otp-form / #verify-otp-form), so no
+// container is sized by both and CSS alone cannot hold one height across the
+// flow: step 1 carries five fields and the social row, steps 2 and 3 carry one
+// field each, so the dialog used to collapse by ~250px - photo included - the
+// moment the OTP screen opened. Step 1 is measured on its way out and its height
+// pinned on the card that replaces it. signup.css supplies the floor and the
+// vertical centring that make the taller card look deliberate.
 function showSignupStep(step) {
     if (step === 1) {
+        // Dropped rather than kept: a height measured before a resize (or before
+        // the referral field was opened) would be the wrong one next time.
+        $("#signuptwo").css("min-height", "");
         $("#verify-otp-form").addClass("d-none").hide();
         $("#send-otp-form").show();
     } else {
+        // Measured before the hide, while it still has a layout box.
+        var detailsHeight = $("#signupone").outerHeight();
+        if (detailsHeight > 0) {
+            $("#signuptwo").css("min-height", detailsHeight + "px");
+        }
         $("#send-otp-form").hide();
         $("#verify-otp-form").removeClass("d-none").show();
     }
