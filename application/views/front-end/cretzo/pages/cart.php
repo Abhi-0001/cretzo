@@ -753,11 +753,11 @@ $logo = get_settings('web_logo');
                                                                                                         
                                                 
 
-                                                    <span class="minus dis quantity-btn minus" style="background-image: url('https://www.cretzo.com/assets/front_end/cretzo/img/new_cretzo/minus.png');" data-min="1" data-index="${index}">
+                                                    <span class="minus dis quantity-btn minus" style="background-image: url('<?= base_url('assets/front_end/cretzo/img/new_cretzo/minus.png') ?>');" data-min="1" data-index="${index}">
                                                      
                                                     </span>
                                                     <input type="text" class="in-num itemQty quantity-input" min="1"  data-page="cart"  data-index="${index}" data-max="" value="${qty}">
-                                                    <span class="plus quantity-btn plus" data-index="${index}" style="background-image: url('https://www.cretzo.com/assets/front_end/cretzo/img/new_cretzo/plus.png');">
+                                                    <span class="plus quantity-btn plus" data-index="${index}" style="background-image: url('<?= base_url('assets/front_end/cretzo/img/new_cretzo/plus.png') ?>');">
                                                        
                                                     </span>
                                                     
@@ -785,7 +785,7 @@ $logo = get_settings('web_logo');
                             </div>
                             <a class="remove-item product-removal link_cursor">
                                 <i class="remove-product remove-item" name="remove_inventory" id="remove_inventory" data-index="${index}" title="Remove from Cart">
-                                    <img class="cross-icon" src="https://www.cretzo.com/assets/front_end/cretzo/img/new_cretzo/cross-icon1.png">
+                                    <img class="cross-icon" src="<?= base_url('assets/front_end/cretzo/img/new_cretzo/cross-icon1.png') ?>">
                                 </i>
                             </a>
                         </li>

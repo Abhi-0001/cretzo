@@ -1999,8 +1999,26 @@ Defined Methods:-
                 return;
             }
 
-            if ($auth_settings['
-            '] == "firebase") {
+            /* Rate limit after the "already registered" replies above, so a user
+               who typed a number that is already on file does not spend quota
+               finding that out. Unlike the browser path, this one really does
+               reach send_sms() below, so an unlimited loop here costs money. */
+            $throttle = otp_rate_limit_guard($_POST['mobile']);
+            if (!$throttle['allowed']) {
+                $this->response['error'] = true;
+                $this->response['message'] = $throttle['message'];
+                $this->response['data'] = array();
+                print_r(json_encode($this->response));
+                return;
+            }
+
+            /* This read used to be $auth_settings['<newline + spaces>'] - a literal
+               line break had been left inside the array key. That key never exists,
+               so the comparison was always false and this endpoint ALWAYS took the
+               SMS branch below, sending a real gateway message even while the site
+               was configured for Firebase. */
+            $method = isset($auth_settings['authentication_method']) ? $auth_settings['authentication_method'] : '';
+            if ($method == "firebase") {
                 $this->response['error'] = false;
                 $this->response['message'] = 'Ready to sent OTP request from firebase!';
                 $this->response['data'] = array();
