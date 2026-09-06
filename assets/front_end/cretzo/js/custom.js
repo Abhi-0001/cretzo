@@ -524,6 +524,37 @@ if (auth_settings == "firebase") {
         return -1 !== getPhoneNumberFromUserInput().search(/^\+[0-9\s\-\(\)]+$/)
     }
 }
+/* Builds the signup modal's app verifier, invisibly.
+
+   Firebase phone auth will not send an SMS without an app verifier -
+   signInWithPhoneNumber() rejects outright - so this check cannot be deleted
+   while OTP signup runs on Firebase. It does not have to be a checkbox the
+   buyer clicks, though: invisible mode verifies in the background when Send
+   OTP is pressed and only raises a challenge for traffic that looks scripted.
+   The seller registration form and the password-reset flow already do this;
+   the signup modal was the last visible "I'm not a robot" box on the site. */
+function buildSignupRecaptcha() {
+    // Re-opening the modal re-renders into the same container, and grecaptcha
+    // throws "reCAPTCHA has already been rendered" unless the old widget is
+    // torn down first.
+    if (window.recaptchaVerifier) {
+        try { window.recaptchaVerifier.clear(); } catch (e) { /* already gone */ }
+        window.recaptchaVerifier = null;
+    }
+    $("#recaptcha-container").html("");
+    window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier("recaptcha-container", {
+        size: "invisible",
+        callback: function () { }
+    });
+    return window.recaptchaVerifier.render().then(function (e) {
+        window.recaptchaWidgetId = e;
+        if (typeof grecaptcha !== 'undefined' && typeof grecaptcha.reset === 'function') {
+            try { grecaptcha.reset(e); } catch (ex) { }
+        }
+        return window.recaptchaVerifier;
+    });
+}
+
 function resetRecaptcha() {
     return window.recaptchaVerifier.render().then(function (e) {
         if (typeof grecaptcha !== 'undefined' && typeof grecaptcha.reset === 'function') {
@@ -1758,11 +1789,7 @@ search_products.on("select2:select", function (e) {
                     resetRegisterButton(),
                     $("#registration-error").html(""),
 
-                    $("#is-user-exist-error").html(""), $("#sign-up-error").html(""), $("#recaptcha-container").html(""), window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier("recaptcha-container"), window.recaptchaVerifier.render().then(function (e) {
-                        if (typeof grecaptcha !== 'undefined' && typeof grecaptcha.reset === 'function') {
-                            try { grecaptcha.reset(e); } catch (ex) { }
-                        }
-                    });
+                    $("#is-user-exist-error").html(""), $("#sign-up-error").html(""), buildSignupRecaptcha();
                 var e = $("#phone-number"),
                     t = $("#error-msg"),
                     a = $("#valid-msg");

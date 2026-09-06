@@ -175,10 +175,38 @@
     display: grid;
     grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: var(--czig-gap);
-    max-width: 1220px;
+    /* max-width: 1220px; */
     margin: 0 auto;
+    padding: 1em 6vw;
 }
 
+
+@media screen and (max-width: 500px) {
+    .czig__grid {
+        padding: 1em 0;
+    }
+}
+@media screen and (max-width: 600px) {
+    .czig__grid {
+        padding: 1em 0;
+    }
+}
+
+@media screen and (max-width: 800px) {
+    .czig__grid {
+        padding: 1em 2vw;
+    }
+}
+@media screen and (max-width: 1000px) {
+    .czig__grid {
+        padding: 1em 2vw;
+    }
+}
+@media screen and (max-width: 1200px) {
+    .czig__grid {
+        padding: 1em 4vw;
+    }
+}
 .czig__tile {
     position: relative;
     display: block;

@@ -559,24 +559,45 @@ class Seller_model extends CI_Model
      */
     public function resolve_commission_rate($seller_id, $order_no = null)
     {
-        $this->config->load('commission', true);
-        $default = (float) $this->config->item('default_commission_percent', 'commission');
-
-        $plan = $this->Seller_subscription_model->get_current_plan($seller_id);
         if ($order_no === null) {
             $order_no = $this->get_seller_order_count($seller_id) + 1;
         }
+
+        $plan = $this->Seller_subscription_model->get_current_plan($seller_id);
+
+        return $this->commission_rate_for_plan($plan, $order_no);
+    }
+
+    /**
+     * The commission percentage a GIVEN plan charges at a given order position.
+     *
+     * Split out of resolve_commission_rate() so a plan the seller is not on can be priced -
+     * the price calculator lets a seller ask "what would I earn on Unlimited?", and the
+     * resolver above can only ever answer for the plan they already hold. The settlement path
+     * is unaffected: it still calls resolve_commission_rate(), which now delegates here, so
+     * both sides share one copy of the slab rules rather than growing a second.
+     *
+     * @param array|null $plan     a row from `subscriptions`, or null / [] for no plan.
+     * @param int        $order_no 1-based position of the order being priced.
+     * @return array{rate: float, source: string}
+     */
+    public function commission_rate_for_plan($plan, $order_no)
+    {
+        $this->config->load('commission', true);
+        $default = (float) $this->config->item('default_commission_percent', 'commission');
 
         if (empty($plan)) {
             return ['rate' => $default, 'source' => 'platform_default'];
         }
 
+        $order_no = (int) $order_no;
+
         if ($order_no <= 50) {
-            $rate = $plan['commission_first50'];
+            $rate = isset($plan['commission_first50']) ? $plan['commission_first50'] : null;
         } elseif ($order_no <= 100) {
-            $rate = $plan['commission_51_100'];
+            $rate = isset($plan['commission_51_100']) ? $plan['commission_51_100'] : null;
         } else {
-            $rate = $plan['commission_after100'];
+            $rate = isset($plan['commission_after100']) ? $plan['commission_after100'] : null;
         }
 
         // A NULL slab used to be cast straight to 0.0, so a plan with no rates set settled

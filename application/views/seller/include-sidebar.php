@@ -131,6 +131,15 @@
                 </li>
 
                 <li class="nav-item">
+                    <a href="<?= base_url('seller/price_calculator') ?>" class="nav-link">
+                        <i class="nav-icon fas fa-tags text-warning"></i>
+                        <p>
+                            Price Calculator
+                        </p>
+                    </a>
+                </li>
+
+                <li class="nav-item">
                     <a href="<?= base_url('seller/point_of_sale/') ?>" class="nav-link">
                         <i class="nav-icon fas fa-calculator"></i>
                         <p>

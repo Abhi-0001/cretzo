@@ -254,7 +254,9 @@
 
                                 <div class="hide text-danger ta-c" id="error-msg"></div>
 
-                                <div id="recaptcha-container" class="ta-c d-flex justify-content-center mb-3"></div>
+                                <?php /* Anchor for the invisible reCAPTCHA that Firebase phone auth requires.
+                                         It renders nothing visible, so it carries no margin. */ ?>
+                                <div id="recaptcha-container" class="ta-c d-flex justify-content-center"></div>
 
                                 <div id='is-user-exist-error' class='text-center text-danger ta-c'></div>
                                 
