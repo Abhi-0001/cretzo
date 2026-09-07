@@ -50,6 +50,7 @@ tags = ["php", "credential"]
 # blocks that explain what was wrong and how to set the environment variables
 # quote the old values on purpose so the history is legible. Those are documentation
 # of a rotated secret, not a live one.
+regexTarget = "line"
 regexes = [
   '''getenv\(''',                       # the fixed pattern: read from environment
   '''\$config\[[^\]]+\]\s*=\s*['"]{2}''', # empty-string defaults
@@ -93,13 +94,13 @@ paths = [
   # The template carries no real values, only names and comments.
   '''\.env\.example$''',
   # Vendor code ships its own test fixtures and example credentials.
-  '''^vendor/''',
-  '''^system/''',
+  '''^vendor[/\\]''',
+  '''^system[/\\]''',
   # Language files hold UI STRINGS - a login-password LABEL, for instance - which match
   # the rule's shape yet is a UI label, not a credential. There are hundreds of them
   # across 40 language packs, and allowing the directory is the only way to keep the
   # signal-to-noise ratio usable - a rule nobody reads is a rule that does nothing.
-  '''^application/language/''',
+  '''^application[/\\]language[/\\]''',
 ]
 
 # A .env file must never be committed. .gitignore covers it, but so did
@@ -107,9 +108,28 @@ paths = [
 [[rules]]
 id = "cretzo-env-file-committed"
 description = "A .env file (real secrets) has been committed"
-regex = '''(?s).'''
-path = '''(^|/)\.env($|\.(?!example)[a-z]+$)'''
+# NOTE ON REGEX DIALECT: gitleaks is Go, so these are RE2 patterns. RE2 has NO
+# lookahead or lookbehind. This rule originally used
+#
+#     path = '''(^|/)\.env($|\.(?!example)[a-z]+$)'''
+#
+# to mean ".env, but not .env.example". RE2 cannot compile `(?!...)`, so gitleaks
+# PANICKED on startup, wrote no results.sarif, and the action then failed with the
+# confusing "File results.sarif does not exist". The exclusion is expressed with an
+# allowlist path below instead, which needs no lookahead.
+#
+# The regex was also '''(?s).''' - a single arbitrary character, dotall - which would
+# report a finding for every byte of a matched file. Replaced with the shape a .env
+# actually has: an uppercase KEY=value assignment.
+regex = '''(?m)^[A-Z][A-Z0-9_]*[ \t]*=[ \t]*\S+'''
+path = '''(^|/)\.env(\.[A-Za-z0-9_-]+)?$'''
 tags = ["env", "credential"]
+[rules.allowlist]
+paths = [
+  # The tracked template. Carries names and comments, and placeholder values like
+  # DB_HOSTNAME=localhost - no real secrets.
+  '''(^|/)\.env\.example$''',
+]
 
 # The two credentials known to have been published. Any reappearance - in a config
 # file, a backup, a SQL dump, a pasted snippet - is a regression, and these are the
@@ -141,10 +161,11 @@ paths = [
   # leak that already happened and is already tracked.
   #
   # Delete this line together with the $legacy_* block in database.php.
-  '''^application/config/database\.php$''',
+  '''^application[/\\]config[/\\]database\.php$''',
 ]
 # gitleaks honours this inline marker natively; kept so a single line can be
 # excepted without excepting a whole file.
+regexTarget = "line"
 regexes = ['''gitleaks:allow''']
 
 # SQL dumps are how credentials and customer PII escape a repository sideways.
@@ -159,9 +180,9 @@ tags = ["dump"]
 [rules.allowlist]
 paths = [
   '''^countries\.sql$''',
-  '''^docker/init-db/''',
+  '''^docker[/\\]init-db[/\\]''',
   # Reference data shipped with the app (bank IFSC list), not an export of live data.
-  '''^application/third_party/indian_banks\.sql$''',
+  '''^application[/\\]third_party[/\\]indian_banks\.sql$''',
 ]
 
 
@@ -171,16 +192,31 @@ paths = [
 [allowlist]
 description = "Paths that cannot meaningfully be scanned"
 paths = [
-  '''^vendor/''',
-  '''^system/''',
-  '''^assets/.*\.min\.(js|css)$''',
-  '''^assets/.*/(firebase-auth|firebase-app|jquery)[.-].*\.js$''',
+  '''^vendor[/\\]''',
+  '''^system[/\\]''',
+  '''^assets[/\\].*\.min\.(js|css)$''',
+  '''^assets[/\\].*[/\\](firebase-auth|firebase-app|jquery)[.-].*\.js$''',
   '''\.(png|jpe?g|gif|webp|ico|woff2?|ttf|eot|otf|pdf|zip)$''',
-  '''^application/logs/''',
+  '''^application[/\\]logs[/\\]''',
+  # Runtime cache written by cache_helper.php - machine-local generated data, not
+  # source. It matters here because it caches the settings table, which includes the
+  # live payment credentials, and because `--no-git` scans the FILESYSTEM rather than
+  # the index, so .gitignore does not exclude it. In CI the directory is empty on a
+  # fresh checkout; this keeps a developer's local run clean too.
+  '''^application[/\\]cache[/\\]''',
+  # Performance-baseline artefacts. baseline-fingerprints.txt is a list of md5 file
+  # fingerprints - hex strings next to names like "..._auth_token", which reads as a
+  # credential to a generic detector and is not one.
+  '''^docs[/\\]''',
 ]
+regexTarget = "line"
 regexes = [
   # The Firebase WEB api key is public by design - it identifies the project to the
   # client and is embedded in every browser that loads the site. Restricting it is
   # done with HTTP-referrer rules in the Google Cloud console, not by hiding it.
   '''AIzaSyAQSGCSRuirZbLRdphAVuibXWL91WTprHI''',
+  # A VAPID key is likewise public by design: it is the PUBLIC half of the web-push
+  # keypair and has to be handed to the browser to subscribe it. The private half is
+  # what must stay secret, and it is not in this repository.
+  '''vapidKey''',
 ]

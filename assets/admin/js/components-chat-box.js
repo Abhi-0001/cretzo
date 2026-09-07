@@ -1,17 +1,12 @@
 // "use strict";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
 import { getMessaging, getToken, onMessage } from "https://cdnjs.cloudflare.com/ajax/libs/firebase/10.0.0/firebase-messaging.min.js";
-// var config = {
-//     apiKey: "AIzaSyAsKn4-j4L1wDH0dqq_L1a8hUedBTXytiU",
-//     authDomain: "meludodol-6e06d.firebaseapp.com",
-//     databaseURL: "test",
-//     projectId: "meludodol-6e06d",
-//     storageBucket: "meludodol-6e06d.appspot.com",
-//     messagingSenderId: "37272220970",
-//     appId: "1:37272220970:web:59833c2fdbbb3ac84b9a53",
-//     measurementId: "test",
-// };
-
+/* A commented-out Firebase config block used to sit here, for project
+   "meludodol-6e06d" - not this site's project. It arrived with the upstream
+   eShop template and carried that project's apiKey, appId and
+   messagingSenderId. Dead code holding a third party's identifiers, and it
+   tripped the secret scanner. This file's live Firebase setup comes from
+   firebase-config.js. The same block was removed from the seller copy. */
 var loaded_chat = [];
 var msg_offset = '';
 var msg_loaded = 0;
