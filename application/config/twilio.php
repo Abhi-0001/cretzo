@@ -2,16 +2,47 @@
 defined('BASEPATH') or exit('No direct script access allowed');
 
 /*
-| Twilio credentials for seller-signup mobile OTP verification
-| (application/controllers/seller/Auth.php send_otp()/verify_otp()).
+|==============================================================================
+| Twilio credentials - READ FROM THE ENVIRONMENT
+|==============================================================================
 |
-| These are the same credentials that were previously hardcoded directly in
-| seller/Auth.php and committed to source control. Moving them here does not
-| by itself make them safe - a credential that has ever been committed to git
-| history is compromised regardless of later removal. ROTATE these in the
-| Twilio console and replace the values below (ideally via environment
-| variables / a git-ignored file rather than a committed config file).
+| Used by the seller-signup mobile OTP flow (seller/Auth.php send_otp()/verify_otp()).
+|
+| These were hardcoded here as literals:
+|
+|     $config['sid']   = '<the account SID>';
+|     $config['token'] = '<a 32-char hex literal - see git history>';
+|
+| and the comment that used to sit above them already said the right thing - that a
+| credential committed to git is compromised regardless of later removal, and that
+| these should come from the environment instead. That never happened, so they stayed
+| in a tracked file through every commit since.
+|
+| WHY THIS ONE MATTERS more than it looks: a Twilio auth token is not just read
+| access. Whoever holds it can send SMS billed to this account, from this account's
+| number. That is a direct cost, and it is a ready-made phishing channel - messages
+| arriving from the number Cretzo's own OTPs come from.
+|
+| ------------------------------------------------------------------------------
+| WHAT TO DO
+| ------------------------------------------------------------------------------
+|  1. Rotate the auth token in the Twilio console (Account > API keys & tokens).
+|     The SID is an account identifier rather than a secret, but rotate the token.
+|  2. Put the new values in the untracked `.env` file (see .env.example):
+|
+|         TWILIO_SID=ACxxxxxxxx
+|         TWILIO_TOKEN=xxxxxxxx
+|         TWILIO_FROM_NUMBER=+1xxxxxxxxxx
+|
+|  3. Check the Twilio usage log for messages you did not send.
+|
+| Unset means the OTP send fails and logs why, rather than silently using a
+| published token - see the guard in seller/Auth.php::send_otp(). That is the safe
+| failure: this site's live OTP channel is Firebase (authentication_settings is
+| {"authentication_method":"firebase"}), so the Twilio path is a fallback that is not
+| currently the primary route for anyone.
 */
-$config['sid'] = 'AC98662e8c1491ef426a93b295856918dc';
-$config['token'] = '27acec586b41c090c0f71690425e1341';
-$config['from_number'] = '+18573424919';
+
+$config['sid'] = getenv('TWILIO_SID') ?: '';
+$config['token'] = getenv('TWILIO_TOKEN') ?: '';
+$config['from_number'] = getenv('TWILIO_FROM_NUMBER') ?: '';

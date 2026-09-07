@@ -141,9 +141,9 @@ class Sales_report_model extends CI_Model
                 // store called "Developer's Den" was shown to the seller as "Developer's Den",
                 // backslash and all, on their own sales report. html_escape() as well because both
                 // are seller-supplied strings rendered into the table's HTML payload.
-                $tempRow['store_name'] =  html_escape(output_escaping((string) $row['store_name']));
+                $tempRow['store_name'] =  html_escape(unslash((string) $row['store_name']));
                 $tempRow['delivery_charge'] =  $row['delivery_charge'];
-                $tempRow['seller_name'] =  html_escape(output_escaping((string) $row['seller_name']));
+                $tempRow['seller_name'] =  html_escape(unslash((string) $row['seller_name']));
             }
             $rows[] = $tempRow;
         }
@@ -295,8 +295,8 @@ class Sales_report_model extends CI_Model
                 // store called "Developer's Den" was shown to the seller as "Developer's Den",
                 // backslash and all, on their own sales report. html_escape() as well because both
                 // are seller-supplied strings rendered into the table's HTML payload.
-                $tempRow['store_name'] =  html_escape(output_escaping((string) $row['store_name']));
-                $tempRow['seller_name'] =  html_escape(output_escaping((string) $row['seller_name']));
+                $tempRow['store_name'] =  html_escape(unslash((string) $row['store_name']));
+                $tempRow['seller_name'] =  html_escape(unslash((string) $row['seller_name']));
             }
             if (!$this->ion_auth->is_seller()) {
                 $tempRow['operate'] = $operate;

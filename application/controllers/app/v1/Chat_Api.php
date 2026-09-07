@@ -43,16 +43,61 @@ Defined Methods:-
     }
     public function index()
     {
-        $this->load->helper('file');
-        $this->output->set_content_type(get_mime_by_extension(base_url('api-doc.txt')));
-        $this->output->set_output(file_get_contents(base_url('api-doc.txt')));
+        /* Was:
+         *     $this->load->helper('file');
+         *     $this->output->set_content_type(get_mime_by_extension(base_url('...api-doc.txt')));
+         *     $this->output->set_output(file_get_contents(base_url('...api-doc.txt')));
+         *
+         * That published the complete API reference - every endpoint, every parameter
+         * name, and which of them are optional - to anyone who requested it. It is the
+         * reconnaissance step of an attack, handed over for free, and there is no
+         * reason for a production server to serve its own developer documentation.
+         *
+         * It also made PHP fetch the file from its OWN public URL with
+         * file_get_contents(), so every request here opened a second HTTP connection
+         * back to this same server. The .txt files are denied in .htaccess now, so that
+         * fetch would fail and warn as well.
+         *
+         * The docs still live in the repository for developers; they are simply no
+         * longer web-readable. */
+        show_404();
     }
     public function generate_token()
     {
+        /* SECURITY - this endpoint required nothing at all. No session, no existing
+         * key, no rate limit: a bare request returned a signed token. Whether that
+         * token really opened the API depends on whether the (git-published)
+         * JWT_SECRET_KEY constant it signs with also exists as a row in
+         * client_api_keys, which is what verify_token() checks against - see the note
+         * in application/config/constants.php for the one query that settles it. If it
+         * does, this endpoint was handing out API keys to anyone who asked.
+         *
+         * Gated behind api_security's allow_public_token_generation flag, which
+         * defaults to FALSE. A released mobile app embeds its own key and has no need
+         * of this; it exists for local API exploration. If some build does turn out to
+         * depend on it, flip the flag rather than removing the guard - and rotate the
+         * key, because the old one is public.
+         *
+         * Also fails closed on an empty JWT_SECRET_KEY: signing with an empty key
+         * produces a token anybody can reproduce, which is worse than refusing. */
+        $this->config->load('api_security', true);
+        if (!$this->config->item('allow_public_token_generation', 'api_security')) {
+            $this->output->set_status_header(404);
+            print_r(json_encode(['error' => true, 'message' => 'Not available.']));
+            return false;
+        }
+
+        if (!defined('JWT_SECRET_KEY') || JWT_SECRET_KEY === '') {
+            log_message('error', 'generate_token: JWT_SECRET_KEY is not set on this server, so no token can be issued.');
+            $this->output->set_status_header(500);
+            print_r(json_encode(['error' => true, 'message' => 'Token signing is not configured on this server.']));
+            return false;
+        }
+
         $payload = [
             'iat' => time(), /* issued at time */
             'iss' => 'eshop',
-            'exp' => time() + (30 * 60), /* expires after 1 minute */
+            'exp' => time() + (30 * 60), /* expires after 30 minutes */
         ];
         $token = $this->jwt->encode($payload, JWT_SECRET_KEY);
         print_r(json_encode($token));
@@ -78,7 +123,10 @@ Defined Methods:-
                 print_r(json_encode($response));
                 return false;
             }
-            JWT::$leeway = 6000000000;
+            JWT::$leeway = 60; /* was 6000000000 - roughly 190 years, which made the token's
+                                 * own `exp` claim meaningless: no issued token ever expired.
+                                 * 60s absorbs clock skew between us and the caller, and
+                                 * nothing more. */
             $flag = true; //For payload indication that it return some data or throws an expection.
             $error = true; //It will indicate that the payload had verified the signature and hash is valid or not.
             foreach ($api_keys as $row) {
@@ -826,7 +874,7 @@ Defined Methods:-
             $limit = (isset($_POST['limit']) && is_numeric($_POST['limit']) && !empty(trim($_POST['limit']))) ? $this->input->post('limit', true) : 25;
             $offset = (isset($_POST['offset']) && is_numeric($_POST['offset']) && !empty(trim($_POST['offset']))) ? $this->input->post('offset', true) : 0;
             $order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $_POST['order'] : 'DESC';
-            $sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $_POST['sort'] : 'u.id';
+            $sort = sanitize_sort_identifier($this->input->post('sort', true), 'u.id');
             if (isset($search) and $search != '') {
                 $multipleWhere = ['u.`username`' => $search, 'u.`email`' => $search, 'sd.`store_name`' => $search];
             }

@@ -260,7 +260,7 @@ class My_account extends CI_Controller
                         $promo_code = fetch_details('promo_codes', ['promo_code' => trim($res[0]['promo_code'])]);
                     }
                     foreach ($res as $row) {
-                        $row = output_escaping($row);
+                        $row = unslash($row);
                         $temp['product_id'] = $row['product_id'];
                         $temp['seller_id'] = $row['seller_id'];
                         $temp['product_variant_id'] = $row['product_variant_id'];
@@ -949,7 +949,7 @@ class My_account extends CI_Controller
                 $limit = (isset($_POST['limit']) && is_numeric($_POST['limit']) && !empty(trim($_POST['limit']))) ? $this->input->post('limit', true) : 25;
                 $offset = (isset($_POST['offset']) && is_numeric($_POST['offset']) && !empty(trim($_POST['offset']))) ? $this->input->post('offset', true) : 0;
                 $order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $_POST['order'] : 'DESC';
-                $sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $_POST['sort'] : 'id';
+                $sort = sanitize_sort_identifier($this->input->post('sort', true), 'id');
                 $this->response['error'] = false;
                 $this->response['message'] = 'Promocodes retrived Successfully !';
                 $result = $this->Promo_code_model->get_promo_codes($limit, $offset, $sort, $order);
@@ -1852,7 +1852,7 @@ class My_account extends CI_Controller
             $offset = (!empty($_POST['offset'])) ? $this->input->post('offset') : 0;
             $limit = (!empty($_POST['limit'])) ? $this->input->post('limit') : 100;
 
-            $sort = (!empty($_POST['sort'])) ? $this->input->post('sort') : 'id';
+            $sort = sanitize_sort_identifier($this->input->post('sort', true), 'id');
             $order = (!empty($_POST['order'])) ? $this->input->post('order') : 'DESC';
 
             $search = (!empty($_POST['search'])) ? $this->input->post('search') : '';

@@ -91,7 +91,7 @@ class Featured_section_model extends CI_Model
         $rows = array();
         $tempRow = array();
         foreach ($city_search_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
 
             $operate = ' <a href="javascript:void(0)" class="edit_btn action-btn btn btn-primary btn-xs ml-1 mr-1 mb-1" title="Edit" data-id="' . $row['id'] . '" data-url="admin/Featured_sections/"><i class="fa fa-pen"></i></a>';
             $operate .= ' <a  href="javascript:void(0)" class="btn btn-danger action-btn btn-xs mr-1 mb-1 ml-1" title="Delete" data-id="' . $row['id'] . '" id="delete-featured-section" ><i class="fa fa-trash"></i></a>';

@@ -137,7 +137,7 @@ ob_start(); ?>
                            data-product-price="<?= $variant_price ?>"
                            data-min="<?= $data_min ?>"
                            data-step="<?= $data_step ?>"
-                           data-product-description="<?= short_description_word_limit(output_escaping(str_replace('\r\n', '&#13;&#10;', strip_tags($product_row['short_description'])))) ?>"
+                           data-product-description="<?= short_description_word_limit(unslash(str_replace('\r\n', '&#13;&#10;', strip_tags($product_row['short_description'])))) ?>"
                            data-izimodal-open="<?= $modal ?>">
                             <i class="uil uil-shopping-bag"></i>&nbsp;Move to bag
                         </a>

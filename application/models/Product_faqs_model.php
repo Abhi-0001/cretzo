@@ -124,7 +124,7 @@ class Product_faqs_model extends CI_Model
 
         foreach ($rating_search_res as $row) {
 
-            $row = output_escaping($row);
+            $row = unslash($row);
             $date = new DateTime($row['date_added']);
 
             if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {

@@ -258,9 +258,13 @@ $(function () {
         var data = $list.sortable('serialize');
 
         $.ajax({
-            type: 'GET',
+            // POST, not GET. This writes row_order across the products table, and over
+            // GET it was firable from any page an admin opened - CodeIgniter's CSRF
+            // check only covers POST. The controller now refuses anything else, so the
+            // token has to travel with the request.
+            type: 'POST',
             url: "<?= base_url('admin/product/update_product_order') ?>",
-            data: data,
+            data: data + '&' + encodeURIComponent(csrfName) + '=' + encodeURIComponent(csrfHash),
             dataType: 'json',
             beforeSend: function () {
                 $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Saving...');

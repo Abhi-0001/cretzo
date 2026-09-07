@@ -210,7 +210,7 @@ class Address_model extends CI_Model
                     $minimum_free_delivery_order_amount =  fetch_details('areas', ['id' => $area_id], 'minimum_free_delivery_order_amount,delivery_charges');
                     $amount = !empty($minimum_free_delivery_order_amount) ? $minimum_free_delivery_order_amount[0]['minimum_free_delivery_order_amount'] : null;
                     $delivery_charges = !empty($minimum_free_delivery_order_amount) ? $minimum_free_delivery_order_amount[0]['delivery_charges'] : null;
-                    $res[$i] = output_escaping($res[$i]);
+                    $res[$i] = unslash($res[$i]);
                     $res[$i]['minimum_free_delivery_order_amount'] = (isset($amount) && $amount != NULL) ? "$amount" : "0";
                     $res[$i]['delivery_charges'] = (isset($delivery_charges) && $delivery_charges != NULL) ? "$delivery_charges" : "0";
                 }
@@ -294,7 +294,7 @@ class Address_model extends CI_Model
         $tempRow = array();
         foreach ($address_search_res as $row) {
 
-            $row = output_escaping($row);
+            $row = unslash($row);
             $default = $row['is_default'] == 1 ? 'Default' : 'Set as default';
             $btn = $row['is_default'] == 1 ? 'info' : 'secondary';
             $class = $row['is_default'] == 1 ? '' : 'default-address ';

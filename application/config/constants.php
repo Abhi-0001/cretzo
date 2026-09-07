@@ -1,17 +1,58 @@
 <?php
 defined('BASEPATH') or exit('No direct script access allowed');
-defined('JWT_SECRET_KEY') or define('JWT_SECRET_KEY', '68f05dec6014f68e760c5c5fa3e31bcf391a2e10');
+/*
+|--------------------------------------------------------------------------
+| JWT signing key
+|--------------------------------------------------------------------------
+|
+| This file is TRACKED IN GIT. A secret written here is a secret published to
+| everyone with repository access, and to anyone who can reach a .git directory
+| left inside a web root.
+|
+| It used to read:
+|
+|     define('JWT_SECRET_KEY', '<a 40-char hex literal - see git history>');
+|
+| and that value must now be treated as public. It is only used for SIGNING, by the
+| generate_token() endpoints; the mobile API VERIFIES tokens against the secrets in
+| the client_api_keys table instead. So the exposure depends on one question that has
+| to be answered on production:
+|
+|     SELECT id, name, status FROM client_api_keys
+|      WHERE secret = '<the old JWT literal from git history>';
+|
+| If that returns a row, the published constant IS a valid API key, generate_token()
+| was handing full mobile-API access to anyone who requested it, and that key must be
+| rotated in the admin panel. If it returns nothing, the constant was inert - but it
+| is still a published secret and is still gone from here.
+|
+| No hardcoded fallback, deliberately. An unset key now means generate_token() refuses
+| to issue anything rather than signing with a value everyone already has.
+|
+|     Set it on the server, e.g.:  SetEnv JWT_SECRET_KEY "<a long random string>"
+|     Generate one with:           php -r "echo bin2hex(random_bytes(32));"
+*/
+defined('JWT_SECRET_KEY') or define('JWT_SECRET_KEY', getenv('JWT_SECRET_KEY') ?: '');
 
 /*
 |--------------------------------------------------------------------------
 | Social Authentication Configuration
 |--------------------------------------------------------------------------
 |
-| Facebook and other social authentication API credentials
+| FACEBOOK_APP_SECRET was hardcoded here ('42d7c2bed5f...') and is likewise now
+| public and must be rotated in the Facebook developer console.
 |
+| Nothing reads it any more: the PHP Facebook SDK flow (Auth::facebook_login and
+| Auth::facebook_callback) has been removed - see the note in that controller - and
+| Facebook sign-in on the live site goes through Firebase, which needs no app secret
+| on this server. The constant is kept only so config/facebook.php resolves, and now
+| comes from the environment like every other secret.
+|
+| The APP ID is not a secret - it is embedded in every client that talks to Facebook -
+| so it stays as a literal.
 */
 defined('FACEBOOK_APP_ID') or define('FACEBOOK_APP_ID', '1541338137599309');
-defined('FACEBOOK_APP_SECRET') or define('FACEBOOK_APP_SECRET', '42d7c2bed5fc50f9f6c6906e5053084f');
+defined('FACEBOOK_APP_SECRET') or define('FACEBOOK_APP_SECRET', getenv('FACEBOOK_APP_SECRET') ?: '');
 /*
 |--------------------------------------------------------------------------
 | Display Debug backtrace

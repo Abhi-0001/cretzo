@@ -1,0 +1,41 @@
+# =============================================================================
+#  application/ - NOT WEB REACHABLE
+# =============================================================================
+#
+# system/ has shipped with a deny file since CodeIgniter 2. application/ never
+# did, even though it is the half that holds the secrets:
+#
+#   config/database.php   production database credentials
+#   config/constants.php  the JWT signing key
+#   logs/                 payment webhook bodies and, until this pass, whole
+#                         $_SERVER dumps including Cookie and Authorization
+#   cache/                serialised reference data, and now session files
+#
+# Every one of those is a real file on disk inside the document root, and the
+# rewrite in the root .htaccess serves any file that exists rather than routing
+# it to index.php. The PHP files are individually protected by their
+# `defined('BASEPATH') or exit(...)` first line, and CodeIgniter writes its log
+# files with the same guard - so the previous state was not an open door. It was
+# a door held shut by a convention that has to hold in every single file, forever,
+# including in files a future migration or a third-party module drops in here.
+#
+# This closes it once, structurally. The root .htaccess also blocks ^application/
+# via mod_rewrite; this file is the second, independent guard, and the one that
+# survives the root file being replaced by a host panel or a bad merge.
+#
+# Nothing is served from this directory by design: views are rendered by PHP,
+# and all browser-facing assets live in assets/.
+
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>
+
+Options -Indexes -ExecCGI
+
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>

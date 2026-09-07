@@ -19,8 +19,7 @@ class Product_faqs extends CI_Controller
         // page. Delete_product_faq() below already (correctly) checks the 'product' module;
         // this now matches it.
         if (!has_permissions('read', 'product')) {
-            $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-            redirect('admin/home', 'refresh');
+            deny_panel_access();
         }
     }
 

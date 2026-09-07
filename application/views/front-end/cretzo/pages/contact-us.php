@@ -201,7 +201,7 @@ ob_start(); ?>
                 <div class="czap-panel czap-panel--soft" style="margin-bottom:14px">
                     <p class="czap-panel__title"><i class="uil uil-location-pin-alt"></i> Our address</p>
                     <address class="czap-addr__lines" style="margin:0 0 12px;font-style:normal">
-                        <?= output_escaping(str_replace('\r\n', '<br>', $contact_address)) ?>
+                        <?= unslash(str_replace('\r\n', '<br>', $contact_address)) ?>
                     </address>
                     <?php if ($directions_url !== '') { ?>
                         <a class="czap-btn czap-btn--ghost czap-btn--sm" href="<?= html_escape($directions_url) ?>"

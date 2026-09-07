@@ -427,7 +427,7 @@ class Blog_model extends CI_Model
             ->order_by($sort_col, $sort_dir)->limit($limit, $offset)->get('blogs b')->result_array();
         if (!empty($search_res)) {
             for ($i = 0; $i < count($search_res); $i++) {
-                $search_res[$i] = output_escaping($search_res[$i]);
+                $search_res[$i] = unslash($search_res[$i]);
             }
         }
         $blog_data['total'] = $count_res[0]['total'];

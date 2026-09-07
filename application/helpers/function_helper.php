@@ -46,7 +46,7 @@ defined('BASEPATH') or exit('No direct script access allowed');
    42. resize_review_images($image_data, $source_path, $id = false)
    43. get_invoice_html($order_id)
    44. is_modification_allowed($module)
-   45. output_escaping($array)
+   45. unslash($array)
    46. get_min_max_price_of_product($product_id = '')
    47. find_discount_in_percentage($special_price, $price)
    48. get_attribute_ids_by_value($values,$names)
@@ -557,7 +557,7 @@ function get_settings($type = 'system_settings', $is_json = false)
         if ($is_json) {
             return json_decode($value, true);
         } else {
-            return output_escaping($value);
+            return unslash($value);
         }
     }
 }
@@ -616,10 +616,10 @@ function fetch_details($table, $where = NULL, $fields = '*', $limit = '', $offse
     /* Some characters need to be output escaped (strip slashes) in some tables */
     if($table == 'pickup_locations' || $table == 'products' || $table == 'seller_data' || $table == 'pickup_locations'){
         /* $res[0]['pickup_location'] = output_escaping($res[0]['pickup_location']);
-        $res[0]['address'] = output_escaping($res[0]['address']); */
+        $res[0]['address'] = unslash($res[0]['address']); */
 
         // $res[0] = output_escaping($res[0]);
-        $res = output_escaping_new($res);
+        $res = unslash_deep($res);
     }
     if($table == 'users'){
         // $res[0]['address'] = output_escaping($res[0]['address']);
@@ -780,7 +780,17 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
                  pv.price * (1 + IF(p.is_prices_inclusive_tax = 1, 0, COALESCE(tax.percentage, 0) / 100))
             )";
 
-        $aggregate = (strtoupper(trim((string)$order)) == 'DESC') ? 'MAX' : 'MIN';
+        /* $order is concatenated into the ORDER BY with escaping explicitly disabled
+         * (the `false` third argument), so it has to be normalised to a literal
+         * ASC/DESC before it gets anywhere near this line. It reaches here from the
+         * request on four different endpoints, and only some of them validated it -
+         * the mobile API's 'alpha' rule happens to block a payload (no spaces, no
+         * parentheses) but that is luck, not a check, and 'alpha' would not survive
+         * someone loosening the rule to allow "asc " with a trailing space.
+         *
+         * sanitize_sort_direction() returns nothing but 'ASC' or 'DESC'. */
+        $order = sanitize_sort_direction($order, 'ASC');
+        $aggregate = ($order === 'DESC') ? 'MAX' : 'MIN';
         $t->db->order_by($aggregate . '(' . $effective_price . ') ' . $order, false);
     }
 
@@ -856,18 +866,38 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
             $t->db->group_End();
         }
     }
-    if (isset($filter['min_price']) && $filter['min_price'] > 0) {
-        $min_price = $filter['min_price'];
-        $where_min = "if( pv.special_price > 0 , pv.special_price , pv.price ) >=$min_price";
+    /* SQL INJECTION - FIXED HERE, AT THE SINK. These two filters used to read:
+     *
+     *     $min_price = $filter['min_price'];
+     *     $where_min = "if( pv.special_price > 0 , pv.special_price , pv.price ) >=$min_price";
+     *     $t->db->where($where_min);
+     *
+     * - the request value interpolated straight into a hand-built WHERE string. When
+     * where() is given a single string like that, CodeIgniter escapes the FIELD side of
+     * the comparison and leaves the value side exactly as written, so the payload ran.
+     *
+     * Reachable with no login: GET /products?min-price=<payload>. Products.php validated
+     * min-price with 'trim|xss_clean' and no 'numeric', and xss_clean does nothing to SQL.
+     * The `> 0` guard above did not help either - PHP 8 compares a non-numeric string to
+     * an integer as strings, and "1) OR ..." sorts above "0", so the guard passed.
+     *
+     * Cast to float and bind through the query builder. The cast is what actually closes
+     * it: even if some future caller forgets to validate, (float) on a hostile string
+     * yields a number or 0. Validation was added in Products.php as well, but this line
+     * is the one that has to be safe, because it is shared by the storefront, the mobile
+     * API and Home::get_products - and only one of the three was validating at all.
+     */
+    if (isset($filter['min_price']) && is_numeric($filter['min_price']) && (float) $filter['min_price'] > 0) {
+        $min_price = (float) $filter['min_price'];
         $t->db->group_Start();
-        $t->db->where($where_min);
+        $t->db->where('if( pv.special_price > 0 , pv.special_price , pv.price ) >=', $min_price);
         $t->db->group_End();
     }
-    if (isset($filter['max_price']) && $filter['max_price'] > 0 && isset($filter['min_price']) && $filter['min_price'] > 0) {
-        $max_price = $filter['max_price'];
-        $where_max = "if( pv.special_price > 0 , pv.special_price , pv.price ) <=$max_price";
+    if (isset($filter['max_price']) && is_numeric($filter['max_price']) && (float) $filter['max_price'] > 0
+        && isset($filter['min_price']) && is_numeric($filter['min_price']) && (float) $filter['min_price'] > 0) {
+        $max_price = (float) $filter['max_price'];
         $t->db->group_Start();
-        $t->db->where($where_max);
+        $t->db->where('if( pv.special_price > 0 , pv.special_price , pv.price ) <=', $max_price);
         $t->db->group_End();
     }
 
@@ -902,9 +932,21 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
 
 
     if (isset($filter) && !empty($filter['attribute_value_ids'])) {
-        /* https://stackoverflow.com/questions/5015403/mysql-find-in-set-with-multiple-search-string */
-        $str = str_replace(',', '|', $filter['attribute_value_ids']); //str_replace(find,replace,string,count)
-        $t->db->where('CONCAT(",", pa.attribute_value_ids , ",") REGEXP ",(' . $str . ')," !=', 0, false);
+        /* SQL INJECTION - FIXED. This used to be a str_replace() of ',' for '|' on the
+         * raw filter value, concatenated into the REGEXP with the query builder's
+         * escaping explicitly DISABLED (the `false` third argument). Reachable from
+         * $_GET via Home::get_products and from $_POST via both mobile API copies.
+         * attribute_value_id_regexp() reduces the value to positive integers, which is
+         * all these ever legitimately are.
+         *
+         * The emptiness check is part of the fix, not tidiness: an empty alternation
+         * ( REGEXP ",()," ) matches every row, so a filter with no valid id has to be
+         * skipped entirely rather than applied as a match-everything condition.
+         * https://stackoverflow.com/questions/5015403/mysql-find-in-set-with-multiple-search-string */
+        $str = attribute_value_id_regexp($filter['attribute_value_ids']);
+        if ($str !== '') {
+            $t->db->where('CONCAT(",", pa.attribute_value_ids , ",") REGEXP ",(' . $str . ')," !=', 0, false);
+        }
     }
 
     if (isset($category_id) && !empty($category_id)) {
@@ -1014,7 +1056,17 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
     } else {
         $t->db->order_by('has_subscription', 'DESC');
         if ($sort != null && $sort != 'pv.price') {
-            $t->db->order_by($sort, $order);
+            /* SQL INJECTION - DEFENDED AT THE SINK. fetch_product() is called from the
+             * storefront listing, Home::get_products, the customer API and the seller
+             * API, and three of those four handed it a raw request value. The callers
+             * are all whitelisted now, but this is the line that actually concatenates
+             * into the query, so it whitelists again: a fifth caller added later cannot
+             * reopen the hole by forgetting. product_sort_columns() is the single
+             * definition of what this query may be ordered by. */
+            $t->db->order_by(
+                sanitize_sort_column($sort, product_sort_columns(), 'p.id'),
+                sanitize_sort_direction($order, 'DESC')
+            );
         }
         $t->db->order_by('p.row_order', 'ASC');
     }
@@ -1096,8 +1148,21 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
     }
 
     if (isset($filter) && !empty($filter['attribute_value_ids'])) {
-        $str = str_replace(',', '|', $filter['attribute_value_ids']); // Ids should be in string and comma separated 
-        $product_count->where('CONCAT(",", pa.attribute_value_ids, ",") REGEXP ",(' . $str . ')," !=', 0, false);
+        /* SQL INJECTION - FIXED. This used to be a str_replace() of ',' for '|' on the
+         * raw filter value, concatenated into the REGEXP with the query builder's
+         * escaping explicitly DISABLED (the `false` third argument). Reachable from
+         * $_GET via Home::get_products and from $_POST via both mobile API copies.
+         * attribute_value_id_regexp() reduces the value to positive integers, which is
+         * all these ever legitimately are.
+         *
+         * The emptiness check is part of the fix, not tidiness: an empty alternation
+         * ( REGEXP ",()," ) matches every row, so a filter with no valid id has to be
+         * skipped entirely rather than applied as a match-everything condition.
+         * https://stackoverflow.com/questions/5015403/mysql-find-in-set-with-multiple-search-string */
+        $str = attribute_value_id_regexp($filter['attribute_value_ids']);
+        if ($str !== '') {
+            $product_count->where('CONCAT(",", pa.attribute_value_ids , ",") REGEXP ",(' . $str . ')," !=', 0, false);
+        }
     }
     if (isset($filter) && !empty($filter['product_type']) && strtolower($filter['product_type']) == 'most_selling_products') {
         $product_count->join('`order_items` oi', 'oi.product_variant_id = pv.id', 'LEFT');
@@ -1248,29 +1313,29 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
             }
 
             /* outputing escaped data */
-            $product[$i]['name'] = output_escaping($product[$i]['name']);
+            $product[$i]['name'] = unslash($product[$i]['name']);
             $product[$i]['total_product'] = ($total_product[0]['total']);
-            $product[$i]['store_name'] = output_escaping($product[$i]['store_name']);
-            $product[$i]['seller_rating'] = (isset($product[$i]['seller_rating']) && !empty($product[$i]['seller_rating'])) ? output_escaping(number_format($product[$i]['seller_rating'], 1)) : 0;
-            $product[$i]['store_description'] = (isset($product[$i]['store_description']) && !empty($product[$i]['store_description'])) ? output_escaping($product[$i]['store_description']) : "";
-            $product[$i]['seller_profile'] = output_escaping(base_url() . $product[$i]['seller_profile']);
-            $product[$i]['seller_name'] = output_escaping($product[$i]['seller_name']);
-            $product[$i]['short_description'] = output_escaping($product[$i]['short_description']);
-            $product[$i]['description'] = (isset($product[$i]['description']) && !empty($product[$i]['description'])) ? output_escaping($product[$i]['description']) : "";
-            $product[$i]['extra_description'] = (isset($product[$i]['extra_description']) && !empty($product[$i]['extra_description']) && $product[$i]['extra_description'] != 'NULL') ? output_escaping($product[$i]['extra_description']) : "";
+            $product[$i]['store_name'] = unslash($product[$i]['store_name']);
+            $product[$i]['seller_rating'] = (isset($product[$i]['seller_rating']) && !empty($product[$i]['seller_rating'])) ? unslash(number_format($product[$i]['seller_rating'], 1)) : 0;
+            $product[$i]['store_description'] = (isset($product[$i]['store_description']) && !empty($product[$i]['store_description'])) ? unslash($product[$i]['store_description']) : "";
+            $product[$i]['seller_profile'] = unslash(base_url() . $product[$i]['seller_profile']);
+            $product[$i]['seller_name'] = unslash($product[$i]['seller_name']);
+            $product[$i]['short_description'] = unslash($product[$i]['short_description']);
+            $product[$i]['description'] = (isset($product[$i]['description']) && !empty($product[$i]['description'])) ? unslash($product[$i]['description']) : "";
+            $product[$i]['extra_description'] = (isset($product[$i]['extra_description']) && !empty($product[$i]['extra_description']) && $product[$i]['extra_description'] != 'NULL') ? unslash($product[$i]['extra_description']) : "";
             $product[$i]['pickup_location'] = (isset($product[$i]['pickup_location']) && !empty($product[$i]['pickup_location']) && $product[$i]['pickup_location']) != 'NULL' ? $product[$i]['pickup_location'] : '';
 
-            $product[$i]['seller_slug'] = isset($product[$i]['seller_slug']) && !empty($product[$i]['seller_slug']) ? output_escaping($product[$i]['seller_slug']) : "";
+            $product[$i]['seller_slug'] = isset($product[$i]['seller_slug']) && !empty($product[$i]['seller_slug']) ? unslash($product[$i]['seller_slug']) : "";
             $product[$i]['deliverable_type'] = $product[$i]['deliverable_type'];
-            $product[$i]['deliverable_zipcodes_ids'] = output_escaping($product[$i]['deliverable_zipcodes']);
+            $product[$i]['deliverable_zipcodes_ids'] = unslash($product[$i]['deliverable_zipcodes']);
             if (isset($filter['discount']) && !empty($filter['discount']) && $filter['discount'] != "") {
-                $product[$i]['cal_discount_percentage'] = output_escaping(number_format($product[$i]['cal_discount_percentage'], 2));
+                $product[$i]['cal_discount_percentage'] = unslash(number_format($product[$i]['cal_discount_percentage'], 2));
             }
             $product[$i]['cancelable_till'] = isset($product[$i]['cancelable_till']) && !empty($product[$i]['cancelable_till']) ? $product[$i]['cancelable_till'] : '';
             $product[$i]['is_attachment_required'] = isset($product[$i]['is_attachment_required']) && !empty($product[$i]['is_attachment_required']) ? $product[$i]['is_attachment_required'] : '0';
             $product[$i]['indicator'] = isset($product[$i]['indicator']) && !empty($product[$i]['indicator']) ? $product[$i]['indicator'] : '0';
             $product[$i]['deliverable_zipcodes_ids'] = isset($product[$i]['deliverable_zipcodes_ids']) && !empty($product[$i]['deliverable_zipcodes_ids']) ? $product[$i]['deliverable_zipcodes_ids'] : '';
-            $product[$i]['rating'] = output_escaping(number_format($product[$i]['rating'], 2));
+            $product[$i]['rating'] = unslash(number_format($product[$i]['rating'], 2));
             $product[$i]['availability'] = isset($product[$i]['availability']) && ($product[$i]['availability'] != "") ? $product[$i]['availability'] : '';
             $product[$i]['sku'] = isset($product[$i]['sku']) && ($product[$i]['sku'] != "") ? $product[$i]['sku'] : '';
 
@@ -1286,7 +1351,7 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
             } else {
                 $product[$i]['deliverable_zipcodes'] = '';
             }
-            $product[$i]['category_name'] = (isset($product[$i]['category_name']) && !empty($product[$i]['category_name'])) ? output_escaping($product[$i]['category_name']) : '';
+            $product[$i]['category_name'] = (isset($product[$i]['category_name']) && !empty($product[$i]['category_name'])) ? unslash($product[$i]['category_name']) : '';
             /* check product delivrable or not */
             if ($is_deliverable != NULL) {
                 $zipcode = fetch_details('zipcodes', ['zipcode' => $is_deliverable], 'id');
@@ -1518,8 +1583,8 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
             $n = 0;
             foreach ($tags_to_strip as $tag) {
                 // $product[$i]['description'] = output_escaping(str_replace('\r\n', '&#13;&#10;', (string)$product[$i]['description']));
-                $product[$i]['description'] = !empty($product[$i]['description']) ? output_escaping(str_replace('\r\n', '&#13;&#10;', (string)$product[$i]['description'])) : "";
-                $product[$i]['extra_description'] = !empty($product[$i]['extra_description']) && $product[$i]['extra_description'] != null ? output_escaping(str_replace('\r\n', '&#13;&#10;', (string)$product[$i]['extra_description'])) : "";
+                $product[$i]['description'] = !empty($product[$i]['description']) ? unslash(str_replace('\r\n', '&#13;&#10;', (string)$product[$i]['description'])) : "";
+                $product[$i]['extra_description'] = !empty($product[$i]['extra_description']) && $product[$i]['extra_description'] != null ? unslash(str_replace('\r\n', '&#13;&#10;', (string)$product[$i]['extra_description'])) : "";
                 $n++;
             }
             $variant_attributes = [];
@@ -2316,7 +2381,7 @@ function render_notification_text($raw, $tokens = [])
 {
     $decoded = html_entity_decode(json_encode((string) $raw, JSON_UNESCAPED_UNICODE));
 
-    return output_escaping(trim(fill_notification_placeholders(trim($decoded, '"'), $tokens)));
+    return unslash(trim(fill_notification_placeholders(trim($decoded, '"'), $tokens)));
 }
 
 /**
@@ -2561,7 +2626,7 @@ function get_attribute_values_by_pid($id)
                 $row = implode(',', $swatche_values1);
                 $attribute_values[$i]['swatche_value'] = $row;
             }
-            $attribute_values[$i] = output_escaping($attribute_values[$i]);
+            $attribute_values[$i] = unslash($attribute_values[$i]);
         }
     }
     return $attribute_values;
@@ -2593,7 +2658,7 @@ function get_attribute_values_by_id($id)
                     $attribute_values[$i]['swatche_value'] = $row;
                 }
             }
-            $attribute_values[$i] = output_escaping($attribute_values[$i]);
+            $attribute_values[$i] = unslash($attribute_values[$i]);
         }
     }
     // print_r($attribute_values);
@@ -2638,7 +2703,7 @@ function get_variants_values_by_pid($id, $status = [1])
                     $varaint_values[$i]['swatche_value'] = $row;
                 }
             }
-            $varaint_values[$i] = output_escaping($varaint_values[$i]);
+            $varaint_values[$i] = unslash($varaint_values[$i]);
             $varaint_values[$i]['availability'] = isset($varaint_values[$i]['availability']) && ($varaint_values[$i]['availability'] != "") ? $varaint_values[$i]['availability'] : '';
         }
     }
@@ -2659,7 +2724,7 @@ function get_variants_values_by_id($id)
     }
     if (!empty($varaint_values)) {
         for ($i = 0; $i < count($varaint_values); $i++) {
-            $varaint_values[$i] = output_escaping($varaint_values[$i]);
+            $varaint_values[$i] = unslash($varaint_values[$i]);
             $varaint_values[$i]['availability'] = isset($varaint_values[$i]['availability']) && ($varaint_values[$i]['availability'] != "") ? $varaint_values[$i]['availability'] : '';
             $varaint_values[$i]['images'] = isset($varaint_values[$i]['images']) && (!empty($varaint_values[$i]['images'])) ? $varaint_values[$i]['images'] : '';
 
@@ -3884,7 +3949,7 @@ function get_categories_option_html($categories, $selected_vals = null)
     $html = "";
     for ($i = 0; $i < count($categories); $i++) {
         $pre_selected = (!empty($selected_vals) && in_array($categories[$i]['id'], $selected_vals)) ? "selected" : "";
-        $html .= '<option value="' . $categories[$i]['id'] . '" class="l' . $categories[$i]['level'] . '" ' . $pre_selected . '  >' . output_escaping($categories[$i]['name']) . '</option>';
+        $html .= '<option value="' . $categories[$i]['id'] . '" class="l' . $categories[$i]['level'] . '" ' . $pre_selected . '  >' . unslash($categories[$i]['name']) . '</option>';
         if (!empty($categories[$i]['children'])) {
             $html .= get_subcategory_option_html($categories[$i]['children'], $selected_vals);
         }
@@ -3902,7 +3967,7 @@ function get_subcategory_option_html($subcategories, $selected_vals)
         // output_escaping(); this nested version never did, for every subcategory at every
         // depth, in every "Select Category/Parent" dropdown across the whole admin and seller
         // panels that render more than one level deep.
-        $html .= '<option value="' . $subcategories[$i]['id'] . '" class="l' . $subcategories[$i]['level'] . '" ' . $pre_selected . '  >' . output_escaping($subcategories[$i]['name']) . '</option>';
+        $html .= '<option value="' . $subcategories[$i]['id'] . '" class="l' . $subcategories[$i]['level'] . '" ' . $pre_selected . '  >' . unslash($subcategories[$i]['name']) . '</option>';
         if (!empty($subcategories[$i]['children'])) {
             $html .=  get_subcategory_option_html($subcategories[$i]['children'], $selected_vals);
         }
@@ -4571,8 +4636,15 @@ function fetch_orders($order_id = NULL, $user_id = NULL, $status = NULL, $delive
     }
 
     if (isset($start_date) && $start_date != null && isset($end_date) && $end_date != null) {
-        $count_res->where(" DATE(o.date_added) >= DATE('" . $start_date . "') ");
-        $count_res->where(" DATE(o.date_added) <= DATE('" . $end_date . "') ");
+        /* SQL INJECTION - FIXED. These were built as
+         *     where(" DATE(col) >= DATE('" . $date . "') ")
+         * - the value interpolated inside a quoted SQL literal with no escaping, so a
+         * single quote in the date closed the string and everything after it was SQL.
+         * Passing the value as where()'s second argument lets the query builder escape
+         * it; the field side still contains DATE(...) and is emitted as written, which
+         * is what it was doing before anyway. */
+        $count_res->where("DATE(o.date_added) >=", $start_date);
+        $count_res->where("DATE(o.date_added) <=", $end_date);
     }
 
     if (isset($search) and $search != null) {
@@ -4648,8 +4720,8 @@ function fetch_orders($order_id = NULL, $user_id = NULL, $status = NULL, $delive
     //     $where['oi.seller_id'] = $seller_id;
     // }
     if (isset($start_date) && $start_date != null && isset($end_date) && $end_date != null) {
-        $search_res->where(" DATE(o.date_added) >= DATE('" . $start_date . "') ");
-        $search_res->where(" DATE(o.date_added) <= DATE('" . $end_date . "') ");
+        $search_res->where("DATE(o.date_added) >=", $start_date);
+        $search_res->where("DATE(o.date_added) <=", $end_date);
     }
     if (isset($order_type) && $order_type != '' && $order_type == 'digital') {
         $search_res->where("p.type = 'digital_product'");
@@ -4697,7 +4769,7 @@ function fetch_orders($order_id = NULL, $user_id = NULL, $status = NULL, $delive
 
         $t->db->or_where_in('oi.order_id', $order_details[$i]['id']);
         if (isset($seller_id) && $seller_id != null) {
-            $t->db->where('oi.seller_id=' . $seller_id);
+            $t->db->where('oi.seller_id=' . (int) $seller_id);
             $t->db->where("oi.active_status != 'awaiting'");
         }
         if (isset($order_type) && $order_type != '' && $order_type == 'digital') {
@@ -4707,7 +4779,7 @@ function fetch_orders($order_id = NULL, $user_id = NULL, $status = NULL, $delive
             $t->db->where("p.type != 'digital_product'");
         }
         if (isset($delivery_boy_id) && $delivery_boy_id != null) {
-            $t->db->where('oi.delivery_boy_id=' . $delivery_boy_id);
+            $t->db->where('oi.delivery_boy_id=' . (int) $delivery_boy_id);
         }
         // if(isset($from_seller) && $from_seller == true){
         //     $t->db->where('oi.active_status !=' , 'cancelled');
@@ -4727,7 +4799,7 @@ function fetch_orders($order_id = NULL, $user_id = NULL, $status = NULL, $delive
         $t->db->group_by('oi.id');
         $order_item_data = $t->db->get('order_items oi')->result_array();
         
-        $order_item_data = output_escaping_new($order_item_data);
+        $order_item_data = unslash_deep($order_item_data);
         
         
         $return_request = fetch_details('return_requests', ['user_id' => $user_id]);
@@ -4946,8 +5018,8 @@ function fetch_orders($order_id = NULL, $user_id = NULL, $status = NULL, $delive
         } else {
             $order_details[$i]['total'] = strval($order_details[$i]['total']);
         }
-        $order_details[$i]['address'] = (isset($order_details[$i]['address']) && !empty($order_details[$i]['address'])) ? output_escaping($order_details[$i]['address']) : "";
-        $order_details[$i]['username'] = output_escaping($order_details[$i]['username']);
+        $order_details[$i]['address'] = (isset($order_details[$i]['address']) && !empty($order_details[$i]['address'])) ? unslash($order_details[$i]['address']) : "";
+        $order_details[$i]['username'] = unslash($order_details[$i]['username']);
         $order_details[$i]['country_code'] = (isset($order_details[$i]['country_code']) && !empty($order_details[$i]['country_code'])) ? $order_details[$i]['country_code'] : '';
         $order_details[$i]['total_tax_percent'] = strval($total_tax_percent);
         $order_details[$i]['total_tax_amount'] = strval($total_tax_amount);
@@ -5000,8 +5072,15 @@ function fetch_order_items($order_item_id = NULL, $user_id = NULL, $status = NUL
     $where['oi.seller_id'] = $seller_id;
 
     if (isset($start_date) && $start_date != null && isset($end_date) && $end_date != null) {
-        $count_res->where(" DATE(oi.date_added) >= DATE('" . $start_date . "') ");
-        $count_res->where(" DATE(oi.date_added) <= DATE('" . $end_date . "') ");
+        /* SQL INJECTION - FIXED. These were built as
+         *     where(" DATE(col) >= DATE('" . $date . "') ")
+         * - the value interpolated inside a quoted SQL literal with no escaping, so a
+         * single quote in the date closed the string and everything after it was SQL.
+         * Passing the value as where()'s second argument lets the query builder escape
+         * it; the field side still contains DATE(...) and is emitted as written, which
+         * is what it was doing before anyway. */
+        $count_res->where("DATE(oi.date_added) >=", $start_date);
+        $count_res->where("DATE(oi.date_added) <=", $end_date);
     }
 
     if (isset($search) and $search != null) {
@@ -5042,8 +5121,8 @@ function fetch_order_items($order_item_id = NULL, $user_id = NULL, $status = NUL
         ->join('seller_data sd', 'sd.user_id=p.seller_id');
     $search_res->where($where);
     if (isset($start_date) && $start_date != null && isset($end_date) && $end_date != null) {
-        $search_res->where(" DATE(oi.date_added) >= DATE('" . $start_date . "') ");
-        $search_res->where(" DATE(oi.date_added) <= DATE('" . $end_date . "') ");
+        $search_res->where("DATE(oi.date_added) >=", $start_date);
+        $search_res->where("DATE(oi.date_added) <=", $end_date);
     }
     if (isset($filters) && !empty($filters)) {
         $search_res->group_Start();
@@ -5136,7 +5215,7 @@ function fetch_order_items($order_item_id = NULL, $user_id = NULL, $status = NUL
         } else {
             $order_details[$k]['return_request_submitted'] = ($return_request_submitted_count == count($order_item_data)) ? '1' : '0';
         }
-        $order_details[$k]['username'] = output_escaping($order_details[$k]['username']);
+        $order_details[$k]['username'] = unslash($order_details[$k]['username']);
         $order_details[$k]['total_tax_percent'] = strval($total_tax_percent);
         $order_details[$k]['total_tax_amount'] = strval($total_tax_amount);
     }
@@ -5267,6 +5346,449 @@ function escape_array($array)
     return $posts;
 }
 
+/**
+ * Reduce a request-supplied sort column to one this query is actually allowed to
+ * order by, or fall back to a default.
+ *
+ * WHY THIS EXISTS, and why "the query builder escapes it" is not true for ORDER BY.
+ *
+ * CodeIgniter's order_by() looks safe: it runs the field through
+ * protect_identifiers(), which sounds like escaping. It is not. Look at
+ * system/database/DB_driver.php - protect_identifiers() opens with
+ *
+ *     if (strcspn($item, "()'") !== strlen($item)) { return $item; }
+ *
+ * and the comment above it says "basically a bug fix for queries that use MAX, MIN".
+ * Any string containing a parenthesis or a single quote is returned COMPLETELY
+ * UNMODIFIED and concatenated into the SQL. So passing a request value to order_by()
+ * is a raw string concatenation, and every payload worth writing contains a `(`.
+ *
+ * That is why sorting cannot be made safe by escaping, only by whitelisting - there
+ * is no escape function to reach for. A column name is not data; it is part of the
+ * query's structure, and the set of legal values is small, fixed and known at the
+ * point the query is written.
+ *
+ * $allowed accepts either shape, because both appear in this codebase:
+ *
+ *   - a plain list:  ['id', 'username', 'email']
+ *         the request value must BE one of these, and is used as-is.
+ *   - a map:         ['name' => 'p.name', 'price' => 'pv.price']
+ *         the request value is a key, and the mapped column is used. Prefer this
+ *         wherever the browser sends a display-field name rather than a real column,
+ *         which is how bootstrap-table's data-field attributes behave - it also means
+ *         the SQL column can be renamed without changing the public parameter.
+ *
+ * Comparison is strict, so no type juggling; and an unrecognised value is silently
+ * replaced with $default rather than raising an error, because a stale sort in a
+ * bookmarked URL should render the list, not a failure page.
+ *
+ * @param  mixed  $requested Raw value from $_GET / $_POST.
+ * @param  array  $allowed   Permitted columns, as a list or a map (see above).
+ * @param  string $default   Column to use when $requested is absent or not permitted.
+ * @return string            A column name that is safe to hand to order_by().
+ */
+function sanitize_sort_column($requested, array $allowed, $default)
+{
+    if ($requested === null || $requested === '' || is_array($requested)) {
+        return $default;
+    }
+
+    $requested = trim((string) $requested);
+    if ($requested === '') {
+        return $default;
+    }
+
+    // Map form: the request sends a key, we use the column it points at.
+    if (array_keys($allowed) !== range(0, count($allowed) - 1)) {
+        return isset($allowed[$requested]) ? $allowed[$requested] : $default;
+    }
+
+    // List form: the request must name a permitted column exactly.
+    return in_array($requested, $allowed, true) ? $requested : $default;
+}
+
+/**
+ * Turn an attribute_value_ids filter into the integer alternation the REGEXP needs,
+ * or an empty string when there is nothing usable in it.
+ *
+ * SQL INJECTION - this is the fix for three sinks that all read:
+ *
+ *     $str = str_replace(',', '|', $filter['attribute_value_ids']);
+ *     $t->db->where('CONCAT(",", pa.attribute_value_ids , ",") REGEXP ",(' . $str . ')," !=', 0, false);
+ *
+ * Note the third argument: `false` turns the query builder's escaping OFF outright,
+ * and $str was concatenated in as given. The storefront's own /products page happened
+ * to be safe because it resolves attribute NAMES to integer ids before building the
+ * filter - but Home::get_products read the parameter straight from $_GET, and both
+ * mobile API copies read it straight from $_POST, so three of the four entry points
+ * passed request text into a query with escaping disabled.
+ *
+ * These are database ids, so the whole value collapses to integers. Anything that is
+ * not a positive integer is dropped rather than escaped: there is no legitimate
+ * attribute value id that needs quoting, so accepting only digits gives up nothing.
+ *
+ * Returns '' when no valid id survives, and callers MUST treat that as "no filter" -
+ * emitting `REGEXP ",()," ` would match every row and silently widen the query
+ * instead of narrowing it.
+ *
+ * @param  mixed  $value Comma-separated ids from a request or an internal lookup.
+ * @return string        Pipe-separated integers, e.g. "12|34|56", or ''.
+ */
+function attribute_value_id_regexp($value)
+{
+    if (is_array($value)) {
+        $parts = $value;
+    } else {
+        // Both separators appear in practice: the storefront implodes with ',' and
+        // some callers pass a value that has already been switched to '|'.
+        $parts = preg_split('/[,|]/', (string) $value);
+    }
+
+    $ids = [];
+    foreach ($parts as $part) {
+        $id = (int) trim((string) $part);
+        if ($id > 0) {
+            // Keys, so a repeated id does not bloat the pattern.
+            $ids[$id] = $id;
+        }
+    }
+
+    return implode('|', $ids);
+}
+
+/**
+ * Structural gate for a request-supplied sort column: it must look like a plain
+ * column reference and nothing else.
+ *
+ * This is the blunt instrument, for the ~50 API endpoints that read a `sort`
+ * parameter and pass it down into a model. A per-endpoint whitelist is better and is
+ * what sanitize_sort_column() / sanitize_sort_column_for_table() are for; but those
+ * need to know the query, and applying them one endpoint at a time across five API
+ * controllers is a long job during which every unconverted endpoint stays open. This
+ * closes all of them at once, and the narrower checks are layered on underneath in
+ * the models.
+ *
+ * The accepted shape is `column` or `alias.column`, letters/digits/underscore only.
+ * What that excludes is the point: every ORDER BY injection payload needs at least
+ * one of `(`, `)`, `'`, `,`, a space or a semicolon - to open a subquery, to start a
+ * string, to add a second expression, or to stack a statement. None of them can pass
+ * this pattern, so no value that reaches order_by() can carry syntax.
+ *
+ * It is genuinely weaker than a whitelist in one respect: a caller can name a column
+ * that exists but was not meant to be sortable, or one that does not exist at all.
+ * Neither discloses data - ORDER BY on a column returns the same rows in a different
+ * order, and an unknown column is an SQL error, not a leak. That is an acceptable
+ * residual risk for a change this broad; the money and PII endpoints get the real
+ * whitelist.
+ *
+ * @param  mixed  $requested Raw value from $_GET / $_POST.
+ * @param  string $default   Used when $requested is absent or malformed.
+ * @return string            Safe to hand to order_by().
+ */
+function sanitize_sort_identifier($requested, $default)
+{
+    if ($requested === null || is_array($requested)) {
+        return $default;
+    }
+
+    $requested = trim((string) $requested);
+    if ($requested === '') {
+        return $default;
+    }
+
+    return preg_match('/^([A-Za-z_][A-Za-z0-9_]*\.)?[A-Za-z_][A-Za-z0-9_]*$/', $requested)
+        ? $requested
+        : $default;
+}
+
+/**
+ * Reduce a request-supplied sort column to a real column of $table, or a default.
+ *
+ * For the bootstrap-table admin/seller grids. Those queries are written as
+ * `select('*')` or `select('u.*')`, so there is no short hand-written list of
+ * sortable columns to whitelist against - and enumerating every column of every
+ * table here would be guesswork that goes stale the first time a migration adds one.
+ *
+ * So the whitelist is asked for at runtime: list_fields() is the database's own
+ * answer to "what columns does this table have", which makes the check exact and
+ * self-maintaining. A column added by a future migration becomes sortable with no
+ * change here; a column that does not exist can never reach order_by().
+ *
+ * Two layers, in this order:
+ *
+ *  1. A structural test. The value must look like `column` or `alias.column` and
+ *     nothing else - no parentheses, quotes, spaces, commas or semicolons. This
+ *     alone excludes every ORDER BY injection payload, since all of them need at
+ *     least one of those characters. It also runs first so a hostile string never
+ *     reaches the database, not even as a lookup.
+ *
+ *  2. Membership. The column part must actually be a column of $table. This is what
+ *     turns "cannot be an injection" into "cannot even be a wrong query", and it
+ *     stops a caller ordering a grid by a column from a joined table they did not
+ *     intend to expose ordering over.
+ *
+ * The alias prefix is preserved when present, because these queries join and an
+ * unqualified `id` would be ambiguous. The prefix is only allowed through the
+ * structural test - it is not verified against anything, which is fine: an alias
+ * that does not exist produces an SQL error, not a disclosure, and cannot be used
+ * to smuggle syntax.
+ *
+ * @param  mixed  $requested Raw value from $_GET / $_POST.
+ * @param  string $table     Table whose columns are permitted.
+ * @param  string $default   Used when $requested is absent, malformed or unknown.
+ * @return string            Safe to hand to order_by().
+ */
+function sanitize_sort_column_for_table($requested, $table, $default)
+{
+    if ($requested === null || is_array($requested)) {
+        return $default;
+    }
+
+    $requested = trim((string) $requested);
+    if ($requested === '') {
+        return $default;
+    }
+
+    // Layer 1: shape. `col` or `alias.col`, identifier characters only.
+    if (!preg_match('/^([A-Za-z_][A-Za-z0-9_]*\.)?([A-Za-z_][A-Za-z0-9_]*)$/', $requested, $m)) {
+        return $default;
+    }
+    $column = $m[2];
+
+    // Layer 2: existence. Guarded because list_fields() throws on an unknown table,
+    // and a sort parameter must never be able to turn a working page into a fatal.
+    try {
+        $t = &get_instance();
+        $fields = $t->db->list_fields($table);
+    } catch (Exception $e) {
+        return $default;
+    }
+
+    if (!is_array($fields) || !in_array($column, $fields, true)) {
+        return $default;
+    }
+
+    return $requested;
+}
+
+/**
+ * Reduce a request-supplied sort direction to exactly 'ASC' or 'DESC'.
+ *
+ * order_by()'s direction argument is validated by CodeIgniter itself (anything that
+ * is not ASC/DESC/RANDOM is dropped), so this is not closing a hole - it is here so
+ * that a caller sanitising the column has something to pair it with, and so the
+ * direction is normalised rather than passed through in whatever case it arrived in.
+ *
+ * @param  mixed  $requested
+ * @param  string $default 'ASC' or 'DESC'.
+ * @return string
+ */
+function sanitize_sort_direction($requested, $default = 'DESC')
+{
+    $requested = strtoupper(trim((string) $requested));
+
+    return ($requested === 'ASC' || $requested === 'DESC') ? $requested : $default;
+}
+
+/**
+ * The columns fetch_product() may be ordered by, as a map from the value the browser
+ * or app sends to the real column.
+ *
+ * Kept in one place because four separate endpoints hand a request value to
+ * fetch_product()'s $sort argument - the storefront listing, Home::get_products, and
+ * the customer and seller mobile APIs - and three of them were passing it through
+ * with no whitelist at all.
+ *
+ * 'price' is mapped to itself deliberately: fetch_product() treats it as a marker and
+ * builds its own tax-inclusive price expression for it rather than ordering by a
+ * column, so it must survive this function unchanged.
+ *
+ * @return array<string,string>
+ */
+function product_sort_columns()
+{
+    return [
+        'id'            => 'p.id',
+        'p.id'          => 'p.id',
+        'name'          => 'p.name',
+        'p.name'        => 'p.name',
+        'row_order'     => 'p.row_order',
+        'p.row_order'   => 'p.row_order',
+        'rating'        => 'p.rating',
+        'p.rating'      => 'p.rating',
+        'no_of_ratings' => 'p.no_of_ratings',
+        'date_added'    => 'pv.date_added',
+        'pv.date_added' => 'pv.date_added',
+        'pv.id'         => 'pv.id',
+        // Both spellings reach the special-cased price ordering inside fetch_product().
+        'price'         => 'price',
+        'pv.price'      => 'pv.price',
+        // Set by fetch_product() ITSELF for the most_selling_products filter, not by
+        // any request. It has to be listed here regardless, because the whitelist runs
+        // at the sink and would otherwise throw the function's own value away and
+        // silently break that ordering. Safe to list: it is matched exactly, so it
+        // permits this one expression and nothing built from it.
+        'count(p.id)'   => 'count(p.id)',
+    ];
+}
+
+/**
+ * Refuse an unauthorised panel request, with a status code that tells the truth.
+ *
+ * Replaces this pattern, which appears in 55 admin controller constructors:
+ *
+ *     $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
+ *     redirect('admin/home', 'refresh');
+ *
+ * That is not insecure - redirect() calls exit(), so nothing behind it runs, and the
+ * verification pass confirmed denied endpoints return a zero-byte body with no data.
+ * The problem is that CodeIgniter's 'refresh' method emits a `Refresh:` header with
+ * an HTTP **200 OK**. So every denied request - including the bootstrap-table data
+ * endpoints, which are the ones an attacker probes - answered "200 OK" with an empty
+ * body.
+ *
+ * Two costs to that. An automated security scan reads 200 as "endpoint exists and
+ * responded", so a real leak and a correct denial look identical in the report;
+ * during this very audit that cost time chasing endpoints that turned out to be
+ * properly guarded. And an AJAX caller can't distinguish "denied" from "returned
+ * nothing", so the panel shows an empty grid instead of "you don't have permission".
+ *
+ * The branch matters because these controllers serve two very different things:
+ *
+ *   - A PAGE request (an admin clicking a menu item) should keep redirecting to the
+ *     dashboard with the flash message. Sending 403 there would replace a helpful
+ *     "you don't have permission to view that" with a bare browser error page.
+ *   - A DATA request (the grids, the AJAX actions) should get 403 and a JSON body,
+ *     because that is what the caller can actually act on.
+ *
+ * Detected by the request itself rather than by a per-controller list: an
+ * XMLHttpRequest header, or a method name in the shape this codebase uses for its
+ * data endpoints (view_*, get_*, *_list, delete_*, update_*). Anything unrecognised
+ * falls through to the redirect, so the failure mode of a wrong guess is the old
+ * behaviour, not a broken page.
+ *
+ * Always exits.
+ *
+ * @param string $message   Shown to a page request as flash data.
+ * @param string $redirect  Where a page request is sent.
+ * @return void
+ */
+function deny_panel_access($message = null, $redirect = 'admin/home')
+{
+    $t = &get_instance();
+    $message = ($message !== null) ? $message : (defined('PERMISSION_ERROR_MSG') ? PERMISSION_ERROR_MSG : 'You are not authorized to perform this action.');
+
+    $method = isset($t->router) ? (string) $t->router->fetch_method() : '';
+
+    $is_ajax = (isset($t->input) && $t->input->is_ajax_request());
+    $is_data_endpoint = (bool) preg_match('/^(view_|get_|fetch_|search_|delete_|update_|add_|set_|process_|list_)|(_list|_data)$/', $method);
+
+    if ($is_ajax || $is_data_endpoint) {
+        $body = json_encode([
+            'error'   => true,
+            'message' => strip_tags((string) $message),
+            // The grids read these two back, so a denial renders as an empty table
+            // with a message rather than as a JavaScript error.
+            'total'   => 0,
+            'rows'    => [],
+        ]);
+
+        // Written with header()/echo rather than the output class on purpose.
+        // $this->output->set_output() only STAGES the response - CodeIgniter flushes it
+        // from _display() at the end of the request - and the exit() below never lets
+        // the request reach that point. Staging it and exiting produced a correct 403
+        // with an EMPTY BODY, which is the same unhelpful answer this function exists
+        // to replace.
+        //
+        // The exit itself is not negotiable: this is called from a constructor, and
+        // returning would let the controller method run anyway.
+        if (!headers_sent()) {
+            header('HTTP/1.1 403 Forbidden');
+            header('Content-Type: application/json; charset=UTF-8');
+        }
+        echo $body;
+        exit;
+    }
+
+    $t->session->set_flashdata('authorize_flag', $message);
+    redirect($redirect, 'refresh');
+}
+
+/**
+ * Resolve a "go back where you came from" redirect target to somewhere on this site.
+ *
+ * OPEN REDIRECT - this replaces `redirect($_SERVER['HTTP_REFERER'])`, which appeared
+ * three times in Products::download_link_hash(). The Referer header is set by the
+ * client, so that was an attacker-controlled value going straight into a Location
+ * header: a link on this domain that bounces the visitor to any site of the
+ * attacker's choosing. That is the standard ingredient for a convincing phishing
+ * link - the URL the victim inspects and clicks really is cretzo.com - and on older
+ * PHP a header value carrying CR/LF was also a response-splitting vector.
+ *
+ * The referer is still honoured when it points at this site, because that is what
+ * makes "back" useful; anything else falls back to $fallback. Compared on the parsed
+ * HOST, not with a string prefix test: `str_starts_with($ref, base_url())` is defeated
+ * by https://cretzo.com.evil.example, and a scheme/host check is not.
+ *
+ * @param  string $fallback Internal route to use when the referer is absent or foreign.
+ * @return string Absolute URL on this site.
+ */
+function safe_internal_referer($fallback = '')
+{
+    $referer = isset($_SERVER['HTTP_REFERER']) ? trim((string) $_SERVER['HTTP_REFERER']) : '';
+
+    if ($referer !== '' && strpbrk($referer, "\r\n") === false) {
+        $ref_host  = parse_url($referer, PHP_URL_HOST);
+        $self_host = parse_url(base_url(), PHP_URL_HOST);
+
+        if (!empty($ref_host) && !empty($self_host) && strcasecmp($ref_host, $self_host) === 0) {
+            return $referer;
+        }
+    }
+
+    return base_url($fallback);
+}
+
+/**
+ * A one-line, safe description of the current request, for webhook and callback logs.
+ *
+ * Replaces `var_export($_SERVER, true)`, which several gateway handlers were writing
+ * at 'error' level on every call. $_SERVER carries HTTP_COOKIE (so: live admin and
+ * seller session ids), HTTP_AUTHORIZATION (so: bearer tokens), every gateway signature
+ * header, and the absolute filesystem path of the application. All of that was being
+ * written into application/logs/ on production and kept indefinitely.
+ *
+ * That is a real exposure even though the log files themselves are not directly
+ * downloadable: CodeIgniter writes them with a PHP exit guard, but the whole point of
+ * defence in depth is that one file-read bug, one mis-deployed backup archive or one
+ * mis-set directory permission should not also hand over everybody's session.
+ *
+ * What is kept is what an operator actually needs to correlate a call with a gateway
+ * dashboard entry and to spot a flood from one source: who, when, how, and how big.
+ * Nothing here is attacker-supplied except the path and user agent, which are
+ * truncated so a long crafted value cannot bloat the log.
+ *
+ * @return string
+ */
+function webhook_log_context()
+{
+    $get = function ($key, $limit = 120) {
+        if (empty($_SERVER[$key])) {
+            return '-';
+        }
+        // Strip CR/LF so a crafted header cannot forge extra log lines, and cap the
+        // length so it cannot be used to fill the disk.
+        $value = str_replace(["\r", "\n"], ' ', (string) $_SERVER[$key]);
+        return substr($value, 0, $limit);
+    };
+
+    return 'ip=' . $get('REMOTE_ADDR', 45)
+        . ' method=' . $get('REQUEST_METHOD', 10)
+        . ' uri=' . $get('REQUEST_URI', 200)
+        . ' len=' . $get('CONTENT_LENGTH', 12)
+        . ' ua=' . $get('HTTP_USER_AGENT', 120);
+}
+
 function allowed_media_types()
 {
     $t = &get_instance();
@@ -5341,7 +5863,7 @@ function get_invoice_html($order_id)
                 $promo_code = fetch_details('promo_codes', ['promo_code' => trim($res[0]['promo_code'])]);
             }
             foreach ($res as $row) {
-                $row = output_escaping($row);
+                $row = unslash($row);
                 $temp['product_id'] = $row['product_id'];
                 $temp['seller_id'] = $row['seller_id'];
                 $temp['product_variant_id'] = $row['product_variant_id'];
@@ -5389,7 +5911,7 @@ function get_seller_invoice_html($order_id, $seller_id)
                 $promo_code = fetch_details('promo_codes', ['promo_code' => trim($res[0]['promo_code'])]);
             }
             foreach ($res as $row) {
-                $row = output_escaping($row);
+                $row = unslash($row);
                 $temp['product_id'] = $row['product_id'];
                 $temp['product_variant_id'] = $row['product_variant_id'];
                 $temp['pname'] = $row['pname'];
@@ -5432,10 +5954,46 @@ function is_modification_allowed($module)
     }
     return true;
 }
-function output_escaping($array)
+/**
+ * ============================================================================
+ *  WARNING: THIS FUNCTION DOES NOT ESCAPE ANYTHING. THE NAME IS A LIE.
+ * ============================================================================
+ *
+ * It calls stripcslashes(), which REMOVES backslashes - the opposite of escaping.
+ * Its actual job is to undo the double-escaping that escape_array() used to leave in
+ * the database (a review reading "It's great" stored as "It\'s great"), so it is a
+ * data-repair function, not a security function.
+ *
+ * That matters because there are ~638 `<?= output_escaping(...) ?>` call sites across
+ * application/views, and every one of them reads as though the value has been made
+ * safe for HTML. None of them have. Where a call site also wraps the result in
+ * strip_tags() it is fine; the rest are live output of raw text.
+ *
+ * WHAT TO USE INSTEAD:
+ *   - HTML text or attribute:  html_escape($value)   (CodeIgniter, ENT_QUOTES)
+ *   - Inside a <script> block: json_encode($value)   (never string concatenation)
+ *   - Deliberate rich text (a product description written in the editor): nothing,
+ *     but be aware that means a seller's markup renders as markup.
+ *
+ * Renaming this function to something honest - unslash() - and fixing the fallout is
+ * the correct end state, and it is a large mechanical change across the view layer
+ * that deserves its own pass with a browse-through afterwards. It is deliberately NOT
+ * bundled into this security pass: silently changing what 638 output sites emit is
+ * how you turn an XSS fix into a day of "why is every apostrophe now &#039;".
+ *
+ * Until then, treat a call to this function as a marker for "this output is NOT
+ * escaped" rather than the reverse.
+ *
+ * @param  array|string $array
+ * @return array|string Backslash-stripped, NOT HTML-safe.
+ */
+function unslash($array)
 {
     $exclude_fields = ["images", "other_images"];
-    $t = &get_instance();
+    /* $t = &get_instance(); removed - the CodeIgniter instance was fetched here and
+     * never used. Harmless, but it made these two look like they needed a framework
+     * context when they are pure string functions, and it emitted an "Only variables
+     * should be assigned by reference" notice under any stubbed get_instance(). */
 
     if (!empty($array)) {
         if (is_array($array)) {
@@ -5462,6 +6020,32 @@ function output_escaping($array)
             return stripcslashes($array);
         }
     }
+}
+
+/**
+ * DEPRECATED ALIAS of unslash(). Do not use in new code.
+ *
+ * The function was named output_escaping() and did not escape anything - it calls
+ * stripcslashes(), which removes backslashes, the opposite of escaping. With ~260
+ * call sites all reading as though the value had been made safe for HTML, the name
+ * was the actual hazard: it is exactly the sort of thing a reviewer skips over.
+ *
+ * It has been renamed to unslash(), which says what it does, and every call site in
+ * application/ was updated. This alias remains only so that anything outside that
+ * tree - a plugin, a view added on the server, code not in this repository - does
+ * not fatal. Behaviour is byte-identical; there is no security change in either
+ * direction, only an honest name.
+ *
+ * For actual HTML escaping use html_escape(); inside a <script> block use
+ * json_encode().
+ *
+ * @deprecated Use unslash().
+ * @param  array|string|object $array
+ * @return array|string|object Backslash-stripped, NOT HTML-safe.
+ */
+function output_escaping($array)
+{
+    return unslash($array);
 }
 function get_min_max_price_of_product($product_id = '')
 {
@@ -6474,7 +7058,7 @@ function process_refund($id, $status, $type = 'order_items')
             $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
             $hashtag = html_entity_decode($string);
             $data = str_replace(array($hashtag_currency, $hashtag_returnable_amount), array($currency, $returnable_amount), $hashtag);
-            $message = output_escaping(trim($data, '"'));
+            $message = unslash(trim($data, '"'));
         }
 
         $refund_result = ['mode' => 'none', 'gateway_amount' => 0.0, 'wallet_amount' => 0.0, 'error' => false, 'message' => ''];
@@ -6787,7 +7371,7 @@ function process_refund($id, $status, $type = 'order_items')
                     $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
                     $hashtag = html_entity_decode($string);
                     $data = str_replace(array($hashtag_currency, $hashtag_returnable_amount), array($currency, $returnable_amount), $hashtag);
-                    $message = output_escaping(trim($data, '"'));
+                    $message = unslash(trim($data, '"'));
                 }
                 $fcmMsg = array(
                     'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Amount Credited To Wallet",
@@ -6817,7 +7401,7 @@ function process_refund($id, $status, $type = 'order_items')
                         $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
                         $hashtag = html_entity_decode($string);
                         $data = str_replace(array($hashtag_currency, $hashtag_returnable_amount), array($currency, $returnable_amount), $hashtag);
-                        $message = output_escaping(trim($data, '"'));
+                        $message = unslash(trim($data, '"'));
                     }
                     $fcmMsg = array(
                         'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Amount Credited To Wallet",
@@ -7258,7 +7842,7 @@ function process_refund_old($id, $status, $type = 'order_items')
                         $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
                         $hashtag = html_entity_decode($string);
                         $data = str_replace(array($hashtag_currency, $hashtag_returnable_amount), array($currency, $returnable_amount), $hashtag);
-                        $message = output_escaping(trim($data, '"'));
+                        $message = unslash(trim($data, '"'));
                         $fcmMsg = array(
                             'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Amount Credited To Wallet",
                             'body' => (!empty($custom_notification)) ? $message : $currency . $returnable_amount,
@@ -7292,7 +7876,7 @@ function process_refund_old($id, $status, $type = 'order_items')
                             $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
                             $hashtag = html_entity_decode($string);
                             $data = str_replace(array($hashtag_currency, $hashtag_returnable_amount), array($currency, $returnable_amount), $hashtag);
-                            $message = output_escaping(trim($data, '"'));
+                            $message = unslash(trim($data, '"'));
                             $fcmMsg = array(
                                 'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Amount Credited To Wallet",
                                 'body' => (!empty($custom_notification)) ? $message : $currency . $returnable_amount,
@@ -7324,7 +7908,7 @@ function process_refund_old($id, $status, $type = 'order_items')
                                     $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
                                     $hashtag = html_entity_decode($string);
                                     $data = str_replace(array($hashtag_currency, $hashtag_returnable_amount), array($currency, $returnable_amount), $hashtag);
-                                    $message = output_escaping(trim($data, '"'));
+                                    $message = unslash(trim($data, '"'));
                                     $fcmMsg = array(
                                         'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Amount Credited To Wallet",
                                         'body' => (!empty($custom_notification)) ? $message : $currency . $returnable_amount,
@@ -7351,7 +7935,7 @@ function process_refund_old($id, $status, $type = 'order_items')
                                     $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
                                     $hashtag = html_entity_decode($string);
                                     $data = str_replace(array($hashtag_currency, $hashtag_returnable_amount), array($currency, $returnable_amount), $hashtag);
-                                    $message = output_escaping(trim($data, '"'));
+                                    $message = unslash(trim($data, '"'));
                                     $fcmMsg = array(
                                         'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Amount Credited To Wallet",
                                         'body' => (!empty($custom_notification)) ? $message : $currency . $returnable_amount,
@@ -7392,7 +7976,7 @@ function process_refund_old($id, $status, $type = 'order_items')
                         $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
                         $hashtag = html_entity_decode($string);
                         $data = str_replace(array($hashtag_currency, $hashtag_returnable_amount), array($currency, $returnable_amount), $hashtag);
-                        $message = output_escaping(trim($data, '"'));
+                        $message = unslash(trim($data, '"'));
                         $fcmMsg = array(
                             'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Amount Credited To Wallet",
                             'body' => (!empty($custom_notification)) ? $message : $currency . $returnable_amount,
@@ -7425,7 +8009,7 @@ function process_refund_old($id, $status, $type = 'order_items')
                                     $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
                                     $hashtag = html_entity_decode($string);
                                     $data = str_replace(array($hashtag_currency, $hashtag_returnable_amount), array($currency, $returnable_amount), $hashtag);
-                                    $message = output_escaping(trim($data, '"'));
+                                    $message = unslash(trim($data, '"'));
                                     $fcmMsg = array(
                                         'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Amount Credited To Wallet",
                                         'body' => (!empty($custom_notification)) ? $message : $currency . $returnable_amount,
@@ -7453,7 +8037,7 @@ function process_refund_old($id, $status, $type = 'order_items')
                                     $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
                                     $hashtag = html_entity_decode($string);
                                     $data = str_replace(array($hashtag_currency, $hashtag_returnable_amount), array($currency, $returnable_amount), $hashtag);
-                                    $message = output_escaping(trim($data, '"'));
+                                    $message = unslash(trim($data, '"'));
                                     $fcmMsg = array(
                                         'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Amount Credited To Wallet",
                                         'body' => (!empty($custom_notification)) ? $message : $currency . $returnable_amount,
@@ -8010,6 +8594,12 @@ function is_product_delivarable($type, $type_id, $product_id)
          */
         $ci->db->select('id');
         $ci->db->group_Start();
+        /* SQL INJECTION - $zipcode_id was interpolated twice into a condition built with
+         * escaping DISABLED (the `false` third argument). It reaches this function from a
+         * zipcode lookup in most callers, but the deliverability check is also driven
+         * straight from request parameters on the storefront and in the mobile API. It is
+         * a row id, so cast once and reuse. */
+        $zipcode_id = (int) $zipcode_id;
         $ci->db->where("((deliverable_type = '2' AND FIND_IN_SET(" . $zipcode_id . ", deliverable_zipcodes)) OR deliverable_type = '1') OR (deliverable_type = '3' AND NOT FIND_IN_SET(" . $zipcode_id . ", deliverable_zipcodes))", null, false);
         $ci->db->group_End();
         $ci->db->where('id', $product_id);
@@ -8345,8 +8935,21 @@ function get_filtered_price_range($filter = NULL, $category_id = NULL, $seller_i
         $t->db->where_in('p.brand', explode("|", $filter['brands']));
     }
     if (isset($filter) && !empty($filter['attribute_value_ids'])) {
-        $str = str_replace(',', '|', $filter['attribute_value_ids']);
-        $t->db->where('CONCAT(",", pa.attribute_value_ids , ",") REGEXP ",(' . $str . ')," !=', 0, false);
+        /* SQL INJECTION - FIXED. This used to be a str_replace() of ',' for '|' on the
+         * raw filter value, concatenated into the REGEXP with the query builder's
+         * escaping explicitly DISABLED (the `false` third argument). Reachable from
+         * $_GET via Home::get_products and from $_POST via both mobile API copies.
+         * attribute_value_id_regexp() reduces the value to positive integers, which is
+         * all these ever legitimately are.
+         *
+         * The emptiness check is part of the fix, not tidiness: an empty alternation
+         * ( REGEXP ",()," ) matches every row, so a filter with no valid id has to be
+         * skipped entirely rather than applied as a match-everything condition.
+         * https://stackoverflow.com/questions/5015403/mysql-find-in-set-with-multiple-search-string */
+        $str = attribute_value_id_regexp($filter['attribute_value_ids']);
+        if ($str !== '') {
+            $t->db->where('CONCAT(",", pa.attribute_value_ids , ",") REGEXP ",(' . $str . ')," !=', 0, false);
+        }
     }
     if (isset($filter) && !empty($filter['product_type']) && strtolower($filter['product_type']) == 'products_on_sale') {
         $t->db->where('pv.special_price >', '0');
@@ -8789,7 +9392,9 @@ function get_shipment_id($item_id, $order_id)
     $t->db->select('*');
     $t->db->from('order_tracking');
     $t->db->where('order_id', $order_id);
-    $t->db->where('find_in_set("' . $item_id . '", order_item_id) <> 0');
+    /* SQL INJECTION - $item_id was interpolated inside a quoted SQL literal, so a
+       single quote closed the string. It is an order_item row id. */
+    $t->db->where('find_in_set("' . (int) $item_id . '", order_item_id) <> 0');
     $query = $t->db->get()->result_array();
     if (!empty($query)) {
         return $query;
@@ -9526,7 +10131,7 @@ function notify_customer_order_status($order_id, $status, $order_item_ids = null
             [$user_res[0]['username'], $order_id, $app_name],
             $hashtag
         );
-        $message = output_escaping(trim($parsed, '"'));
+        $message = unslash(trim($parsed, '"'));
     }
 
     $title = (!empty($custom_notification)) ? $custom_notification[0]['title'] : 'Order status updated';
@@ -10064,6 +10669,17 @@ function classify_mobile_owner($mobile)
         return ['exists' => false, 'user' => null, 'role' => ''];
     }
 
+    // Same country-code drift that broke mobile login (see resolve_stored_mobile()):
+    // an account stored as '919876543210' was reported as non-existent to someone
+    // typing their bare 10 digits, so password reset answered "You have not registered
+    // using this number." while signup rejected the number as already taken. Falls back
+    // to the typed value when nothing matches, so a genuinely unregistered number still
+    // returns exists=false.
+    $resolved = resolve_stored_mobile($mobile);
+    if ($resolved !== null) {
+        $mobile = $resolved;
+    }
+
     $rows = $t->db->select('u.*, g.name AS group_name')
         ->from('users u')
         // LEFT join deliberately: a chunk of legacy accounts have no users_groups
@@ -10386,8 +11002,19 @@ function send_password_reset_otp($mobile, $user = null)
 /**
  * Verifies $otp against the pending otps row for $mobile (checking expiry too),
  * then invalidates it so it can't be replayed.
+ *
+ * $consume = false checks the code WITHOUT invalidating it. The password reset
+ * flow is three screens now (mobile -> verify -> new password), so the code is
+ * checked twice: once when the user leaves the verify screen, so a wrong code is
+ * reported there rather than after they have chosen a password, and once for real
+ * when the reset is submitted. Only that second call consumes it - otherwise the
+ * first check would destroy the very code the second one needs.
+ *
+ * Leaving the code alive between those two screens costs nothing: it is the same
+ * user inside the same 10-minute window, and Home::reset_password() still refuses
+ * to change any password without it.
  */
-function verify_password_reset_otp($mobile, $otp)
+function verify_password_reset_otp($mobile, $otp, $consume = true)
 {
     $otps = fetch_details('otps', ['mobile' => $mobile]);
     if (empty($otps)) {
@@ -10396,10 +11023,13 @@ function verify_password_reset_otp($mobile, $otp)
     if (checkOTPExpiration($otps[0]['created_at'])['error']) {
         return ['error' => true, 'message' => 'OTP has expired. Please request a new OTP.'];
     }
-    if ((string) $otps[0]['otp'] !== (string) $otp) {
+    // An emptied row is a consumed code, not a match for an empty submission.
+    if ((string) $otps[0]['otp'] === '' || (string) $otps[0]['otp'] !== (string) $otp) {
         return ['error' => true, 'message' => 'Invalid OTP.'];
     }
-    update_details(['otp' => ''], ['mobile' => $mobile], 'otps');
+    if ($consume) {
+        update_details(['otp' => ''], ['mobile' => $mobile], 'otps');
+    }
     return ['error' => false, 'message' => 'OTP verified.'];
 }
 
@@ -10502,21 +11132,38 @@ function orderStatusTimeToHumanReadableString($dateTimeStr, $get_array = false){
     return $humanReadableDate;
 }
 /* Modified output escaping (stripping slashes), handles complex db array data directly, multi-dimensional */
+/**
+ * DEPRECATED ALIAS of unslash_deep(). Do not use in new code.
+ *
+ * Renamed for the same reason as output_escaping() -> unslash(): the old name said
+ * 'escaping' while the body calls stripslashes(), which is the opposite. Kept so
+ * that code outside this repository does not fatal. Behaviour is identical.
+ *
+ * @deprecated Use unslash_deep().
+ */
 function output_escaping_new($array)
 {
+    return unslash_deep($array);
+}
+
+function unslash_deep($array)
+{
     $exclude_fields = ["images", "other_images"];
-    $t = &get_instance();
+    /* $t = &get_instance(); removed - the CodeIgniter instance was fetched here and
+     * never used. Harmless, but it made these two look like they needed a framework
+     * context when they are pure string functions, and it emitted an "Only variables
+     * should be assigned by reference" notice under any stubbed get_instance(). */
 
     if (!empty($array)) {
         if (is_array($array)) {
             $data = array();
             foreach ($array as $key => $value) {
                 if (is_array($value)) {
-                    // Recursively call output_escaping on nested arrays
-                    $data[$key] = output_escaping_new($value);
+                    // Recurse into nested arrays
+                    $data[$key] = unslash_deep($value);
                 } elseif (is_object($value)) {
-                    // Recursively call output_escaping on nested objects
-                    $data[$key] = output_escaping_new($value);
+                    // Recurse into nested objects
+                    $data[$key] = unslash_deep($value);
                 } else {
                     if (!in_array($key, $exclude_fields)) {
                         $data[$key] = stripslashes($value);  // Correct function is stripslashes(), not stripcslashes()
@@ -13180,4 +13827,101 @@ function instagram_feed($limit = 8)
     }
 
     return array_slice($posts, 0, (int) $limit);
+}
+
+/**
+ * Is this login identity an email address (rather than a mobile number)?
+ *
+ * The customer login form has ONE field for both, so the server has to decide which
+ * column to look the account up in. Home::login() used to decide with a hand-written
+ * regex - '/^[_a-z0-9-]+(\.[_a-z0-9-]+)*@[a-z0-9-]+(\.[a-z0-9-]+)*(\.[a-z]{2,3})$/' -
+ * which rejected addresses that are perfectly valid and that people really do sign up
+ * with. Every one of these fell through to the MOBILE branch and was then rejected by
+ * a `numeric` rule with the nonsense message "The Mobile field must contain only
+ * numbers", so the account could only ever be reached by its phone number:
+ *
+ *   Kaifee0412@Gmail.com   - no /i flag, so any capital letter failed
+ *   " a@b.com "            - untrimmed, so a pasted or autofilled address failed
+ *   a+tag@gmail.com        - '+' is not in the local-part character class
+ *   a@b.info / .store /
+ *   .online / .tech        - the TLD group is capped at {2,3} characters
+ *
+ * filter_var() knows the actual grammar; the seller login (Auth::_resolve_seller_login)
+ * already used it, which is why sellers could sign in with an email and buyers could not.
+ * Trim first because the value comes straight off a form field.
+ */
+function login_identity_is_email($value)
+{
+    $value = trim((string) $value);
+
+    return $value !== '' && filter_var($value, FILTER_VALIDATE_EMAIL) !== false;
+}
+
+/**
+ * Resolve a typed mobile number to the exact value stored in `users.mobile`.
+ *
+ * Every mobile lookup in the app is an exact string comparison
+ * (`where('mobile', $typed)`), so the number has to be typed back in precisely the
+ * shape it was stored in. It often is not:
+ *
+ *   - signup posts `mobile` straight from the phone field while the dial code is a
+ *     separate `country_code` field, so an account created by someone who typed
+ *     "919876543210" (or pasted "+91 98765 43210", which the '+'/space strip in the
+ *     signup validation used to let through) is stored WITH the country code, while
+ *     the same person then logs in with their bare 10 digits;
+ *   - the reverse also happens - stored bare, typed with the code or a leading 0.
+ *
+ * Either way the row is simply not found and Home::login() reports "Incorrect Number
+ * or password" even though the password is right - which is why such an account can
+ * still log in by email, where no normalisation is involved. Reproduced locally: the
+ * same account, same password, mobile stored as '919910919035' fails on '9910919035'
+ * while the email login succeeds.
+ *
+ * The comparison is done on digits only, on the last 10 digits (the national number
+ * for every market this app serves), so all four combinations match. Returns the
+ * stored value - the caller must use THAT as the identity, so ion_auth's own
+ * `where(identity_column, $identity)` still hits the row.
+ *
+ * @param string $typed    number as entered by the user
+ * @param string $group    optional group name to restrict to ('members', 'seller', ...)
+ * @return string|null     the stored users.mobile, or NULL if no account matches
+ */
+function resolve_stored_mobile($typed, $group = '')
+{
+    $t = &get_instance();
+
+    $digits = preg_replace('/\D/', '', (string) $typed);
+    if ($digits === '') {
+        return null;
+    }
+
+    // An exact hit is by far the common case and needs no scan at all.
+    $t->db->select('mobile')->from('users')->where('mobile', $digits)->limit(1);
+    $exact = $t->db->get()->row_array();
+    if (!empty($exact['mobile']) && empty($group)) {
+        return $exact['mobile'];
+    }
+
+    // Last 10 digits: '9876543210', '919876543210', '09876543210' and '+91 98765 43210'
+    // all reduce to the same national number. Shorter numbers (legacy 9-digit test rows)
+    // fall back to comparing everything they have.
+    $national = strlen($digits) > 10 ? substr($digits, -10) : $digits;
+
+    $t->db->select('u.mobile')->from('users u');
+    if (!empty($group)) {
+        $t->db->join('users_groups ug', 'ug.user_id = u.id', 'inner')
+            ->join('groups g', 'g.id = ug.group_id', 'inner')
+            ->where('g.name', $group);
+    }
+    // RIGHT() on the digits-only column, so stored '+91-98765 43210' matches too.
+    // Not escaped through where() because the pattern is a computed expression; the
+    // value is bound so the digits can never reach the SQL text.
+    $normalised = "REPLACE(REPLACE(REPLACE(u.mobile,' ',''),'-',''),'+','')";
+    $t->db->where("RIGHT(" . $normalised . ", " . strlen($national) . ") = " . $t->db->escape($national), null, false)
+        ->order_by('u.id', 'desc')
+        ->limit(1);
+
+    $row = $t->db->get()->row_array();
+
+    return empty($row['mobile']) ? null : $row['mobile'];
 }

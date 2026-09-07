@@ -114,7 +114,7 @@ class Slider_model extends CI_Model
         $tempRow = array();
 
         foreach ($slider_search_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
 
             $operate = ' <a href="' . base_url('admin/slider?edit_id=' . $row['id']) . '" class="btn btn-success action-btn btn-xs ml-1 mr-1 mb-1"  title="Edit" data-id="' . $row['id'] . '" data-url="admin/slider/"><i class="fa fa-pen"></i></a>';
             $operate .= ' <a  href="javascript:void(0)" class="btn btn-danger btn-xs action-btn mr-1 mb-1 ml-1"  title="Delete" id="delete-slider" data-id="' . $row['id'] . '"  ><i class="fa fa-trash"></i></a>';

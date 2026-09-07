@@ -103,7 +103,7 @@ class Language_model extends CI_Model
         $rows = array();
         $tempRow = array();
         foreach ($theme as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
             $operate = '';
             $tempRow['id'] = $row['id'];
             $tempRow['language'] = html_escape($row['language']);

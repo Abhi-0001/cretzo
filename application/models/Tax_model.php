@@ -75,7 +75,7 @@ class Tax_model extends CI_Model
         $is_seller = $this->ion_auth->is_seller();
 
         foreach ($tax_search_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
             $tempRow = array();
 
             $operate = '';

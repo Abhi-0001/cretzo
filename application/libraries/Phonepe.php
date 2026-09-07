@@ -118,6 +118,83 @@ class Phonepe
         $res = json_decode($response['body'], true);
         return $res;
     }
+
+    /**
+     * Verify the X-VERIFY header on an inbound PhonePe callback.
+     *
+     * PhonePe signs the base64 `response` string from the callback body with the
+     * merchant salt: sha256(base64_payload + saltKey) + '###' + saltIndex. The
+     * webhook handler never checked this header at all, so the only thing it knew
+     * about a caller was that they had found the URL.
+     *
+     * Note this takes the base64 STRING as PhonePe sent it, not the decoded JSON -
+     * the digest is over the encoded form.
+     *
+     * @param  string $base64_response The raw `response` value from the callback body.
+     * @param  string $x_verify        Value of the X-VERIFY header.
+     * @return bool
+     */
+    public function verify_callback_signature($base64_response, $x_verify)
+    {
+        $salt_key = trim((string) $this->salt_key);
+        if ($salt_key === '' || $base64_response === '' || empty($x_verify)) {
+            return false;
+        }
+
+        $expected = hash('sha256', (string) $base64_response . $salt_key) . '###' . trim((string) $this->salt_index);
+
+        return hash_equals($expected, trim((string) $x_verify));
+    }
+
+    /**
+     * Ask PhonePe what a transaction is really worth and whether it really succeeded.
+     *
+     * The webhook handler did call check_status(), but then ignored what it returned:
+     * it only tested that the call produced SOMETHING truthy, and went on to branch on
+     * `$request['code']` and credit `$request['data']['amount']` - both from the
+     * request body. So a caller who knew a pending merchantTransactionId could declare
+     * it PAYMENT_SUCCESS for an amount of their choosing, and check_status() returning
+     * a perfectly ordinary "still pending" response did not stop them.
+     *
+     * This wraps check_status() so callers get PhonePe's own verdict in a shape that
+     * is hard to use wrongly: a boolean, a code, and an amount already converted from
+     * paise to rupees.
+     *
+     * @param  string $txn_id merchantTransactionId.
+     * @return array{error: bool, message: string, code: string, amount: float, state: string}
+     */
+    public function verify_transaction($txn_id)
+    {
+        $fail = function ($message) {
+            return ['error' => true, 'message' => $message, 'code' => '', 'amount' => 0.0, 'state' => ''];
+        };
+
+        if (trim((string) $this->salt_key) === '' || trim((string) $this->merchant_id) === '') {
+            return $fail('PhonePe credentials are not configured, so a callback cannot be verified.');
+        }
+        if (empty($txn_id)) {
+            return $fail('No merchantTransactionId to verify.');
+        }
+
+        $res = $this->check_status($txn_id);
+        if (!is_array($res) || !isset($res['code'])) {
+            // Refuse rather than guess. PhonePe retries its callbacks, so answering
+            // "not now" to a gateway hiccup does not lose a genuine payment - whereas
+            // treating an unreadable response as success loses money.
+            return $fail('PhonePe status API gave no usable response for ' . $txn_id . '.');
+        }
+
+        // PhonePe quotes amounts in paise.
+        $amount = isset($res['data']['amount']) ? ((float) $res['data']['amount']) / 100 : 0.0;
+
+        return [
+            'error'   => false,
+            'message' => 'Verified with PhonePe.',
+            'code'    => (string) $res['code'],
+            'amount'  => $amount,
+            'state'   => isset($res['data']['state']) ? (string) $res['data']['state'] : '',
+        ];
+    }
     public function curl($url, $method = 'POST', $data = [], $header = [])
     {
         $ch = curl_init();

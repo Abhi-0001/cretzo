@@ -264,6 +264,18 @@ class Chat_model extends CI_Model
 
     function get_chat_history($from_id, $limit = '', $offset = '', $from_user = false)
     {
+        /* SQL INJECTION - $from_id is interpolated four times below: twice into a JOIN
+         * condition and twice into a correlated subquery inside a raw where() string.
+         * Neither of those can be expressed with bound parameters through the query
+         * builder, so the value has to be safe before it is used. It is a user row id,
+         * so cast once, here, and let every use below inherit it.
+         *
+         * All present callers pass a session user id, so this was not reachable today -
+         * but the chat controllers exist in four copies (web customer, web seller,
+         * admin, and the two Chat_Api controllers), and one of them accepting a POSTed
+         * user id is exactly the sort of change that would silently open it. */
+        $from_id = (int) $from_id;
+
         $members = $this->db->select('m1.id, m1.from_id, m1.to_id, m1.is_read, m1.message, m1.type, m1.media, u.id AS opponent_user_id, u.username AS opponent_username, u.email, u.mobile, u.image, u.active, u.last_online')
             ->from('messages m1')
             ->join('users u', '(m1.from_id = ' . $from_id . ' AND u.id = m1.to_id) OR (m1.to_id = ' . $from_id . ' AND u.id = m1.from_id)', 'inner')

@@ -10,7 +10,19 @@ application/config/database.php
 /node_modules/
 /update/
 /upload/*
-/uploads
+# Was `/uploads`, which excluded the DIRECTORY - and a directory-level exclusion cannot
+# be reopened for a single file inside it, so an ignore-negation below would have had no
+# effect. `/uploads/*` ignores the CONTENTS instead, which is the actual intent (user
+# uploads are runtime data and must never be committed) and leaves room for the
+# exception underneath.
+/uploads/*
+# uploads/.htaccess is SECURITY CONFIGURATION, not uploaded content, and it has to reach
+# the server. It disables the PHP handler for everything in that directory, so that the
+# day an upload path is widened or a MIME check is bypassed, a written .php file is
+# served as bytes instead of executed. Deploys here are a git pull, so a file that is
+# ignored is a file that does not exist in production - which is exactly how this
+# protection would have been silently absent.
+!/uploads/.htaccess
 /logs
 *.psd
 /vendor/
@@ -29,6 +41,19 @@ application/config/development/
 # Marks a machine as a development environment (see index.php). Must never be
 # committed: the live server must resolve to 'production' by virtue of NOT having it.
 .env.development
+
+# THE SECRETS FILE. Read by index.php before CodeIgniter boots and holds the values
+# that used to be hardcoded in tracked config files: the database password,
+# JWT_SECRET_KEY, CI_ENCRYPTION_KEY, SUBSCRIPTION_CRON_SECRET, FACEBOOK_APP_SECRET.
+#
+# Committing this file would undo the whole point of moving those out of
+# application/config/*.php, so it is ignored here and the pattern is deliberately
+# broad (.env and any .env.<something>) to catch .env.local, .env.prod and the other
+# names people reach for. `.env.example` is the one exception - it is the template,
+# carries no real values, and IS tracked.
+.env
+.env.*
+!.env.example
 
 # Written at runtime by admin/Webhook.php (MyFatoorah signature logging)
 webhook.log

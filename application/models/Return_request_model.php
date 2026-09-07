@@ -80,7 +80,7 @@ class Return_request_model extends CI_Model
         $tempRow = array();
 
         foreach ($offer_search_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
 
             $operate = '<a href="javascript:void(0)" class="edit_request edit_return_request action-btn btn btn-success btn-xs ml-1 mr-1 mb-1" title="Edit" data-id="' . $row['order_item_id'] . '"  data-target="#request_rating_modal" data-toggle="modal" ><i class="fa fa-pen"></i></a>';
 
@@ -368,7 +368,7 @@ class Return_request_model extends CI_Model
                 $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
                 $hashtag = html_entity_decode($string);
                 $data1 = str_replace(array($hashtag_cutomer_name, $hashtag_order_id, $hashtag_application_name), array($customer_name, $order_item_res[0]['order_id'], $app_name), $hashtag);
-                $message = output_escaping(trim($data1, '"'));
+                $message = unslash(trim($data1, '"'));
             }
             $delivery_boy_msg = $has_delivery_boy
                 ? 'Hello Dear ' . $user_res[0]['username'] . ' you have new order to be pickup order ID #' . $order_item_res[0]['order_id'] . ' please take note of it! Thank you. Regards ' . $app_name
@@ -436,7 +436,7 @@ class Return_request_model extends CI_Model
                 $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
                 $hashtag = html_entity_decode($string);
                 $data1 = str_replace(array($hashtag_cutomer_name, $hashtag_order_id, $hashtag_application_name), array($customer_res[0]['username'], $order_item_res[0]['order_id'], $app_name), $hashtag);
-                $message = output_escaping(trim($data1, '"'));
+                $message = unslash(trim($data1, '"'));
             }
             $customer_msg = (!empty($message)) ? $message :  'Hello Dear ' . $customer_res[0]['username'] . ', your return request for order item ' . $item_id  . ' has been declined.';
 

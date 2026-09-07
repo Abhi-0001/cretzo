@@ -5,9 +5,44 @@ on:
   pull_request:
 
 jobs:
+  # ===========================================================================
+  #  Secret scanning
+  # ===========================================================================
+  # This exists because a secret HAS already been committed here: the production
+  # database password lived in application/config/database.php - a tracked, deployed
+  # file - and the mobile API's JWT signing key and the Facebook app secret were
+  # hardcoded in application/config/constants.php. All three are now read from the
+  # environment via an untracked .env file, but nothing stopped the next one.
+  #
+  # Note that .gitignore could not have prevented it: database.php was ALREADY listed
+  # in .gitignore and was committed anyway, because .gitignore has no effect on a file
+  # that is already tracked. A check that fails the build is the only thing that
+  # actually holds.
+  #
+  # Runs first and gates everything else - a build that publishes a credential should
+  # not go green because the PHP happens to parse.
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # gitleaks compares commits, so it needs history rather than a shallow
+          # clone. Without this it can only see the tip and misses a secret that was
+          # added and then "removed" in a later commit - which is exactly the shape
+          # of the problem here, since git history keeps the old value forever.
+          fetch-depth: 0
+
+      - name: Scan the working tree and full history for committed secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+
   lint:
     name: PHP syntax lint
     runs-on: ubuntu-latest
+    needs: secret-scan
     steps:
       - uses: actions/checkout@v4
 

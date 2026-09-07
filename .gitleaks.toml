@@ -1,0 +1,186 @@
+# =============================================================================
+#  gitleaks configuration - secret scanning for this repository
+# =============================================================================
+#
+# Why this file exists: the production database password was committed to
+# application/config/database.php (tracked AND deployed), and the JWT signing key
+# and Facebook app secret were hardcoded in application/config/constants.php. All
+# three are public now and had to be rotated. .gitignore did not help - it never
+# applies to a file that is already tracked, and database.php was in fact listed
+# there while being committed anyway.
+#
+# So the guard is a build failure, not a convention.
+#
+# Extends the upstream default rules (AWS keys, Google API keys, private keys,
+# Stripe/Slack/GitHub tokens and ~150 more) and adds rules for the specific shapes
+# this codebase got wrong.
+
+[extend]
+useDefault = true
+
+
+# -----------------------------------------------------------------------------
+#  Project-specific rules
+# -----------------------------------------------------------------------------
+
+# The exact mistake that was made: a credential assigned to a PHP variable or a
+# CodeIgniter config/array key inside application/config/*.php.
+#
+# Deliberately narrow - it looks for an ASSIGNMENT to a password/secret/key-shaped
+# name with a non-empty literal on the right. `getenv('DB_PASSWORD')` and
+# `$config['x'] = ''` do not match, which is the whole point: the fixed code must
+# stay green while a regression goes red.
+[[rules]]
+id = "cretzo-php-hardcoded-credential"
+description = "Hardcoded credential assigned to a password/secret/key variable, config entry or constant"
+# Covers the three shapes this codebase actually used, all of which were missed by a
+# narrower first attempt at this rule:
+#
+#   1. $t_password = '<a literal>';                    - variable assignment
+#   2. $config['secret'] = '...';  'password' => '...' - config key and bare array key
+#   3. define('JWT_SECRET_KEY', '...');                - constant
+#
+# The name must look credential-ish AND the right-hand side must be a non-empty
+# literal of at least 6 characters. getenv(...) and '' therefore do not match, which
+# is what keeps the corrected code green.
+regex = '''(?i)(\$[a-z_]*(pass(word)?|secret|api_?key|token|salt)[a-z_]*\s*=\s*|\[?\s*['"][a-z_]*(pass(word)?|secret|api_?key|token|salt)[a-z_]*['"]\s*\]?\s*=>?\s*|define\s*\(\s*['"][a-z_]*(pass(word)?|secret|api_?key|token|salt)[a-z_]*['"]\s*,\s*)['"][^'"\n]{6,}['"]'''
+tags = ["php", "credential"]
+[rules.allowlist]
+# The config files legitimately contain these SHAPES in prose - the long comment
+# blocks that explain what was wrong and how to set the environment variables
+# quote the old values on purpose so the history is legible. Those are documentation
+# of a rotated secret, not a live one.
+regexes = [
+  '''getenv\(''',                       # the fixed pattern: read from environment
+  '''\$config\[[^\]]+\]\s*=\s*['"]{2}''', # empty-string defaults
+  '''(?i)your[_-]?(app[_-]?)?secret''',  # placeholder text
+  '''(?i)(example|placeholder|changeme|change-me|xxx+)''',
+  # Angle-bracket placeholders, e.g. '<a 40-char hex literal - see git history>'.
+  # These appear in the remediation notes where the real value used to be printed.
+  '''<[^>'"]{3,}>''',
+  # gitleaks honours this inline marker natively; listed here so the local dry-run
+  # harness (scratchpad scan.py) agrees with what CI will actually do.
+  '''gitleaks:allow''',
+  # Config keys that NAME a token or cookie rather than holding one. The value of
+  # csrf_token_name is 'ekart_security_token' - a field name that ships to every
+  # browser in the page HTML, not a credential. Matching on the "_name" suffix keeps
+  # this tight: a key called `api_key` is still flagged, `token_name` is not.
+  '''(?i)['"][a-z_]*(token|cookie|key|secret)_name['"]''',
+  # Session/CSRF plumbing whose values are identifiers, not secrets.
+  '''(?i)\$config\[['"](sess_cookie_name|csrf_token_name|csrf_cookie_name|cookie_prefix)['"]\]''',
+  # Values that are plainly not secrets even where the KEY looks like one:
+  # $config['email_forgot_password'] = 'forgot_password.tpl.php' is a template
+  # filename. The file-extension suffix is the tell.
+  '''\.(tpl\.php|php|html?|twig)['"]''',
+  # ---------------------------------------------------------------------------
+  # TEMPORARY. REMOVE AT CUTOVER STEP 4.
+  #
+  # application/config/database.php is deliberately NOT part of the security
+  # commit - a wrong value in it takes the whole site down, so it is being cut
+  # over separately - which means it still carries the already-published
+  # database password. Without an exception the secret-scan job fails on every
+  # push, and a check that is always red is a check nobody reads.
+  #
+  # Scoped to the two EXACT already-published values rather than to the file, so
+  # a new or different credential added to database.php still fails the build.
+  # What is suppressed is only the re-reporting of a leak that already happened
+  # and is already being handled.
+  #
+  # Delete this entry together with the $legacy_* block in database.php.
+  '''(Geet@cretzo123|cretZo@#12;)''',
+]
+paths = [
+  # The template carries no real values, only names and comments.
+  '''\.env\.example$''',
+  # Vendor code ships its own test fixtures and example credentials.
+  '''^vendor/''',
+  '''^system/''',
+  # Language files hold UI STRINGS - a login-password LABEL, for instance - which match
+  # the rule's shape yet is a UI label, not a credential. There are hundreds of them
+  # across 40 language packs, and allowing the directory is the only way to keep the
+  # signal-to-noise ratio usable - a rule nobody reads is a rule that does nothing.
+  '''^application/language/''',
+]
+
+# A .env file must never be committed. .gitignore covers it, but so did
+# .gitignore cover database.php.
+[[rules]]
+id = "cretzo-env-file-committed"
+description = "A .env file (real secrets) has been committed"
+regex = '''(?s).'''
+path = '''(^|/)\.env($|\.(?!example)[a-z]+$)'''
+tags = ["env", "credential"]
+
+# The two credentials known to have been published. Any reappearance - in a config
+# file, a backup, a SQL dump, a pasted snippet - is a regression, and these are the
+# values an attacker already has.
+[[rules]]
+id = "cretzo-known-leaked-secrets"
+description = "A previously-leaked Cretzo credential has reappeared"
+regex = '''(Geet@cretzo123|cretZo@#12;|68f05dec6014f68e760c5c5fa3e31bcf391a2e10|42d7c2bed5fc50f9f6c6906e5053084f)'''
+tags = ["credential", "known-leak"]
+[rules.allowlist]
+paths = [
+  # This config has to be able to list the values it matches on.
+  '''^\.gitleaks\.toml$''',
+  # ---------------------------------------------------------------------------
+  # TEMPORARY. REMOVE AT CUTOVER STEP 4.
+  #
+  # application/config/database.php still carries the already-published password
+  # as a fallback, because that file is deliberately excluded from the security
+  # commit - a wrong value there takes the whole site down, so it is being cut
+  # over separately and carefully.
+  #
+  # Without this entry the secret-scan job fails on every push, and a check that
+  # is always red is a check nobody reads.
+  #
+  # The exposure this gives up is small and bounded: the generic
+  # cretzo-php-hardcoded-credential rule still scans this file and still fails on
+  # any credential that is NOT one of the two already-published values, so a NEW
+  # secret added here is still caught. What is suppressed is only the report of a
+  # leak that already happened and is already tracked.
+  #
+  # Delete this line together with the $legacy_* block in database.php.
+  '''^application/config/database\.php$''',
+]
+# gitleaks honours this inline marker natively; kept so a single line can be
+# excepted without excepting a whole file.
+regexes = ['''gitleaks:allow''']
+
+# SQL dumps are how credentials and customer PII escape a repository sideways.
+# countries.sql is already tracked and is reference data, so it is allowed by name -
+# anything else is not.
+[[rules]]
+id = "cretzo-sql-dump-committed"
+description = "A .sql dump has been committed"
+regex = '''(?i)(INSERT\s+INTO|CREATE\s+TABLE|DROP\s+TABLE)'''
+path = '''\.sql$'''
+tags = ["dump"]
+[rules.allowlist]
+paths = [
+  '''^countries\.sql$''',
+  '''^docker/init-db/''',
+  # Reference data shipped with the app (bank IFSC list), not an export of live data.
+  '''^application/third_party/indian_banks\.sql$''',
+]
+
+
+# -----------------------------------------------------------------------------
+#  Global allowlist
+# -----------------------------------------------------------------------------
+[allowlist]
+description = "Paths that cannot meaningfully be scanned"
+paths = [
+  '''^vendor/''',
+  '''^system/''',
+  '''^assets/.*\.min\.(js|css)$''',
+  '''^assets/.*/(firebase-auth|firebase-app|jquery)[.-].*\.js$''',
+  '''\.(png|jpe?g|gif|webp|ico|woff2?|ttf|eot|otf|pdf|zip)$''',
+  '''^application/logs/''',
+]
+regexes = [
+  # The Firebase WEB api key is public by design - it identifies the project to the
+  # client and is embedded in every browser that loads the site. Restricting it is
+  # done with HTTP-referrer rules in the Google Cloud console, not by hiding it.
+  '''AIzaSyAQSGCSRuirZbLRdphAVuibXWL91WTprHI''',
+]

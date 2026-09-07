@@ -1,0 +1,60 @@
+# =============================================================================
+#  uploads/ - NEVER EXECUTE ANYTHING IN HERE
+# =============================================================================
+#
+# Everything in this directory arrived from outside: product images, seller
+# documents, chat attachments, review photos, bank-transfer receipts, bulk-upload
+# CSVs. Several of the endpoints that write here are reachable without an admin
+# session, and one of them (cart/send_bank_receipt) was reachable with no session
+# at all.
+#
+# Nothing currently lets a .php file land here - every upload path goes through
+# CodeIgniter's Upload library with an extension-and-MIME whitelist, and
+# allowed_media_types() (application/config/eshop.php) lists no executable type.
+# This file is not fixing a live hole; it is making sure the next change cannot
+# open one. The gap between "an attacker can write a file here" and "an attacker
+# can run code on this server" is exactly one added extension in a settings
+# screen, one new upload endpoint that skips the library, or one MIME-confusion
+# bug in the library itself. That gap should not be a single mistake wide.
+#
+# Three independent guards, because which one applies depends on how PHP is wired
+# on the host and the site has moved hosts before:
+
+# 1. Take the handler away from every extension PHP is ever mapped to. This is
+#    what defeats the classic "shell.php.jpg" and "shell.phtml" tricks, and also
+#    covers .phar, which is executable and often forgotten.
+<FilesMatch "(?i)\.(php|php[0-9]?|phtml|pht|phps|phar|cgi|pl|py|jsp|asp|aspx|shtml|htaccess)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# 2. Unbind the interpreters themselves, so even a file this server would
+#    normally hand to PHP is served as bytes instead of run.
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_mime.c>
+    RemoveHandler .php .php3 .php4 .php5 .php7 .php8 .phtml .pht .phar .cgi .pl .py
+    RemoveType .php .php3 .php4 .php5 .php7 .php8 .phtml .pht .phar
+    # Anything left unrecognised is a download, not a document to interpret.
+    AddType text/plain .php .php3 .php4 .php5 .php7 .php8 .phtml .pht .phar .cgi .pl .py
+</IfModule>
+
+# 3. No CGI, and no directory listing of what other people have uploaded.
+Options -ExecCGI -Indexes
+
+# Uploaded SVG is an HTML document as far as a browser is concerned - it can carry
+# <script> - and it IS an allowed image type in some flows. Served with a sandbox
+# and a null CSP it cannot run script or reach the network even if opened directly.
+<IfModule mod_headers.c>
+    <FilesMatch "(?i)\.(svg|svgz|xml|html?|xhtml)$">
+        Header always set Content-Security-Policy "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+        Header always set X-Content-Type-Options "nosniff"
+        Header always set Content-Disposition "attachment"
+    </FilesMatch>
+</IfModule>

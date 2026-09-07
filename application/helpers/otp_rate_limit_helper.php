@@ -212,3 +212,110 @@ if (!function_exists('otp_rate_limit_prune')) {
         );
     }
 }
+
+if (!function_exists('lookup_rate_limit_guard')) {
+    /**
+     * Per-IP cap for cheap, unauthenticated "does this account exist?" endpoints.
+     *
+     * WHY THIS EXISTS. Four endpoints answer, without any authentication, whether a
+     * given mobile number or email belongs to an account here - and one of them also
+     * says WHICH portal it belongs to:
+     *
+     *     admin/login/check_reset_account       "Account found." / which portal
+     *     seller/login/check_reset_account
+     *     home/check_reset_account
+     *     seller/auth/check_phone, check_email
+     *
+     * They exist for a good reason: the reset form should tell someone they typed the
+     * wrong number before it burns an OTP send on it. But unthrottled they are a
+     * directory: sweep a number range and you have a list of every account on the
+     * site, sorted by role, which is exactly the input to a credential-stuffing or
+     * targeted-reset campaign. The existing otp_rate_limit_guard() does not cover
+     * them, because it caps SENDING, and these endpoints deliberately send nothing.
+     *
+     * Keyed on IP only. There is no per-identifier key on purpose: capping per number
+     * would let an attacker walk a range freely (one lookup each) while doing nothing
+     * about the sweep, which is the actual attack.
+     *
+     * Reuses the otp_rate_limits table and its ON DUPLICATE KEY UPDATE pattern, so
+     * there is no new schema and no second implementation of window handling to keep
+     * in step. The `scope` column keeps these counters separate from the OTP ones.
+     *
+     * Deliberately generous (60/hour by default): a real person correcting a typo may
+     * try a handful of times, several people can share one CDN address, and the goal
+     * is to make a 10,000-number sweep impractical rather than to police normal use.
+     *
+     * FAILS OPEN. If the table is missing (migration not run) this returns allowed,
+     * because locking every user out of password reset is a worse outcome than an
+     * unthrottled lookup - and the lookup was unthrottled before this existed anyway.
+     *
+     * @param  string $scope  Short label, e.g. 'lookup'. Namespaces the counter.
+     * @param  int    $max    Requests permitted per window per IP.
+     * @param  int    $window Window length in seconds.
+     * @return array{allowed: bool, message: string, retry_after: int}
+     */
+    function lookup_rate_limit_guard($scope = 'lookup', $max = 60, $window = 3600)
+    {
+        $ci  = &get_instance();
+        $now = time();
+        $ip  = otp_rate_limit_client_ip();
+
+        if ($ip === '' || $ip === null) {
+            return ['allowed' => true, 'message' => '', 'retry_after' => 0];
+        }
+
+        // Identifier column is VARCHAR(64); an IPv6 address fits, but hash anyway so
+        // the length is fixed and the raw address is not stored in a second place.
+        $identifier = substr(hash('sha256', (string) $ip), 0, 64);
+        $scope      = substr((string) $scope, 0, 16);
+
+        try {
+            $row = $ci->db->query(
+                "SELECT `attempts`, UNIX_TIMESTAMP(`window_start`) AS `started`
+                   FROM `otp_rate_limits`
+                  WHERE `scope` = ? AND `identifier` = ?
+                  LIMIT 1",
+                [$scope, $identifier]
+            )->row_array();
+        } catch (Exception $e) {
+            log_message('error', 'lookup_rate_limit_guard: counter table unavailable, allowing request - ' . $e->getMessage());
+            return ['allowed' => true, 'message' => '', 'retry_after' => 0];
+        }
+
+        if (!empty($row) && (int) $row['started'] > ($now - $window) && (int) $row['attempts'] >= $max) {
+            $retry_after = ((int) $row['started'] + $window) - $now;
+            $minutes     = max(1, (int) ceil($retry_after / 60));
+
+            log_message('error', 'lookup_rate_limit_guard: refusing ' . $scope . ' from ' . $ip
+                . ' after ' . $row['attempts'] . ' requests in the current window');
+
+            return [
+                'allowed'     => false,
+                'message'     => 'Too many attempts. Please try again in ' . $minutes
+                    . ' ' . ($minutes === 1 ? 'minute' : 'minutes') . '.',
+                'retry_after' => $retry_after,
+            ];
+        }
+
+        $stamp = date('Y-m-d H:i:s', $now);
+        $edge  = date('Y-m-d H:i:s', $now - $window);
+
+        try {
+            $ci->db->query(
+                "INSERT INTO `otp_rate_limits` (`scope`, `identifier`, `attempts`, `window_start`, `updated_at`)
+                 VALUES (?, ?, 1, ?, ?)
+                 ON DUPLICATE KEY UPDATE
+                    `attempts`     = IF(`window_start` <= ?, 1, `attempts` + 1),
+                    `window_start` = IF(`window_start` <= ?, VALUES(`window_start`), `window_start`),
+                    `updated_at`   = VALUES(`updated_at`)",
+                [$scope, $identifier, $stamp, $stamp, $edge, $edge]
+            );
+        } catch (Exception $e) {
+            log_message('error', 'lookup_rate_limit_guard: could not record attempt - ' . $e->getMessage());
+        }
+
+        otp_rate_limit_prune();
+
+        return ['allowed' => true, 'message' => '', 'retry_after' => 0];
+    }
+}

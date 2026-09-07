@@ -18,8 +18,7 @@ class Area extends CI_Controller
         // own per-action has_permissions() check further down, so entry only needs read
         // on at least one of them.
         if (!has_permissions('read', 'area') && !has_permissions('read', 'city') && !has_permissions('read', 'zipcodes')) {
-            $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-            redirect('admin/home', 'refresh');
+            deny_panel_access();
         } else {
             $this->session->set_flashdata('authorize_flag', "");
         }
@@ -30,8 +29,7 @@ class Area extends CI_Controller
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
 
             if (!has_permissions('read', 'area')) {
-                $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-                redirect('admin/home', 'refresh');
+                deny_panel_access();
             }
 
             $this->data['main_page'] = TABLES . 'manage-area';
@@ -195,8 +193,7 @@ class Area extends CI_Controller
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
 
             if (!has_permissions('read', 'city')) {
-                $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-                redirect('admin/home', 'refresh');
+                deny_panel_access();
             }
 
             $this->data['main_page'] = TABLES . 'manage-city';
@@ -380,8 +377,7 @@ class Area extends CI_Controller
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
 
             if (!has_permissions('read', 'zipcodes')) {
-                $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-                redirect('admin/home', 'refresh');
+                deny_panel_access();
             }
 
             $this->data['main_page'] = TABLES . 'manage-zipcodes';

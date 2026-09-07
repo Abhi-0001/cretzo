@@ -82,17 +82,62 @@ Defined Methods:-
 
     public function index()
     {
-        $this->load->helper('file');
-        $this->output->set_content_type(get_mime_by_extension(base_url('admin-api-doc.txt')));
-        $this->output->set_output(file_get_contents(base_url('admin-api-doc.txt')));
+        /* Was:
+         *     $this->load->helper('file');
+         *     $this->output->set_content_type(get_mime_by_extension(base_url('...api-doc.txt')));
+         *     $this->output->set_output(file_get_contents(base_url('...api-doc.txt')));
+         *
+         * That published the complete API reference - every endpoint, every parameter
+         * name, and which of them are optional - to anyone who requested it. It is the
+         * reconnaissance step of an attack, handed over for free, and there is no
+         * reason for a production server to serve its own developer documentation.
+         *
+         * It also made PHP fetch the file from its OWN public URL with
+         * file_get_contents(), so every request here opened a second HTTP connection
+         * back to this same server. The .txt files are denied in .htaccess now, so that
+         * fetch would fail and warn as well.
+         *
+         * The docs still live in the repository for developers; they are simply no
+         * longer web-readable. */
+        show_404();
     }
 
     public function generate_token()
     {
+        /* SECURITY - this endpoint required nothing at all. No session, no existing
+         * key, no rate limit: a bare request returned a signed token. Whether that
+         * token really opened the API depends on whether the (git-published)
+         * JWT_SECRET_KEY constant it signs with also exists as a row in
+         * client_api_keys, which is what verify_token() checks against - see the note
+         * in application/config/constants.php for the one query that settles it. If it
+         * does, this endpoint was handing out API keys to anyone who asked.
+         *
+         * Gated behind api_security's allow_public_token_generation flag, which
+         * defaults to FALSE. A released mobile app embeds its own key and has no need
+         * of this; it exists for local API exploration. If some build does turn out to
+         * depend on it, flip the flag rather than removing the guard - and rotate the
+         * key, because the old one is public.
+         *
+         * Also fails closed on an empty JWT_SECRET_KEY: signing with an empty key
+         * produces a token anybody can reproduce, which is worse than refusing. */
+        $this->config->load('api_security', true);
+        if (!$this->config->item('allow_public_token_generation', 'api_security')) {
+            $this->output->set_status_header(404);
+            print_r(json_encode(['error' => true, 'message' => 'Not available.']));
+            return false;
+        }
+
+        if (!defined('JWT_SECRET_KEY') || JWT_SECRET_KEY === '') {
+            log_message('error', 'generate_token: JWT_SECRET_KEY is not set on this server, so no token can be issued.');
+            $this->output->set_status_header(500);
+            print_r(json_encode(['error' => true, 'message' => 'Token signing is not configured on this server.']));
+            return false;
+        }
+
         $payload = [
             'iat' => time(), /* issued at time */
             'iss' => 'eshop',
-            'exp' => time() + (30 * 60), /* expires after 1 minute */
+            'exp' => time() + (30 * 60), /* expires after 30 minutes */
             'sub' => 'eshop Authentication'
         ];
         $token = $this->jwt->encode($payload, JWT_SECRET_KEY);
@@ -118,7 +163,8 @@ Defined Methods:-
                 print_r(json_encode($response));
                 return false;
             }
-            JWT::$leeway = 2000;
+            JWT::$leeway = 60; /* was 2000 - a 33-minute grace period on a 30-minute token,
+                                 * i.e. it more than doubled the token's real lifetime. */
             $flag = true; //For payload indication that it return some data or throws an expection.
             $error = true; //It will indicate that the payload had verified the signature and hash is valid or not.
             foreach ($api_keys as $row) {
@@ -195,7 +241,7 @@ Defined Methods:-
         if ($login) {
             $data = fetch_details('users', ['mobile' => $this->input->post('mobile', true)]);
             foreach ($data as $row) {
-                $row = output_escaping($row);
+                $row = unslash($row);
                 $tempRow['id'] = (isset($row['id']) && !empty($row['id'])) ? $row['id'] : '';
                 $tempRow['ip_address'] = (isset($row['ip_address']) && !empty($row['ip_address'])) ? $row['ip_address'] : '';
                 $tempRow['username'] = (isset($row['username']) && !empty($row['username'])) ? $row['username'] : '';
@@ -325,7 +371,7 @@ Defined Methods:-
         }
         $limit = (isset($_POST['limit']) && is_numeric($_POST['limit']) && !empty(trim($_POST['limit']))) ? $this->input->post('limit', true) : 25;
         $offset = (isset($_POST['offset']) && is_numeric($_POST['offset']) && !empty(trim($_POST['offset']))) ? $this->input->post('offset', true) : 0;
-        $sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $this->input->post('sort', true) : 'o.id';
+        $sort = sanitize_sort_identifier($this->input->post('sort', true), 'o.id');
         $order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $this->input->post('order', true) : 'DESC';
         $search = (isset($_POST['search']) && !empty(trim($_POST['search']))) ? $this->input->post('search', true) : '';
         $this->form_validation->set_rules('user_id', 'User Id', 'trim|numeric|xss_clean');
@@ -445,7 +491,7 @@ Defined Methods:-
 
         $limit = (isset($_POST['limit']) && is_numeric($_POST['limit']) && !empty(trim($_POST['limit']))) ? $this->input->post('limit', true) : 25;
         $offset = (isset($_POST['offset']) && is_numeric($_POST['offset']) && !empty(trim($_POST['offset']))) ? $this->input->post('offset', true) : 0;
-        $sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $this->input->post('sort', true) : 'oi.id';
+        $sort = sanitize_sort_identifier($this->input->post('sort', true), 'oi.id');
         $order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $this->input->post('order', true) : 'DESC';
         $search = (isset($_POST['search']) && !empty(trim($_POST['search']))) ? $this->input->post('search', true) : '';
 
@@ -644,7 +690,7 @@ Defined Methods:-
                                 $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
                                 $hashtag = html_entity_decode($string);
                                 $data = str_replace(array($hashtag_cutomer_name, $hashtag_order_id, $hashtag_application_name), array($user_res[$i]['username'], $order_items[0]['order_id'], $app_name), $hashtag);
-                                $message = output_escaping(trim($data, '"'));
+                                $message = unslash(trim($data, '"'));
                                 $customer_msg = (!empty($custom_notification)) ? $message :  'Hello Dear ' . $user_res[$i]['username'] . 'Order status updated to' . $_POST['val'] . ' for order ID #' . $order_items[0]['order_id'] . ' please take note of it! Thank you. Regards ' . $app_name . '';
                                 $fcmMsg = array(
                                     'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Order status updated",
@@ -672,7 +718,7 @@ Defined Methods:-
                                 $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
                                 $hashtag = html_entity_decode($string);
                                 $data = str_replace(array($hashtag_cutomer_name, $hashtag_order_id, $hashtag_application_name), array($user_res[0]['username'], $order_items[0]['order_id'], $app_name), $hashtag);
-                                $message = output_escaping(trim($data, '"'));
+                                $message = unslash(trim($data, '"'));
                                 $customer_msg = (!empty($custom_notification)) ? $message :  'Hello Dear ' . $user_res[0]['username'] . 'Order status updated to' . $_POST['val'] . ' for order ID #' . $order_items[0]['order_id'] . ' please take note of it! Thank you. Regards ' . $app_name . '';
                                 $fcmMsg = array(
                                     'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Order status updated",
@@ -696,7 +742,7 @@ Defined Methods:-
                                 $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
                                 $hashtag = html_entity_decode($string);
                                 $data = str_replace(array($hashtag_cutomer_name, $hashtag_order_id, $hashtag_application_name), array($user_res[0]['username'], $order_items[0]['order_id'], $app_name), $hashtag);
-                                $message = output_escaping(trim($data, '"'));
+                                $message = unslash(trim($data, '"'));
                                 $customer_msg = (!empty($custom_notification)) ? $message :  'Hello Dear ' . $user_res[0]['username'] . 'Order status updated to' . $_POST['val'] . ' for order ID #' . $order_items[0]['order_id'] . ' assigned to you please take note of it! Thank you. Regards ' . $app_name . '';
                                 $fcmMsg = array(
                                     'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "You have new order to deliver",
@@ -824,7 +870,7 @@ Defined Methods:-
                 $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
                 $hashtag = html_entity_decode($string);
                 $data = str_replace(array($hashtag_cutomer_name, $hashtag_order_id, $hashtag_application_name), array($user_res[0]['username'], $order_items[0]['order_id'], $app_name), $hashtag);
-                $message = output_escaping(trim($data, '"'));
+                $message = unslash(trim($data, '"'));
                 $customer_msg = (!empty($custom_notification)) ? $message :  'Hello Dear ' . $user_res[0]['username'] . 'Order status updated to' . $_POST['val'] . ' for order ID #' . $order_items[0]['order_id'] . ' please take note of it! Thank you. Regards ' . $app_name . '';
                 $fcmMsg = array(
                     'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Order status updated",
@@ -934,7 +980,7 @@ Defined Methods:-
             $offset = (isset($_POST['offset'])) ? $this->input->post('offset', true) : 0;
             $order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $_POST['order'] : 'ASC';
             $seller_id = (isset($_POST['seller_id']) && !empty(trim($_POST['seller_id']))) ?  $this->input->post('seller_id', true) : NULL;
-            $sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $_POST['sort'] : 'p.row_order';
+            $sort = sanitize_sort_identifier($this->input->post('sort', true), 'p.row_order');
             $filters['search'] =  (isset($_POST['search'])) ? $_POST['search'] : null;
             $filters['tags'] =  (isset($_POST['tags'])) ? $_POST['tags'] : "";
             $filters['flag'] =  (isset($_POST['flag']) && !empty($_POST['flag'])) ? $_POST['flag'] : "";
@@ -1002,7 +1048,7 @@ Defined Methods:-
             $limit = (isset($_POST['limit']) && is_numeric($_POST['limit']) && !empty(trim($_POST['limit']))) ? $this->input->post('limit', true) : 25;
             $offset = (isset($_POST['offset']) && is_numeric($_POST['offset']) && !empty(trim($_POST['offset']))) ? $this->input->post('offset', true) : 0;
             $order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $_POST['order'] : 'DESC';
-            $sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $_POST['sort'] : 'id';
+            $sort = sanitize_sort_identifier($this->input->post('sort', true), 'id');
             $res = $this->transaction_model->get_transactions($id, $user_id, 'wallet', $type, $search, $offset, $limit, $sort, $order);
             $this->response['error'] = !empty($res['data']) ? false : true;
             $this->response['message'] = !empty($res['data']) ? 'Transactions Retrieved Successfully' : 'Transactions does not exists';
@@ -1048,7 +1094,7 @@ Defined Methods:-
             $bulkData['category_wise_product_count'] = $tempRow;
 
             // overall sale
-            $overall_sale = $this->db->select("SUM(sub_total) as overall_sale")->where('seller_id = ' . $user_id)->where("active_status= 'delivered'")->get('`order_items`')->result_array();
+            $overall_sale = $this->db->select("SUM(sub_total) as overall_sale")->where('seller_id = ' . (int) $user_id)  /* SQL INJECTION - $user_id comes from the POST body. */->where("active_status= 'delivered'")->get('`order_items`')->result_array();
             $overall_sale = !empty($overall_sale[0]['overall_sale']) ? intval($overall_sale[0]['overall_sale']) : 0;
             $tempRow1['overall_sale'] = $overall_sale;
 
@@ -1479,7 +1525,7 @@ Defined Methods:-
             print_r(json_encode($this->response));
             return false;
         } else {
-            $sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $this->input->post('sort', true) : 'c.name';
+            $sort = sanitize_sort_identifier($this->input->post('sort', true), 'c.name');
             $order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $this->input->post('order', true) : 'ASC';
             $search = (isset($_POST['search']) && !empty(trim($_POST['search']))) ? $this->input->post('search', true) : "";
             $id = $this->input->post('id', true);
@@ -1511,7 +1557,7 @@ Defined Methods:-
             print_r(json_encode($this->response));
             return false;
         } else {
-            $sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $this->input->post('sort', true) : 'a.name';
+            $sort = sanitize_sort_identifier($this->input->post('sort', true), 'a.name');
             $order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $this->input->post('order', true) : 'ASC';
             $search = (isset($_POST['search']) && !empty(trim($_POST['search']))) ? $this->input->post('search', true) : "";
             $id = $this->input->post('id', true);
@@ -1559,7 +1605,7 @@ Defined Methods:-
         $types = $this->db->get('taxes')->result_array();
         if (!empty($types)) {
             for ($i = 0; $i < count($types); $i++) {
-                $types[$i] = output_escaping($types[$i]);
+                $types[$i] = unslash($types[$i]);
             }
         }
         $this->response['error'] = false;
@@ -1719,7 +1765,7 @@ Defined Methods:-
             $rows = array();
             $tempRow = array();
             foreach ($userData as $row) {
-                $row = output_escaping($row);
+                $row = unslash($row);
 
                 $tempRow['id'] = $row['id'];
                 $tempRow['user_id'] = $row['user_id'];
@@ -1776,7 +1822,7 @@ Defined Methods:-
             print_r(json_encode($this->response));
             return false;
         } else {
-            $sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $this->input->post('sort', true) : 'ats.name';
+            $sort = sanitize_sort_identifier($this->input->post('sort', true), 'ats.name');
             $order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $this->input->post('order', true) : 'ASC';
             $search = (isset($_POST['search']) && !empty(trim($_POST['search']))) ? $this->input->post('search', true) : "";
             $limit = ($this->input->post('limit', true)) ? $this->input->post('limit', true) : NULL;
@@ -1813,7 +1859,7 @@ Defined Methods:-
             print_r(json_encode($this->response));
             return false;
         } else {
-            $sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $this->input->post('sort', true) : 'a.name';
+            $sort = sanitize_sort_identifier($this->input->post('sort', true), 'a.name');
             $order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $this->input->post('order', true) : 'ASC';
             $search = (isset($_POST['search']) && !empty(trim($_POST['search']))) ? $this->input->post('search', true) : "";
             $limit = ($this->input->post('limit', true)) ? $this->input->post('limit', true) : NULL;
@@ -1851,7 +1897,7 @@ Defined Methods:-
             print_r(json_encode($this->response));
             return false;
         } else {
-            $sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $this->input->post('sort', true) : 'a.name';
+            $sort = sanitize_sort_identifier($this->input->post('sort', true), 'a.name');
             $order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $this->input->post('order', true) : 'ASC';
             $search = (isset($_POST['search']) && !empty(trim($_POST['search']))) ? $this->input->post('search', true) : "";
             $limit = ($this->input->post('limit', true)) ? $this->input->post('limit', true) : NULL;
@@ -2165,7 +2211,7 @@ Defined Methods:-
         } else {
             $limit = (isset($_POST['limit']) && is_numeric($_POST['limit']) && !empty(trim($_POST['limit']))) ? $this->input->post('limit', true) : 25;
             $offset = (isset($_POST['offset']) && is_numeric($_POST['offset']) && !empty(trim($_POST['offset']))) ? $this->input->post('offset', true) : 0;
-            $sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $this->input->post('sort', true) : 'id';
+            $sort = sanitize_sort_identifier($this->input->post('sort', true), 'id');
             $order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $this->input->post('order', true) : 'DESC';
             $search = (isset($_POST['search']) && !empty(trim($_POST['search']))) ? $this->input->post('search', true) : '';
             $type = (isset($_POST['type']) && !empty(trim($_POST['type']))) ? $this->input->post('type', true) : '';
@@ -2194,7 +2240,7 @@ Defined Methods:-
         $id = $this->input->post('id', true);
         $data = fetch_details('users', ['id' => $id]);
         foreach ($data as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
             $tempRow['id'] = (isset($row['id']) && !empty($row['id'])) ? $row['id'] : '';
             $tempRow['ip_address'] = (isset($row['ip_address']) && !empty($row['ip_address'])) ? $row['ip_address'] : '';
             $tempRow['username'] = (isset($row['username']) && !empty($row['username'])) ? $row['username'] : '';
@@ -3043,7 +3089,7 @@ Defined Methods:-
             $limit = (isset($_POST['limit']) && is_numeric($_POST['limit']) && !empty(trim($_POST['limit']))) ? $this->input->post('limit', true) : 25;
             $offset = (isset($_POST['offset']) && is_numeric($_POST['offset']) && !empty(trim($_POST['offset']))) ? $this->input->post('offset', true) : 0;
             $order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $_POST['order'] : 'DESC';
-            $sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $_POST['sort'] : 'id';
+            $sort = sanitize_sort_identifier($this->input->post('sort', true), 'id');
             $this->delivery_boy_model->get_delivery_boys($id, $search, $offset, $limit, $sort, $order);
         }
     }
@@ -3622,7 +3668,7 @@ Defined Methods:-
         } else {
             $limit = (isset($_POST['limit']) && is_numeric($_POST['limit']) && !empty(trim($_POST['limit']))) ? $this->input->post('limit', true) : 25;
             $offset = (isset($_POST['offset']) && is_numeric($_POST['offset']) && !empty(trim($_POST['offset']))) ? $this->input->post('offset', true) : 0;
-            $sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $this->input->post('sort', true) : 'id';
+            $sort = sanitize_sort_identifier($this->input->post('sort', true), 'id');
             $order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $this->input->post('order', true) : 'DESC';
             $search = (isset($_POST['search']) && !empty(trim($_POST['search']))) ? $this->input->post('search', true) : '';
             $tmpRow = $rows = array();
@@ -3747,7 +3793,7 @@ Defined Methods:-
         } else {
             $limit = (isset($_POST['limit']) && is_numeric($_POST['limit']) && !empty(trim($_POST['limit']))) ? $this->input->post('limit', true) : 25;
             $offset = (isset($_POST['offset']) && is_numeric($_POST['offset']) && !empty(trim($_POST['offset']))) ? $this->input->post('offset', true) : 0;
-            $sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $this->input->post('sort', true) : 'o.id';
+            $sort = sanitize_sort_identifier($this->input->post('sort', true), 'o.id');
             $order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $this->input->post('order', true) : 'DESC';
             $seller_id = (isset($_POST['seller_id']) && !empty(trim($_POST['seller_id']))) ? $this->input->post('seller_id', true) : '';
             $start_date = (isset($_POST['start_date']) && !empty($_POST['start_date'])) ? $_POST['start_date'] : false;
@@ -3957,7 +4003,7 @@ Defined Methods:-
             $limit = (isset($_POST['limit']) && is_numeric($_POST['limit']) && !empty(trim($_POST['limit']))) ? $this->input->post('limit', true) : 10;
             $offset = (isset($_POST['offset']) && is_numeric($_POST['offset']) && !empty(trim($_POST['offset']))) ? $this->input->post('offset', true) : 0;
             $order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $_POST['order'] : 'DESC';
-            $sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $_POST['sort'] : 'id';
+            $sort = sanitize_sort_identifier($this->input->post('sort', true), 'id');
 
             $result = $this->product_model->get_product_faqs($id, $product_id, '', $search, $offset, $limit, $sort, $order, true, $user_id);
             print_r(json_encode($result));
@@ -4088,7 +4134,7 @@ Defined Methods:-
                             if (!empty($order_items)) {
                                 $res_order_id = array_values(array_unique(array_column($order_items, "order_id")));
                                 for ($i = 0; $i < count($res_order_id); $i++) {
-                                    $orders = $this->db->where('oi.seller_id != ' . $_POST['user_id'] . ' and oi.order_id=' . $res_order_id[$i])->join('orders o', 'o.id=oi.order_id', 'right')->get('order_items oi')->result_array();
+                                    $orders = $this->db->where('oi.seller_id != ' . (int) $_POST['user_id'] . ' and oi.order_id=' . (int) $res_order_id[$i])  /* SQL INJECTION - was raw $_POST['user_id']. */->join('orders o', 'o.id=oi.order_id', 'right')->get('order_items oi')->result_array();
                                     if (empty($orders)) {
                                         // delete orders
                                         if (delete_details(['seller_id' => $_POST['user_id']], 'order_items')) {
@@ -4415,7 +4461,7 @@ Defined Methods:-
             $limit = (isset($_POST['limit']) && is_numeric($_POST['limit']) && !empty(trim($_POST['limit']))) ? $this->input->post('limit', true) : 10;
             $offset = (isset($_POST['offset']) && is_numeric($_POST['offset']) && !empty(trim($_POST['offset']))) ? $this->input->post('offset', true) : 0;
             $order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $_POST['order'] : 'DESC';
-            $sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $_POST['sort'] : 'id';
+            $sort = sanitize_sort_identifier($this->input->post('sort', true), 'id');
 
             $res = $this->Pickup_location_model->get_list($table = 'pickup_locations', NULL, $seller_id, true);
             if (isset($res) && !empty($res)) {

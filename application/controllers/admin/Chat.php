@@ -13,8 +13,7 @@ class Chat extends CI_Controller
         $this->load->model(['Customer_model', 'chat_model', 'notification_model', 'Setting_model', 'media_model']);
 
         if (!has_permissions('read', 'chat')) {
-            $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-            redirect('admin/home', 'refresh');
+            deny_panel_access();
         }
     }
 
@@ -727,7 +726,7 @@ class Chat extends CI_Controller
             $offset = (!empty($_POST['offset'])) ? $this->input->post('offset') : 0;
             $limit = (!empty($_POST['limit'])) ? $this->input->post('limit') : 100;
 
-            $sort = (!empty($_POST['sort'])) ? $this->input->post('sort') : 'id';
+            $sort = sanitize_sort_identifier($this->input->post('sort', true), 'id');
             $order = (!empty($_POST['order'])) ? $this->input->post('order') : 'DESC';
 
             $search = (!empty($_POST['search'])) ? $this->input->post('search') : '';

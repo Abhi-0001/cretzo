@@ -14,8 +14,7 @@ class Brand extends CI_Controller
         $this->load->model(['Brand_model']);
 
         if (!has_permissions('read', 'brands')) {
-            $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-            redirect('admin/home', 'refresh');
+            deny_panel_access();
         }
     }
 

@@ -73,7 +73,7 @@ class Custom_notification_model extends CI_Model
         $rows = array();
         $tempRow = array();
         foreach ($city_search_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
             $operate = ' <a class="delete_custom_notification btn action-btn btn-danger btn-xs mr-1 mb-1 ml-1" title="Delete" href="javascript:void(0)"  data-id="' . $row['id'] . '" ><i class="fa fa-trash"></i></a>';
             $operate .= '<a href="javascript:void(0)" class="edit_btn action-btn btn btn-primary btn-xs mr-1 mb-1 ml-1" data-id="' . $row['id'] . '" data-url="admin/custom_notification" title="View Order" ><i class="fa fa-pen"></i></a>';
 

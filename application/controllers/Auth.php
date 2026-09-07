@@ -191,262 +191,43 @@ class Auth extends CI_Controller
         redirect('auth/login', 'refresh');
     }
 
-    /**
-     * Start Facebook login (redirect to FB)
-     */
-    public function facebook_login()
-    {
-        $this->config->load('facebook');
-        $fb = new \Facebook\Facebook([
-            'app_id' => $this->config->item('facebook_app_id'),
-            'app_secret' => $this->config->item('facebook_app_secret'),
-            'default_graph_version' => $this->config->item('facebook_graph_version'),
-        ]);
-
-        $helper = $fb->getRedirectLoginHelper();
-        $permissions = $this->config->item('facebook_permissions');
-        $loginUrl = $helper->getLoginUrl($this->config->item('facebook_redirect'), $permissions);
-        redirect((string)$loginUrl);
-    }
-
-    /**
-     * Facebook callback URI
-     */
-    public function facebook_callback()
-    {
-        $this->config->load('facebook');
-        $fb = new \Facebook\Facebook([
-            'app_id' => $this->config->item('facebook_app_id'),
-            'app_secret' => $this->config->item('facebook_app_secret'),
-            'default_graph_version' => $this->config->item('facebook_graph_version'),
-        ]);
-
-        $helper = $fb->getRedirectLoginHelper();
-        try {
-            $accessToken = $helper->getAccessToken();
-        } catch (\Facebook\Exceptions\FacebookResponseException $e) {
-            log_message('error', 'FB Graph error: ' . $e->getMessage());
-            $this->session->set_flashdata('message', 'Facebook returned an error.');
-            redirect('auth/login');
-        } catch (\Facebook\Exceptions\FacebookSDKException $e) {
-            log_message('error', 'FB SDK error: ' . $e->getMessage());
-            $this->session->set_flashdata('message', 'Facebook SDK error.');
-            redirect('auth/login');
-        }
-
-        if (!isset($accessToken)) {
-            $err = $helper->getError();
-            log_message('error', 'FB callback no access token: ' . json_encode($err));
-            $this->session->set_flashdata('message', 'Failed to receive access token from Facebook.');
-            redirect('auth/login');
-        }
-
-        try {
-            $response = $fb->get('/me?fields=id,name,email', $accessToken);
-            $fbUser = $response->getGraphUser();
-        } catch (\Exception $e) {
-            log_message('error', 'FB user fetch error: ' . $e->getMessage());
-            $this->session->set_flashdata('message', 'Failed to fetch Facebook user data.');
-            redirect('auth/login');
-        }
-
-        $facebook_id = $fbUser->getId();
-        $name = $fbUser->getName();
-        $email = $fbUser->getEmail();
-
-        // Try to find existing user by email
-        $existing = null;
-        if (!empty($email)) {
-            $this->ion_auth->clear_messages();
-            $existing = $this->ion_auth->where('email', $email)->users()->row();
-        }
-
-        if ($existing) {
-            // login existing user by setting session
-            $this->session->set_userdata([
-                'user_id' => $existing->id,
-                'user_name' => $existing->first_name . ' ' . $existing->last_name,
-                'email' => $existing->email,
-                'logged_in' => TRUE,
-            ]);
-            redirect(base_url());
-        }
-
-        // Create new user using Ion Auth
-        $identity_column = $this->config->item('identity', 'ion_auth');
-        if ($identity_column === 'email') {
-            $identity = $email;
-        } else {
-            // use a safe unique identity when primary identity is not email
-            $identity = 'fb_' . $facebook_id;
-        }
-        $password = substr(md5(uniqid(rand(), true)), 0, 10);
-        $additional_data = [
-            'first_name' => $name,
-        ];
-
-        $register = $this->ion_auth->register($identity, $password, $email, $additional_data);
-        if ($register) {
-            $user = null;
-            if (!empty($email)) {
-                $user = $this->ion_auth->where('email', $email)->users()->row();
-            }
-            // fallback: try to find by identity (in case email was empty)
-            if (!$user) {
-                $user = $this->ion_auth->where($identity_column, $identity)->users()->row();
-            }
-            if ($user) {
-                // store facebook_id if users table has the column
-                $tables = $this->config->item('tables', 'ion_auth');
-                $users_table = isset($tables['login_users']) ? $tables['login_users'] : 'users';
-                if ($this->db->field_exists('facebook_id', $users_table)) {
-                    $this->db->where('id', $user->id)->update($users_table, ['facebook_id' => $facebook_id]);
-                }
-                $this->session->set_userdata([
-                    'user_id' => $user->id,
-                    'user_name' => $user->first_name . ' ' . $user->last_name,
-                    'email' => $user->email,
-                    'logged_in' => TRUE,
-                ]);
-                redirect(base_url());
-            }
-        }
-
-        // fallback
-        $this->session->set_flashdata('message', 'Unable to create or find user account.');
-        redirect('auth/login');
-    }
-
-    /**
-     * Generic social login endpoint for client-side OAuth (Firebase)
-     * Accepts POST: provider, uid, name, email, photo
-     * Creates account if not exists, or logs in existing account by email
-     */
-    public function social_login()
-    {
-        if (!$this->input->is_ajax_request()) {
-            show_error('Invalid request');
-            return;
-        }
-
-        $provider = $this->input->post('provider', true);
-        $uid = $this->input->post('uid', true);
-        $name = $this->input->post('name', true);
-        $email = $this->input->post('email', true);
-        $photo = $this->input->post('photo', true);
-
-        $response = [
-            'error' => true,
-            'csrfName' => $this->security->get_csrf_token_name(),
-            'csrfHash' => $this->security->get_csrf_hash(),
-            'message' => 'Invalid social login data.'
-        ];
-
-        if (empty($provider) || empty($uid)) {
-            echo json_encode($response);
-            return;
-        }
-
-        // Try find existing user by email (preferred) or by provider id column
-        $existing = null;
-        if (!empty($email)) {
-            $this->ion_auth->clear_messages();
-            $existing = $this->ion_auth->where('email', $email)->users()->row();
-        }
-
-        // If not found by email, try provider-specific column
-        $tables = $this->config->item('tables', 'ion_auth');
-        $users_table = isset($tables['login_users']) ? $tables['login_users'] : 'users';
-        $provider_col = $provider . '_id'; // e.g., facebook_id, google_id
-        if (!$existing && $this->db->field_exists($provider_col, $users_table)) {
-            $existing = $this->db->where($provider_col, $uid)->get($users_table)->row();
-        }
-
-        if ($existing) {
-            // login existing user
-            $this->session->set_userdata([
-                'user_id' => $existing->id,
-                'user_name' => isset($existing->first_name) ? trim($existing->first_name . ' ' . $existing->last_name) : (isset($existing->username) ? $existing->username : ''),
-                'email' => isset($existing->email) ? $existing->email : '',
-                'logged_in' => TRUE,
-            ]);
-
-            $response['error'] = false;
-            $response['message'] = 'Logged in successfully.';
-            echo json_encode($response);
-            return;
-        }
-
-        // Create new user
-        $identity_column = $this->config->item('identity', 'ion_auth');
-        if ($identity_column === 'email' && empty($email)) {
-            $response['message'] = 'Email is required to create an account. Please sign up with email.';
-            echo json_encode($response);
-            return;
-        }
-
-        // Build identity and password
-        if ($identity_column === 'email') {
-            $identity = $email;
-        } else {
-            $identity = $provider . '_' . $uid;
-        }
-        $password = substr(md5(uniqid(rand(), true)), 0, 10);
-
-        // Split name into first/last
-        $first_name = $name;
-        $last_name = '';
-        if (!empty($name) && strpos($name, ' ') !== false) {
-            $parts = explode(' ', $name);
-            $first_name = array_shift($parts);
-            $last_name = implode(' ', $parts);
-        }
-
-        $additional_data = [
-            'first_name' => $first_name,
-            'last_name' => $last_name,
-            // NULL, not an invented number: Google/Facebook never supply a phone, and the
-            // placeholder this used to generate ('9' + 9 random digits) was indistinguishable
-            // from a real one, so it was shown to the customer as their own number. The column
-            // is nullable as of migration 061 and every display site hides an empty value.
-            'mobile' => null,
-            'type' => $provider,
-        ];
-
-        $register = $this->ion_auth->register($identity, $password, $email, $additional_data);
-        if ($register) {
-            // find user and update provider id if column exists
-            $user = null;
-            if (!empty($email)) {
-                $user = $this->ion_auth->where('email', $email)->users()->row();
-            }
-            if (!$user) {
-                $user = $this->ion_auth->where($identity_column, $identity)->users()->row();
-            }
-
-            if ($user) {
-                if ($this->db->field_exists($provider_col, $users_table)) {
-                    $this->db->where('id', $user->id)->update($users_table, [$provider_col => $uid]);
-                }
-
-                $this->session->set_userdata([
-                    'user_id' => $user->id,
-                    'user_name' => isset($user->first_name) ? trim($user->first_name . ' ' . $user->last_name) : (isset($user->username) ? $user->username : ''),
-                    'email' => isset($user->email) ? $user->email : '',
-                    'logged_in' => TRUE,
-                ]);
-
-                $response['error'] = false;
-                $response['message'] = 'Account created and logged in.';
-                echo json_encode($response);
-                return;
-            }
-        }
-
-        $response['message'] = 'Unable to create user account.';
-        echo json_encode($response);
-    }
-
+    /*
+ * ============================================================================
+ *  REMOVED: facebook_login(), facebook_callback(), social_login()
+ * ============================================================================
+ *
+ * social_login() was an AUTHENTICATION BYPASS and had no callers.
+ *
+ * It read `provider`, `uid`, `name` and `email` from POST, looked the account up
+ * by that email, and wrote a session for it - with no verification of any kind
+ * that the caller owned the address. The identical hole in Home::social_login()
+ * had already been found, fixed and commented ("Confirmed exploitable before this
+ * change"); this copy was simply missed, which is the recurring failure mode in
+ * this codebase - a fix applied to one of several duplicated flows.
+ *
+ * Its practical reach was narrower than it looks, because it set only `user_id`
+ * and not the `identity` key that ion_auth's recheck_session() requires, so the
+ * forged session was not honoured by logged_in(). What it DID give an anonymous
+ * caller was account creation with an arbitrary email and display name, the
+ * ability to write a provider id onto a new account, and a half-populated session
+ * that any future code reading session('user_id') without a login check would have
+ * accepted. None of that is acceptable on an unauthenticated endpoint.
+ *
+ * facebook_login()/facebook_callback() went with it. They did exchange the OAuth
+ * code properly, so they were not a bypass, but they chose the account by email
+ * equality alone and wrote the session by hand rather than through
+ * ion_auth::set_session() - so no group data, no lockout bookkeeping, and the same
+ * missing `identity`. Nothing referenced them either: Facebook sign-in on the live
+ * site goes through Firebase and Home::social_login(), which verifies a Firebase ID
+ * token server-side (signature, aud, iss, exp) and pins the sign_in_provider claim.
+ *
+ * Removing them also drops the last use of facebook/graph-sdk, which is abandoned
+ * upstream and was pinning the Composer platform to PHP 7.4.
+ *
+ * The REST of this controller is live and must not be removed with it - the admin
+ * panel's login form posts to auth/login, its reset form to auth/reset_password,
+ * and the storefront JS calls auth/verify_user and auth/validate_referral.
+ */
 
     /**
      * Change password

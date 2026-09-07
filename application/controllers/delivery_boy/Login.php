@@ -225,8 +225,53 @@ class Login extends CI_Controller
         }
     }
 
+    /**
+     * Delivery boy profile self-update.
+     *
+     * SECURITY - this method had NO login check, and its final statement was
+     *
+     *     $this->db->set($set)->where($identity_column, $identity)->update('users');
+     *
+     * where $identity came from session('identity'). For an anonymous caller that is
+     * NULL, and CodeIgniter renders where('mobile', NULL) as `WHERE mobile IS NULL` -
+     * so the UPDATE was not scoped to one row, it was scoped to every row with a null
+     * identity. Since migration 061 made users.mobile nullable, that is every
+     * social-login account on the site. One request rewrote all of their usernames and
+     * email addresses at once, and changing a victim's email address is a step towards
+     * taking the account over through an email-channel reset.
+     *
+     * CSRF protection alone was not sufficient cover: a token is obtainable by
+     * requesting any page on the site, so it stops a blind cross-site POST but not an
+     * attacker driving the endpoint deliberately.
+     *
+     * Three changes: require a logged-in delivery boy; scope the UPDATE by the
+     * session's own user id rather than a nullable identity column; and refuse
+     * outright if the resolved id is not a positive integer, so the "no session"
+     * case can never again widen into a mass update.
+     *
+     * The equivalent method in admin/Login.php gets this right (it reads
+     * $_SESSION['user_id'] and is gated by has_permissions()); this is the same shape.
+     */
     public function update_user()
     {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_delivery_boy()) {
+            $this->response['error'] = true;
+            $this->response['csrfName'] = $this->security->get_csrf_token_name();
+            $this->response['csrfHash'] = $this->security->get_csrf_hash();
+            $this->response['message'] = 'Please sign in again.';
+            echo json_encode($this->response);
+            return false;
+        }
+
+        $session_user_id = (int) $this->session->userdata('user_id');
+        if ($session_user_id <= 0) {
+            $this->response['error'] = true;
+            $this->response['csrfName'] = $this->security->get_csrf_token_name();
+            $this->response['csrfHash'] = $this->security->get_csrf_hash();
+            $this->response['message'] = 'Please sign in again.';
+            echo json_encode($this->response);
+            return false;
+        }
 
         if (defined('ALLOW_MODIFICATION') && ALLOW_MODIFICATION == 0) {
             $this->response['error'] = true;
@@ -287,8 +332,15 @@ class Login extends CI_Controller
                 }
             }
             $set = ['username' => $this->input->post('username'), 'email' => $this->input->post('email')];
-            $set = escape_array($set);
-            $this->db->set($set)->where($identity_column, $identity)->update($tables['login_users']);
+            /* escape_array() removed: the query builder escapes these on the way into
+             * the UPDATE, so escaping first stores the escape characters themselves -
+             * a username like O'Brien becomes O\'Brien, and every subsequent save adds
+             * another backslash. Same defect that was fixed in Rating_model::set_rating. */
+            /* Scoped by the session's own user id, NOT by where($identity_column,
+             * $identity). $identity is nullable, and where('mobile', NULL) compiles to
+             * `WHERE mobile IS NULL` - an UPDATE across every account with no phone
+             * number rather than one row. See the note on this method. */
+            $this->db->set($set)->where('id', $session_user_id)->update($tables['login_users']);
             $response['error'] = false;
             $response['csrfName'] = $this->security->get_csrf_token_name();
             $response['csrfHash'] = $this->security->get_csrf_hash();

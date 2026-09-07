@@ -67,6 +67,17 @@ class Login extends CI_Controller
      */
     public function check_reset_account()
     {
+        /* Per-IP throttle. This endpoint answers "does an account exist for this
+         * number?" with no authentication, so unthrottled it is an account directory:
+         * sweep a number range and you have every account on the site, labelled by
+         * portal. See lookup_rate_limit_guard() for why it is keyed on IP only and why
+         * it fails open. */
+        $throttle = lookup_rate_limit_guard('lookup');
+        if (!$throttle['allowed']) {
+            echo json_encode(['error' => true, 'message' => $throttle['message']]);
+            return false;
+        }
+
         $this->form_validation->set_rules('mobile_number', 'Mobile No', 'trim|numeric|required|xss_clean|max_length[16]');
         if (!$this->form_validation->run()) {
             echo json_encode(['error' => true, 'message' => strip_tags(validation_errors())]);
@@ -91,7 +102,13 @@ class Login extends CI_Controller
     {
         $this->form_validation->set_rules('mobile_number', 'Mobile No', 'trim|numeric|required|xss_clean|max_length[16]');
         $this->form_validation->set_rules('id_token', 'Verification token', 'trim|required|xss_clean');
-        $this->form_validation->set_rules('new_password', 'New Password', 'trim|required|min_length[6]|xss_clean');
+        /* min_length was hardcoded to 6 while ion_auth.php sets min_password_length = 8,
+         * so the RESET path let a user set a password shorter than the SIGNUP path would
+         * accept - a policy that only applies where it is least likely to be tested. Read
+         * from config so the two can never drift again. */
+        $min_password = (int) $this->config->item('min_password_length', 'ion_auth');
+        $min_password = ($min_password > 0) ? $min_password : 8;
+        $this->form_validation->set_rules('new_password', 'New Password', 'trim|required|min_length[' . $min_password . ']|xss_clean');
         if (!$this->form_validation->run()) {
             echo json_encode(['error' => true, 'message' => strip_tags(validation_errors())]);
             return false;
@@ -176,11 +193,18 @@ class Login extends CI_Controller
                 }
             }
             $set = ['username' => $this->input->post('username'), 'email' => $this->input->post('email'),'mobile' => $this->input->post('mobile')];
-            // echo "<pre>";
-            // print_r($set);
-            // die;
-            $set = escape_array($set);
-            $this->db->set($set)->where($identity_column, $identity)->update($tables['login_users']);
+            /* escape_array() removed: the query builder escapes these on the way into the
+             * UPDATE, so pre-escaping stores the escape characters and they COMPOUND on
+             * every save - "D'Souza" becomes "D\'Souza", then "D\\\'Souza". Same defect
+             * that was already fixed in Login.php and Rating_model.php. */
+            /* Keyed on the row's own id, NOT on where($identity_column, $identity).
+             * $identity is this admin's `mobile`, and mobile is nullable since migration
+             * 061 - so for any admin without a phone number on file it was NULL, and
+             * where('mobile', NULL) compiles to `WHERE mobile IS NULL`. That is an UPDATE
+             * across every account with no phone number, i.e. every social-login customer,
+             * not the one admin editing their own profile. $user_id is already read from
+             * the session at the top of this method. */
+            $this->db->set($set)->where('id', (int) $user_id)->update($tables['login_users']);
             // echo $this->db->last_query();
             $response['error'] = false;
             $response['csrfName'] = $this->security->get_csrf_token_name();

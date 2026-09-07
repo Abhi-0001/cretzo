@@ -18,8 +18,7 @@ class Updater extends CI_Controller
         // (verified live with an Editor account holding only faq:read and settings:read).
         // 'read' has been added to the system_update module in config/eshop.php for this.
         if (!has_permissions('read', 'system_update')) {
-            $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-            redirect('admin/home', 'refresh');
+            deny_panel_access();
         }
     }
 
@@ -76,10 +75,59 @@ class Updater extends CI_Controller
         return strpos($resolvedPath . '/', $root . '/') === 0;
     }
 
+    /**
+     * Install an uploaded update/plugin ZIP.
+     *
+     * =========================================================================
+     *  THIS METHOD IS REMOTE CODE EXECUTION BY DESIGN. IT IS DISABLED BY DEFAULT.
+     * =========================================================================
+     *
+     * It accepts a ZIP, extracts it, reads a package.json out of it, and then copies
+     * the files that manifest names to the destinations that manifest names.
+     * is_safe_update_destination() confines those destinations to FCPATH - but FCPATH
+     * IS the application root, so index.php and everything under application/ are
+     * valid targets. A written .php file executes on the next request. There is no
+     * exploit to write: uploading a crafted ZIP is the intended interface.
+     *
+     * Two things made that considerably worse than "an admin can break their own site":
+     *
+     *  1. The endpoint was on the csrf_exclude_uris list in config/config.php, so it
+     *     accepted a cross-site POST. Any page an authenticated admin happened to
+     *     open could therefore upload a ZIP and take over the server - no credential
+     *     theft, no XSS, just a visit. That exemption has been removed.
+     *
+     *  2. It only needs the `system_update` permission, which sub-admin roles can
+     *     hold. A support account was one permission away from a shell.
+     *
+     * Now gated behind system_settings.allow_system_updater, which is absent (and
+     * therefore falsey) unless somebody deliberately adds it. This site deploys from
+     * git; the ZIP-upload path is an artefact of the upstream eShop plugin
+     * marketplace and has no role here. The updater PAGE still works and still shows
+     * installed/available versions - only the install action is closed.
+     *
+     * TO USE IT for a genuine one-off install: set allow_system_updater to 1 in
+     * system settings, apply the update, then set it back to 0. Do not leave it on.
+     */
     public function upload_update_file()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
             if (print_msg(!has_permissions('update', 'system_update'), PERMISSION_ERROR_MSG, 'system_update')) {
+                return false;
+            }
+
+            $system_settings = get_settings('system_settings', true);
+            if (empty($system_settings['allow_system_updater'])) {
+                log_message('error', 'Updater: upload_update_file() was called while the updater is '
+                    . 'disabled (system_settings.allow_system_updater is not set). '
+                    . webhook_log_context());
+                $this->response['error'] = true;
+                $this->response['message'] = 'The system updater is disabled on this installation. '
+                    . 'Updates are deployed from version control. If you genuinely need to install a '
+                    . 'package, enable allow_system_updater in system settings, install it, and turn '
+                    . 'it off again.';
+                $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                print_r(json_encode($this->response));
                 return false;
             }
             if (!empty($_FILES['update_file']['name'][0])) {

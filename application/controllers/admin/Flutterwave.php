@@ -136,7 +136,7 @@ class Flutterwave extends CI_Controller
 			
 		*/
 		log_message('debug', 'Flutter Wave Webhook - Normal Response - JSON DATA --> ' . var_export($response, true));
-		log_message('debug', 'Server Variable --> ' . var_export($_SERVER, true));
+		log_message('debug', 'Server Variable --> ' . webhook_log_context()  /* was var_export($_SERVER, true): dumped Cookie and Authorization headers into application/logs on production */);
 
 		/* Reading the signature sent by flutter wave webhook */
 		$signature = (isset($_SERVER['HTTP_VERIF_HASH'])) ? $_SERVER['HTTP_VERIF_HASH'] : '';
@@ -144,7 +144,7 @@ class Flutterwave extends CI_Controller
 		/* comparing our local signature with received signature */
 		if (empty($signature) || $signature != $local_secret_hash) {
 			log_message('error', 'Flutter Wave Webhook - Invalid Signature - JSON DATA --> ' . var_export($response, true));
-			log_message('error', 'Server Variable --> ' . var_export($_SERVER, true));
+			log_message('error', 'Server Variable --> ' . webhook_log_context()  /* was var_export($_SERVER, true): dumped Cookie and Authorization headers into application/logs on production */);
 			exit();
 		}
 
@@ -171,12 +171,12 @@ class Flutterwave extends CI_Controller
 			} else {
 				/* Transaction failed */
 				log_message('error', 'Flutter Wave Webhook - Inner Verification Failed --> ' . var_export($response, true));
-				log_message('error', 'Server Variable -->  ' . var_export($_SERVER, true));
+				log_message('error', 'Server Variable -->  ' . webhook_log_context()  /* was var_export($_SERVER, true): dumped Cookie and Authorization headers into application/logs on production */);
 			}
 		} else {
 			/* Transaction failed */
 			log_message('error', 'Flutter Wave Webhook - Outter Verification Failed --> ' . var_export($response, true));
-			log_message('error', 'Server Variable -->  ' . var_export($_SERVER, true));
+			log_message('error', 'Server Variable -->  ' . webhook_log_context()  /* was var_export($_SERVER, true): dumped Cookie and Authorization headers into application/logs on production */);
 		}
 	}
 }

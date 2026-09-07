@@ -434,11 +434,45 @@ class Order_model extends CI_Model
         }
         /* Calculating Final Total */
         $total = 0;
-        $product_variant = $this->db->select('pv.*,tax.percentage as tax_percentage,tax.title as tax_name,p.seller_id,p.name as product_name,p.type as product_type,p.is_prices_inclusive_tax,p.is_attachment_required,p.download_link')
+        /* Built in two steps rather than one chain, because the FIELD() ordering below
+         * is conditional. The builder is stateful, so the select/join/where half is
+         * staged here and get() is called after the optional order_by(). */
+        $this->db->select('pv.*,tax.percentage as tax_percentage,tax.title as tax_name,p.seller_id,p.name as product_name,p.type as product_type,p.is_prices_inclusive_tax,p.is_attachment_required,p.download_link')
             ->join('products p ', 'pv.product_id=p.id', 'left')
             ->join('categories c', 'p.category_id = c.id', 'left')
             ->join('`taxes` tax', 'tax.id = p.tax', 'LEFT')
-            ->where_in('pv.id', $product_variant_id)->order_by('FIELD(pv.id,' . $data['product_variant_id'] . ')')->get('product_variants pv')->result_array();
+            /* SQL INJECTION - FIXED. This was:
+             *
+             *     ->order_by('FIELD(pv.id,' . $data['product_variant_id'] . ')')
+             *
+             * with $data['product_variant_id'] arriving from the request. escape_array()
+             * had run over $data at the top of this method, but escape_str() only
+             * escapes quotes and backslashes - and this payload needs neither, because
+             * the value is already inside a function call:
+             *
+             *     product_variant_id = "1),(SELECT SLEEP(5)"
+             *     -> ORDER BY FIELD(pv.id,1),(SELECT SLEEP(5))
+             *
+             * a working blind injection in the one method every checkout path funnels
+             * through - web, mobile API and POS - reachable by any logged-in customer.
+             * order_by() could not save it either: it returns a string containing a
+             * parenthesis unescaped.
+             *
+             * $product_variant_id is already the exploded array two lines above, used
+             * for the where_in(). Rebuilding the FIELD() list from intval() of that
+             * array means the ORDER BY can only ever contain integers, and the ids the
+             * ordering covers are exactly the ids the query filters on.
+             *
+             * The guard matters: FIELD() with no arguments after the first is a syntax
+             * error, so an empty list has to skip the ordering rather than emit it. */
+            ->where_in('pv.id', $product_variant_id);
+
+        $variant_order = array_filter(array_map('intval', $product_variant_id));
+        if (!empty($variant_order)) {
+            $this->db->order_by('FIELD(pv.id,' . implode(',', $variant_order) . ')');
+        }
+
+        $product_variant = $this->db->get('product_variants pv')->result_array();
 
         // $product_variant = $this->db->select('pv.*,tax.percentage as tax_percentage,tax.title as tax_name,p.seller_id,p.name as product_name,p.type as product_type,p.is_prices_inclusive_tax,p.download_link')
         //     ->join('products p ', 'pv.product_id=p.id', 'left')
@@ -1075,7 +1109,7 @@ class Order_model extends CI_Model
         $order_result = $res->get(' `order_items` oi')->result_array();
         if (!empty($order_result)) {
             for ($i = 0; $i < count($order_result); $i++) {
-                $order_result[$i] = output_escaping($order_result[$i]);
+                $order_result[$i] = unslash($order_result[$i]);
             }
         }
         return $order_result;
@@ -1357,7 +1391,7 @@ class Order_model extends CI_Model
             $updated_by_id = isset($first['updated_by']) ? $first['updated_by'] : 0;
             $updated_username = (!empty($updated_by_id)) ? fetch_details('users', ['id' => $updated_by_id], 'username') : [];
             $tempRow['updated_by'] = (!empty($updated_username[0]['username'])) ? $updated_username[0]['username'] : '';
-            $tempRow['address'] = output_escaping(str_replace('\r\n', '</br>', $row['address']));
+            $tempRow['address'] = unslash(str_replace('\r\n', '</br>', $row['address']));
             $tempRow['delivery_date'] = $row['delivery_date'];
             $tempRow['delivery_time'] = $row['delivery_time'];
             $tempRow['date_added'] = date('d-m-Y', strtotime($row['date_added']));
@@ -1969,7 +2003,7 @@ class Order_model extends CI_Model
                 $updated_by_id = $row['items'][0]['updated_by'];
                 $updated_username = (!empty($updated_by_id)) ? fetch_details('users', ['id' => $updated_by_id], 'username') : [];
                 $tempRow['updated_by'] = (!empty($updated_username[0]['username'])) ? $updated_username[0]['username'] : '';
-                $tempRow['address'] = output_escaping(str_replace('\r\n', '</br>', $row['address']));
+                $tempRow['address'] = unslash(str_replace('\r\n', '</br>', $row['address']));
                 $tempRow['delivery_date'] = $row['delivery_date'];
                 $tempRow['delivery_time'] = $row['delivery_time'];
                 $tempRow['date_added'] = date('d-m-Y', strtotime($row['date_added']));
@@ -2301,12 +2335,16 @@ class Order_model extends CI_Model
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "id";
-            } else {
-                $sort = $_GET['sort'];
-            }
+        /* SQL INJECTION - FIXED. Same shape as the sites already corrected in the
+         * other list models: only the literal 'id' was special-cased and every other
+         * value went through untouched into order_by(), which returns a string
+         * containing a parenthesis unescaped. sanitize_sort_column_for_table() checks
+         * the request against order_tracking's real columns; the default is unchanged. */
+        $sort = sanitize_sort_column_for_table(
+            isset($_GET['sort']) ? $_GET['sort'] : null,
+            'order_tracking',
+            'id'
+        );
         if (isset($_GET['order']))
             $order = $_GET['order'];
 
@@ -2364,7 +2402,7 @@ class Order_model extends CI_Model
         $tempRow = array();
 
         foreach ($txn_search_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
             if ($this->ion_auth->is_seller()) {
                 $operate = '<a href=' . base_url('seller/orders/edit_orders') . '?edit_id=' . $row['order_id'] . ' class="btn btn-primary btn-xs action-btn mr-1 mb-1 ml-1" title="View Order" ><i class="fa fa-eye"></i></a>';
             } else {
@@ -2412,12 +2450,16 @@ class Order_model extends CI_Model
 
 
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "id";
-            } else {
-                $sort = $_GET['sort'];
-            }
+        /* SQL INJECTION - FIXED. Same shape as the sites already corrected in the
+         * other list models: only the literal 'id' was special-cased and every other
+         * value went through untouched into order_by(), which returns a string
+         * containing a parenthesis unescaped. sanitize_sort_column_for_table() checks
+         * the request against digital_orders_mails's real columns; the default is unchanged. */
+        $sort = sanitize_sort_column_for_table(
+            isset($_GET['sort']) ? $_GET['sort'] : null,
+            'digital_orders_mails',
+            'id'
+        );
         if (isset($_POST['sort']))
             if ($_POST['sort'] == 'id') {
                 $sort = "id";
@@ -2494,13 +2536,13 @@ class Order_model extends CI_Model
         $tempRow = array();
 
         foreach ($txn_search_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
 
             $tempRow['id'] = $row['id'];
             $tempRow['order_id'] = $row['order_id'];
             $tempRow['order_item_id'] = $row['order_item_id'];
             $tempRow['subject'] = $row['subject'];
-            $tempRow['message'] = description_word_limit(output_escaping(str_replace('\r\n', '&#13;&#10;', $row['message'])));
+            $tempRow['message'] = description_word_limit(unslash(str_replace('\r\n', '&#13;&#10;', $row['message'])));
             $tempRow['file_url'] = $row['file_url'];
             $tempRow['date_added'] = $row['date_added'];
             $rows[] = $tempRow;
@@ -2580,7 +2622,7 @@ class Order_model extends CI_Model
         $tempRow = array();
 
         foreach ($txn_search_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
 
             $tempRow['id'] = $row['id'];
             $tempRow['order_id'] = $row['order_id'];

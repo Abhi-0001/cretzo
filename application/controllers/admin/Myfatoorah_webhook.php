@@ -1,15 +1,49 @@
 <?php defined('BASEPATH') or exit('No direct script access allowed');
+/**
+ * =============================================================================
+ *  DEAD CODE - DISABLED. RECOMMENDED FOR DELETION.
+ * =============================================================================
+ *
+ * This whole controller is an abandoned copy-paste of the Razorpay handler that
+ * was half-converted to MyFatoorah and then left. It is not wired to anything:
+ * the Payment Settings screen prints `admin/webhook/myfatoorah` as the endpoint
+ * URL, which is the REAL handler in admin/Webhook.php - and that one does verify
+ * MyFatoorah's signature (see validateSignature() there).
+ *
+ * It was also already non-functional. Look at the original body: `$request` is
+ * never assigned - the lines that read php://input were deleted at some point -
+ * and neither is `$http_razorpay_signature`. So every `$request['payload'][...]`
+ * read an undefined variable, and the gate `if ($http_razorpay_signature)` tested
+ * an undefined variable and was always false. The wallet-credit and order-status
+ * code below it could never run.
+ *
+ * So this was not an exploitable hole. What it WAS: a publicly routable URL
+ * (/admin/webhook/... naming notwithstanding, CI routes this as
+ * /admin/myfatoorah_webhook/myfatoorah) with no authentication, which emitted a
+ * pile of PHP undefined-variable warnings to whoever called it, and which
+ * contained a complete, ready-to-run wallet-crediting routine one missing
+ * assignment away from working. That is exactly the kind of file that becomes a
+ * real vulnerability the moment somebody "fixes" the warnings.
+ *
+ * Disabled at the door rather than deleted, so the removal is a separate,
+ * reviewable change. It should be deleted - nothing references it.
+ */
 class myfatoorah_webhook extends CI_Controller
 {
     public function __construct()
     {
         parent::__construct();
+
+        // Nothing may reach any method on this controller. show_404() ends the
+        // request, so this is a hard stop for the class as a whole rather than a
+        // per-method guard that a future method could forget.
+        show_404();
     }
 
     public function myfatoorah()
     {
         //Debug in server first
-      
+
 
         $txn_id = (isset($request['payload']['payment']['entity']['id'])) ? $request['payload']['payment']['entity']['id'] : "";
 

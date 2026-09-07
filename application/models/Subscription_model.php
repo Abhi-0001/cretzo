@@ -100,7 +100,7 @@ class Subscription_model extends CI_Model
 
         foreach ($result as $row) {
 
-            $row = output_escaping($row);
+            $row = unslash($row);
 
             $operate = '';
 

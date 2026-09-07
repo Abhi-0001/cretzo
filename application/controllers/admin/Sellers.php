@@ -13,8 +13,7 @@ class Sellers extends CI_Controller
         $this->load->helper(['url', 'language', 'file']);
         $this->load->model('Seller_model');
         if (!has_permissions('read', 'seller')) {
-            $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-            redirect('admin/home', 'refresh');
+            deny_panel_access();
         }
     }
 
@@ -85,7 +84,7 @@ class Sellers extends CI_Controller
                     ->result_array();
 
                 if (!empty($this->data['fetched_data'])) {
-                    $this->data['fetched_data'][0] = output_escaping($this->data['fetched_data'][0]);
+                    $this->data['fetched_data'][0] = unslash($this->data['fetched_data'][0]);
                 }
 
                 // Feeds the verification panel. The admin should not have to open the seller's
@@ -276,7 +275,7 @@ class Sellers extends CI_Controller
             if (!empty($order_items)) {
                 $res_order_id = array_values(array_unique(array_column($order_items, "order_id")));
                 for ($i = 0; $i < count($res_order_id); $i++) {
-                    $orders = $this->db->where('oi.seller_id != ' . $id . ' and oi.order_id=' . $res_order_id[$i])->join('orders o', 'o.id=oi.order_id', 'right')->get('order_items oi')->result_array();
+                    $orders = $this->db->where('oi.seller_id != ' . (int) $id . ' and oi.order_id=' . (int) $res_order_id[$i])->join('orders o', 'o.id=oi.order_id', 'right')->get('order_items oi')->result_array();
                     if (empty($orders)) {
                         // delete orders
                         if (delete_details(['seller_id' => $id], 'order_items')) {

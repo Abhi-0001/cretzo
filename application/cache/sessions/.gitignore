@@ -1,0 +1,5 @@
+# Session files are per-machine runtime state and must never be committed:
+# committing one would publish live session identifiers.
+*
+!.gitignore
+!index.html

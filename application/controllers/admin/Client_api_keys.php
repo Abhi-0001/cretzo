@@ -14,8 +14,7 @@ class Client_api_keys extends CI_Controller
         $this->load->model(['client_apikeys_model']);
 
         if (!has_permissions('read', 'client_api_keys')) {
-            $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-            redirect('admin/home', 'refresh');
+            deny_panel_access();
         }
     }
 

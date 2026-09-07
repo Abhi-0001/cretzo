@@ -94,6 +94,47 @@ class Razorpay
         // correct primitive for comparing a secret-derived digest.
         return hash_equals($generated_signature, (string) $razorpay_signature);
     }
+
+    /**
+     * Verify a Razorpay WEBHOOK, which is a different signature scheme from
+     * verify_payment() above and needs the WEBHOOK secret, not the API secret.
+     *
+     * Razorpay signs the raw request body with the webhook secret configured in their
+     * dashboard and sends the digest in X-Razorpay-Signature. The digest covers the
+     * body BYTE FOR BYTE, so the caller must hand over the unparsed
+     * file_get_contents('php://input') string - re-encoding a decoded array changes
+     * key order and whitespace and will never match.
+     *
+     * Fails closed on a missing secret. An unconfigured webhook secret with a webhook
+     * endpoint that accepts everything is strictly worse than one that accepts
+     * nothing: the endpoint marks orders paid and credits wallets, so "we forgot to
+     * paste the secret" must break the feature loudly rather than silently disable
+     * the only thing standing between that endpoint and a forged request.
+     *
+     * @param  string $raw_body  Unmodified request body.
+     * @param  string $signature Value of the X-Razorpay-Signature header.
+     * @return bool
+     */
+    public function verify_webhook_signature($raw_body, $signature)
+    {
+        if (empty($this->secret_hash) || $raw_body === '' || $raw_body === false || empty($signature)) {
+            return false;
+        }
+
+        $expected = hash_hmac('sha256', (string) $raw_body, $this->secret_hash);
+
+        return hash_equals($expected, (string) $signature);
+    }
+
+    /**
+     * True when a webhook secret has actually been saved, so a caller can tell
+     * "signature did not match" apart from "this install was never configured" and
+     * log the two differently.
+     */
+    public function has_webhook_secret()
+    {
+        return !empty($this->secret_hash);
+    }
     public function refund_payment($txn_id, $amount)
     {
         $amount = ($amount * 100);

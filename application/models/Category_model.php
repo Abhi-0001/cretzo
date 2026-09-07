@@ -100,8 +100,8 @@ class Category_model extends CI_Model
         $i = 0;
         foreach ($categories as $p_cat) {
             $categories[$i]->children = $this->sub_categories($p_cat->id, $level);
-            $categories[$i]->text = output_escaping($p_cat->name);
-            $categories[$i]->name = output_escaping($categories[$i]->name);
+            $categories[$i]->text = unslash($p_cat->name);
+            $categories[$i]->name = unslash($categories[$i]->name);
             $categories[$i]->state = ['opened' => true];
             $categories[$i]->icon = "jstree-folder";
             $categories[$i]->level = $level;
@@ -135,8 +135,8 @@ class Category_model extends CI_Model
         $i = 0;
         foreach ($categories as $p_cat) {
             $categories[$i]->children = $this->sub_categories($p_cat->id, $level);
-            $categories[$i]->text = output_escaping($p_cat->name);
-            $categories[$i]->name = output_escaping($categories[$i]->name);
+            $categories[$i]->text = unslash($p_cat->name);
+            $categories[$i]->name = unslash($categories[$i]->name);
             $categories[$i]->state = ['opened' => true];
             $categories[$i]->icon = "jstree-folder";
             $categories[$i]->level = $level;
@@ -166,8 +166,8 @@ class Category_model extends CI_Model
         $i = 0;
         foreach ($categories as $p_cat) {
             $categories[$i]['children'] = $this->sub_categories($p_cat['id'], $level);
-            $categories[$i]['text'] = output_escaping($p_cat['name']);
-            $categories[$i]['name'] = output_escaping($categories[$i]['name']);
+            $categories[$i]['text'] = unslash($p_cat['name']);
+            $categories[$i]['name'] = unslash($categories[$i]['name']);
             $categories[$i]['state'] = ['opened' => true];
             $categories[$i]['icon'] = "jstree-folder";
             $categories[$i]['level'] = $level;
@@ -272,7 +272,7 @@ class Category_model extends CI_Model
         foreach ($categories as $p_cat) {
 
             $categories[$i]->children = $this->sub_categories($p_cat->id, $level);
-            $categories[$i]->text = output_escaping($p_cat->name);
+            $categories[$i]->text = unslash($p_cat->name);
             $categories[$i]->state = ['opened' => true];
             $categories[$i]->level = $level;
             $categories[$i]->image = get_image_url($categories[$i]->image, 'thumb', 'md');
@@ -467,7 +467,7 @@ class Category_model extends CI_Model
                 // so a seller clicking a category name was sent to an admin URL their role cannot
                 // open - it bounced them out of the page they were on.
                 $category_drill_url = $this->ion_auth->is_seller() ? 'seller/category?id=' : 'admin/category?id=';
-                $tempRow['name'] = '<a href="' . base_url() . $category_drill_url . $row['id'] . '">' . output_escaping($row['name']) . '</a>';
+                $tempRow['name'] = '<a href="' . base_url() . $category_drill_url . $row['id'] . '">' . unslash($row['name']) . '</a>';
 
                 if (empty($row['image']) || file_exists(FCPATH  . $row['image']) == FALSE) {
                     $row['image'] = base_url() . NO_IMAGE;

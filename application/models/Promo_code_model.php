@@ -71,7 +71,7 @@ class Promo_code_model extends CI_Model
         $tempRow = array();
 
         foreach ($sc_search_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
 
             $operate = '<a href="javascript:void(0)" class="view_btn btn btn-primary action-btn btn-xs mr-1 mb-1 ml-1"  title="view" data-id="' . $row['id'] . '" data-url="admin/promo_code" ><i class="fa fa-eye" ></i></a>';
             $operate .= '<a href="javascript:void(0)" class="edit_btn btn btn-success action-btn btn-xs ml-1 mr-1 mb-1" title="Edit" data-id="' . $row['id'] . '" data-url="admin/promo_code"><i class="fa fa-pen"></i></a>';
@@ -142,7 +142,7 @@ class Promo_code_model extends CI_Model
         $tempRow = array();
 
         foreach ($sc_search_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
             $tempRow['id'] = $row['id'];
             $tempRow['promo_code'] = $row['promo_code'];
             $tempRow['message'] = $row['message'];
@@ -302,7 +302,7 @@ class Promo_code_model extends CI_Model
                         $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
                         $hashtag = html_entity_decode($string);
                         $replaced = str_replace(array($hashtag_cutomer_name, $hashtag_application_name), array($user_res[0]['username'], $app_name), $hashtag);
-                        $message = output_escaping(trim($replaced, '"'));
+                        $message = unslash(trim($replaced, '"'));
                     }
                     $customer_title = (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Discounted Amount Credited";
                     $customer_msg = (!empty($custom_notification)) ? $message :  'Hello Dear ' . $user_res[0]['username'] . 'Discounted Amount Credited, which orders are delivered. Please take note of it! Regards' . $app_name . '';

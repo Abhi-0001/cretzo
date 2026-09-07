@@ -17,8 +17,7 @@ class Transaction extends CI_Controller {
 		// wallet and the full payment-transaction ledger. See the new 'transactions' module
 		// in config/eshop.php; edit_transactions() is gated on 'update' separately below.
 		if (!has_permissions('read', 'transactions')) {
-			$this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-			redirect('admin/home', 'refresh');
+			deny_panel_access();
 		}	
 	}
 

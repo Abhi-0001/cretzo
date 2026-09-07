@@ -16,8 +16,7 @@ class Notification_settings extends CI_Controller
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
             if (!has_permissions('read', 'notification_setting')) {
-                $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-                redirect('admin/home', 'refresh');
+                deny_panel_access();
             }
             $this->data['main_page'] = FORMS . 'notification-settings';
             $settings = get_settings('system_settings', true);
@@ -35,8 +34,7 @@ class Notification_settings extends CI_Controller
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
             if (!has_permissions('read', 'send_notification')) {
-                $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-                redirect('admin/home', 'refresh');
+                deny_panel_access();
             }
 
             $this->data['main_page'] = TABLES . 'manage-notifications';
@@ -81,8 +79,7 @@ class Notification_settings extends CI_Controller
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
             if (!has_permissions('read', 'send_notification')) {
-                $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-                redirect('admin/home', 'refresh');
+                deny_panel_access();
             }
 
             $this->data['main_page'] = TABLES . 'manage-system-notification';
@@ -127,8 +124,7 @@ class Notification_settings extends CI_Controller
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
             if (!has_permissions('read', 'notification_setting')) {
-                $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-                redirect('admin/home', 'refresh');
+                deny_panel_access();
             }
             if (defined('SEMI_DEMO_MODE') && SEMI_DEMO_MODE == 0) {
                 $this->response['error'] = true;

@@ -28,12 +28,26 @@ class Custom_sms_model extends CI_Model
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "id";
-            } else {
-                $sort = $_GET['sort'];
-            }
+        /* SQL INJECTION - FIXED. This was:
+         *
+         *     if (isset($_GET['sort']))
+         *         if ($_GET['sort'] == 'id') { $sort = "id"; }
+         *         else                       { $sort = $_GET['sort']; }
+         *
+         * so any value other than the literal 'id' was passed through untouched and
+         * concatenated into ORDER BY by order_by(), which does not escape a string
+         * containing a parenthesis. Seventeen other list models in this directory had
+         * already been whitelisted in an earlier pass; this one was missed.
+         *
+         * The query is a SELECT * so there is no short hand-written column list to
+         * check against - sanitize_sort_column_for_table() asks the database for custom_sms's
+         * real columns instead, which is both exact and self-maintaining. The default
+         * is unchanged, so a request that sorted correctly before still does. */
+        $sort = sanitize_sort_column_for_table(
+            isset($_GET['sort']) ? $_GET['sort'] : null,
+            'custom_sms',
+            'id'
+        );
         if (isset($_GET['order']))
             $order = $_GET['order'];
 
@@ -71,7 +85,7 @@ class Custom_sms_model extends CI_Model
         $rows = array();
         $tempRow = array();
         foreach ($city_search_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
             // $operate = ' <a class="delete_custom_sms btn action-btn btn-danger btn-xs mr-1 mb-1 ml-1" title="Delete" href="javascript:void(0)"  data-id="' . $row['id'] . '" ><i class="fa fa-trash"></i></a>';
             // $operate .= '<a href="javascript:void(0)" class="edit_sms_modal action-btn btn btn-primary btn-xs mr-1 mb-1 ml-1" data-id="' . $row['id'] . '" data-target="#sms-gateway-modal" data-toggle="modal" data-url="admin/sms-gateway-settings"  title="View SMS" ><i class="fa fa-pen"></i></a>';
             $operate = '<button type="button" class="btn btn-xs btn-primary edit_sms_modal" data-toggle="modal" data-id="' . $row['id'] . '" data-target="#sms-gateway-modal" data-url="admin/sms-gateway-settings" title="View SMS"><i class="fa fa-pen"></i></button>';

@@ -171,7 +171,7 @@ class Transaction_model extends CI_Model
         $tempRow = array();
 
         foreach ($txn_search_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
             // output_escaping() only strips backslash-escaping, it does not HTML-encode - name/
             // message/txn_id are free text (the message in particular is admin/seller-entered)
             // and were rendered raw, a stored-XSS route the same as already fixed elsewhere.
@@ -334,7 +334,7 @@ class Transaction_model extends CI_Model
 
         $username = fetch_details('users', ['id' => $user_id], 'username');
         foreach ($txn_search_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
 
             $tempRow['id'] = $row['id'];
             $tempRow['name'] = $username[0]['username'];

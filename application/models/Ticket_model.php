@@ -245,7 +245,7 @@ class Ticket_model extends CI_Model
         $status = "";
         $tempRow = array();
         foreach ($cat_search_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
             // The data-* attributes below used to be entirely unquoted (data-username=Foo
             // instead of data-username="Foo"), and output_escaping() doesn't HTML-encode
             // anything - both together meant a subject/username containing a space or quote
@@ -357,7 +357,7 @@ class Ticket_model extends CI_Model
         if (!empty($cat_search_res)) {
             $data = $this->config->item('type');
             foreach ($cat_search_res as $row) {
-                $row = output_escaping($row);
+                $row = unslash($row);
                 $tempRow['id'] = $row['id'];
                 $tempRow['user_type'] = $row['user_type'];
                 $tempRow['user_id'] = $row['user_id'];
@@ -462,7 +462,7 @@ class Ticket_model extends CI_Model
         $bulkData['total'] = (empty($cat_search_res)) ? 0 : $total;
         if (!empty($cat_search_res)) {
             foreach ($cat_search_res as $row) {
-                $row = output_escaping($row);
+                $row = unslash($row);
                 $tempRow['id'] = $row['id'];
                 $tempRow['ticket_type_id'] = $row['ticket_type_id'];
                 $tempRow['user_id'] = $row['user_id'];
@@ -536,7 +536,7 @@ class Ticket_model extends CI_Model
         $bulkData['total'] = (empty($cat_search_res)) ? 0 : $total;
         if (!empty($cat_search_res)) {
             foreach ($cat_search_res as $row) {
-                $row = output_escaping($row);
+                $row = unslash($row);
                 $tempRow['id'] = $row['id'];
                 $tempRow['user_type'] = $row['user_type'];
                 $tempRow['user_id'] = $row['user_id'];
@@ -693,7 +693,7 @@ class Ticket_model extends CI_Model
         $status = "";
         $tempRow = array();
         foreach ($cat_search_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
             $operate = ' <a href="javascript:void(0)" class="edit_btn action-btn btn btn-success btn-xs ml-1 mr-1 mb-1" title="Edit" data-id="' . $row['id'] . '" data-url="admin/tickets/manage_ticket_types/"><i class="fa fa-pen"></i></a>';
             $operate .= '<a class="delete-ticket-type btn btn-danger action-btn btn-xs ml-1 mr-1 mb-1" title="Delete" href="javascript:void(0)" data-id="' . $row['id'] . '" ><i class="fa fa-trash"></i></a>';
 

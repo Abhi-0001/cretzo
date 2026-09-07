@@ -96,7 +96,7 @@
                                 </div>
                                 <!-- /.post-header -->
                                 <div class="post-content">
-                                    <p><?= description_word_limit(output_escaping(str_replace('\r\n', '&#13;&#10;', $row['description'])), 80) ?></p>
+                                    <p><?= description_word_limit(unslash(str_replace('\r\n', '&#13;&#10;', $row['description'])), 80) ?></p>
                                 </div>
                                 <!-- /.post-content -->
                             </div>
