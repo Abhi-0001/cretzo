@@ -205,18 +205,21 @@
 /* ---------- Secondary links ---------- */
 #register_div .login-left a.text-blue,
 #register_div .signup-back-link,
+#forgot_password_div .signup-back-link,
 #login_div .login-left a.text-blue {
     color: var(--cza-orange) !important;
     text-decoration: none;
     font-weight: 600;
 }
 
-#register_div .signup-back-link {
+#register_div .signup-back-link,
+#forgot_password_div .signup-back-link {
     font-size: 13.5px;
     color: var(--cza-muted) !important;
 }
 
 #register_div .signup-back-link:hover,
+#forgot_password_div .signup-back-link:hover,
 #register_div .login-left a.text-blue:hover,
 #login_div .login-left a.text-blue:hover {
     color: var(--cza-orange-dark) !important;
@@ -224,12 +227,14 @@
 }
 
 /* ---------- Step indicator ---------- */
-#register_div .signup-steps {
+#register_div .signup-steps,
+#forgot_password_div .signup-steps {
     gap: 4px;
     margin: 14px 30px 18px;
 }
 
-#register_div .signup-step span {
+#register_div .signup-step span,
+#forgot_password_div .signup-step span {
     width: 28px;
     height: 28px;
     font-size: 13px;
@@ -239,31 +244,36 @@
     color: var(--cza-muted);
 }
 
-#register_div .signup-step label {
+#register_div .signup-step label,
+#forgot_password_div .signup-step label {
     font-size: 11.5px;
     color: var(--cza-muted);
     font-weight: 500;
 }
 
-#register_div .signup-step.active span {
+#register_div .signup-step.active span,
+#forgot_password_div .signup-step.active span {
     background: linear-gradient(135deg, var(--cza-orange) 0%, var(--cza-orange-dark) 100%);
     border-color: var(--cza-orange-dark);
     color: #ffffff;
     box-shadow: 0 6px 14px -6px rgba(224, 122, 72, 0.9);
 }
 
-#register_div .signup-step.active label {
+#register_div .signup-step.active label,
+#forgot_password_div .signup-step.active label {
     color: var(--cza-orange-dark);
     font-weight: 700;
 }
 
-#register_div .signup-step.done span {
+#register_div .signup-step.done span,
+#forgot_password_div .signup-step.done span {
     background: #fff3e3;
     border-color: var(--cza-orange);
     color: var(--cza-orange-dark);
 }
 
-#register_div .signup-step-line {
+#register_div .signup-step-line,
+#forgot_password_div .signup-step-line {
     height: 3px;
     border-radius: 3px;
     margin-top: 13px;
@@ -272,19 +282,22 @@
 
 /* A line leaving a completed step is itself completed - the markup order is
    step, line, step, line, step, so the sibling selector says exactly that. */
-#register_div .signup-step.done + .signup-step-line {
+#register_div .signup-step.done + .signup-step-line,
+#forgot_password_div .signup-step.done + .signup-step-line {
     background: linear-gradient(90deg, var(--cza-orange), #f2b184);
 }
 
 /* ---------- OTP entry (step 2) ---------- */
-#register_div .otp-boxes {
+#register_div .otp-boxes,
+#forgot_password_div .otp-boxes {
     display: flex;
     justify-content: center;
     gap: 10px;
     margin: 18px 0 2px;
 }
 
-#register_div .otp-box {
+#register_div .otp-box,
+#forgot_password_div .otp-box {
     width: 46px;
     height: 54px;
     padding: 0;
@@ -300,19 +313,22 @@
 
 /* Each box carries placeholder=" ", so :not(:placeholder-shown) is simply "this
    box has a digit in it" - a filled state with no JS to keep in sync. */
-#register_div .otp-box:not(:placeholder-shown) {
+#register_div .otp-box:not(:placeholder-shown),
+#forgot_password_div .otp-box:not(:placeholder-shown) {
     border-color: var(--cza-orange);
     background: #ffffff;
 }
 
-#register_div .otp-box:focus {
+#register_div .otp-box:focus,
+#forgot_password_div .otp-box:focus {
     outline: none;
     border-color: var(--cza-orange);
     background: #ffffff;
     box-shadow: 0 0 0 4px var(--cza-ring);
 }
 
-#register_div #otp-notice {
+#register_div .otp-notice,
+#forgot_password_div .otp-notice {
     display: none;
     margin-top: 10px;
     font-size: 13px;
@@ -320,11 +336,13 @@
     color: #1a7f4b;
 }
 
-#register_div #otp-notice:empty {
+#register_div .otp-notice:empty,
+#forgot_password_div .otp-notice:empty {
     display: none;
 }
 
-#register_div .otp-resend-row {
+#register_div .otp-resend-row,
+#forgot_password_div .otp-resend-row {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -335,7 +353,8 @@
     color: var(--cza-muted);
 }
 
-#register_div .otp-resend {
+#register_div .otp-resend,
+#forgot_password_div .otp-resend {
     padding: 0;
     border: 0;
     background: none;
@@ -345,25 +364,29 @@
     cursor: pointer;
 }
 
-#register_div .otp-resend:hover {
+#register_div .otp-resend:hover,
+#forgot_password_div .otp-resend:hover {
     color: var(--cza-orange-dark);
     text-decoration: underline;
 }
 
 /* Disabled during the cooldown: greyed and inert, with the countdown beside it
    so the wait is visibly finite rather than a dead link. */
-#register_div .otp-resend:disabled {
+#register_div .otp-resend:disabled,
+#forgot_password_div .otp-resend:disabled {
     color: #b8b0a2;
     cursor: default;
     text-decoration: none;
 }
 
-#register_div .otp-resend-timer {
+#register_div .otp-resend-timer,
+#forgot_password_div .otp-resend-timer {
     font-size: 12.5px;
     color: var(--cza-muted);
 }
 
-#register_div .otp-resend-timer:empty {
+#register_div .otp-resend-timer:empty,
+#forgot_password_div .otp-resend-timer:empty {
     display: none;
 }
 
@@ -516,16 +539,19 @@
     font-size: 13.5px;
 }
 
-#register_div .signup-steps {
+#register_div .signup-steps,
+#forgot_password_div .signup-steps {
     margin: 10px 30px 12px;
 }
 
-#register_div .signup-step span {
+#register_div .signup-step span,
+#forgot_password_div .signup-step span {
     width: 26px;
     height: 26px;
 }
 
-#register_div .signup-step-line {
+#register_div .signup-step-line,
+#forgot_password_div .signup-step-line {
     margin-top: 12px;
 }
 
@@ -601,16 +627,124 @@
     /* Six boxes plus five gaps have to fit the narrowest handset with the
        panel's own padding on both sides, so they share the row rather than
        holding a fixed width. */
-    #register_div .otp-boxes {
+    #register_div .otp-boxes,
+    #forgot_password_div .otp-boxes {
         gap: 8px;
     }
 
-    #register_div .otp-box {
+    #register_div .otp-box,
+    #forgot_password_div .otp-box {
         flex: 1 1 0;
         width: auto;
         min-width: 0;
         max-width: 52px;
         height: 56px;
         font-size: 20px;
+    }
+}
+
+/* ===========================================================================
+   One card height for the whole auth suite
+
+   The three cards were each sized by their own content, so the modal resized
+   under the cursor on every hop through the flow:
+
+     signup step 1        554px
+     login                465px   (-89px when "Sign Up" swapped the modals)
+     forgot password      324px   (-141px on "Forgot Password?", same modal)
+
+   The photograph is the right-hand half of every one of these cards, so a
+   height change is not a subtle reflow - the image visibly grows and shrinks
+   and the centred dialog re-centres itself mid-interaction.
+
+   One floor for all three fixes that. 576px is the tallest panel's own natural
+   height with the top padding below (signup step 1: heading, subtitle, step
+   indicator, three fields, referral chip, error slot, button, sign-in line,
+   divider, two social buttons), so nothing is ever compressed - the shorter
+   panels simply leave more room at the bottom.
+
+   It replaces the 480px floor signup.css sets. The inline height custom.js pins
+   on #signuptwo (and on #forgot-card-two) still wins over this, which is what we
+   want: if step 1 ever grows past 576px (a validation error, the referral field
+   opened), the later steps follow it up rather than being clipped to the floor.
+
+   Desktop only. Below 768px each modal is a full-height sheet with its own
+   rules, and a fixed 554px frame there would fight them.
+   ------------------------------------------------------------------------- */
+@media screen and (min-width: 768px) {
+    #register_div .login,
+    #login_div .login,
+    #forgot_password_div .login {
+        min-height: 576px;
+    }
+
+    /* Top-anchored, NOT vertically centred.
+
+       Centring was the first attempt at filling the taller card and it read badly:
+       every screen started its heading at a different height, so moving from Login
+       to Sign Up to Verify slid the whole form up and down, and a short panel
+       (forgot password: one field and a button) floated in the middle of the card
+       with a void above and below it.
+
+       Anchoring the content to a fixed offset from the top instead means the
+       heading, the underline and the step indicator land on exactly the same line
+       on every screen of the suite. The leftover space collects at the bottom, next
+       to the photograph, where it reads as margin rather than as a gap. */
+    #register_div .login-left,
+    #login_div .login-left,
+    #forgot_password_div .login-left {
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        padding-top: 38px;
+    }
+
+    /* The trailing row of each panel - the legal/sign-up lines under Login, the
+       "Back to login" link, the resend row and the "change mobile number" line
+       under it - is pushed to the foot of the card instead of trailing off into
+       whitespace. Content anchored at the top, secondary links at the bottom: the
+       card reads as a designed frame rather than as a short form with a hole under
+       it, and nothing has to move to achieve it (margin-top:auto simply eats the
+       free space, so on a panel with none - signup step 1 - it does nothing). */
+    #register_div .auth-panel-foot,
+    #login_div .auth-panel-foot,
+    #forgot_password_div .auth-panel-foot {
+        margin-top: auto;
+    }
+
+    /* On the stepped screens the foot is not a direct child of .login-left - it sits
+       inside the .signup-panel for that step, and margin-top:auto only eats free
+       space inside its OWN flex container. So the visible panel becomes the column
+       that fills the card and the foot pushes to the bottom of that. Hidden panels
+       are unaffected: .d-none is display:none !important, which outranks this. */
+    #register_div .signup-panel,
+    #forgot_password_div .signup-panel {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 auto;
+    }
+
+    /* login.css gives the reset panel its own .login-left.fp-panel rule - two
+       classes, so it outranks the selector above and kept its own centring and its
+       own 34px/40px padding. It has to be restated here or the reset screens are
+       the only ones in the suite that do not line up. 50px sides matches
+       #login_div, the panel it swaps places with inside the same modal. */
+    #forgot_password_div .login-left.fp-panel {
+        justify-content: flex-start;
+        padding: 38px 50px 24px 50px;
+    }
+}
+
+/* Same dialog box as #modal-signin (login.css), so the two modals are the same
+   width at every breakpoint. Bootstrap's .modal-lg only reaches 800px at >=992px;
+   below that it collapses to the base 500px dialog, so between 768 and 991px the
+   signup card was 560px wide against the login card's 800px - and the narrower
+   form column made its content wrap, pushing signup 23px taller than the shared
+   height above. Matching the width removes both differences at once. */
+@media screen and (min-width: 768px) {
+    #modal-signup .modal-dialog.signup-dialog {
+        margin: 1rem auto;
+        width: calc(100% - 1rem);
+        max-width: 800px;
     }
 }

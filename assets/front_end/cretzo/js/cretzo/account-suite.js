@@ -369,6 +369,53 @@
         });
     }
 
+    function initPassToggles(root) {
+        /* Show/hide eye on every .czap-pass wrapper - the change-password popup's
+           current/new/confirm fields. Deliberately NOT reusing theme.js
+           passVisibility(): that binds only .password-field wrappers, and only when
+           theme.init() gets far enough to call it (it aborts on the Bootstrap 4/5
+           collision described at the top of this file), which is exactly why the
+           login modal's eye needed repairing in cretzo-fixes.js. This owns its own
+           markup and its own handler, so it cannot be broken by either.
+
+           Bound per wrapper rather than delegated because the popup markup is
+           already in the DOM at load; initAll() re-runs it for anything injected
+           later, and the guard attribute keeps a second pass from double-binding
+           (which would toggle twice and appear to do nothing). */
+        var wrappers = (root || document).querySelectorAll('.czap-pass');
+        Array.prototype.forEach.call(wrappers, function (wrap) {
+            if (wrap.getAttribute('data-czap-pass-bound') === '1') {
+                return;
+            }
+            var input = wrap.querySelector('input');
+            var btn = wrap.querySelector('.czap-pass__eye');
+            if (!input || !btn) {
+                return;
+            }
+            wrap.setAttribute('data-czap-pass-bound', '1');
+
+            btn.addEventListener('click', function (e) {
+                e.preventDefault();
+                var show = input.type === 'password';
+                input.type = show ? 'text' : 'password';
+                btn.setAttribute('aria-pressed', show ? 'true' : 'false');
+                btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+                var icon = btn.querySelector('i');
+                if (icon) {
+                    icon.className = show ? 'uil uil-eye-slash' : 'uil uil-eye';
+                }
+                /* Focus returns to the field, at the end of the text - clicking the
+                   eye otherwise parks the caret wherever the browser feels like. */
+                input.focus();
+                try {
+                    input.setSelectionRange(input.value.length, input.value.length);
+                } catch (err) {
+                    /* setSelectionRange throws on some input types; harmless here. */
+                }
+            });
+        });
+    }
+
     function initCopy(root) {
         // [data-czap-copy="text"] - used for tracking ids and order numbers.
         var buttons = (root || document).querySelectorAll('[data-czap-copy]');
@@ -445,6 +492,7 @@
         initRadioPills(root);
         initSearchBoxes(root);
         initDigitsOnly(root);
+        initPassToggles(root);
         initCopy(root);
         initFilePickers(root);
     }

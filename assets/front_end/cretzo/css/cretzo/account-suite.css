@@ -750,6 +750,57 @@ body.czap-body {
     box-shadow: 0 0 0 3px rgba(242, 130, 46, .16);
 }
 
+/* Password field with a show/hide eye (change-password popup). The wrapper is
+   the positioning context; the input reserves room on the right so a long
+   password never runs under the button. Sized to the 46px control height so the
+   hit area is the full field edge, not just the 16px glyph - the storefront login
+   eye is a bare <span> and is fiddly to hit on a phone. */
+.czap-pass {
+    position: relative;
+}
+
+.czap-pass .czap-input {
+    padding-right: 46px;
+}
+
+.czap-pass__eye {
+    position: absolute;
+    top: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 100%;
+    min-height: 46px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--czap-ink-2);
+    font-size: 17px;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 0 var(--czap-r-sm) var(--czap-r-sm) 0;
+    transition: color .15s ease;
+}
+
+.czap-pass__eye:hover,
+.czap-pass__eye:focus-visible {
+    color: var(--czap-orange);
+}
+
+.czap-pass__eye:focus {
+    outline: none;
+}
+
+.czap-pass__eye:focus-visible {
+    box-shadow: 0 0 0 3px rgba(242, 130, 46, .16);
+}
+
+.czap-pass__eye[aria-pressed="true"] {
+    color: var(--czap-orange);
+}
+
 .czap-input[readonly],
 .czap-input:disabled,
 .czap-textarea[readonly] {

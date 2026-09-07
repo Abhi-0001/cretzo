@@ -96,7 +96,8 @@
     text-decoration: underline;
     font-weight: 600;
 }
-#register_div .reg-error:empty{
+#register_div .reg-error:empty,
+#forgot_password_div .reg-error:empty{
     display: none;
 }
 #register_div .reg-error{
@@ -283,14 +284,16 @@
    The indicator mirrors the seller registration page, and only one .signup-panel
    inside #verify-otp-form is visible at a time (custom.js toggles .d-none).
    =========================================================================== */
-#register_div .signup-steps{
+#register_div .signup-steps,
+#forgot_password_div .signup-steps{
     display: flex;
     align-items: flex-start;
     justify-content: center;
     gap: 3px;
     margin: 12px 40px 20px;
 }
-#register_div .signup-step{
+#register_div .signup-step,
+#forgot_password_div .signup-step{
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -298,7 +301,8 @@
     flex: 0 0 auto;
     width: 68px;
 }
-#register_div .signup-step span{
+#register_div .signup-step span,
+#forgot_password_div .signup-step span{
     width: 23px;
     height: 23px;
     border-radius: 50%;
@@ -312,27 +316,32 @@
     border: 2px solid rgba(0, 0, 0, 0.14);
     transition: background-color .15s ease, border-color .15s ease, color .15s ease;
 }
-#register_div .signup-step label{
+#register_div .signup-step label,
+#forgot_password_div .signup-step label{
     margin: 0;
     font-size: 0.78rem;
     line-height: 1;
     color: rgba(0, 0, 0, 0.45);
     text-align: center;
 }
-#register_div .signup-step.active span{
+#register_div .signup-step.active span,
+#forgot_password_div .signup-step.active span{
     background-color: var(--color-orange);
     border-color: var(--color-orange);
     color: #fff;
 }
-#register_div .signup-step.active label{
+#register_div .signup-step.active label,
+#forgot_password_div .signup-step.active label{
     color: var(--color-orange);
     font-weight: 600;
 }
-#register_div .signup-step.done span{
+#register_div .signup-step.done span,
+#forgot_password_div .signup-step.done span{
     border-color: var(--color-orange);
     color: var(--color-orange);
 }
-#register_div .signup-step-line{
+#register_div .signup-step-line,
+#forgot_password_div .signup-step-line{
     flex: 1 1 auto;
     max-width: 60px;
     height: 2px;
@@ -340,11 +349,13 @@
     background-color: rgba(0, 0, 0, 0.14);
 }
 /* Panels are display:none via Bootstrap's .d-none; nothing else to hide here. */
-#register_div .signup-panel{
+#register_div .signup-panel,
+#forgot_password_div .signup-panel{
     width: 100%;
 }
 #register_div #otp-error:empty,
-#register_div .reg-error:empty{
+#register_div .reg-error:empty,
+#forgot_password_div .reg-error:empty{
     display: none;
 }
 #register_div #otp{
@@ -403,7 +414,8 @@
         width: 100%;
         min-height: 48px;
     }
-    #register_div .signup-steps{
+    #register_div .signup-steps,
+    #forgot_password_div .signup-steps{
         margin: 14px 0 2px;
     }
     #register_div .btn-close{

@@ -96,7 +96,7 @@
                                     </div>
                                 <?php } ?>
 
-                                <p class="text-n ta-c">By continuing you agree to <strong><a class="text-decoration-none text-underline c-p text-s" style="text-decoration: underline !important;" href="<?= base_url('home/terms-and-conditions') ?>">Terms of use</a></strong> and <strong><a class="text-decoration-none text-underline c-p text-s" style="text-decoration: underline !important;" href="<?= base_url('home/privacy-policy') ?>">Privacy Policy</a></strong></p>
+                                <p class="text-n ta-c auth-panel-foot">By continuing you agree to <strong><a class="text-decoration-none text-underline c-p text-s" style="text-decoration: underline !important;" href="<?= base_url('home/terms-and-conditions') ?>">Terms of use</a></strong> and <strong><a class="text-decoration-none text-underline c-p text-s" style="text-decoration: underline !important;" href="<?= base_url('home/privacy-policy') ?>">Privacy Policy</a></strong></p>
 
                                 <p class="text-n mb-0 ta-c mt-2">Don't have an account? <a class="text-decoration-none text-blue hover text-underline c-p fw-bold" href="#" data-bs-target="#modal-signup" data-bs-toggle="modal" data-bs-dismiss="modal" class="hover" style="color: var(--color-orange) !important;">Sign Up</a></p>
                                 
@@ -114,14 +114,39 @@
                 <!-- login section complete -->
 
 
+                <?php /* ---------------------------------------------------------------
+                         Forgot password: the same three-screen shape as the signup modal
+                         (Mobile -> Verify -> Password), with the same step indicator, the
+                         same six-box OTP control and the same resend row.
+
+                         It was two screens before: "enter your mobile", then one screen
+                         asking for the OTP and the new password together, with no confirm
+                         box and no way to resend. A mistyped digit was only reported after
+                         the user had already chosen a password.
+
+                         The split mirrors signup exactly, including the form boundaries:
+                         step 1 is its own form (it posts to a different endpoint), and
+                         steps 2 and 3 share #verify_forgot_password_otp_form so a single
+                         FormData carries the OTP and the new password to home/reset-password.
+                         --------------------------------------------------------------- */ ?>
                 <section class="d-none login-container" id="forgot_password_div">
 
                     <form id="send_forgot_password_otp_form" method="POST" action="#">
-                        <div class="login rounded-1">
+                        <!-- forgot step 1 -->
+                        <div class="login rounded-1" id="forgot-card-one">
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                             <div class="login-left fp-panel">
                                 <h1 class="heading-n ta-c"><?= !empty($this->lang->line('forgot_password')) ? $this->lang->line('forgot_password') : 'Forgot Password' ?></h1>
                                 <p class="text-n ta-c op-6">Enter your registered mobile number to receive an OTP.</p>
+
+                                <div class="signup-steps" aria-hidden="true">
+                                    <div class="signup-step active"><span>1</span><label>Mobile</label></div>
+                                    <div class="signup-step-line"></div>
+                                    <div class="signup-step"><span>2</span><label>Verify</label></div>
+                                    <div class="signup-step-line"></div>
+                                    <div class="signup-step"><span>3</span><label>Password</label></div>
+                                </div>
+
                                 <div class="field-container">
                                     <input type="text" class="form-control input ta-c" name="mobile_number" id="forgot_password_number" placeholder="Mobile Number" value="">
                                 </div>
@@ -133,37 +158,105 @@
                                 </div>
                                 <?php /* There was no way back other than closing the modal, which
                                          also threw away whatever had been typed on the login form. */ ?>
-                                <p class="fp-back ta-c"><a href="#" class="back-to-login-link">&larr; Back to login</a></p>
+                                <p class="fp-back ta-c auth-panel-foot"><a href="#" class="back-to-login-link">&larr; Back to login</a></p>
                             </div>
                             <div class="login-right" style="background-image: url(<?= base_url('assets/front_end/cretzo/img/new_cretzo/login-img.png') ?>);"></div>
                         </div>
+                        <!-- /forgot step 1 -->
                     </form>
 
                     <form id="verify_forgot_password_otp_form" class="d-none" method="post" action="#">
-                        <div class="login rounded-1">
+                        <!-- forgot steps 2 and 3 -->
+                        <div class="login rounded-1" id="forgot-card-two">
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 
                             <div class="login-left fp-panel">
-                                <h1 class="heading-n ta-c"><?= !empty($this->lang->line('forgot_password')) ? $this->lang->line('forgot_password') : 'Forgot Password' ?></h1>
-                                <p class="text-n ta-c op-6">Enter the OTP and set a new password.</p>
-                                <div class="field-container">
-                                    <input type="text" id="forgot_password_otp" class="form-control input ta-c" name="otp" placeholder="OTP" value="" autocomplete="off" required>
-                                    <?php /* password-field is what theme.js passVisibility() binds the eye
-                                             icon to; password-container only carries the existing login.css
-                                             styling. Without the former the toggle rendered but did nothing. */ ?>
-                                    <div class="password-container password-field">
-                                        <input type="password" id="forgot_password_new_password" class="form-control input ta-c" name="new_password" placeholder="New Password" value="" required>
-                                        <span class="password-toggle"><i class="uil uil-eye"></i></span>
+
+                                <?php /* Step 2 - OTP only. custom.js checks it against
+                                         home/verify-reset-otp before step 3 is revealed, so a
+                                         wrong code is caught before a password is chosen. */ ?>
+                                <div id="forgot-step-2" class="signup-panel">
+                                    <h1 class="heading-n ta-c">Verify your mobile</h1>
+                                    <p class="text-n ta-c op-6">We sent a 6-digit code to <strong id="forgot-otp-mobile"></strong></p>
+
+                                    <div class="signup-steps" aria-hidden="true">
+                                        <div class="signup-step done"><span>1</span><label>Mobile</label></div>
+                                        <div class="signup-step-line"></div>
+                                        <div class="signup-step active"><span>2</span><label>Verify</label></div>
+                                        <div class="signup-step-line"></div>
+                                        <div class="signup-step"><span>3</span><label>Password</label></div>
                                     </div>
+
+                                    <?php /* Same control as the signup modal: six single-character
+                                             boxes writing into the hidden input named by
+                                             data-otp-target, which is what actually posts. */ ?>
+                                    <div class="otp-boxes" id="forgot-otp-boxes" data-otp-target="#forgot_password_otp" data-otp-submit="#forgot_password_verify_btn">
+                                        <input type="text" class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]*" placeholder=" " autocomplete="one-time-code" aria-label="OTP digit 1">
+                                        <input type="text" class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]*" placeholder=" " aria-label="OTP digit 2">
+                                        <input type="text" class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]*" placeholder=" " aria-label="OTP digit 3">
+                                        <input type="text" class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]*" placeholder=" " aria-label="OTP digit 4">
+                                        <input type="text" class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]*" placeholder=" " aria-label="OTP digit 5">
+                                        <input type="text" class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]*" placeholder=" " aria-label="OTP digit 6">
+                                    </div>
+                                    <input type="hidden" id="forgot_password_otp" name="otp" value="">
+
+                                    <div id="forgot_otp_error_box" class="text-center text-danger reg-error"></div>
+                                    <div id="forgot_otp_notice" class="otp-notice ta-c"></div>
+
+                                    <div class="ta-c btn-container">
+                                        <button type="button" id="forgot_password_verify_btn" class="cretzo btn btn-dark">Verify OTP</button>
+                                    </div>
+
+                                    <div class="otp-resend-row ta-c auth-panel-foot">
+                                        <span class="otp-resend-q">Didn't get the code?</span>
+                                        <button type="button" class="otp-resend" id="forgot-resend-otp">Resend OTP</button>
+                                        <span class="otp-resend-timer" id="forgot-resend-timer"></span>
+                                    </div>
+
+                                    <p class="text-n mb-0 ta-c mt-2"><a href="#" id="forgot-back-to-mobile" class="signup-back-link">&larr; Change mobile number</a></p>
                                 </div>
-                                <div class="form-group ta-c" id="set_password_error_box"></div>
-                                <div class="ta-c btn-container">
-                                    <button type="submit" class="submit_btn cretzo btn btn-dark" id="reset_password_submit_btn"><?= !empty($this->lang->line('submit')) ? $this->lang->line('submit') : 'Submit' ?></button>
+
+                                <?php /* Step 3 - the new password. Submitting this form is what
+                                         actually resets it. */ ?>
+                                <div id="forgot-step-3" class="signup-panel d-none">
+                                    <h1 class="heading-n ta-c">Create a new password</h1>
+                                    <p class="text-n ta-c op-6">Last step - pick a new password for your account.</p>
+
+                                    <div class="signup-steps" aria-hidden="true">
+                                        <div class="signup-step done"><span>1</span><label>Mobile</label></div>
+                                        <div class="signup-step-line"></div>
+                                        <div class="signup-step done"><span>2</span><label>Verify</label></div>
+                                        <div class="signup-step-line"></div>
+                                        <div class="signup-step active"><span>3</span><label>Password</label></div>
+                                    </div>
+
+                                    <div class="field-container">
+                                        <?php /* Each password gets its own .password-field wrapper and its
+                                                 own toggle - theme.js passVisibility() binds per wrapper,
+                                                 so a single shared toggle would never be bound at all. */ ?>
+                                        <div class="password-container password-field">
+                                            <input type="password" id="forgot_password_new_password" class="form-control input" name="new_password" placeholder="New Password" value="" autocomplete="new-password">
+                                            <span class="password-toggle"><i class="uil uil-eye"></i></span>
+                                        </div>
+                                        <div class="password-container password-field">
+                                            <input type="password" id="forgot_password_confirm_password" class="form-control input" name="confirm_password" placeholder="Re-enter New Password" value="" autocomplete="new-password">
+                                            <span class="password-toggle"><i class="uil uil-eye"></i></span>
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group ta-c" id="set_password_error_box"></div>
+
+                                    <div class="ta-c btn-container">
+                                        <button type="submit" class="submit_btn cretzo btn btn-dark" id="reset_password_submit_btn">Reset Password</button>
+                                    </div>
+
+                                    <p class="fp-back ta-c auth-panel-foot"><a href="#" class="back-to-login-link">&larr; Back to login</a></p>
                                 </div>
-                                <p class="fp-back ta-c"><a href="#" class="back-to-login-link">&larr; Back to login</a></p>
+
                             </div>
                             <div class="login-right" style="background-image: url(<?= base_url('assets/front_end/cretzo/img/new_cretzo/login-img.png') ?>);"></div>
                         </div>
+                        <!-- /forgot steps 2 and 3 -->
                     </form>
 
                 </section>
@@ -333,7 +426,7 @@
                                              to auth/register-user, and what every check in custom.js
                                              reads. The boxes are only an input surface that writes into
                                              it, so nothing downstream had to learn about them. */ ?>
-                                    <div class="otp-boxes" id="signup-otp-boxes">
+                                    <div class="otp-boxes" id="signup-otp-boxes" data-otp-target="#otp" data-otp-submit="#verify-otp-button">
                                         <input type="text" class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]*" placeholder=" " autocomplete="one-time-code" aria-label="OTP digit 1">
                                         <input type="text" class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]*" placeholder=" " aria-label="OTP digit 2">
                                         <input type="text" class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]*" placeholder=" " aria-label="OTP digit 3">
@@ -356,7 +449,7 @@
                                              mobile number", which throws away the number and starts
                                              again. Cooled down for 30s so a stuck user cannot burn the
                                              hourly per-number OTP allowance in ten seconds. */ ?>
-                                    <div class="otp-resend-row ta-c">
+                                    <div class="otp-resend-row ta-c auth-panel-foot">
                                         <span class="otp-resend-q">Didn't get the code?</span>
                                         <button type="button" class="otp-resend" id="signup-resend-otp">Resend OTP</button>
                                         <span class="otp-resend-timer" id="signup-resend-timer"></span>
@@ -414,6 +507,12 @@
                                     <div class="ta-c btn-container">
                                         <button type="submit" id='register_submit_btn' class="cretzo btn btn-dark">Register Now</button>
                                     </div>
+
+                                    <?php /* The same line step 1 carries. It is the only panel in the
+                                             suite with nothing under its button, which left the foot of
+                                             the card empty - and someone who reaches this step having
+                                             already got an account still needs a way to sign in. */ ?>
+                                    <p class="text-n mb-0 ta-c auth-panel-foot">Already have an account? <a class="text-decoration-none text-blue hover text-underline c-p fw-bold" href="#" data-bs-target="#modal-signin" data-bs-toggle="modal" data-bs-dismiss="modal" style="color: var(--color-orange) !important;">Sign In</a></p>
                                 </div>
                             </div>
                             <div class="login-right" style="background-image: url(<?= base_url('assets/front_end/cretzo/img/new_cretzo/login-img.png') ?>);">

@@ -27,6 +27,57 @@
 
     var $ = window.jQuery;
     var confirmationResult = null;
+    // Set once the code has been confirmed on the stepped UI, so step 3 can mint a
+    // fresh ID token without re-confirming (a confirmationResult is single-use).
+    var verifiedUser = null;
+
+    /*
+     * The customer modal runs the three-screen flow (Mobile -> Verify -> Password) and
+     * supplies showForgotStep()/enterForgotOtpStep() from custom.js along with the
+     * markup for it. The seller and admin reset screens still use the original two
+     * screens, where the OTP and the new password are submitted together. Both live
+     * here, chosen by whether the stepped UI is actually on the page - this file is
+     * shared by all three portals, so it cannot assume either.
+     */
+    function steppedUi() {
+        return typeof window.showForgotStep === 'function' && $('#forgot_password_verify_btn').length > 0;
+    }
+
+    // Sends (or resends) the code and hands back the promise, so the submit handler and
+    // the Resend button cannot drift apart.
+    function sendFirebaseOtp() {
+        return firebase.auth().signInWithPhoneNumber(e164(), recaptcha());
+    }
+
+    // The last leg, shared by both flows: swap the verified token for a new password.
+    function postNewPassword(tokenPromise, newPassword, $btn, label) {
+        Promise.resolve(tokenPromise).then(function (idToken) {
+            $.post(cfg.resetUrl, {
+                mobile_number: digits($('#forgot_password_number').val()),
+                id_token: idToken,
+                new_password: newPassword
+            }, function (res) {
+                $btn.html(label).attr('disabled', false);
+                setMsg('#set_password_error_box', res.message, !res.error);
+                if (!res.error) {
+                    setTimeout(function () {
+                        if (cfg.redirectUrl) {
+                            window.location.href = cfg.redirectUrl;
+                        } else {
+                            window.location.reload();
+                        }
+                    }, 2000);
+                }
+            }, 'json').fail(function () {
+                $btn.html(label).attr('disabled', false);
+                setMsg('#set_password_error_box', 'Something went wrong. Please try again.', false);
+            });
+        }).catch(function (err) {
+            $btn.html(label).attr('disabled', false);
+            setMsg('#set_password_error_box',
+                (err && err.message) ? err.message : 'Could not reset your password. Please try again.', false);
+        });
+    }
 
     function digits(raw) {
         var d = String(raw || '').replace(/\D+/g, '');
@@ -114,10 +165,19 @@
                 return;
             }
 
-            firebase.auth().signInWithPhoneNumber(e164(), recaptcha())
+            sendFirebaseOtp()
                 .then(function (result) {
                     confirmationResult = result;
+                    verifiedUser = null;
                     $btn.html(label).attr('disabled', false);
+
+                    if (steppedUi()) {
+                        // Step 2 owns the "we sent it to X" line, the six boxes and the
+                        // resend cooldown; enterForgotOtpStep() sets all three up.
+                        window.enterForgotOtpStep(e164());
+                        return;
+                    }
+
                     setMsg('#forgot_pass_error_box', 'OTP sent to ' + e164() + '.', true);
                     $('#verify_forgot_password_otp_form').removeClass('d-none');
                     $('#send_forgot_password_otp_form').hide();
@@ -134,6 +194,98 @@
         });
     });
 
+    /* ----------------------------------------------------------------- resend OTP */
+
+    // custom.js has its own Resend handler that asks the SERVER for a code; on this
+    // configuration there is no SMS gateway, so it must not be the one that runs.
+    // Bound here (this file loads first) and suppressed there, exactly as with the
+    // handlers around it.
+    $(document).on('click', '#forgot-resend-otp', function (e) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+
+        var $btn = $(this);
+        if ($btn.prop('disabled')) {
+            return;
+        }
+        $btn.prop('disabled', true).text('Sending...');
+
+        sendFirebaseOtp().then(function (result) {
+            confirmationResult = result;
+            verifiedUser = null;
+            $btn.text('Resend OTP');
+            if (typeof window.resetOtpGroup === 'function') {
+                window.resetOtpGroup('#forgot-otp-boxes');
+            }
+            if (typeof window.showForgotOtpNotice === 'function') {
+                window.showForgotOtpNotice('A new code is on its way to ' + e164() + '.');
+            }
+            if (window.forgotResendCooldown) {
+                window.forgotResendCooldown.start(30);
+            }
+        }).catch(function (err) {
+            $btn.prop('disabled', false).text('Resend OTP');
+            resetRecaptcha();
+            if (window.forgotResendCooldown) {
+                window.forgotResendCooldown.stop();
+            }
+            if (typeof window.showForgotOtpError === 'function') {
+                window.showForgotOtpError((err && err.message) ? err.message : 'Could not resend the code. Please try again.');
+            }
+        });
+    });
+
+    // Changing the number invalidates the code that was sent to the old one.
+    $(document).on('click', '#forgot-back-to-mobile', function () {
+        confirmationResult = null;
+        verifiedUser = null;
+    });
+
+    /* ------------------------------------------------------------ verify the code */
+
+    // Step 2 of the stepped UI. Confirming here rather than at the end is the whole
+    // point of the extra screen: a wrong digit is reported before a password has been
+    // chosen. custom.js has a handler on this button too, for the non-Firebase
+    // configuration, which this suppresses.
+    $(document).on('click', '#forgot_password_verify_btn', function (e) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+
+        var $btn = $(this);
+        var label = $btn.html();
+        var otp = (typeof window.syncOtpGroup === 'function')
+            ? window.syncOtpGroup('#forgot-otp-boxes')
+            : $('#forgot_password_otp').val();
+
+        function fail(message) {
+            if (typeof window.showForgotOtpError === 'function') {
+                window.showForgotOtpError(message);
+            } else {
+                setMsg('#forgot_otp_error_box', message, false);
+            }
+        }
+
+        if (!confirmationResult) { fail('Please request an OTP first.'); return; }
+        if (!otp) { fail('Please enter the OTP we sent you.'); return; }
+        if (otp.length < 6) { fail('Please enter all 6 digits of the code.'); return; }
+
+        $btn.html('Please Wait...').attr('disabled', true);
+
+        confirmationResult.confirm(otp).then(function (result) {
+            verifiedUser = result.user;
+            $btn.html(label).attr('disabled', false);
+            $('#forgot_otp_error_box, #set_password_error_box').html('');
+            if (window.forgotResendCooldown) {
+                window.forgotResendCooldown.stop();
+            }
+            window.showForgotStep(3);
+            setTimeout(function () { $('#forgot_password_new_password').trigger('focus'); }, 50);
+        }).catch(function (err) {
+            $btn.html(label).attr('disabled', false);
+            fail((err && err.message) ? err.message : 'That OTP is not valid. Please check and try again.');
+        });
+    });
+
     /* ------------------------------------------------------- verify + set password */
 
     $(document).on('submit', '#verify_forgot_password_otp_form', function (e) {
@@ -146,6 +298,30 @@
         var newPassword = $('#verify_forgot_password_otp_form input[name="new_password"]').val();
 
         setMsg('#set_password_error_box', '', false);
+
+        // On the stepped UI the code was already confirmed on step 2, so this screen
+        // only has to check the two password boxes and mint a fresh token from the user
+        // that confirmation produced - a confirmationResult cannot be confirmed twice.
+        if (steppedUi()) {
+            var confirmPassword = $('#forgot_password_confirm_password').val();
+
+            if (!verifiedUser) {
+                setMsg('#set_password_error_box', 'Please verify the OTP first.', false);
+                return;
+            }
+            if (!newPassword || newPassword.length < 6) {
+                setMsg('#set_password_error_box', 'Password must be at least 6 characters.', false);
+                return;
+            }
+            if (newPassword !== confirmPassword) {
+                setMsg('#set_password_error_box', 'Passwords do not match !', false);
+                return;
+            }
+
+            $btn.html('Please Wait...').attr('disabled', true);
+            postNewPassword(verifiedUser.getIdToken(), newPassword, $btn, label);
+            return;
+        }
 
         if (!confirmationResult) {
             setMsg('#set_password_error_box', 'Please request an OTP first.', false);
