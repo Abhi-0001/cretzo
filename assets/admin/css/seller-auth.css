@@ -22,7 +22,7 @@ body {
     font-family: 'Poppins', sans-serif;
     color: var(--cz-ink);
     margin: 0;
-    padding: 24px 16px;
+    padding: 16px 16px;
 }
 
 .login-container {
@@ -33,7 +33,7 @@ body {
     max-width: 100%;
     display: flex;
     align-items: center;
-    padding: 40px 48px;
+    padding: 18px 40px;
     border-radius: 12px;
     box-shadow: 0 30px 70px -25px rgba(120, 72, 20, 0.35);
     border: 1px solid rgba(224, 122, 72, 0.12);
@@ -56,7 +56,7 @@ body {
 .brand-section {
     flex: 1;
     text-align: center;
-    padding-right: 48px;
+    padding-right: 36px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -67,11 +67,11 @@ body {
 .logo-area {
     display: inline-block;
     text-align: center;
-    margin-bottom: 18px;
+    margin-bottom: 6px;
 }
 
 .logo-area img {
-    width: 250px;
+    width: 200px;
     max-width: 100%;
     height: auto;
     display: block;
@@ -80,16 +80,16 @@ body {
 
 .tagline {
     font-family: 'Playfair Display', serif;
-    font-size: 16px;
+    font-size: 14px;
     color: var(--cz-muted);
-    margin-top: 12px;
+    margin-top: 6px;
     margin-bottom: 0px;
 }
 
 .illustration img {
     width: 100%;
-    max-width: 300px;
-    margin: 20px auto;
+    max-width: 250px;
+    margin: 6px auto;
     display: block;
     border-radius: 5px;
 }
@@ -97,8 +97,8 @@ body {
 .mission-text {
     font-family: 'Playfair Display', serif;
     color: #5d6d5e;
-    font-size: 21px;
-    line-height: 1.35;
+    font-size: 16px;
+    line-height: 1.25;
     margin: 0;
 }
 
@@ -108,8 +108,8 @@ body {
     align-items: center;
     gap: 12px;
     width: 100%;
-    margin: 18px 0 0;
-    padding: 6px 9px;
+    margin: 8px 0 0;
+    padding: 5px 8px;
     border-radius: 7px;
     background: linear-gradient(135deg, #fff3e3 0%, #ffe7cc 100%);
     border: 1px solid rgba(224, 122, 72, 0.28);
@@ -142,7 +142,7 @@ body {
 /* ---------- Form / right side ---------- */
 .form-section {
     flex: 1;
-    padding-left: 48px;
+    padding-left: 36px;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -150,31 +150,31 @@ body {
 
 .form-title {
     font-family: 'Playfair Display', serif;
-    font-size: 34px;
+    font-size: 22px;
     font-weight: 600;
-    margin: 0 0 6px;
+    margin: 0 0 3px;
     color: var(--cz-ink);
 }
 
 .form-title::after {
     content: "";
     display: block;
-    width: 54px;
-    height: 4px;
+    width: 46px;
+    height: 3px;
     border-radius: 4px;
     background: linear-gradient(90deg, var(--cz-orange), #f2a973);
-    margin-bottom: 12px;
+    margin-bottom: 6px;
 }
 
 .input-group {
-    margin-bottom: 10px;
+    margin-bottom: 6px;
 }
 
 .input-group label {
     display: block;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
     font-weight: 500;
-    font-size: 14px;
+    font-size: 13px;
     color: var(--cz-ink);
 }
 
@@ -202,24 +202,24 @@ body {
     align-items: flex-start;
     justify-content: center;
     gap: 8px;
-    margin-bottom: 26px;
+    margin-bottom: 10px;
 }
 
 .step-dot {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
+    gap: 3px;
 }
 
 .step-dot span {
-    width: 30px;
-    height: 30px;
+    width: 22px;
+    height: 22px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 700;
     background: #fffdf8;
     border: 1.5px solid var(--cz-border);
@@ -251,10 +251,10 @@ body {
 }
 
 .step-line {
-    width: 40px;
+    width: 34px;
     height: 2px;
     background: var(--cz-border);
-    margin-top: 14px;
+    margin-top: 10px;
 }
 
 /* ---------- OTP verification screen ---------- */
@@ -295,12 +295,12 @@ body {
     display: flex;
     gap: 10px;
     justify-content: center;
-    margin: 22px 0 6px;
+    margin: 10px 0 4px;
 }
 
 .otp-box {
-    width: 46px;
-    height: 54px;
+    width: 42px;
+    height: 42px;
     padding: 0;
     text-align: center;
     font-size: 22px;
@@ -355,7 +355,7 @@ body {
 }
 
 .input-group input {
-    padding: 14px 16px;
+    padding: 8px 14px;
     border: 1.5px solid var(--cz-border);
     border-radius: 12px;
     background: #fffdf8;
@@ -437,10 +437,10 @@ body {
 .btn-create,
 .btn-signin {
     width: auto;
-    min-width: 200px;
+    min-width: 180px;
     max-width: 100%;
-    padding: 14px 36px;
-    font-size: 16px;
+    padding: 9px 30px;
+    font-size: 15px;
     font-weight: 600;
     border-radius: 30px;
     cursor: pointer;
@@ -514,8 +514,8 @@ body {
 
 .signup-prompt {
     text-align: center;
-    margin-top: 12px;
-    padding-top: 12px;
+    margin-top: 6px;
+    padding-top: 6px;
     border-top: 1px solid var(--cz-border);
 }
 
