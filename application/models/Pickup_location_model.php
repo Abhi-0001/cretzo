@@ -352,7 +352,7 @@ class Pickup_location_model extends CI_Model
         $url = 'manage_' . $table;
         foreach ($city_search_res as $row) {
 
-            $row = output_escaping($row);
+            $row = unslash($row);
             if ($this->ion_auth->is_admin()) {
                 $operate = ' <a href="javascript:void(0)" class="edit_btn  btn action-btn image.png btn-success btn-xs mr-1 mb-1" title="Edit" data-id="' . $row['id'] . '" data-url="admin/Pickup_location/' . $url . '"><i class="fa fa-pen"></i></a>';
 

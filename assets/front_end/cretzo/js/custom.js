@@ -374,38 +374,65 @@ function showOtpNotice(message) {
    validators, the Firebase confirm(), the register-user POST - still reads #otp
    and knows nothing about the boxes.
    ------------------------------------------------------------------------- */
-function signupOtpBoxes() {
-    return $("#signup-otp-boxes .otp-box");
+/* Every .otp-boxes group behaves the same way, so the behaviour is bound once to
+   the class and each group declares its own wiring in the markup:
+
+     data-otp-target  the hidden input the six digits are written into (that input,
+                      not the boxes, is what has a name= and gets posted)
+     data-otp-submit  the button Enter should press
+
+   Signup and password reset both use it. Binding to "#signup-otp-boxes .otp-box"
+   and hard-coding "#otp"/"#verify-otp-button" - as this did when only signup had
+   the control - meant the reset screen's boxes typed into nothing at all. */
+function otpGroupOf(el) {
+    return $(el).closest(".otp-boxes");
 }
 
-function syncSignupOtp() {
+function otpBoxesIn(group) {
+    return $(group).find(".otp-box");
+}
+
+// The hidden field this group feeds. Falls back to #otp so the signup group keeps
+// working even if the data attribute is ever dropped from the markup.
+function otpTargetOf(group) {
+    var sel = $(group).data("otp-target");
+    return $(sel || "#otp");
+}
+
+function syncOtpGroup(group) {
     var otp = "";
-    signupOtpBoxes().each(function () { otp += this.value; });
-    $("#otp").val(otp);
+    otpBoxesIn(group).each(function () { otp += this.value; });
+    otpTargetOf(group).val(otp);
     return otp;
 }
 
-function resetSignupOtpBoxes() {
-    signupOtpBoxes().val("");
-    $("#otp").val("");
+function resetOtpGroup(group) {
+    otpBoxesIn(group).val("");
+    otpTargetOf(group).val("");
 }
 
 // The first empty box, so a half-typed code is resumed rather than restarted.
-function focusSignupOtp() {
-    var $boxes = signupOtpBoxes();
+function focusOtpGroup(group) {
+    var $boxes = otpBoxesIn(group);
     if (!$boxes.length) return;
     var $empty = $boxes.filter(function () { return !this.value; }).first();
     ($empty.length ? $empty : $boxes.last()).trigger("focus").trigger("select");
 }
 
-$(document).on("input", "#signup-otp-boxes .otp-box", function () {
+// Signup's names kept as thin wrappers - they are called from a dozen places.
+function signupOtpBoxes() { return otpBoxesIn("#signup-otp-boxes"); }
+function syncSignupOtp() { return syncOtpGroup("#signup-otp-boxes"); }
+function resetSignupOtpBoxes() { resetOtpGroup("#signup-otp-boxes"); }
+function focusSignupOtp() { focusOtpGroup("#signup-otp-boxes"); }
+
+$(document).on("input", ".otp-boxes .otp-box", function () {
     // Digits only: a phone keyboard in numeric mode still offers other characters.
     this.value = this.value.replace(/\D/g, "").slice(0, 1);
     if (this.value) $(this).next(".otp-box").trigger("focus");
-    syncSignupOtp();
+    syncOtpGroup(otpGroupOf(this));
 });
 
-$(document).on("keydown", "#signup-otp-boxes .otp-box", function (e) {
+$(document).on("keydown", ".otp-boxes .otp-box", function (e) {
     if (e.key === "Backspace" && !this.value) {
         $(this).prev(".otp-box").trigger("focus");
     } else if (e.key === "ArrowLeft") {
@@ -413,52 +440,146 @@ $(document).on("keydown", "#signup-otp-boxes .otp-box", function (e) {
     } else if (e.key === "ArrowRight") {
         $(this).next(".otp-box").trigger("focus");
     } else if (e.key === "Enter") {
+        // The reset boxes sit inside a form, so without this Enter submits that form
+        // and skips straight past the verify step.
         e.preventDefault();
-        $("#verify-otp-button").trigger("click");
+        var submit = otpGroupOf(this).data("otp-submit");
+        $(submit || "#verify-otp-button").trigger("click");
     }
 });
 
 // Codes arrive as one 6-digit string, and people paste them as one. Without this
 // the paste lands entirely in whichever box has focus and five boxes stay empty.
-$(document).on("paste", "#signup-otp-boxes .otp-box", function (e) {
+$(document).on("paste", ".otp-boxes .otp-box", function (e) {
     var clipboard = e.originalEvent && e.originalEvent.clipboardData ? e.originalEvent.clipboardData : window.clipboardData;
     var text = clipboard ? (clipboard.getData("text") || "").replace(/\D/g, "") : "";
     if (!text) return;
     e.preventDefault();
 
-    var $boxes = signupOtpBoxes();
+    var $group = otpGroupOf(this);
+    var $boxes = otpBoxesIn($group);
     $boxes.each(function (i) { this.value = text.charAt(i) || ""; });
-    syncSignupOtp();
+    syncOtpGroup($group);
     $boxes.eq(Math.min(text.length, $boxes.length - 1)).trigger("focus");
 });
 
 /* Resend. The 30s cooldown is not decoration: OTPs are rate limited per number
    (5/hour), and an unthrottled link lets somebody spend that allowance in ten
-   seconds and then be locked out of their own signup. */
-var signupResendTimer = null;
+   seconds and then be locked out of their own signup - or, on the reset screen,
+   out of the account they are trying to get back into.
 
-function stopSignupResendCooldown() {
-    if (signupResendTimer) clearInterval(signupResendTimer);
-    signupResendTimer = null;
-    $("#signup-resend-timer").text("");
-    $("#signup-resend-otp").prop("disabled", !1).text("Resend OTP");
+   One cooldown per screen, each with its own interval handle: signup and password
+   reset can both be part-way through in the same page load, and a single shared
+   timer would have one clearing the other's countdown. */
+function makeResendCooldown(btnSelector, timerSelector) {
+    var handle = null;
+
+    function stop() {
+        if (handle) clearInterval(handle);
+        handle = null;
+        $(timerSelector).text("");
+        $(btnSelector).prop("disabled", !1).text("Resend OTP");
+    }
+
+    function start(seconds) {
+        var remaining = seconds || 30;
+        $(btnSelector).prop("disabled", !0).text("Resend OTP");
+
+        if (handle) clearInterval(handle);
+        $(timerSelector).text("in " + remaining + "s");
+        handle = setInterval(function () {
+            remaining--;
+            if (remaining <= 0) {
+                stop();
+            } else {
+                $(timerSelector).text("in " + remaining + "s");
+            }
+        }, 1000);
+    }
+
+    return { start: start, stop: stop };
 }
 
-function startSignupResendCooldown(seconds) {
-    var remaining = seconds || 30;
-    var $btn = $("#signup-resend-otp").prop("disabled", !0).text("Resend OTP");
-    var $timer = $("#signup-resend-timer");
+var signupResendCooldown = makeResendCooldown("#signup-resend-otp", "#signup-resend-timer");
 
-    if (signupResendTimer) clearInterval(signupResendTimer);
-    $timer.text("in " + remaining + "s");
-    signupResendTimer = setInterval(function () {
-        remaining--;
-        if (remaining <= 0) {
-            stopSignupResendCooldown();
-        } else {
-            $timer.text("in " + remaining + "s");
+function stopSignupResendCooldown() { signupResendCooldown.stop(); }
+function startSignupResendCooldown(seconds) { signupResendCooldown.start(seconds); }
+
+/* ---------------------------------------------------------------------------
+ * Password reset: Mobile -> Verify -> Password.
+ *
+ * The same three-step shape as the signup modal above, and for the same reason:
+ * one screen asking for the OTP and the new password together reported a
+ * mistyped digit only after the user had already chosen a password.
+ *
+ * These live up here as declarations because everything from the "auth_model"
+ * handler onwards is a single comma expression (see the minified chain further
+ * down the file) - a `function` statement cannot be spliced into that, so only
+ * the event handlers themselves live down there.
+ * ------------------------------------------------------------------------- */
+var forgotResendCooldown = makeResendCooldown("#forgot-resend-otp", "#forgot-resend-timer");
+
+// Step 1 lives in #send_forgot_password_otp_form and steps 2-3 in
+// #verify_forgot_password_otp_form, two sibling forms, so - exactly as in
+// showSignupStep() - no container is sized by both and step 1's height has to be
+// measured on its way out and pinned on the card that replaces it.
+function showForgotStep(step) {
+    if (step === 1) {
+        // Dropped rather than kept: a height measured before a resize would be the
+        // wrong one next time.
+        $("#forgot-card-two").css("min-height", "");
+        $("#verify_forgot_password_otp_form").addClass("d-none").hide();
+        $("#send_forgot_password_otp_form").removeClass("d-none").show();
+    } else {
+        // Measured before the hide, while it still has a layout box.
+        var mobileStepHeight = $("#forgot-card-one").outerHeight();
+        if (mobileStepHeight > 0) {
+            $("#forgot-card-two").css("min-height", mobileStepHeight + "px");
         }
-    }, 1000);
+        $("#send_forgot_password_otp_form").hide();
+        $("#verify_forgot_password_otp_form").removeClass("d-none").show();
+    }
+    $("#forgot-step-2").toggleClass("d-none", step === 3);
+    $("#forgot-step-3").toggleClass("d-none", step !== 3);
+}
+
+function forgotResetMobile() {
+    return $.trim($("#forgot_password_number").val());
+}
+
+function showForgotOtpError(message) {
+    $("#forgot_otp_error_box").html(message).show();
+    $("#forgot_otp_notice").html("").hide();
+}
+
+function showForgotOtpNotice(message) {
+    $("#forgot_otp_notice").html(message).show();
+    $("#forgot_otp_error_box").html("");
+}
+
+// Arrival at step 2: clear the old code, show the number it went to, start the
+// cooldown. Called both by the first send and by a successful resend.
+function enterForgotOtpStep(displayNumber) {
+    $("#forgot_pass_error_box").html("");
+    $("#forgot_otp_error_box").html("");
+    $("#forgot_otp_notice").html("").hide();
+    $("#set_password_error_box").html("");
+    $("#forgot-otp-mobile").text(displayNumber);
+    showForgotStep(2);
+    resetOtpGroup("#forgot-otp-boxes");
+    forgotResendCooldown.start(30);
+    setTimeout(function () { focusOtpGroup("#forgot-otp-boxes"); }, 50);
+}
+
+// The one place that asks the server for a reset OTP, so Send and Resend cannot
+// drift apart - the same reason window.signupSendOtp() exists for signup.
+function sendForgotPasswordOtp() {
+    return $.ajax({
+        type: "POST",
+        url: base_url + "home/send_reset_otp",
+        data: { mobile_number: forgotResetMobile(), [csrfName]: csrfHash },
+        dataType: "json"
+    });
 }
 
 // Shared arrival at step 2 for both auth branches: one place that clears the old
@@ -3380,14 +3501,49 @@ function customer_wallet_query_paramss(e) {
     // typed there still intact (closing the modal used to be the only way out).
     $(document).on("click", ".back-to-login-link", function (e) {
         e.preventDefault();
+        forgotResendCooldown.stop();
         $("#forgot_password_div").addClass("d-none");
         $("#login_div").removeClass("d-none");
-        $("#verify_forgot_password_otp_form").addClass("d-none");
-        $("#send_forgot_password_otp_form").removeClass("d-none");
-        $("#forgot_pass_error_box, #set_password_error_box").html("");
+        showForgotStep(1);
+        $("#forgot_pass_error_box, #set_password_error_box, #forgot_otp_error_box").html("");
+    }),
+    $(document).on("click", "#forgot-back-to-mobile", function (e) {
+        e.preventDefault();
+        forgotResendCooldown.stop();
+        resetOtpGroup("#forgot-otp-boxes");
+        $("#forgot_otp_error_box, #set_password_error_box").html("");
+        $("#forgot_otp_notice").html("").hide();
+        showForgotStep(1);
+        setTimeout(function () { $("#forgot_password_number").trigger("focus"); }, 50);
+    }),
+    $(document).on("click", "#forgot-resend-otp", function (e) {
+        e.preventDefault();
+
+        var $btn = $(this);
+        if ($btn.prop("disabled")) return;
+        $btn.prop("disabled", !0).text("Sending...");
+
+        sendForgotPasswordOtp().done(function (res) {
+            $btn.text("Resend OTP");
+            if (res && res.error) {
+                forgotResendCooldown.stop();
+                showForgotOtpError(res.message);
+                return;
+            }
+            resetOtpGroup("#forgot-otp-boxes");
+            showForgotOtpNotice((res && res.message) ? res.message : "A new code is on its way.");
+            forgotResendCooldown.start(30);
+            focusOtpGroup("#forgot-otp-boxes");
+        }).fail(function () {
+            forgotResendCooldown.stop();
+            showForgotOtpError("Could not resend the code. Please try again.");
+        });
     }),
     $(document).on("click", "#forgot_password_link", function (e) {
         e.preventDefault(), $(".auth-modal").find("header a").removeClass("active"), $("#forgot_password_div").removeClass("d-none").siblings("section").addClass("d-none"),
+            // Always open on step 1: the panel is never destroyed, so without this a
+            // second visit re-opened on whichever step the last attempt was abandoned on.
+            showForgotStep(1),
             $("#forgot_password_number").intlTelInput({
                 allowExtensions: !0,
                 formatOnDisplay: !0,
@@ -3414,31 +3570,85 @@ function customer_wallet_query_paramss(e) {
     }), $(document).on("submit", "#send_forgot_password_otp_form", function (e) {
         e.preventDefault();
         var t = $("#forgot_password_send_otp_btn").html(),
-            mobile = $("#forgot_password_number").val();
+            mobile = forgotResetMobile();
+
+        if (!mobile) {
+            $("#forgot_pass_error_box").html("Please enter your registered mobile number.");
+            return;
+        }
+
         $("#forgot_password_send_otp_btn").html("Please Wait...").attr("disabled", !0);
+        sendForgotPasswordOtp().done(function (res) {
+            $("#forgot_password_send_otp_btn").html(t).attr("disabled", !1);
+            if (res && res.error) {
+                $("#forgot_pass_error_box").html(res.message);
+                return;
+            }
+            $("#forgot_pass_error_box").html("");
+            enterForgotOtpStep(mobile);
+            // Which channel it went to (SMS or email) is worth keeping in front of the
+            // user on the screen where they are waiting for it.
+            if (res && res.message) showForgotOtpNotice(res.message);
+        }).fail(function () {
+            $("#forgot_password_send_otp_btn").html(t).attr("disabled", !1);
+            $("#forgot_pass_error_box").html("Something went wrong. Please try again.");
+        });
+    }), $(document).on("click", "#forgot_password_verify_btn", function (e) {
+        e.preventDefault();
+
+        // syncOtpGroup() is what fills the hidden field from the six boxes; called
+        // again here so a code pasted or autofilled without an input event counts.
+        var otp = syncOtpGroup("#forgot-otp-boxes");
+        if (!otp) { showForgotOtpError("Please enter the OTP we sent you."); return; }
+        if (otp.length < 6) { showForgotOtpError("Please enter all 6 digits of the code."); return; }
+
+        var $btn = $(this),
+            label = $btn.html();
+        $btn.html("Please Wait...").attr("disabled", !0);
+
         $.ajax({
             type: "POST",
-            url: base_url + "home/send_reset_otp",
-            data: { mobile_number: mobile, [csrfName]: csrfHash },
+            url: base_url + "home/verify-reset-otp",
+            data: { mobile: forgotResetMobile(), otp: otp, [csrfName]: csrfHash },
             dataType: "json",
             success: function (res) {
-                $("#forgot_password_send_otp_btn").html(t).attr("disabled", !1);
-                $("#forgot_pass_error_box").html(res.message);
-                if (!res.error) {
-                    $("#verify_forgot_password_otp_form").removeClass("d-none");
-                    $("#send_forgot_password_otp_form").hide();
+                $btn.html(label).attr("disabled", !1);
+                if (res && res.error) {
+                    showForgotOtpError(res.message);
+                    return;
                 }
+                // Verified - the code is deliberately NOT consumed yet; the reset submit
+                // below sends it again and that is the call that spends it.
+                $("#forgot_otp_error_box, #set_password_error_box").html("");
+                forgotResendCooldown.stop();
+                showForgotStep(3);
+                setTimeout(function () { $("#forgot_password_new_password").trigger("focus"); }, 50);
             },
             error: function () {
-                $("#forgot_password_send_otp_btn").html(t).attr("disabled", !1);
-                $("#forgot_pass_error_box").html("Something went wrong. Please try again.");
+                $btn.html(label).attr("disabled", !1);
+                showForgotOtpError("Something went wrong. Please try again.");
             }
-        })
+        });
     }), $(document).on("submit", "#verify_forgot_password_otp_form", function (e) {
         e.preventDefault();
+
+        var newPassword = $("#forgot_password_new_password").val(),
+            confirmPassword = $("#forgot_password_confirm_password").val();
+
+        if (!newPassword) {
+            $("#set_password_error_box").html("Please enter a new password.").show();
+            return;
+        }
+        // .val() on both sides - comparing the jQuery objects themselves is never
+        // true, which is the bug that used to reject every signup.
+        if (newPassword !== confirmPassword) {
+            $("#set_password_error_box").html("Passwords do not match !").show();
+            return;
+        }
+
         var t = $("#reset_password_submit_btn").html(),
             s = new FormData(this),
-            mobile = $("#forgot_password_number").val();
+            mobile = forgotResetMobile();
         s.append(csrfName, csrfHash), s.append("mobile", mobile);
         $("#reset_password_submit_btn").html("Please Wait...").attr("disabled", !0);
         $.ajax({

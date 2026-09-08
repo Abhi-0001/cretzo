@@ -30,7 +30,21 @@
 
 
 # HTID:23028279: DO NOT REMOVE OR MODIFY THIS LINE AND THE LINES BELOW
-php_value display_errors 1
+# `php_value display_errors 1` used to live here - inserted by the host, and DEPLOYED.
+# index.php sets display_errors to 0 for the production environment, so the ordinary
+# request was covered, but PHP startup and parse errors are raised BEFORE any line of
+# index.php runs and those were rendered to the visitor: absolute file paths, and any
+# credential visible in the failing frame. There is no reason for a live site to print
+# errors to the browser at all, so the directive is off here as well as in index.php.
+# If the host's automation re-inserts the line, set `display_errors = Off` in a
+# .user.ini in this directory instead - that file is read earlier than .htaccess PHP
+# values and cannot be clobbered by the panel.
+#
+# Only `php_value` is used here, and only for the one directive the host's own line
+# already proved this server accepts. Adding a second directive family (php_flag) is a
+# 500-on-deploy risk on a LiteSpeed/LSAPI handler for no gain, since log_errors is
+# already On by default in every production php.ini.
+php_value display_errors 0
 # DO NOT REMOVE OR MODIFY THIS LINE AND THE LINES ABOVE HTID:23028279:
 
 RewriteEngine on
@@ -58,6 +72,28 @@ RewriteEngine on
 #
 # This must stay ABOVE the index.php rewrite below, or the request reaches
 # CodeIgniter on the wrong host before the redirect ever runs.
+# ===============================
+# FORCE HTTPS
+# ===============================
+# There was no http -> https redirect at all, only the www -> bare one below. That
+# matters more than it looks: config.php computes `cookie_secure` from the scheme of
+# the REQUEST, precisely so local HTTP development can still log in - which means a
+# login that arrived over plain http was handed a session cookie with no Secure flag,
+# and that cookie was then sent in clear on every subsequent request. Anyone on the
+# same network could read it and take the session.
+#
+# Scoped to the live hostnames on purpose. A blanket `RewriteCond %{HTTPS} off` would
+# redirect http://localhost/cretzo to https://localhost/cretzo, which has no
+# certificate, so it would lock every developer out of the local site.
+#
+# Two conditions because Hostinger terminates TLS at a proxy: %{HTTPS} is "off" on the
+# back end even for a request that arrived encrypted, and X-Forwarded-Proto is what
+# actually carries the truth. Redirecting on %{HTTPS} alone would loop forever.
+RewriteCond %{HTTP_HOST} ^(www\.)?cretzo\.com$ [NC]
+RewriteCond %{HTTPS} !=on
+RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+RewriteRule ^(.*)$ https://cretzo.com/$1 [R=301,L]
+
 RewriteCond %{HTTP_HOST} ^www\.cretzo\.com$ [NC]
 RewriteRule ^(.*)$ https://cretzo.com/$1 [R=301,L]
 
@@ -69,8 +105,145 @@ SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
 
 Options -Indexes
 
+# ===============================
+# BLOCK EVERYTHING THAT IS NOT MEANT TO BE A URL
+# ===============================
+# The rewrite above ends with `RewriteCond %{REQUEST_FILENAME} !-f`, which means every
+# file that exists on disk is served directly instead of being handed to CodeIgniter.
+# The whole repository is checked out inside the document root, so that rule turned the
+# repository into a public file share. Only system/ had a guard of its own.
+#
+# The worst case is .git: this site deploys by pulling from git INTO the web root, so
+# /.git/config and the object files sit next to index.php, and between them they carry
+# the entire source tree - including application/config/database.php and the production
+# database password. Serving that one directory hands over everything.
+#
+# The rest is reconnaissance and infrastructure detail an attacker should not get for
+# free: the three *-api-doc.txt files are a complete endpoint map with parameter names,
+# countries.sql is a database dump, docker-compose.yml names credentials, and the two
+# PHP files under tools/ EXECUTE when requested - opcache-status.php prints server
+# paths and cache internals, perf-bench.php issues outbound HTTP requests.
+#
+# Blocked with mod_rewrite rather than <Directory>/Require, because .htaccess cannot
+# contain <Directory> and this must also work on LiteSpeed, which Hostinger runs.
+<IfModule mod_rewrite.c>
+    RewriteRule ^\.git(/|$)            - [F,L]
+    RewriteRule ^\.github(/|$)         - [F,L]
+    RewriteRule ^application(/|$)      - [F,L]
+    RewriteRule ^system(/|$)           - [F,L]
+    RewriteRule ^vendor(/|$)           - [F,L]
+    RewriteRule ^tools(/|$)            - [F,L]
+    RewriteRule ^docs(/|$)             - [F,L]
+    RewriteRule ^docker(/|$)           - [F,L]
+</IfModule>
+
+# Extension- and name-based blocks, for anything the path rules above would miss -
+# a stray dump or editor backup dropped anywhere in the tree, at any depth.
+<FilesMatch "(?i)(^\.|^composer\.(json|lock)$|^package(-lock)?\.json$|^docker-compose\.ya?ml$|^Dockerfile$|-api-doc\.txt$|^api-doc\.txt$|\.(sql|sql\.gz|zip|tar|tar\.gz|gz|bz2|rar|7z|bak|backup|old|orig|save|swp|swo|log|ini|sh|harness|md|yml|yaml|lock|dist|example|sample)$)">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# ===============================
+# SECURITY HEADERS
+# ===============================
+# There were none at all. Each of these closes a distinct class of attack, and none of
+# them costs anything to send.
 <IfModule mod_headers.c>
-  <FilesMatch "\.(ttf|ttc|otf|eot|woff|woff2|font.css|css)$">
+    # HSTS: without it, the http -> https redirect above is only a suggestion - the
+    # first request of a session still goes out in clear and can be intercepted before
+    # the redirect is seen. One year, subdomains included, so the browser refuses plain
+    # http for this host from the second visit onward.
+    #
+    # `env=HTTPS` so the header is only sent on an encrypted response. A Strict-
+    # Transport-Security header on a plain-http response is ignored by browsers anyway,
+    # and sending it locally would pin developers' browsers to https on localhost.
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains" env=HTTPS
+
+    # Stops a browser from second-guessing Content-Type. This is what turns an uploaded
+    # file that is served as image/jpeg but contains markup into a stored XSS.
+    Header always set X-Content-Type-Options "nosniff"
+
+    # No framing from other origins: blocks clickjacking of the admin panel and of the
+    # checkout, where an invisible overlay over a real button is the whole attack.
+    Header always set X-Frame-Options "SAMEORIGIN"
+
+    # Referrer-Policy: order ids, promo codes and reset tokens travel in query strings
+    # here. Without this, the full URL is sent to every third-party image, font and
+    # script host the page loads.
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+
+    # Nothing on this site uses the camera, microphone or geolocation from the browser,
+    # so revoke them - an injected script cannot ask for what the page cannot have.
+    Header always set Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=(), usb=()"
+
+    # ===========================================================================
+    # CONTENT SECURITY POLICY - still REPORT-ONLY, but now accurate.
+    # ===========================================================================
+    #
+    # The first version of this header was written from the theme's obvious CDN
+    # usage. It was then checked against what the site ACTUALLY loads, by crawling
+    # 16 rendered pages (storefront, product, cart, checkout, admin and seller
+    # panels, my-account) and extracting every external src/href. That found two
+    # showstoppers the guesswork had missed - either would have broken payments the
+    # moment this was enforced:
+    #
+    #   1. https://checkout.razorpay.com was absent from script-src, and Razorpay
+    #      also opens its card form in an IFRAME, so it needs frame-src too. An
+    #      enforced policy would have killed every Razorpay payment.
+    #
+    #   2. `form-action 'self'` would have blocked PayPal and Paytm outright. Both
+    #      are driven by an auto-submitting form that POSTs to the gateway - see
+    #      Paypal_lib::paypal_auto_form() and the form at Payment.php:182 - which is
+    #      exactly what form-action governs.
+    #
+    # That is why it shipped report-only rather than enforced: a CSP written from
+    # reading the code, however carefully, is a hypothesis. This one is now built
+    # from observation, which is what makes flipping it a small change.
+    #
+    # HOW TO ENFORCE (do this, don't leave it report-only forever):
+    #   1. Browse the site for a few days with the console open - storefront,
+    #      checkout with each live gateway, both panels. Report-only prints every
+    #      violation and blocks nothing.
+    #   2. Add any host the console names. Expect admin-pasted widget scripts to
+    #      show up: curator-assets.b-cdn.net appears on rendered pages but exists
+    #      nowhere in this repository, so it arrived through a settings field. That
+    #      is the category most likely to surprise you.
+    #   3. Rename this header to `Content-Security-Policy` and redeploy.
+    #
+    # 'unsafe-inline' and 'unsafe-eval' are present because the theme uses inline
+    # handlers and inline <script> blocks throughout. They substantially weaken the
+    # XSS protection a CSP is mainly for, and removing them is a separate piece of
+    # front-end work - but the policy is still worth having: it constrains where
+    # scripts, frames, form posts and connections may go, which is what turns an
+    # injected script from "exfiltrate to anywhere" into "blocked".
+    Header always set Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://code.jquery.com https://unpkg.com https://www.gstatic.com https://www.googletagmanager.com https://apis.google.com https://www.google.com https://checkout.razorpay.com https://curator-assets.b-cdn.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://curator-assets.b-cdn.net; font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com https://unpkg.com; img-src 'self' data: blob: https:; media-src 'self' https:; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://api.razorpay.com https://lumberjack.razorpay.com https://checkout.razorpay.com https://api.stripe.com https://curator-assets.b-cdn.net; frame-src 'self' https://cretzo-bcb9e.firebaseapp.com https://www.google.com https://checkout.razorpay.com https://api.razorpay.com https://js.stripe.com; frame-ancestors 'self'; base-uri 'self'; form-action 'self' https://www.paypal.com https://www.sandbox.paypal.com https://securegw.paytm.in https://securegw-stage.paytm.in https://api.phonepe.com https://api-preprod.phonepe.com https://www.instamojo.com https://test.instamojo.com; object-src 'none'"
+
+    # Uploaded files are served from this document root, so a file whose content is
+    # markup must never be able to run as a page in this origin. A null-source CSP plus
+    # `sandbox` means that even if a browser is talked into treating one of these as a
+    # document, it has no script, no network and no same-origin privileges.
+    #
+    # Restricted to image and video types on purpose. An earlier version of this block
+    # also listed zip/csv/doc and set `Content-Disposition: inline`, which fought the
+    # bulk-upload sample downloads - those files exist to be saved, not displayed.
+    <FilesMatch "(?i)\.(jpe?g|png|gif|webp|bmp|ico|svg|svgz|mp4|webm|mov)$">
+        Header always set X-Content-Type-Options "nosniff"
+        Header always set Content-Security-Policy "default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'; sandbox"
+    </FilesMatch>
+</IfModule>
+
+<IfModule mod_headers.c>
+  # Was `Access-Control-Allow-Origin: *` with `css` in the pattern, so any origin could
+  # read this site's stylesheets cross-origin. Only web FONTS need a CORS header at all
+  # (the browser enforces same-origin on @font-face); stylesheets do not, and including
+  # them was widening the rule for no benefit. Scoped to font files only.
+  <FilesMatch "\.(ttf|ttc|otf|eot|woff|woff2)$">
     Header set Access-Control-Allow-Origin "*"
   </FilesMatch>
 </IfModule>
@@ -86,24 +259,43 @@ Options -Indexes
 # That is what made index.php enable display_errors and what made db_debug TRUE -
 # meaning a database error would print the failing SQL to visitors.
 #
-# The line has been removed rather than flipped to 'production', because a single
-# tracked file cannot correctly describe two different machines. The environment is
-# now decided by whichever machine is running the code:
+# That line was removed. The comment that replaced it said the environment was now
+# decided by the machine, "because index.php now DEFAULTS to 'production'".
 #
-#   - Production: nothing sets CI_ENV, and index.php now DEFAULTS to 'production'.
-#     Absence of configuration therefore fails safe. (If Hostinger sets CI_ENV
-#     explicitly in hPanel, that still wins - this only changes the fallback.)
-#   - Local dev: the developer's machine carries a gitignored `.env.development`
-#     marker file in the project root; index.php checks for it. A file is used
-#     rather than an Apache SetEnv because SetEnv only reaches web requests, and
-#     CLI tooling (`php index.php admin migrate`) needs the same answer.
+# THAT WAS NOT TRUE OF THE COMMITTED CODE. The index.php change it described was
+# only ever a working-tree edit and was never committed - so at HEAD:
 #
-# Local credentials live in application/config/development/database.php, which is
-# gitignored; CodeIgniter loads config/<ENVIRONMENT>/database.php in preference to
-# the base file. So on production, ENVIRONMENT=production finds no such folder and
-# falls back to the tracked config, which holds the production credentials.
+#     define('ENVIRONMENT', isset($_SERVER['CI_ENV']) ? $_SERVER['CI_ENV'] : 'development');
 #
-# Do not reintroduce a SetEnv line here.
+# With no SetEnv here and that default there, production resolved to 'development',
+# which means error_reporting(-1), display_errors on, and db_debug TRUE. The live
+# site has been showing PHP errors - and failing SQL - to visitors.
+#
+# So the environment IS set here again, deliberately, but scoped by HOSTNAME rather
+# than set unconditionally. That is what makes it correct for two machines out of one
+# tracked file, which is what the previous attempt was reaching for:
+#
+#   - cretzo.com          -> production. display_errors off, db_debug FALSE.
+#   - anything else       -> untouched, so a developer's localhost still resolves to
+#                            index.php's own 'development' default and still reads
+#                            the gitignored application/config/development/database.php.
+#
+# SetEnvIf, not SetEnv, for exactly that reason: an unconditional SetEnv would also
+# apply on localhost, pushing every developer's machine into 'production' - where
+# CodeIgniter stops loading config/development/database.php and tries the live
+# credentials instead. That breaks local development in a confusing way.
+#
+# KNOWN LIMITATION: Apache env vars only reach WEB requests. CLI tooling on the
+# server (`php index.php admin migrate`, the cron jobs) does not see this and will
+# resolve to 'development'. For CLI that mainly means verbose errors in the terminal
+# rather than a public leak, so it is an acceptable gap - but the durable fix is to
+# make index.php default to 'production' and let a gitignored `.env.development`
+# marker file opt local machines out. A file is visible to both SAPIs; this is not.
+# If index.php is ever hardened that way, this block becomes redundant and the
+# host-scoped rule below can be removed.
+<IfModule mod_setenvif.c>
+    SetEnvIf Host "^(www\.)?cretzo\.com$" CI_ENV=production
+</IfModule>
 
 # ===============================
 # COMPRESSION

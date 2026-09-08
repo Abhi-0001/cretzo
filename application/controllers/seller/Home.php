@@ -331,7 +331,7 @@ class Home extends CI_Controller
                 // print_r($this->data['fetched_data']);
                 // exit;
 
-            $this->data['fetched_data'] = output_escaping_new($this->data['fetched_data']);
+            $this->data['fetched_data'] = unslash_deep($this->data['fetched_data']);
             // Added Bank Names Logic 
             $this->data['indian_banks'] = [];
             if ($this->db->table_exists('indian_banks')) {

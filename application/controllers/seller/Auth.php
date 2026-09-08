@@ -87,6 +87,25 @@ class Auth extends CI_Controller
         $token = $this->config->item('token', 'twilio');
         $twilio_number = $this->config->item('from_number', 'twilio');
 
+        /* The Twilio credentials moved out of the tracked config file and into the
+         * environment, because they were published in git history and an auth token
+         * lets the holder send SMS billed to this account, from this account's number.
+         *
+         * Fail closed and say why. Without this the TwilioClient constructor would be
+         * handed empty strings and the failure would surface as a generic "Failed to
+         * send OTP" - indistinguishable from a network problem, and it would send an
+         * operator hunting in the wrong place. */
+        if ($sid === '' || $token === '' || $twilio_number === '') {
+            log_message('error', 'seller/Auth::send_otp: Twilio credentials are not configured. '
+                . 'Set TWILIO_SID, TWILIO_TOKEN and TWILIO_FROM_NUMBER in the .env file '
+                . '(see .env.example). The old values were committed to git and must be rotated.');
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'SMS sending is not configured. Please contact support.',
+            ]);
+            return;
+        }
+
         try {
             $client = new TwilioClient($sid, $token);
             $client->messages->create(
@@ -643,11 +662,42 @@ class Auth extends CI_Controller
                     return;
                 }
 
-                // Keep original name (or use uniqid())
-                $newFileName = $fileName;
-                // $newFileName = uniqid() . '.' . $fileExt; // optional
+                /* PATH TRAVERSAL + OVERWRITE - FIXED. This was:
+                 *
+                 *     $newFileName = $fileName;   // the browser-supplied filename, verbatim
+                 *     $destination = $uploadDir . $newFileName;
+                 *
+                 * The extension whitelist above is correct, but the NAME was not sanitised
+                 * at all, so a filename of "../../assets/front_end/cretzo/images/logo.png"
+                 * resolved outside uploads/seller/ - an arbitrary overwrite of any file
+                 * under the web root that happens to end in an allowed image extension.
+                 * And this is part of PUBLIC seller registration: no login required.
+                 *
+                 * Even without traversal it was an overwrite primitive: two sellers
+                 * uploading "logo.png" clobbered each other, and an attacker could
+                 * deliberately replace a competitor's store logo by name.
+                 *
+                 * A generated name fixes both at once - there is nothing left of the
+                 * caller's string to traverse with, and collisions cannot happen.
+                 * random_bytes() rather than uniqid() because uniqid() is derived from the
+                 * clock and is therefore guessable, and a guessable path to a file that has
+                 * not been reviewed yet is worth avoiding. */
+                $newFileName = bin2hex(random_bytes(16)) . '.' . $fileExt;
 
                 $destination = $uploadDir . $newFileName;
+
+                /* Content check, not just extension. The whitelist above only inspects the
+                 * name; getimagesize() fails on a file whose bytes are not actually an
+                 * image, which is what stops "payload.png" containing markup or script
+                 * from being stored and later served out of this origin. */
+                $image_info = @getimagesize($fileTmpName);
+                if ($image_info === false) {
+                    echo json_encode([
+                        'error' => true,
+                        'message' => 'That file is not a valid image.'
+                    ]);
+                    return;
+                }
 
                 if (move_uploaded_file($fileTmpName, $destination)) {
 
@@ -1274,8 +1324,14 @@ class Auth extends CI_Controller
                 }
             }
             $set = ['username' => $this->input->post('username'), 'email' => $this->input->post('email')];
-            $set = escape_array($set);
-            $this->db->set($set)->where($identity_column, $identity)->update($tables['login_users']);
+            /* escape_array() removed: the query builder escapes on the way into the
+             * UPDATE, so pre-escaping compounds backslashes on every save. */
+            /* Keyed on this seller's own row id, NOT on where($identity_column,
+             * $identity). $identity comes from the session and mobile is nullable, so a
+             * seller whose identity column is empty produced `WHERE mobile IS NULL` - an
+             * UPDATE across every account with no phone number instead of this one row.
+             * $user is the logged-in user, already fetched above for the validation rules. */
+            $this->db->set($set)->where('id', (int) $user->id)->update($tables['login_users']);
             $response['error'] = false;
             $response['csrfName'] = $this->security->get_csrf_token_name();
             $response['csrfHash'] = $this->security->get_csrf_hash();
@@ -1343,7 +1399,16 @@ class Auth extends CI_Controller
     }
     public function check_phone()
 {
-    
+    /* Per-IP throttle. This endpoint answers "is this number already registered?"
+     * with no authentication, so unthrottled it is an account directory: sweep a
+     * number range and you learn every registered number. See
+     * lookup_rate_limit_guard() for why it is keyed on IP only and why it fails open. */
+    $throttle = lookup_rate_limit_guard('lookup');
+    if (!$throttle['allowed']) {
+        echo json_encode(['error' => true, 'message' => $throttle['message']]);
+        return false;
+    }
+
     $this->response = [
         'error'   => false,
         'message' => 'Phone is valid',
@@ -1375,6 +1440,17 @@ class Auth extends CI_Controller
     }
     public function check_email()
     {
+        /* Per-IP throttle. This endpoint answers "does an account exist for this
+         * number?" with no authentication, so unthrottled it is an account directory:
+         * sweep a number range and you have every account on the site, labelled by
+         * portal. See lookup_rate_limit_guard() for why it is keyed on IP only and why
+         * it fails open. */
+        $throttle = lookup_rate_limit_guard('lookup');
+        if (!$throttle['allowed']) {
+            echo json_encode(['error' => true, 'message' => $throttle['message']]);
+            return false;
+        }
+
         $this->response = [
             'error'   => false,
             'message' => 'Email is valid',

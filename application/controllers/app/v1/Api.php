@@ -128,17 +128,74 @@ Defined Methods:-
     }
     public function index()
     {
-        $this->load->helper('file');
-        $this->output->set_content_type(get_mime_by_extension(base_url('api-doc.txt')));
-        $this->output->set_output(file_get_contents(base_url('api-doc.txt')));
+        /* Was:
+         *     $this->load->helper('file');
+         *     $this->output->set_content_type(get_mime_by_extension(base_url('...api-doc.txt')));
+         *     $this->output->set_output(file_get_contents(base_url('...api-doc.txt')));
+         *
+         * That published the complete API reference - every endpoint, every parameter
+         * name, and which of them are optional - to anyone who requested it. It is the
+         * reconnaissance step of an attack, handed over for free, and there is no
+         * reason for a production server to serve its own developer documentation.
+         *
+         * It also made PHP fetch the file from its OWN public URL with
+         * file_get_contents(), so every request here opened a second HTTP connection
+         * back to this same server. The .txt files are denied in .htaccess now, so that
+         * fetch would fail and warn as well.
+         *
+         * The docs still live in the repository for developers; they are simply no
+         * longer web-readable. */
+        show_404();
     }
+    /**
+     * Mint an app-level JWT.
+     *
+     * SECURITY - this endpoint required nothing at all. No session, no existing key,
+     * no rate limit: a bare request returned a signed token. Whether that token really
+     * opened the API depends on whether the (git-published) JWT_SECRET_KEY constant it
+     * signs with also exists as a row in client_api_keys, which is what verify_token()
+     * checks against - see the note in application/config/constants.php for the one
+     * query that settles it. If it does, this endpoint was handing out API keys.
+     *
+     * Two changes:
+     *
+     *  - It fails closed when JWT_SECRET_KEY is empty, which it now is unless the
+     *    server sets it. Signing with an empty key would produce a token anybody could
+     *    reproduce, which is worse than refusing outright.
+     *
+     *  - It is gated behind api_security's allow_public_token_generation flag, which
+     *    defaults to FALSE. A released mobile app embeds its own key and has no need of
+     *    this; it exists for local API exploration. If some build does turn out to
+     *    depend on it, flip the flag rather than deleting the guard - and rotate the
+     *    key, because the old one is public.
+     */
     public function generate_token()
     {
+        $this->config->load('api_security', true);
+        if (!$this->config->item('allow_public_token_generation', 'api_security')) {
+            $this->output->set_status_header(404);
+            print_r(json_encode([
+                'error' => true,
+                'message' => 'Not available.',
+            ]));
+            return false;
+        }
+
+        if (!defined('JWT_SECRET_KEY') || JWT_SECRET_KEY === '') {
+            log_message('error', 'generate_token: JWT_SECRET_KEY is not set on this server, so no token can be issued.');
+            $this->output->set_status_header(500);
+            print_r(json_encode([
+                'error' => true,
+                'message' => 'Token signing is not configured on this server.',
+            ]));
+            return false;
+        }
+
         $payload = [
             'iat' => time(),
             /* issued at time */
             'iss' => 'eshop',
-            'exp' => time() + (30 * 60), /* expires after 1 minute */
+            'exp' => time() + (30 * 60), /* expires after 30 minutes */
         ];
         $token = $this->jwt->encode($payload, JWT_SECRET_KEY);
         print_r(json_encode($token));
@@ -164,7 +221,10 @@ Defined Methods:-
                 print_r(json_encode($response));
                 return false;
             }
-            JWT::$leeway = 6000000000;
+            JWT::$leeway = 60; /* was 6000000000 - roughly 190 years, which made the token's
+                                 * own `exp` claim meaningless: no issued token ever expired.
+                                 * 60s absorbs clock skew between us and the caller, and
+                                 * nothing more. */
             $flag = true; //For payload indication that it return some data or throws an expection.
             $error = true; //It will indicate that the payload had verified the signature and hash is valid or not.
             foreach ($api_keys as $row) {
@@ -290,7 +350,7 @@ Defined Methods:-
         } else {
             $limit = (isset($_POST['limit']) && !empty(trim($_POST['limit']))) ? $this->input->post('limit', true) : 25;
             $offset = (isset($_POST['offset']) && !empty(trim($_POST['offset']))) ? $this->input->post('offset', true) : 0;
-            $sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $this->input->post('sort', true) : 'a.name';
+            $sort = sanitize_sort_identifier($this->input->post('sort', true), 'a.name');
             $order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $this->input->post('order', true) : 'ASC';
             $search = (isset($_POST['search']) && !empty(trim($_POST['search']))) ? $this->input->post('search', true) : "";
             $id = $this->input->post('id', true);
@@ -323,7 +383,7 @@ Defined Methods:-
             print_r(json_encode($this->response));
             return;
         } else {
-            $sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $this->input->post('sort', true) : 'c.name';
+            $sort = sanitize_sort_identifier($this->input->post('sort', true), 'c.name');
             $order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $this->input->post('order', true) : 'ASC';
             $search = (isset($_POST['search']) && !empty(trim($_POST['search']))) ? $this->input->post('search', true) : "";
             $limit = (isset($_POST['limit']) && is_numeric($_POST['limit']) && !empty(trim($_POST['limit']))) ? $this->input->post('limit', true) : 25;
@@ -390,7 +450,7 @@ Defined Methods:-
             $limit = (isset($_POST['limit'])) ? $this->input->post('limit', true) : 25;
             $offset = (isset($_POST['offset'])) ? $this->input->post('offset', true) : 0;
             $order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $_POST['order'] : 'ASC';
-            $sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $_POST['sort'] : 'p.row_order';
+            $sort = sanitize_sort_identifier($this->input->post('sort', true), 'p.row_order');
             if ($sort == 'pv.price') {
                 $sort = "price";
             }
@@ -862,9 +922,20 @@ Defined Methods:-
         if (!$this->verify_token()) {
             return false;
         }
+        /* PER-USER AUTHENTICATION. verify_token() above proves only that a legitimate
+         * build of the app is calling - the shared app key carries no identity, and it
+         * can be extracted from the APK. This endpoint acts on the user_id in the
+         * REQUEST BODY, so without a second check anybody holding that key could pass
+         * another customer's id and read or change their data. See
+         * application/config/api_security.php for the full description and for why this
+         * is gated rather than simply switched on. */
+        if (!$this->require_user_identity()) {
+            return false;
+        }
+
         $limit = (isset($_POST['limit']) && is_numeric($_POST['limit']) && !empty(trim($_POST['limit']))) ? $this->input->post('limit', true) : 25;
         $offset = (isset($_POST['offset']) && is_numeric($_POST['offset']) && !empty(trim($_POST['offset']))) ? $this->input->post('offset', true) : 0;
-        $sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $this->input->post('sort', true) : 'o.id';
+        $sort = sanitize_sort_identifier($this->input->post('sort', true), 'o.id');
         $order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $this->input->post('order', true) : 'DESC';
         $search = (isset($_POST['search']) && !empty(trim($_POST['search']))) ? $this->input->post('search', true) : '';
 
@@ -906,6 +977,17 @@ Defined Methods:-
         if (!$this->verify_token()) {
             return false;
         }
+        /* PER-USER AUTHENTICATION. verify_token() above proves only that a legitimate
+         * build of the app is calling - the shared app key carries no identity, and it
+         * can be extracted from the APK. This endpoint acts on the user_id in the
+         * REQUEST BODY, so without a second check anybody holding that key could pass
+         * another customer's id and read or change their data. See
+         * application/config/api_security.php for the full description and for why this
+         * is gated rather than simply switched on. */
+        if (!$this->require_user_identity()) {
+            return false;
+        }
+
         $this->form_validation->set_rules('status', 'Status', 'trim|required|xss_clean');
         $this->form_validation->set_rules('order_id', 'Order item id', 'trim|required|numeric|xss_clean');
 
@@ -958,6 +1040,17 @@ Defined Methods:-
         if (!$this->verify_token()) {
             return false;
         }
+        /* PER-USER AUTHENTICATION. verify_token() above proves only that a legitimate
+         * build of the app is calling - the shared app key carries no identity, and it
+         * can be extracted from the APK. This endpoint acts on the user_id in the
+         * REQUEST BODY, so without a second check anybody holding that key could pass
+         * another customer's id and read or change their data. See
+         * application/config/api_security.php for the full description and for why this
+         * is gated rather than simply switched on. */
+        if (!$this->require_user_identity()) {
+            return false;
+        }
+
 
         $this->form_validation->set_rules('order_id', 'Order id', 'trim|required|xss_clean');
 
@@ -1030,6 +1123,17 @@ Defined Methods:-
         if (!$this->verify_token()) {
             return false;
         }
+        /* PER-USER AUTHENTICATION. verify_token() above proves only that a legitimate
+         * build of the app is calling - the shared app key carries no identity, and it
+         * can be extracted from the APK. This endpoint acts on the user_id in the
+         * REQUEST BODY, so without a second check anybody holding that key could pass
+         * another customer's id and read or change their data. See
+         * application/config/api_security.php for the full description and for why this
+         * is gated rather than simply switched on. */
+        if (!$this->require_user_identity()) {
+            return false;
+        }
+
 
         $this->form_validation->set_rules('user_id', 'User Id', 'trim|numeric|required|xss_clean');
         $this->form_validation->set_rules('product_id', 'Product Id', 'trim|numeric|xss_clean|required');
@@ -1141,6 +1245,17 @@ Defined Methods:-
         if (!$this->verify_token()) {
             return false;
         }
+        /* PER-USER AUTHENTICATION. verify_token() above proves only that a legitimate
+         * build of the app is calling - the shared app key carries no identity, and it
+         * can be extracted from the APK. This endpoint acts on the user_id in the
+         * REQUEST BODY, so without a second check anybody holding that key could pass
+         * another customer's id and read or change their data. See
+         * application/config/api_security.php for the full description and for why this
+         * is gated rather than simply switched on. */
+        if (!$this->require_user_identity()) {
+            return false;
+        }
+
 
         $this->form_validation->set_rules('rating_id', 'Rating Id', 'trim|numeric|required|xss_clean');
 
@@ -1239,6 +1354,17 @@ Defined Methods:-
         if (!$this->verify_token()) {
             return false;
         }
+        /* PER-USER AUTHENTICATION. verify_token() above proves only that a legitimate
+         * build of the app is calling - the shared app key carries no identity, and it
+         * can be extracted from the APK. This endpoint acts on the user_id in the
+         * REQUEST BODY, so without a second check anybody holding that key could pass
+         * another customer's id and read or change their data. See
+         * application/config/api_security.php for the full description and for why this
+         * is gated rather than simply switched on. */
+        if (!$this->require_user_identity()) {
+            return false;
+        }
+
 
         $this->form_validation->set_rules('user_id', 'User', 'trim|numeric|required|xss_clean');
         if (isset($_POST['only_delivery_charge']) && $_POST['only_delivery_charge'] == 1) {
@@ -1363,7 +1489,7 @@ Defined Methods:-
                 $limit = (isset($_POST['limit']) && is_numeric($_POST['limit']) && !empty(trim($_POST['limit']))) ? $this->input->post('limit', true) : 25;
                 $offset = (isset($_POST['offset']) && is_numeric($_POST['offset']) && !empty(trim($_POST['offset']))) ? $this->input->post('offset', true) : 0;
                 $order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $_POST['order'] : 'DESC';
-                $sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $_POST['sort'] : 'id';
+                $sort = sanitize_sort_identifier($this->input->post('sort', true), 'id');
 
                 $this->response['error'] = false;
                 $this->response['message'] = 'Data Retrieved From Cart !';
@@ -1431,6 +1557,17 @@ Defined Methods:-
         if (!$this->verify_token()) {
             return false;
         }
+        /* PER-USER AUTHENTICATION. verify_token() above proves only that a legitimate
+         * build of the app is calling - the shared app key carries no identity, and it
+         * can be extracted from the APK. This endpoint acts on the user_id in the
+         * REQUEST BODY, so without a second check anybody holding that key could pass
+         * another customer's id and read or change their data. See
+         * application/config/api_security.php for the full description and for why this
+         * is gated rather than simply switched on. */
+        if (!$this->require_user_identity()) {
+            return false;
+        }
+
 
         $this->form_validation->set_rules('user_id', 'User', 'trim|numeric|required|xss_clean');
         $this->form_validation->set_rules('product_variant_id', 'Product Variant', 'trim|required|xss_clean');
@@ -1484,6 +1621,17 @@ Defined Methods:-
         if (!$this->verify_token()) {
             return false;
         }
+        /* PER-USER AUTHENTICATION. verify_token() above proves only that a legitimate
+         * build of the app is calling - the shared app key carries no identity, and it
+         * can be extracted from the APK. This endpoint acts on the user_id in the
+         * REQUEST BODY, so without a second check anybody holding that key could pass
+         * another customer's id and read or change their data. See
+         * application/config/api_security.php for the full description and for why this
+         * is gated rather than simply switched on. */
+        if (!$this->require_user_identity()) {
+            return false;
+        }
+
         $this->form_validation->set_rules('user_id', 'User', 'trim|numeric|required|xss_clean');
         $this->form_validation->set_rules('product_variant_id', 'Product Variant', 'trim|required|xss_clean');
         // 'numeric' accepts -3 and 1.5. A cart quantity is a positive whole number - see the
@@ -1628,6 +1776,17 @@ Defined Methods:-
         if (!$this->verify_token()) {
             return false;
         }
+        /* PER-USER AUTHENTICATION. verify_token() above proves only that a legitimate
+         * build of the app is calling - the shared app key carries no identity, and it
+         * can be extracted from the APK. This endpoint acts on the user_id in the
+         * REQUEST BODY, so without a second check anybody holding that key could pass
+         * another customer's id and read or change their data. See
+         * application/config/api_security.php for the full description and for why this
+         * is gated rather than simply switched on. */
+        if (!$this->require_user_identity()) {
+            return false;
+        }
+
         $this->form_validation->set_rules('user_id', 'User', 'trim|numeric|required|xss_clean');
         if (!$this->form_validation->run()) {
             $this->response['error'] = true;
@@ -1695,7 +1854,7 @@ Defined Methods:-
                 unset($data[0]['password']);
 
                 foreach ($data as $row) {
-                    $row = output_escaping($row);
+                    $row = unslash($row);
                     $tempRow['id'] = (isset($row['id']) && !empty($row['id'])) ? $row['id'] : '';
                     $tempRow['ip_address'] = (isset($row['ip_address']) && !empty($row['ip_address'])) ? $row['ip_address'] : '';
                     $tempRow['username'] = (isset($row['username']) && !empty($row['username'])) ? $row['username'] : '';
@@ -1779,6 +1938,17 @@ Defined Methods:-
         if (!$this->verify_token()) {
             return false;
         }
+        /* PER-USER AUTHENTICATION. verify_token() above proves only that a legitimate
+         * build of the app is calling - the shared app key carries no identity, and it
+         * can be extracted from the APK. This endpoint acts on the user_id in the
+         * REQUEST BODY, so without a second check anybody holding that key could pass
+         * another customer's id and read or change their data. See
+         * application/config/api_security.php for the full description and for why this
+         * is gated rather than simply switched on. */
+        if (!$this->require_user_identity()) {
+            return false;
+        }
+
 
         $this->form_validation->set_rules('user_id', 'Id', 'trim|numeric|xss_clean');
         $this->form_validation->set_rules('fcm_id', 'Fcm Id', 'trim|xss_clean');
@@ -2162,7 +2332,7 @@ Defined Methods:-
             $data = $this->db->select('u.id,u.username,u.email,u.mobile,c.name as city_name,a.name as area_name')->where([$identity_column => $identity])->join('cities c', 'c.id=u.city', 'left')->join('areas a', 'a.city_id=c.id', 'left')->group_by('email')->get('users u')->result_array();
 
             foreach ($data as $row) {
-                $row = output_escaping($row);
+                $row = unslash($row);
                 $tempRow['id'] = (isset($row['id']) && !empty($row['id'])) ? $row['id'] : '';
                 $tempRow['username'] = (isset($row['username']) && !empty($row['username'])) ? $row['username'] : '';
                 $tempRow['email'] = (isset($row['email']) && !empty($row['email'])) ? $row['email'] : '';
@@ -2204,6 +2374,17 @@ Defined Methods:-
         if (!$this->verify_token()) {
             return false;
         }
+        /* PER-USER AUTHENTICATION. verify_token() above proves only that a legitimate
+         * build of the app is calling - the shared app key carries no identity, and it
+         * can be extracted from the APK. This endpoint acts on the user_id in the
+         * REQUEST BODY, so without a second check anybody holding that key could pass
+         * another customer's id and read or change their data. See
+         * application/config/api_security.php for the full description and for why this
+         * is gated rather than simply switched on. */
+        if (!$this->require_user_identity()) {
+            return false;
+        }
+
         if (defined('ALLOW_MODIFICATION') && ALLOW_MODIFICATION == 0) {
             $this->response['error'] = true;
             $this->response['message'] = DEMO_VERSION_MSG;
@@ -2229,7 +2410,9 @@ Defined Methods:-
 
         if (!empty($_POST['old']) || !empty($_POST['new'])) {
             $this->form_validation->set_rules('old', $this->lang->line('change_password_validation_old_password_label'), 'required');
-            $this->form_validation->set_rules('new', $this->lang->line('change_password_validation_new_password_label'), 'required|min_length[6]');
+            /* Was min_length[6] while ion_auth's min_password_length is 8 - the mobile
+             * app's change-password path accepted a weaker password than the website's. */
+            $this->form_validation->set_rules('new', $this->lang->line('change_password_validation_new_password_label'), 'required|min_length[' . (int) $this->config->item('min_password_length', 'ion_auth') . ']');
         }
 
         $tables = $this->config->item('tables', 'ion_auth');
@@ -2371,7 +2554,7 @@ Defined Methods:-
                 $user_details = fetch_details('users', ['id' => $_POST['user_id']], "*");
 
                 foreach ($user_details as $row) {
-                    $row = output_escaping($row);
+                    $row = unslash($row);
                     $tempRow['id'] = (isset($row['id']) && !empty($row['id'])) ? $row['id'] : '';
                     $tempRow['ip_address'] = (isset($row['ip_address']) && !empty($row['ip_address'])) ? $row['ip_address'] : '';
                     $tempRow['username'] = (isset($row['username']) && !empty($row['username'])) ? $row['username'] : '';
@@ -2424,7 +2607,7 @@ Defined Methods:-
             } else if ($is_updated == true) {
                 $user_details = fetch_details('users', ['id' => $_POST['user_id']], "*");
                 foreach ($user_details as $row) {
-                    $row = output_escaping($row);
+                    $row = unslash($row);
                     $tempRow['id'] = (isset($row['id']) && !empty($row['id'])) ? $row['id'] : '';
                     $tempRow['ip_address'] = (isset($row['ip_address']) && !empty($row['ip_address'])) ? $row['ip_address'] : '';
                     $tempRow['username'] = (isset($row['username']) && !empty($row['username'])) ? $row['username'] : '';
@@ -2490,6 +2673,17 @@ Defined Methods:-
         if (!$this->verify_token()) {
             return false;
         }
+        /* PER-USER AUTHENTICATION. verify_token() above proves only that a legitimate
+         * build of the app is calling - the shared app key carries no identity, and it
+         * can be extracted from the APK. This endpoint acts on the user_id in the
+         * REQUEST BODY, so without a second check anybody holding that key could pass
+         * another customer's id and read or change their data. See
+         * application/config/api_security.php for the full description and for why this
+         * is gated rather than simply switched on. */
+        if (!$this->require_user_identity()) {
+            return false;
+        }
+
 
         $this->form_validation->set_rules('user_id', 'User ID', 'trim|numeric|required|xss_clean');
         $this->form_validation->set_rules('mobile', 'Mobile', 'trim|numeric|xss_clean');
@@ -2579,7 +2773,7 @@ Defined Methods:-
                             if (!empty($order_items)) {
                                 $res_order_id = array_values(array_unique(array_column($order_items, "order_id")));
                                 for ($i = 0; $i < count($res_order_id); $i++) {
-                                    $orders = $this->db->where('oi.seller_id != ' . $_POST['user_id'] . ' and oi.order_id=' . $res_order_id[$i])->join('orders o', 'o.id=oi.order_id', 'right')->get('order_items oi')->result_array();
+                                    $orders = $this->db->where('oi.seller_id != ' . (int) $_POST['user_id'] . ' and oi.order_id=' . (int) $res_order_id[$i])  /* SQL INJECTION - was raw $_POST['user_id']; the mobile API needs only the shared app key, so this was reachable by anyone who extracted it from the APK. */->join('orders o', 'o.id=oi.order_id', 'right')->get('order_items oi')->result_array();
                                     if (empty($orders)) {
                                         // delete orders
                                         if (delete_details(['seller_id' => $_POST['user_id']], 'order_items')) {
@@ -2652,6 +2846,17 @@ Defined Methods:-
         if (!$this->verify_token()) {
             return false;
         }
+        /* PER-USER AUTHENTICATION. verify_token() above proves only that a legitimate
+         * build of the app is calling - the shared app key carries no identity, and it
+         * can be extracted from the APK. This endpoint acts on the user_id in the
+         * REQUEST BODY, so without a second check anybody holding that key could pass
+         * another customer's id and read or change their data. See
+         * application/config/api_security.php for the full description and for why this
+         * is gated rather than simply switched on. */
+        if (!$this->require_user_identity()) {
+            return false;
+        }
+
 
         $this->form_validation->set_rules('user_id', 'User ID', 'trim|numeric|required|xss_clean');
         $this->form_validation->set_rules('product_id', 'Product Id', 'trim|numeric|required|xss_clean');
@@ -2685,6 +2890,24 @@ Defined Methods:-
     //remove_from_favorites
     public function remove_from_favorites()
     {
+        // This endpoint was missing the verify_token() call that every other endpoint
+        // in this controller opens with, so it needed no app key at all - anybody who
+        // knew the URL could call it. Restored here; see the block comment on
+        // verify_token() for what that check does and does not prove.
+        if (!$this->verify_token()) {
+            return false;
+        }
+        /* PER-USER AUTHENTICATION. verify_token() above proves only that a legitimate
+         * build of the app is calling - the shared app key carries no identity, and it
+         * can be extracted from the APK. This endpoint acts on the user_id in the
+         * REQUEST BODY, so without a second check anybody holding that key could pass
+         * another customer's id and read or change their data. See
+         * application/config/api_security.php for the full description and for why this
+         * is gated rather than simply switched on. */
+        if (!$this->require_user_identity()) {
+            return false;
+        }
+
         /*
          user_id:12
          product_id:23 {optional}
@@ -2719,6 +2942,24 @@ Defined Methods:-
     //get_favorites
     public function get_favorites()
     {
+        // This endpoint was missing the verify_token() call that every other endpoint
+        // in this controller opens with, so it needed no app key at all - anybody who
+        // knew the URL could call it. Restored here; see the block comment on
+        // verify_token() for what that check does and does not prove.
+        if (!$this->verify_token()) {
+            return false;
+        }
+        /* PER-USER AUTHENTICATION. verify_token() above proves only that a legitimate
+         * build of the app is calling - the shared app key carries no identity, and it
+         * can be extracted from the APK. This endpoint acts on the user_id in the
+         * REQUEST BODY, so without a second check anybody holding that key could pass
+         * another customer's id and read or change their data. See
+         * application/config/api_security.php for the full description and for why this
+         * is gated rather than simply switched on. */
+        if (!$this->require_user_identity()) {
+            return false;
+        }
+
         /*
          user_id:12
          limit : 10 {optional}
@@ -2778,6 +3019,17 @@ Defined Methods:-
         if (!$this->verify_token()) {
             return false;
         }
+        /* PER-USER AUTHENTICATION. verify_token() above proves only that a legitimate
+         * build of the app is calling - the shared app key carries no identity, and it
+         * can be extracted from the APK. This endpoint acts on the user_id in the
+         * REQUEST BODY, so without a second check anybody holding that key could pass
+         * another customer's id and read or change their data. See
+         * application/config/api_security.php for the full description and for why this
+         * is gated rather than simply switched on. */
+        if (!$this->require_user_identity()) {
+            return false;
+        }
+
 
         $this->form_validation->set_rules('user_id', 'User', 'trim|numeric|required|xss_clean');
         $this->form_validation->set_rules('type', 'Type', 'trim|xss_clean');
@@ -2819,6 +3071,17 @@ Defined Methods:-
         if (!$this->verify_token()) {
             return false;
         }
+        /* PER-USER AUTHENTICATION. verify_token() above proves only that a legitimate
+         * build of the app is calling - the shared app key carries no identity, and it
+         * can be extracted from the APK. This endpoint acts on the user_id in the
+         * REQUEST BODY, so without a second check anybody holding that key could pass
+         * another customer's id and read or change their data. See
+         * application/config/api_security.php for the full description and for why this
+         * is gated rather than simply switched on. */
+        if (!$this->require_user_identity()) {
+            return false;
+        }
+
 
         $this->form_validation->set_rules('id', 'Id', 'trim|required|numeric|xss_clean');
         $this->form_validation->set_rules('type', 'Type', 'trim|xss_clean');
@@ -2857,6 +3120,17 @@ Defined Methods:-
         if (!$this->verify_token()) {
             return false;
         }
+        /* PER-USER AUTHENTICATION. verify_token() above proves only that a legitimate
+         * build of the app is calling - the shared app key carries no identity, and it
+         * can be extracted from the APK. This endpoint acts on the user_id in the
+         * REQUEST BODY, so without a second check anybody holding that key could pass
+         * another customer's id and read or change their data. See
+         * application/config/api_security.php for the full description and for why this
+         * is gated rather than simply switched on. */
+        if (!$this->require_user_identity()) {
+            return false;
+        }
+
 
         $this->form_validation->set_rules('id', 'Id', 'trim|required|numeric|xss_clean');
         if (!$this->form_validation->run()) {
@@ -2881,6 +3155,17 @@ Defined Methods:-
         if (!$this->verify_token()) {
             return false;
         }
+        /* PER-USER AUTHENTICATION. verify_token() above proves only that a legitimate
+         * build of the app is calling - the shared app key carries no identity, and it
+         * can be extracted from the APK. This endpoint acts on the user_id in the
+         * REQUEST BODY, so without a second check anybody holding that key could pass
+         * another customer's id and read or change their data. See
+         * application/config/api_security.php for the full description and for why this
+         * is gated rather than simply switched on. */
+        if (!$this->require_user_identity()) {
+            return false;
+        }
+
 
         $this->form_validation->set_rules('user_id', 'User id', 'trim|numeric|xss_clean|required');
 
@@ -3011,8 +3296,8 @@ Defined Methods:-
                     $this->response['message'] = "Sections retrived successfully";
                     $this->response['min_price'] = (isset($products['min_price']) && !empty($products['min_price'])) ? strval($products['min_price']) : 0;
                     $this->response['max_price'] = (isset($products['max_price']) && !empty($products['max_price'])) ? strval($products['max_price']) : 0;
-                    $sections[$i]['title'] = output_escaping($sections[$i]['title']);
-                    $sections[$i]['short_description'] = output_escaping($sections[$i]['short_description']);
+                    $sections[$i]['title'] = unslash($sections[$i]['title']);
+                    $sections[$i]['short_description'] = unslash($sections[$i]['short_description']);
                     $sections[$i]['total'] = strval($products['total']);
                     $sections[$i]['filters'] = (isset($products['filters'])) ? $products['filters'] : [];
                     $sections[$i]['product_details'] = $products['product'];
@@ -3043,6 +3328,17 @@ Defined Methods:-
         if (!$this->verify_token()) {
             return false;
         }
+        /* PER-USER AUTHENTICATION. verify_token() above proves only that a legitimate
+         * build of the app is calling - the shared app key carries no identity, and it
+         * can be extracted from the APK. This endpoint acts on the user_id in the
+         * REQUEST BODY, so without a second check anybody holding that key could pass
+         * another customer's id and read or change their data. See
+         * application/config/api_security.php for the full description and for why this
+         * is gated rather than simply switched on. */
+        if (!$this->require_user_identity()) {
+            return false;
+        }
+
 
         $this->form_validation->set_rules('sort', 'sort', 'trim|xss_clean');
         $this->form_validation->set_rules('limit', 'limit', 'trim|numeric|xss_clean');
@@ -3056,7 +3352,7 @@ Defined Methods:-
             $limit = (isset($_POST['limit']) && is_numeric($_POST['limit']) && !empty(trim($_POST['limit']))) ? $this->input->post('limit', true) : 25;
             $offset = (isset($_POST['offset']) && is_numeric($_POST['offset']) && !empty(trim($_POST['offset']))) ? $this->input->post('offset', true) : 0;
             $order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $_POST['order'] : 'DESC';
-            $sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $_POST['sort'] : 'id';
+            $sort = sanitize_sort_identifier($this->input->post('sort', true), 'id');
             $res = $this->notification_model->get_notifications($offset, $limit, $sort, $order);
             $this->response['error'] = false;
             $this->response['message'] = 'Notification Retrieved Successfully';
@@ -3386,6 +3682,17 @@ Defined Methods:-
         if (!$this->verify_token()) {
             return false;
         }
+        /* PER-USER AUTHENTICATION. verify_token() above proves only that a legitimate
+         * build of the app is calling - the shared app key carries no identity, and it
+         * can be extracted from the APK. This endpoint acts on the user_id in the
+         * REQUEST BODY, so without a second check anybody holding that key could pass
+         * another customer's id and read or change their data. See
+         * application/config/api_security.php for the full description and for why this
+         * is gated rather than simply switched on. */
+        if (!$this->require_user_identity()) {
+            return false;
+        }
+
 
         $this->form_validation->set_rules('transaction_type', 'Transaction Type', 'trim|xss_clean');
         $this->form_validation->set_rules('user_id', 'User id', 'trim|required|numeric|xss_clean');
@@ -3419,7 +3726,7 @@ Defined Methods:-
             // // $limit = (isset($_POST['limit']) && is_numeric($_POST['limit']) && !empty(trim($_POST['limit']))) ? $this->input->post('limit', true) : 25;
             // // $offset = (isset($_POST['offset']) && is_numeric($_POST['offset']) && !empty(trim($_POST['offset']))) ? $this->input->post('offset', true) : 0;
             // // $order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $_POST['order'] : 'DESC';
-            // // $sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $_POST['sort'] : 'id';
+            // // $sort = sanitize_sort_identifier($this->input->post('sort', true), 'id');
             // $res = $this->transaction_model->get_transactions($id, $user_id, $transaction_type, $type, $search="", $offset=0, $limit=1, $sort="id", $order="DESC");
             /* if it's a wallet credit transaction then verify the payment with the help of txn_id */
             if (isset($_POST['transaction_type']) && $_POST['transaction_type'] == "wallet" && $_POST['type'] == "credit") {
@@ -3587,7 +3894,7 @@ Defined Methods:-
             $limit = (isset($_POST['limit']) && is_numeric($_POST['limit']) && !empty(trim($_POST['limit']))) ? $this->input->post('limit', true) : 25;
             $offset = (isset($_POST['offset']) && is_numeric($_POST['offset']) && !empty(trim($_POST['offset']))) ? $this->input->post('offset', true) : 0;
             $order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $_POST['order'] : 'DESC';
-            $sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $_POST['sort'] : 'id';
+            $sort = sanitize_sort_identifier($this->input->post('sort', true), 'id');
             $res = $this->faq_model->get_faqs($offset, $limit, $sort, $order);
             $this->response['error'] = false;
             $this->response['message'] = 'FAQ(s) Retrieved Successfully';
@@ -3885,6 +4192,17 @@ Defined Methods:-
         if (!$this->verify_token()) {
             return false;
         }
+        /* PER-USER AUTHENTICATION. verify_token() above proves only that a legitimate
+         * build of the app is calling - the shared app key carries no identity, and it
+         * can be extracted from the APK. This endpoint acts on the user_id in the
+         * REQUEST BODY, so without a second check anybody holding that key could pass
+         * another customer's id and read or change their data. See
+         * application/config/api_security.php for the full description and for why this
+         * is gated rather than simply switched on. */
+        if (!$this->require_user_identity()) {
+            return false;
+        }
+
 
         $this->form_validation->set_rules('user_id', 'User ID', 'trim|required|numeric|xss_clean');
         $this->form_validation->set_rules('transaction_type', 'Transaction Type', 'trim|xss_clean');
@@ -3907,7 +4225,7 @@ Defined Methods:-
             $limit = (isset($_POST['limit']) && is_numeric($_POST['limit']) && !empty(trim($_POST['limit']))) ? $this->input->post('limit', true) : 25;
             $offset = (isset($_POST['offset']) && is_numeric($_POST['offset']) && !empty(trim($_POST['offset']))) ? $this->input->post('offset', true) : 0;
             $order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $_POST['order'] : 'DESC';
-            $sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $_POST['sort'] : 'id';
+            $sort = sanitize_sort_identifier($this->input->post('sort', true), 'id');
             $res = $this->transaction_model->get_transactions($id, $user_id, $transaction_type, $type, $search, $offset, $limit, $sort, $order);
             $this->response['error'] = false;
             $this->response['message'] = 'Transactions Retrieved Successfully';
@@ -4292,6 +4610,17 @@ Defined Methods:-
         if (!$this->verify_token()) {
             return false;
         }
+        /* PER-USER AUTHENTICATION. verify_token() above proves only that a legitimate
+         * build of the app is calling - the shared app key carries no identity, and it
+         * can be extracted from the APK. This endpoint acts on the user_id in the
+         * REQUEST BODY, so without a second check anybody holding that key could pass
+         * another customer's id and read or change their data. See
+         * application/config/api_security.php for the full description and for why this
+         * is gated rather than simply switched on. */
+        if (!$this->require_user_identity()) {
+            return false;
+        }
+
 
         $this->form_validation->set_rules('order_id', 'Order ID', 'trim|required|xss_clean');
         if (!$this->form_validation->run()) {
@@ -4341,7 +4670,7 @@ Defined Methods:-
         $types = $this->db->get('ticket_types')->result_array();
         if (!empty($types)) {
             for ($i = 0; $i < count($types); $i++) {
-                $types[$i] = output_escaping($types[$i]);
+                $types[$i] = unslash($types[$i]);
             }
         }
         $this->response['error'] = false;
@@ -4364,6 +4693,17 @@ Defined Methods:-
         if (!$this->verify_token()) {
             return false;
         }
+        /* PER-USER AUTHENTICATION. verify_token() above proves only that a legitimate
+         * build of the app is calling - the shared app key carries no identity, and it
+         * can be extracted from the APK. This endpoint acts on the user_id in the
+         * REQUEST BODY, so without a second check anybody holding that key could pass
+         * another customer's id and read or change their data. See
+         * application/config/api_security.php for the full description and for why this
+         * is gated rather than simply switched on. */
+        if (!$this->require_user_identity()) {
+            return false;
+        }
+
 
         $this->form_validation->set_rules('ticket_type_id', 'Ticket Type', 'trim|required|xss_clean');
         $this->form_validation->set_rules('user_id', 'User id', 'trim|required|numeric|xss_clean');
@@ -4433,6 +4773,17 @@ Defined Methods:-
         if (!$this->verify_token()) {
             return false;
         }
+        /* PER-USER AUTHENTICATION. verify_token() above proves only that a legitimate
+         * build of the app is calling - the shared app key carries no identity, and it
+         * can be extracted from the APK. This endpoint acts on the user_id in the
+         * REQUEST BODY, so without a second check anybody holding that key could pass
+         * another customer's id and read or change their data. See
+         * application/config/api_security.php for the full description and for why this
+         * is gated rather than simply switched on. */
+        if (!$this->require_user_identity()) {
+            return false;
+        }
+
 
         // ticket_id and ticket_type_id were only checked 'required', not 'numeric', and
         // ticket_id is concatenated into a raw WHERE string below
@@ -4534,6 +4885,17 @@ Defined Methods:-
         if (!$this->verify_token()) {
             return false;
         }
+        /* PER-USER AUTHENTICATION. verify_token() above proves only that a legitimate
+         * build of the app is calling - the shared app key carries no identity, and it
+         * can be extracted from the APK. This endpoint acts on the user_id in the
+         * REQUEST BODY, so without a second check anybody holding that key could pass
+         * another customer's id and read or change their data. See
+         * application/config/api_security.php for the full description and for why this
+         * is gated rather than simply switched on. */
+        if (!$this->require_user_identity()) {
+            return false;
+        }
+
 
         $this->form_validation->set_rules('user_type', 'User Type', 'trim|required|xss_clean');
         $this->form_validation->set_rules('user_id', 'User id', 'trim|required|numeric|xss_clean');
@@ -4725,6 +5087,17 @@ Defined Methods:-
         if (!$this->verify_token()) {
             return false;
         }
+        /* PER-USER AUTHENTICATION. verify_token() above proves only that a legitimate
+         * build of the app is calling - the shared app key carries no identity, and it
+         * can be extracted from the APK. This endpoint acts on the user_id in the
+         * REQUEST BODY, so without a second check anybody holding that key could pass
+         * another customer's id and read or change their data. See
+         * application/config/api_security.php for the full description and for why this
+         * is gated rather than simply switched on. */
+        if (!$this->require_user_identity()) {
+            return false;
+        }
+
 
         $this->form_validation->set_rules('ticket_id', 'Ticket ID', 'trim|numeric|xss_clean');
         $this->form_validation->set_rules('ticket_type_id', 'Ticket Type ID', 'trim|numeric|xss_clean');
@@ -4748,7 +5121,7 @@ Defined Methods:-
             $limit = (isset($_POST['limit']) && is_numeric($_POST['limit']) && !empty(trim($_POST['limit']))) ? $this->input->post('limit', true) : 10;
             $offset = (isset($_POST['offset']) && is_numeric($_POST['offset']) && !empty(trim($_POST['offset']))) ? $this->input->post('offset', true) : 0;
             $order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $_POST['order'] : 'DESC';
-            $sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $_POST['sort'] : 'id';
+            $sort = sanitize_sort_identifier($this->input->post('sort', true), 'id');
             $result = $this->ticket_model->get_tickets($ticket_id, $ticket_type_id, $user_id, $status, $search, $offset, $limit, $sort, $order);
             print_r(json_encode($result));
         }
@@ -4771,6 +5144,17 @@ Defined Methods:-
         if (!$this->verify_token()) {
             return false;
         }
+        /* PER-USER AUTHENTICATION. verify_token() above proves only that a legitimate
+         * build of the app is calling - the shared app key carries no identity, and it
+         * can be extracted from the APK. This endpoint acts on the user_id in the
+         * REQUEST BODY, so without a second check anybody holding that key could pass
+         * another customer's id and read or change their data. See
+         * application/config/api_security.php for the full description and for why this
+         * is gated rather than simply switched on. */
+        if (!$this->require_user_identity()) {
+            return false;
+        }
+
 
         $this->form_validation->set_rules('ticket_id', 'Ticket ID', 'trim|numeric|required|xss_clean');
         $this->form_validation->set_rules('user_id', 'User ID', 'trim|numeric|xss_clean');
@@ -4791,7 +5175,7 @@ Defined Methods:-
             $limit = (isset($_POST['limit']) && is_numeric($_POST['limit']) && !empty(trim($_POST['limit']))) ? $this->input->post('limit', true) : 10;
             $offset = (isset($_POST['offset']) && is_numeric($_POST['offset']) && !empty(trim($_POST['offset']))) ? $this->input->post('offset', true) : 0;
             $order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $_POST['order'] : 'DESC';
-            $sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $_POST['sort'] : 'id';
+            $sort = sanitize_sort_identifier($this->input->post('sort', true), 'id');
 
             // No ownership check existed: ticket_id came from the request and the whole
             // conversation - including every attachment URL - was returned for it, so walking
@@ -4829,6 +5213,17 @@ Defined Methods:-
         if (!$this->verify_token()) {
             return false;
         }
+        /* PER-USER AUTHENTICATION. verify_token() above proves only that a legitimate
+         * build of the app is calling - the shared app key carries no identity, and it
+         * can be extracted from the APK. This endpoint acts on the user_id in the
+         * REQUEST BODY, so without a second check anybody holding that key could pass
+         * another customer's id and read or change their data. See
+         * application/config/api_security.php for the full description and for why this
+         * is gated rather than simply switched on. */
+        if (!$this->require_user_identity()) {
+            return false;
+        }
+
 
         $this->form_validation->set_rules('order_id', 'Order Id', 'trim|required|numeric|xss_clean');
         if (!$this->form_validation->run()) {
@@ -4932,7 +5327,7 @@ Defined Methods:-
                     $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
                     $hashtag = html_entity_decode($string);
                     $data = str_replace(array($hashtag_order_id, $hashtag_application_name), array($order_id, $app_name), $hashtag);
-                    $message = output_escaping(trim($data, '"'));
+                    $message = unslash(trim($data, '"'));
                     $customer_msg = (!empty($custom_notification)) ? $message : "Hello Dear Admin you have new order bank transfer proof. Order ID #" . $order_id . ' please take note of it! Thank you. Regards ' . $app_name . '';
                     // Title was emitted as the raw stored template while only the message had its
                     // placeholders substituted, so any template whose title names the order/ticket/status
@@ -5147,13 +5542,20 @@ Defined Methods:-
             $limit = (isset($_POST['limit']) && is_numeric($_POST['limit']) && !empty(trim($_POST['limit']))) ? $this->input->post('limit', true) : 25;
             $offset = (isset($_POST['offset']) && is_numeric($_POST['offset']) && !empty(trim($_POST['offset']))) ? $this->input->post('offset', true) : 0;
             $order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $_POST['order'] : 'DESC';
-            $sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $_POST['sort'] : 'u.id';
+            $sort = sanitize_sort_identifier($this->input->post('sort', true), 'u.id');
             $data = $this->Seller_model->get_sellers($zipcode_id, $limit, $offset, $sort, $order, $search);
             print_r(json_encode($data));
         }
     }
     public function get_promo_codes()
     {
+        // This endpoint was missing the verify_token() call that every other endpoint
+        // in this controller opens with, so it needed no app key at all - anybody who
+        // knew the URL could call it. Restored here; see the block comment on
+        // verify_token() for what that check does and does not prove.
+        if (!$this->verify_token()) {
+            return false;
+        }
         $this->form_validation->set_rules('search', 'Search keyword', 'trim|xss_clean');
         $this->form_validation->set_rules('sort', 'sort', 'trim|xss_clean');
         $this->form_validation->set_rules('limit', 'limit', 'trim|numeric|xss_clean');
@@ -5171,7 +5573,7 @@ Defined Methods:-
             $limit = (isset($_POST['limit']) && is_numeric($_POST['limit']) && !empty(trim($_POST['limit']))) ? $this->input->post('limit', true) : 25;
             $offset = (isset($_POST['offset']) && is_numeric($_POST['offset']) && !empty(trim($_POST['offset']))) ? $this->input->post('offset', true) : 0;
             $order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $_POST['order'] : 'DESC';
-            $sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $_POST['sort'] : 'id';
+            $sort = sanitize_sort_identifier($this->input->post('sort', true), 'id');
 
             $this->response['error'] = false;
             $this->response['message'] = 'Promocodes retrived Successfully !';
@@ -5187,6 +5589,13 @@ Defined Methods:-
     /* add_product_faqs */
     public function add_product_faqs()
     {
+        // This endpoint was missing the verify_token() call that every other endpoint
+        // in this controller opens with, so it needed no app key at all - anybody who
+        // knew the URL could call it. Restored here; see the block comment on
+        // verify_token() for what that check does and does not prove.
+        if (!$this->verify_token()) {
+            return false;
+        }
         $this->form_validation->set_rules('product_id', 'Product Id', 'trim|numeric|xss_clean|required');
         $this->form_validation->set_rules('user_id', 'User_id', 'trim|numeric|xss_clean|required');
         $this->form_validation->set_rules('question', 'Question', 'trim|xss_clean|required');
@@ -5269,7 +5678,7 @@ Defined Methods:-
             $limit = (isset($_POST['limit']) && is_numeric($_POST['limit']) && !empty(trim($_POST['limit']))) ? $this->input->post('limit', true) : 10;
             $offset = (isset($_POST['offset']) && is_numeric($_POST['offset']) && !empty(trim($_POST['offset']))) ? $this->input->post('offset', true) : 0;
             $order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $_POST['order'] : 'DESC';
-            $sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $_POST['sort'] : 'id';
+            $sort = sanitize_sort_identifier($this->input->post('sort', true), 'id');
 
             $result = $this->product_model->get_product_faqs($id, $product_id, $user_id, $search, $offset, $limit, $sort, $order);
             print_r(json_encode($result));
@@ -5364,6 +5773,101 @@ Defined Methods:-
     }
 
     /**
+     * The per-user gate applied to every endpoint in this controller that acts on, or
+     * discloses, one named user's data.
+     *
+     * =====================================================================
+     *  THE PROBLEM THIS EXISTS FOR
+     * =====================================================================
+     *
+     * verify_token() proves that a legitimate build of the mobile app is calling. It
+     * proves nothing about WHO is calling: the key is shared across every install and
+     * can be pulled out of the APK in minutes. Every endpoint here then takes the
+     * user_id it acts on from the POST body.
+     *
+     * So with one extracted key, an attacker could read and modify any customer's
+     * orders, addresses, cart, favourites, notifications, support tickets and
+     * transaction history, and place orders on their account. Roughly a hundred reads
+     * of $_POST['user_id'] across this controller, none of them checked. The two
+     * withdrawal endpoints were fixed previously; nothing else was.
+     *
+     * =====================================================================
+     *  WHY IT IS GATED RATHER THAN JUST SWITCHED ON
+     * =====================================================================
+     *
+     * The fix needs the CLIENT to cooperate: the app must store the `api_token` the
+     * login endpoint returns and send it on every subsequent request. Released builds
+     * do not. Turning enforcement on before an app release ships would take the mobile
+     * app offline for every existing user - a worse outcome, and not a decision that
+     * belongs in a security patch.
+     *
+     * So: api_security's `enforce_api_user_identity` decides. It defaults to FALSE,
+     * and in that state this method LOGS each unauthenticated call and allows it, which
+     * turns the config file into a readiness dashboard - once the log stops recording
+     * calls without a token, every live client is sending one and the flag can be
+     * flipped with confidence. With the flag TRUE the call is refused.
+     *
+     * The logging is the point of the interim state. "Is it safe to turn on yet?" is
+     * otherwise unanswerable without guessing at what old app versions are still out
+     * there.
+     *
+     * @return bool TRUE to continue, FALSE if the caller has already been answered.
+     */
+    private function require_user_identity()
+    {
+        $this->config->load('api_security', true);
+        $enforce = (bool) $this->config->item('enforce_api_user_identity', 'api_security');
+
+        $user_id = $this->input->post('user_id', true);
+        $token   = $this->input->post('api_token', true);
+
+        // No user_id at all: nothing to impersonate, so this is not our concern. Some
+        // endpoints here treat user_id as optional (a guest cart read, for instance) and
+        // must keep working.
+        if (empty($user_id)) {
+            return true;
+        }
+
+        if (!empty($token)) {
+            $user = fetch_details('users', ['id' => $user_id], 'apikey');
+            if (!empty($user) && !empty($user[0]['apikey'])
+                && hash_equals((string) $user[0]['apikey'], (string) $token)
+            ) {
+                return true;
+            }
+
+            // A token was sent and it does NOT match. That is never a legacy client -
+            // it is either a stale login or an impersonation attempt, and both are
+            // refused whatever the flag says.
+            log_message('error', 'require_user_identity: api_token did not match user_id ' . $user_id
+                . ' - refusing. ' . webhook_log_context());
+            $this->response['error'] = true;
+            $this->response['message'] = 'Authentication required. Please sign in again.';
+            $this->response['data'] = array();
+            print_r(json_encode($this->response));
+            return false;
+        }
+
+        if ($enforce) {
+            log_message('error', 'require_user_identity: no api_token for user_id ' . $user_id
+                . ' - refusing (enforcement is on). ' . webhook_log_context());
+            $this->response['error'] = true;
+            $this->response['message'] = 'Authentication required. Please sign in again.';
+            $this->response['data'] = array();
+            print_r(json_encode($this->response));
+            return false;
+        }
+
+        // Interim, flag-off state: record and allow. This line is the readiness signal
+        // described above - when it stops appearing, enforcement can be turned on.
+        log_message('error', 'require_user_identity: LEGACY CALL - no api_token sent for user_id '
+            . $user_id . ' on ' . $this->router->fetch_method()
+            . '. Allowed because enforce_api_user_identity is off. ' . webhook_log_context());
+
+        return true;
+    }
+
+    /**
      * Prove the caller is the user whose id they are acting on.
      *
      * Compares the per-user token issued at login (users.apikey, returned as `api_token`)
@@ -5442,7 +5946,7 @@ Defined Methods:-
         $request_body = file_get_contents('php://input');
         $event = json_decode($request_body, true);
         log_message('error', 'paystack Webhook --> ' . var_export($event, true));
-        log_message('error', 'paystack Webhook SERVER Variable --> ' . var_export($_SERVER, true));
+        log_message('error', 'paystack Webhook SERVER Variable --> ' . webhook_log_context()  /* was var_export($_SERVER, true): dumped Cookie and Authorization headers into application/logs on production */);
 
 
         if (!empty($event['data'])) {
@@ -5486,7 +5990,7 @@ Defined Methods:-
         $paystack_signature = isset($_SERVER['HTTP_X_PAYSTACK_SIGNATURE']) ? $_SERVER['HTTP_X_PAYSTACK_SIGNATURE'] : '';
         if (!hash_equals(hash_hmac('sha512', $request_body, $secret_key), (string) $paystack_signature)) {
             log_message('error', 'Paystack Webhook - Invalid Signature - JSON DATA --> ' . var_export($event, true));
-            log_message('error', 'Paystack Server Variable invalid --> ' . var_export($_SERVER, true));
+            log_message('error', 'Paystack Server Variable invalid --> ' . webhook_log_context()  /* was var_export($_SERVER, true): dumped Cookie and Authorization headers into application/logs on production */);
             exit();
         }
 
@@ -5695,7 +6199,7 @@ Defined Methods:-
         }
 
         log_message('error', 'Flutterwave Webhook --> ' . var_export($event, true));
-        log_message('error', 'Flutterwave Webhook SERVER Variable --> ' . var_export($_SERVER, true));
+        log_message('error', 'Flutterwave Webhook SERVER Variable --> ' . webhook_log_context()  /* was var_export($_SERVER, true): dumped Cookie and Authorization headers into application/logs on production */);
 
         if (!empty($event->data->id)) {
             $txn_id = (isset($event->data->id)) ? $event->data->id : "";
@@ -5743,7 +6247,7 @@ Defined Methods:-
         /* comparing our local signature with received signature */
         if (empty($signature) || $signature != $local_secret_hash) {
             log_message('error', 'FlutterWave Webhook - Invalid Signature - JSON DATA --> ' . var_export($event, true));
-            log_message('error', 'FlutterWave Server Variable invalid --> ' . var_export($_SERVER, true));
+            log_message('error', 'FlutterWave Server Variable invalid --> ' . webhook_log_context()  /* was var_export($_SERVER, true): dumped Cookie and Authorization headers into application/logs on production */);
         }
 
 
@@ -5945,6 +6449,17 @@ Defined Methods:-
         if (!$this->verify_token()) {
             return false;
         }
+        /* PER-USER AUTHENTICATION. verify_token() above proves only that a legitimate
+         * build of the app is calling - the shared app key carries no identity, and it
+         * can be extracted from the APK. This endpoint acts on the user_id in the
+         * REQUEST BODY, so without a second check anybody holding that key could pass
+         * another customer's id and read or change their data. See
+         * application/config/api_security.php for the full description and for why this
+         * is gated rather than simply switched on. */
+        if (!$this->require_user_identity()) {
+            return false;
+        }
+
         $this->form_validation->set_rules('status', 'Status', 'trim|required|xss_clean');
         $this->form_validation->set_rules('order_id', 'Order item id', 'trim|required|numeric|xss_clean');
 
@@ -6487,6 +7002,17 @@ Defined Methods:-
         if (!$this->verify_token()) {
             return false;
         }
+        /* PER-USER AUTHENTICATION. verify_token() above proves only that a legitimate
+         * build of the app is calling - the shared app key carries no identity, and it
+         * can be extracted from the APK. This endpoint acts on the user_id in the
+         * REQUEST BODY, so without a second check anybody holding that key could pass
+         * another customer's id and read or change their data. See
+         * application/config/api_security.php for the full description and for why this
+         * is gated rather than simply switched on. */
+        if (!$this->require_user_identity()) {
+            return false;
+        }
+
 
         $this->form_validation->set_rules('order_item_id', 'Order Item Id', 'trim|required|xss_clean');
         $this->form_validation->set_rules('user_id', 'User ID', 'trim|required|xss_clean');
@@ -6682,6 +7208,17 @@ Defined Methods:-
         if (!$this->verify_token()) {
             return false;
         }
+        /* PER-USER AUTHENTICATION. verify_token() above proves only that a legitimate
+         * build of the app is calling - the shared app key carries no identity, and it
+         * can be extracted from the APK. This endpoint acts on the user_id in the
+         * REQUEST BODY, so without a second check anybody holding that key could pass
+         * another customer's id and read or change their data. See
+         * application/config/api_security.php for the full description and for why this
+         * is gated rather than simply switched on. */
+        if (!$this->require_user_identity()) {
+            return false;
+        }
+
 
         $this->form_validation->set_rules('user_id', 'User Id', 'trim|numeric|required|xss_clean');
 
@@ -6715,6 +7252,17 @@ Defined Methods:-
         if (!$this->verify_token()) {
             return false;
         }
+        /* PER-USER AUTHENTICATION. verify_token() above proves only that a legitimate
+         * build of the app is calling - the shared app key carries no identity, and it
+         * can be extracted from the APK. This endpoint acts on the user_id in the
+         * REQUEST BODY, so without a second check anybody holding that key could pass
+         * another customer's id and read or change their data. See
+         * application/config/api_security.php for the full description and for why this
+         * is gated rather than simply switched on. */
+        if (!$this->require_user_identity()) {
+            return false;
+        }
+
         $this->form_validation->set_rules('user_id', 'user id', 'trim|xss_clean|required');
         if (!$this->form_validation->run()) {
             $this->response['error'] = true;
@@ -6796,7 +7344,7 @@ Defined Methods:-
                         if (!empty($order_items)) {
                             $res_order_id = array_values(array_unique(array_column($order_items, "order_id")));
                             for ($i = 0; $i < count($res_order_id); $i++) {
-                                $orders = $this->db->where('oi.seller_id != ' . $_POST['user_id'] . ' and oi.order_id=' . $res_order_id[$i])->join('orders o', 'o.id=oi.order_id', 'right')->get('order_items oi')->result_array();
+                                $orders = $this->db->where('oi.seller_id != ' . (int) $_POST['user_id'] . ' and oi.order_id=' . (int) $res_order_id[$i])  /* SQL INJECTION - was raw $_POST['user_id']; the mobile API needs only the shared app key, so this was reachable by anyone who extracted it from the APK. */->join('orders o', 'o.id=oi.order_id', 'right')->get('order_items oi')->result_array();
                                 if (empty($orders)) {
                                     // delete orders
                                     if (delete_details(['seller_id' => $_POST['user_id']], 'order_items')) {

@@ -26,8 +26,7 @@ class Subscription extends CI_Controller
             // need a granular permission too - 'subscription' is now a registered module
             // in config/eshop.php.
             if (!has_permissions('read', 'subscription')) {
-                $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-                redirect('admin/home', 'refresh');
+                deny_panel_access();
             }
             $this->data['main_page'] = TABLES . 'seller-subscriptions';
             $settings = get_settings('system_settings', true);
@@ -370,8 +369,7 @@ class Subscription extends CI_Controller
             // limits and commission rates the whole marketplace bills on, so it needs the
             // same 'subscription' module check the seller-subscription screens already use.
             if (!has_permissions('read', 'subscription')) {
-                $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-                redirect('admin/home', 'refresh');
+                deny_panel_access();
             }
 
             $this->data['main_page'] = TABLES . 'manage-subscriptions';

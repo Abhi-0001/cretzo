@@ -13,8 +13,7 @@ class Sales_inventory extends CI_Controller
                     // see full inventory data regardless of the granular permission system every
                     // other page uses.
                     if (!has_permissions('read', 'sales_inventory')) {
-                              $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-                              redirect('admin/home', 'refresh');
+                              deny_panel_access();
                     }
                     $this->session->set_flashdata('authorize_flag', "");
           }

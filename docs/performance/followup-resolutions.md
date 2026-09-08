@@ -35,11 +35,11 @@ This is **certain**, and the reason is not the one either of us assumed. On `ori
 if (ENVIRONMENT === 'development') {
     $t_database_name = 'u554344800_cretzo_new';   // <-- PRODUCTION credentials
     $t_username      = 'u554344800_cretzo_new';
-    $t_password      = 'Geet@cretzo123';
+    $t_password      = '<redacted - rotated credential>';
 } elseif (ENVIRONMENT === 'production') {
     $t_database_name = 'u554344800_cretzo_new';   // <-- the SAME production credentials
     $t_username      = 'u554344800_cretzo_new';
-    $t_password      = 'Geet@cretzo123';
+    $t_password      = '<redacted - rotated credential>';
 }
 $db['default'] = array('hostname' => 'localhost', ... );   // hardcoded, no port key
 ```
@@ -123,7 +123,7 @@ the *unsafe* value is the default. Three options, in order of preference:
    deliberate and commented, so nobody "helpfully" restores local credentials to the dev branch.
 3. **Move credentials out of the tracked file entirely** — read them from environment
    variables, with `database.php` containing no secrets. This also gets
-   `Geet@cretzo123` out of git history going forward.
+   the rotated database password out of git history going forward.
 
 Option 3 was implemented (see §1b), in the form CodeIgniter natively supports. Options 1 and 2
 remain open and still depend on the unresolved CI_ENV question.

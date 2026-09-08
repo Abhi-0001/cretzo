@@ -5,9 +5,69 @@ on:
   pull_request:
 
 jobs:
+  # ===========================================================================
+  #  Secret scanning
+  # ===========================================================================
+  # This exists because a secret HAS already been committed here: the production
+  # database password lived in application/config/database.php - a tracked, deployed
+  # file - and the mobile API's JWT signing key and the Facebook app secret were
+  # hardcoded in application/config/constants.php. All three are now read from the
+  # environment via an untracked .env file, but nothing stopped the next one.
+  #
+  # Note that .gitignore could not have prevented it: database.php was ALREADY listed
+  # in .gitignore and was committed anyway, because .gitignore has no effect on a file
+  # that is already tracked. A check that fails the build is the only thing that
+  # actually holds.
+  #
+  # Runs first and gates everything else - a build that publishes a credential should
+  # not go green because the PHP happens to parse.
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # gitleaks/gitleaks-action@v2 was used first and is not used now. It wraps the
+      # scan in SARIF generation and artifact upload, so when gitleaks itself failed
+      # to start (an unsupported regex in the config - see the note on the
+      # cretzo-env-file-committed rule) the visible error was
+      #
+      #     Error: File results.sarif does not exist
+      #
+      # which says nothing about the real problem. Invoking the binary directly means
+      # a config error is reported as a config error. The version is pinned so a new
+      # gitleaks release cannot change the outcome of a build without a commit here.
+      - name: Install gitleaks (pinned)
+        run: |
+          set -euo pipefail
+          VERSION=8.21.2
+          curl -sSfL -o /tmp/gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz"
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          chmod +x /tmp/gitleaks
+          /tmp/gitleaks version
+
+      # Fail on a broken config with a clear message, before the real scan runs.
+      # Every pattern must compile under RE2, which has no lookahead/lookbehind.
+      - name: Check the config compiles
+        run: /tmp/gitleaks detect --config .gitleaks.toml --source .gitleaks.toml --no-git --no-banner --redact
+
+      # WORKING TREE ONLY, deliberately - not full git history.
+      #
+      # History already contains the database password, the Twilio auth token, the JWT
+      # key and more; they are published and the remedy is rotation, not a red build.
+      # Gating on history would make this check permanently red, and a check that is
+      # always red is one people stop reading.
+      #
+      # The job of this gate is to stop a NEW secret being added. --redact so a finding
+      # is reported without printing the secret into a public build log.
+      - name: Scan the working tree for secrets
+        run: /tmp/gitleaks detect --config .gitleaks.toml --source . --no-git --no-banner --redact --exit-code 1
+
   lint:
     name: PHP syntax lint
     runs-on: ubuntu-latest
+    needs: secret-scan
     steps:
       - uses: actions/checkout@v4
 

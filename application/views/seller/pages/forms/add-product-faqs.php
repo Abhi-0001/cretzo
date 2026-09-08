@@ -31,7 +31,7 @@
                                 <select name="product_id" id="product_id" class="form-control" required>
                                     <option value="">Select a product</option>
                                     <?php foreach (($seller_products ?? []) as $row) : ?>
-                                        <option value="<?= (int) $row['id'] ?>"><?= output_escaping($row['name']) ?></option>
+                                        <option value="<?= (int) $row['id'] ?>"><?= unslash($row['name']) ?></option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>

@@ -73,8 +73,17 @@ class Stripe
 
         $signed_payload = "{$timestamp}.{$request_body}";
         $expectedSignature = hash_hmac('sha256', $signed_payload, $secret);
-       
-        if ($expectedSignature == $signs) {
+
+        // Was `==`. Two problems with that: it is not constant-time, so the comparison
+        // leaks how many leading characters of a guess were right and a signature can
+        // be recovered byte by byte; and it is a loose comparison, which is the wrong
+        // operator to reach for by habit when comparing anything secret-derived.
+        // hash_equals() is the primitive built for this.
+        //
+        // Also refuse an empty expected signature outright: if $secret is blank
+        // because the webhook secret was never saved, hash_hmac still returns a digest
+        // of the empty key and a caller who knows that could compute it themselves.
+        if (!empty($secret) && hash_equals($expectedSignature, (string) $signs)) {
             if (($tolerance > 0) && (\abs(\time() - $timestamp) > $tolerance)) {
                 $response['error'] = true;
                 $response['message'] = "Timestamp outside the tolerance zone";

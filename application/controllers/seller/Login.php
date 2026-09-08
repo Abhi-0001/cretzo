@@ -899,6 +899,17 @@ class Login extends CI_Controller
      */
     public function check_reset_account()
     {
+        /* Per-IP throttle. This endpoint answers "does an account exist for this
+         * number?" with no authentication, so unthrottled it is an account directory:
+         * sweep a number range and you have every account on the site, labelled by
+         * portal. See lookup_rate_limit_guard() for why it is keyed on IP only and why
+         * it fails open. */
+        $throttle = lookup_rate_limit_guard('lookup');
+        if (!$throttle['allowed']) {
+            echo json_encode(['error' => true, 'message' => $throttle['message']]);
+            return false;
+        }
+
         $this->form_validation->set_rules('mobile_number', 'Mobile No', 'trim|numeric|required|xss_clean|max_length[16]');
         if (!$this->form_validation->run()) {
             echo json_encode(['error' => true, 'message' => strip_tags(validation_errors())]);
@@ -1011,7 +1022,13 @@ class Login extends CI_Controller
     {
         $this->form_validation->set_rules('mobile_number', 'Mobile No', 'trim|numeric|required|xss_clean|max_length[16]');
         $this->form_validation->set_rules('id_token', 'Verification token', 'trim|required|xss_clean');
-        $this->form_validation->set_rules('new_password', 'New Password', 'trim|required|min_length[6]|xss_clean');
+        /* min_length was hardcoded to 6 while ion_auth.php sets min_password_length = 8,
+         * so the RESET path let a user set a password shorter than the SIGNUP path would
+         * accept - a policy that only applies where it is least likely to be tested. Read
+         * from config so the two can never drift again. */
+        $min_password = (int) $this->config->item('min_password_length', 'ion_auth');
+        $min_password = ($min_password > 0) ? $min_password : 8;
+        $this->form_validation->set_rules('new_password', 'New Password', 'trim|required|min_length[' . $min_password . ']|xss_clean');
         if (!$this->form_validation->run()) {
             $response['error'] = true;
             $response['message'] = strip_tags(validation_errors());

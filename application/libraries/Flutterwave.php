@@ -125,7 +125,12 @@ class Flutterwave
             CURLOPT_POSTFIELDS => json_encode($data),
             CURLOPT_HTTPHEADER => array(
                 "Content-Type: application/json",
-                // "Authorization: Bearer FLWSECK_TEST-485639258bf1b09508cb297042bd8228-X"
+                /* A commented-out literal Flutterwave secret key used to sit here. It was
+                 * a TEST key (FLWSECK_TEST-...), so the blast radius is a sandbox account
+                 * rather than real money - but commenting a credential out does not
+                 * unpublish it, and it is in git history. Removed; rotate it in the
+                 * Flutterwave dashboard. The live value is read from payment settings via
+                 * $this->secret_key on the line below, which is the correct source. */
                 "Authorization: Bearer " . $this->secret_key
             ),
         ));

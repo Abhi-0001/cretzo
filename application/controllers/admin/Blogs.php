@@ -20,8 +20,7 @@ class Blogs extends CI_Controller
         // so entry requires read on either; the per-action checks further down
         // (blogs / blog_categories) then narrow create/update/delete correctly.
         if (!has_permissions('read', 'blogs') && !has_permissions('read', 'blog_categories')) {
-            $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-            redirect('admin/home', 'refresh');
+            deny_panel_access();
         }
     }
 

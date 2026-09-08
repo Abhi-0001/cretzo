@@ -15,12 +15,33 @@ $font_color = (isset($settings['font_color']) && !empty($settings['font_color'])
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= $title ?></title>
-    <meta name="keywords" content='<?= $keywords ?>'>
-    <meta name="description" content='<?= $description ?>'>
+    <?php
+    /* STORED XSS - FIXED. The title and the keywords/description meta tags used to be
+     * printed raw, with the two meta values inside SINGLE-quoted attributes.
+     *
+     * On the product detail page all three are built from the PRODUCT NAME - see
+     * Products.php, which sets title/keywords/description from $product['name'] - and a
+     * product name is seller-supplied text. Sellers self-register on this site, so that
+     * is untrusted input rendered into the head of every visitor's page, and into the
+     * admin panel whenever a staff member opens the product.
+     *
+     * The single quotes made it trivial: an apostrophe in the name closed the attribute,
+     * and a closing title tag closed the title element. One product name was enough to
+     * run script in the browser of every shopper who viewed that product.
+     *
+     * html_escape() is CodeIgniter's htmlspecialchars wrapper and uses ENT_QUOTES, so it
+     * handles both quote styles; the attributes are double-quoted now as well.
+     *
+     * This is NOT the same thing as the output_escaping() calls found elsewhere in these
+     * views. That function does not escape anything - it calls stripcslashes(), which is
+     * the opposite. See its definition in function_helper.php. */
+    ?>
+    <title><?= html_escape($title) ?></title>
+    <meta name="keywords" content="<?= html_escape($keywords) ?>">
+    <meta name="description" content="<?= html_escape($description) ?>">
 
     <!-- for image in link -->
-    <meta name="product_image" property="og:image" content='<?= isset($product_image) ? $product_image : '' ?>'>
+    <meta name="product_image" property="og:image" content="<?= html_escape(isset($product_image) ? $product_image : '') ?>">
     <meta property="og:image:type" content="image/jpg,png,jpeg,gif,bmp,eps">
     <meta property="og:image:width" content="1024">
     <meta property="og:image:height" content="1024">

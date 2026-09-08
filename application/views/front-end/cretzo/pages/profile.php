@@ -348,22 +348,36 @@ $this->load->view('front-end/' . THEME . '/partials/account-layout', [
                         <label class="czap-field__label" for="old">
                             <?= !empty($this->lang->line('old_password')) ? $this->lang->line('old_password') : 'Current password' ?><span class="czap-req">*</span>
                         </label>
-                        <input type="password" class="czap-input" id="old" name="old"
-                               autocomplete="current-password" placeholder="Your current password" data-czap-autofocus>
+                        <?php /* .czap-pass + the eye button; account-suite.js initPassToggles()
+                                 binds it. Present on all three fields because a typo in the
+                                 CURRENT password reads as "wrong password" and a typo in either
+                                 new one as "passwords do not match", with nothing on screen to
+                                 check against. */ ?>
+                        <div class="czap-pass">
+                            <input type="password" class="czap-input" id="old" name="old"
+                                   autocomplete="current-password" placeholder="Your current password" data-czap-autofocus>
+                            <button type="button" class="czap-pass__eye" aria-pressed="false" aria-label="Show password"><i class="uil uil-eye"></i></button>
+                        </div>
                     </div>
                     <div class="czap-field">
                         <label class="czap-field__label" for="new">
                             <?= !empty($this->lang->line('new_password')) ? $this->lang->line('new_password') : 'New password' ?><span class="czap-req">*</span>
                         </label>
-                        <input type="password" class="czap-input" id="new" name="new"
-                               autocomplete="new-password" placeholder="At least <?= (int) $this->config->item('min_password_length', 'ion_auth') ?> characters">
+                        <div class="czap-pass">
+                            <input type="password" class="czap-input" id="new" name="new"
+                                   autocomplete="new-password" placeholder="At least <?= (int) $this->config->item('min_password_length', 'ion_auth') ?> characters">
+                            <button type="button" class="czap-pass__eye" aria-pressed="false" aria-label="Show password"><i class="uil uil-eye"></i></button>
+                        </div>
                     </div>
                     <div class="czap-field">
                         <label class="czap-field__label" for="new_confirm">
                             <?= !empty($this->lang->line('confirm_new_password')) ? $this->lang->line('confirm_new_password') : 'Confirm new password' ?><span class="czap-req">*</span>
                         </label>
-                        <input type="password" class="czap-input" id="new_confirm" name="new_confirm"
-                               autocomplete="new-password" placeholder="Repeat the new password">
+                        <div class="czap-pass">
+                            <input type="password" class="czap-input" id="new_confirm" name="new_confirm"
+                                   autocomplete="new-password" placeholder="Repeat the new password">
+                            <button type="button" class="czap-pass__eye" aria-pressed="false" aria-label="Show password"><i class="uil uil-eye"></i></button>
+                        </div>
                     </div>
                 </div>
 

@@ -82,10 +82,87 @@ class Instamojo
     public function payment_requests_detail($id)
     {
         $url = $this->url . 'v2/payment_requests/'.$id.'/';
-    
+
         $response = $this->curl($url);
         // $res = json_decode($response['body'], true);
         return $response;
+    }
+
+    /**
+     * Ask Instamojo what actually happened, instead of believing the webhook body.
+     *
+     * The webhook handler used to read `status`, `amount` and `purpose` straight out
+     * of $_POST with no verification of any kind - no signature, no `mac`, no
+     * callback to Instamojo - and then credited a wallet with the posted figure. A
+     * single unauthenticated POST was therefore worth an arbitrary amount of store
+     * credit.
+     *
+     * Instamojo does offer a `mac` HMAC on webhooks, but its key is the account's
+     * PRIVATE SALT, which this installation has never stored (payment settings hold
+     * only client id and client secret). Rather than add a setting that an operator
+     * has to find and paste correctly for payments to stay secure, this verifies out
+     * of band: fetch the payment request over the authenticated v2 API using the
+     * client credentials we already hold, find the individual payment inside it, and
+     * return Instamojo's own status and amount. An attacker can forge a body; they
+     * cannot forge what Instamojo's API says back to us over our own OAuth token.
+     *
+     * This is the stronger of the two checks anyway - a valid `mac` proves the message
+     * came from Instamojo, while this proves the payment exists and is worth what it
+     * claims.
+     *
+     * @param  string $payment_request_id From the webhook's `payment_request_id`.
+     * @param  string $payment_id         From the webhook's `payment_id`.
+     * @return array{error: bool, message: string, status: string, amount: string, purpose: string}
+     */
+    public function verify_webhook_payment($payment_request_id, $payment_id)
+    {
+        $fail = function ($message) {
+            return ['error' => true, 'message' => $message, 'status' => '', 'amount' => '', 'purpose' => ''];
+        };
+
+        if (empty($this->client_id) || empty($this->client_secret)) {
+            return $fail('Instamojo credentials are not configured, so a webhook cannot be verified.');
+        }
+        if (empty($payment_request_id) || empty($payment_id)) {
+            return $fail('Webhook did not carry both payment_request_id and payment_id.');
+        }
+
+        $response = $this->payment_requests_detail($payment_request_id);
+        if (!isset($response['http_code']) || (int) $response['http_code'] !== 200) {
+            // Refuse rather than assume. A gateway outage must not become a window in
+            // which unverified webhooks are accepted; Instamojo retries its webhooks,
+            // so a genuine payment is not lost by answering "not now".
+            return $fail('Instamojo API did not confirm the payment request (http '
+                . (isset($response['http_code']) ? $response['http_code'] : 'none') . ').');
+        }
+
+        $body = json_decode(isset($response['body']) ? $response['body'] : '', true);
+        if (!is_array($body) || empty($body['payment_request'])) {
+            return $fail('Instamojo API response could not be parsed.');
+        }
+
+        $request = $body['payment_request'];
+        $payments = isset($request['payments']) && is_array($request['payments']) ? $request['payments'] : [];
+
+        // Match on the payment id the webhook named. A payment request can hold more
+        // than one payment, and taking the first one would let a forged body about a
+        // cheap payment be credited as an expensive one from the same request.
+        foreach ($payments as $payment) {
+            if (!isset($payment['payment_id']) || !hash_equals((string) $payment['payment_id'], (string) $payment_id)) {
+                continue;
+            }
+
+            return [
+                'error'   => false,
+                'message' => 'Verified with Instamojo.',
+                // Instamojo's own words, not the caller's.
+                'status'  => isset($payment['status']) ? (string) $payment['status'] : '',
+                'amount'  => isset($payment['amount']) ? (string) $payment['amount'] : '',
+                'purpose' => isset($request['purpose']) ? (string) $request['purpose'] : '',
+            ];
+        }
+
+        return $fail('Instamojo has no payment ' . $payment_id . ' on request ' . $payment_request_id . '.');
     }
 
     public function curl($url, $method = 'GET', $data = [])

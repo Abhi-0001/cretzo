@@ -12,8 +12,7 @@ class Payment_settings extends CI_Controller
         $this->load->model('Setting_model');
 
         if (!has_permissions('read', 'payment_settings')) {
-            $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-            redirect('admin/home', 'refresh');
+            deny_panel_access();
         }
     }
 

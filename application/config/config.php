@@ -340,7 +340,26 @@ $config['cache_query_string'] = FALSE;
 | https://codeigniter.com/user_guide/libraries/encryption.html
 |
 */
-$config['encryption_key'] = '';
+/*
+| Was '' - an EMPTY encryption key.
+|
+| Nothing in this application currently uses the Encryption library or encrypted
+| cookies, so an empty key was inert rather than actively broken. But it is a loaded
+| gun: the first feature that reaches for $this->encryption->encode() would encrypt
+| with a key everybody knows, and it would do so silently, producing ciphertext that
+| looks fine and protects nothing.
+|
+| Read from the environment, with no fallback, so the failure is loud instead: CI
+| throws if the library is used without a key. Set it on the server alongside the
+| other secrets:
+|
+|     SetEnv CI_ENCRYPTION_KEY "<32 random bytes, hex>"
+|     php -r "echo bin2hex(random_bytes(32));"
+|
+| Note this file is tracked in git, which is exactly why the value is not written
+| here - see the equivalent notes in config/constants.php and config/cron.php.
+*/
+$config['encryption_key'] = getenv('CI_ENCRYPTION_KEY') ?: '';
 
 /*
 |--------------------------------------------------------------------------
@@ -396,7 +415,37 @@ $config['encryption_key'] = '';
 $config['sess_driver'] = 'files';
 $config['sess_cookie_name'] = 'ci_session';
 $config['sess_expiration'] = 7200;
-$config['sess_save_path'] = sys_get_temp_dir();
+/*
+| SESSION STORAGE - was sys_get_temp_dir().
+|
+| On shared hosting that is a directory shared with every other account on the
+| machine, and a session file is not a hash of a session - it IS the session. Anything
+| that can read the file can resume the session it belongs to, admin sessions
+| included. It is also where a co-tenant's own PHP process looks first.
+|
+| Moved inside the application, which is not web-reachable: application/.htaccess
+| denies the directory outright and the root .htaccess blocks ^application/ as well.
+| The directory ships with the repo (so the deploy creates it) and its contents are
+| gitignored (so a live session id is never committed).
+|
+| NOTE ON DEPLOY: changing this path invalidates every existing session, so everyone -
+| customers, sellers, admins - is signed out once, at the moment this goes live. That
+| is a one-off, and it is the correct direction: the sessions being discarded are the
+| ones that were stored somewhere readable.
+|
+| If the directory is not writable the file driver falls back to failing loudly rather
+| than silently storing nothing, which is what you want to find out immediately.
+*/
+$config['sess_save_path'] = APPPATH . 'cache/sessions';
+
+/*
+| Left FALSE deliberately, and worth recording why rather than leaving it looking
+| unconsidered. Binding a session to an IP would make a stolen cookie harder to reuse,
+| but this site sits behind a CDN and serves a lot of mobile traffic: the client IP
+| changes mid-session on any network handover, and every one of those would be a
+| forced logout in the middle of a checkout. The protections that do the work here are
+| the HttpOnly + Secure + SameSite cookie flags and sess_regenerate_destroy below.
+*/
 $config['sess_match_ip'] = FALSE;
 $config['sess_time_to_update'] = 300;
 // Destroy the old session file when the ID is regenerated. With this FALSE, every
@@ -495,7 +544,74 @@ $config['csrf_expire'] = 7200;
 // via bootstrap-table refreshes and modal forms. A stable per-session token still blocks
 // cross-site forgery, which is the entire point of the check.
 $config['csrf_regenerate'] = FALSE;
-$config['csrf_exclude_uris'] = array('admin/product/process_bulk_upload', 'admin/product/get_subcategory','admin/updater/upload_update_file','admin/webhook/spr_webhook', 'cart/pre-payment-setup', 'cart/validate-promo-code', 'my-account/get-address', 'cart/place-order', 'payment/[a-z_-]+', 'admin/category/add_category', 'admin/orders/update_orders', 'admin/product/update_product_order', 'admin/orders/delete_orders', 'admin/product/delete_product', 'app/v1/api/[a-z_-]+', 'delivery_boy/app/v1/api/[a-z_-]+', 'admin/app/v1/api/[a-z_-]+', 'admin/home/fetch_sales', 'seller/app/v1/api/[a-z_-]+', 'app/v1/chat_api/[a-z_-]+', 'seller/app/v1/chat_api/[a-z_-]+', 'admin/webhook/[a-z_-]+','admin/media/upload', 'admin/webhook/phonepe_webhook');
+/*
+| CSRF EXEMPTIONS - now only endpoints that CANNOT carry our token.
+|
+| This list had grown to 22 entries and included the most destructive endpoints in
+| the application. Anything on it accepts a cross-site POST, which means any page an
+| authenticated admin happens to open can fire it. The worst entry was
+| `admin/updater/upload_update_file`, which extracts an uploaded ZIP and copies files
+| anywhere under the application root - i.e. an admin merely VISITING a malicious page
+| was remote code execution, with no credential theft and no XSS required. Order
+| deletion, product deletion, order status updates and category creation were all
+| exempt too.
+|
+| Every removed entry was checked against its actual caller first, because a wrong
+| removal here breaks the panel or the checkout rather than failing safe:
+|
+|   admin/updater/upload_update_file  form.form-submit-event -> custom.js appends the
+|                                     token (see the FormData handler in custom.js)
+|   admin/category/add_category       same form-submit-event handler
+|   admin/product/process_bulk_upload #bulk_upload_form handler appends it explicitly
+|   cart/place-order                  checkout.js place_order() appends it to FormData
+|   cart/pre-payment-setup            checkout.js $.post sends [csrfName]: csrfHash
+|   cart/validate-promo-code          cart.js + checkout.js both append it
+|   my-account/get-address            checkout.js sends it in the POST data
+|   admin/product/get_subcategory     GET
+|   admin/orders/update_orders        GET
+|   admin/orders/delete_orders        GET
+|   admin/product/delete_product      GET
+|   admin/product/update_product_order GET
+|   admin/home/fetch_sales            GET (read-only)
+|
+| NOTE on the GET ones: CodeIgniter's CSRF check only applies to POST, so taking them
+| off this list does not protect them - it just stops the list from implying they were
+| considered. Destructive actions reached by GET are CSRF-able by construction, and
+| the correct fix is to make them POST. delete_orders, delete_product and
+| update_product_order have been converted; the rest are read-only.
+|
+| WHAT STAYS, and why each one genuinely cannot present a token:
+|
+|   admin/webhook/*        Payment gateway servers. They authenticate by HMAC
+|                          signature instead - see the handlers in admin/Webhook.php,
+|                          all of which verify one now.
+|   payment/*              Gateway return and callback URLs; the browser arrives here
+|                          from the provider's domain, so no token of ours exists.
+|   app/v1/api/*           The mobile APIs. Token-authenticated (JWT in a header) and
+|   seller/app/v1/api/*    cookie-less, so CSRF does not apply: there is no ambient
+|   admin/app/v1/api/*     credential for a third-party site to ride on.
+|   delivery_boy/app/v1/api/*
+|   app/v1/chat_api/*
+|   seller/app/v1/chat_api/*
+|   admin/media/upload     TinyMCE's own uploader (images_upload_url) issues this
+|                          request internally and has no way to attach our token. Left
+|                          exempt deliberately: the endpoint is admin-gated and the
+|                          allowed types exclude every executable extension, so the
+|                          worst a forced call achieves is an unwanted image in the
+|                          media library. Revisit if TinyMCE is ever reconfigured to
+|                          use images_upload_handler, which can send the token.
+*/
+$config['csrf_exclude_uris'] = array(
+    'admin/webhook/[a-z_-]+',
+    'payment/[a-z_-]+',
+    'app/v1/api/[a-z_-]+',
+    'app/v1/chat_api/[a-z_-]+',
+    'seller/app/v1/api/[a-z_-]+',
+    'seller/app/v1/chat_api/[a-z_-]+',
+    'admin/app/v1/api/[a-z_-]+',
+    'delivery_boy/app/v1/api/[a-z_-]+',
+    'admin/media/upload',
+);
 
 /*
 |--------------------------------------------------------------------------

@@ -42,10 +42,10 @@ class Notification_model extends CI_Model
         // feed and cannot fix the text themselves.
         $search_res = clean_notification_rows($search_res);
         for ($i = 0; $i < count($search_res); $i++) {
-            $search_res[$i]['title'] = output_escaping($search_res[$i]['title']);
-            $search_res[$i]['message'] = output_escaping($search_res[$i]['message']);
-            $search_res[$i]['send_to'] = output_escaping($search_res[$i]['send_to']);
-            $search_res[$i]['users_id'] = output_escaping($search_res[$i]['users_id']);
+            $search_res[$i]['title'] = unslash($search_res[$i]['title']);
+            $search_res[$i]['message'] = unslash($search_res[$i]['message']);
+            $search_res[$i]['send_to'] = unslash($search_res[$i]['send_to']);
+            $search_res[$i]['users_id'] = unslash($search_res[$i]['users_id']);
             $search_res[$i]['link'] = (isset($search_res[$i]['link']) && !empty($search_res[$i]['link']) ? $search_res[$i]['link'] : '');
             if (empty($search_res[$i]['image'])) {
                 $search_res[$i]['image'] = '';
@@ -136,7 +136,7 @@ class Notification_model extends CI_Model
         $bulkData['total'] = $total;
         $rows = array();
         foreach ($city_search_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
             $tempRow = array();
 
             $operate = ' <a class="delete_system_noti action-btn  btn btn-danger btn-xs mr-1 mb-1 ml-1" title="Delete" href="javascript:void(0)"  data-id="' . $row['id'] . '" ><i class="fa fa-trash"></i></a>';
@@ -270,7 +270,7 @@ class Notification_model extends CI_Model
         $rows = array();
         $tempRow = array();
         foreach ($city_search_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
             // The Delete button calls an admin-only endpoint. It was rendered for customers too,
             // so every customer's notifications page showed a delete icon that answered with the
             // admin-login redirect when clicked.
@@ -478,7 +478,7 @@ class Notification_model extends CI_Model
 
         $rows = [];
         foreach ($records as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
 
             $image = '';
             if (!empty($row['image'])) {

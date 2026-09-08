@@ -81,7 +81,7 @@
 
                                 <div class="form-group col-md-12">
                                     <label for="pro_input_text" class="col-form-label">Name <span class='text-danger text-sm'>*</span> </label>
-                                    <input type="text" class="form-control" id="pro_input_text" placeholder="Product Name" name="pro_input_name" value="<?= (isset($product_details[0]['name'])) ? output_escaping(str_replace('\r\n', '&#13;&#10;', $product_details[0]['name'])) : "" ?>">
+                                    <input type="text" class="form-control" id="pro_input_text" placeholder="Product Name" name="pro_input_name" value="<?= (isset($product_details[0]['name'])) ? unslash(str_replace('\r\n', '&#13;&#10;', $product_details[0]['name'])) : "" ?>">
                                 </div>
                                 <div class="row col-md-12">
                                     <?php
@@ -105,7 +105,7 @@
 
                                 <div class="form-group col-md-12">
                                     <label for="pro_short_description" class="col-form-label">Short Description <span class='text-danger text-sm'>*</span></label>
-                                    <textarea type="text" class="form-control" id="short_description" placeholder="Product Short Description" name="short_description"><?= isset($product_details[0]['short_description']) ? output_escaping(str_replace('\r\n', '&#13;&#10;', $product_details[0]['short_description'])) : ""; ?></textarea>
+                                    <textarea type="text" class="form-control" id="short_description" placeholder="Product Short Description" name="short_description"><?= isset($product_details[0]['short_description']) ? unslash(str_replace('\r\n', '&#13;&#10;', $product_details[0]['short_description'])) : ""; ?></textarea>
                                 </div>
                                 <div class="form-group">
                                     <div class="col-md-12">
@@ -896,11 +896,11 @@
                                         <div class="form-group col-md-12">
                                             <label for="pro_input_description">Description </label>
                                             <div class="mb-3">
-                                                <textarea name="pro_input_description" class="textarea addr_editor" placeholder="Place some text here"><?= (isset($product_details[0]['id'])) ? output_escaping(str_replace('\r\n', '&#13;&#10;', $product_details[0]['description'])) : ''; ?></textarea>
+                                                <textarea name="pro_input_description" class="textarea addr_editor" placeholder="Place some text here"><?= (isset($product_details[0]['id'])) ? unslash(str_replace('\r\n', '&#13;&#10;', $product_details[0]['description'])) : ''; ?></textarea>
                                             </div>
                                             <label for="pro_input_description">Extra Description </label>
                                             <div class="mb-3">
-                                                <textarea name="extra_input_description" class="textarea addr_editor" placeholder="Place some text here"><?= (isset($product_details[0]['id'])) ? output_escaping(str_replace('\r\n', '&#13;&#10;', $product_details[0]['extra_description'])) : ''; ?></textarea>
+                                                <textarea name="extra_input_description" class="textarea addr_editor" placeholder="Place some text here"><?= (isset($product_details[0]['id'])) ? unslash(str_replace('\r\n', '&#13;&#10;', $product_details[0]['extra_description'])) : ''; ?></textarea>
                                             </div>
                                             <div class="d-flex justify-content-center">
                                                 <div class="form-group" id="error_box">

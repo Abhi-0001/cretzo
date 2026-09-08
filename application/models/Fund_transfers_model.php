@@ -42,12 +42,26 @@ class Fund_transfers_model extends CI_Model
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "id";
-            } else {
-                $sort = $_GET['sort'];
-            }
+        /* SQL INJECTION - FIXED. This was:
+         *
+         *     if (isset($_GET['sort']))
+         *         if ($_GET['sort'] == 'id') { $sort = "id"; }
+         *         else                       { $sort = $_GET['sort']; }
+         *
+         * so any value other than the literal 'id' was passed through untouched and
+         * concatenated into ORDER BY by order_by(), which does not escape a string
+         * containing a parenthesis. Seventeen other list models in this directory had
+         * already been whitelisted in an earlier pass; this one was missed.
+         *
+         * The query is a SELECT * so there is no short hand-written column list to
+         * check against - sanitize_sort_column_for_table() asks the database for fund_transfers's
+         * real columns instead, which is both exact and self-maintaining. The default
+         * is unchanged, so a request that sorted correctly before still does. */
+        $sort = sanitize_sort_column_for_table(
+            isset($_GET['sort']) ? $_GET['sort'] : null,
+            'fund_transfers',
+            'id'
+        );
         if (isset($_GET['order']))
             $order = $_GET['order'];
 
@@ -88,7 +102,7 @@ class Fund_transfers_model extends CI_Model
         $tempRow = array();
 
         foreach ($transfers_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
             $tempRow['id'] = $row['id'];
             $tempRow['name'] = $row['name'];
             $tempRow['mobile'] = (ALLOW_MODIFICATION == 0 && !defined(ALLOW_MODIFICATION)) ? str_repeat("X", strlen($row['mobile']) - 3) . substr($row['mobile'], -3) : $row['mobile'];

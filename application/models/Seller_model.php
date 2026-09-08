@@ -274,7 +274,7 @@ class Seller_model extends CI_Model
         $tempRow = array();
 
         foreach ($offer_search_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
             $operate = " <a href='manage-seller?edit_id=" . $row['user_id'] . "' data-id=" . $row['user_id'] . " class='btn action-btn btn-success btn-xs mr-2 mb-1' title='Edit' ><i class='fa fa-pen'></i></a>";
             $operate .= '<a  href="javascript:void(0)" class="delete-sellers btn action-btn btn-danger btn-xs mr-2 mb-1" title="Delete"   data-id="' . $row['user_id'] . '" ><i class="fa fa-trash"></i></a>';
             if ($row['status'] == '1' || $row['status'] == '0' || $row['status'] == '2') {
@@ -474,7 +474,7 @@ class Seller_model extends CI_Model
         $rows = $tempRow = array();
 
         foreach ($offer_search_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
             $where = ['p.seller_id' =>  $row['seller_id'], 'p.status' => '1', 'pv.status' => 1, 'p.listing_visibility' => 1];
             $this->db->group_Start();
             $this->db->or_where('c.status', '1');
@@ -1239,7 +1239,7 @@ class Seller_model extends CI_Model
                     // This used to assign to $data - the same variable holding the order-item
                     // list this whole method iterates over - clobbering it mid-method.
                     $personalised = str_replace(array($hashtag_cutomer_name, $hashtag_application_name), array($user_res[0]['username'], $app_name), $hashtag);
-                    $message = output_escaping(trim($personalised, '"'));
+                    $message = unslash(trim($personalised, '"'));
                     $customer_title = (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Commission Amount Credited";
                     $customer_msg = (!empty($custom_notification)) ? $message : 'Hello Dear ' . $user_res[0]['username'] . 'Commission Amount Credited, which orders are delivered. Please take note of it! Regards' . $app_name . '';
                     // send_mail($user_res[0]['email'], $customer_title, $customer_msg);
@@ -1391,7 +1391,7 @@ class Seller_model extends CI_Model
         $tempRow = array();
 
         foreach ($offer_search_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
             $operate = " <a href='" . base_url('admin/sellers/manage-seller') . "?edit_id=" . $row['user_id'] . "' data-id=" . $row['user_id'] . " class='btn btn-success btn-xs mr-1 mb-1' title='Edit' ><i class='fa fa-pen'></i></a>";
             $operate .= '<a  href="javascript:void(0)" class="delete-sellers btn btn-danger btn-xs mr-1 mb-1" title="Delete"   data-id="' . $row['user_id'] . '" ><i class="fa fa-trash"></i></a>';
             if ($row['status'] == '1' || $row['status'] == '0' || $row['status'] == '2') {
@@ -1516,7 +1516,7 @@ class Seller_model extends CI_Model
         $tempRow = array();
 
         foreach ($offer_search_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
             $operate = " <a href='" . base_url('admin/sellers/manage-seller') . "?edit_id=" . $row['user_id'] . "' data-id=" . $row['user_id'] . " class='btn btn-success btn-xs mr-1 mb-1' title='Edit' ><i class='fa fa-pen'></i></a>";
             $operate .= '<a  href="javascript:void(0)" class="delete-sellers btn btn-danger btn-xs mr-1 mb-1" title="Delete"   data-id="' . $row['user_id'] . '" ><i class="fa fa-trash"></i></a>';
             if ($row['status'] == '1' || $row['status'] == '0' || $row['status'] == '2') {
@@ -1641,7 +1641,7 @@ class Seller_model extends CI_Model
         $tempRow = array();
 
         foreach ($offer_search_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
             $operate = " <a href='" . base_url('admin/sellers/manage-seller') . "?edit_id=" . $row['user_id'] . "' data-id=" . $row['user_id'] . " class='btn btn-success btn-xs mr-1 mb-1' title='Edit' ><i class='fa fa-pen'></i></a>";
             $operate .= '<a  href="javascript:void(0)" class="delete-sellers btn btn-danger btn-xs mr-1 mb-1" title="Delete"   data-id="' . $row['user_id'] . '" ><i class="fa fa-trash"></i></a>';
             if ($row['status'] == '1' || $row['status'] == '0' || $row['status'] == '2') {
@@ -1716,12 +1716,16 @@ class Seller_model extends CI_Model
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "u.id";
-            } else {
-                $sort = $_GET['sort'];
-            }
+        /* SQL INJECTION - FIXED. Same shape as the sites already corrected in the
+         * other list models: only the literal 'id' was special-cased and every other
+         * value went through untouched into order_by(), which returns a string
+         * containing a parenthesis unescaped. sanitize_sort_column_for_table() checks
+         * the request against users's real columns; the default is unchanged. */
+        $sort = sanitize_sort_column_for_table(
+            isset($_GET['sort']) ? $_GET['sort'] : null,
+            'users',
+            'u.id'
+        );
         if (isset($_GET['order']))
             $order = $_GET['order'];
         if ($ssearch != "") {
@@ -1766,7 +1770,7 @@ class Seller_model extends CI_Model
         $tempRow = array();
 
         foreach ($offer_search_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
 
             $tempRow['id'] = $row['id'];
             // These free-text fields are seller-controlled; output_escaping() (used above on

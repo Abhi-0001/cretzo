@@ -81,7 +81,7 @@ class Attribute_model extends CI_Model
         $tempRow = array();
 
         foreach ($city_search_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
             // $tempRow was declared once outside this loop and reused between rows.
             $tempRow = array();
             $operate = '';
@@ -238,7 +238,7 @@ class Attribute_model extends CI_Model
         $rows = array();
         $tempRow = array();
         foreach ($city_search_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
             // $tempRow was declared once outside this loop and reused between rows.
             $tempRow = array();
             $operate = '';
@@ -346,7 +346,7 @@ class Attribute_model extends CI_Model
         $tempRow = array();
 
         foreach ($city_search_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
             // $tempRow was declared once outside this loop and reused, so any field not set on a
             // given iteration silently carried over the previous row's value.
             $tempRow = array();
@@ -402,7 +402,7 @@ class Attribute_model extends CI_Model
         $bulkData['error'] = (empty($attribute_set)) ? true : false;
         if (!empty($attribute_set)) {
             for ($i = 0; $i < count($attribute_set); $i++) {
-                $attribute_set[$i] = output_escaping($attribute_set[$i]);
+                $attribute_set[$i] = unslash($attribute_set[$i]);
             }
         }
         $bulkData['data'] = (empty($attribute_set)) ? [] : $attribute_set;
@@ -431,7 +431,7 @@ class Attribute_model extends CI_Model
             $search_res->where($where);
         }
         if (isset($attribute_set_id) && !empty($attribute_set_id)) {
-            $search_res->where('a.attribute_set_id = ' . $attribute_set_id);
+            $search_res->where('a.attribute_set_id = ' . (int) $attribute_set_id);
         }
         $attribute_set = $search_res->where("a.status=1 and as.status=1")->group_by('a.id')->order_by($sort, $order)->limit($limit, $offset)->get('attributes a')->result_array();
         $bulkData = array();
@@ -439,7 +439,7 @@ class Attribute_model extends CI_Model
         $bulkData['message'] = (empty($attribute_set)) ? "Attributes Not Found" : "Attributes Retrivede Successfully";
         if (!empty($attribute_set)) {
             for ($i = 0; $i < count($attribute_set); $i++) {
-                $attribute_set[$i] = output_escaping($attribute_set[$i]);
+                $attribute_set[$i] = unslash($attribute_set[$i]);
             }
         }
         $bulkData['data'] = (empty($attribute_set)) ? [] : $attribute_set;
@@ -467,7 +467,7 @@ class Attribute_model extends CI_Model
             $search_res->where($where);
         }
         if (isset($attribute_id) && !empty($attribute_id)) {
-            $search_res->where('av.attribute_id = ' . $attribute_id);
+            $search_res->where('av.attribute_id = ' . (int) $attribute_id);
         }
         $attribute_set = $search_res->where("av.status=1 and a.status=1")->group_by('av.id')->order_by($sort, $order)->limit($limit, $offset)->get('attribute_values av')->result_array();
         $bulkData = array();
@@ -475,7 +475,7 @@ class Attribute_model extends CI_Model
         $bulkData['message'] = (empty($attribute_set)) ? "Atributes Not Found" : "Attributes Retrived Successfully";
         if (!empty($attribute_set)) {
             for ($i = 0; $i < count($attribute_set); $i++) {
-                $attribute_set[$i] = output_escaping($attribute_set[$i]);
+                $attribute_set[$i] = unslash($attribute_set[$i]);
             }
         }
         $bulkData['data'] = (empty($attribute_set)) ? [] : $attribute_set;

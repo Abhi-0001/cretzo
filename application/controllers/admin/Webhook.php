@@ -6,26 +6,77 @@ class Webhook extends CI_Controller
         parent::__construct();
     }
 
+    /**
+     * Razorpay webhook.
+     *
+     * SECURITY - READ BEFORE EDITING. This endpoint tells the application that money
+     * arrived. It is unauthenticated by necessity (Razorpay's servers cannot hold a
+     * session), so the HMAC signature is the ONLY thing that distinguishes Razorpay
+     * from anybody on the internet with our URL.
+     *
+     * It previously did this:
+     *
+     *     if ($http_razorpay_signature) { ... mark the order paid, credit the wallet }
+     *
+     * - a test that the header EXISTS, never that it is correct. It even assigned the
+     * webhook secret to a RAZORPAY_SECRET_KEY constant and then never used it. So any
+     * unauthenticated POST carrying a made-up X-Razorpay-Signature header and a
+     * `payment.captured` body would flip an order's items to 'received' without a
+     * payment, and a body whose notes carried `wallet-refill-user-<id>` would credit
+     * an arbitrary customer's wallet by an arbitrary amount. Both were reachable with
+     * a single curl command.
+     *
+     * The signature is now computed over the RAW body before anything is parsed, and
+     * nothing is read out of the payload until it verifies.
+     */
     public function razorpay()
     {
-        //Debug in server first
-        if ((strtoupper($_SERVER['REQUEST_METHOD']) != 'POST') || !array_key_exists('HTTP_X_RAZORPAY_SIGNATURE', $_SERVER))
-            exit();
+        if (strtoupper($_SERVER['REQUEST_METHOD']) != 'POST') {
+            $this->reject_webhook('razorpay', 'non-POST request');
+            return;
+        }
 
         $this->load->library(['razorpay']);
         $system_settings = get_settings('system_settings', true);
         $credentials = $this->razorpay->get_credentials();
 
-        $request = file_get_contents('php://input');
-        if ($request === false || empty($request)) {
-            $this->edie("Error in reading Post Data");
+        // Read once, keep the raw string. The HMAC covers the body byte for byte, so
+        // it has to be verified BEFORE json_decode - a decoded-then-re-encoded body
+        // has different key order and whitespace and can never match.
+        $raw_body = file_get_contents('php://input');
+        if ($raw_body === false || $raw_body === '') {
+            $this->reject_webhook('razorpay', 'empty body');
+            return;
         }
-        $request = json_decode($request, true);
 
-        define('RAZORPAY_SECRET_KEY', $credentials['secret_hash']);
-        log_message('error', 'Razorpay IPN POST --> ' . var_export($request, true));
-        log_message('error', 'Razorpay IPN SERVER --> ' . var_export($_SERVER, true));
         $http_razorpay_signature = isset($_SERVER['HTTP_X_RAZORPAY_SIGNATURE']) ? $_SERVER['HTTP_X_RAZORPAY_SIGNATURE'] : "";
+
+        if (!$this->razorpay->has_webhook_secret()) {
+            // Fail closed, and say why. An unset webhook secret is an operational
+            // problem ("nobody pasted it into payment settings"), not an excuse to
+            // accept unsigned requests - so it must be loud in the log and refused at
+            // the door, exactly like a wrong signature.
+            $this->reject_webhook('razorpay', 'no webhook secret is configured in payment settings (refund_webhook_secret_key) - '
+                . 'the endpoint cannot verify anything and is refusing every call until it is set');
+            return;
+        }
+
+        if (!$this->razorpay->verify_webhook_signature($raw_body, $http_razorpay_signature)) {
+            $this->reject_webhook('razorpay', 'signature mismatch');
+            return;
+        }
+
+        $request = json_decode($raw_body, true);
+        if (!is_array($request)) {
+            $this->reject_webhook('razorpay', 'body verified but is not valid JSON');
+            return;
+        }
+
+        // Signature verified from here down. Log the identifying fields only - this
+        // used to var_export the entire $_SERVER array at error level, which wrote
+        // HTTP_COOKIE and HTTP_AUTHORIZATION into application/logs on production.
+        log_message('error', 'Razorpay webhook (verified) event=' . (isset($request['event']) ? $request['event'] : 'none')
+            . ' payment_id=' . (isset($request['payload']['payment']['entity']['id']) ? $request['payload']['payment']['entity']['id'] : 'none'));
 
         $txn_id = (isset($request['payload']['payment']['entity']['id'])) ? $request['payload']['payment']['entity']['id'] : "";
 
@@ -54,6 +105,10 @@ class Webhook extends CI_Controller
 
         $this->load->model('transaction_model');
 
+        // Kept as-is only to preserve the existing block structure: execution cannot
+        // reach this line unless verify_webhook_signature() already returned true, so
+        // this is now always true rather than the (useless) header-presence test it
+        // used to be. Do not reinstate this as the security check.
         if ($http_razorpay_signature) {
             if ($request['event'] == 'payment.authorized') {
                 $currency = (isset($request['payload']['payment']['entity']['currency'])) ? $request['payload']['payment']['entity']['currency'] : "INR";
@@ -288,6 +343,41 @@ class Webhook extends CI_Controller
         die($error_msg);
     }
 
+    /**
+     * Refuse a webhook call, uniformly.
+     *
+     * Shared by every gateway handler in this file so that a rejection always looks
+     * the same from the outside and is always recorded the same way inside.
+     *
+     * Three deliberate choices:
+     *
+     *  - 401 with a bare body, and NEVER any detail about why. The reason goes to the
+     *    log, not to the caller: telling an attacker "signature mismatch" versus
+     *    "unknown transaction" versus "no secret configured" is a free oracle for
+     *    probing what our verification actually checks.
+     *
+     *  - The reason IS logged, in full, because the operator needs it. "Payments
+     *    stopped being recorded three days ago" must be diagnosable from the log
+     *    alone, and the two failure modes an operator will actually hit (secret not
+     *    pasted in yet, secret rotated on one side only) both look identical from
+     *    the browser.
+     *
+     *  - No request body is logged. The old handlers var_export'ed the whole $_SERVER
+     *    array at error level, which put HTTP_COOKIE and HTTP_AUTHORIZATION into
+     *    application/logs/ on production. The source IP is enough to correlate.
+     */
+    private function reject_webhook($gateway, $reason)
+    {
+        log_message('error', 'Webhook REFUSED [' . $gateway . '] ' . $reason
+            . ' | ip=' . (isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : 'unknown')
+            . ' | method=' . (isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : 'unknown'));
+
+        $this->output
+            ->set_status_header(401)
+            ->set_content_type('application/json')
+            ->set_output(json_encode(['error' => true, 'message' => 'Unauthorized']));
+    }
+
 
     // ------------------------------------------------ MyFatoorah PAYMENT GATEWAY ------------------------------------------
 
@@ -322,7 +412,11 @@ class Webhook extends CI_Controller
 
         $payment_settings = get_settings('payment_method', true);
         $secret = $payment_settings['myfatoorah__secret_key'];
-        // $secret = 'XyXEaQw97JFXQDFibyybAWE6aXujBvoHw3+5BvCRbKl8YOWYHTmX3fn+PSnn0UslQlgIh5xnej5MeLg5onRvTg==';
+        /* A commented-out literal MyFatoorah webhook secret used to sit on the next line.
+         * Commenting a credential out does not unpublish it - it was committed, so it is
+         * in git history and readable by anyone with repository access. Removed here, and
+         * it must be ROTATED in the MyFatoorah portal; the live value is read from
+         * payment settings above, as it should be. */
 
         //Get webhook body content
         $body = (file_get_contents("php://input"));
@@ -722,42 +816,77 @@ class Webhook extends CI_Controller
     // ------------------------------------------------ Instamojo PAYMENT GATEWAY ------------------------------------------
 
 
+    /**
+     * Instamojo webhook.
+     *
+     * SECURITY - READ BEFORE EDITING. This handler had NO verification of any kind:
+     * no signature, no `mac`, no call back to Instamojo. `payment_id`, `amount`,
+     * `purpose` and `status` were all read straight from $_POST, and the credited
+     * figure was the POSTed one. So this single unauthenticated request:
+     *
+     *     curl -d 'payment_id=X&amount=99999&purpose=wallet-refill-user-42&status=Credit' \
+     *          https://cretzo.com/admin/webhook/instamojo_webhook
+     *
+     * credited ~100,000 of store credit to user 42. Nothing else was required.
+     *
+     * Every figure now comes from Instamojo's own API over our authenticated OAuth
+     * token (see Instamojo::verify_webhook_payment), so the request body is used only
+     * to say WHICH payment to go and look up. Forging the body changes nothing,
+     * because none of its values are believed.
+     */
     public function instamojo_webhook()
     {
-        $this->load->library(['instamojo']);
-        $system_settings = get_settings('system_settings', true);
-        $request = file_get_contents('php://input');
-
-        // $request = json_decode($request, true);
-
-        log_message('error', 'Shiprocket file webhook--> ' . var_export($request, true));
-        log_message('error', 'Shiprocket file webhook--> ' . var_export($_POST['purpose'], true));
-
-
-        $txn_id = (isset($_POST['payment_id'])) ? $_POST['payment_id'] : "";
-
-        if (!empty($txn_id)) {
-
-            $transaction = fetch_details('transactions', ['txn_id' => $txn_id], '*');
-
-            $amount = $_POST['amount'];
-        } else {
-            $amount = 0;
+        if (strtoupper($_SERVER['REQUEST_METHOD']) != 'POST') {
+            $this->reject_webhook('instamojo', 'non-POST request');
+            return;
         }
 
+        $this->load->library(['instamojo']);
+        $system_settings = get_settings('system_settings', true);
+
+        // The body identifies the payment. It does not establish anything about it.
+        $txn_id             = isset($_POST['payment_id']) ? trim((string) $_POST['payment_id']) : '';
+        $payment_request_id = isset($_POST['payment_request_id']) ? trim((string) $_POST['payment_request_id']) : '';
+
+        if ($txn_id === '' || $payment_request_id === '') {
+            $this->reject_webhook('instamojo', 'missing payment_id or payment_request_id');
+            return;
+        }
+
+        $verified = $this->instamojo->verify_webhook_payment($payment_request_id, $txn_id);
+        if (!empty($verified['error'])) {
+            $this->reject_webhook('instamojo', $verified['message']);
+            return;
+        }
+
+        // From here down, these three are Instamojo's values, not the caller's. The
+        // POSTed `amount`, `status` and `purpose` are deliberately never read again -
+        // treat any future reference to $_POST in this method as a regression.
+        $amount  = (float) $verified['amount'];
+        $status  = $verified['status'];
+        $purpose = $verified['purpose'];
+
+        if ($amount <= 0) {
+            $this->reject_webhook('instamojo', 'Instamojo reported a non-positive amount for payment ' . $txn_id);
+            return;
+        }
+
+        log_message('error', 'Instamojo webhook (verified) payment_id=' . $txn_id
+            . ' status=' . $status . ' amount=' . $amount);
+
+        $transaction = fetch_details('transactions', ['txn_id' => $txn_id], '*');
+
         if (!empty($transaction)) {
-            $order_id = $_POST['purpose'];
-            log_message('error', 'razorpay Webhook | transaction order id --> ' . var_export($order_id, true));
+            $order_id = $purpose;
             $user_id = $transaction[0]['user_id'];
         } else {
-            $order_id = 0;
-            $order_id = ($order_id = $_POST['purpose']) ? $order_id = $_POST['purpose'] : $order_id = $_POST['purpose'];
+            $order_id = $purpose;
             $order_data = fetch_orders($order_id);
             $user_id = (isset($order_data['order_data'][0]['user_id'])) ? $order_data['order_data'][0]['user_id'] : "";
         }
 
         $this->load->model('transaction_model');
-        if ($_POST['status'] == 'Credit' || $_POST['status'] == 'credit') {
+        if (strcasecmp($status, 'Credit') === 0) {
 
             if (!empty($order_id)) {
                 /* To do the wallet recharge if the order id is set in the patter */
@@ -785,11 +914,11 @@ class Webhook extends CI_Controller
                     $this->load->model('customer_model');
                     if ($this->customer_model->update_balance($amount, $user_id, 'add')) {
                         $response['error'] = false;
-                        $response['transaction_status'] = $_POST['status'];
+                        $response['transaction_status'] = $status;
                         $response['message'] = "Wallet recharged successfully!";
                     } else {
                         $response['error'] = true;
-                        $response['transaction_status'] = $_POST['status'];
+                        $response['transaction_status'] = $status;
                         $response['message'] = "Wallet could not be recharged!";
                     }
                     echo json_encode($response);
@@ -898,7 +1027,7 @@ class Webhook extends CI_Controller
             $response['message'] = "Transaction successfully done";
             echo json_encode($response);
             return false;
-        } elseif ($_POST['status'] == 'Failed' || $_POST['status'] == 'failed') {
+        } elseif (strcasecmp($status, 'Failed') === 0) {
             //$order = fetch_orders($order_id, false, false, false, false, false, false, false);
 
             if (!empty($order_id)) {
@@ -913,14 +1042,14 @@ class Webhook extends CI_Controller
                 update_details(['status' => 'failed'], ['id' => $transaction_id], 'transactions');
             }
             $response['error'] = true;
-            $response['transaction_status'] = $_POST['status'];
+            $response['transaction_status'] = $status;
             $response['message'] = "Transaction is failed. ";
 
             echo json_encode($response);
             return false;
         } else {
             $response['error'] = true;
-            $response['transaction_status'] = $_POST['status'];
+            $response['transaction_status'] = $status;
             $response['message'] = "Transaction could not be detected.";
             echo json_encode($response);
             return false;
@@ -929,46 +1058,102 @@ class Webhook extends CI_Controller
 
     // ------------------------------------------------ PHONEPE PAYMENT GATEWAY ------------------------------------------
 
+    /**
+     * PhonePe callback.
+     *
+     * SECURITY - READ BEFORE EDITING. This was the least broken of the three gateway
+     * callbacks and still exploitable. It did two things right - it required a
+     * matching local transaction row, and it called check_status() - and then threw
+     * both away:
+     *
+     *     $status = $request['code'];              // from the request body
+     *     $amount = $request['data']['amount']/100 // from the request body
+     *     $check_status = $this->phonepe->check_status($txn_id);
+     *     if ($check_status) {                     // only that SOMETHING came back
+     *         if ($status == 'PAYMENT_SUCCESS') {  // ...the body's word for it
+     *
+     * check_status() returns an ordinary array for a payment that is still pending or
+     * has failed, and any array is truthy - so the guard passed in every case, and the
+     * decision was made on body values throughout. The X-VERIFY header was never
+     * looked at. Anyone who knew or guessed a pending merchantTransactionId could
+     * declare it successful for an amount of their own choosing.
+     *
+     * Now: X-VERIFY is checked against the salt, and then the code and the amount are
+     * taken from PhonePe's status API and the body's copies are discarded.
+     */
     public function phonepe_webhook()
     {
+        if (strtoupper($_SERVER['REQUEST_METHOD']) != 'POST') {
+            $this->reject_webhook('phonepe', 'non-POST request');
+            return;
+        }
+
         $this->load->library(['Phonepe']);
         $system_settings = get_settings('system_settings', true);
-        $request = file_get_contents('php://input');
 
-        $request = (json_decode($request, 1));
-        $request = (isset($request['response'])) ? $request['response'] : "";
-        log_message('error', 'phonepe file webhook--> ' . var_export($request, true));
-        if (!empty($request)) {
+        $raw_body = file_get_contents('php://input');
+        $envelope = json_decode((string) $raw_body, 1);
+        $base64_response = (is_array($envelope) && isset($envelope['response'])) ? (string) $envelope['response'] : "";
 
-            $request = base64_decode($request);
-            $request = json_decode($request, 1);
-            log_message('error', 'phonepe server webhook--> ' . var_export($_SERVER, true));
+        if ($base64_response === '') {
+            $this->reject_webhook('phonepe', 'body carried no base64 `response` field');
+            return;
+        }
 
-            $txn_id = (isset($request['data']['merchantTransactionId'])) ? $request['data']['merchantTransactionId'] : "";
-            if (!empty($txn_id)) {
-                $transaction = fetch_details('transactions', ['txn_id' => $txn_id], '*');
-                $amount = $request['data']['amount'] / 100;
-            } else {
-                $amount = 0;
-            }
+        // PhonePe's digest is over the base64 string exactly as sent, so verify before
+        // decoding anything.
+        $x_verify = isset($_SERVER['HTTP_X_VERIFY']) ? $_SERVER['HTTP_X_VERIFY'] : '';
+        if (!$this->phonepe->verify_callback_signature($base64_response, $x_verify)) {
+            $this->reject_webhook('phonepe', 'X-VERIFY signature missing or does not match the configured salt');
+            return;
+        }
 
-            if (!empty($transaction)) {
-                $user_id = $transaction[0]['user_id'];
-                $transaction_type = (isset($transaction[0]['transaction_type'])) ? $transaction[0]['transaction_type'] : "";
-                $order_id = (isset($transaction[0]['order_id'])) ? $transaction[0]['order_id'] : "";
-                log_message('error', 'Phonepe Webhook | transaction_type --> ' . var_export($transaction_type, true));
-                log_message('error', 'Phonepe Webhook | transaction order id --> ' . var_export($order_id, true));
-            } else {
-                log_message('error', 'Phonepe transaction id not found in local database--> ' . var_export($request, true));
-                die;
-            }
+        $request = json_decode(base64_decode($base64_response), 1);
+        if (!is_array($request)) {
+            $this->reject_webhook('phonepe', 'signature verified but payload is not valid JSON');
+            return;
+        }
 
-            $status = (isset($request['code'])) ? $request['code'] : "";
+        // The body is now trusted for IDENTIFICATION only. Which transaction is this
+        // about? Everything about its worth and outcome still comes from the API below.
+        $txn_id = (isset($request['data']['merchantTransactionId'])) ? $request['data']['merchantTransactionId'] : "";
+        if (empty($txn_id)) {
+            $this->reject_webhook('phonepe', 'payload carried no merchantTransactionId');
+            return;
+        }
 
-            $this->load->model('transaction_model');
+        $transaction = fetch_details('transactions', ['txn_id' => $txn_id], '*');
+        if (empty($transaction)) {
+            $this->reject_webhook('phonepe', 'no local transaction for ' . $txn_id);
+            return;
+        }
 
-            $check_status = $this->phonepe->check_status($txn_id);
-            if ($check_status) {
+        $user_id = $transaction[0]['user_id'];
+        $transaction_type = (isset($transaction[0]['transaction_type'])) ? $transaction[0]['transaction_type'] : "";
+        $order_id = (isset($transaction[0]['order_id'])) ? $transaction[0]['order_id'] : "";
+
+        $this->load->model('transaction_model');
+
+        // PhonePe's verdict, not the caller's. $status and $amount below are both
+        // overwritten from this response on purpose - treat any future read of
+        // $request['code'] or $request['data']['amount'] here as a regression.
+        $verified = $this->phonepe->verify_transaction($txn_id);
+        if (!empty($verified['error'])) {
+            $this->reject_webhook('phonepe', $verified['message']);
+            return;
+        }
+
+        $status = $verified['code'];
+        $amount = $verified['amount'];
+
+        log_message('error', 'PhonePe callback (verified) txn=' . $txn_id . ' code=' . $status
+            . ' amount=' . $amount . ' type=' . $transaction_type . ' order=' . $order_id);
+
+        // The branches below are driven entirely by $status, which is now PhonePe's
+        // own code from verify_transaction(). An empty code cannot happen (the verify
+        // call fails closed above) but is guarded anyway so an unexpected shape logs
+        // instead of falling through the if/elseif chain silently.
+        if ($status !== '') {
                 if ($status == 'PAYMENT_SUCCESS') {
                     $data['status'] = "success";
                     if ($transaction_type == "wallet") {
@@ -1015,10 +1200,10 @@ class Webhook extends CI_Controller
                     $this->transaction_model->update_transaction($data, $txn_id);
                 }
             } else {
-                log_message('error', 'Phonepe transaction id not found in phonepe--> ' . var_export($request, true));
+                // PhonePe answered with a code this handler has no branch for - most
+                // often PAYMENT_PENDING. Nothing is written: the transaction stays as
+                // it is and PhonePe will call again when it settles.
+                log_message('error', 'PhonePe callback: unhandled status code ' . $status . ' for txn ' . $txn_id);
             }
-        } else {
-            log_message('error', 'No Request Found--> ' . var_export($request, true));
-        }
     }
 }

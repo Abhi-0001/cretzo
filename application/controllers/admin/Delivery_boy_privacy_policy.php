@@ -11,8 +11,7 @@ class Delivery_boy_privacy_policy extends CI_Controller
         $this->load->helper(['url', 'language', 'timezone_helper']);
         $this->load->model('Setting_model');
         if (!has_permissions('read', 'delivery_boy_privacy_policy')) {
-            $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-            redirect('admin/home', 'refresh');
+            deny_panel_access();
         }
     }
 

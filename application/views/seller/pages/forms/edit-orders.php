@@ -73,7 +73,7 @@
                                             <div class="col-12">
                                                 <div class="form-group">
                                                     <label for="product_name">Message </label>
-                                                    <textarea type="text" class="form-control textarea" rows="6" id="message" placeholder="Message for Email" name="message"><?= isset($product_details[0]['short_description']) ? output_escaping(str_replace('\r\n', '&#13;&#10;', $product_details[0]['short_description'])) : ""; ?></textarea>
+                                                    <textarea type="text" class="form-control textarea" rows="6" id="message" placeholder="Message for Email" name="message"><?= isset($product_details[0]['short_description']) ? unslash(str_replace('\r\n', '&#13;&#10;', $product_details[0]['short_description'])) : ""; ?></textarea>
                                                 </div>
                                             </div>
                                             <div class="col-12 mt-2" id="digital_media_container">

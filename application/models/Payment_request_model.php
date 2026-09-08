@@ -226,7 +226,7 @@ class Payment_request_model extends CI_Model
         $rows = array();
         $tempRow = array();
         foreach ($offer_search_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
             if (!isset($user_id) && empty($user_id)) {
                 // The button carried NO data attributes, and no JS anywhere bound to
                 // .edit_request - so the modal opened completely blank, its hidden

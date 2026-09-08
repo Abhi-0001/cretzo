@@ -336,7 +336,7 @@ class Seller_settlement_model extends CI_Model
 
         $rows = array();
         foreach ($rows_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
             $rows[] = [
                 'id' => $row['id'],
                 'seller_id' => $row['seller_id'],

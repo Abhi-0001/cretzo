@@ -35,8 +35,15 @@ class Products extends CI_Controller
         $this->form_validation->set_rules('category', 'Category', 'trim|xss_clean');
         $this->form_validation->set_rules('per-page', 'Per Page', 'trim|numeric|xss_clean');
         $this->form_validation->set_rules('sort', 'Sort', 'trim|xss_clean');
-        $this->form_validation->set_rules('min-price', 'Min Price', 'trim|xss_clean');
-        $this->form_validation->set_rules('max-price', 'Max Price', 'trim|xss_clean');
+        // `numeric` added. This was the one listing action of the five in this
+        // controller that omitted it - the other four already had it - and it is the
+        // one reached by GET /products, so the price filter here was the unauthenticated
+        // entry point into the raw WHERE string in fetch_product(). The sink itself is
+        // now cast (see the SQL INJECTION note in function_helper.php); this rule means
+        // a hostile value is rejected with a validation error rather than silently
+        // becoming 0.
+        $this->form_validation->set_rules('min-price', 'Min Price', 'trim|numeric|xss_clean');
+        $this->form_validation->set_rules('max-price', 'Max Price', 'trim|numeric|xss_clean');
 
         if (!empty($_GET) && !$this->form_validation->run()) {
             redirect(base_url('products'));
@@ -712,7 +719,7 @@ class Products extends CI_Controller
             ['uri_segment' => 5]
         );
         $page_title = $section['title'] . " Products";
-        $page_title = output_escaping($page_title);
+        $page_title = unslash($page_title);
         $this->data['main_page'] = 'product-listing';
         $this->data['title'] = $page_title . ' | ' . $this->data['web_settings']['site_title'];
         $this->data['keywords'] = $page_title . ',Product Section, ' . $this->data['web_settings']['meta_keywords'];
@@ -1218,8 +1225,24 @@ class Products extends CI_Controller
         $user_id = (isset($_GET['user_id'])) ? $_GET['user_id'] : null;
         $limit = (isset($_GET['limit'])) ? $_GET['limit'] : 2;
         $offset = (isset($_GET['offset'])) ? $_GET['offset'] : 0;
-        $sort = (isset($_GET['sort'])) ? $_GET['sort'] : 'pr.id';
-        $order = (isset($_GET['order'])) ? $_GET['order'] : 'DESC';
+        /* SQL INJECTION - FIXED. $sort was taken raw from $_GET (validated only with
+         * 'trim|xss_clean', which does nothing to SQL) and passed to
+         * Rating_model::fetch_rating(), which calls order_by((string) $sort, ...).
+         * order_by() returns any value containing a parenthesis unescaped, so
+         * GET /products/get_rating?sort=<payload> was an unauthenticated injection -
+         * no login, no app key, and the review list is public on every product page.
+         * Whitelisted against the columns that query actually selects. */
+        /* Only the two columns this list is ever sorted by in the UI. Deliberately not
+         * adding a `date_added` option: nothing in the codebase references such a
+         * column on product_rating, and offering a sort key that does not exist trades
+         * an injection for an SQL error. */
+        $sort = sanitize_sort_column($this->input->get('sort'), [
+            'pr.id'     => 'pr.id',
+            'id'        => 'pr.id',
+            'rating'    => 'pr.rating',
+            'pr.rating' => 'pr.rating',
+        ], 'pr.id');
+        $order = sanitize_sort_direction($this->input->get('order'), 'DESC');
         $has_images = (isset($_GET['has_images'])) ? $_GET['has_images'] : null;
 
         $data = $this->rating_model->fetch_rating($product_id, $user_id, $limit, $offset, $sort, $order, null, $has_images);
@@ -1384,21 +1407,21 @@ class Products extends CI_Controller
                         // die();
                     }
                 } else {
-                    redirect($_SERVER['HTTP_REFERER']);
+                    redirect(safe_internal_referer('my-account/orders'));
                 }
             } else {
                 $this->response['error'] = true;
                 $this->response['message'] = 'You are not Autorized to download this item.';
                 echo json_encode($this->response);
 
-                redirect($_SERVER['HTTP_REFERER']);
+                redirect(safe_internal_referer('my-account/orders'));
             }
         } else {
             $this->response['error'] = true;
             $this->response['message'] = 'No order data found.';
             echo json_encode($this->response);
 
-            redirect($_SERVER['HTTP_REFERER']);
+            redirect(safe_internal_referer('my-account/orders'));
         }
     }
 

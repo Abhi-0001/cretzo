@@ -508,12 +508,26 @@ class Product_model extends CI_Model
 
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "product_variants.id";
-            } else {
-                $sort = $_GET['sort'];
-            }
+        /* SQL INJECTION - FIXED. This was:
+         *
+         *     if (isset($_GET['sort']))
+         *         if ($_GET['sort'] == 'id') { $sort = "product_variants.id"; }
+         *         else                       { $sort = $_GET['sort']; }
+         *
+         * so any value other than the literal 'id' was passed through untouched and
+         * concatenated into ORDER BY by order_by(), which does not escape a string
+         * containing a parenthesis. Seventeen other list models in this directory had
+         * already been whitelisted in an earlier pass; this one was missed.
+         *
+         * The query is a SELECT * so there is no short hand-written column list to
+         * check against - sanitize_sort_column_for_table() asks the database for products's
+         * real columns instead, which is both exact and self-maintaining. The default
+         * is unchanged, so a request that sorted correctly before still does. */
+        $sort = sanitize_sort_column_for_table(
+            isset($_GET['sort']) ? $_GET['sort'] : null,
+            'products',
+            'product_variants.id'
+        );
 
         if (isset($_GET['order']))
             $order = $_GET['order'];
@@ -660,7 +674,7 @@ class Product_model extends CI_Model
         }, $pro_search_res));
         try {
         foreach ($pro_search_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
 
             // This model is shared by both admin/product/get_product_data and
             // seller/product/get_product_data, but the View and Edit links were hardcoded to
@@ -760,12 +774,16 @@ class Product_model extends CI_Model
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "product_variants.id";
-            } else {
-                $sort = $_GET['sort'];
-            }
+        /* SQL INJECTION - FIXED. Same shape as the sites already corrected in the
+         * other list models: only the literal 'id' was special-cased and every other
+         * value went through untouched into order_by(), which returns a string
+         * containing a parenthesis unescaped. sanitize_sort_column_for_table() checks
+         * the request against products's real columns; the default is unchanged. */
+        $sort = sanitize_sort_column_for_table(
+            isset($_GET['sort']) ? $_GET['sort'] : null,
+            'products',
+            'product_variants.id'
+        );
 
         if (isset($_GET['order']))
             $order = $_GET['order'];
@@ -859,7 +877,7 @@ class Product_model extends CI_Model
         }, $pro_search_res));
         try {
         foreach ($pro_search_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
             $attr_values  =  get_variants_values_by_pid($row['pid']);
             $tempRow['id'] = $row['pid'];
             $tempRow['varaint_id'] = $row['id'];
@@ -950,7 +968,7 @@ class Product_model extends CI_Model
         $bulkData['message'] = (empty($countries)) ? "Countries Not Found" : "Countries Retrived Successfully";
         if (!empty($countries)) {
             for ($i = 0; $i < count($countries); $i++) {
-                $countries[$i] = output_escaping($countries[$i]);
+                $countries[$i] = unslash($countries[$i]);
             }
         }
 
@@ -987,7 +1005,7 @@ class Product_model extends CI_Model
 
         if (!empty($brands)) {
             for ($i = 0; $i < count($brands); $i++) {
-                $brands[$i] = output_escaping($brands[$i]);
+                $brands[$i] = unslash($brands[$i]);
                 $brands[$i]['image'] = base_url() . $brands[$i]['image'];
             }
         }
@@ -1100,7 +1118,7 @@ class Product_model extends CI_Model
 
             foreach ($faq_search_res as $row) {
                 // print_R($row);
-                $row = output_escaping($row);
+                $row = unslash($row);
                 $tempRow['id'] = $row['id'];
                 $tempRow['product_id'] = $row['product_id'];
                 $tempRow['user_id'] = $row['user_id'];
@@ -1156,12 +1174,26 @@ class Product_model extends CI_Model
             $offset = $_GET['offset'];
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "id";
-            } else {
-                $sort = $_GET['sort'];
-            }
+        /* SQL INJECTION - FIXED. This was:
+         *
+         *     if (isset($_GET['sort']))
+         *         if ($_GET['sort'] == 'id') { $sort = "id"; }
+         *         else                       { $sort = $_GET['sort']; }
+         *
+         * so any value other than the literal 'id' was passed through untouched and
+         * concatenated into ORDER BY by order_by(), which does not escape a string
+         * containing a parenthesis. Seventeen other list models in this directory had
+         * already been whitelisted in an earlier pass; this one was missed.
+         *
+         * The query is a SELECT * so there is no short hand-written column list to
+         * check against - sanitize_sort_column_for_table() asks the database for product_faqs's
+         * real columns instead, which is both exact and self-maintaining. The default
+         * is unchanged, so a request that sorted correctly before still does. */
+        $sort = sanitize_sort_column_for_table(
+            isset($_GET['sort']) ? $_GET['sort'] : null,
+            'product_faqs',
+            'id'
+        );
 
         if (isset($order) and $order != '') {
             $search = $order;
@@ -1238,7 +1270,7 @@ class Product_model extends CI_Model
 
         foreach ($rating_search_res as $row) {
 
-            $row = output_escaping($row);
+            $row = unslash($row);
 
             $date = new DateTime($row['date_added']);
 

@@ -30,7 +30,7 @@
                                 <div class="form-group row">
                                     <label for="category_input_name" class="col-sm-2 col-form-label">Name <span class='text-danger text-sm'>*</span></label>
                                     <div class="col-sm-10">
-                                        <input type="text" class="form-control" id="category_input_name" placeholder="Category Name" name="category_input_name" value="<?= html_escape(isset($fetched_data[0]['name'])?output_escaping($fetched_data[0]['name']):"") ?>">
+                                        <input type="text" class="form-control" id="category_input_name" placeholder="Category Name" name="category_input_name" value="<?= html_escape(isset($fetched_data[0]['name'])?unslash($fetched_data[0]['name']):"") ?>">
                                     </div>
                                 </div>
                                 <div class="form-group row">

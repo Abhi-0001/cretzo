@@ -2106,8 +2106,12 @@ $(document).on('click', '.clear-product-variance', function () {
             return new Promise((resolve, reject) => {
                 $.ajax({
                     url: base_url + 'admin/product/delete_product',
-                    type: 'GET',
+                    // POST for the same reason as delete_orders above: this cascades to
+                    // variants, cart rows, favourites, FAQs and reviews, and over GET it
+                    // was firable from any page an admin visited.
+                    type: 'POST',
                     data: {
+                        [csrfName]: csrfHash,
                         'id': edit_product_id
                     },
                     dataType: 'json'
@@ -3977,9 +3981,14 @@ $(document).on('click', '.delete-orders', function () {
         preConfirm: function () {
             return new Promise((resolve, reject) => {
                 $.ajax({
-                    type: 'GET',
+                    // POST, not GET. A destructive endpoint reachable by GET is
+                    // CSRF-able by construction - an <img> tag on any page an admin
+                    // opens would delete the order - because CodeIgniter's CSRF check
+                    // only covers POST. The controller now refuses anything else.
+                    type: 'POST',
                     url: base_url + 'admin/orders/delete_orders',
                     data: {
+                        [csrfName]: csrfHash,
                         id: id
                     },
                     dataType: 'json',
@@ -6750,8 +6759,15 @@ $(document).on('click', '.add_promo_code_discount', function () {
             return new Promise((resolve, reject) => {
                 $.ajax({
                     url: base_url + 'admin/cron_job/settle_cashback_discount',
-                    type: 'GET',
+                    // POST, not GET. cron_authorized() no longer accepts an admin
+                    // session on a GET: these endpoints move money, and a GET
+                    // authorised by nothing but a session cookie means an <img> tag on
+                    // any page an admin opens can fire a settlement run. POST puts the
+                    // call behind CodeIgniter's CSRF check, which is why the token has
+                    // to travel with it.
+                    type: 'POST',
                     data: {
+                        [csrfName]: csrfHash,
                         'is_date': true
                     },
                     dataType: 'json',

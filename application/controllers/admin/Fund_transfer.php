@@ -14,8 +14,7 @@ class Fund_transfer extends CI_Controller
         $this->load->model('Fund_transfers_model');
 
         if (!has_permissions('read', 'fund_transfer')) {
-            $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-            redirect('admin/home', 'refresh');
+            deny_panel_access();
         }
     }
 

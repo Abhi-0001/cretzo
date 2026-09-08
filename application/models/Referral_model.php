@@ -72,7 +72,7 @@ class Referral_model extends CI_Model
 
         $rows = [];
         foreach ($result as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
             $rows[] = [
                 'id'       => $row['id'],
                 'referrer' => $this->person($row['referrer_name'], $row['referrer_mobile'], $row['referrer_id']),
@@ -141,7 +141,7 @@ class Referral_model extends CI_Model
 
         $rows = [];
         foreach ($result as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
             $rows[] = [
                 'id'          => $row['id'],
                 'beneficiary' => $this->person($row['beneficiary_name'], $row['beneficiary_mobile'], $row['beneficiary_id']),

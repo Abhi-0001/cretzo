@@ -13,8 +13,7 @@ class Product extends CI_Controller
         $this->load->model(['product_model', 'category_model', 'rating_model']);
 
         if (!has_permissions('read', 'product')) {
-            $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-            redirect('admin/home', 'refresh');
+            deny_panel_access();
         }
     }
     public function index()
@@ -176,8 +175,7 @@ class Product extends CI_Controller
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
             if (!has_permissions('read', 'product_order')) {
-                $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-                redirect('admin/home', 'refresh');
+                deny_panel_access();
             }
 
             $this->data['main_page'] = TABLES . 'products-order';
@@ -263,16 +261,32 @@ class Product extends CI_Controller
             // raised a PHP warning (foreach on null) or a fatal TypeError (foreach on a scalar)
             // depending on what was sent, and every id inside it was written straight into a
             // WHERE clause with no type check.
-            if (!isset($_GET['product_id']) || !is_array($_GET['product_id'])) {
+            /* SECURITY - POST-only. This writes row_order across the products table and was
+             * reachable by GET, so a crafted URL on any page an admin opened could reshuffle
+             * the whole catalogue's display order. Not destructive, but it is a write, and a
+             * write authorised by nothing but an ambient session cookie. */
+            if (strtoupper($this->input->server('REQUEST_METHOD')) !== 'POST') {
+                $response['error'] = true;
+                $response['message'] = 'This action must be sent as a POST request.';
+                $response['csrfName'] = $this->security->get_csrf_token_name();
+                $response['csrfHash'] = $this->security->get_csrf_hash();
+                echo json_encode($response);
+                return false;
+            }
+
+            $product_order = $this->input->post('product_id');
+            if (empty($product_order) || !is_array($product_order)) {
                 $response['error'] = true;
                 $response['message'] = 'No products to reorder';
+                $response['csrfName'] = $this->security->get_csrf_token_name();
+                $response['csrfHash'] = $this->security->get_csrf_hash();
                 echo json_encode($response);
                 return false;
             }
 
             $this->db->trans_start();
             $i = 0;
-            foreach ($_GET['product_id'] as $row) {
+            foreach ($product_order as $row) {
                 if (!is_numeric($row)) {
                     continue;
                 }
@@ -344,13 +358,34 @@ class Product extends CI_Controller
                 return false;
             }
 
-            if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
+            /* SECURITY - this was reachable by GET, and CodeIgniter's CSRF protection only
+             * covers POST. A destructive GET is CSRF-able by construction: one
+             * <img src=".../admin/product/delete_product?id=123"> on any page an admin
+             * opened deleted that product and cascaded to its variants, cart entries,
+             * favourites, FAQs and reviews - silently, with no interaction. The permission
+             * check is no defence, because the admin's own session satisfies it.
+             *
+             * POST-only now, so the framework's CSRF check applies (and this URI has been
+             * removed from csrf_exclude_uris). The admin JS was updated to match. */
+            if (strtoupper($this->input->server('REQUEST_METHOD')) !== 'POST') {
                 $response['error'] = true;
-                $response['message'] = 'Invalid product id';
+                $response['message'] = 'This action must be sent as a POST request.';
+                $response['csrfName'] = $this->security->get_csrf_token_name();
+                $response['csrfHash'] = $this->security->get_csrf_hash();
                 echo json_encode($response);
                 return false;
             }
-            $product_id = (int) $_GET['id'];
+
+            $posted_id = $this->input->post('id');
+            if ($posted_id === null || !is_numeric($posted_id)) {
+                $response['error'] = true;
+                $response['message'] = 'Invalid product id';
+                $response['csrfName'] = $this->security->get_csrf_token_name();
+                $response['csrfHash'] = $this->security->get_csrf_hash();
+                echo json_encode($response);
+                return false;
+            }
+            $product_id = (int) $posted_id;
 
             // Also clears cart/favorites/faqs/ratings - see delete_product_cascade().
             $this->load->model('product_model');

@@ -14,8 +14,7 @@ class Orders extends CI_Controller
         $this->load->model(['Order_model', 'Transaction_model']);
 
         if (!has_permissions('read', 'orders')) {
-            $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-            redirect('admin/home', 'refresh');
+            deny_panel_access();
         } else {
             $this->session->set_flashdata('authorize_flag', "");
         }
@@ -70,6 +69,46 @@ class Orders extends CI_Controller
             redirect('admin/login', 'refresh');
         }
     }
+    /**
+     * bootstrap-table data source for the Digital Product Orders page.
+     *
+     * These two methods were MISSING. views/admin/pages/tables/manage-digital-product-order.php
+     * points its two grids at admin/orders/view_digital_product_orders and
+     * .../view_digital_product_order_items, and neither existed on this controller - so
+     * both tables on that page requested a route that fell through to the 404 handler
+     * and received the storefront's "Page Not Found" HTML. bootstrap-table then tried to
+     * parse that as JSON and rendered nothing, with no error the admin could see.
+     *
+     * Worth noting how it stayed hidden: routes.php sets 404_override, so a dead admin
+     * route answers HTTP 200 with an HTML error page rather than a 404. Nothing in the
+     * browser console or the server log said "this endpoint does not exist".
+     *
+     * The models were already there and already used by the seller panel's equivalent
+     * pages (Order_model::get_digital_product_orders_list / ..._order_items_list), so
+     * this is only the missing controller hop, written to match view_orders() and
+     * view_order_items() directly above.
+     *
+     * Pre-existing defect, unrelated to the security pass - found while verifying that
+     * every admin grid still returned JSON after the sort-whitelisting changes.
+     */
+    public function view_digital_product_orders()
+    {
+        if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
+            return $this->Order_model->get_digital_product_orders_list();
+        } else {
+            redirect('admin/login', 'refresh');
+        }
+    }
+
+    public function view_digital_product_order_items()
+    {
+        if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
+            return $this->Order_model->get_digital_product_order_items_list();
+        } else {
+            redirect('admin/login', 'refresh');
+        }
+    }
+
     public function get_digital_order_mails()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
@@ -133,10 +172,41 @@ class Orders extends CI_Controller
         }
     }
 
+    /**
+     * Delete an order and everything hanging off it.
+     *
+     * SECURITY - this was reachable by GET. CodeIgniter's CSRF protection only applies
+     * to POST, so a destructive GET is CSRF-able by construction: one
+     * <img src="https://cretzo.com/admin/orders/delete_orders?id=123"> on any page an
+     * admin opened deleted that order, silently, with no interaction. The permission
+     * check does not help - the admin's own session supplies it.
+     *
+     * Now POST-only, which puts it behind the framework's CSRF check (and this URI has
+     * been taken off csrf_exclude_uris). The admin JS was updated to match.
+     */
     public function delete_orders()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
             if (print_msg(!has_permissions('delete', 'orders'), PERMISSION_ERROR_MSG, 'orders')) {
+                return false;
+            }
+
+            if (strtoupper($this->input->server('REQUEST_METHOD')) !== 'POST') {
+                $this->response['error'] = true;
+                $this->response['message'] = 'This action must be sent as a POST request.';
+                $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                echo json_encode($this->response);
+                return false;
+            }
+
+            $order_id = (int) $this->input->post('id');
+            if ($order_id <= 0) {
+                $this->response['error'] = true;
+                $this->response['message'] = 'Invalid order id';
+                $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                echo json_encode($this->response);
                 return false;
             }
             if (defined('SEMI_DEMO_MODE') && SEMI_DEMO_MODE == 0) {
@@ -151,16 +221,20 @@ class Orders extends CI_Controller
                 "orders" => 0,
                 "order_bank_transfer" => 0
             );
-            $orders = $this->db->where(' oi.order_id=' . $_GET['id'])->join('orders o', 'o.id=oi.order_id', 'right')->get('order_items oi')->result_array();
+            /* SQL INJECTION - was `where(' oi.order_id=' . $_GET['id'])`, the request value
+             * concatenated straight into the WHERE. It needed an admin session, so it was an
+             * insider or chained-XSS path rather than an open one, but an order id is an
+             * integer. $order_id is now cast at the top of this method. */
+            $orders = $this->db->where(' oi.order_id=' . $order_id)->join('orders o', 'o.id=oi.order_id', 'right')->get('order_items oi')->result_array();
             if (!empty($orders)) {
                 // delete orders
-                if (delete_details(['order_id' => $_GET['id']], 'order_items')) {
+                if (delete_details(['order_id' => $order_id], 'order_items')) {
                     $delete['order_items'] = 1;
                 }
-                if (delete_details(['id' => $_GET['id']], 'orders')) {
+                if (delete_details(['id' => $order_id], 'orders')) {
                     $delete['orders'] = 1;
                 }
-                if (delete_details(['order_id' => $_GET['id']], 'order_bank_transfer')) {
+                if (delete_details(['order_id' => $order_id], 'order_bank_transfer')) {
                     $delete['order_bank_transfer'] = 1;
                 }
             }
@@ -199,7 +273,7 @@ class Orders extends CI_Controller
             }
             $res_order_id = array_values(array_unique(array_column($order_items, "order_id")));
             for ($i = 0; $i < count($res_order_id); $i++) {
-                $orders = $this->db->where(' oi.order_id=' . $res_order_id[$i])->join('orders o', 'o.id=oi.order_id', 'right')->get('order_items oi')->result_array();
+                $orders = $this->db->where(' oi.order_id=' . (int) $res_order_id[$i])->join('orders o', 'o.id=oi.order_id', 'right')->get('order_items oi')->result_array();
                 if (empty($orders)) {
                     // delete orders
                     if (delete_details(['id' => $res_order_id[$i]], 'orders')) {
@@ -494,8 +568,7 @@ class Orders extends CI_Controller
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
 
             if (!has_permissions('read', 'orders')) {
-                $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-                redirect('admin/home', 'refresh');
+                deny_panel_access();
             }
             $bank_transfer = array();
             $this->data['main_page'] = FORMS . 'edit-orders';
@@ -512,7 +585,7 @@ class Orders extends CI_Controller
                 if (!empty($area_id) && $area_id[0]['area_id'] != 0) {
                     $zipcode_id = fetch_details('areas', ['id' => $area_id[0]['area_id']], 'zipcode_id');
                     if (!empty($zipcode_id)) {
-                        $this->data['delivery_res'] = $this->db->where(['ug.group_id' => '3', 'u.active' => 1])->where('find_in_set(' . $zipcode_id[0]['zipcode_id'] . ', u.serviceable_zipcodes)!=', 0)->join('users_groups ug', 'ug.user_id = u.id')->get('users u')->result_array();
+                        $this->data['delivery_res'] = $this->db->where(['ug.group_id' => '3', 'u.active' => 1])->where('find_in_set(' . (int) $zipcode_id[0]['zipcode_id'] . ', u.serviceable_zipcodes)!=', 0)->join('users_groups ug', 'ug.user_id = u.id')->get('users u')->result_array();
                     } else {
                         $this->data['delivery_res'] = $this->db->where(['ug.group_id' => '3', 'u.active' => 1])->join('users_groups ug', 'ug.user_id = u.id')->get('users u')->result_array();
                     }
@@ -855,7 +928,7 @@ class Orders extends CI_Controller
                                     $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
                                     $hashtag = html_entity_decode($string);
                                     $data = str_replace(array($hashtag_cutomer_name, $hashtag_order_id, $hashtag_application_name), array($user_res[$i]['username'], $order_items[0]['order_id'], $app_name), $hashtag);
-                                    $message = output_escaping(trim($data, '"'));
+                                    $message = unslash(trim($data, '"'));
                                     $customer_msg = (!empty($custom_notification)) ? $message :  'Hello Dear ' . $user_res[$i]['username'] . ' ' . 'Order status updated to' . $_POST['status'] . ' for order ID #' . $order_items[0]['order_id'] . ' please take note of it! Thank you. Regards ' . $app_name . '';
                                     $fcmMsg = array(
                                         'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Order status updated",
@@ -897,7 +970,7 @@ class Orders extends CI_Controller
                                     $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
                                     $hashtag = html_entity_decode($string);
                                     $data = str_replace(array($hashtag_cutomer_name, $hashtag_order_id, $hashtag_application_name), array($user_res[0]['username'], $order_items[0]['order_id'], $app_name), $hashtag);
-                                    $message = output_escaping(trim($data, '"'));
+                                    $message = unslash(trim($data, '"'));
                                     $customer_msg = (!empty($custom_notification)) ? $message :  'Hello Dear ' . $user_res[0]['username'] . ' ' . 'Order status updated to' . $_POST['status'] . ' for order ID #' . $order_items[0]['order_id'] . ' please take note of it! Thank you. Regards ' . $app_name . '';
                                     $fcmMsg = array(
                                         'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Order status updated",
@@ -921,7 +994,7 @@ class Orders extends CI_Controller
                                     $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
                                     $hashtag = html_entity_decode($string);
                                     $data = str_replace(array($hashtag_cutomer_name, $hashtag_order_id, $hashtag_application_name), array($user_res[0]['username'], $order_items[0]['order_id'], $app_name), $hashtag);
-                                    $message = output_escaping(trim($data, '"'));
+                                    $message = unslash(trim($data, '"'));
                                     $customer_msg = (!empty($custom_notification)) ? $message : 'Hello Dear ' . $user_res[0]['username'] . ' ' . ' you have new order to be deliver order ID #' . $order_items[0]['order_id'] . ' please take note of it! Thank you. Regards ' . $app_name . '';
                                     $fcmMsg = array(
                                         'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : " You have new order to deliver",
@@ -1267,7 +1340,7 @@ class Orders extends CI_Controller
                     $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
                     $hashtag = html_entity_decode($string);
                     $data = str_replace(array($hashtag_status, $hashtag_order_id), array($status, $order_id), $hashtag);
-                    $message = output_escaping(trim($data, '"'));
+                    $message = unslash(trim($data, '"'));
                     // Title was emitted as the raw stored template while only the message had its
                     // placeholders substituted, so any template whose title names the order/ticket/status
                     // reached the reader as literal "< ... >" text. Both halves share one token list now.

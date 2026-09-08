@@ -12,8 +12,7 @@ class Attribute_value extends CI_Controller
         $this->load->model(['attribute_model', 'category_model']);
 
         if (!has_permissions('read', 'attribute_value')) {
-            $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-            redirect('admin/home', 'refresh');
+            deny_panel_access();
         }
     }
 

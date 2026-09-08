@@ -16,8 +16,7 @@ class Custom_notification extends CI_Controller
         // restricted admin (verified live with an Editor account holding only faq:read and
         // settings:read).
         if (!has_permissions('read', 'custom_notifications')) {
-            $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-            redirect('admin/home', 'refresh');
+            deny_panel_access();
         }
     }
 

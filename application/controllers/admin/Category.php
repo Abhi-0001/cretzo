@@ -14,8 +14,7 @@ class Category extends CI_Controller
         $this->load->model(['category_model']);
 
         if (!has_permissions('read', 'categories')) {
-            $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-            redirect('admin/home', 'refresh');
+            deny_panel_access();
         }
     }
 
@@ -115,8 +114,7 @@ class Category extends CI_Controller
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
             if (!has_permissions('read', 'category_order')) {
-                $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-                redirect('admin/home', 'refresh');
+                deny_panel_access();
             }
 
             $this->data['main_page'] = TABLES . 'category-order';

@@ -13,8 +13,7 @@ class Customer extends CI_Controller
         $this->load->model(['Customer_model', 'address_model']);
 
         if (!has_permissions('read', 'customers')) {
-            $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-            redirect('admin/home', 'refresh');
+            deny_panel_access();
         }
     }
 
@@ -121,14 +120,49 @@ class Customer extends CI_Controller
         }
     }
 
+    /**
+     * Select2 remote source for the customer picker in the admin panel.
+     *
+     * SECURITY - this method had NO authentication check, while every other method in
+     * this controller is wrapped in `logged_in() && is_admin()`. Two consequences:
+     *
+     *  - Anonymous user enumeration. `search` is optional and the query is a LIKE, so
+     *    an empty term matched every row: /admin/customer/search_user with no
+     *    parameters returned the id and username of every account on the site,
+     *    administrators included.
+     *
+     *  - It is a paged-through directory. Even with a term, an attacker can walk the
+     *    alphabet and rebuild the whole user list.
+     *
+     * A minimum term length is now required as well as the login check. That is not
+     * security on its own - an authenticated admin can still search - it stops the
+     * "return everything" call shape, which is the only way this endpoint was ever
+     * useful to an outsider, and it also stops the grid from pulling the entire users
+     * table on first focus.
+     */
     public function search_user()
     {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {
+            $this->output->set_status_header(403);
+            echo json_encode([]);
+            return false;
+        }
+
         // The search term was pasted directly into a raw WHERE string - a real, live SQL
         // injection reachable by any logged-in admin/sub-admin. Uses the query builder's
         // own escaping instead.
-        $search = isset($_GET['search']) ? $_GET['search'] : '';
+        $search = isset($_GET['search']) ? trim((string) $_GET['search']) : '';
+
+        // Refuse the match-everything call. Select2 sends at least one character once
+        // the user types, so this costs the picker nothing.
+        if ($search === '') {
+            echo json_encode([]);
+            return false;
+        }
+
         // Fetch users
         $this->db->select('*');
+        $this->db->limit(50);
         $this->db->like('username', $search);
         $fetched_records = $this->db->get('users');
         $users = $fetched_records->result_array();

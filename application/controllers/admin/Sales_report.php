@@ -14,8 +14,7 @@ class Sales_report extends CI_Controller
         // Was no permission check at all - any account satisfying is_admin() could see full
         // sales data regardless of the granular permission system every other page uses.
         if (!has_permissions('read', 'sales_report')) {
-            $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-            redirect('admin/home', 'refresh');
+            deny_panel_access();
         }
         $this->session->set_flashdata('authorize_flag', "");
     }

@@ -13,7 +13,7 @@
                         <img class="card-img-img lazy" src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= $row['image'] ?>" alt="<?= html_escape($row['name']) ?>" />
                     </div>
                     <div class="card-des">
-                        <h1 class="ta-c text-n"><?= output_escaping(str_replace('\r\n', '&#13;&#10;', $row['name'])) ?></h1>
+                        <h1 class="ta-c text-n"><?= unslash(str_replace('\r\n', '&#13;&#10;', $row['name'])) ?></h1>
                         <p class="ta-c text-s">Shop Now></p>
                     </div>
                 </div>

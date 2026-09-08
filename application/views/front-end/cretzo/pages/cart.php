@@ -137,10 +137,10 @@ $logo = get_settings('web_logo');
                             <div class="cart-item-detail-container">
                                 <h1 class="text-n">
                                     <a class="text-decoration-none text-dark" href="<?= base_url('products/details/' . $row['slug']) ?>" target="_blank">
-                                        <?= output_escaping(str_replace('\r\n', '&#13;&#10;', $row['name'])); ?>
+                                        <?= unslash(str_replace('\r\n', '&#13;&#10;', $row['name'])); ?>
                                     </a>
                                 </h1>
-                                <!-- <p class="text-s"><?= preg_replace('/((\w+\W*){'.(20-1).'}(\w+))(.*)/', '${1}', (output_escaping(str_replace('\r\n', '&#13;&#10;', $row['short_description'])))); ?></p> -->
+                                <!-- <p class="text-s"><?= preg_replace('/((\w+\W*){'.(20-1).'}(\w+))(.*)/', '${1}', (unslash(str_replace('\r\n', '&#13;&#10;', $row['short_description'])))); ?></p> -->
                                 
                                 <?php
                                     if(isset($row['product_variants'][0]['attr_name']) && isset($row['product_variants'][0]['variant_values'])){
@@ -157,8 +157,8 @@ $logo = get_settings('web_logo');
                                     }
                                 ?>
 
-                                <p class="text-s mt-1"><?= word_limit(output_escaping(str_replace('\r\n', '&#13;&#10;', $row['short_description'])), 100); ?></p>
-                                <p class="text-es"><?= output_escaping(str_replace('\r\n', '&#13;&#10;', $row['store_name'])) ?></p>
+                                <p class="text-s mt-1"><?= word_limit(unslash(str_replace('\r\n', '&#13;&#10;', $row['short_description'])), 100); ?></p>
+                                <p class="text-es"><?= unslash(str_replace('\r\n', '&#13;&#10;', $row['store_name'])) ?></p>
 
                                 <div class="cart-item-detail-span mt-1">
 
@@ -254,7 +254,7 @@ $logo = get_settings('web_logo');
                                 <!-- <div class="w-100 ms-4">
                                     <h3 class="post-title h6 lh-xs mb-1" title="<?= $row['name']; ?>">
                                         <a class="text-decoration-none text-dark" href="<?= base_url('products/details/' . $row['slug']) ?>" target="_blank">
-                                            <?= output_escaping(str_replace('\r\n', '&#13;&#10;', $row['name'])); ?>
+                                            <?= unslash(str_replace('\r\n', '&#13;&#10;', $row['name'])); ?>
                                         </a>
                                         <?php if (!empty($row['product_variants'])) { ?>
                                             <br><?= str_replace(',', ' | ', $row['product_variants'][0]['variant_values']) ?>

@@ -10,8 +10,7 @@ class Pickup_location extends CI_Controller
         $this->load->helper(['url', 'language', 'timezone_helper', 'file']);
         $this->load->model('Pickup_location_model');
         if (!has_permissions('read', 'pickup_location')) {
-            $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-            redirect('admin/home', 'refresh');
+            deny_panel_access();
         } else {
             $this->session->set_flashdata('authorize_flag', "");
         }
@@ -22,8 +21,7 @@ class Pickup_location extends CI_Controller
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
 
             if (!has_permissions('read', 'pickup_location')) {
-                $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-                redirect('admin/home', 'refresh');
+                deny_panel_access();
             }
             $this->data['main_page'] = TABLES . 'manage-pickup_location';
             $settings = get_settings('system_settings', true);

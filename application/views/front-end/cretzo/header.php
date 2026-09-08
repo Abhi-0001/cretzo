@@ -290,7 +290,7 @@ $notif_unread = $this->ion_auth->logged_in()
             <?php foreach ($categories as $key => $row) { ?>
                 <li class="nav-btn nav-mega-btn" onclick="toggleMegaMenu(this)">
                     <a href="<?= base_url('products/category/' . html_escape($row['slug'])) ?>" class="text-decoration-none">
-                        <?= output_escaping(str_replace('\r\n', '&#13;&#10;', $row['name'])) ?>
+                        <?= unslash(str_replace('\r\n', '&#13;&#10;', $row['name'])) ?>
                     </a>
                 </li>
             <?php } ?>
@@ -344,7 +344,7 @@ $notif_unread = $this->ion_auth->logged_in()
                                  so it always stays on screen) and mirrors the desktop card's layout. */ ?>
                         <div class="dropdown-menu profile-menu-m">
                             <div class="profile-menu-m__head">
-                                <span class="profile-menu-m__name">Welcome <?= (isset($user->username) && !empty($user->username)) ? output_escaping($user->username) : 'Guest' ?></span>
+                                <span class="profile-menu-m__name">Welcome <?= (isset($user->username) && !empty($user->username)) ? unslash($user->username) : 'Guest' ?></span>
                                 <span class="profile-menu-m__sub">To manage profile and orders</span>
                             </div>
 
@@ -556,7 +556,7 @@ $notif_unread = $this->ion_auth->logged_in()
                                     <div class="w-100 cart-title">
                                         <a href="<?= base_url('products/details/' . $items['product_slug']) ?>">
                                             <h3 class="post-title fs-16 lh-xs mb-1 no-wrap" title="<?= html_escape($items['name']) ?>">
-                                                <?= short_description_word_limit(strip_tags(output_escaping(str_replace('\r\n', '&#13;&#10;', $items['name']))), 35) ?> <?= (isset($check_current_stock_status['error'])  && $check_current_stock_status['error'] == TRUE) ? "<span class='badge badge-danger'>  Out of Stock </span>" :  "" ?>
+                                                <?= short_description_word_limit(strip_tags(unslash(str_replace('\r\n', '&#13;&#10;', $items['name']))), 35) ?> <?= (isset($check_current_stock_status['error'])  && $check_current_stock_status['error'] == TRUE) ? "<span class='badge badge-danger'>  Out of Stock </span>" :  "" ?>
                                             </h3>
                                         </a>
 
@@ -650,7 +650,7 @@ $notif_unread = $this->ion_auth->logged_in()
 
             $html .= '<li class="dropdown-item">';
             $html .= '<a href="' . base_url('products/category/' . html_escape($category['slug'])) . '" class="text-decoration-none dropdown-nav-btn">';
-            $html .= output_escaping(str_replace('\r\n', '&#13;&#10;', $category['name']));
+            $html .= unslash(str_replace('\r\n', '&#13;&#10;', $category['name']));
             if ($hasChildren) {
                 $html .= '<span class="dropdown-indicator">&#9658;</span>'; // Add an indicator for categories with subcategories
             }
@@ -677,7 +677,7 @@ $notif_unread = $this->ion_auth->logged_in()
             $html .= '<li class="text-n mega-list-item" style="margin-left: ' . $margin_left . 'px;">'; // Add margin-left
             
             $html .= '<a href="' . base_url('products/category/' . html_escape($category['slug'])) . '" class="text-decoration-none">';
-            $html .= output_escaping(str_replace('\r\n', '&#13;&#10;', $category['name']));
+            $html .= unslash(str_replace('\r\n', '&#13;&#10;', $category['name']));
             if ($renderChildren) {
                 $html .= '<span class="dropdown-indicator">&#9658;</span>'; // Add an indicator for categories with subcategories
             }
@@ -697,7 +697,7 @@ $notif_unread = $this->ion_auth->logged_in()
         foreach ($categories as $category) {
             $hasChildren = !empty($category['children']);
             $url  = base_url('products/category/' . html_escape($category['slug']));
-            $name = output_escaping(str_replace('\r\n', '&#13;&#10;', $category['name']));
+            $name = unslash(str_replace('\r\n', '&#13;&#10;', $category['name']));
             $html .= '<li class="mm-item depth-' . $depth . ($hasChildren ? ' has-children' : '') . '">';
             $html .= '<div class="mm-row">';
             $html .= '<a class="mm-link" href="' . $url . '">' . $name . '</a>';
@@ -754,7 +754,7 @@ $notif_unread = $this->ion_auth->logged_in()
                 $i++;
                 echo '<ul class="list mega-list' . ($i == $chunkCount ? ' last' : '') . '">';
                 echo '<a href="' . base_url('products/category/' . html_escape($row['slug'])) . '" class="text-decoration-none">';
-                echo '<lh class="text-n mega-list-item mega-list-item-heading">' . output_escaping(str_replace('\r\n', '&#13;&#10;', $row['name'])) . '</lh>';
+                echo '<lh class="text-n mega-list-item mega-list-item-heading">' . unslash(str_replace('\r\n', '&#13;&#10;', $row['name'])) . '</lh>';
                 echo '</a>';
                 echo generateMegaMenuSubcategories($row['children']);
                 echo '</ul>';

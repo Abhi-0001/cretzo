@@ -28,13 +28,19 @@ class Cron_job extends CI_Controller
         // day", but an OS-level scheduler cannot hold an admin session - so with a login-only
         // gate the instruction printed on that page could never work: wired into a real cron
         // the URL answered {"error":true,"message":"Unauthorized"} every night and the
-        // settlement simply never ran. cron_authorized() still lets a logged-in admin
-        // straight through, so the in-panel button behaves exactly as before.
+        // settlement simply never ran. cron_authorized() also accepts a logged-in
+        // admin, but only on a POST - see the long note in that method for why a GET
+        // authorised by a session alone was a CSRF-triggerable payout.
         if (!$this->cron_authorized($token)) {
             return false;
         }
 
-        $this->form_validation->set_data($this->input->get());
+        // Read is_date from the query string OR the body. The scheduled call passes it
+        // as ?is_date=1 in a GET; a panel button has to POST (see above) and would
+        // otherwise fail validation on an endpoint that only ever looked at $_GET.
+        $is_date_input = $this->input->get_post('is_date');
+
+        $this->form_validation->set_data(['is_date' => $is_date_input]);
         $this->form_validation->set_rules('is_date', 'is_date', 'trim|required|xss_clean');
         if (!$this->form_validation->run()) {
             $this->response['error'] = true;
@@ -42,7 +48,7 @@ class Cron_job extends CI_Controller
             $this->response['data'] = array();
             print_r(json_encode($this->response));
         } else {
-            $is_date = (isset($_GET['is_date']) && is_numeric($_GET['is_date']) && !empty(trim($_GET['is_date']))) ? $this->input->get('is_date') : false;
+            $is_date = (is_numeric($is_date_input) && trim((string) $is_date_input) !== '') ? $is_date_input : false;
             return $this->Seller_model->settle_seller_commission($is_date);
         }
     }
@@ -106,7 +112,53 @@ class Cron_job extends CI_Controller
      */
     private function cron_authorized($token = null)
     {
-        if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
+        // The admin-session shortcut that used to sit here has been REMOVED.
+        //
+        // It read:
+        //
+        //     if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
+        //         return true;
+        //     }
+        //
+        // and it was placed BEFORE the token check, so a logged-in admin was let
+        // through with no token at all. Two consequences, and the second is the
+        // serious one:
+        //
+        //  1. It made the endpoints untestable. Verifying the cron URL from a browser
+        //     tab passed with a completely wrong token and proved nothing about
+        //     whether the real, session-less cron would be authorised - which is how
+        //     production settlements ran for weeks without anyone noticing they had
+        //     never executed.
+        //
+        //  2. These are GET endpoints, and CodeIgniter's CSRF protection only applies
+        //     to POST. So the shortcut turned every one of them into a CSRF target.
+        //     `<img src="https://cretzo.com/admin/cron_job/settle_seller_commission?is_date=1">`
+        //     on any page an admin happened to open would credit every seller wallet
+        //     for delivered items, and the same trick fired release_referral_rewards.
+        //     No credential theft, no XSS - just an admin visiting a web page.
+        //
+        // The token is now the only way in, for every caller. Triggering a job by hand
+        // still works: pass ?token=<the secret> from a shell, which is also the only
+        // way to confirm the scheduled call itself will be accepted.
+        //
+        // ONE session-based route survives, and only under the condition that made the
+        // old shortcut dangerous in the first place: the request must be a POST.
+        //
+        // The Settlements page and the Settings page both have real buttons that fire
+        // these jobs, so an admin session has to be able to authorise them somehow or
+        // those buttons stop working. POST is what makes that safe: `admin/cron_job/*`
+        // is NOT on the csrf_exclude_uris list, so CodeIgniter has already validated
+        // the CSRF token before this controller was even constructed. An <img> tag, a
+        // cross-site form without our token, a link in an email - none of them can
+        // produce a request that reaches this line.
+        //
+        // A GET from a logged-in admin is now refused like anybody else's, which is
+        // also what makes "does the real cron work?" a question a browser can answer
+        // honestly.
+        if (strtoupper($this->input->server('REQUEST_METHOD')) === 'POST'
+            && $this->ion_auth->logged_in()
+            && $this->ion_auth->is_admin()
+        ) {
             return true;
         }
 

@@ -18,8 +18,7 @@ class Manage_stock extends CI_Controller
         // Editor account holding only faq:read and settings:read). update_stock() was already
         // gated; only the read side was open.
         if (!has_permissions('read', 'manage_stock')) {
-            $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-            redirect('admin/home', 'refresh');
+            deny_panel_access();
         }
     }
 

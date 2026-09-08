@@ -52,7 +52,7 @@ class Rating_model extends CI_Model
             // updateing seller rating
             $seller_id = fetch_details('products', ['id' => $data['product_id']], 'seller_id');
             $seller_id = $seller_id[0]['seller_id'];
-            $where = "seller_id = $seller_id and rating > 0";
+            $where = "seller_id = " . (int) $seller_id . " and rating > 0";
             $seller_rating = $this->db->select('rating,count(rating) as no_of_ratings,sum(rating) as sum_of_rating')->where($where)->get('products')->result_array();
 
             $total_rating = ($seller_rating[0]['sum_of_rating'] != null) ? $seller_rating[0]['sum_of_rating'] : $data['rating'];
@@ -97,7 +97,7 @@ class Rating_model extends CI_Model
 
         $seller_id = fetch_details('products', ['id' => $rating_details[0]['product_id']], 'seller_id');
         $seller_id = $seller_id[0]['seller_id'];
-        $where = "seller_id = $seller_id and rating > 0";
+        $where = "seller_id = " . (int) $seller_id . " and rating > 0";
         $seller_rating = $this->db->select('rating,count(rating) as no_of_ratings,sum(rating) as sum_of_rating')->where($where)->get('products')->result_array();
 
         $total_rating = ($seller_rating[0]['sum_of_rating'] != null) ? $seller_rating[0]['sum_of_rating'] : 0;
@@ -152,7 +152,27 @@ class Rating_model extends CI_Model
         if (isset($rating_id) && !empty($rating_id)) {
             $where['id'] = $rating_id;
         }
-        $t->db->order_by((string)$sort, (string)$order);
+        /* SQL INJECTION - FIXED AT THE SINK. This was:
+         *
+         *     $t->db->order_by((string)$sort, (string)$order);
+         *
+         * with $sort arriving from the caller. Two of the five callers passed a request
+         * value straight through - Products::get_rating() from $_GET (a public endpoint;
+         * the review list renders on every product page) and the mobile API from $_POST.
+         * order_by() returns any value containing a parenthesis unmodified rather than
+         * escaping it, so that was a raw concatenation.
+         *
+         * Whitelisted here as well as in the callers on purpose: this is the shared sink,
+         * so a future sixth caller that forgets to sanitise cannot reopen the hole. The
+         * accepted set is small because the review list is only ever ordered two ways.
+         */
+        $sort = sanitize_sort_column($sort, [
+            'pr.id'     => 'pr.id',
+            'id'        => 'pr.id',
+            'rating'    => 'pr.rating',
+            'pr.rating' => 'pr.rating',
+        ], 'pr.id');
+        $t->db->order_by($sort, sanitize_sort_direction($order, 'DESC'));
         if (!empty($limit && $offset != "")) {
             $t->db->limit($limit, $offset);
         }
@@ -168,7 +188,7 @@ class Rating_model extends CI_Model
             $total_review_with_images = $t->db->select(' count(pr.id) as total ')->where('product_id', $product_id)->where('pr.images !=', null)->get('product_rating pr')->result_array();
             $total_reviews = $t->db->select(' count(pr.id) as total,sum(case when CEILING(rating) = 1 AND product_id = ' . $product_id . ' then 1 else 0 end) as rating_1,sum(case when CEILING(rating) = 2 AND product_id = ' . $product_id . ' then 1 else 0 end) as rating_2,sum(case when CEILING(rating) = 3 AND product_id = ' . $product_id . ' then 1 else 0 end) as rating_3,sum(case when CEILING(rating) = 4 AND product_id = ' . $product_id . ' then 1 else 0 end) as rating_4,sum(case when CEILING(rating) = 5 AND product_id = ' . $product_id . ' then 1 else 0 end) as rating_5 ')->where('product_id', $product_id)->get('product_rating pr')->result_array();
             for ($i = 0; $i < count($product_rating); $i++) {
-                $product_rating[$i] = output_escaping($product_rating[$i]);
+                $product_rating[$i] = unslash($product_rating[$i]);
                 if (isset($product_rating[$i]['images']) && ($product_rating[$i]['images'] != null || !empty($product_rating[$i]['images']))) {
                     $images = json_decode($product_rating[$i]['images'], 1);
                     $total_images_count += count($images); // Add the count of images in this review to the total
@@ -220,12 +240,26 @@ class Rating_model extends CI_Model
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "id";
-            } else {
-                $sort = $_GET['sort'];
-            }
+        /* SQL INJECTION - FIXED. This was:
+         *
+         *     if (isset($_GET['sort']))
+         *         if ($_GET['sort'] == 'id') { $sort = "id"; }
+         *         else                       { $sort = $_GET['sort']; }
+         *
+         * so any value other than the literal 'id' was passed through untouched and
+         * concatenated into ORDER BY by order_by(), which does not escape a string
+         * containing a parenthesis. Seventeen other list models in this directory had
+         * already been whitelisted in an earlier pass; this one was missed.
+         *
+         * The query is a SELECT * so there is no short hand-written column list to
+         * check against - sanitize_sort_column_for_table() asks the database for product_rating's
+         * real columns instead, which is both exact and self-maintaining. The default
+         * is unchanged, so a request that sorted correctly before still does. */
+        $sort = sanitize_sort_column_for_table(
+            isset($_GET['sort']) ? $_GET['sort'] : null,
+            'product_rating',
+            'id'
+        );
 
         if (isset($order) and $order != '') {
             $search = $order;
@@ -285,7 +319,7 @@ class Rating_model extends CI_Model
 
         $i = 0;
         foreach ($rating_search_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
             $date = new DateTime($row['data_added']);
             $operate = '<a class="btn btn-danger btn-xs mr-1 mb-1 delete-product-rating" href="javascript:void(0)" title="Delete" data-id="' . $row['id'] . '" ><i class="fa fa-trash"></i></a>';
             $tempRow['id'] = $row['id'];

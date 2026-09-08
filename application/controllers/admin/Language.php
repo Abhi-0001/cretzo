@@ -13,8 +13,7 @@ class Language extends CI_Controller
         $this->load->model('language_model');
 
         if (!has_permissions('read', 'settings')) {
-            $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-            redirect('admin/home', 'refresh');
+            deny_panel_access();
         }
     }
 

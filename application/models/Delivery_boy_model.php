@@ -44,12 +44,26 @@ class Delivery_boy_model extends CI_Model
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "u.id";
-            } else {
-                $sort = $_GET['sort'];
-            }
+        /* SQL INJECTION - FIXED. This was:
+         *
+         *     if (isset($_GET['sort']))
+         *         if ($_GET['sort'] == 'id') { $sort = "u.id"; }
+         *         else                       { $sort = $_GET['sort']; }
+         *
+         * so any value other than the literal 'id' was passed through untouched and
+         * concatenated into ORDER BY by order_by(), which does not escape a string
+         * containing a parenthesis. Seventeen other list models in this directory had
+         * already been whitelisted in an earlier pass; this one was missed.
+         *
+         * The query is a SELECT * so there is no short hand-written column list to
+         * check against - sanitize_sort_column_for_table() asks the database for users's
+         * real columns instead, which is both exact and self-maintaining. The default
+         * is unchanged, so a request that sorted correctly before still does. */
+        $sort = sanitize_sort_column_for_table(
+            isset($_GET['sort']) ? $_GET['sort'] : null,
+            'users',
+            'u.id'
+        );
         if (isset($_GET['order']))
             $order = $_GET['order'];
 
@@ -94,7 +108,7 @@ class Delivery_boy_model extends CI_Model
         $tempRow = array();
 
         foreach ($offer_search_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
             $operate = '<a href="javascript:void(0)" class="edit_btn btn action-btn btn-primary btn-xs mr-1 ml-1 mb-1" title="Edit" data-id="' . $row['id'] . '" data-url="admin/delivery_boys/"><i class="fa fa-pen"></i></a>';
             $operate .= '<a  href="javascript:void(0)" class="btn btn-danger action-btn btn-xs mr-1 mb-1 ml-1" title="Delete" id="delete-delivery-boys"  data-id="' . $row['id'] . '" ><i class="fa fa-trash"></i></a>';
             $operate .= '<a href="javascript:void(0)" class=" fund_transfer action-btn btn btn-info btn-xs mr-1 mb-1 ml-1" title="Fund Transfer" data-target="#fund_transfer_delivery_boy"   data-toggle="modal" data-id="' . $row['id'] . '" ><i class="fa fa-arrow-alt-circle-right"></i></a>';
@@ -232,7 +246,7 @@ class Delivery_boy_model extends CI_Model
         $bulkData['total'] = (empty($cat_search_res)) ? 0 : $total;
         if (!empty($cat_search_res)) {
             foreach ($cat_search_res as $row) {
-                $row = output_escaping($row);
+                $row = unslash($row);
                 $tempRow['id'] = $row['id'];
                 $tempRow['name'] = $row['username'];
                 $tempRow['mobile'] = $row['mobile'];
@@ -276,12 +290,26 @@ class Delivery_boy_model extends CI_Model
         if (isset($_GET['limit']))
             $limit = $_GET['limit'];
 
-        if (isset($_GET['sort']))
-            if ($_GET['sort'] == 'id') {
-                $sort = "id";
-            } else {
-                $sort = $_GET['sort'];
-            }
+        /* SQL INJECTION - FIXED. This was:
+         *
+         *     if (isset($_GET['sort']))
+         *         if ($_GET['sort'] == 'id') { $sort = "id"; }
+         *         else                       { $sort = $_GET['sort']; }
+         *
+         * so any value other than the literal 'id' was passed through untouched and
+         * concatenated into ORDER BY by order_by(), which does not escape a string
+         * containing a parenthesis. Seventeen other list models in this directory had
+         * already been whitelisted in an earlier pass; this one was missed.
+         *
+         * The query is a SELECT * so there is no short hand-written column list to
+         * check against - sanitize_sort_column_for_table() asks the database for transactions's
+         * real columns instead, which is both exact and self-maintaining. The default
+         * is unchanged, so a request that sorted correctly before still does. */
+        $sort = sanitize_sort_column_for_table(
+            isset($_GET['sort']) ? $_GET['sort'] : null,
+            'transactions',
+            'id'
+        );
         if (isset($_GET['order']))
             $order = $_GET['order'];
 
@@ -304,8 +332,15 @@ class Delivery_boy_model extends CI_Model
         $count_res = $this->db->select(' COUNT(transactions.id) as `total` ')->join('users', ' transactions.user_id = users.id', 'left')->where('transactions.status = 1');
 
         if (!empty($_GET['start_date']) && !empty($_GET['end_date'])) {
-            $count_res->where(" DATE(transactions.transaction_date) >= DATE('" . $_GET['start_date'] . "') ");
-            $count_res->where(" DATE(transactions.transaction_date) <= DATE('" . $_GET['end_date'] . "') ");
+        /* SQL INJECTION - FIXED. These were built as
+         *     where(" DATE(col) >= DATE('" . $date . "') ")
+         * - the value interpolated inside a quoted SQL literal with no escaping, so a
+         * single quote in the date closed the string and everything after it was SQL.
+         * Passing the value as where()'s second argument lets the query builder escape
+         * it; the field side still contains DATE(...) and is emitted as written, which
+         * is what it was doing before anyway. */
+            $count_res->where("DATE(transactions.transaction_date) >=", $_GET['start_date']);
+            $count_res->where("DATE(transactions.transaction_date) <=", $_GET['end_date']);
         }
         if (isset($multipleWhere) && !empty($multipleWhere)) {
             $this->db->group_Start();
@@ -329,8 +364,8 @@ class Delivery_boy_model extends CI_Model
         $search_res = $this->db->select(' transactions.*,users.username as name,users.mobile,users.cash_received');
 
         if (!empty($_GET['start_date']) && !empty($_GET['end_date'])) {
-            $search_res->where(" DATE(transactions.transaction_date) >= DATE('" . $_GET['start_date'] . "') ");
-            $search_res->where(" DATE(transactions.transaction_date) <= DATE('" . $_GET['end_date'] . "') ");
+            $search_res->where("DATE(transactions.transaction_date) >=", $_GET['start_date']);
+            $search_res->where("DATE(transactions.transaction_date) <=", $_GET['end_date']);
         }
 
         if (isset($multipleWhere) && !empty($multipleWhere)) {
@@ -353,7 +388,7 @@ class Delivery_boy_model extends CI_Model
         $tempRow = array();
 
         foreach ($txn_search_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
             $tempRow['id'] = $row['id'];
             $tempRow['name'] = $row['name'];
             $tempRow['mobile'] = $row['mobile'];
@@ -432,7 +467,7 @@ class Delivery_boy_model extends CI_Model
         $tempRow = array();
 
         foreach ($txn_search_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
             $tempRow['id'] = $row['id'];
             $tempRow['name'] = $row['name'];
             $tempRow['mobile'] = $row['mobile'];

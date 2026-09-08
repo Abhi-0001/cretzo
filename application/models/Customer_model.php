@@ -98,7 +98,7 @@ class Customer_model extends CI_Model
         $tempRow = array();
 
         foreach ($cat_search_res as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
             if (!$this->ion_auth->is_seller()) {
                 $operate = '<a href="' . base_url('admin/orders?user_id=' . $row['id']) . '" class="btn btn-primary action-btn btn-xs mr-1 mb-1 ml-1" title="View Orders" ><i class="fa fa-eye"></i></a>';
                 $operate .= '<a  href="' . base_url('admin/transaction/view-transaction?user_id=' . $row['id']) . '" class="btn btn-danger action-btn btn-xs mb-1 ml-1" title="View Transactions"  ><i class="fa fa-money-bill-wave"></i></a>';
@@ -256,7 +256,7 @@ class Customer_model extends CI_Model
         $bulkData['total'] = (empty($cat_search_res)) ? 0 : $total;
         if (!empty($cat_search_res)) {
             foreach ($cat_search_res as $row) {
-                $row = output_escaping($row);
+                $row = unslash($row);
                 $tempRow['id'] = $row['id'];
                 $tempRow['name'] = $row['username'];
                 $tempRow['mobile'] = $row['mobile'];

@@ -319,7 +319,7 @@ class Area_model extends CI_Model
         $bulkData['total'] = (empty($cat_search_res)) ? 0 : $total;
         if (!empty($cat_search_res)) {
             foreach ($cat_search_res as $row) {
-                $row = output_escaping($row);
+                $row = unslash($row);
                 $tempRow['id'] = $row['id'];
                 $tempRow['zipcode'] = $row['zipcode'];
                 $tempRow['date_created'] = $row['date_created'];
@@ -377,7 +377,7 @@ class Area_model extends CI_Model
 
         $rows = [];
         foreach ($products as $row) {
-            $row = output_escaping($row);
+            $row = unslash($row);
             $type = (string) $row['deliverable_type'];
             list($label, $badge) = isset($labels[$type]) ? $labels[$type] : ['Not deliverable', 'danger'];
 
@@ -501,7 +501,7 @@ class Area_model extends CI_Model
         $bulkData['error'] = (empty($areas)) ? true : false;
         if (!empty($areas)) {
             for ($i = 0; $i < count($areas); $i++) {
-                $areas[$i] = output_escaping($areas[$i]);
+                $areas[$i] = unslash($areas[$i]);
             }
         }
         $bulkData['data'] = (empty($areas)) ? [] : $areas;
@@ -576,7 +576,7 @@ class Area_model extends CI_Model
         $bulkData['error'] = (empty($cities)) ? true : false;
         if (!empty($cities)) {
             for ($i = 0; $i < count($cities); $i++) {
-                $cities[$i] = output_escaping($cities[$i]);
+                $cities[$i] = unslash($cities[$i]);
             }
         }
         $bulkData['data'] = (empty($cities)) ? [] : $cities;

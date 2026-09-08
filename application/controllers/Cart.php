@@ -1412,8 +1412,37 @@ class Cart extends CI_Controller
         print_r(json_encode($this->response));
     }
 
+    /**
+     * Bank-transfer receipt upload: the shopper has paid out of band and is attaching
+     * proof of it to their order.
+     *
+     * SECURITY - this had NO login check and NO ownership check. It confirmed that the
+     * posted order_id existed and nothing else, so:
+     *
+     *  - Anyone could attach files to ANYBODY's order. Order ids are sequential, so an
+     *    attacker did not even have to guess.
+     *  - It was an unauthenticated file upload into a directory under the web root.
+     *    The allowed type list excludes every executable extension, so this is not code
+     *    execution - but it is free file hosting on this domain, which is exactly what a
+     *    phishing kit wants, and it let anyone plant a document an admin would open
+     *    while reviewing a payment.
+     *  - It let an attacker mark someone else's order as having a receipt, muddying the
+     *    manual payment-verification queue.
+     *
+     * Now requires a logged-in customer AND that the order belongs to them.
+     */
     public function send_bank_receipt()
     {
+        if (!$this->ion_auth->logged_in() || empty($this->data['user']->id)) {
+            $this->response['error'] = true;
+            $this->response['message'] = 'Please sign in to upload a payment receipt.';
+            $this->response['data'] = [];
+            $this->response['csrfName'] = $this->security->get_csrf_token_name();
+            $this->response['csrfHash'] = $this->security->get_csrf_hash();
+            print_r(json_encode($this->response));
+            return false;
+        }
+
         $this->form_validation->set_rules('order_id', 'Order Id', 'trim|required|numeric|xss_clean');
 
         if (!$this->form_validation->run()) {
@@ -1429,11 +1458,21 @@ class Cart extends CI_Controller
         } else {
             $order_id = $this->input->post('order_id', true);
 
-            $order = fetch_details('orders', ['id' => $order_id], 'id');
+            /* Ownership, not just existence. This used to fetch on ['id' => $order_id]
+             * alone, so any existing order id was accepted - see the note on this method.
+             * Scoping the lookup by user_id means a receipt can only ever be attached to
+             * the caller's own order, and an id belonging to someone else is
+             * indistinguishable from one that does not exist. */
+            $order = fetch_details('orders', [
+                'id'      => $order_id,
+                'user_id' => $this->data['user']->id,
+            ], 'id');
             if (empty($order)) {
                 $this->response['error'] = true;
                 $this->response['message'] = "Order not found!";
                 $this->response['data'] = [];
+                $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                $this->response['csrfHash'] = $this->security->get_csrf_hash();
                 print_r(json_encode($this->response));
                 return false;
             }

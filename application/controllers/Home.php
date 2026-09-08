@@ -178,9 +178,9 @@ if (!empty($sections)) {
 
                 $products = fetch_product($user_id, (isset($filters)) ? $filters : null, (isset($product_ids)) ? $product_ids : null, $product_categories, $limit, null, null, null);
                 // print_R($products);
-                $sections[$i]['title'] =  output_escaping($sections[$i]['title']);
+                $sections[$i]['title'] =  unslash($sections[$i]['title']);
                 $sections[$i]['slug'] =  url_title($sections[$i]['title'], 'dash', true);
-                $sections[$i]['short_description'] =  output_escaping($sections[$i]['short_description']);
+                $sections[$i]['short_description'] =  unslash($sections[$i]['short_description']);
                 $sections[$i]['filters'] = (isset($products['filters'])) ? $products['filters'] : [];
                 $sections[$i]['product_details'] =  $products['product'];
                 unset($sections[$i]['product_details'][0]['total']);
@@ -313,8 +313,24 @@ if ($user_id === null && defined('HOME_SECTIONS_CACHE_TTL') && HOME_SECTIONS_CAC
             } else {
                 $offset = (isset($_GET['offset'])) ? $this->input->get('offset', true) : 0;
             }
-            $order = (isset($_GET['order']) && !empty(trim($_GET['order']))) ? $_GET['order'] : 'DESC';
-            $sort = (isset($_GET['sort']) && !empty(trim($_GET['sort']))) ? $_GET['sort'] : 'p.id';
+            /* SQL INJECTION - FIXED. These two lines used to be:
+             *
+             *     $order = ... ? $_GET['order'] : 'DESC';
+             *     $sort  = ... ? $_GET['sort']  : 'p.id';
+             *
+             * and $sort went straight into fetch_product(), which hands it to
+             * order_by(). The only validation was 'trim|xss_clean' above, and xss_clean
+             * does nothing whatsoever to SQL. order_by() does NOT escape a value that
+             * contains a parenthesis - it returns it verbatim - so this was a raw
+             * concatenation on an endpoint that needs no session and no app key:
+             *
+             *     GET /home/get_products?sort=(select ...)
+             *
+             * Whitelisted against the columns fetch_product() actually selects. See
+             * sanitize_sort_column() in function_helper.php for why whitelisting is the
+             * only available fix rather than one option among several. */
+            $order = sanitize_sort_direction($this->input->get('order'), 'DESC');
+            $sort = sanitize_sort_column($this->input->get('sort'), product_sort_columns(), 'p.id');
             $filters['search'] =  (isset($_GET['search'])) ? $_GET['search'] : null;
             $filters['attribute_value_ids'] = (isset($_GET['attribute_value_ids'])) ? $_GET['attribute_value_ids'] : null;
             $category_id = (isset($_GET['category_id'])) ? $_GET['category_id'] : null;
@@ -655,35 +671,73 @@ if ($user_id === null && defined('HOME_SECTIONS_CACHE_TTL') && HOME_SECTIONS_CAC
     {
     //   code modife only defaul user login not seler login and not admin login add restriction
     
-        $regex = '/^[_a-z0-9-]+(\.[_a-z0-9-]+)*@[a-z0-9-]+(\.[a-z0-9-]+)*(\.[a-z]{2,3})$/';
         $this->data['title'] = $this->lang->line('login_heading');
 
-        // The login endpoint read `identity` with no guard at all, so any POST without it - a
-        // probe, a half-submitted form, a client that names the field differently - emitted a
-        // warning from the authentication path before validation had a chance to reject it.
-        if (preg_match($regex, isset($_POST['identity']) ? (string) $_POST['identity'] : '')) {
-            $identity_column = 'email';
-        } else {
-            $identity_column = $this->config->item('identity', 'ion_auth');
+        // One form field carries either a mobile number or an email address, so the
+        // identity is normalised ONCE here and every branch below reads that decision.
+        // It used to be re-derived three times from a hand-written regex that rejected
+        // capitals, surrounding spaces, '+' tags and TLDs longer than three letters -
+        // all of which then fell into the mobile branch and died on `numeric`, so those
+        // accounts were unreachable by email. See login_identity_is_email().
+        //
+        // The trimmed value is written back to $_POST because the lookups further down
+        // read $_POST/input->post() directly, and " a@b.com " matches no row.
+        // The empty-string default keeps a POST with no `identity` at all (a probe, a
+        // half-submitted form) out of the authentication path until validation rejects it.
+        $posted_identity = isset($_POST['identity']) ? trim((string) $_POST['identity']) : '';
+        $identity_is_email = login_identity_is_email($posted_identity);
+
+        // A mobile identity is rewritten to the value actually stored on the account.
+        // Every lookup below (and ion_auth's own) compares `users.mobile` as an exact
+        // string, so a number stored WITH its country code ('919876543210', which is
+        // what signup saves when the dial code was typed into the phone field rather
+        // than picked from the country dropdown) could never be logged in with the
+        // bare 10 digits, and vice versa: the row was not found and the reply was
+        // "Incorrect Number or password" with a perfectly correct password - while the
+        // same account still logged in by email, which needs no normalisation. Also
+        // accepts the '+', spaces and dashes people paste from a contact card, which
+        // the `numeric` rule below used to reject outright.
+        // resolve_stored_mobile() returns NULL for an unregistered number; the digits
+        // are kept in that case so validation and the generic failure reply still run.
+        if (!$identity_is_email && $posted_identity !== '') {
+            $stored_mobile = resolve_stored_mobile($posted_identity);
+            if ($stored_mobile !== null) {
+                $posted_identity = $stored_mobile;
+            } else {
+                // Unregistered: strip the punctuation so the lookups below still run on a
+                // clean number, but keep whatever was typed if there are no digits in it
+                // at all ("abc") - an empty value would be reported as "the field is
+                // required" instead of the "not a valid mobile number or email" the
+                // person actually needs to read.
+                $digits_only = preg_replace('/\D/', '', $posted_identity);
+                $posted_identity = ($digits_only !== '') ? $digits_only : $posted_identity;
+            }
         }
-        // The login endpoint read `identity` with no guard at all, so any POST without it - a
-        // probe, a half-submitted form, a client that names the field differently - emitted a
-        // warning from the authentication path before validation had a chance to reject it.
-        if (preg_match($regex, isset($_POST['identity']) ? (string) $_POST['identity'] : '')) {
-            $this->ion_auth_model->identity_column = 'email';
-        } else {
-            $this->ion_auth_model->identity_column = 'mobile';
-        }
+
+        // Written back because the lookups further down read $_POST/input->post()
+        // directly, and " a@b.com " (or '+91 98765 43210') matches no row.
+        $_POST['identity'] = $posted_identity;
+
+        $identity_column = $identity_is_email ? 'email' : $this->config->item('identity', 'ion_auth');
+        $this->ion_auth_model->identity_column = $identity_is_email ? 'email' : 'mobile';
 
         // validate form input
         if (isset($_POST['type']) && $_POST['type'] == 'phone') {
-            // The login endpoint read `identity` with no guard at all, so any POST without it - a
-        // probe, a half-submitted form, a client that names the field differently - emitted a
-        // warning from the authentication path before validation had a chance to reject it.
-        if (preg_match($regex, isset($_POST['identity']) ? (string) $_POST['identity'] : '')) {
+            if ($identity_is_email) {
                 $this->form_validation->set_rules('identity', ucfirst($identity_column), 'trim|required|valid_email');
             } else {
-                $this->form_validation->set_rules('identity', ucfirst($identity_column), 'required|numeric');
+                // Labelled for what the field actually accepts: anything that is not a
+                // valid email lands here, so "Mobile" alone made a mistyped address read
+                // as "The Mobile field must contain only numbers".
+                // regex_match, not `numeric`: the value at this point may be the number
+                // exactly as it is STORED on the account (see resolve_stored_mobile()
+                // above), and a handful of legacy rows hold it with a '+', spaces or
+                // dashes - `numeric` would have rejected the very account it just
+                // matched. Anything a person could mean by "my number" is allowed here;
+                // whether it belongs to an account is decided by the lookup, not by a
+                // format rule.
+                $this->form_validation->set_rules('identity', 'Mobile number or email', 'trim|required|regex_match[/^[0-9+\-() ]{5,20}$/]');
+                $this->form_validation->set_message('regex_match', 'Please enter a valid mobile number or email address.');
             }
         }
         // 'trim' matches the trim applied when the password was set (signup and both reset
@@ -777,10 +831,10 @@ if ($user_id === null && defined('HOME_SECTIONS_CACHE_TTL') && HOME_SECTIONS_CAC
             if (isset($_POST['type']) && $_POST['type'] != 'phone') {
                 $user_data = fetch_details('users', ['email' => $identity]);
             } else {
-                // The login endpoint read `identity` with no guard at all, so any POST without it - a
-        // probe, a half-submitted form, a client that names the field differently - emitted a
-        // warning from the authentication path before validation had a chance to reject it.
-        if (preg_match($regex, isset($_POST['identity']) ? (string) $_POST['identity'] : '')) {
+                // Same decision made at the top of the method - not re-derived here, so the
+                // row this lookup returns can never disagree with the column ion_auth is
+                // about to check the password against.
+                if ($identity_is_email) {
                     $user_data = fetch_details('users', ['email' => $identity]);
                 } else {
                     $user_data = fetch_details('users', ['mobile' => $identity]);
@@ -953,8 +1007,11 @@ if ($user_id === null && defined('HOME_SECTIONS_CACHE_TTL') && HOME_SECTIONS_CAC
         // Synthesize a stable, unique-per-uid placeholder when the provider gave
         // no usable email, so the same social account always resolves back to
         // the same local account on repeat logins.
-        $regex = '/^[_a-z0-9-]+(\.[_a-z0-9-]+)*@[a-z0-9-]+(\.[a-z0-9-]+)*(\.[a-z]{2,3})$/';
-        if (empty($email) || !preg_match($regex, $email)) {
+        // filter_var, not the old regex: Firebase hands back the address exactly as the
+        // provider holds it, so a capital letter or a TLD longer than three characters
+        // (.online, .store, ...) used to be treated as "no usable email" - the account
+        // was filed under a synthetic placeholder and the real address was lost.
+        if (!login_identity_is_email($email)) {
             $email = $type . '_' . substr(md5($uid), 0, 20) . '@social.cretzo.local';
         }
         $email = strtolower($email);
@@ -1105,11 +1162,12 @@ if ($user_id === null && defined('HOME_SECTIONS_CACHE_TTL') && HOME_SECTIONS_CAC
             'expire' => time() + 1000
         );
         $this->input->set_cookie($cookie);
-        if (isset($_SERVER['HTTP_REFERER'])) {
-            redirect($_SERVER['HTTP_REFERER']);
-        } else {
-            redirect(base_url());
-        }
+        /* OPEN REDIRECT - was redirect($_SERVER['HTTP_REFERER']) with only an isset()
+         * check. Referer is client-set, so /home/lang/en?... was a link on this domain
+         * that forwarded the visitor anywhere the attacker chose - the standard shape of
+         * a phishing link, because the URL the victim inspects really is cretzo.com.
+         * safe_internal_referer() honours the referer only when its host is ours. */
+        redirect(safe_internal_referer());
     }
 
     // Looks up a storefront customer row by mobile number, shared by
@@ -1173,6 +1231,17 @@ if ($user_id === null && defined('HOME_SECTIONS_CACHE_TTL') && HOME_SECTIONS_CAC
      */
     public function check_reset_account()
     {
+        /* Per-IP throttle. This endpoint answers "does an account exist for this
+         * number?" with no authentication, so unthrottled it is an account directory:
+         * sweep a number range and you have every account on the site, labelled by
+         * portal. See lookup_rate_limit_guard() for why it is keyed on IP only and why
+         * it fails open. */
+        $throttle = lookup_rate_limit_guard('lookup');
+        if (!$throttle['allowed']) {
+            echo json_encode(['error' => true, 'message' => $throttle['message']]);
+            return false;
+        }
+
         $this->form_validation->set_rules('mobile_number', 'Mobile No', 'trim|numeric|required|xss_clean|max_length[16]');
         if (!$this->form_validation->run()) {
             echo json_encode(['error' => true, 'message' => strip_tags(validation_errors())]);
@@ -1204,7 +1273,13 @@ if ($user_id === null && defined('HOME_SECTIONS_CACHE_TTL') && HOME_SECTIONS_CAC
         // reset reported "Reset Password Successfully" and the new password then failed at login
         // with "Incorrect Number or password". Verified locally with 'Pa&ss<x1'. A password is
         // hashed and never rendered anywhere, so XSS-filtering it is meaningless by definition.
-        $this->form_validation->set_rules('new_password', 'New Password', 'trim|required|min_length[6]');
+        /* min_length was hardcoded to 6 while ion_auth.php sets min_password_length = 8,
+         * so the RESET path let a user set a password shorter than the SIGNUP path would
+         * accept - a policy that only applies where it is least likely to be tested. Read
+         * from config so the two can never drift again. */
+        $min_password = (int) $this->config->item('min_password_length', 'ion_auth');
+        $min_password = ($min_password > 0) ? $min_password : 8;
+        $this->form_validation->set_rules('new_password', 'New Password', 'trim|required|min_length[' . $min_password . ']|xss_clean');
         if (!$this->form_validation->run()) {
             echo json_encode([
                 'error' => true,
@@ -1269,18 +1344,66 @@ if ($user_id === null && defined('HOME_SECTIONS_CACHE_TTL') && HOME_SECTIONS_CAC
         return false;
     }
 
+    /**
+     * Step 2 of the password reset: is this OTP the right one?
+     *
+     * The reset used to be two screens - "send me a code" then "code + new password
+     * together" - so a mistyped digit was only reported after the user had already
+     * chosen and confirmed a new password, and the form came back with everything to
+     * redo. Splitting Verify onto its own screen (matching the signup modal) needs a
+     * check that does NOT consume the code, because reset_password() below still has
+     * to verify it for real before it changes anything. Nothing here grants any
+     * access: it answers one yes/no question and sets no session state.
+     */
+    public function verify_reset_otp()
+    {
+        $this->form_validation->set_rules('mobile', 'Mobile No', 'trim|numeric|required|xss_clean|max_length[16]');
+        $this->form_validation->set_rules('otp', 'OTP', 'trim|required|xss_clean');
+
+        if (!$this->form_validation->run()) {
+            $this->response['error'] = true;
+            $this->response['message'] = strip_tags(validation_errors());
+            echo json_encode($this->response);
+            return false;
+        }
+
+        // Same "is there such a customer" answer the send step already gave for this
+        // number, so this reveals nothing new about who is registered.
+        if (empty($this->_find_reset_customer($this->input->post('mobile')))) {
+            $this->response['error'] = true;
+            $this->response['message'] = 'User does not exists !';
+            echo json_encode($this->response);
+            return false;
+        }
+
+        $otp_check = verify_password_reset_otp($this->input->post('mobile'), $this->input->post('otp'), false);
+
+        $this->response['error'] = (bool) $otp_check['error'];
+        $this->response['message'] = $otp_check['message'];
+        echo json_encode($this->response);
+        return false;
+    }
+
     public function reset_password()
     {
         /* Parameters to be passed
             mobile:7894561235
             otp:123456
             new_password: pass@123
+            confirm_password: pass@123   (optional - browser only, see below)
         */
         $this->form_validation->set_rules('mobile', 'Mobile No', 'trim|numeric|required|xss_clean|max_length[16]');
         $this->form_validation->set_rules('otp', 'OTP', 'trim|required|xss_clean');
         // Not xss_clean - see reset_password_firebase() above: filtering a value that is about to
         // be hashed corrupts it and locks the user out of the password they just chose.
         $this->form_validation->set_rules('new_password', 'New Password', 'trim|required');
+        // Only enforced when the field is actually sent. The browser's reset screen has a
+        // confirm box and posts it; the mobile app posts new_password alone and must keep
+        // working. Checking it here as well as in the browser means a mismatch can never
+        // reach ion_auth, whatever the client does.
+        if ($this->input->post('confirm_password') !== null) {
+            $this->form_validation->set_rules('confirm_password', 'Confirm Password', 'trim|required|matches[new_password]');
+        }
 
         if (!$this->form_validation->run()) {
             $this->response['error'] = true;

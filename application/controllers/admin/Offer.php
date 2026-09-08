@@ -10,8 +10,7 @@ class Offer extends CI_Controller
         $this->load->model('Offer_model');
 
         if (!has_permissions('read', 'new_offer_images')) {
-            $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-            redirect('admin/home', 'refresh');
+            deny_panel_access();
         }
     }
 

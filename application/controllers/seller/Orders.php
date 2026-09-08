@@ -96,7 +96,7 @@ class Orders extends CI_Controller
                 if (!empty($area_id) && $area_id[0]['area_id'] != 0) {
                     $zipcode_id = fetch_details('areas', ['id' => $area_id[0]['area_id']], 'zipcode_id');
                     if (!empty($zipcode_id)) {
-                        $this->data['delivery_res'] = $this->db->where(['ug.group_id' => '3', 'u.active' => 1])->where('find_in_set(' . $zipcode_id[0]['zipcode_id'] . ', u.serviceable_zipcodes)!=', 0)->join('users_groups ug', 'ug.user_id = u.id')->get('users u')->result_array();
+                        $this->data['delivery_res'] = $this->db->where(['ug.group_id' => '3', 'u.active' => 1])->where('find_in_set(' . (int) $zipcode_id[0]['zipcode_id'] . ', u.serviceable_zipcodes)!=', 0)->join('users_groups ug', 'ug.user_id = u.id')->get('users u')->result_array();
                     } else {
                         $this->data['delivery_res'] = $this->db->where(['ug.group_id' => '3', 'u.active' => 1])->join('users_groups ug', 'ug.user_id = u.id')->get('users u')->result_array();
                     }
@@ -455,7 +455,7 @@ class Orders extends CI_Controller
                             $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
                             $hashtag = html_entity_decode($string);
                             $data = str_replace(array($hashtag_cutomer_name, $hashtag_order_id, $hashtag_application_name), array($user_res[0]['username'], $order_items[0]['order_id'], $app_name), $hashtag);
-                            $message = output_escaping(trim($data, '"'));
+                            $message = unslash(trim($data, '"'));
                             if (!empty($current_delivery_boy[0]) && count($current_delivery_boy) > 1) {
                                 for ($i = 0; $i < count($current_delivery_boys); $i++) {
                                     $customer_msg = (!empty($custom_notification)) ? $message :  'Hello Dear ' . $user_res[$i]['username'] . 'Order status updated to' . $_POST['val'] . ' for order ID #' . $order_items[0]['order_id'] . ' please take note of it! Thank you. Regards ' . $app_name . '';
@@ -647,7 +647,7 @@ class Orders extends CI_Controller
                     $string = isset($custom_notification[0]['message']) ? json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE) : '""';
                     $hashtag = html_entity_decode($string);
                     $data = str_replace(array($hashtag_cutomer_name, $hashtag_order_id, $hashtag_application_name), array($user_res[0]['username'], $order_items[0]['order_id'], $app_name), $hashtag);
-                    $message = output_escaping(trim($data, '"'));
+                    $message = unslash(trim($data, '"'));
                     $customer_msg = (!empty($custom_notification)) ? $message :  'Hello Dear ' . $user_res[0]['username'] . 'Order status updated to' . $_POST['val'] . ' for order ID #' . $order_items[0]['order_id'] . ' please take note of it! Thank you. Regards ' . $app_name . '';
                     $fcmMsg = array(
                         'title' => (!empty($custom_notification)) ? $custom_notification[0]['title'] : "Order status updated",

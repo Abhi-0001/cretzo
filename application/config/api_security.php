@@ -61,3 +61,93 @@ $config['allow_api_withdrawal_requests'] = true;
 | it as an `api_token` POST field on this endpoint, then set this to TRUE.
 */
 $config['allow_customer_api_withdrawal_requests'] = false;
+
+/*
+|--------------------------------------------------------------------------
+| Public token generation
+|--------------------------------------------------------------------------
+|
+| Allow the unauthenticated generate_token() endpoints:
+|
+|   GET  /app/v1/api/generate_token
+|   GET  /seller/app/v1/api/generate_token
+|   GET  /admin/app/v1/api/generate_token
+|   GET  /delivery_boy/app/v1/api/generate_token
+|   GET  /app/v1/chat_api/generate_token
+|   GET  /seller/app/v1/chat_api/generate_token
+|
+| These required NOTHING - no session, no existing key, no rate limit - and returned
+| a JWT signed with the JWT_SECRET_KEY constant. That constant was hardcoded in the
+| git-tracked application/config/constants.php, so it is public.
+|
+| Whether that made this a full API bypass hinges on one question, which has to be
+| answered against the production database:
+|
+|     SELECT id, name, status FROM client_api_keys
+|      WHERE secret = '<the old JWT literal from git history>';
+|
+| verify_token() accepts a JWT if it validates against ANY active row in that table.
+| If the published constant is one of those secrets, then generate_token() was
+| minting valid API credentials for anybody who requested the URL. If it is not, the
+| endpoint was issuing tokens that verify_token() would have rejected anyway - inert,
+| but still no reason to keep.
+|
+| Defaults to FALSE either way. A released mobile app carries its own key and does
+| not call this; the endpoint is a development convenience. Leaving it off is the
+| safe failure: a caller gets 404 rather than a credential.
+|
+| TO RE-ENABLE (only if a shipped app build turns out to depend on it): set this to
+| true AND set a fresh JWT_SECRET_KEY environment variable AND rotate the affected
+| client_api_keys row, because the old secret is published.
+*/
+$config['allow_public_token_generation'] = false;
+
+/*
+|--------------------------------------------------------------------------
+| Per-user identity on the customer mobile API
+|--------------------------------------------------------------------------
+|
+| THE PROBLEM. verify_token() proves that a legitimate build of the app is calling.
+| It proves nothing about WHO is calling: the app key is shared by every install and
+| can be extracted from the APK. Every endpoint then reads the user_id it acts on
+| from the POST body.
+|
+| So one extracted key was enough to read and modify ANY customer's orders,
+| addresses, cart, favourites, notifications, support tickets and transaction
+| history, and to place orders on their account. That is ~100 reads of
+| $_POST['user_id'] across app/v1/Api.php, none of them verified. The two withdrawal
+| endpoints were fixed in an earlier pass (see the flags above); nothing else was.
+|
+| THE FIX. A per-user token already exists and is already issued: users.apikey,
+| returned as `api_token` in the login response. Api::require_user_identity() now
+| guards the 33 endpoints that act on one named user, and compares that token against
+| the user_id in the request with hash_equals().
+|
+| WHY THIS FLAG. The fix needs the CLIENT to cooperate - the app must store
+| `api_token` at login and send it on every later request - and released builds do
+| not. Enforcing before an app release ships would take the mobile app offline for
+| every existing user.
+|
+| So the three states are:
+|
+|   flag FALSE (default)  A call WITH a valid token proceeds.
+|                         A call with a WRONG token is refused - that is never a
+|                         legacy client.
+|                         A call with NO token is LOGGED and allowed.
+|
+|   flag TRUE             A call with no token is refused as well.
+|
+| HOW TO KNOW WHEN TO FLIP IT. In the default state every tokenless call writes a
+| line to application/logs beginning:
+|
+|     require_user_identity: LEGACY CALL - no api_token sent for user_id ...
+|
+| Ship the app update, then watch that line. When it stops appearing for a few days,
+| every live client is sending a token and this can be set to true with no outage. If
+| it never stops, the log names the endpoint and the user, which tells you which build
+| is still out there.
+|
+| Do not leave this false indefinitely. Until it is true, the hole is open - the
+| logging makes it visible, not closed.
+*/
+$config['enforce_api_user_identity'] = false;

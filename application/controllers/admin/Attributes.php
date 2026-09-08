@@ -11,8 +11,7 @@ class Attributes extends CI_Controller
 		$this->load->helper(['url', 'language', 'timezone_helper']);
 		$this->load->model('attribute_model');
 		if (!has_permissions('read', 'attribute')) {
-			$this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-			redirect('admin/home', 'refresh');
+			deny_panel_access();
 		}
 	}
 

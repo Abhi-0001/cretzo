@@ -186,7 +186,7 @@ class Orders extends CI_Controller
                         $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
                         $hashtag = html_entity_decode($string);
                         $data = str_replace(array($hashtag_cutomer_name, $hashtag_order_id, $hashtag_application_name), array($user_res[0]['username'], $order_item_res[0]['order_id'], $app_name), $hashtag);
-                        $message = output_escaping(trim($data, '"'));
+                        $message = unslash(trim($data, '"'));
                         $customer_msg = (!empty($custom_notification)) ? $message :  'Hello Dear ' . $user_res[0]['username'] . 'Order status updated to' . $_GET['status'] . ' for your order ID #' . $order_item_res[0]['order_id'] . ' please take note of it! Thank you for shopping with us. Regards ' . $app_name . '';
 
                         if (!empty($user_res[0]['fcm_id'])) {
@@ -252,7 +252,7 @@ class Orders extends CI_Controller
                         $string = json_encode($custom_notification[0]['message'], JSON_UNESCAPED_UNICODE);
                         $hashtag = html_entity_decode($string);
                         $data = str_replace(array($hashtag_cutomer_name, $hashtag_order_id, $hashtag_application_name), array($user_res[0]['username'], $order_item_res[0]['order_id'], $app_name), $hashtag);
-                        $message = output_escaping(trim($data, '"'));
+                        $message = unslash(trim($data, '"'));
                         $customer_msg = (!empty($custom_notification)) ? $message :  'Hello Dear ' . $user_res[0]['username'] . 'Order status updated to' . $_GET['status'] . ' for your order ID #' . $order_item_res[0]['order_id'] . ' please take note of it! Thank you for shopping with us. Regards ' . $app_name . '';
 
                         if (!empty($user_res[0]['fcm_id'])) {

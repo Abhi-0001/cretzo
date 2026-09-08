@@ -13,8 +13,7 @@ class Delivery_boys extends CI_Controller
         $this->load->helper(['url', 'language', 'file']);
         $this->load->model('Delivery_boy_model');
         if (!has_permissions('read', 'delivery_boy')) {
-            $this->session->set_flashdata('authorize_flag', PERMISSION_ERROR_MSG);
-            redirect('admin/home', 'refresh');
+            deny_panel_access();
         }
     }
 
