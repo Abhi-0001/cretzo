@@ -11,11 +11,12 @@
  * nightly run, including the caps and the never-negative-wallet rule.
  */
 $status = $this->input->get('status', true);
-$status = in_array($status, ['queue', 'pending', 'credited', 'reversed', 'rejected', 'all'], true) ? $status : 'queue';
+$status = in_array($status, ['queue', 'pending', 'approved', 'credited', 'reversed', 'rejected', 'all'], true) ? $status : 'queue';
 
 $tabs = [
     'queue'    => 'Needs review',
     'pending'  => 'Pending',
+    'approved' => 'Approved',
     'credited' => 'Paid',
     'reversed' => 'Reversed',
     'rejected' => 'Rejected',

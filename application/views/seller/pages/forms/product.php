@@ -488,15 +488,15 @@
                                                             ?>
                                                                 <div id="general_price_section">
                                                                     <div class="form-group">
-                                                                        <label for="type" class="col-md-2">Price:</label>
+                                                                        <label for="type" class="col-md-2">MRP (list price): <span class="text-danger">*</span></label>
                                                                         <div class="col-md-12">
                                                                             <input type="number" name="simple_price" class="form-control stock-simple-mustfill-field price" value="<?= $simple_variant['price'] ?? '' ?>" min='0' step="0.01">
                                                                         </div>
                                                                     </div>
                                                                     <div class="form-group">
-                                                                        <label for="type" class="col-md-2">Special Price:</label>
+                                                                        <label for="type" class="col-md-2">Your Price (selling price): <span class="text-danger">*</span></label>
                                                                         <div class="col-md-12">
-                                                                            <input type="number" name="simple_special_price" class="form-control  discounted_price" value="<?= !empty($simple_variant['special_price']) ? $simple_variant['special_price'] : '' ?>" min='0' step="0.01">
+                                                                            <input type="number" name="simple_special_price" class="form-control discounted_price stock-simple-mustfill-field" value="<?= !empty($simple_variant['special_price']) ? $simple_variant['special_price'] : '' ?>" min='0' step="0.01">
                                                                         </div>
                                                                     </div>
                                                                     <div class="form-group row mt-3 <?= $product_details[0]['type'] == "digital_product" ? 'd-none' : '' ?>" id="product-dimensions">
@@ -715,15 +715,15 @@
                                                                     <div id="product-general-settings">
                                                                         <div id="general_price_section" class="collapse">
                                                                             <div class="form-group">
-                                                                                <label for="type" class="col-md-2">Price:</label>
+                                                                                <label for="type" class="col-md-2">MRP (list price): <span class="text-danger">*</span></label>
                                                                                 <div class="col-md-12">
                                                                                     <input type="number" name="simple_price" class="form-control stock-simple-mustfill-field price" min='0' step="0.01">
                                                                                 </div>
                                                                             </div>
                                                                             <div class="form-group">
-                                                                                <label for="type" class="col-md-2">Special Price:</label>
+                                                                                <label for="type" class="col-md-2">Your Price (selling price): <span class="text-danger">*</span></label>
                                                                                 <div class="col-md-12">
-                                                                                    <input type="number" name="simple_special_price" class="form-control discounted_price" min='0' step="0.01">
+                                                                                    <input type="number" name="simple_special_price" class="form-control discounted_price stock-simple-mustfill-field" min='0' step="0.01">
                                                                                 </div>
                                                                             </div>
                                                                             <div class="form-group row mt-3" id="product-dimensions">

@@ -1,0 +1,201 @@
+/* ==========================================================================
+   Seller > Pickup Locations
+   --------------------------------------------------------------------------
+   Scoped under .czpl so nothing reaches AdminLTE / Bootstrap 4. Same tokens
+   and orange as the seller profile (czp) and price calculator (czpc) pages.
+
+   Layout: form card on top, saved-locations card below. Form fields run 4-up
+   on desktop, 2-up on tablet, 1-up on phones. Under 768px the bootstrap-table
+   rows are re-flowed into stacked cards (each cell labelled from its column
+   header by the page script) instead of a table that scrolls sideways.
+   ========================================================================== */
+
+.czpl {
+  --czpl-orange: #F2822E;
+  --czpl-orange-dark: #d96f1d;
+  --czpl-orange-soft: #fff4ea;
+  --czpl-ink: #23282e;
+  --czpl-ink-soft: #5c6570;
+  --czpl-muted: #8a939e;
+  --czpl-line: #e4e8ed;
+  --czpl-line-strong: #cfd6de;
+  --czpl-red: #d92d20;
+  --czpl-green: #17794a;
+  --czpl-radius: 12px;
+  --czpl-shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 8px 24px rgba(16, 24, 40, .06);
+
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: .25rem 0 3rem;
+  color: var(--czpl-ink);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.czpl *, .czpl *::before, .czpl *::after { box-sizing: border-box; }
+
+/* ---- Header ------------------------------------------------------------ */
+.czpl-head { margin-bottom: 1.1rem; }
+.czpl-head h1 { font-size: 1.4rem; font-weight: 700; margin: 0 0 .25rem; letter-spacing: -.01em; }
+.czpl-head p { margin: 0; color: var(--czpl-ink-soft); font-size: 13.5px; max-width: 64ch; }
+
+/* ---- Cards ------------------------------------------------------------- */
+.czpl-card {
+  background: #fff;
+  border: 1px solid var(--czpl-line);
+  border-radius: var(--czpl-radius);
+  box-shadow: var(--czpl-shadow);
+  margin-bottom: 1.25rem;
+  overflow: hidden;
+}
+.czpl-card-head {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: .9rem 1.25rem;
+  border-bottom: 1px solid var(--czpl-line);
+}
+.czpl-card-head h2 { font-size: 1.02rem; font-weight: 700; margin: 0; }
+.czpl-card-head .czpl-ico {
+  width: 34px; height: 34px; flex: none;
+  display: grid; place-items: center;
+  border-radius: 9px;
+  background: var(--czpl-orange-soft);
+  color: var(--czpl-orange-dark);
+}
+.czpl-card-body { padding: 1.25rem; }
+
+/* ---- Form -------------------------------------------------------------- */
+.czpl-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem 1rem; }
+.czpl-span-2 { grid-column: span 2; }
+.czpl-span-4 { grid-column: 1 / -1; }
+.czpl-field { min-width: 0; }
+.czpl-label { display: block; margin: 0 0 .3rem; font-size: 12.5px; font-weight: 600; color: var(--czpl-ink-soft); }
+.czpl-label .req { color: var(--czpl-red); }
+
+.czpl .czpl-input {
+  display: block;
+  width: 100%;
+  min-height: 42px;
+  padding: .55rem .8rem;
+  font-size: 14px;
+  color: var(--czpl-ink);
+  background: #fff;
+  border: 1px solid var(--czpl-line-strong);
+  border-radius: 9px;
+  box-shadow: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.czpl textarea.czpl-input { min-height: 84px; resize: vertical; }
+.czpl .czpl-input::placeholder { color: var(--czpl-muted); }
+.czpl .czpl-input:focus {
+  outline: 0;
+  border-color: var(--czpl-orange);
+  box-shadow: 0 0 0 3px rgba(242, 130, 46, .18);
+}
+.czpl-hint { margin: .3rem 0 0; font-size: 12px; color: var(--czpl-muted); }
+
+.czpl-actions {
+  display: flex; flex-wrap: wrap; gap: .6rem;
+  margin-top: 1.25rem; padding-top: 1.1rem;
+  border-top: 1px solid var(--czpl-line);
+}
+.czpl-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
+  min-height: 42px; padding: .55rem 1.3rem;
+  font-size: 14px; font-weight: 600; line-height: 1;
+  border: 1px solid transparent; border-radius: 9px;
+  cursor: pointer; transition: background .15s, border-color .15s;
+}
+.czpl-btn:disabled { opacity: .65; cursor: not-allowed; }
+.czpl-btn-primary { background: var(--czpl-orange); color: #fff; }
+.czpl-btn-primary:hover:not(:disabled) { background: var(--czpl-orange-dark); }
+.czpl-btn-ghost { background: #fff; color: var(--czpl-ink-soft); border-color: var(--czpl-line-strong); }
+.czpl-btn-ghost:hover { background: #f6f8fa; color: var(--czpl-ink); text-decoration: none; }
+
+/* ---- Table (desktop) --------------------------------------------------- */
+.czpl-table-wrap { padding: .75rem 1.25rem 1.25rem; }
+.czpl .fixed-table-toolbar { margin-bottom: .5rem; }
+.czpl .fixed-table-toolbar .search input { min-height: 38px; border-radius: 9px; border: 1px solid var(--czpl-line-strong); }
+.czpl .fixed-table-toolbar .btn { border-radius: 9px; }
+.czpl .fixed-table-container { border: 1px solid var(--czpl-line); border-radius: 10px; }
+.czpl #pickup_locations_table { margin: 0; }
+.czpl #pickup_locations_table thead th {
+  background: #f7f9fb; color: var(--czpl-ink-soft);
+  font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
+  border-bottom: 1px solid var(--czpl-line); white-space: nowrap;
+}
+.czpl #pickup_locations_table td {
+  vertical-align: middle; font-size: 13.5px;
+  max-width: 240px; overflow-wrap: anywhere;
+}
+.czpl #pickup_locations_table td:last-child { max-width: none; white-space: nowrap; }
+.czpl #pickup_locations_table td .btn { border-radius: 8px; }
+.czpl .fixed-table-pagination { padding-top: .5rem; }
+
+/* ---- Tablet ------------------------------------------------------------ */
+@media (max-width: 991.98px) {
+  .czpl-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .czpl-span-2 { grid-column: span 2; }
+}
+
+/* ---- Phone ------------------------------------------------------------- */
+@media (max-width: 767.98px) {
+  .czpl { font-size: 14px; padding-bottom: 2rem; }
+  .czpl-head h1 { font-size: 1.2rem; }
+  .czpl-card-head, .czpl-card-body { padding-left: 1rem; padding-right: 1rem; }
+  .czpl-table-wrap { padding: .5rem .75rem 1rem; }
+
+  .czpl-grid { grid-template-columns: 1fr; }
+  .czpl-span-2, .czpl-span-4 { grid-column: 1 / -1; }
+  /* 16px stops iOS zooming the page when an input is focused. */
+  .czpl .czpl-input { font-size: 16px; }
+
+  .czpl-actions { flex-direction: column-reverse; }
+  .czpl-actions .czpl-btn { width: 100%; }
+
+  /* Toolbar: search takes a full row, the icon buttons sit under it. */
+  .czpl .fixed-table-toolbar .search,
+  .czpl .fixed-table-toolbar .columns { float: none; width: 100%; margin: 0 0 .5rem; }
+  .czpl .fixed-table-toolbar .search input { width: 100%; }
+  .czpl .fixed-table-toolbar .columns { display: flex; justify-content: flex-end; gap: .4rem; }
+
+  /* Rows become cards. */
+  .czpl .fixed-table-container { border: 0; }
+  .czpl .fixed-table-body { overflow: visible; }
+  .czpl #pickup_locations_table,
+  .czpl #pickup_locations_table tbody,
+  .czpl #pickup_locations_table tr,
+  .czpl #pickup_locations_table td { display: block; width: 100%; }
+  .czpl #pickup_locations_table thead { display: none; }
+  .czpl #pickup_locations_table tbody tr {
+    background: #fff;
+    border: 1px solid var(--czpl-line);
+    border-radius: 10px;
+    box-shadow: var(--czpl-shadow);
+    margin-bottom: .8rem;
+    padding: .35rem .9rem;
+  }
+  .czpl #pickup_locations_table td {
+    display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;
+    max-width: none; padding: .5rem 0;
+    border: 0; border-bottom: 1px dashed var(--czpl-line);
+    text-align: right; overflow-wrap: anywhere;
+  }
+  .czpl #pickup_locations_table td::before {
+    content: attr(data-label);
+    flex: none; max-width: 40%;
+    font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
+    color: var(--czpl-muted); text-align: left;
+  }
+  .czpl #pickup_locations_table td:last-child {
+    border-bottom: 0; padding-top: .7rem;
+    justify-content: flex-end; flex-wrap: wrap; white-space: normal;
+  }
+  .czpl #pickup_locations_table td:last-child::before { display: none; }
+  .czpl #pickup_locations_table td .btn { min-width: 40px; min-height: 36px; }
+  .czpl .fixed-table-pagination { display: flex; flex-direction: column; align-items: center; gap: .5rem; }
+  .czpl .fixed-table-pagination .pull-left,
+  .czpl .fixed-table-pagination .pull-right,
+  .czpl .fixed-table-pagination .float-left,
+  .czpl .fixed-table-pagination .float-right { float: none !important; }
+}

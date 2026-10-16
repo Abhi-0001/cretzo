@@ -120,6 +120,12 @@ class Referral_model extends CI_Model
              * has to decide about - flagged money that has not been paid. */
             if ($status === 'queue') {
                 $builder->where('rw.status', 'pending')->where('rw.flagged', 1);
+            } elseif ($status === 'approved') {
+                /* An admin-approved reward stays status=pending until the order
+                 * hold ends and the engine pays it; reviewed_by marks the approval. */
+                $builder->where('rw.status', 'pending')->where('rw.reviewed_by IS NOT NULL', null, false);
+            } elseif ($status === 'pending') {
+                $builder->where('rw.status', 'pending')->where('rw.reviewed_by IS NULL', null, false);
             } elseif (!empty($status) && $status !== 'all') {
                 $builder->where('rw.status', $status);
             }

@@ -36,6 +36,58 @@
   if (!form) return;
 
   /* ======================================================================
+     Draft: restore what the seller had typed last time
+     ======================================================================
+     Runs BEFORE every widget below is wired, on purpose: the bank combo, the
+     category pills and the entity / GST toggles all read their control's value
+     once at start-up, so putting the draft into the controls first means they
+     build themselves from it with no extra syncing. Files are never part of a
+     draft - a browser cannot hand a chosen file back to a reloaded page. */
+
+  var DRAFT = (CFG.draft && CFG.draft.data) ? CFG.draft : null;
+  var draftRestored = false;
+
+  // The entity toggle is a name-less checkbox; it is saved under its id.
+  function draftKey(el) {
+    return el.name || (el.id === 'entity_check' ? 'entity_check' : '');
+  }
+
+  function draftControls() {
+    var csrfName = window.CSRF ? window.CSRF.name() : 'ekart_security_token';
+    return Array.prototype.slice.call(form.elements).filter(function (el) {
+      var key = draftKey(el);
+      if (!key || /^old_/.test(key) || key === csrfName) return false;
+      return ['file', 'password', 'button', 'submit', 'reset'].indexOf(el.type) === -1;
+    });
+  }
+
+  function collectDraft() {
+    var out = {};
+    draftControls().forEach(function (el) {
+      var key = draftKey(el);
+      if (el.type === 'radio') { if (el.checked) out[key] = el.value; return; }
+      if (el.type === 'checkbox') { out[key] = el.checked ? (el.value || '1') : ''; return; }
+      out[key] = el.value;
+    });
+    return out;
+  }
+
+  if (DRAFT) {
+    draftControls().forEach(function (el) {
+      var key = draftKey(el);
+      if (!Object.prototype.hasOwnProperty.call(DRAFT.data, key)) return;
+      var v = String(DRAFT.data[key]);
+      if (el.type === 'radio') el.checked = (el.value === v);
+      else if (el.type === 'checkbox') el.checked = (v !== '');
+      else if (el.tagName === 'SELECT') {
+        for (var i = 0; i < el.options.length; i++) if (el.options[i].value === v) { el.value = v; break; }
+      }
+      else el.value = v;
+      if (v !== '') draftRestored = true;
+    });
+  }
+
+  /* ======================================================================
      Constants shared with the server
      ====================================================================== */
 
@@ -301,18 +353,56 @@
     var imagesOnly = wrap.hasAttribute('data-czp-file-images');
     var allowed = imagesOnly ? ['jpg', 'jpeg', 'png', 'gif'] : ALLOWED_EXT;
     if (allowed.indexOf(ext) === -1) {
-      return label + (imagesOnly
-        ? ' must be a JPG, JPEG, PNG or GIF image'
-        : ' must be a JPG, JPEG, PNG, GIF or PDF file');
+      return label + ': "' + f.name + '" is not an accepted file type. ' + (imagesOnly
+        ? 'Please upload a JPG, JPEG, PNG or GIF image.'
+        : 'Please upload a JPG, JPEG, PNG, GIF or PDF file.');
     }
     if (f.size === 0) {
-      return 'That file is empty. Please choose another one.';
+      return label + ': "' + f.name + '" is empty. Please choose another file.';
     }
     if (f.size > MAX_FILE_KB * 1024) {
-      return label + ' must be under ' + MAX_FILE_KB / 1000 + ' MB (this one is ' +
-        (f.size / (1024 * 1024)).toFixed(1) + ' MB)';
+      return label + ': "' + f.name + '" is too large (' + (f.size / (1024 * 1024)).toFixed(1) +
+        ' MB). The limit is ' + MAX_FILE_KB / 1000 + ' MB per file.';
     }
     return '';
+  }
+
+  /**
+   * Reads the first bytes of a chosen file and names what it REALLY is. The extension alone is
+   * not enough: a phone photo saved as WEBP/HEIC and renamed to .jpg passes the extension check
+   * but the server (which checks the content) rejects it - and only at final submit.
+   * Resolves to '' when the content is acceptable, else a message for the seller.
+   */
+  function sniffFile(wrap, f) {
+    return new Promise(function (resolve) {
+      var label = wrap.getAttribute('data-czp-file-label') || 'file';
+      var imagesOnly = wrap.hasAttribute('data-czp-file-images');
+      var reader = new FileReader();
+      reader.onerror = function () { resolve(''); }; // cannot read it here: let the server decide
+      reader.onload = function (ev) {
+        var a = new Uint8Array(ev.target.result);
+        var ascii = function (from, to) {
+          var s = '';
+          for (var i = from; i < to && i < a.length; i++) s += String.fromCharCode(a[i]);
+          return s;
+        };
+        var kind = '';
+        if (a[0] === 0xFF && a[1] === 0xD8 && a[2] === 0xFF) kind = 'jpg';
+        else if (ascii(1, 4) === 'PNG' && a[0] === 0x89) kind = 'png';
+        else if (ascii(0, 4) === 'GIF8') kind = 'gif';
+        else if (ascii(0, 4) === '%PDF') kind = 'pdf';
+        else if (ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP') kind = 'WEBP';
+        else if (ascii(4, 8) === 'ftyp') kind = 'HEIC/HEIF';
+        else if (ascii(0, 2) === 'BM') kind = 'BMP';
+        else if (ascii(0, 4) === 'II*\x00' || ascii(0, 4) === 'MM\x00*') kind = 'TIFF';
+        var ok = imagesOnly ? ['jpg', 'png', 'gif'] : ['jpg', 'png', 'gif', 'pdf'];
+        if (ok.indexOf(kind) !== -1) return resolve('');
+        resolve(label + ': "' + f.name + '" is ' + (kind ? 'really a ' + kind + ' file' : 'not a valid image') +
+          ' that was only renamed to .' + ((f.name.split('.').pop() || '').toLowerCase()) +
+          '. Please save or export it as a ' + (imagesOnly ? 'JPG, PNG or GIF image.' : 'JPG, PNG, GIF image or PDF.'));
+      };
+      reader.readAsArrayBuffer(f.slice(0, 16));
+    });
   }
 
   /**
@@ -593,14 +683,19 @@
       if (!f) return;
       // Validate the moment the file is picked. The seller finds out here, on
       // this step, with the picker still fresh in mind - not four steps later.
+      var input = this;
       var message = validateFile(wrap);
-      setFieldError(wrap, message);
-      if (message) {
-        this.value = '';
+      var reject = function (msg) {
+        setFieldError(wrap, msg);
+        input.value = '';
         if (p.box) p.box.hidden = true;
-        return;
-      }
-      showChosen(wrap, f);
+        toast('error', msg);
+      };
+      if (message) return reject(message);
+      sniffFile(wrap, f).then(function (bad) {
+        if (bad) return reject(bad);
+        showChosen(wrap, f);
+      });
     });
 
     // Drag and drop onto the picker.
@@ -651,9 +746,16 @@
       var f = this.files && this.files[0];
       var wrap = fieldWrap(this);
       if (!f) return;
+      var input = this;
       var message = validateFile(wrap);
-      setFieldError(wrap, message);
-      if (message) { this.value = ''; return; }
+      if (message) { setFieldError(wrap, message); input.value = ''; toast('error', message); return; }
+      sniffFile(wrap, f).then(function (bad) {
+        if (bad) { setFieldError(wrap, bad); input.value = ''; toast('error', bad); return; }
+        setFieldError(wrap, '');
+        showAvatar(f);
+      });
+    });
+    function showAvatar(f) {
       if (!/^image\//.test(f.type)) return; // a PDF is allowed but cannot be previewed
       var reader = new FileReader();
       reader.onload = function (ev) {
@@ -666,7 +768,7 @@
         if (icon) icon.setAttribute('hidden', 'hidden');
       };
       reader.readAsDataURL(f);
-    });
+    }
   });
 
   /* ======================================================================
@@ -1156,53 +1258,186 @@
     }
     refreshRail();
 
+    // The final save replaces the draft; a late auto-save must not recreate it.
+    draftOn = false;
+    clearTimeout(draftTimer);
+
+    var payload = new FormData(form);
+
+    // The server drops the WHOLE request when the combined size of every field
+    // and file passes post_max_size - and then answers with a bare 403 that names
+    // nothing. The per-file 8 MB limit cannot see this, because eleven valid
+    // documents can add up past it. Say so before uploading anything.
+    var totalBytes = 0;
+    $$('input[type="file"]', form).forEach(function (f) {
+      if (f.files && f.files[0]) totalBytes += f.files[0].size;
+    });
+    if (CFG.maxPostBytes && totalBytes > CFG.maxPostBytes * 0.95) {
+      draftOn = !!CFG.draftUrl;
+      toast('error', 'The documents you attached add up to ' + (totalBytes / 1048576).toFixed(1) +
+        ' MB, over the ' + Math.floor(CFG.maxPostBytes / 1048576) + ' MB the server accepts in one save. ' +
+        'Please use smaller files or compress the images.');
+      return;
+    }
+
     submitBtn.disabled = true;
     var original = submitBtn.textContent;
     submitBtn.textContent = 'Submitting...';
 
-    fetch(CFG.saveUrl, { method: 'POST', body: new FormData(form) })
-      .then(function (res) {
-        return res.text().then(function (text) {
-          try { return JSON.parse(text.replace(/<!--[\s\S]*?-->/g, '').trim()); }
-          catch (err) {
-            console.error('Profile save returned non-JSON:', text);
-            throw new Error('Invalid JSON response');
-          }
-        });
-      })
-      .then(function (data) {
-        submitBtn.disabled = false;
-        submitBtn.textContent = original;
+    function reset() {
+      submitBtn.disabled = false;
+      submitBtn.textContent = original;
+      draftOn = !!CFG.draftUrl;
+    }
 
-        if (data.error === false) {
-          toast('success', data.message || 'Profile saved.');
-          // A save that did NOT go for verification says why, which is worth
-          // reading before the redirect takes the page away.
-          var wait = (data.verification_filed === false && data.message) ? 4000 : 1800;
-          setTimeout(function () { window.location.href = CFG.homeUrl; }, wait);
-          return;
-        }
+    // PHP notices / deprecations (display_errors on) are printed ahead of the
+    // JSON, which used to make a SUCCESSFUL save look like a failure. The
+    // response is always one JSON object, so read from its first "{"error"".
+    function parseReply(text) {
+      var clean = String(text).replace(/<!--[\s\S]*?-->/g, '').trim();
+      try { return JSON.parse(clean); } catch (e) { /* fall through */ }
+      var at = clean.indexOf('{"error"');
+      if (at !== -1) { try { return JSON.parse(clean.slice(at)); } catch (e2) { /* fall through */ } }
+      return null;
+    }
 
-        routeServerError(data.message);
-        toast('error', String(data.message || 'Could not save your profile.').replace(/<[^>]*>/g, ' ').trim());
-      })
-      .catch(function (err) {
-        submitBtn.disabled = false;
-        submitBtn.textContent = original;
-        toast('error', 'Something went wrong. Please try again.');
-        console.error('Profile save failed:', err);
-      });
+    function failMessage(status) {
+      if (status === 0) return 'Could not reach the server. Check your internet connection and try again.';
+      if (status === 403) return 'Your session expired or the upload was too large. Reload the page and try again.';
+      if (status === 413) return 'The files you attached are too large. Please use smaller files.';
+      if (status === 408 || status === 504 || status === 524) return 'The server took too long to respond. Please try again.';
+      if (status >= 500) return 'The server had a problem saving your profile. Please try again in a moment.';
+      return 'Something went wrong. Please try again.';
+    }
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', CFG.saveUrl, true);
+    // Without a ceiling a stalled connection (or a proxy that never answers)
+    // leaves the button on "Submitting..." for good.
+    xhr.timeout = 180000;
+
+    // Uploading several documents takes a while on a slow line; showing the
+    // percentage is what tells the seller it is working and not frozen.
+    if (xhr.upload) xhr.upload.onprogress = function (e) {
+      if (!e.lengthComputable || !totalBytes) return;
+      var pct = Math.min(100, Math.round((e.loaded / e.total) * 100));
+      submitBtn.textContent = pct < 100 ? 'Uploading... ' + pct + '%' : 'Saving...';
+    };
+
+    xhr.onload = function () {
+      var data = parseReply(xhr.responseText);
+      if (!data) {
+        console.error('Profile save returned non-JSON (HTTP ' + xhr.status + '):', xhr.responseText);
+        reset();
+        toast('error', failMessage(xhr.status));
+        return;
+      }
+
+      if (data.error === false) {
+        // Stay disabled until the redirect: re-enabling here let a second click
+        // submit the whole profile again during the pause.
+        submitBtn.textContent = 'Saved';
+        toast('success', data.message || 'Profile saved.');
+        // A save that did NOT go for verification says why, which is worth
+        // reading before the redirect takes the page away.
+        var wait = (data.verification_filed === false && data.message) ? 4000 : 1800;
+        setTimeout(function () { window.location.href = CFG.homeUrl; }, wait);
+        return;
+      }
+
+      reset();
+      routeServerError(data.message);
+      toast('error', String(data.message || 'Could not save your profile.').replace(/<[^>]*>/g, ' ').trim());
+    };
+    xhr.onerror = function () { reset(); toast('error', failMessage(0)); };
+    xhr.ontimeout = function () {
+      reset();
+      toast('error', 'This is taking too long. Your details may have saved - reload the page to check, or try again with smaller files.');
+    };
+    xhr.send(payload);
   });
 
   /* ======================================================================
      Boot
      ====================================================================== */
 
+  // Resume where the seller left off - unless the link names a section on purpose
+  // (the review checklist's "Fill this in" links do), which always wins.
+  var wantedStep = CFG.initialSection;
+  if (!CFG.sectionExplicit && DRAFT && DRAFT.step) wantedStep = DRAFT.step;
   var startIndex = 0;
   for (var s = 0; s < steps.length; s++) {
-    if (steps[s].key === CFG.initialSection) { startIndex = s; break; }
+    if (steps[s].key === wantedStep) { startIndex = s; break; }
   }
   // No scroll on load - the seller is already at the top, and a deep link
   // (?section=account) should not yank the page while it is still rendering.
   showStep(startIndex, { scroll: false });
+
+  /* ======================================================================
+     Draft: auto-save while the seller types
+     ====================================================================== */
+
+  var draftOn = !!CFG.draftUrl;
+  var draftTimer = null;
+  var lastSent = steps[current].key + JSON.stringify(collectDraft());
+  var statusEl = null;
+  var statusTimer = null;
+
+  function draftStatus(text, kind) {
+    if (!statusEl) {
+      statusEl = document.createElement('div');
+      statusEl.setAttribute('role', 'status');
+      document.body.appendChild(statusEl);
+    }
+    statusEl.textContent = text;
+    statusEl.className = 'czp-draft-status is-shown' + (kind ? ' is-' + kind : '');
+    clearTimeout(statusTimer);
+    statusTimer = setTimeout(function () { statusEl.className = 'czp-draft-status'; }, 2500);
+  }
+
+  function saveDraft(opts) {
+    opts = opts || {};
+    clearTimeout(draftTimer);
+    if (!draftOn) return;
+    var payload = JSON.stringify(collectDraft());
+    var stepKey = steps[current].key;
+    var signature = stepKey + payload;
+    if (signature === lastSent) return;
+    var body = new FormData();
+    body.append('step', stepKey);
+    body.append('draft', payload);
+    fetch(CFG.draftUrl, { method: 'POST', body: body, keepalive: !!opts.unloading })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data && data.error === false) {
+          lastSent = signature;
+          if (!opts.unloading) draftStatus('Draft saved', 'ok');
+        } else if (!opts.unloading) {
+          draftStatus('Could not save draft', 'error');
+        }
+      })
+      .catch(function () { if (!opts.unloading) draftStatus('Could not save draft', 'error'); });
+  }
+
+  function scheduleDraft() {
+    if (!draftOn) return;
+    clearTimeout(draftTimer);
+    draftTimer = setTimeout(saveDraft, 1200);
+  }
+
+  form.addEventListener('input', scheduleDraft);
+  form.addEventListener('change', scheduleDraft);
+  // Moving between steps is progress too, even if nothing was typed on the way.
+  document.addEventListener('click', function (e) {
+    if (e.target.closest && e.target.closest('[data-czp-next],[data-czp-back],[data-czp-goto]')) {
+      setTimeout(saveDraft, 50);
+    }
+  });
+  // Reload / tab close / app switch: flush whatever is still waiting on the timer.
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden') saveDraft({ unloading: true });
+  });
+  window.addEventListener('pagehide', function () { saveDraft({ unloading: true }); });
+
+  if (draftRestored) toast('success', 'Welcome back - we restored your unsaved details. Re-attach any documents you had chosen.');
 })();

@@ -587,7 +587,7 @@
 
     <div id="description" class="text-n des">
         <?php if ($has_description) { ?>
-            <?= $product['product'][0]['description'] ?>
+            <?= strip_stray_rn_lines($product['product'][0]['description']) ?>
         <?php } else { ?>
             <p class="op-6">No description available for this product.</p>
         <?php } ?>
@@ -596,7 +596,7 @@
 
     <div id="information" class="text-n des d-none">
         <?php if ($has_extra_description) { ?>
-            <?= $product['product'][0]['extra_description'] ?>
+            <?= strip_stray_rn_lines($product['product'][0]['extra_description']) ?>
         <?php } else { ?>
             <p class="op-6">No additional information available for this product.</p>
         <?php } ?>

@@ -298,6 +298,8 @@ class Home extends CI_Controller
             $this->data['title'] = 'Seller Profile | ' . $settings['app_name'];
             $this->data['meta_description'] = 'Seller Profile | ' . $settings['app_name'];
             $this->data['current_profile_section'] = $this->input->get('section', true) ?? 'personal';
+            $this->data['profile_section_explicit'] = (string) $this->input->get('section', true) !== '';
+            $this->data['profile_draft'] = seller_profile_draft_get($user_id);
             // Drives the review step's checklist: the seller sees exactly what is still
             // missing, since saving a complete profile is what sends it to the admin.
             $this->data['profile_missing_sections'] = seller_profile_incomplete_sections($user_id);

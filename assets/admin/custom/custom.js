@@ -478,10 +478,10 @@ function create_variants(preproccessed_permutation_result = false, from) {
 
                     html += '<div class="form-group row">' +
                         '<div class="col col-xs-12 mt-3">' +
-                        '<label class="control-label">Price :</label>' +
+                        '<label class="control-label">MRP (list price) :</label>' +
                         '<input type="number" name="variant_price[]" class="col form-control price varaint-must-fill-field" min="0" step="0.01"></div>' +
-                        '<div class="col col-xs-12 mt-3"><label class="control-label">Special Price :</label>' +
-                        '<input type="number" name="variant_special_price[]" class="col form-control discounted_price" min="0" step="0.01"></div>' +
+                        '<div class="col col-xs-12 mt-3"><label class="control-label">Your Price (selling price) :</label>' +
+                        '<input type="number" name="variant_special_price[]" class="col form-control discounted_price varaint-must-fill-field" min="0" step="0.01"></div>' +
                         '<div class="col col-xs-12 mt-3"> <label class="control-label">SKU :</label> <input type="text" name="variant_sku[]" class="col form-control varaint-must-fill-field"></div>' +
                         '<div class="col col-xs-12 mt-3"> <label class="control-label">Total Stock :</label> <input type="number" min = "1" name="variant_total_stock[]" class="col form-control varaint-must-fill-field"></div>' +
                         '<div class="col col-xs-12 mt-3"> <label class="control-label">Stock Status :</label>' +
@@ -511,10 +511,10 @@ function create_variants(preproccessed_permutation_result = false, from) {
                 } else {
 
                     html += '<div class="form-group row">' +
-                        '<div class="col col-xs-12 mt-3"><label class="control-label">Price :</label>' +
+                        '<div class="col col-xs-12 mt-3"><label class="control-label">MRP (list price) :</label>' +
                         '<input type="number" name="variant_price[]" class="col form-control price varaint-must-fill-field" min="0" step="0.01"></div>' +
-                        '<div class="col col-xs-12 mt-3"><label class="control-label">Special Price :</label>' +
-                        '<input type="number" name="variant_special_price[]" class="col form-control discounted_price" min="0" step="0.01"></div></div>' +
+                        '<div class="col col-xs-12 mt-3"><label class="control-label">Your Price (selling price) :</label>' +
+                        '<input type="number" name="variant_special_price[]" class="col form-control discounted_price varaint-must-fill-field" min="0" step="0.01"></div></div>' +
                         '<div class="form-group row mt-3" id="product-dimensions">' +
                         '<div class="col-6">' +
                         '<label for="weight" class="control-label col-md-12"><small>(These are the product parcel"s dimentions.)</small ></label > ' +
@@ -548,6 +548,10 @@ function create_variants(preproccessed_permutation_result = false, from) {
                 $('#variants_process').html(html);
             } else {
                 $('#variants_process').append(html);
+            }
+            // Pre-fill the new rows from the General tab's price / weight / dimensions.
+            if (typeof window.applyVariantDefaults === 'function') {
+                window.applyVariantDefaults();
             }
             $('#variants_process').unblock();
         }
@@ -889,10 +893,10 @@ function create_editable_variants(data, newly_selected_attr = false, add_newly_c
 
                 var selected = (b.availability == '0') ? 'selected' : ' ';
                 html += '<div class="form-group row">' +
-                    '<div class="col col-xs-12"><label class="control-label">Price :</label>' +
+                    '<div class="col col-xs-12"><label class="control-label">MRP (list price) :</label>' +
                     '<input type="number" name="variant_price[]" class="col form-control price varaint-must-fill-field" value="' + b.price + '" min="0" step="0.01"></div>' +
-                    '<div class="col col-xs-12"><label class="control-label">Special Price :</label>' +
-                    '<input type="number" name="variant_special_price[]" class="col form-control discounted_price" min="0" value="' + b.special_price + '" step="0.01"></div>' +
+                    '<div class="col col-xs-12"><label class="control-label">Your Price (selling price) :</label>' +
+                    '<input type="number" name="variant_special_price[]" class="col form-control discounted_price varaint-must-fill-field" min="0" value="' + b.special_price + '" step="0.01"></div>' +
                     '<div class="col col-xs-12"> <label class="control-label">Sku :</label> ' +
                     '<input type="text" name="variant_sku[]" class="col form-control varaint-must-fill-field"  value="' + b.sku + '" ></div>' +
                     '<div class="col col-xs-12"> <label class="control-label">Total Stock :</label> ' +
@@ -933,10 +937,10 @@ function create_editable_variants(data, newly_selected_attr = false, add_newly_c
             } else {
 
                 html += '<div class="form-group row">' +
-                    '<div class="col col-xs-12"><label class="control-label">Price :</label>' +
+                    '<div class="col col-xs-12"><label class="control-label">MRP (list price) :</label>' +
                     '<input type="number" name="variant_price[]" class="col form-control price varaint-must-fill-field" value="' + b.price + '" min="0" step="0.01"></div>' +
-                    '<div class="col col-xs-12"><label class="control-label">Special Price :</label>' +
-                    '<input type="number" name="variant_special_price[]" class="col form-control discounted_price"  min="0" value="' + b.special_price + '" step="0.01"></div></div>' +
+                    '<div class="col col-xs-12"><label class="control-label">Your Price (selling price) :</label>' +
+                    '<input type="number" name="variant_special_price[]" class="col form-control discounted_price varaint-must-fill-field"  min="0" value="' + b.special_price + '" step="0.01"></div></div>' +
                     '<div class="form-group row mt-3" id="product-dimensions">' +
                     '<div class="col-6">' +
                     '<label for="weight" class="control-label col-md-12"><small>(These are the product parcel"s dimentions.)</small ></label > ' +
@@ -2384,9 +2388,14 @@ $(document).on('click', '.delete-product', function () {
         preConfirm: function () {
             return new Promise((resolve, reject) => {
                 $.ajax({
-                    type: 'GET',
+                    // admin/product/delete_product is POST-only (CSRF); the seller controller
+                    // still reads $_GET['id'], so only the admin call is switched.
+                    type: from === 'admin' ? 'POST' : 'GET',
                     url: base_url + from + '/product/delete_product',
-                    data: {
+                    data: from === 'admin' ? {
+                        id: id,
+                        [csrfName]: csrfHash
+                    } : {
                         id: id
                     },
                     dataType: 'json'
@@ -2878,10 +2887,10 @@ $(document).on('click', '.reset-settings', function (e) {
                 '<option value=" ">Select Type</option><option value="simple_product">Simple Product</option>' +
                 '<option value="digital_product">Digital Product</option><option value="variable_product">Variable Product</option> </select></div></div>' +
                 '<div id="product-general-settings"><div id="general_price_section" class="collapse"><div class="form-group"> ' +
-                '<label for="type" class="col-md-2">Price:</label>' +
+                '<label for="type" class="col-md-2">MRP (list price):</label>' +
                 '<div class="col-md-12"> <input type="number" name="simple_price" class="form-control stock-simple-mustfill-field price" min="0" step="0.01"></div></div>' +
-                '<div class="form-group"> <label for="type" class="col-md-2">Special Price:</label><div class="col-md-12">' +
-                ' <input type="number" name="simple_special_price" class="form-control discounted_price" min="0"></div></div>' +
+                '<div class="form-group"> <label for="type" class="col-md-2">Your Price (selling price):</label><div class="col-md-12">' +
+                ' <input type="number" name="simple_special_price" class="form-control discounted_price stock-simple-mustfill-field" min="0" step="0.01"></div></div>' +
                 '<div class="form-group simple_stock_management"><div class="col"> ' +
                 '<input type="checkbox" name="simple_stock_management_status" class="align-middle simple_stock_management_status">' +
                 ' <span class="align-middle">Enable Stock Management</span></div></div></div>' +
@@ -2959,8 +2968,9 @@ $(document).on('click', '.save-settings', function (e) {
             $('input[name="simple_product_stock_status"]').val('');
         }
         $('#product-type').prop('disabled', true);
-        $('.product-attributes').removeClass('disabled');
-        $('.product-variants').removeClass('disabled');
+        // Saving a SIMPLE product's settings used to unlock the Attributes / Variations tabs,
+        // which do nothing for a product with a single price. They stay hidden now (see the
+        // "Add-product type UI" block at the end of this file).
         $('.simple_stock_management_status').prop('disabled', true);
         setTimeout(function () {
             $('.additional-info').unblock();
@@ -9817,3 +9827,128 @@ $(document).ready(function () {
 
 });
 
+
+/* ---------------------------------------------------------------------------
+   Add-product type UI (seller + admin "Add Product" form)
+
+   - Simple product: Attributes / Variations do nothing for a single-price product, so the
+     tabs stay hidden (they used to unlock after "Save Settings").
+   - Variable product: Attributes and Variations unlock the moment the type is chosen - no
+     "Save Settings" round trip. The stock-management hidden fields that button used to set
+     are kept in step on every change instead.
+   - Variable product price / special price / weight / dimensions on the General tab are
+     defaults for the variations. The server never reads them for a variable product (it
+     takes variant_price[], weight[] ... per variation), so they now pre-fill every variation
+     row, and a variation the seller edits by hand stops following them.
+   Only runs on the add form: its Attributes tab carries the .product-attributes class, the
+   edit form's does not.
+   --------------------------------------------------------------------------- */
+(function () {
+    var DEFAULTS = [
+        ['simple_price', 'variant_price[]'],
+        ['simple_special_price', 'variant_special_price[]'],
+        ['weight', 'weight[]'],
+        ['height', 'height[]'],
+        ['breadth', 'breadth[]'],
+        ['length', 'length[]']
+    ];
+
+    function isAddForm() {
+        return $('#tab-for-attributes').hasClass('product-attributes');
+    }
+
+    function outer(name) {
+        return $('#general_price_section [name="' + name + '"]');
+    }
+
+    function syncVariantStockHidden() {
+        if ($.trim($('#product-type').val()) !== 'variable_product') return;
+        var level = $.trim($('#stock_level_type').val());
+        var on = $('.variant_stock_status').is(':checked') && level !== '';
+        $('input[name="variant_stock_status"]').val(on ? '0' : '');
+        $('input[name="variant_stock_level_type"]').val(on ? level : '');
+    }
+
+    window.applyVariantDefaults = function () {
+        if (!isAddForm() || $.trim($('#product-type').val()) !== 'variable_product') return;
+        $.each(DEFAULTS, function (i, pair) {
+            var value = outer(pair[0]).val();
+            $('#variants_process [name="' + pair[1] + '"]').each(function () {
+                if (!$(this).data('czManual')) $(this).val(value);
+            });
+        });
+    };
+
+    function applyTypeUi() {
+        if (!isAddForm()) return;
+        var type = $.trim($('#product-type').val());
+        if (type === 'digital_product') return; // digital products keep their own handling
+        var $attr = $('#tab-for-attributes');
+        var $vari = $('#tab-for-variations');
+        var $hint = $('#variable-defaults-hint');
+
+        if (!$hint.length) {
+            $hint = $('<small id="variable-defaults-hint" class="form-text text-muted px-3 mb-2 d-none">' +
+                'Optional - these fill in every variation below. You can still change any single variation under Variations.</small>');
+            $('#general_price_section').prepend($hint);
+        }
+
+        if (type === 'variable_product') {
+            $('input[name="product_type"]').val(type);
+            $('#general_price_section').show();
+            $('.simple_stock_management').addClass('d-none');
+            $('.simple_stock_management_status').prop('checked', false);
+            $('.simple-product-level-stock-management, .simple-product-save').hide();
+            $('#general_price_section .text-danger').hide();
+            $hint.removeClass('d-none');
+            // The "Save Settings" step is gone for variable products.
+            $('#variant_stock_level .save-variant-general-settings').closest('.form-group').addClass('d-none');
+            $attr.removeClass('disabled d-none');
+            $vari.removeClass('disabled d-none');
+            syncVariantStockHidden();
+            window.applyVariantDefaults();
+        } else {
+            $hint.addClass('d-none');
+            $('#general_price_section .text-danger').show();
+            $('.simple_stock_management').removeClass('d-none');
+            var wasHidden = $attr.hasClass('d-none');
+            $attr.addClass('disabled d-none');
+            $vari.addClass('disabled d-none');
+            if (!wasHidden) {
+                // Came back from variable: drop what was built for it.
+                $('#attributes_process .product-attr-selectbox').remove();
+                $('#variants_process').empty();
+                $('.no-attributes-added').show();
+                $('#save_attributes').addClass('d-none');
+                attributes_values = [];
+                attributes_values_selected = [];
+                variant_values_selected = [];
+                $('#product-tab a[href="#general-settings"]').tab('show');
+            }
+        }
+    }
+
+    $(function () { applyTypeUi(); }); // add form opens with no type: hide the locked Attributes tab
+
+    // Bound last, so it overrides the earlier type handlers' disabled/enabled tab state.
+    $(document).on('change select2:select', '#product-type', function () {
+        setTimeout(applyTypeUi, 0);
+    });
+
+    $(document).on('change', '.variant_stock_status, #stock_level_type, .variant-stock-level-type', function () {
+        setTimeout(syncVariantStockHidden, 0);
+    });
+
+    $(document).on('input change', '#general_price_section [name="simple_price"], #general_price_section [name="simple_special_price"], ' +
+        '#general_price_section [name="weight"], #general_price_section [name="height"], ' +
+        '#general_price_section [name="breadth"], #general_price_section [name="length"]', function () {
+        window.applyVariantDefaults();
+    });
+
+    // A variation the seller has typed into no longer follows the General tab.
+    $(document).on('input', '#variants_process input[name="variant_price[]"], #variants_process input[name="variant_special_price[]"], ' +
+        '#variants_process input[name="weight[]"], #variants_process input[name="height[]"], ' +
+        '#variants_process input[name="breadth[]"], #variants_process input[name="length[]"]', function () {
+        $(this).data('czManual', true);
+    });
+})();

@@ -219,6 +219,82 @@ class Pickup_location_model extends CI_Model
     }
 
     /**
+     * Mirrors the pickup address a seller gave on their profile into `pickup_locations`, so it
+     * shows up under Pickup Addresses without being typed a second time.
+     *
+     * The profile stored it only on seller_data.pickup_*, a table nothing else reads for
+     * shipping, so the Pickup Addresses list stayed empty and the seller had to enter the same
+     * address again. The row is found by its fixed nickname ("Primary-<seller id>"), so a later
+     * profile edit updates the same row instead of adding another. An address the seller already
+     * entered by hand (same pincode and address line) is left alone.
+     *
+     * @param  int   $seller_id
+     * @param  array $profile   raw seller_data fields (pickup_*, first_name, last_name, email, phone, shop_phone)
+     * @return array|null same shape as add_pickup_location(), or null when nothing needed doing
+     */
+    public function sync_primary_from_profile($seller_id, array $profile)
+    {
+        $seller_id = (int) $seller_id;
+        $address = trim((string) ($profile['pickup_address1'] ?? ''));
+        $city    = trim((string) ($profile['pickup_city'] ?? ''));
+        $state   = trim((string) ($profile['pickup_state'] ?? ''));
+        $pin     = trim((string) ($profile['pickup_pin'] ?? ''));
+        $phone   = trim((string) (!empty($profile['shop_phone']) ? $profile['shop_phone'] : ($profile['phone'] ?? '')));
+        $email   = trim((string) ($profile['email'] ?? ''));
+        $name    = trim(($profile['first_name'] ?? '') . ' ' . ($profile['last_name'] ?? ''));
+
+        // An incomplete profile is saved as a draft of sorts; only a usable address is mirrored.
+        if ($seller_id <= 0 || $address === '' || $city === '' || $state === '' || $pin === '' || $phone === '' || $email === '' || $name === '') {
+            return null;
+        }
+
+        $nickname = 'Primary-' . $seller_id;
+        $address2 = trim((string) ($profile['pickup_address2'] ?? ''));
+
+        $primary = $this->db->select('id, address, address_2, city, state, pin_code, phone, name, email')
+            ->where(['seller_id' => $seller_id, 'pickup_location' => $nickname])
+            ->get('pickup_locations')->row_array();
+
+        $data = [
+            'seller_id'       => $seller_id,
+            'pickup_location' => $nickname,
+            'name'            => $name,
+            'email'           => $email,
+            'phone'           => $phone,
+            'address'         => $address,
+            'address2'        => $address2,
+            'city'            => $city,
+            'state'           => $state,
+            'country'         => 'India',
+            'pincode'         => $pin,
+        ];
+
+        if (!empty($primary)) {
+            $unchanged = (string) $primary['address'] === $address
+                && (string) $primary['address_2'] === $address2
+                && (string) $primary['city'] === $city
+                && (string) $primary['state'] === $state
+                && (string) $primary['pin_code'] === $pin
+                && (string) $primary['phone'] === $phone
+                && (string) $primary['name'] === $name
+                && (string) $primary['email'] === $email;
+            if ($unchanged) {
+                return null;
+            }
+            $data['edit_pickup_location'] = $primary['id'];
+            return $this->add_pickup_location($data);
+        }
+
+        $already_entered = $this->db->where(['seller_id' => $seller_id, 'pin_code' => $pin, 'address' => $address])
+            ->count_all_results('pickup_locations');
+        if ($already_entered > 0) {
+            return null;
+        }
+
+        return $this->add_pickup_location($data);
+    }
+
+    /**
      * Deletes a seller's own pickup location, scoped by (id, seller_id) so one seller cannot
      * delete another's row by guessing an id.
      *

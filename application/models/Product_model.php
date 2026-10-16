@@ -100,8 +100,8 @@ class Product_model extends CI_Model
         $made_in = (isset($data['made_in'])) ? $data['made_in'] : null;
         $brand = (isset($data['brand'])) ? $data['brand'] : null;
         $indicator = (isset($data['indicator'])) ? $data['indicator'] : null;
-        $description = $data['pro_input_description'];
-        $extra_description = $data['extra_input_description'];
+        $description = strip_stray_rn_lines($data['pro_input_description']);
+        $extra_description = strip_stray_rn_lines($data['extra_input_description']);
         $tags = (!empty($data['tags'])) ? $data['tags'] : "";
         // create_unique_slug() must be told which row we're editing, otherwise it finds THIS
         // product's own existing slug, treats it as a collision and mints "name-1", "name-2",

@@ -970,7 +970,10 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
         $order = null;
         $t->db->order_by("p.rating", "desc");
         $t->db->order_by("p.no_of_ratings", "desc");
-        $where = ['p.no_of_ratings > ' => 0];
+        // Adds to $where. It was ASSIGNED, which threw away everything built above it - the
+        // seller filter (so one seller's top-rated product showed on every seller's page), the
+        // category and slug filters, and the active/visible-listing conditions.
+        $where['p.no_of_ratings > '] = 0;
     }
 
 
@@ -5954,6 +5957,27 @@ function is_modification_allowed($module)
     }
     return true;
 }
+/**
+ * Removes the stray "rn" lines that show up in product descriptions.
+ *
+ * Text pasted into the description editor carried a literal "\r\n" line break; one pass of
+ * backslash stripping turned each of those into the two letters "rn", which then rendered as
+ * their own line between every paragraph. A genuine "rn" is only ever INSIDE a word, so a run of
+ * "rn" that sits alone on a line / in its own tag is safe to drop. Also drops the empty <p></p>
+ * left behind.
+ *
+ * @param  string $html
+ * @return string
+ */
+function strip_stray_rn_lines($html)
+{
+    if (!is_string($html) || strpos($html, 'rn') === false) {
+        return $html;
+    }
+    $html = preg_replace('~(?<=^|>|\n|\x5cn)(?:rn)+(?=$|<|\r|\n|\x5cr|\x5cn)~', '', $html);
+    return preg_replace('~<p>\s*</p>~i', '', $html);
+}
+
 /**
  * ============================================================================
  *  WARNING: THIS FUNCTION DOES NOT ESCAPE ANYTHING. THE NAME IS A LIE.
@@ -13924,4 +13948,69 @@ function resolve_stored_mobile($typed, $group = '')
     $row = $t->db->get()->row_array();
 
     return empty($row['mobile']) ? null : $row['mobile'];
+}
+
+/**
+ * Auto-saved draft of the seller profile form (table seller_profile_drafts,
+ * migration 084). Returns ['step' => string, 'data' => array] or null.
+ */
+function seller_profile_draft_get($user_id)
+{
+    $t = &get_instance();
+    if (!$t->db->table_exists('seller_profile_drafts')) {
+        return null;
+    }
+    $row = $t->db->get_where('seller_profile_drafts', ['user_id' => (int) $user_id])->row_array();
+    if (empty($row)) {
+        return null;
+    }
+    $data = json_decode($row['data'], true);
+    if (!is_array($data) || !$data) {
+        return null;
+    }
+    return ['step' => $row['step'], 'data' => $data];
+}
+
+/**
+ * Store a draft. Only plain text answers are kept: keys must look like a form
+ * field name, values are capped, and file/CSRF/old_* bookkeeping inputs are
+ * dropped, so a hand-crafted request cannot park arbitrary data here.
+ * Returns the number of fields stored.
+ */
+function seller_profile_draft_save($user_id, $step, $fields)
+{
+    $t = &get_instance();
+    if (!is_array($fields) || !$t->db->table_exists('seller_profile_drafts')) {
+        return 0;
+    }
+    $clean = [];
+    foreach ($fields as $key => $value) {
+        if (!is_string($key) || !preg_match('/^[a-z][a-z0-9_]{0,63}$/', $key)) {
+            continue;
+        }
+        if (strpos($key, 'old_') === 0 || !is_scalar($value)) {
+            continue;
+        }
+        $clean[$key] = mb_substr((string) $value, 0, 2000);
+        if (count($clean) >= 120) {
+            break;
+        }
+    }
+    if (!in_array($step, ['personal', 'store', 'business', 'account', 'admin'], true)) {
+        $step = 'personal';
+    }
+    $t->db->query(
+        'INSERT INTO seller_profile_drafts (user_id, step, data) VALUES (?, ?, ?)
+         ON DUPLICATE KEY UPDATE step = VALUES(step), data = VALUES(data)',
+        [(int) $user_id, $step, json_encode($clean, JSON_UNESCAPED_UNICODE)]
+    );
+    return count($clean);
+}
+
+function seller_profile_draft_delete($user_id)
+{
+    $t = &get_instance();
+    if ($t->db->table_exists('seller_profile_drafts')) {
+        $t->db->delete('seller_profile_drafts', ['user_id' => (int) $user_id]);
+    }
 }

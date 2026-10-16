@@ -1,32 +1,9 @@
-<style>
-    /* Address/Address2 held long, comma-heavy text that wrapped onto several lines and made
-       every row of this table tall. Truncating to one line with an ellipsis keeps rows compact;
-       the title attribute (set in the post-body handler below) still surfaces the full text
-       on hover. */
-    #pickup_locations_table td,
-    #pickup_locations_table th {
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        max-width: 220px;
-    }
-
-    /* bootstrap-table doesn't put data-field on rendered <td>s, only on the <th> definitions -
-       Actions is always the last column, so target it positionally instead. */
-    #pickup_locations_table td:last-child {
-        overflow: visible;
-        max-width: none;
-    }
-</style>
+<link rel="stylesheet" href="<?= base_url('assets/seller/css/cretzo/pickup-location.css') ?>?v=<?= @filemtime(FCPATH . 'assets/seller/css/cretzo/pickup-location.css') ?: time() ?>">
 <div class="content-wrapper">
-    <!-- Content Header (Page header) -->
-    <!-- Main content -->
     <section class="content-header">
         <div class="container-fluid">
             <div class="row mb-2">
-                <div class="col-sm-6">
-                    <h4>Manage Pickup Location</h4>
-                </div>
+                <div class="col-sm-6"><h4>Pickup Locations</h4></div>
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">
                         <li class="breadcrumb-item"><a href="<?= base_url('seller/home') ?>">Home</a></li>
@@ -34,141 +11,117 @@
                     </ol>
                 </div>
             </div>
-        </div><!-- /.container-fluid -->
+        </div>
     </section>
     <section class="content">
         <div class="container-fluid">
-            <div class="row">
-                <div class="col-md-12">
-                    <div class="card card-info">
-                        <!-- form start -->
-                        <form class="form-horizontal form-submit-event" action="<?= base_url('seller/pickup_location/add_pickup_location'); ?>" method="POST" id="add_pickup_location_form" enctype="multipart/form-data">
-                            <?php
-                            if (isset($fetched_data[0]['id'])) {
-                            ?>
-                                <input type="hidden" id="edit_pickup_location" name="edit_pickup_location" value="<?= @$fetched_data[0]['id'] ?>">
-                                <input type="hidden" id="update_id" name="update_id" value="1">
-                            <?php
-                            }
-                            ?>
-
-                            <div class="card-body">
-                                <div class="form-group row">
-                                    <div class="col-3">
-                                        <label for="area_name" class="control-label col-md-12">Pickup Location <span class='text-danger text-xs'>*</span></label>
-                                        <input type="text" class="form-control" name="pickup_location" placeholder="The nickname of the new pickup location. Max 36 characters." id="pickup_location" value="<?= (isset($fetched_data[0]['pickup_location']) ? $fetched_data[0]['pickup_location'] : '') ?>">
-                                    </div>
-
-                                    <div class="col-3">
-                                        <label for="area_name" class="control-label col-md-12">Name <span class='text-danger text-xs'>*</span></label>
-                                        <input type="text" class="form-control" name="name" placeholder="The shipper's name." id="name" value="<?= (isset($fetched_data[0]['name']) ? $fetched_data[0]['name'] : '') ?>">
-                                    </div>
-
-                                    <div class="col-3">
-                                        <label for="area_name" class="control-label col-md-12">Email <span class='text-danger text-xs'>*</span></label>
-                                        <input type="text" class="form-control" name="email" placeholder="The shipper's email address." id="email" value="<?= (isset($fetched_data[0]['email']) ? $fetched_data[0]['email'] : '') ?>">
-                                    </div>
-
-                                    <div class="col-3">
-                                        <label for="area_name" class="control-label col-md-12">Phone <span class='text-danger text-xs'>*</span></label>
-                                        <input type="text" class="form-control" name="phone" placeholder="Shipper's phone number." id="phone" value="<?= (isset($fetched_data[0]['phone']) ? $fetched_data[0]['phone'] : '') ?>">
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <div class="col-3">
-                                        <label for="area_name" class="control-label col-md-12">City <span class='text-danger text-xs'>*</span></label>
-                                        <input type="text" class="form-control" name="city" placeholder="Pickup location city name." id="city" value="<?= (isset($fetched_data[0]['city']) ? $fetched_data[0]['city'] : '') ?>">
-                                    </div>
-
-                                    <div class="col-3">
-                                        <label for="area_name" class="control-label col-md-12">State <span class='text-danger text-xs'>*</span></label>
-                                        <input type="text" class="form-control" name="state" placeholder="Pickup location state name." id="state" value="<?= (isset($fetched_data[0]['state']) ? $fetched_data[0]['state'] : '') ?>">
-                                    </div>
-
-                                    <div class="col-3">
-                                        <label for="area_name" class="control-label col-md-12">Country <span class='text-danger text-xs'>*</span></label>
-                                        <input type="text" class="form-control" name="country" placeholder="Pickup location country." id="country" value="<?= (isset($fetched_data[0]['country']) ? $fetched_data[0]['country'] : '') ?>">
-                                    </div>
-
-                                    <div class="col-3">
-                                        <label for="area_name" class="control-label col-md-12">Pincode <span class='text-danger text-xs'>*</span></label>
-                                        <input type="text" class="form-control" name="pincode" placeholder="Pickup location pincode." id="pincode" value="<?= (isset($fetched_data[0]['pin_code']) ? $fetched_data[0]['pin_code'] : '') ?>">
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <div class="col-6">
-                                        <label for="area_name" class="control-label col-md-12">Address <span class='text-danger text-xs'>*</span></label>
-                                        <textarea class="form-control" name="address" placeholder="Shipper's primary address. Max 80 characters." id="address" value="<?= (isset($fetched_data[0]['address']) ? $fetched_data[0]['address'] : '') ?>"><?= (isset($fetched_data[0]['address']) ? $fetched_data[0]['address'] : '') ?></textarea>
-                                        <small class="form-text text-muted">Must include a house/flat/shop no. and road/street name (e.g. "12, Jamia Nagar Road") - Shiprocket rejects addresses without one.</small>
-                                    </div>
-
-                                    <div class="col-6">
-                                        <label for="area_name" class="control-label col-md-12">Address 2 </label>
-                                        <textarea class="form-control" name="address2" placeholder="Additional address details." id="address2" value="<?= (isset($fetched_data[0]['address_2']) ? $fetched_data[0]['address_2'] : '') ?>"><?= (isset($fetched_data[0]['address_2']) ? $fetched_data[0]['address_2'] : '') ?></textarea>
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <div class="col-6">
-                                        <label for="area_name" class="control-label col-md-12">Latitude</span></label>
-                                        <input type="text" class="form-control" name="latitude" placeholder="Pickup location Latitude." id="latitude" value="<?= (isset($fetched_data[0]['latitude']) ? $fetched_data[0]['latitude'] : '') ?>">
-                                    </div>
-
-                                    <div class="col-6">
-                                        <label for="area_name" class="control-label col-md-12">Longitude</span></label>
-                                        <input type="text" class="form-control" name="longitude" placeholder="Pickup location Longitude." id="longitude" value="<?= (isset($fetched_data[0]['longitude']) ? $fetched_data[0]['longitude'] : '') ?>">
-                                    </div>
-                                </div>
-                                <div class="form-group row"></div>
-                                <div class="form-group row">
-                                    <div class="col-6">
-                                        <button type="reset" class="btn btn-warning">Reset</button>
-                                        <button type="submit" class="btn btn-success" id="submit_btn"><?= (isset($fetched_data[0]['id'])) ? 'Update Pickup Location' : 'Add Pickup Location' ?></button>
-                                    </div>
-                                </div>
-                                <div class="d-flex justify-content-center">
-                                    <div class="form-group d-none" id="error_box"></div>
-                                </div>
-                            </div><!-- /.card-body -->
-                        </form>
-                    </div><!--/.card-->
+            <div class="czpl">
+                <div class="czpl-head">
+                    <h1>Manage Pickup Locations</h1>
+                    <p>Warehouses and shops where couriers collect your orders. Add one here, then verify it on Shiprocket.</p>
                 </div>
 
-            <div class="col-md-12 main-content">
-                <div class="card content-area p-4">
-                    <div class="card-head">
-                        <h4 class="card-title">Pickup Location Details</h4>
+                <div class="czpl-card">
+                    <div class="czpl-card-head">
+                        <span class="czpl-ico"><i class="fa fa-map-marker-alt"></i></span>
+                        <h2><?= isset($fetched_data[0]['id']) ? 'Edit Pickup Location' : 'Add Pickup Location' ?></h2>
                     </div>
-                    <div class="card-innr">
-                        <div class="gaps-1-5x"></div>
-                     
-                        <table id="pickup_locations_table" class='table-striped' data-toggle="table" data-url="<?= base_url('seller/pickup_location/view_pickup_location') ?>" data-click-to-select="true" data-side-pagination="server" data-pagination="true" data-page-list="[5, 10, 20, 50, 100, 200]" data-search="true" data-show-columns="true" data-show-refresh="true" data-trim-on-search="false" data-sort-name="id" data-sort-order="asc" data-mobile-responsive="true" data-toolbar="" data-show-export="true" data-export-types='["txt","excel"]' data-export-options='{
-                        "fileName": "area-list",
-                        "ignoreColumn": ["operate"] 
-                        }' data-maintain-selected="true" data-query-params="queryParams">
+                    <form class="form-submit-event" action="<?= base_url('seller/pickup_location/add_pickup_location'); ?>" method="POST" id="add_pickup_location_form" enctype="multipart/form-data">
+                        <?php if (isset($fetched_data[0]['id'])) { ?>
+                            <input type="hidden" id="edit_pickup_location" name="edit_pickup_location" value="<?= (int) $fetched_data[0]['id'] ?>">
+                            <input type="hidden" id="update_id" name="update_id" value="1">
+                        <?php } ?>
+                        <div class="czpl-card-body">
+                            <div class="czpl-grid">
+                                <div class="czpl-field ">
+                                    <label class="czpl-label" for="pickup_location">Pickup Location <span class="req">*</span></label>
+                                    <input type="text" class="czpl-input" name="pickup_location" id="pickup_location" placeholder="Nickname, max 36 characters" value="<?= (isset($fetched_data[0]['pickup_location']) ? htmlspecialchars($fetched_data[0]['pickup_location']) : '') ?>">
+                                </div>
+                                <div class="czpl-field ">
+                                    <label class="czpl-label" for="name">Name <span class="req">*</span></label>
+                                    <input type="text" class="czpl-input" name="name" id="name" placeholder="Shipper's name" value="<?= (isset($fetched_data[0]['name']) ? htmlspecialchars($fetched_data[0]['name']) : '') ?>">
+                                </div>
+                                <div class="czpl-field ">
+                                    <label class="czpl-label" for="email">Email <span class="req">*</span></label>
+                                    <input type="text" class="czpl-input" name="email" id="email" placeholder="Shipper's email address" value="<?= (isset($fetched_data[0]['email']) ? htmlspecialchars($fetched_data[0]['email']) : '') ?>">
+                                </div>
+                                <div class="czpl-field ">
+                                    <label class="czpl-label" for="phone">Phone <span class="req">*</span></label>
+                                    <input type="text" class="czpl-input" name="phone" id="phone" placeholder="Shipper's phone number" value="<?= (isset($fetched_data[0]['phone']) ? htmlspecialchars($fetched_data[0]['phone']) : '') ?>">
+                                </div>
+                                <div class="czpl-field ">
+                                    <label class="czpl-label" for="city">City <span class="req">*</span></label>
+                                    <input type="text" class="czpl-input" name="city" id="city" placeholder="City" value="<?= (isset($fetched_data[0]['city']) ? htmlspecialchars($fetched_data[0]['city']) : '') ?>">
+                                </div>
+                                <div class="czpl-field ">
+                                    <label class="czpl-label" for="state">State <span class="req">*</span></label>
+                                    <input type="text" class="czpl-input" name="state" id="state" placeholder="State" value="<?= (isset($fetched_data[0]['state']) ? htmlspecialchars($fetched_data[0]['state']) : '') ?>">
+                                </div>
+                                <div class="czpl-field ">
+                                    <label class="czpl-label" for="country">Country <span class="req">*</span></label>
+                                    <input type="text" class="czpl-input" name="country" id="country" placeholder="Country" value="<?= (isset($fetched_data[0]['country']) ? htmlspecialchars($fetched_data[0]['country']) : '') ?>">
+                                </div>
+                                <div class="czpl-field ">
+                                    <label class="czpl-label" for="pincode">Pincode <span class="req">*</span></label>
+                                    <input type="text" class="czpl-input" name="pincode" id="pincode" placeholder="Pincode" value="<?= (isset($fetched_data[0]['pin_code']) ? htmlspecialchars($fetched_data[0]['pin_code']) : '') ?>">
+                                </div>
+                                <div class="czpl-field czpl-span-2">
+                                    <label class="czpl-label" for="address">Address <span class="req">*</span></label>
+                                    <textarea class="czpl-input" name="address" id="address" placeholder="Shipper's primary address, max 80 characters"><?= (isset($fetched_data[0]['address']) ? htmlspecialchars($fetched_data[0]['address']) : '') ?></textarea>
+                                    <p class="czpl-hint">Must include a house/flat/shop no. and road/street name (e.g. &quot;12, Jamia Nagar Road&quot;) - Shiprocket rejects addresses without one.</p>
+                                </div>
+                                <div class="czpl-field czpl-span-2">
+                                    <label class="czpl-label" for="address2">Address 2</label>
+                                    <textarea class="czpl-input" name="address2" id="address2" placeholder="Additional address details"><?= (isset($fetched_data[0]['address_2']) ? htmlspecialchars($fetched_data[0]['address_2']) : '') ?></textarea>
+                                </div>
+                                <div class="czpl-field czpl-span-2">
+                                    <label class="czpl-label" for="latitude">Latitude</label>
+                                    <input type="text" class="czpl-input" name="latitude" id="latitude" placeholder="Latitude (optional)" value="<?= (isset($fetched_data[0]['latitude']) ? htmlspecialchars($fetched_data[0]['latitude']) : '') ?>">
+                                </div>
+                                <div class="czpl-field czpl-span-2">
+                                    <label class="czpl-label" for="longitude">Longitude</label>
+                                    <input type="text" class="czpl-input" name="longitude" id="longitude" placeholder="Longitude (optional)" value="<?= (isset($fetched_data[0]['longitude']) ? htmlspecialchars($fetched_data[0]['longitude']) : '') ?>">
+                                </div>
+                            </div>
+                            <div class="czpl-actions">
+                                <button type="submit" class="czpl-btn czpl-btn-primary" id="submit_btn"><?= (isset($fetched_data[0]['id'])) ? 'Update Pickup Location' : 'Add Pickup Location' ?></button>
+                                <button type="reset" class="czpl-btn czpl-btn-ghost">Reset</button>
+                            </div>
+                            <div class="d-flex justify-content-center">
+                                <div class="form-group d-none" id="error_box"></div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="czpl-card">
+                    <div class="czpl-card-head">
+                        <span class="czpl-ico"><i class="fa fa-warehouse"></i></span>
+                        <h2>Your Pickup Locations</h2>
+                    </div>
+                    <div class="czpl-table-wrap">
+                        <table id="pickup_locations_table" data-toggle="table" data-url="<?= base_url('seller/pickup_location/view_pickup_location') ?>" data-click-to-select="true" data-side-pagination="server" data-pagination="true" data-page-list="[5, 10, 20, 50, 100, 200]" data-search="true" data-show-columns="true" data-show-refresh="true" data-trim-on-search="false" data-sort-name="id" data-sort-order="asc" data-toolbar="" data-show-export="true" data-export-types='["txt","excel"]' data-export-options='{"fileName": "pickup-locations", "ignoreColumn": ["operate"]}' data-maintain-selected="true" data-query-params="queryParams">
                             <thead>
                                 <tr>
                                     <th data-field="id" data-sortable="true">ID</th>
                                     <th data-field="seller_id" data-sortable="true" data-visible='false'>Seller ID</th>
-                                    <th data-field="pickup_location" data-sortable="true">Pickup Locations</th>
+                                    <th data-field="pickup_location" data-sortable="true">Location</th>
                                     <th data-field="name" data-sortable="true">Name</th>
-                                    <th data-field="email" data-sortable="true">Email</th>
+                                    <th data-field="email" data-sortable="true" data-visible='false'>Email</th>
                                     <th data-field="phone" data-sortable="true">Phone</th>
                                     <th data-field="address">Address</th>
-                                    <th data-field="address2">Address 2</th>
+                                    <th data-field="address2" data-visible='false'>Address 2</th>
                                     <th data-field="city" data-sortable="true">City</th>
                                     <th data-field="pin_code" data-sortable="true">Pincode</th>
                                     <th data-field="operate">Actions</th>
                                 </tr>
                             </thead>
                         </table>
-                    </div><!-- .card-innr -->
-                </div><!-- .card -->
+                    </div>
+                </div>
             </div>
         </div>
-        <!-- /.row -->
-</div><!-- /.container-fluid -->
-</section>
-<!-- /.content -->
+    </section>
 </div>
 
 <!-- Modal for verify the pickup Locations -->
@@ -195,34 +148,19 @@
 </div>
 
 <script>
-    // Every column is truncated to one line by default (see the <style> block above) to keep
-    // rows compact, but that hid the actual street address behind "..." - the one column
-    // sellers actually need to read in full. Address/Address2 are exempted here (by data-field,
-    // not column position, so this keeps working if columns are reordered) so they size to
-    // their own content instead of being clipped, while everything else stays truncated with a
-    // hover tooltip carrying the full text.
+    // Below 768px the rows render as cards (see pickup-location.css); each cell needs its
+    // column title as a data-label for the ::before caption. Read from the live <th>s so it
+    // follows the column chooser (hidden columns have no cell and no header).
     $('#pickup_locations_table').on('post-body.bs.table', function () {
         var $table = $(this);
-        var fullTextFields = ['address', 'address2'];
-
-        $table.find('thead th').each(function (index) {
-            if (fullTextFields.indexOf($(this).data('field')) === -1) {
-                return;
-            }
-            $table.find('tbody tr').each(function () {
-                $(this).find('td').eq(index).css({
-                    'overflow': 'visible',
-                    'text-overflow': 'unset',
-                    'max-width': 'none'
-                });
-            });
+        var labels = [];
+        $table.find('thead th').each(function () {
+            labels.push($.trim($(this).find('.th-inner').text()));
         });
-
-        $table.find('tbody td').each(function () {
-            var text = $(this).text().trim();
-            if (text) {
-                $(this).attr('title', text);
-            }
+        $table.find('tbody tr').each(function () {
+            $(this).find('td').each(function (i) {
+                $(this).attr('data-label', labels[i] || '');
+            });
         });
     });
 

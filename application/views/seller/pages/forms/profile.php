@@ -145,6 +145,24 @@ if (!function_exists('czp_val')) {
     }
 }
 
+if (!function_exists('czp_ini_bytes')) {
+    /** php.ini shorthand ("40M", "2G") -> bytes; 0 when unlimited/unreadable. */
+    function czp_ini_bytes($v)
+    {
+        $v = trim((string) $v);
+        if ($v === '' || $v === '0') {
+            return 0;
+        }
+        $n = (float) $v;
+        switch (strtolower(substr($v, -1))) {
+            case 'g': $n *= 1024;
+            case 'm': $n *= 1024;
+            case 'k': $n *= 1024;
+        }
+        return (int) $n;
+    }
+}
+
 $entity_type   = $d['entity_type'] ?? 'individual';
 $is_gst_reg    = isset($d['is_gst_registered']) ? (string) $d['is_gst_registered'] : '1';
 $is_non_gst    = ($is_gst_reg === '0');
@@ -645,6 +663,10 @@ $initial       = in_array(($current_profile_section ?? 'personal'), $section_key
 <script>
 window.CZP_CONFIG = {
   saveUrl: <?= json_encode(base_url('seller/login/update_user')) ?>,
+  draftUrl: <?= json_encode(base_url('seller/login/save_draft')) ?>,
+  maxPostBytes: <?= (int) czp_ini_bytes(ini_get('post_max_size')) ?>,
+  draft: <?= json_encode(!empty($profile_draft) ? $profile_draft : null) ?>,
+  sectionExplicit: <?= json_encode(!empty($profile_section_explicit)) ?>,
   checkContactUrl: <?= json_encode(base_url('seller/login/check_contact')) ?>,
   homeUrl: <?= json_encode(base_url('seller/home')) ?>,
   initialSection: <?= json_encode($initial) ?>,

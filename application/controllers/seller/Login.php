@@ -84,6 +84,25 @@ class Login extends CI_Controller
         $this->output->set_content_type('application/json')->set_output(json_encode($out));
     }
 
+    /**
+     * Auto-save for the profile form: stores the text answers typed so far and
+     * the step the seller is on, so a reload or a later visit resumes there.
+     * POST: step, draft (JSON object of field => value).
+     */
+    public function save_draft()
+    {
+        $out = ['error' => true];
+        if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller()
+            && in_array($this->ion_auth->seller_status(), [0, 1])) {
+            $fields = json_decode((string) $this->input->post('draft'), true);
+            $count = seller_profile_draft_save($this->session->userdata('user_id'), $this->input->post('step', true), $fields);
+            $out = ['error' => false, 'saved' => $count];
+        }
+        $out['csrfName'] = $this->security->get_csrf_token_name();
+        $out['csrfHash'] = $this->security->get_csrf_hash();
+        $this->output->set_content_type('application/json')->set_output(json_encode($out));
+    }
+
     public function update_user()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && ($this->ion_auth->seller_status() == 1 || $this->ion_auth->seller_status() == 0)) {
@@ -258,7 +277,7 @@ class Login extends CI_Controller
                         $new_seller_photo = $photo_data['file_name'];
                         resize_image($photo_data, FCPATH . USER_IMG_PATH);
                     } else {
-                        $seller_photo_error = $this->upload->display_errors();
+                        $seller_photo_error = $this->_upload_error('Profile photo', $this->upload->display_errors());
                     }
                 }
 
@@ -297,7 +316,7 @@ class Login extends CI_Controller
                         $_FILES['temp_image']['error'] = $logo_files['store_logo']['error'];
                         $_FILES['temp_image']['size'] = $logo_files['store_logo']['size'];
                         if (!$other_img->do_upload('temp_image')) {
-                            $store_logo_error = 'Images :' . $store_logo_error . ' ' . $other_img->display_errors();
+                            $store_logo_error = trim($store_logo_error . ' ' . $this->_upload_error('Store logo', $other_img->display_errors()));
                         } else {
                             $temp_array_logo = $other_img->data();
                             resize_review_images($temp_array_logo, FCPATH . SELLER_DOCUMENTS_PATH);
@@ -310,7 +329,7 @@ class Login extends CI_Controller
                         $_FILES['temp_image']['error'] = $logo_files['store_logo']['error'];
                         $_FILES['temp_image']['size'] = $logo_files['store_logo']['size'];
                         if (!$other_img->do_upload('temp_image')) {
-                            $store_logo_error = $other_img->display_errors();
+                            $store_logo_error = $this->_upload_error('Store logo', $other_img->display_errors());
                         }
                     }
                     //Deleting Uploaded Images if any overall error occured
@@ -358,7 +377,7 @@ class Login extends CI_Controller
                         $_FILES['temp_image']['error'] = $store_banner_files['store_banner']['error'];
                         $_FILES['temp_image']['size'] = $store_banner_files['store_banner']['size'];
                         if (!$other_img->do_upload('temp_image')) {
-                            $store_banner_error = 'Images :' . $store_banner_error . ' ' . $other_img->display_errors();
+                            $store_banner_error = trim($store_banner_error . ' ' . $this->_upload_error('Store banner', $other_img->display_errors()));
                         } else {
                             $temp_array_store_banner = $other_img->data();
                             resize_review_images($temp_array_store_banner, FCPATH . SELLER_DOCUMENTS_PATH);
@@ -371,7 +390,7 @@ class Login extends CI_Controller
                         $_FILES['temp_image']['error'] = $store_banner_files['store_banner']['error'];
                         $_FILES['temp_image']['size'] = $store_banner_files['store_banner']['size'];
                         if (!$other_img->do_upload('temp_image')) {
-                            $store_banner_error = $other_img->display_errors();
+                            $store_banner_error = $this->_upload_error('Store banner', $other_img->display_errors());
                         }
                     }
                     //Deleting Uploaded Images if any overall error occured
@@ -420,7 +439,7 @@ class Login extends CI_Controller
                         $_FILES['temp_image']['error'] = $authorized_signature_files['authorized_signature']['error'];
                         $_FILES['temp_image']['size'] = $authorized_signature_files['authorized_signature']['size'];
                         if (!$other_img->do_upload('temp_image')) {
-                            $authorized_signature_error = 'Images :' . $authorized_signature_error . ' ' . $other_img->display_errors();
+                            $authorized_signature_error = trim($authorized_signature_error . ' ' . $this->_upload_error('Authorized signature', $other_img->display_errors()));
                         } else {
                             $temp_array_authorized_signature = $other_img->data();
                             resize_review_images($temp_array_authorized_signature, FCPATH . SELLER_DOCUMENTS_PATH);
@@ -433,7 +452,7 @@ class Login extends CI_Controller
                         $_FILES['temp_image']['error'] = $authorized_signature_files['authorized_signature']['error'];
                         $_FILES['temp_image']['size'] = $authorized_signature_files['authorized_signature']['size'];
                         if (!$other_img->do_upload('temp_image')) {
-                            $authorized_signature_error = $other_img->display_errors();
+                            $authorized_signature_error = $this->_upload_error('Authorized signature', $other_img->display_errors());
                         }
                     }
                     //Deleting Uploaded Images if any overall error occured
@@ -481,7 +500,7 @@ class Login extends CI_Controller
                         $_FILES['temp_image']['error'] = $id_card_files['national_identity_card']['error'];
                         $_FILES['temp_image']['size'] = $id_card_files['national_identity_card']['size'];
                         if (!$other_img->do_upload('temp_image')) {
-                            $id_card_error = 'Images :' . $id_card_error . ' ' . $other_img->display_errors();
+                            $id_card_error = trim($id_card_error . ' ' . $this->_upload_error('National identity card', $other_img->display_errors()));
                         } else {
                             $temp_array_id_card = $other_img->data();
                             resize_review_images($temp_array_id_card, FCPATH . SELLER_DOCUMENTS_PATH);
@@ -494,7 +513,7 @@ class Login extends CI_Controller
                         $_FILES['temp_image']['error'] = $id_card_files['national_identity_card']['error'];
                         $_FILES['temp_image']['size'] = $id_card_files['national_identity_card']['size'];
                         if (!$other_img->do_upload('temp_image')) {
-                            $id_card_error = $other_img->display_errors();
+                            $id_card_error = $this->_upload_error('National identity card', $other_img->display_errors());
                         }
                     }
                     //Deleting Uploaded Images if any overall error occured
@@ -542,7 +561,7 @@ class Login extends CI_Controller
                         $_FILES['temp_image']['error'] = $proof_files['address_proof']['error'];
                         $_FILES['temp_image']['size'] = $proof_files['address_proof']['size'];
                         if (!$other_img->do_upload('temp_image')) {
-                            $proof_error = 'Images :' . $proof_error . ' ' . $other_img->display_errors();
+                            $proof_error = trim($proof_error . ' ' . $this->_upload_error('Address proof', $other_img->display_errors()));
                         } else {
                             $temp_array_proof = $other_img->data();
                             resize_review_images($temp_array_proof, FCPATH . SELLER_DOCUMENTS_PATH);
@@ -555,7 +574,7 @@ class Login extends CI_Controller
                         $_FILES['temp_image']['error'] = $proof_files['address_proof']['error'];
                         $_FILES['temp_image']['size'] = $proof_files['address_proof']['size'];
                         if (!$other_img->do_upload('temp_image')) {
-                            $proof_error = $other_img->display_errors();
+                            $proof_error = $this->_upload_error('Address proof', $other_img->display_errors());
                         }
                     }
                     //Deleting Uploaded Images if any overall error occured
@@ -751,6 +770,18 @@ class Login extends CI_Controller
                             $message = 'Profile updated successfully.';
                         }
 
+                        // The pickup address given here is the seller's primary pickup address:
+                        // mirror it into the Pickup Addresses list. A failure there (e.g. the
+                        // courier rejecting it) must not undo the profile save, but is reported.
+                        $this->load->model('Pickup_location_model');
+                        $pickup_sync = $this->Pickup_location_model->sync_primary_from_profile($user_id, $seller_data);
+                        if (!empty($pickup_sync['error'])) {
+                            $message .= ' Pickup address: ' . $pickup_sync['message'];
+                        }
+
+                        // The real save supersedes the auto-saved draft.
+                        seller_profile_draft_delete($user_id);
+
                         $this->response = [
                             'error'    => false,
                             'csrfName' => $this->security->get_csrf_token_name(),
@@ -870,6 +901,17 @@ class Login extends CI_Controller
 
     // Distinguishes "no such account" from "that account lives on another portal",
     // instead of answering both with a flat "You have not registered using this number."
+    /**
+     * Names the field in a file-upload rejection. CodeIgniter's own text ("The filetype you are
+     * attempting to upload is not allowed.") never says WHICH of the eleven uploads it is about, so
+     * a seller with one bad file had to guess. Tags are stripped: display_errors() wraps in <p>.
+     */
+    private function _upload_error($label, $raw)
+    {
+        $text = trim(strip_tags((string) $raw));
+        return $label . ': ' . $text;
+    }
+
     private function _reset_lookup_error($mobile)
     {
         $owner = classify_mobile_owner($mobile);

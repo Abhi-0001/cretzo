@@ -545,11 +545,11 @@ class Product extends CI_Controller
             // is really an increase. The seller API already enforced both of these bounds;
             // the web panel did not, so the same product was constrained differently
             // depending on where it was created.
-            $this->form_validation->set_rules('simple_price', 'Price', 'trim|required|numeric|greater_than_equal_to[0]|xss_clean');
+            $this->form_validation->set_rules('simple_price', 'MRP', 'trim|required|numeric|greater_than_equal_to[0]|xss_clean');
             $this->form_validation->set_rules(
                 'simple_special_price',
-                'Special Price',
-                'trim|numeric|greater_than_equal_to[0]|less_than_equal_to[' . (float) $this->input->post('simple_price') . ']|xss_clean'
+                'Your Price',
+                'trim|required|numeric|greater_than_equal_to[0]|less_than_equal_to[' . (float) $this->input->post('simple_price') . ']|xss_clean'
             );
     
             if (isset($_POST['simple_product_stock_status']) && in_array($_POST['simple_product_stock_status'], ['0', '1'])) {
@@ -569,15 +569,15 @@ class Product extends CI_Controller
     
                     if (isset($_POST['variant_price']) && is_array($_POST['variant_price'])) {
                         foreach ($_POST['variant_price'] as $key => $value) {
-                            $this->form_validation->set_rules('variant_price[' . $key . ']', 'Price', 'trim|required|numeric|greater_than_equal_to[0]|xss_clean');
-                            $this->form_validation->set_rules('variant_special_price[' . $key . ']', 'Special Price', 'trim|numeric|greater_than_equal_to[0]|less_than_equal_to[' . (float) $this->input->post('variant_price[' . $key . ']') . ']|xss_clean');
+                            $this->form_validation->set_rules('variant_price[' . $key . ']', 'MRP', 'trim|required|numeric|greater_than_equal_to[0]|xss_clean');
+                            $this->form_validation->set_rules('variant_special_price[' . $key . ']', 'Your Price', 'trim|required|numeric|greater_than_equal_to[0]|less_than_equal_to[' . (float) $this->input->post('variant_price[' . $key . ']') . ']|xss_clean');
                         }
                     }
                 } else {
                     if (isset($_POST['variant_price']) && is_array($_POST['variant_price'])) {
                         foreach ($_POST['variant_price'] as $key => $value) {
-                            $this->form_validation->set_rules('variant_price[' . $key . ']', 'Price', 'trim|required|numeric|greater_than_equal_to[0]|xss_clean');
-                            $this->form_validation->set_rules('variant_special_price[' . $key . ']', 'Special Price', 'trim|numeric|greater_than_equal_to[0]|less_than_equal_to[' . (float) $this->input->post('variant_price[' . $key . ']') . ']|xss_clean');
+                            $this->form_validation->set_rules('variant_price[' . $key . ']', 'MRP', 'trim|required|numeric|greater_than_equal_to[0]|xss_clean');
+                            $this->form_validation->set_rules('variant_special_price[' . $key . ']', 'Your Price', 'trim|required|numeric|greater_than_equal_to[0]|less_than_equal_to[' . (float) $this->input->post('variant_price[' . $key . ']') . ']|xss_clean');
                             $this->form_validation->set_rules('variant_sku[' . $key . ']', 'SKU', 'trim|xss_clean');
                             $this->form_validation->set_rules('variant_total_stock[' . $key . ']', 'Total Stock', 'trim|required|numeric|xss_clean');
                             $this->form_validation->set_rules('variant_level_stock_status[' . $key . ']', 'Stock Status', 'trim|required|numeric|xss_clean');
@@ -587,8 +587,8 @@ class Product extends CI_Controller
             } else {
                 if (isset($_POST['variant_price']) && is_array($_POST['variant_price'])) {
                     foreach ($_POST['variant_price'] as $key => $value) {
-                        $this->form_validation->set_rules('variant_price[' . $key . ']', 'Price', 'trim|required|numeric|greater_than_equal_to[0]|xss_clean');
-                        $this->form_validation->set_rules('variant_special_price[' . $key . ']', 'Special Price', 'trim|numeric|greater_than_equal_to[0]|less_than_equal_to[' . (float) $this->input->post('variant_price[' . $key . ']') . ']|xss_clean');
+                        $this->form_validation->set_rules('variant_price[' . $key . ']', 'MRP', 'trim|required|numeric|greater_than_equal_to[0]|xss_clean');
+                        $this->form_validation->set_rules('variant_special_price[' . $key . ']', 'Your Price', 'trim|required|numeric|greater_than_equal_to[0]|less_than_equal_to[' . (float) $this->input->post('variant_price[' . $key . ']') . ']|xss_clean');
                     }
                 }
             }
