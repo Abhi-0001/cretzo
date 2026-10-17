@@ -2535,11 +2535,18 @@ $(document).on('click', ' #add_attributes , #tab-for-variations', function (e) {
                 border: '3px solid #E7F3FE'
             }
         });
-        if (attributes_values.length > 0) {
+        // Rebuild only when the chosen attribute values changed. Rebuilding on every tab
+        // click replaced the rows and wiped the prices/stock the seller had already typed.
+        var variantSig = JSON.stringify(attributes_values);
+        var hasBuiltRows = $('#variants_process input[name="variants_ids[]"]').length > 0;
+        if (attributes_values.length > 0 && !(hasBuiltRows && window.czVariantSig === variantSig)) {
 
             $('.no-variants-added').hide();
+            window.czVariantSig = variantSig;
             create_variants(false, from);
 
+        } else {
+            $('.additional-info').unblock();
         }
         setTimeout(function () {
             $('.additional-info').unblock();
@@ -9951,4 +9958,47 @@ $(document).ready(function () {
         '#variants_process input[name="breadth[]"], #variants_process input[name="length[]"]', function () {
         $(this).data('czManual', true);
     });
+})();
+
+/* Seller product form: "Save Variations" button at the top of the Variations tab.
+   Checks every variation against what add_product() requires and opens the bad ones. */
+(function () {
+    function rows() {
+        return $('#variants_process .product-variant-selectbox').filter(function () {
+            return $(this).find('input[name="variants_ids[]"]').length > 0;
+        });
+    }
+    function num($el) {
+        var v = $.trim($el.val());
+        return v === '' || isNaN(v) ? null : parseFloat(v);
+    }
+    function ensureButton() {
+        if ($('#save_variations').length || !$('#product-variants').length) return;
+        $('#product-variants .clearfix').first().after(
+            '<div class="mb-3"><button type="button" id="save_variations" class="btn btn-primary btn-sm"><i class="fas fa-save"></i> Save Variations</button></div>');
+    }
+    $(document).on('click', '#save_variations', function () {
+        var $bad = $();
+        rows().each(function () {
+            var $r = $(this), ok = true;
+            $r.find('.is-invalid').removeClass('is-invalid');
+            var price = num($r.find('[name="variant_price[]"]'));
+            var special = num($r.find('[name="variant_special_price[]"]'));
+            var $stock = $r.find('[name="variant_total_stock[]"]');
+            function flag($f) { $f.addClass('is-invalid'); ok = false; }
+            if (price === null || price < 0) flag($r.find('[name="variant_price[]"]'));
+            if (special === null || special < 0 || (price !== null && special > price)) flag($r.find('[name="variant_special_price[]"]'));
+            if ($stock.length && num($stock) === null) flag($stock);
+            if (!ok) { $r.find('.collapse').addClass('show'); $bad = $bad.add($r); }
+        });
+        if (!rows().length) { iziToast.error({ message: 'No variations to save' }); return; }
+        if ($bad.length) {
+            iziToast.error({ message: $bad.length + ' variation(s) incomplete: fill MRP / Your Price (not above MRP) / stock' });
+            $bad[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+        }
+        iziToast.success({ message: 'Variations saved' });
+    });
+    $(document).on('input change', '#variants_process .is-invalid', function () { $(this).removeClass('is-invalid'); });
+    $(function () { ensureButton(); });
 })();

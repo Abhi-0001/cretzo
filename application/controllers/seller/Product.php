@@ -197,7 +197,10 @@ class Product extends CI_Controller
         for ($i = 0; $i < count($variant_ids); $i++) {
             for ($j = 0; $j < count($variant_ids[$i]); $j++) {
                 $k = array_search($variant_ids[$i][$j], array_column($res, 'id'));
-                $final_variant_ids[$i][$j] = $res[$k];
+                if ($k === false) {
+                    continue; // value no longer exists; skip instead of sending null to the page
+                }
+                $final_variant_ids[$i][] = $res[$k];
             }
         }
         $response['result'] = $final_variant_ids;

@@ -1116,6 +1116,78 @@
         .seller-create-product-page .product-dimensions > .col-3 { flex: 0 0 100%; max-width: 100%; }
     }
 
+    /* ---------------- Responsive: tablet / phone ---------------- */
+    .seller-create-product-page .card-body { overflow-x: hidden; }
+    .seller-create-product-page img, .seller-create-product-page .select2-container { max-width: 100%; }
+
+    @media (max-width: 991.98px) {
+        /* The 8/4 split and the col-md-4 field rows collapse to full width, so the gutters
+           inside them (nested .row.col) must not push past the card edge. */
+        .seller-create-product-page .row.col,
+        .seller-create-product-page .row.col-md-12 { margin-left: 0; margin-right: 0; padding-left: 0; padding-right: 0; }
+        .seller-create-product-page .col-md-4,
+        .seller-create-product-page .col-md-8 { margin-bottom: 8px; }
+    }
+
+    @media (max-width: 767.98px) {
+        .seller-create-product-page .content-header h1,
+        .seller-create-product-page .content-header .breadcrumb { font-size: 18px; }
+        .seller-create-product-page .content-header .breadcrumb { float: none !important; padding: 4px 0 0; }
+        .seller-create-product-page .section-header { font-size: 15px; }
+        .seller-create-product-page .form-group.col-md-12,
+        .seller-create-product-page .form-group > .col-md-12 { padding-left: 0; padding-right: 0; }
+
+        /* Tabs (General / Attributes / Variations) scroll sideways instead of wrapping. */
+        .seller-create-product-page .nav-tabs { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; white-space: nowrap; }
+        .seller-create-product-page .nav-tabs .nav-link { padding: 8px 14px; }
+        .seller-create-product-page .tab-content.p-3 { padding: 12px 0 !important; }
+        .seller-create-product-page .additional-info,
+        .seller-create-product-page .additional-info > .row { margin-left: 0; margin-right: 0; }
+        .seller-create-product-page .additional-info .row.mt-4 { padding: 0; }
+
+        /* Labels hardcoded col-md-2 sit above their input; stop them being cramped. */
+        .seller-create-product-page .tab-pane label[class*="col-md-"] { max-width: 100%; flex: 0 0 100%; }
+        .seller-create-product-page .tab-pane .form-group > .col-md-12,
+        .seller-create-product-page .tab-pane .form-group > [class*="col-md-"] { padding-left: 0; padding-right: 0; }
+
+        /* Add Attributes / Save Attributes / Reset Variants: float-right col-md-2 buttons. */
+        .seller-create-product-page .tab-pane a.btn.float-right { float: none !important; display: block; width: 100%; max-width: 100%; flex: 0 0 100%; margin: 0 0 8px !important; }
+
+        /* Attribute rows: attribute select, values select and remove button each on their own line. */
+        .seller-create-product-page .product-attr-selectbox > [class*="col-"] { flex: 0 0 100%; max-width: 100%; margin-bottom: 8px; }
+        .seller-create-product-page .product-attr-selectbox .fa-sort,
+        .seller-create-product-page .product-variant-selectbox .fa-sort { display: none; }
+
+        /* Variation rows: name pills wrap two-up, price/stock/dimension columns go full width. */
+        .seller-create-product-page .product-variant-selectbox > .col-1 { display: none; }
+        .seller-create-product-page .product-variant-selectbox > .col-2 { flex: 0 0 50%; max-width: 50%; margin-bottom: 6px; }
+        .seller-create-product-page .product-variant-selectbox > .col { flex: 0 0 100%; max-width: 100%; margin: 4px 0; }
+        .seller-create-product-page .product-variant-selectbox .form-group.row > .col { flex: 0 0 50%; max-width: 50%; }
+        .seller-create-product-page .product-variant-selectbox .form-group.row > .col-6 { flex: 0 0 100%; max-width: 100%; }
+        .seller-create-product-page .product-variant-selectbox .col-md-3 { flex: 0 0 100%; max-width: 100%; }
+
+        /* Image tiles carry m-3/m-4 margins that overflow once they are full width. */
+        .seller-create-product-page .grow.image,
+        .seller-create-product-page .media-tile,
+        .seller-create-product-page [class*="col-md-3"].shadow { margin: 0 0 14px !important; flex: 0 0 100%; max-width: 100%; }
+        .seller-create-product-page .image-upload-section { margin: 0; }
+
+        /* Packet/loose rows were indented with ml-5 mr-5. */
+        .seller-create-product-page .row.offset-md-1 { margin-left: 0 !important; margin-right: 0 !important; }
+        .seller-create-product-page .toggle-field { margin-bottom: 4px; }
+
+        /* Wide tables/previews inside the form scroll rather than stretch the page. */
+        .seller-create-product-page .table-responsive,
+        .seller-create-product-page table { display: block; overflow-x: auto; }
+    }
+
+    @media (max-width: 479.98px) {
+        .seller-create-product-page .product-variant-selectbox > .col-2,
+        .seller-create-product-page .product-variant-selectbox .form-group.row > .col { flex: 0 0 100%; max-width: 100%; }
+        .seller-create-product-page .toggle-field.col-6 { flex: 0 0 100%; max-width: 100%; }
+        .seller-create-product-page .product-form-actions { flex-wrap: wrap; }
+    }
+
     /* ---------------- Yes/No switches ---------------- */
     /* All five switches now sit in one grid, each label above its control so the
        row reads evenly instead of the labels wrapping at different heights. */
