@@ -746,7 +746,7 @@ class Product_model extends CI_Model
             $tempRow['variations'] = (!empty($variations)) ? $variations : '-';
             $row['image'] = get_image_url($row['image'], 'thumb', 'sm');
             $tempRow['image'] = '<div class="mx-auto product-image image-box-100"><a href=' . $row['image'] . ' data-toggle="lightbox" data-gallery="gallery">
-        <img src=' . $row['image'] . ' class="rounded"></a></div>';
+        <img src=' . $row['image'] . ' class="rounded" loading="lazy" decoding="async"></a></div>';
             $tempRow['rating'] = '<input type="text" class="kv-fa rating-loading" value="' . $row['rating'] . '" data-size="xs" title="" readonly> <span> (' . $row['rating'] . '/' . $row['no_of_ratings'] . ') </span>';
             $tempRow['operate'] = $operate;
             $rows[] = $tempRow;
@@ -1472,7 +1472,7 @@ class Product_model extends CI_Model
 
             $tempRow['category_name'] = html_escape($resolved_category);
 
-            $tempRow['image'] = '<div class="mx-auto product-image image-box-100"><a href=' . $product['image'] . ' data-toggle="lightbox" data-gallery="gallery"><img src=' . $product['image'] . ' class="rounded"></a></div>';
+            $tempRow['image'] = '<div class="mx-auto product-image image-box-100"><a href=' . $product['image'] . ' data-toggle="lightbox" data-gallery="gallery"><img src=' . (!empty($product['image_sm']) ? $product['image_sm'] : $product['image']) . ' class="rounded" loading="lazy" decoding="async"></a></div>';
 
             // $edit was only ever assigned inside this loop - a product with zero variant rows
             // (a data inconsistency, but not impossible) left it undefined, and the ternary
@@ -1705,7 +1705,7 @@ class Product_model extends CI_Model
 
             $tempRow['category_name'] = html_escape($resolved_category);
 
-            $tempRow['image'] = '<div class="mx-auto product-image image-box-100"><a href=' . $product['image'] . ' data-toggle="lightbox" data-gallery="gallery"><img src=' . $product['image'] . ' class="rounded"></a></div>';
+            $tempRow['image'] = '<div class="mx-auto product-image image-box-100"><a href=' . $product['image'] . ' data-toggle="lightbox" data-gallery="gallery"><img src=' . (!empty($product['image_sm']) ? $product['image_sm'] : $product['image']) . ' class="rounded" loading="lazy" decoding="async"></a></div>';
 
             $operate = "<table class='table-borderless table-sm w-100'>";
 

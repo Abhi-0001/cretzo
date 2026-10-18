@@ -112,6 +112,12 @@ class Seller_model extends CI_Model
                 'bank_name' => $data['bank_name'] ?? null
             ];
 
+        // Only the seller's own profile form has a banner field. Setting it unconditionally would
+        // write NULL on every admin save (and on registration), erasing a banner the seller chose.
+        if (!empty($data['store_banner'])) {
+            $seller_data['store_banner'] = $data['store_banner'];
+        }
+
         if (isset($data['categories']) && $data['categories'] == "seller_profile") {
             unset($seller_data['category_ids']);
             unset($seller_data['permissions']);

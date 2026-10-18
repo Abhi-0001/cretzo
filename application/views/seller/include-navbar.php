@@ -6,7 +6,7 @@
 // include-navbar.php), where the updater screen makes it actionable.
 $is_admin_view   = $this->ion_auth->is_admin();
 $navbar_user     = $this->ion_auth->user()->row();
-$navbar_name     = ucfirst($navbar_user->username);
+$navbar_name     = ucfirst((string) $navbar_user->username);
 $navbar_initial  = strtoupper(mb_substr(trim($navbar_name) !== '' ? $navbar_name : 'S', 0, 1));
 $navbar_base     = $is_admin_view ? 'admin/home' : 'seller/home';
 ?>

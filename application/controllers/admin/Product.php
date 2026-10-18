@@ -402,6 +402,62 @@ class Product extends CI_Controller
         }
     }
 
+    /* ---- Import from URL (shared logic lives in libraries/Product_importer) ---- */
+
+    private function import_json($data)
+    {
+        $data['csrfName'] = $this->security->get_csrf_token_name();
+        $data['csrfHash'] = $this->security->get_csrf_hash();
+        $this->output->set_content_type('application/json')->set_output(json_encode($data));
+    }
+
+    /** Step 1: read the page and return what was found. Nothing is saved. */
+    public function fetch_from_url()
+    {
+        if (!($this->ion_auth->logged_in() && $this->ion_auth->is_admin())) {
+            return $this->import_json(['error' => true, 'message' => 'Please log in again.']);
+        }
+        if (!has_permissions('create', 'product')) {
+            return $this->import_json(['error' => true, 'message' => PERMISSION_ERROR_MSG]);
+        }
+        $this->load->library('product_importer');
+        if (!$this->product_importer->rate_limit_ok((int) $this->session->userdata('user_id'))) {
+            return $this->import_json(['error' => true, 'message' => $this->product_importer->last_error()]);
+        }
+        $data = $this->product_importer->fetch((string) $this->input->post('url'));
+        if ($data === false) {
+            return $this->import_json(['error' => true, 'message' => $this->product_importer->last_error()]);
+        }
+        $this->import_json(['error' => false, 'data' => $data]);
+    }
+
+    /** Step 2: download the images the user ticked into the media library. */
+    public function import_images()
+    {
+        if (!($this->ion_auth->logged_in() && $this->ion_auth->is_admin())) {
+            return $this->import_json(['error' => true, 'message' => 'Please log in again.']);
+        }
+        if (!has_permissions('create', 'product')) {
+            return $this->import_json(['error' => true, 'message' => PERMISSION_ERROR_MSG]);
+        }
+        $urls = $this->input->post('urls');
+        if (!is_array($urls) || !$urls) {
+            return $this->import_json(['error' => true, 'message' => 'No images selected.']);
+        }
+        $this->load->library('product_importer');
+        $files = [];
+        foreach (array_slice($urls, 0, Product_importer::MAX_IMAGES) as $u) {
+            $f = $this->product_importer->download_image((string) $u, 0);
+            if ($f !== false) {
+                $files[] = $f;
+            }
+        }
+        if (!$files) {
+            return $this->import_json(['error' => true, 'message' => 'None of the selected images could be downloaded. The website may block image downloads.']);
+        }
+        $this->import_json(['error' => false, 'files' => $files, 'skipped' => count($urls) - count($files)]);
+    }
+
     public function add_product()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {

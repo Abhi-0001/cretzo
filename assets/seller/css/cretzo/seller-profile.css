@@ -279,6 +279,17 @@ textarea.czp-input { min-height: 84px; resize: vertical; }
   background: #fbfcfd;
 }
 .czp-check[hidden] { display: none; }
+/* Pickup address copied from the personal one: visibly locked until the box is unticked. */
+.czp-input.is-synced { background: #f3f5f8; color: #5b6573; cursor: not-allowed; }
+/* One plain line - no card around it. */
+.czp-check.czp-check-same {
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  margin-bottom: .75rem;
+}
+.czp-check-same input[type="checkbox"] { margin-top: 0; }
 .czp-check input[type="checkbox"] {
   flex: 0 0 auto;
   width: 17px;
@@ -332,6 +343,12 @@ textarea.czp-input { min-height: 84px; resize: vertical; }
   transition: border-color .15s, box-shadow .15s;
 }
 .czp-avatar-row .czp-avatar.is-square { border-radius: 12px; }
+/* Store banner: a wide, short preview matching the storefront's landscape header
+   (about 4:1) so the seller sees roughly how the crop will look. */
+.czp-avatar-row .czp-avatar.is-banner { width: 168px; height: 44px; border-radius: 8px; }
+@media (max-width: 520px) {
+  .czp-avatar-row .czp-avatar.is-banner { width: 112px; height: 32px; }
+}
 .czp-avatar-row .czp-avatar:hover {
   border-color: var(--czp-orange);
   box-shadow: 0 0 0 4px rgba(242, 130, 46, .14);

@@ -19,7 +19,12 @@
     </div> -->
 
     <div class="aboutus-one">
-        <img class="aboutus-one-img lazy" src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= base_url($sellers[0]['store_banner']) ?>">
+        <?php // A seller who has not uploaded a banner has store_banner NULL; base_url(NULL) is the site
+              // root, which the browser shows as a broken-image icon. Render the image only when there
+              // is a file, otherwise the plain banner area is shown. ?>
+        <?php if (!empty($sellers[0]['store_banner'])) { ?>
+            <img class="aboutus-one-img lazy" src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= base_url($sellers[0]['store_banner']) ?>" alt="">
+        <?php } ?>
     </div>
 
     <div class="aboutus-two">

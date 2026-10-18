@@ -586,6 +586,47 @@ function add_ver($url)
     return $url;
 }
 
+/**
+ * Does this seller-panel page need a given front-end library?
+ *
+ * PERFORMANCE: the seller layout used to ship every plugin to every page - jQuery UI
+ * (253 KB), Firebase (230 KB), jstree, tagify, SortableJS, blockUI, daterangepicker + moment,
+ * the star-rating widget, a second lightbox, the POS cart script - although each is driven
+ * by one or two views (checked by grepping every seller view, pos.js and custom.js for the
+ * library's own API, not its filename). This is the single place that records which pages
+ * those are, so include-head.php (CSS) and include-script.php (JS) cannot drift apart.
+ *
+ * $main_page is the same string template.php resolves: '' / unset means the dashboard.
+ * Unknown libraries answer FALSE, so a typo here fails loudly (a missing widget) rather
+ * than silently loading everything again.
+ */
+function seller_page_needs($lib, $main_page = '')
+{
+    static $map = null;
+    if ($map === null) {
+        $map = array(
+            // product form (custom.js is loaded only here and drives all of these)
+            'jqueryui'    => array(FORMS . 'product'),
+            'tagify'      => array(FORMS . 'product'),
+            'sortable'    => array(FORMS . 'product'),
+            'blockui'     => array(FORMS . 'product'),
+            'switch'      => array(FORMS . 'product'),
+            'jstree'      => array(FORMS . 'product', TABLES . 'manage-category'),
+            'rating'      => array(FORMS . 'product', TABLES . 'manage-product', VIEW . 'products'),
+            'lightbox'    => array(FORMS . 'product', FORMS . 'edit-orders', VIEW . 'products'),
+            'daterange'   => array(
+                FORMS . 'home', FORMS . 'product', TABLES . 'manage-orders', TABLES . 'sales-inventory',
+                TABLES . 'sales-invoice', TABLES . 'sales-report', VIEW . 'media-gallary',
+            ),
+            'gcharts'     => array(FORMS . 'home', FORMS . 'product'),
+            'pos'         => array(VIEW . 'point_of_sale'),
+            'firebase'    => array(FORMS . 'seller-registration'),
+        );
+    }
+    $page = trim((string) $main_page) !== '' ? (string) $main_page : FORMS . 'home';
+    return isset($map[$lib]) && in_array($page, $map[$lib], true);
+}
+
 function fetch_details($table, $where = NULL, $fields = '*', $limit = '', $offset = '', $sort = '', $order = '', $where_in_key = '', $where_in_value = '')
 {
     $t = &get_instance();
@@ -11190,7 +11231,7 @@ function unslash_deep($array)
                     $data[$key] = unslash_deep($value);
                 } else {
                     if (!in_array($key, $exclude_fields)) {
-                        $data[$key] = stripslashes($value);  // Correct function is stripslashes(), not stripcslashes()
+                        $data[$key] = stripslashes((string) $value);  // Correct function is stripslashes(), not stripcslashes()
                     } else {
                         $data[$key] = $value;
                     }
@@ -11202,14 +11243,14 @@ function unslash_deep($array)
             $data = new stdClass();
             foreach ($array as $key => $value) {
                 if (!in_array($key, $exclude_fields)) {
-                    $data->$key = stripslashes($value);  // Correct function is stripslashes(), not stripcslashes()
+                    $data->$key = stripslashes((string) $value);  // Correct function is stripslashes(), not stripcslashes()
                 } else {
                     $data->$key = $value;
                 }
             }
             return $data;
         } else {
-            return stripslashes($array);  // Correct function is stripslashes(), not stripcslashes()
+            return stripslashes((string) $array);  // Correct function is stripslashes(), not stripcslashes()
         }
     }
 }

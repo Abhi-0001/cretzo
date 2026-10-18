@@ -328,6 +328,29 @@ $initial       = in_array(($current_profile_section ?? 'personal'), $section_key
             <label class="czp-btn czp-btn-ghost czp-btn-sm" for="store_logo_input">Choose logo</label>
           </div>
 
+          <?php // Store banner: the wide header image on the public store page (/sellers/seller_details/<slug>).
+                // Lives in this step on purpose - it is part of how buyers see the shop - and reuses the
+                // logo picker's markup, so validation, preview and error display come from the same JS. ?>
+          <div class="czp-avatar-row czp-field" data-czp-field="store_banner"
+               data-czp-file-label="Store banner" data-czp-file-images>
+            <input type="file" class="czp-file" id="store_banner_input" name="store_banner" accept=".jpg,.jpeg,.png,.gif">
+            <input type="hidden" name="old_store_banner" value="<?= czp_val($d, 'store_banner') ?>">
+            <div class="czp-avatar is-banner" data-czp-avatar tabindex="0" role="button" aria-label="Upload store banner">
+              <svg data-czp-avatar-icon xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" <?= !empty($d['store_banner']) ? 'hidden' : '' ?>>
+                <path d="M14.5 3h-13a.5.5 0 0 0-.5.5v9a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5v-9a.5.5 0 0 0-.5-.5M2 4h12v5.5l-2.6-2.1a.5.5 0 0 0-.63 0L7.5 10 5.6 8.6a.5.5 0 0 0-.6 0L2 10.8zm3.5 1.5a1 1 0 1 1 0 2 1 1 0 0 1 0-2"/>
+              </svg>
+              <img data-czp-avatar-img alt=""
+                   <?= !empty($d['store_banner']) ? 'src="' . czp_attr(base_url($d['store_banner'])) . '"' : '' ?>
+                   <?= !empty($d['store_banner']) ? '' : 'hidden' ?>>
+            </div>
+            <div class="czp-avatar-copy">
+              <b>Store banner</b>
+              <small class="czp-hint">The wide image at the top of your store page. Use a landscape picture, about 1900 &times; 450 px. JPG, PNG or GIF, up to 8 MB.</small>
+              <span class="czp-error" data-czp-error></span>
+            </div>
+            <label class="czp-btn czp-btn-ghost czp-btn-sm" for="store_banner_input"><?= !empty($d['store_banner']) ? 'Change banner' : 'Choose banner' ?></label>
+          </div>
+
           <fieldset class="czp-group">
             <legend>Shop identity</legend>
             <div class="czp-grid">
@@ -351,6 +374,15 @@ $initial       = in_array(($current_profile_section ?? 'personal'), $section_key
 
           <fieldset class="czp-group">
             <legend>Pickup address</legend>
+            <?php // Shown by seller-profile.js only once the personal address (step 1) is complete.
+                  // Name-less on purpose: it is not saved, the copied fields are. It opens ticked
+                  // when the saved pickup address already equals the personal one. ?>
+            <div class="czp-check czp-check-same" id="pickup_same_box" hidden>
+              <input type="checkbox" id="pickup_same_check">
+              <div class="czp-check-body">
+                <label for="pickup_same_check">Same as my personal address</label>
+              </div>
+            </div>
             <div class="czp-grid">
               <?php
               czp_text_field(['name' => 'pickup_address1', 'label' => 'Pickup Address Lane 1', 'value' => $d['pickup_address1'] ?? '', 'required' => true, 'placeholder' => 'Address lane 1']);
@@ -442,6 +474,14 @@ $initial       = in_array(($current_profile_section ?? 'personal'), $section_key
 
           <fieldset class="czp-group">
             <legend>Business address</legend>
+            <?php // Offered by seller-profile.js only for Individual / Sole Proprietorship, and only
+                  // once the personal address is complete. Same behaviour as the pickup checkbox. ?>
+            <div class="czp-check czp-check-same" id="business_same_box" hidden>
+              <input type="checkbox" id="business_same_check">
+              <div class="czp-check-body">
+                <label for="business_same_check">Same as my personal address</label>
+              </div>
+            </div>
             <div class="czp-grid">
               <?php
               czp_text_field(['name' => 'business_address1', 'label' => 'Address Line 1', 'value' => $d['business_address1'] ?? '', 'required' => true, 'placeholder' => 'Street 1']);

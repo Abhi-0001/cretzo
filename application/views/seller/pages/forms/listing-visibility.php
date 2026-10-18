@@ -100,7 +100,7 @@ $plan_name = !empty($current_plan['name']) ? $current_plan['name'] : '';
                                                 </td>
                                                 <td>
                                                     <?php if (!empty($row['image'])) : ?>
-                                                        <img src="<?= base_url() . $row['image'] ?>" alt="" class="lv-thumb">
+                                                        <img src="<?= get_image_url($row['image'], 'thumb', 'sm') ?>" alt="" class="lv-thumb" loading="lazy" decoding="async">
                                                     <?php endif; ?>
                                                 </td>
                                                 <td>

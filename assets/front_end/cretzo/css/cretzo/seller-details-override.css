@@ -7,7 +7,10 @@
 
 .aboutus-one-img{
     width: 100%;
-    object-fit: fill;
+    height: 100%;
+    /* cover, not fill: the banner area is a fixed 300px tall, so fill squashed or stretched
+       any banner that was not exactly that shape. cover crops instead of distorting. */
+    object-fit: cover;
 }
 
 .aboutus-two{

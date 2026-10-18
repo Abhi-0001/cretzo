@@ -69,7 +69,20 @@ FROM php:8.0-apache
 # tampered Release file - it only stops treating a validly-signed file's lapsed
 # self-declared expiry as fatal. Verified locally: apt-get update fails against
 # debian:bullseye-slim without this line and succeeds with it.
+#
+# THIRD FAILURE, AND THE REAL ROOT CAUSE: BULLSEYE IS END-OF-LIFE.
+#
+# Debian 11 LTS ended 2026-08-31 (last bullseye-security index is dated 2026-09-12).
+# deb.debian.org now prunes superseded .debs from the pool while its index can still
+# name them, so the install 404s on a random package and every retry asks for the
+# same missing file - all 5 attempts fail, then CI's 3 build retries repeat it.
+# archive.debian.org keeps the same suites with an immutable index+pool, so index and
+# pool can never disagree. php:8.0-apache has no bookworm variant, so we stay on
+# bullseye and repoint apt (both the old sources.list and a .sources file, if any).
 RUN set -eux; \
+    for f in /etc/apt/sources.list /etc/apt/sources.list.d/*; do \
+        [ -f "$f" ] && sed -i 's#//deb.debian.org#//archive.debian.org#g; s#//security.debian.org#//archive.debian.org/debian-security#g' "$f" || true; \
+    done; \
     printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\nAcquire::http::No-Cache "true";\nAcquire::http::Pipeline-Depth "0";\nAcquire::Check-Valid-Until "false";\n' \
         > /etc/apt/apt.conf.d/99-network-resilience; \
     installed=0; \

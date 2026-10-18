@@ -79,6 +79,8 @@
 
                                 <div class="section-header"><i class="fas fa-info-circle"></i> Basic Details</div>
 
+                                <?php if (empty($product_details[0]['id'])) { $import_panel = 'seller'; $this->load->view('partials/product-url-import', ['import_panel' => $import_panel]); } ?>
+
                                 <div class="form-group col-md-12">
                                     <label for="pro_input_text" class="col-form-label">Name <span class='text-danger text-sm'>*</span> </label>
                                     <input type="text" class="form-control" id="pro_input_text" placeholder="Product Name" name="pro_input_name" value="<?= (isset($product_details[0]['name'])) ? unslash(str_replace('\r\n', '&#13;&#10;', $product_details[0]['name'])) : "" ?>">

@@ -9,32 +9,37 @@
     <!-- Tell the browser to be responsive to screen width -->
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" href="<?= base_url() . get_settings('favicon') ?>" type="image/gif" sizes="16x16">
+    <?php $np = isset($main_page) ? $main_page : ''; // page key for seller_page_needs() - see function_helper.php ?>
+    <?php if (seller_page_needs('switch', $np)) { ?>
     <!-- Bootstrap Switch -->
     <link rel="stylesheet" href="<?= base_url('assets/admin/css/bootstrap-switch.min.css') ?>">
+    <?php } ?>
     
     <!-- Font Awesome -->
     <link rel="stylesheet" href="<?= base_url('assets/admin/css/all.min.css') ?>">
-    <!-- Ionicons -->
-    <link rel="stylesheet" href="<?= base_url('assets/admin/css/ionicons.min.css') ?>">
+    <?php /* PERFORMANCE: ionicons.min.css (63 KB) and icheck-bootstrap.min.css (12 KB) were loaded on every
+              page, but no seller view, pos.js or custom.js uses an ion-* icon or an icheck-* class. */ ?>
     <!-- Tempusdominus Bbootstrap 4 -->
     <?php /* PERFORMANCE: tempusdominus (the AdminLTE date/time picker) is not used anywhere
               in the seller panel - no .datetimepicker() call and no tempusdominus markup in any
               seller view or in the shared custom.js. Its 55 KB script went with it. */ ?>
-    <!-- iCheck -->
-    <link rel="stylesheet" href="<?= base_url('assets/admin/css/icheck-bootstrap.min.css') ?>">
     <!-- Dropzone -->
     <link rel="stylesheet" href="<?= base_url('assets/admin/css/dropzone.css') ?>">
     <!-- JQVMap -->
     <?php /* PERFORMANCE: jqvmap is AdminLTE's demo "vector map of the USA" dashboard widget.
               Nothing in the seller panel references it. Removed with its two scripts (66 KB). */ ?>
+    <?php if (seller_page_needs('lightbox', $np)) { ?>
     <!-- Ekko Lightbox -->
     <link rel="stylesheet" href="<?= base_url('assets/admin/ekko-lightbox/ekko-lightbox.css') ?>">
+    <?php } ?>
     <!-- Theme style -->
     <link rel="stylesheet" href="<?= base_url('assets/admin/dist/css/adminlte.min.css') ?>">
     <!-- overlayScrollbars -->
     <link rel="stylesheet" href="<?= base_url('assets/admin/css/OverlayScrollbars.min.css') ?>">
+    <?php if (seller_page_needs('daterange', $np)) { ?>
     <!-- Daterange picker -->
     <link rel="stylesheet" href="<?= base_url('assets/admin/css/daterangepicker.css') ?>">
+    <?php } ?>
     <!-- Tinymce -->
     <?php
     /*
@@ -86,17 +91,27 @@
     if ($seller_needs_charts) { ?>
         <link rel="stylesheet" href="<?= base_url('assets/admin/css/chartist.css') ?>">
     <?php } ?>
+    <?php if (seller_page_needs('jstree', $np)) { ?>
     <!-- JS tree -->
     <link rel="stylesheet" href="<?= base_url('assets/admin/css/style.min.css') ?>">
+    <?php } ?>
+    <?php if (seller_page_needs('rating', $np)) { ?>
     <link rel="stylesheet" href="<?= base_url('assets/admin/css/star-rating.min.css') ?>">
+    <?php } ?>
     <link rel="stylesheet" href="<?= base_url('assets/admin/css/theme.css') ?>">
     <!-- chat -->
     <link rel="stylesheet" href="<?= base_url('assets/admin/css/components.css') ?>" />
-    <!-- Google Font: Source Sans Pro -->
+    <?php /* PERFORMANCE: both font stylesheets are render-blocking and cross-origin. Warm the two hosts up
+              first, and give Source Sans Pro the display=swap the Poppins request already had, so text
+              paints in the fallback face instead of staying invisible until Google answers. */ ?>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;1,100;1,200;1,300&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,700" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,700&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-table/1.16.0/bootstrap-table.min.css">
+    <?php /* PERFORMANCE: bootstrap-table's stylesheet came from cdnjs (a third DNS + TLS handshake on the
+              critical path) although the matching script is served locally. Same library, own origin. */ ?>
+    <link rel="stylesheet" href="<?= base_url('assets/admin/css/bootstrap-table.min.css') ?>">
     <?php /* PERFORMANCE: fancybox's stylesheet, pulled cross-origin from cdnjs, for a
               library whose script was removed as unused - there is no data-fancybox
               attribute and no .fancybox class anywhere in the seller panel, and nothing
@@ -119,9 +134,15 @@
     <meta name="csrf-token-hash" content="<?= $this->security->get_csrf_hash() ?>">
     <script src="<?= base_url('assets/csrf-guard.js') ?>"></script>
     <!-- Star rating js -->
+    <?php if (seller_page_needs('rating', $np)) { ?>
     <script type="text/javascript" src="<?= base_url('assets/admin/js/star-rating.js') ?>"></script>
+    <?php } ?>
+    <?php if (seller_page_needs('rating', $np)) { // theme.min.js is star-rating's Krajee theme and must follow star-rating.js ?>
     <script type="text/javascript" src="<?= base_url('assets/admin/js/theme.min.js') ?>"></script>
+    <?php } ?>
+    <?php if (seller_page_needs('tagify', $np)) { ?>
     <link rel="stylesheet" href="<?= base_url('assets/admin/css/tagify.min.css') ?>">
+    <?php } ?>
 
     <script type="text/javascript">
         base_url = "<?= base_url() ?>";

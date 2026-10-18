@@ -357,17 +357,21 @@ class Login extends CI_Controller
                 $store_banner_error = "";
                 $config = [
                     'upload_path' =>  FCPATH . SELLER_DOCUMENTS_PATH,
-                    'allowed_types' => 'jpg|png|jpeg|gif|pdf',
+                    // Images only: a PDF here would be saved and then render as a broken picture
+                    // across the top of the public store page.
+                    'allowed_types' => 'jpg|png|jpeg|gif',
                     'max_size' => 8000,
                 ];
                 if (isset($store_banner_files['store_banner']) && !empty($store_banner_files['store_banner']['name']) && isset($store_banner_files['store_banner']['name'])) {
                     $other_img = $this->upload;
                     $other_img->initialize($config);
 
-                    if (isset($_POST['edit_seller']) && !empty($_POST['edit_seller']) && isset($_POST['old_store_banner']) && !empty($_POST['old_store_banner'])) {
-                        $old_logo = explode('/', $this->input->post('old_store_banner', true));
-                        delete_images(SELLER_DOCUMENTS_PATH, $old_logo[2]);
-                    }
+                    // The banner being replaced is read from the database, not from the posted
+                    // old_store_banner (a browser-supplied path must never choose which file gets
+                    // deleted), and it is removed only after the new one has been saved - see the
+                    // add_seller() success branch below.
+                    $current_banner_row = fetch_details('seller_data', ['user_id' => $this->session->userdata('user_id')], 'store_banner');
+                    $banner_on_record = !empty($current_banner_row[0]['store_banner']) ? (string) $current_banner_row[0]['store_banner'] : '';
 
                     if (!empty($store_banner_files['store_banner']['name'])) {
 
@@ -673,6 +677,9 @@ class Login extends CI_Controller
                         'address_proof' => (!empty($proof_doc)) ? $proof_doc : $this->input->post('old_address_proof', true),
                         'national_identity_card' => (!empty($id_card_doc)) ? $id_card_doc : $this->input->post('old_national_identity_card', true),
                         'store_logo' => (!empty($store_logo_doc)) ? $store_logo_doc : $this->input->post('old_store_logo', true),
+                        // The storefront's header image. Seller_model::add_seller() writes it only when
+                        // non-empty, so a save that has neither a new file nor an old one leaves it alone.
+                        'store_banner' => (!empty($store_banner_doc)) ? $store_banner_doc : $this->input->post('old_store_banner', true),
                         'authorized_signature' => (!empty($authorized_signature_doc)) ? $authorized_signature_doc : $this->input->post('old_authorized_signature', true),
                         'status' => $this->input->post('status', true) ?? null,
                         'pan_number' => $this->input->post('pan_number', true)  ?? null,
@@ -755,6 +762,13 @@ class Login extends CI_Controller
                     }
 
                     if ($this->Seller_model->add_seller($seller_data, $seller_profile)) {
+
+                        // The new banner is saved, so the file it replaced is now an orphan. Only a file
+                        // inside the seller-documents folder, and only a different one, is removed.
+                        if (!empty($store_banner_doc) && !empty($banner_on_record) && $banner_on_record !== $store_banner_doc
+                            && strpos($banner_on_record, SELLER_DOCUMENTS_PATH) === 0 && strpos($banner_on_record, '..') === false) {
+                            delete_images(SELLER_DOCUMENTS_PATH, basename($banner_on_record));
+                        }
 
                         // Saving a complete profile IS the request for admin verification -
                         // there is no separate "Request Admin Verification" button, because

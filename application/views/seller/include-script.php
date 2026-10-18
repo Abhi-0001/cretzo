@@ -35,19 +35,28 @@
 <aside class="control-sidebar control-sidebar-dark">
     <!-- Control sidebar content goes here -->
 </aside>
+<?php
+/*
+ * Which optional libraries this page loads. seller_page_needs() (function_helper.php) is the
+ * one map of page -> library; include-head.php asks it for the matching CSS.
+ */
+$np = isset($main_page) ? $main_page : '';
+?>
 <!-- Bootstrap 4 -->
 <?php // Google Translate loader removed with its mount point — see include-navbar.php. ?>
 <script src="<?= base_url('assets/admin/js/bootstrap.bundle.min.js') ?>"></script>
-<!-- jQuery UI 1.11.4 -->
+<?php if (seller_page_needs('jqueryui', $np)) { ?>
+<!-- jQuery UI 1.11.4 - 253 KB, used only by the product form's .sortable() -->
 <script src="<?= base_url('assets/admin/jquery-ui/jquery-ui.min.js') ?>"></script>
-<!-- Resolve conflict in jQuery UI tooltip with Bootstrap tooltip -->
-
 <script>
+    // Resolve conflict in jQuery UI button with Bootstrap button
     $.widget.bridge('uibutton', $.ui.button)
 </script>
+<?php } ?>
+<?php if (seller_page_needs('lightbox', $np)) { ?>
 <!-- Ekko Lightbox -->
-
 <script src=<?= base_url('assets/admin/ekko-lightbox/ekko-lightbox.min.js') ?>></script>
+<?php } ?>
 
 <?php
 /*
@@ -63,9 +72,11 @@ $seller_needs_charts = isset($seller_needs_charts)
     ? $seller_needs_charts
     : ((isset($main_page) && trim((string) $main_page) !== '' ? $main_page : FORMS . 'home') === FORMS . 'home');
 ?>
+<?php if (seller_page_needs('daterange', $np)) { ?>
 <!-- daterangepicker -->
 <script src="<?= base_url('assets/admin/js/moment.min.js') ?>"></script>
 <script src="<?= base_url('assets/admin/js/daterangepicker.js') ?>"></script>
+<?php } ?>
 <!-- Toastr -->
 <script src="<?= base_url('assets/admin/js/iziToast.min.js') ?>"></script>
 <!-- Select -->
@@ -74,44 +85,66 @@ $seller_needs_charts = isset($seller_needs_charts)
 <script src="<?= base_url('assets/admin/js/jquery.overlayScrollbars.min.js') ?>"></script>
 <!-- AdminLTE App -->
 <script src="<?= base_url('assets/admin/dist/js/adminlte.js') ?>"></script>
+<?php if (seller_page_needs('switch', $np)) { ?>
 <!-- Bootstrap Switch -->
 <script src="<?= base_url('assets/admin/js/bootstrap-switch.min.js') ?>"></script>
+<?php } ?>
 <!-- Bootstrap Table -->
 <script src="<?= base_url('assets/admin/js/bootstrap-table.min.js') ?>"></script>
 <script src="<?= base_url('assets/admin/js/tableExport.js') ?>"></script>
 <script src="<?= base_url('assets/admin/js/bootstrap-table-export.min.js') ?>"></script>
 <!-- Sweeta Alert 2 -->
 <script src="<?= base_url('assets/admin/js/sweetalert2.min.js') ?>"></script>
+<?php if (seller_page_needs('blockui', $np)) { ?>
 <!-- Block UI -->
 <script src="<?= base_url('assets/admin/js/jquery.blockUI.js') ?>"></script>
+<?php } ?>
+<?php if (seller_page_needs('jstree', $np)) { ?>
 <!-- JS tree -->
 <script src="<?= base_url('assets/admin/js/jstree.min.js') ?>"></script>
+<?php } ?>
 <!-- Chartist -->
 <?php if ($seller_needs_charts) { ?>
     <script src="<?= base_url('assets/admin/js/chartist.js') ?>"></script>
 <?php } ?>
 <!-- Tool Tip -->
 <script src="<?= base_url('assets/admin/js/tooltip.js') ?>"></script>
-<!-- Loader Js -->
+<?php if (seller_page_needs('gcharts', $np)) { ?>
+<!-- Google Charts loader (66 KB) - the dashboard's pie chart -->
 <script type="text/javascript" src="<?= base_url('assets/admin/js/loader.js') ?>"></script>
-<!-- Dropzone -->
+<?php } ?>
+<!-- Dropzone (shared media-upload modal in the footer) -->
 <script type="text/javascript" src="<?= base_url('assets/admin/js/dropzone.js') ?>"></script>
+<script>
+    // Dropzone auto-discovers every .dropzone at DOMContentLoaded and throws "No URL provided"
+    // for the footer's modal box, which is configured later by hand. It reads this flag when
+    // that event fires, so switching it off right after the library loads is the reliable
+    // place (the old ready()-handler race in include-footer.php did not win on every page).
+    if (typeof Dropzone !== 'undefined') { Dropzone.autoDiscover = false; }
+</script>
+<?php if (seller_page_needs('sortable', $np)) { ?>
 <!-- Sortable.JS -->
 <script type="text/javascript" src="<?= base_url('assets/admin/js/sortable.js') ?>"></script>
 <!-- Sortable.min.js -->
 <script type="text/javascript" src="<?= base_url('assets/admin/js/jquery-sortable.js') ?>"></script>
-
+<?php } ?>
+<?php if (seller_page_needs('tagify', $np)) { ?>
 <script type="text/javascript" src="<?= base_url('assets/admin/js/tagify.min.js') ?>"></script>
+<?php } ?>
 <script type="text/javascript" src="<?= base_url('assets/admin/js/stisla.js'); ?>"></script>
 
-<!-- Firebase.js -->
+<?php if (seller_page_needs('firebase', $np)) { ?>
+<!-- Firebase.js (230 KB) - phone OTP on the seller registration form, nowhere else -->
 <script type="text/javascript" src="<?= base_url('assets/admin/js/firebase-app.js') ?>"></script>
 <script type="text/javascript" src="<?= base_url('assets/admin/js/firebase-auth.js') ?>"></script>
 <script type="text/javascript" src="<?= base_url('firebase-config.js') ?>"></script>
-<script type="text/javascript" src="<?= base_url('assets/admin/js/lightbox.js') ?>"></script>
+<?php } ?>
+<?php /* lightbox.js (Lokesh lightbox2, 21 KB) removed: it only reacts to [data-lightbox], and no seller view
+         or script uses that attribute - the panel's lightbox is ekko-lightbox (data-toggle="lightbox"). */ ?>
 <!-- Custom -->
- 
+<?php if (seller_page_needs('pos', $np)) { ?>
 <script src="<?= add_ver(base_url('assets/admin/custom/pos.js')) ?>"></script>
+<?php } ?>
 <?php
 // The product form is a port of the admin one and is driven by the same script.
 // custom.js decides which panel's endpoints to call from the URL ("seller/" in the

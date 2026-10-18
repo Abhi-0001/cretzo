@@ -7389,6 +7389,11 @@ function salesReport(index, row) {
 // google translate
 
 function googleTranslateElementInit() {
+    // The seller panel loads this file on the product form but never loads Google's
+    // translate script (or renders its mount point), so `google.translate` is undefined there.
+    if (typeof google === 'undefined' || !google.translate || !document.getElementById('google_translate_element')) {
+        return;
+    }
     new google.translate.TranslateElement({
         pageLanguage: 'en'
     }, 'google_translate_element');

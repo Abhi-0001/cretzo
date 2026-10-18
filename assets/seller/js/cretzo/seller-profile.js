@@ -931,9 +931,15 @@
       if (!el || !value) return;
       el.value = value;
       setFieldError(fieldWrap(el), '');
+      // Programmatic writes fire no events. Announce it so anything mirroring this field
+      // (the "pickup same as personal" copy) and the draft autosave both notice.
+      el.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
     function lookup() {
+      // A PIN locked by the "same as personal address" copy must keep the values copied
+      // from step 1; a fresh lookup could rewrite State/District/City under it.
+      if (pin.readOnly) return;
       var code = pin.value.replace(/\D/g, '').slice(0, 6);
       pin.value = code;
       if (code.length < 6) { latest = ''; setStatus(status, '', ''); return; }
@@ -961,6 +967,112 @@
   bindPincode({ pin: 'pin', state: 'state', district: 'district', city: 'city', status: 'pin_status' });
   bindPincode({ pin: 'pickup_pin', state: 'pickup_state', district: 'pickup_district', city: 'pickup_city', status: 'pickup_pin_status' });
   bindPincode({ pin: 'business_pin', state: 'business_state', district: 'business_district', city: 'business_city', status: 'business_pin_status' });
+
+  /* ======================================================================
+     "Same as my personal address" (pickup address and business address)
+     ====================================================================== */
+
+  /**
+   * cfg.boxId / cfg.checkId  the checkbox row and the checkbox
+   * cfg.prefix               'pickup_' or 'business_' - the target field names
+   * cfg.statusId             the target PIN field's status line
+   * cfg.applies()            optional: false hides the option (e.g. wrong entity type)
+   */
+  function bindSameAsPersonal(cfg) {
+    var box = $('#' + cfg.boxId);
+    var check = $('#' + cfg.checkId);
+    if (!box || !check) return;
+
+    // [personal field, target field]. Target lane 2 has no personal counterpart and stays
+    // the seller's own.
+    var PAIRS = [
+      ['address1', cfg.prefix + 'address1'],
+      ['pin', cfg.prefix + 'pin'],
+      ['state', cfg.prefix + 'state'],
+      ['district', cfg.prefix + 'district'],
+      ['city', cfg.prefix + 'city']
+    ];
+    var PERSONAL = PAIRS.map(function (p) { return p[0]; });
+
+    function field(name) { return form.elements[name]; }
+    function val(name) { var el = field(name); return el ? String(el.value).trim() : ''; }
+    function applies() { return !cfg.applies || cfg.applies(); }
+
+    // Offer the copy only when there is something worth copying.
+    function personalComplete() {
+      return PAIRS.every(function (p) { return val(p[0]) !== ''; }) && RE.pin.test(val('pin'));
+    }
+    function alreadyMatches() {
+      return PAIRS.every(function (p) { return val(p[1]) !== '' && val(p[1]) === val(p[0]); });
+    }
+
+    // readOnly, not disabled: a disabled input is left out of the submitted form.
+    function lock(on) {
+      PAIRS.forEach(function (p) {
+        var el = field(p[1]);
+        if (!el) return;
+        el.readOnly = on;
+        el.classList.toggle('is-synced', on);
+      });
+    }
+
+    function copy() {
+      PAIRS.forEach(function (p) {
+        var from = field(p[0]);
+        var to = field(p[1]);
+        if (!from || !to) return;
+        if (to.value !== from.value) {
+          to.value = from.value;
+          // 'change', not 'input': input would start the target PIN lookup, which this
+          // copy makes pointless. Change still reaches the draft autosave.
+          to.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        setFieldError(fieldWrap(to), '');
+      });
+      setStatus($('#' + cfg.statusId), 'Copied from your personal address.', 'success');
+    }
+
+    function refresh() {
+      var offer = applies() && personalComplete();
+      if (!offer && check.checked) {
+        // Nothing left to mirror (personal address emptied, or the option no longer applies
+        // to this entity type). Keep the values the seller can see and hand the fields back.
+        check.checked = false;
+        lock(false);
+      }
+      box.hidden = !offer;
+      if (check.checked) copy();
+    }
+
+    check.addEventListener('change', function () {
+      lock(check.checked);
+      if (check.checked) copy();
+    });
+
+    ['input', 'change'].forEach(function (type) {
+      form.addEventListener(type, function (e) {
+        var n = e.target && e.target.name;
+        if (n && (PERSONAL.indexOf(n) !== -1 || n === 'entity_type')) refresh();
+      });
+    });
+
+    // Opening state: ticked when the saved (or draft-restored) address already is the
+    // personal one, so a seller who ticked it last time finds it ticked.
+    check.checked = applies() && personalComplete() && alreadyMatches();
+    lock(check.checked);
+    refresh();
+  }
+
+  bindSameAsPersonal({ boxId: 'pickup_same_box', checkId: 'pickup_same_check', prefix: 'pickup_', statusId: 'pickup_pin_status' });
+  // A company or firm has its own registered address; only the entity types that ARE the
+  // person (an individual, a sole proprietor) offer the shortcut.
+  bindSameAsPersonal({
+    boxId: 'business_same_box', checkId: 'business_same_check', prefix: 'business_', statusId: 'business_pin_status',
+    applies: function () {
+      var t = form.elements.entity_type;
+      return !!t && (t.value === 'individual' || t.value === 'sole_proprietorship');
+    }
+  });
 
   /* ======================================================================
      Store URL placeholder mirrors Shop Name

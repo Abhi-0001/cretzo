@@ -314,7 +314,7 @@ function display_products(products) {
             display_products +=
                 '<div class="shop-item" data-product-id="' + products[i].id + '" data-seller-id="' + products[i].seller_id + '">' +
                     '<div class="shop-item-image">' +
-                        '<img class="item-image" src="' + products[i].image + '">' +
+                        '<img class="item-image" loading="lazy" decoding="async" src="' + (products[i].image_sm || products[i].image) + '">' +
                     '</div>' +
                     '<div class="shop-item-body">' +
                         '<a class="shop-item-title" data-title="' + products[i].name + '" href="' + base_url + 'seller/product/view_product?edit_id=' + products[i].id + '" target="_blank">' + products[i].name + '</a>' +
