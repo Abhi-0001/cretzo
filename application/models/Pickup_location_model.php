@@ -219,6 +219,95 @@ class Pickup_location_model extends CI_Model
     }
 
     /**
+     * Makes sure a seller's pickup address exists on the Shiprocket account, registering it
+     * on the spot when it does not, so nobody has to confirm addresses by hand before orders
+     * can ship.
+     *
+     * Booking used to refuse any address whose `shiprocket_verified_at` was NULL and wait for a
+     * person to re-sync it. Shiprocket's own addpickup endpoint is idempotent enough to do that
+     * at booking time: it either accepts the address, or says the nickname already exists (the
+     * address is on the account but this table never recorded it) - both mean it is bookable.
+     *
+     * @return array ['ok' => bool, 'reason' => string]
+     */
+    public function ensure_registered_with_shiprocket($seller_id, $nickname)
+    {
+        $row = $this->db->where(['seller_id' => (int) $seller_id, 'pickup_location' => (string) $nickname])
+            ->get('pickup_locations')->row_array();
+        if (empty($row)) {
+            return ['ok' => false, 'reason' => 'Pickup location "' . $nickname . '" is not registered against this seller.'];
+        }
+        if (!empty($row['shiprocket_verified_at'])) {
+            return ['ok' => true, 'reason' => ''];
+        }
+
+        $payload = [
+            'pickup_location' => $row['pickup_location'],
+            'name'            => $row['name'],
+            'email'           => $row['email'],
+            'phone'           => $row['phone'],
+            'address'         => $row['address'],
+            'city'            => $row['city'],
+            'state'           => $row['state'],
+            'country'         => !empty($row['country']) ? $row['country'] : 'India',
+            'pin_code'        => $row['pin_code'],
+        ];
+        foreach (['address_2', 'latitude', 'longitude'] as $optional) {
+            if (isset($row[$optional]) && $row[$optional] !== '' && $row[$optional] !== null) {
+                $payload[$optional] = $row[$optional];
+            }
+        }
+
+        $this->load->library(['Shiprocket']);
+        $result = $this->shiprocket->add_pickup_location($payload);
+
+        $accepted = is_array($result) && (
+            (isset($result['success']) && $result['success'])
+            || (isset($result['status']) && (int) $result['status'] === 200)
+            || isset($result['address']['pickup_code'])
+        );
+
+        $phone_verified = null;
+        if ($accepted) {
+            if (isset($result['address']['phone_verified'])) {
+                $phone_verified = ((int) $result['address']['phone_verified'] === 1) ? 1 : 0;
+            }
+        } else {
+            // Nickname already on the account: confirm against Shiprocket's own list.
+            $list = $this->shiprocket->get_pickup_locations();
+            $found = false;
+            if (is_array($list) && isset($list['data']['shipping_address'])) {
+                foreach ($list['data']['shipping_address'] as $remote) {
+                    if (isset($remote['pickup_location']) && trim((string) $remote['pickup_location']) === $row['pickup_location']) {
+                        $found = true;
+                        if (isset($remote['phone_verified'])) {
+                            $phone_verified = ((int) $remote['phone_verified'] === 1) ? 1 : 0;
+                        }
+                        break;
+                    }
+                }
+            }
+            if (!$found) {
+                $reason = (string) $this->shiprocket->last_error();
+                if ($reason === '' && is_array($result) && !empty($result['message'])) {
+                    $reason = is_string($result['message']) ? $result['message'] : json_encode($result['message']);
+                }
+                log_message('error', 'Shiprocket auto-registration of pickup "' . $row['pickup_location']
+                    . '" (seller ' . (int) $seller_id . ') failed: ' . ($reason !== '' ? $reason : json_encode($result)));
+                return ['ok' => false, 'reason' => $this->shiprocket_reject_message($reason, $row['pickup_location'])];
+            }
+        }
+
+        $stamp = ['shiprocket_verified_at' => date('Y-m-d H:i:s')];
+        if ($phone_verified !== null && $this->db->field_exists('phone_verified', 'pickup_locations')) {
+            $stamp['phone_verified'] = $phone_verified;
+        }
+        $this->db->set($stamp)->where('id', $row['id'])->update('pickup_locations');
+
+        return ['ok' => true, 'reason' => ''];
+    }
+
+    /**
      * Mirrors the pickup address a seller gave on their profile into `pickup_locations`, so it
      * shows up under Pickup Addresses without being typed a second time.
      *

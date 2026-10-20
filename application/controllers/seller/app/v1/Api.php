@@ -4670,7 +4670,7 @@ Defined Methods:-
             $response = $this->shiprocket->create_order($create_order);
 
             if (isset($response['status_code']) && $response['status_code'] == 1) {
-                $courier_company_id = $get_currier_id['courier_company_id'];
+                $courier_company_id = isset($get_currier_id['courier_company_id']) ? $get_currier_id['courier_company_id'] : 0;
                 $order_tracking_data = [
                     'order_id' => $_POST['order_id'],
                     'order_item_id' => $order_item_ids,
@@ -4693,6 +4693,10 @@ Defined Methods:-
                     'url' => ''
                 ];
                 $this->db->insert('order_tracking', $order_tracking_data);
+                // Auto-assign the courier/AWB right away; non-fatal, the AWB button is the retry.
+                if (!empty($response['shipment_id'])) {
+                    shiprocket_auto_fulfil($response['shipment_id']);
+                }
             }
             if (isset($response['status_code']) && $response['status_code'] == 1) {
                 $this->response['error'] = false;

@@ -80,7 +80,21 @@ class Media extends CI_Controller
         $files = $_FILES;
 
         $other_image_info_error = "";
-        $allowed_media_types = implode('|', allowed_media_types());
+        // The direct-upload buttons on the product form say what they expect via media_type
+        // (e.g. "image", "video", "archive,document"); restrict to those extensions when given.
+        $requested_media_type = trim((string) $this->input->post('media_type'));
+        $restricted_extensions = [];
+        if ($requested_media_type !== '') {
+            $this->config->load('eshop');
+            $type_config = $this->config->item('type');
+            foreach (explode(',', $requested_media_type) as $type_key) {
+                $type_key = trim($type_key);
+                if (isset($type_config[$type_key]['types'])) {
+                    $restricted_extensions = array_merge($restricted_extensions, $type_config[$type_key]['types']);
+                }
+            }
+        }
+        $allowed_media_types = !empty($restricted_extensions) ? implode('|', $restricted_extensions) : implode('|', allowed_media_types());
         $config['upload_path'] = $target_path;
         $config['allowed_types'] = $allowed_media_types;
         // No size cap was set at all here (CI's Upload library defaults max_size to 0 =
@@ -108,7 +122,7 @@ class Media extends CI_Controller
                     if (strtolower($temp_array['image_type']) != 'gif')
                         resize_image($temp_array,  $target_path, $media_id);
                     $other_images_new_name[$i] = $temp_array['file_name'];
-                    $uploaded_files[] = ['name' => $temp_array['file_name'], 'sub_directory' => $sub_directory];
+                    $uploaded_files[] = ['name' => $temp_array['file_name'], 'sub_directory' => $sub_directory, 'url' => base_url() . $sub_directory . $temp_array['file_name']];
                 }
             } else {
 
@@ -148,6 +162,7 @@ class Media extends CI_Controller
             $this->response['message'] = "Files Uploaded Successfully..!";
             $this->response['error'] = $other_image_info_error;
             $this->response['uploaded_files'] = $uploaded_files;
+            $this->response['files'] = $uploaded_files;
             print_r(json_encode($this->response));
         }
     }

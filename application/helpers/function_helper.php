@@ -9749,6 +9749,40 @@ function generate_awb($shipment_id)
     return $res;
 }
 
+/**
+ * Runs the whole post-booking Shiprocket sequence for one shipment: assign courier/AWB, schedule
+ * the pickup, fetch the label. Each step only runs if the one before it worked, and none is fatal -
+ * the manual AWB / pickup / label buttons on the order screen remain the retry path.
+ *
+ * @return array ['awb_code' => string, 'pickup' => bool, 'label' => bool, 'message' => string]
+ */
+function shiprocket_auto_fulfil($shipment_id)
+{
+    $out = ['awb_code' => '', 'pickup' => false, 'label' => false, 'message' => ''];
+    if (empty($shipment_id)) {
+        return $out;
+    }
+
+    $awb = generate_awb($shipment_id);
+    $out['awb_code'] = isset($awb['response']['data']['awb_code']) ? (string) $awb['response']['data']['awb_code'] : '';
+    if ($out['awb_code'] === '') {
+        $out['message'] = 'AWB could not be auto-assigned: ' . shiprocket_result_message($awb, 'no courier assigned') . '.';
+        return $out;
+    }
+    $out['message'] = 'AWB ' . $out['awb_code'] . ' assigned.';
+
+    $pickup = send_pickup_request($shipment_id);
+    $out['pickup'] = shiprocket_result_ok('pickup', $pickup);
+    $out['message'] .= $out['pickup']
+        ? ' Pickup scheduled.'
+        : ' Pickup not scheduled: ' . shiprocket_result_message($pickup, 'pickup could not be scheduled') . '.';
+
+    $label = generate_label($shipment_id);
+    $out['label'] = shiprocket_result_ok('label', $label);
+
+    return $out;
+}
+
 function send_pickup_request($shipment_id)
 {
     $t = &get_instance();
@@ -9916,7 +9950,29 @@ function cancel_shiprocket_order($shiprocket_order_id)
 {
     $t = &get_instance();
     $t->load->library(['Shiprocket']);
+
+    // Orders are now auto-assigned an AWB at booking. orders/cancel alone leaves that AWB live at
+    // the courier, so release it first (orders/cancel/shipment/awbs). Failure here is not fatal:
+    // an order that never got an AWB has nothing to release.
+    $tracking = fetch_details('order_tracking', ['shiprocket_order_id' => $shiprocket_order_id], 'awb_code');
+    $awb_code = !empty($tracking[0]['awb_code']) ? $tracking[0]['awb_code'] : '';
+    $awb_cancelled = false;
+    if ($awb_code !== '') {
+        $awb_res = $t->shiprocket->cancel_shipment([$awb_code]);
+        $awb_cancelled = shiprocket_result_ok('cancel', $awb_res);
+        if (!$awb_cancelled) {
+            log_message('error', 'Shiprocket AWB ' . $awb_code . ' cancellation refused: '
+                . shiprocket_result_message($awb_res, 'the AWB could not be cancelled'));
+        }
+    }
+
     $res = $t->shiprocket->cancel_order($shiprocket_order_id);
+
+    // Cancelling the AWB also cancels the order on Shiprocket's side, so a "already cancelled"
+    // answer from orders/cancel after a successful AWB cancel is still a success.
+    if ($awb_cancelled && !shiprocket_result_ok('cancel', $res)) {
+        $res = ['status' => 200, 'message' => 'Shipment cancelled.'];
+    }
 
     // Only mark the shipment cancelled once Shiprocket has actually accepted the
     // cancellation. This used to be set unconditionally, so a rejected or failed
@@ -11933,9 +11989,9 @@ function shiprocket_booked_order_items($order_id)
  *  - Digital products are skipped - there is nothing to ship - as are cancelled and returned
  *    items, and anything still 'awaiting' (payment unconfirmed).
  *
- * Booking here creates the order in the Shiprocket panel only. Generating the AWB and
- * requesting the pickup stay deliberately manual: those commit the seller to a courier and
- * cost money.
+ * Booking here creates the order in the Shiprocket panel, registers the seller's pickup address
+ * with Shiprocket if it is not yet confirmed, and auto-assigns the courier/AWB (Shiprocket
+ * then schedules the pickup and fetches the label - see shiprocket_auto_fulfil()).
  *
  * @param  int      $order_id
  * @param  int|null $only_seller_id  restrict to one seller's parcel
@@ -12085,6 +12141,12 @@ function create_shiprocket_forward_shipment($order_id, $only_seller_id = null)
         // it would come back 422 "Wrong Pickup location entered".
         $bookable = shiprocket_pickup_is_bookable($parcel['pickup_location'], $parcel['seller_id']);
         if (!$bookable['ok']) {
+            // Not confirmed yet: register it with Shiprocket now instead of waiting for someone to
+            // verify the address by hand. Only a genuine refusal from Shiprocket stops the booking.
+            $t->load->model('Pickup_location_model');
+            $bookable = $t->Pickup_location_model->ensure_registered_with_shiprocket($parcel['seller_id'], $parcel['pickup_location']);
+        }
+        if (!$bookable['ok']) {
             $result['message'] = $bookable['reason'];
             log_message('error', 'create_shiprocket_forward_shipment: order ' . $order_id . ' seller '
                 . $parcel['seller_id'] . ' - ' . $bookable['reason']);
@@ -12186,6 +12248,15 @@ function create_shiprocket_forward_shipment($order_id, $only_seller_id = null)
         $result['message'] = 'Shipment booked with Shiprocket.';
         $result['shiprocket_order_id'] = $response['order_id'];
         $result['shipment_id'] = isset($response['shipment_id']) ? $response['shipment_id'] : 0;
+
+        // Auto-assign the courier/AWB so the seller does not have to press "AWB". Non-fatal: if
+        // Shiprocket declines (no courier, low wallet balance) the order stays booked and the
+        // manual AWB button on the order screen remains the retry path.
+        if (!empty($result['shipment_id'])) {
+            $fulfil = shiprocket_auto_fulfil($result['shipment_id']);
+            $result['awb_code'] = $fulfil['awb_code'];
+            $result['message'] .= ' ' . $fulfil['message'];
+        }
         $results[] = $result;
     }
 
@@ -13186,6 +13257,47 @@ function seller_profile_sections()
             'fields' => ['account_number', 'account_holder_name', 'ifsc', 'branch', 'bank_name'],
         ],
     ];
+}
+
+/**
+ * Is this seller trading on a GST Enrollment ID instead of a GSTIN?
+ * Such a seller is unregistered and cannot charge GST, so their only valid tax slab is 0%.
+ */
+function seller_is_gst_unregistered($seller_id)
+{
+    if (empty($seller_id)) {
+        return false;
+    }
+    $row = fetch_details('seller_data', ['user_id' => (int) $seller_id], 'is_gst_registered');
+    return !empty($row) && isset($row[0]['is_gst_registered']) && (string) $row[0]['is_gst_registered'] === '0';
+}
+
+/**
+ * Taxes a seller may pick: everything for a registered seller, only the 0% slab(s) for an
+ * unregistered (GST Enrollment ID) one.
+ */
+function taxes_for_seller($seller_id)
+{
+    $taxes = fetch_details('taxes', null, '*');
+    if (!seller_is_gst_unregistered($seller_id)) {
+        return $taxes;
+    }
+    return array_values(array_filter((array) $taxes, function ($t) {
+        return (float) $t['percentage'] == 0;
+    }));
+}
+
+/**
+ * Server-side twin of taxes_for_seller(): whatever tax id was posted, an unregistered seller
+ * is saved with the 0% slab (or no tax, id 0, when no 0% slab exists).
+ */
+function enforce_seller_tax($seller_id, $tax_id)
+{
+    if (!seller_is_gst_unregistered($seller_id)) {
+        return $tax_id;
+    }
+    $zero = taxes_for_seller($seller_id);
+    return !empty($zero) ? $zero[0]['id'] : 0;
 }
 
 /**

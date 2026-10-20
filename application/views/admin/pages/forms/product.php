@@ -258,7 +258,7 @@
                                                 <div class="section-header"><i class="fas fa-images"></i> Media</div>
                                                 <div class="form-group col-sm-12">
                                                     <label for="image">Main Image <span class='text-danger text-sm'>*</span><small>(Recommended Size : 180 x 180 pixels)</small></label>
-                                                    <div class='col-md-12'><a class="uploadFile img btn btn-primary text-white btn-sm" data-input='pro_input_image' data-isremovable='0' data-is-multiple-uploads-allowed='0' data-toggle="modal" data-target="#media-upload-modal" value="Upload Photo"><i class='fa fa-upload'></i> Upload</a></div>
+                                                    <div class='col-md-12 px-0'><button type="button" class="btn btn-primary btn-sm direct-upload-btn"><i class='fa fa-upload'></i> Choose Image</button><input type="file" class="d-none direct-upload-input" accept="image/*" data-input="pro_input_image" data-multiple="0" data-media-type="image"></div>
                                                     <?php
                                                     if (isset($product_details[0]['id']) && !empty($product_details[0]['id'])) {
                                                     ?>
@@ -280,7 +280,7 @@
                                                 <div class="form-group">
                                                     <label for="other_images">Other Images <small>(Recommended Size : 180 x 180 pixels)</small></label>
                                                     <div class="col-sm-12">
-                                                        <div class='col-md-3'><a class="uploadFile img btn btn-primary text-white btn-sm" data-input='other_images[]' data-isremovable='1' data-is-multiple-uploads-allowed='1' data-toggle="modal" data-target="#media-upload-modal" value="Upload Photo"><i class='fa fa-upload'></i> Upload</a></div>
+                                                        <div class='px-0'><button type="button" class="btn btn-primary btn-sm direct-upload-btn"><i class='fa fa-upload'></i> Choose Images</button><input type="file" class="d-none direct-upload-input" accept="image/*" multiple data-input="other_images[]" data-multiple="1" data-media-type="image"></div>
                                                         <?php
                                                         if (isset($product_details[0]['id']) && !empty($product_details[0]['id'])) {
                                                         ?>
@@ -324,7 +324,7 @@
                                                     </div>
                                                     <div class="col-md-6 mt-2 <?= (isset($product_details[0]['video_type']) && ($product_details[0]['video_type'] == 'self_hosted')) ? '' : 'd-none'; ?>" id="video_media_container">
                                                         <label for="image" class="ml-2">Video <span class='text-danger text-sm'>*</span></label>
-                                                        <div class='col-md-3'><a class="uploadFile img btn btn-primary text-white btn-sm" data-input='pro_input_video' data-isremovable='1' data-media_type='video' data-is-multiple-uploads-allowed='0' data-toggle="modal" data-target="#media-upload-modal" value="Upload Photo"><i class='fa fa-upload'></i> Upload</a></div>
+                                                        <div class='col-md-3'><button type="button" class="btn btn-primary btn-sm direct-upload-btn"><i class='fa fa-upload'></i> Choose Video</button><input type="file" class="d-none direct-upload-input" accept="video/*" data-input="pro_input_video" data-multiple="0" data-media-type="video"></div>
                                                         <?php if (isset($product_details[0]['id']) && !empty($product_details[0]['id']) && isset($product_details[0]['video_type']) &&  $product_details[0]['video_type'] == 'self_hosted') { ?>
                                                             <label class="text-danger mt-3">*Only Choose When Update is necessary</label>
                                                             <div class="container-fluid row image-upload-section ">
@@ -511,7 +511,7 @@
                                                                             </div>
                                                                             <div class="col-md-6 mt-2 <?= (isset($product_details[0]['download_type']) && ($product_details[0]['download_type'] == 'self_hosted')) ? '' : 'd-none'; ?>" id="digital_media_container">
                                                                                 <label for="image" class="ml-2">File <span class='text-danger text-sm'>*</span></label>
-                                                                                <div class='col-md-3'><a class="uploadFile img btn btn-primary text-white btn-sm" data-input='pro_input_zip' data-isremovable='1' data-media_type='archive,document' data-is-multiple-uploads-allowed='0' data-toggle="modal" data-target="#media-upload-modal" value="Upload Photo"><i class='fa fa-upload'></i> Upload</a></div>
+                                                                                <div class='col-md-3'><button type="button" class="btn btn-primary btn-sm direct-upload-btn"><i class='fa fa-upload'></i> Choose File</button><input type="file" class="d-none direct-upload-input" data-input="pro_input_zip" data-multiple="0" data-media-type="archive,document"></div>
                                                                                 <?php if (isset($product_details[0]['id']) && !empty($product_details[0]['id']) && isset($product_details[0]['download_type']) &&  $product_details[0]['download_type'] == 'self_hosted') { ?>
                                                                                     <label class="text-danger mt-3">*Only Choose When Update is necessary</label>
                                                                                     <div class="container-fluid row image-upload-section">
@@ -775,7 +775,7 @@
                                                                             </div>
                                                                             <div class="col-md-6 mt-2 d-none" id="digital_media_container">
                                                                                 <label for="image" class="ml-2">File <span class='text-danger text-sm'>*</span></label>
-                                                                                <div class='col-md-3'><a class="uploadFile img btn btn-primary text-white btn-sm" data-input='pro_input_zip' data-isremovable='1' data-media_type='archive,document' data-is-multiple-uploads-allowed='0' data-toggle="modal" data-target="#media-upload-modal" value="Upload Photo"><i class='fa fa-upload'></i> Upload</a></div>
+                                                                                <div class='col-md-3'><button type="button" class="btn btn-primary btn-sm direct-upload-btn"><i class='fa fa-upload'></i> Choose File</button><input type="file" class="d-none direct-upload-input" data-input="pro_input_zip" data-multiple="0" data-media-type="archive,document"></div>
                                                                                 <div class="container-fluid row image-upload-section">
                                                                                     <div class="col-md-3 col-sm-12 shadow p-3 mb-5 bg-white rounded m-4 text-center grow image d-none">
                                                                                     </div>
@@ -1147,3 +1147,4 @@ $(document).ready(function () {
     }
 });
 </script>
+<?php $this->load->view('partials/product-media-uploader', ['upload_url' => base_url('admin/media/upload')]); ?>

@@ -619,7 +619,7 @@ $rail = [
                   $wants_proof = $is_non_gst && !in_array($entity_type, ['individual', ''], true);
                   asf_file(['name' => 'pan_card_document', 'label' => 'PAN Card', 'value' => $d['pan_card_document'] ?? '', 'required' => true]);
                   asf_file(['name' => 'gstin_document', 'label' => 'GSTIN Document', 'value' => $d['gstin_document'] ?? '', 'required' => true, 'hidden' => $is_non_gst]);
-                  asf_file(['name' => 'gst_enrollment_ack_document', 'label' => 'GST Enrollment Acknowledgement Slip', 'value' => $d['gst_enrollment_ack_document'] ?? '', 'required' => true, 'hidden' => !$is_non_gst]);
+                  asf_file(['name' => 'gst_enrollment_ack_document', 'label' => 'GST Enrollment Acknowledgement Slip', 'value' => $d['gst_enrollment_ack_document'] ?? '', 'required' => false, 'hidden' => !$is_non_gst]);
                   asf_file(['name' => 'partnership_deed_document', 'label' => 'Partnership Deed', 'value' => $d['partnership_deed_document'] ?? '', 'required' => true, 'hidden' => ($entity_type !== 'partnership_firm')]);
                   asf_file(['name' => 'business_proof_document', 'label' => 'Business Proof', 'value' => $d['business_proof_document'] ?? '', 'required' => true, 'hidden' => !$wants_proof, 'extra_hint_id' => 'business_proof_document_hint_extra']);
                   asf_file(['name' => 'business_address_proof_document', 'label' => 'Business Address Proof', 'value' => $d['business_address_proof_document'] ?? '', 'required' => true, 'hidden' => !$wants_proof, 'hint' => 'Electricity bill, rent/lease agreement or bank statement']);

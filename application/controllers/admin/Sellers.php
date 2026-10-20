@@ -595,7 +595,7 @@ class Sellers extends CI_Controller
                 'store_logo' => false,
                 'pan_card_document' => true,
                 'gstin_document' => !$gst_check_set,
-                'gst_enrollment_ack_document' => $gst_check_set,
+                'gst_enrollment_ack_document' => false,
                 'partnership_deed_document' => ($entity_type_posted === 'partnership_firm'),
                 'business_proof_document' => $business_proof_required,
                 'business_address_proof_document' => $business_proof_required,

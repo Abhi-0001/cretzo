@@ -663,6 +663,49 @@ class Shiprocket
     }
 
     /**
+     * Tracking for many AWBs in one request (`courier/track/awbs`).
+     *
+     * Shiprocket accepts at most 50 AWBs per call, so longer lists are split. Each entry in the
+     * returned map has the same {tracking_data: ...} shape track_awb() gives for one AWB, so
+     * callers can treat the two interchangeably. An AWB missing from the map means its chunk
+     * failed or Shiprocket returned nothing for it - fall back to track_awb() for those.
+     *
+     * @param  array $awb_codes
+     * @return array map of awb_code => decoded response entry
+     */
+    public function track_awbs(array $awb_codes)
+    {
+        $awb_codes = array_values(array_unique(array_filter(array_map('strval', $awb_codes))));
+        $map = [];
+        foreach (array_chunk($awb_codes, 50) as $chunk) {
+            $res = $this->curl($this->url . 'courier/track/awbs', 'POST', json_encode(['awbs' => $chunk]));
+            if (!is_array($res)) {
+                continue;
+            }
+            foreach ($chunk as $awb) {
+                if (isset($res[$awb]) && is_array($res[$awb])) {
+                    $map[$awb] = $res[$awb];
+                }
+            }
+        }
+        return $map;
+    }
+
+    /**
+     * Tracking by the order id/number the store sent when creating the order
+     * (`courier/track?order_id=..`). order_tracking stores our own reference, so this works
+     * even for a shipment whose shipment id or AWB was never recorded locally.
+     */
+    public function track_by_order_id($order_id, $channel_id = null)
+    {
+        $qry = ['order_id' => $order_id];
+        if (!empty($channel_id)) {
+            $qry['channel_id'] = $channel_id;
+        }
+        return $this->curl($this->url . 'courier/track?' . http_build_query($qry), 'GET');
+    }
+
+    /**
      * Cancels a forward order.
      *
      * The parameter was named $shipment_id, but `orders/cancel` takes SHIPROCKET ORDER ids -

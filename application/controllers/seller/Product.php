@@ -108,7 +108,7 @@ class Product extends CI_Controller
             $settings = get_settings('system_settings', true);
             $this->data['title'] = 'Add Product | ' . $settings['app_name'];
             $this->data['meta_description'] = 'Add Product | ' . $settings['app_name'];
-            $this->data['taxes'] = fetch_details('taxes', null,  '*');
+            $this->data['taxes'] = taxes_for_seller($seller_id);
             $this->data['seller_id'] = $seller_id;
             $this->data['pickup_locations'] = fetch_details('pickup_locations', ['seller_id' => $seller_id, 'status' => 1], 'id,pickup_location');
             $this->data['listing_quota'] = $this->Seller_subscription_model->check_listing_quota($seller_id, 1);
@@ -1312,6 +1312,9 @@ class Product extends CI_Controller
                         if (trim($row[$C['tax']]) !== '') {
                             $data['tax'] = $row[$C['tax']];
                         }
+                        if (seller_is_gst_unregistered($this->ion_auth->get_user_id())) {
+                            $data['tax'] = enforce_seller_tax($this->ion_auth->get_user_id(), 0);
+                        }
                         $data['type'] = $entry['type'];
                         if ($stock_type !== null) {
                             $data['stock_type'] = $stock_type;
@@ -1562,6 +1565,7 @@ class Product extends CI_Controller
                                 } else {
                                     $data['tax'] = $product[0]['tax'];
                                 }
+                                $data['tax'] = enforce_seller_tax($current_seller_id, $data['tax']);
                                 if (!empty($row[3])) {
                                     $data['type'] = $row[3];
                                 } else {

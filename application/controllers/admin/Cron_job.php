@@ -692,6 +692,10 @@ class Cron_job extends CI_Controller
         $unchanged = 0;
         $failed = 0;
 
+        // One request per 50 AWBs instead of one per shipment. Anything the batch did not return
+        // falls through to the single-AWB call below.
+        $batch = $this->shiprocket->track_awbs(array_column($candidates, 'awb_code'));
+
         foreach ($candidates as $tracking) {
             $checked++;
 
@@ -701,9 +705,13 @@ class Cron_job extends CI_Controller
             // RECORD, whose status can lag the courier and can describe a previous courier
             // altogether after a re-assignment. Falls back to the record for shipments that have
             // not been assigned an AWB yet.
-            $res = !empty($tracking['awb_code'])
-                ? $this->shiprocket->track_awb($tracking['awb_code'])
-                : $this->shiprocket->get_order($tracking['shipment_id']);
+            if (!empty($tracking['awb_code']) && isset($batch[$tracking['awb_code']])) {
+                $res = $batch[$tracking['awb_code']];
+            } else {
+                $res = !empty($tracking['awb_code'])
+                    ? $this->shiprocket->track_awb($tracking['awb_code'])
+                    : $this->shiprocket->get_order($tracking['shipment_id']);
+            }
 
             if (!is_array($res)) {
                 // Transport failure or an unreadable response. The library has already logged

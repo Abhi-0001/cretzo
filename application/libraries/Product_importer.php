@@ -109,7 +109,7 @@ class Product_importer
      * $max_bytes aborts the transfer as soon as the body grows past it.
      * Returns ['body' => , 'type' => , 'url' => final url] or false.
      */
-    private function http_get($url, $max_bytes, $accept)
+    private function http_get($url, $max_bytes, $accept, $keep_error_body = false)
     {
         if (!function_exists('curl_init')) {
             return $this->fail('Import is not available on this server (cURL missing).');
@@ -176,12 +176,12 @@ class Product_importer
                 return $this->fail('We could not reach that website. It may be down or blocking automated access.');
             }
             if ($code === 403 || $code === 429 || $code === 503) {
-                return $this->fail('That website blocked the import (it does not allow automated access). Please enter the details manually, or try a link from the seller\'s own website.');
+                return $this->fail('That website blocked the import (it does not allow automated access). Open the "Link not fetching?" section below and use the one-click browser helper, or enter the details manually.');
             }
-            if ($code < 200 || $code >= 300) {
-                return $this->fail('That website returned an error (' . $code . ').');
+            if (($code < 200 || $code >= 300) && !($keep_error_body && $code >= 400 && $body !== '')) {
+                return $this->fail('That website returned an error (' . $code . '). Check that the link opens in your browser.');
             }
-            return ['body' => $body, 'type' => $type, 'url' => $safe];
+            return ['body' => $body, 'type' => $type, 'url' => $safe, 'status' => $code];
         }
         return $this->fail('That link redirects too many times.');
     }
@@ -229,7 +229,7 @@ class Product_importer
      */
     public function fetch($url)
     {
-        $res = $this->http_get($url, self::MAX_HTML_BYTES, 'text/html,application/xhtml+xml');
+        $res = $this->http_get($url, self::MAX_HTML_BYTES, 'text/html,application/xhtml+xml', true);
         if ($res === false) {
             return false;
         }
@@ -252,6 +252,22 @@ class Product_importer
 
         // 1. JSON-LD Product - the most reliable source when a site publishes it.
         $this->from_json_ld($xp, $out, $res['url']);
+        $has_product_data = ($out['name'] !== '');
+
+        // A page that only ships an empty app shell (React/Vue/Next client rendering)
+        // has nothing to read here, and its og: tags describe the site, not the product.
+        // Importing those would silently fill the form with the homepage's details.
+        $host = strtolower((string) parse_url($res['url'], PHP_URL_HOST));
+        $is_marketplace = (strpos($host, 'amazon.') !== false || strpos($host, 'flipkart.') !== false);
+        // A 404 shell carries the site-wide JSON-LD, not this product's, so a shell that
+        // answers with an error status counts as having no product data of its own.
+        if ((!$has_product_data || $res['status'] >= 400) && !$is_marketplace && $this->is_js_shell($dom, $xp)) {
+            return $this->fail('This website builds its product pages with JavaScript, so we can only see an empty page and cannot read the product from it. Importing works with websites that show the product in the page itself (Shopify, WooCommerce, Wix, most marketplaces). Open the "Link not fetching?" section below and use the one-click browser helper, or enter the details manually.');
+        }
+        if ($res['status'] >= 400) {
+            return $this->fail('That page was not found (error ' . $res['status'] . '). Check that the link opens the product in your browser.');
+        }
+
         // 2. Open Graph / meta tags.
         $this->from_meta($xp, $out, $res['url']);
         // 3. Marketplace-specific gallery and bullets.
@@ -281,6 +297,22 @@ class Product_importer
             return $this->fail('We could not find product details on that page. It may load its content with JavaScript or block automated access. Please enter the details manually.');
         }
         return $out;
+    }
+
+    /**
+     * True when the page is a client-rendered app: an empty mount point (#root, #app,
+     * #__next) means the real content is built by JavaScript after load. Static text
+     * elsewhere in the body (SEO copy, footer) does not change that.
+     */
+    private function is_js_shell($dom, $xp)
+    {
+        foreach ($xp->query('//*[@id="root" or @id="app" or @id="__next" or @id="___gatsby"]') as $mount) {
+            $text = trim(preg_replace('/\s+/u', ' ', $mount->textContent));
+            if (strlen($text) < 100) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private function from_json_ld($xp, &$out, $base)

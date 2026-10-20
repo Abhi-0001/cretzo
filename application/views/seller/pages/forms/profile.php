@@ -534,7 +534,7 @@ $initial       = in_array(($current_profile_section ?? 'personal'), $section_key
               <?php
               czp_file_field(['name' => 'pan_card_document', 'label' => 'PAN Card', 'value' => $d['pan_card_document'] ?? '', 'required' => true]);
               czp_file_field(['name' => 'gstin_document', 'label' => 'GSTIN Document', 'value' => $d['gstin_document'] ?? '', 'required' => true]);
-              czp_file_field(['name' => 'gst_enrollment_ack_document', 'label' => 'GST Enrollment Acknowledgement Slip', 'value' => $d['gst_enrollment_ack_document'] ?? '', 'required' => true]);
+              czp_file_field(['name' => 'gst_enrollment_ack_document', 'label' => 'GST Enrollment Acknowledgement Slip', 'value' => $d['gst_enrollment_ack_document'] ?? '', 'required' => false]);
               czp_file_field(['name' => 'partnership_deed_document', 'label' => 'Partnership Deed', 'value' => $d['partnership_deed_document'] ?? '', 'required' => true]);
               czp_file_field(['name' => 'business_proof_document', 'label' => 'Business Proof', 'value' => $d['business_proof_document'] ?? '', 'required' => true, 'extra_hint_id' => 'business_proof_document_hint_extra']);
               czp_file_field(['name' => 'business_address_proof_document', 'label' => 'Business Address Proof', 'value' => $d['business_address_proof_document'] ?? '', 'required' => true, 'hint' => 'Electricity bill, rent/lease agreement or bank statement']);

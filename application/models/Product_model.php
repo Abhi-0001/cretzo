@@ -124,6 +124,7 @@ class Product_model extends CI_Model
         $warranty_period = (isset($data['warranty_period']) && !empty($data['warranty_period'])) ? $data['warranty_period'] : "";
         $guarantee_period = (isset($data['guarantee_period']) && !empty($data['guarantee_period'])) ? $data['guarantee_period'] : "";
         $tax = (isset($data['pro_input_tax']) && $data['pro_input_tax'] != 0 && !empty($data['pro_input_tax'])) ? $data['pro_input_tax'] : 0;
+        $tax = enforce_seller_tax($seller_id, $tax); // GST Enrollment ID sellers: 0% only
         $video_type = (isset($data['video_type']) && !empty($data['video_type'])) ? $data['video_type'] : "";
         $video = (!empty($video_type)) ? (($video_type == 'youtube' || $video_type == 'vimeo') ? $data['video'] : $data['pro_input_video']) : "";
         $is_attachment_required = (isset($data['is_attachment_required'])) ? $data['is_attachment_required'] : '0';

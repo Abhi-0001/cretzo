@@ -338,7 +338,6 @@ function validateForm(form) {
     authorized_signature: 'Authorized Signatory',
     pan_card_document: 'PAN Card',
     gstin_document: 'GSTIN document',
-    gst_enrollment_ack_document: 'GST Enrollment Acknowledgement Slip',
     partnership_deed_document: 'Partnership Deed',
     business_proof_document: 'Business Proof',
     business_address_proof_document: 'Business Address Proof'

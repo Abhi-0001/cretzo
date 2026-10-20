@@ -8,6 +8,36 @@
  * reviews and saves as usual.
  */
 $import_panel = isset($import_panel) ? $import_panel : 'seller';
+
+// Browser helper ("bookmarklet"): runs on the OTHER website, inside the seller's own browser,
+// where the page has already rendered - so JavaScript-built shops and sites that block
+// servers both work, with no paid service. It opens this page and hands over plain data
+// only (text + image URLs). Nothing it sends is ever executed or inserted as HTML here.
+$cz_page_url = base_url($import_panel . '/product/create-product');
+$cz_helper_js = <<<'JS'
+(function(){var B=__URL__,d=document,imgs=[],name='',desc='',brand='',price='';
+function q(s){return d.querySelector(s)}
+function meta(n){var e=q('meta[property="'+n+'"],meta[name="'+n+'"]');return e&&e.content?e.content.trim():''}
+function add(u){if(!u)return;try{u=new URL(u,location.href).href;if(/^https?:/.test(u)&&imgs.indexOf(u)<0)imgs.push(u)}catch(e){}}
+function prod(n){if(!n||typeof n!=='object')return;if(Array.isArray(n)){n.forEach(prod);return}
+var t=n['@type'];if(t==='Product'||(Array.isArray(t)&&t.indexOf('Product')>-1)){name=name||n.name||'';desc=desc||(typeof n.description==='string'?n.description:'');
+var b=n.brand;brand=brand||(b&&b.name?b.name:(typeof b==='string'?b:''));
+var im=n.image;(Array.isArray(im)?im:[im]).forEach(function(i){if(i)add(typeof i==='string'?i:(i.url||i.contentUrl))});
+var o=n.offers;if(o){o=Array.isArray(o)?o[0]:o;price=price||(o&&(o.price||o.lowPrice))||''}}
+Object.keys(n).forEach(function(k){if(n[k]&&typeof n[k]==='object')prod(n[k])})}
+d.querySelectorAll('script[type="application/ld+json"]').forEach(function(s){try{prod(JSON.parse(s.textContent))}catch(e){}});
+var sel=(window.getSelection?String(window.getSelection()):'').trim();
+var h1=q('h1');name=name||(h1?h1.innerText.trim():'')||meta('og:title')||d.title;
+desc=sel.length>20?sel:(desc||meta('og:description')||meta('description'));
+add(meta('og:image'));
+d.querySelectorAll('img').forEach(function(i){if(i.naturalWidth>=250&&i.naturalHeight>=250&&!/logo|icon|sprite|avatar|banner|badge/i.test(i.src))add(i.currentSrc||i.src)});
+var data={name:name.slice(0,200),description:desc.slice(0,8000),brand:String(brand).slice(0,100),price:String(price).slice(0,20),images:imgs.slice(0,16),source:location.hostname};
+var w=window.open(B+(B.indexOf('?')>-1?'&':'?')+'cz_import=1','cretzo_import');
+if(!w){alert('Please allow pop-ups for this site, then click the bookmark again.');return}
+var o=new URL(B).origin;
+window.addEventListener('message',function(e){if(e.origin===o&&e.data==='cz-ready'){w.postMessage({czImport:data},o)}});})();
+JS;
+$cz_helper_href = 'javascript:' . rawurlencode(str_replace('__URL__', json_encode($cz_page_url), $cz_helper_js));
 ?>
 <div class="czimp" id="czimp" data-panel="<?= html_escape($import_panel) ?>"
      data-fetch-url="<?= base_url($import_panel . '/product/fetch_from_url') ?>"
@@ -24,6 +54,20 @@ $import_panel = isset($import_panel) ? $import_panel : 'seller';
         <button type="button" id="czimp-fetch" class="btn btn-primary"><i class="fas fa-cloud-download-alt"></i> Fetch</button>
     </div>
     <div class="czimp-msg" id="czimp-msg" role="status" aria-live="polite"></div>
+
+    <details class="czimp-helper" id="czimp-helper">
+        <summary>Link not fetching? Use the one-click browser helper</summary>
+        <div class="czimp-helper-body">
+            <p>Some websites (Amazon, Flipkart, shops built with React) can't be read by our server. This helper reads the page <strong>in your own browser</strong> instead, so it works on any site.</p>
+            <ol>
+                <li><strong>Drag</strong> this button to your bookmarks bar:
+                    <a class="czimp-bm" id="czimp-bm" href="<?= html_escape($cz_helper_href) ?>" onclick="alert('Do not click it here. Drag it up to your bookmarks bar, then use it on the product page.');return false;"><i class="fas fa-bookmark"></i> Send to Cretzo</a>
+                    <small>(Bookmarks bar hidden? Press Ctrl+Shift+B.)</small></li>
+                <li>Open the product page on the other website. <small>Optional: select the description text with your mouse first.</small></li>
+                <li>Click the <strong>Send to Cretzo</strong> bookmark. This page opens with the details ready to review.</li>
+            </ol>
+        </div>
+    </details>
 
     <div class="czimp-preview d-none" id="czimp-preview">
         <div class="czimp-src">Found on <strong id="czimp-source"></strong>. Untick anything you don't want.</div>
@@ -84,6 +128,12 @@ $import_panel = isset($import_panel) ? $import_panel : 'seller';
     .czimp-msg.is-error { color: #b42318; }
     .czimp-msg.is-ok { color: #2e7d32; }
     .czimp-msg.is-busy { color: #6b7280; }
+    .czimp-helper { margin-top: 12px; font-size: 13px; }
+    .czimp-helper summary { cursor: pointer; color: #b45309; font-weight: 600; }
+    .czimp-helper-body { background: #fff; border: 1px solid #f3d9b8; border-radius: 8px; padding: 10px 14px; margin-top: 8px; color: #374151; }
+    .czimp-helper-body ol { padding-left: 18px; margin: 6px 0 0; }
+    .czimp-helper-body li { margin-bottom: 6px; }
+    .czimp-bm { display: inline-block; background: #F2822E; color: #fff !important; padding: 3px 12px; border-radius: 16px; font-weight: 600; cursor: grab; margin: 0 6px; text-decoration: none; }
     .czimp-preview { margin-top: 14px; background: #fff; border: 1px solid #eee; border-radius: 8px; padding: 14px; }
     .czimp-src { font-size: 13px; color: #6b7280; margin-bottom: 10px; }
     .czimp-field { display: grid; grid-template-columns: 22px 130px 1fr; gap: 8px; align-items: start; padding: 8px 0; border-top: 1px solid #f1f1f1; margin: 0; cursor: pointer; font-weight: normal; }
@@ -167,7 +217,7 @@ $import_panel = isset($import_panel) ? $import_panel : 'seller';
                 $('#czimp-preview').addClass('d-none');
 
                 post(fetchUrl, { url: url }).done(function (res) {
-                    if (res.error) { setMsg(res.message || 'Could not import that link.', 'is-error'); return; }
+                    if (res.error) { setMsg(res.message || 'Could not import that link.', 'is-error'); $('#czimp-helper').prop('open', true); return; }
                     found = res.data;
                     showPreview(found);
                     setMsg('', '');
@@ -227,6 +277,43 @@ $import_panel = isset($import_panel) ? $import_panel : 'seller';
                 }
                 renderImgs();
             });
+            // ---------- Data sent by the browser helper (bookmarklet) ----------
+            // Opened with ?cz_import=1: tell the opener we are ready, then accept ONE
+            // data message. Anyone can post to this window, so the payload is treated as
+            // untrusted text: every field is length-capped and type-checked, and it only
+            // reaches the preview. Nothing is applied until the seller ticks the
+            // ownership box and clicks Apply; photos are re-downloaded server-side
+            // through the same public-address checks as a fetched link.
+            if (/[?&]cz_import=1/.test(location.search) && window.opener) {
+                var got = false;
+                window.addEventListener('message', function (e) {
+                    var m = e.data;
+                    if (got || !m || typeof m !== 'object' || !m.czImport || typeof m.czImport !== 'object') return;
+                    got = true;
+                    var c = m.czImport;
+                    var str = function (v, n) { return (typeof v === 'string' ? v : '').slice(0, n); };
+                    var esc = function (t) { return $('<div>').text(t).html(); };
+                    var paras = $.grep(str(c.description, 8000).split(/\n+/), function (p) { return $.trim(p) !== ''; });
+                    var imgs = $.grep($.isArray(c.images) ? c.images : [], function (u) { return typeof u === 'string' && /^https?:\/\//i.test(u) && u.length < 1500; }).slice(0, 16);
+                    var plain = str(c.description, 8000).replace(/\s+/g, ' ');
+                    found = {
+                        name: str(c.name, 200),
+                        description: paras.length ? '<p>' + $.map(paras, function (p) { return esc($.trim(p)); }).join('</p><p>') + '</p>' : '',
+                        short_description: plain.slice(0, 280),
+                        brand: str(c.brand, 100),
+                        tags: [],
+                        price: /^[0-9.,]{1,20}$/.test(str(c.price, 20)) ? str(c.price, 20) : '',
+                        images: imgs,
+                        source: str(c.source, 100)
+                    };
+                    showPreview(found);
+                    setMsg('Details received from ' + (found.source || 'the other website') + '. Review them below.', 'is-ok');
+                    var el = document.getElementById('czimp');
+                    if (el && el.scrollIntoView) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+                });
+                try { window.opener.postMessage('cz-ready', '*'); } catch (err) { /* opener gone */ }
+            }
+
             $('#czimp-own').on('change', updateApply);
             $('#czimp-cancel').on('click', function () { $('#czimp-preview').addClass('d-none'); setMsg('', ''); });
 
