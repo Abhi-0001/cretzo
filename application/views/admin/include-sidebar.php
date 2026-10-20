@@ -202,6 +202,12 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
                                         <p>Categories</p>
                                     </a>
                                 </li>
+                                <li class="nav-item">
+                                    <a href="<?= base_url('admin/category/commission') ?>" class="nav-link">
+                                        <i class="fa fa-percentage nav-icon"></i>
+                                        <p>Category Commission</p>
+                                    </a>
+                                </li>
                             <?php } ?>
                             <?php if (has_permissions('read', 'category_order')) { ?>
                                 <li class="nav-item">

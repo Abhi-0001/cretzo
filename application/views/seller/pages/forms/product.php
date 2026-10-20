@@ -423,6 +423,7 @@
                                             <div id="category_dropdown"></div>
                                         </div>
                                         <small class="text-muted d-block mt-1" id="category_hint">Search and select a category</small>
+                                        <div class="category-commission-info" id="category_commission_info" style="display:none;"></div>
                                         <input type="hidden" id="category_tree_data" value='<?= htmlspecialchars(json_encode($categories ?? []), ENT_QUOTES, "UTF-8") ?>'>
                                     </div>
                                     <div class="form-group  col-md-12 mb-3">
@@ -1021,6 +1022,27 @@
     .seller-create-product-page .category-result-name { font-weight: 600; font-size: 14px; }
     .seller-create-product-page .category-result-path { font-size: 12px; color: var(--color-grey); }
     .seller-create-product-page .category-empty { padding: 10px 12px; color: var(--color-grey); font-size: 13px; }
+    .seller-create-product-page .category-result-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .seller-create-product-page .category-result-rate {
+        flex: 0 0 auto;
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--color-orange-dark);
+        background: var(--color-orange-light);
+        border-radius: 10px;
+        padding: 2px 8px;
+        white-space: nowrap;
+    }
+    .seller-create-product-page .category-commission-info {
+        margin-top: 8px;
+        padding: 8px 12px;
+        border-radius: 8px;
+        background: var(--color-orange-light);
+        border: 1px solid rgba(219, 115, 35, .2);
+        font-size: 13px;
+        color: #444;
+    }
+    .seller-create-product-page .category-commission-info b { color: var(--color-orange-dark); }
 
     /* ---------------------------------------------------------------
      * Visual polish. Layout and markup are unchanged - this only tunes
@@ -1301,13 +1323,29 @@ $(document).ready(function () {
             var parts = pathParts.concat([cat.name]);
             var existing = into[cat.id];
             if (!existing || parts.length > existing.depth) {
-                into[cat.id] = { id: cat.id, name: cat.name, fullPath: parts.join(' > '), depth: parts.length };
+                into[cat.id] = {
+                    id: cat.id, name: cat.name, fullPath: parts.join(' > '), depth: parts.length,
+                    rate: (cat.commission_rate === undefined || cat.commission_rate === null) ? null : Number(cat.commission_rate),
+                    rateSource: cat.commission_source || ''
+                };
             }
             if (cat.children && cat.children.length) {
                 flatten(cat.children, parts, into);
             }
         });
         return into;
+    }
+
+    // Commission charged in the chosen category - the same rate checkout will lock onto the
+    // order line, so the seller sees it before they list.
+    var $commInfo = $('#category_commission_info');
+    function fmtRate(n) { return (Math.round(n * 100) / 100) + '%'; }
+    function showCommission(cat) {
+        if (!cat || cat.rate === null) { $commInfo.hide().empty(); return; }
+        var why = cat.rateSource === 'category_inherited' ? ' (inherited from its parent category)'
+            : (cat.rateSource === 'platform_default' ? ' (standard platform rate)' : '');
+        $commInfo.html('<i class="fas fa-percentage mr-1"></i> Commission in this category: <b>' + fmtRate(cat.rate) + '</b>' + why +
+            ', charged on the price before GST.').show();
     }
 
     function setCategories(tree) {
@@ -1321,6 +1359,7 @@ $(document).ready(function () {
             if (match) {
                 $input.val(match.fullPath);
                 $clearBtn.show();
+                showCommission(match);
             } else {
                 $selected.val('');
                 $input.val('');
@@ -1350,10 +1389,13 @@ $(document).ready(function () {
         }
 
         filtered.slice(0, 200).forEach(function (cat) {
-            var $item = $('<div>').addClass('category-result-item')
-                .append($('<div>').addClass('category-result-name').text(cat.name));
+            var $text = $('<div>').append($('<div>').addClass('category-result-name').text(cat.name));
             if (cat.fullPath !== cat.name) {
-                $item.append($('<div>').addClass('category-result-path').text(cat.fullPath));
+                $text.append($('<div>').addClass('category-result-path').text(cat.fullPath));
+            }
+            var $item = $('<div>').addClass('category-result-item').append($text);
+            if (cat.rate !== null) {
+                $item.append($('<span>').addClass('category-result-rate').attr('title', 'Commission').text(fmtRate(cat.rate)));
             }
             $item.on('mousedown', function (e) {
                 e.preventDefault();
@@ -1361,6 +1403,7 @@ $(document).ready(function () {
                 $selected.val(cat.id);
                 $clearBtn.show();
                 $dropdown.hide();
+                showCommission(cat);
             });
             $dropdown.append($item);
         });
@@ -1372,6 +1415,7 @@ $(document).ready(function () {
         // Typing invalidates the previous pick, so the hidden id is cleared until
         // something is chosen from the list again.
         $selected.val('');
+        showCommission(null);
         $clearBtn.toggle($(this).val().length > 0);
         renderDropdown($(this).val());
     });
@@ -1380,6 +1424,7 @@ $(document).ready(function () {
         $input.val('').trigger('focus');
         $selected.val('');
         $clearBtn.hide();
+        showCommission(null);
     });
     $input.on('blur', function () { setTimeout(function () { $dropdown.hide(); }, 150); });
     $(document).on('click', function (e) {

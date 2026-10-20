@@ -601,7 +601,7 @@ class Product_model extends CI_Model
             $total = $row['total'];
         }
 
-        $search_res = $this->db->select('product_variants.id AS id,c.name as category_name,COALESCE(NULLIF(sd.shop_name, ""), sd.store_name) as store_name, p.id as pid,p.rating,p.no_of_ratings,p.name, p.type, p.image, p.status,p.brand,product_variants.price , product_variants.special_price, product_variants.stock')
+        $search_res = $this->db->select('product_variants.id AS id,p.category_id,c.name as category_name,COALESCE(NULLIF(sd.shop_name, ""), sd.store_name) as store_name, p.id as pid,p.rating,p.no_of_ratings,p.name, p.type, p.image, p.status,p.brand,product_variants.price , product_variants.special_price, product_variants.stock')
             ->join("categories c", "p.category_id=c.id")
             ->join("seller_data sd", "sd.user_id=p.seller_id ")
             ->join('product_variants', 'product_variants.product_id = p.id');
@@ -728,6 +728,10 @@ class Product_model extends CI_Model
             $tempRow['type'] = $row['type'];
             $tempRow['brand'] = $row['brand'];
             $tempRow['category_name'] = $row['category_name'];
+            // Commission this product is charged when it sells - its category's rate.
+            $this->load->model('Category_model');
+            $row_commission = $this->Category_model->resolve_commission_for_category($row['category_id']);
+            $tempRow['commission'] = '<span class="badge badge-light border" style="font-size:13px">' . $this->Category_model->format_commission($row_commission['rate']) . '</span><br><small class="text-muted">' . html_escape(unslash((string) $row['category_name'])) . '</small>';
             $tempRow['price'] =  ($row['special_price'] == null || $row['special_price'] == '0') ? $currency . $row['price'] : $currency . $row['special_price'];
             $tempRow['stock'] = $row['stock'];
             $variations = '';

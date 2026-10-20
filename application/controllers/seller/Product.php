@@ -169,7 +169,12 @@ class Product extends CI_Controller
             }
             // Sellers may list products in ANY active category, not just the primary/secondary
             // categories picked on their profile (that's data-collection only) — full tree, no seller filter.
-            $this->data['categories'] = $this->category_model->get_categories();
+            // Each node also carries commission_rate, so the picker can show the seller what
+            // they will be charged in the category they choose.
+            $this->data['categories'] = $this->category_model->annotate_tree_with_commission(
+                $this->category_model->get_categories(),
+                false
+            );
             $this->data['attributes_refind'] = $attributes_refind;
             $this->load->view('seller/template', $this->data);
         } else {

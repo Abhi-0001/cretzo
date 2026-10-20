@@ -437,7 +437,7 @@ class Order_model extends CI_Model
         /* Built in two steps rather than one chain, because the FIELD() ordering below
          * is conditional. The builder is stateful, so the select/join/where half is
          * staged here and get() is called after the optional order_by(). */
-        $this->db->select('pv.*,tax.percentage as tax_percentage,tax.title as tax_name,p.seller_id,p.name as product_name,p.type as product_type,p.is_prices_inclusive_tax,p.is_attachment_required,p.download_link')
+        $this->db->select('pv.*,tax.percentage as tax_percentage,tax.title as tax_name,p.seller_id,p.category_id as product_category_id,p.name as product_name,p.type as product_type,p.is_prices_inclusive_tax,p.is_attachment_required,p.download_link')
             ->join('products p ', 'pv.product_id=p.id', 'left')
             ->join('categories c', 'p.category_id = c.id', 'left')
             ->join('`taxes` tax', 'tax.id = p.tax', 'LEFT')
@@ -836,9 +836,11 @@ class Order_model extends CI_Model
                 return $response;
             }
 
-            // Commission rate resolved once per seller on this order, then reused for each of
-            // that seller's lines (see the item loop below).
+            // Commission rate per category on this order, resolved once and reused for every line
+            // in the same category (see the item loop below).
+            $this->load->model('Category_model');
             $resolved_commission = [];
+            $has_commission_category_column = $this->db->field_exists('commission_category_id', 'order_items');
 
 
             for ($i = 0; $i < count($product_variant); $i++) {
@@ -860,18 +862,20 @@ class Order_model extends CI_Model
                     'otp' => 0,
                 ];
 
-                // Fix the commission rate to the sale, here and now. It used to be resolved at
-                // settlement time from the seller's CURRENT plan - which can be weeks later, so
-                // a seller who changed plan in between had the new rate applied retroactively to
-                // sales already completed under the old one. Resolved once per seller per order,
-                // so every line of a multi-item order carries the same rate.
-                $item_seller_id = $product_variant[$i]['seller_id'];
-                if (!isset($resolved_commission[$item_seller_id])) {
-                    $this->load->model('Seller_model');
-                    $resolved_commission[$item_seller_id] = $this->Seller_model->resolve_commission_rate($item_seller_id);
+                // Fix the commission rate to the sale, here and now, from the category the
+                // product is listed in (inherited up the category tree, platform default if
+                // unset). Locking it means a later edit of the category's rate in the admin only
+                // re-prices FUTURE sales, never this one. Each line carries its own category's
+                // rate, so one order can hold several different rates.
+                $item_category_id = isset($product_variant[$i]['product_category_id']) ? (int) $product_variant[$i]['product_category_id'] : 0;
+                if (!isset($resolved_commission[$item_category_id])) {
+                    $resolved_commission[$item_category_id] = $this->Category_model->resolve_commission_for_category($item_category_id);
                 }
-                $product_variant_data[$i]['commission_rate'] = $resolved_commission[$item_seller_id]['rate'];
-                $product_variant_data[$i]['commission_rate_source'] = $resolved_commission[$item_seller_id]['source'];
+                $product_variant_data[$i]['commission_rate'] = $resolved_commission[$item_category_id]['rate'];
+                $product_variant_data[$i]['commission_rate_source'] = $resolved_commission[$item_category_id]['source'];
+                if ($has_commission_category_column) {
+                    $product_variant_data[$i]['commission_category_id'] = $resolved_commission[$item_category_id]['category_id'];
+                }
                 $this->db->insert('order_items', $product_variant_data[$i]);
                 $order_item_id = $this->db->insert_id();
                 if (isset($product_variant[$i]['download_link']) && !empty($product_variant[$i]['download_link'])) {
@@ -948,6 +952,18 @@ class Order_model extends CI_Model
                 'payment_method' => $data['payment_method']
             );
 
+            /*
+             * Everything from here down to notify_event() talks to the outside world - an SMTP
+             * session per email (~3.4s each just to open against Gmail), push, SMS - and none of
+             * it can change what the customer is told: the order row, the items, the stock
+             * deduction are all already written. It used to run before the response went out,
+             * which is most of why "Pay Now" sat on "Please Wait..." for 20s+. It now runs once
+             * the customer has their answer; see after_response_helper.php.
+             *
+             * $_POST['active_status'] is captured now because the closure runs at shutdown.
+             */
+            $post_active_status = isset($_POST['active_status']) ? $_POST['active_status'] : null;
+            run_after_response(function () use ($last_order_id, $system_settings, $cart_data, $overall_total, $user, $seller_ids, $parcels, $data, $post_active_status) {
             //send custom notifications
             $custom_notification = fetch_details('custom_notifications', ['type' => "place_order"], '');
             if (!empty($custom_notification)) {
@@ -988,7 +1004,7 @@ class Order_model extends CI_Model
                         $sellerPhone[] = $seller_email[0]['mobile'];
                         $sellerEmail[] = $seller_email[0]['email'];
                         $seller_store_name = fetch_details('seller_data', ['user_id' => $seller_ids[$i]], 'store_name');
-                        if (isset($_POST['active_status']) && $_POST['active_status'] != 'awaiting') {
+                        if ($post_active_status !== null && $post_active_status != 'awaiting') {
                             send_mail($seller_email[0]['email'], $fcm_admin_subject, $fcm_admin_msg);
                         }
                     }
@@ -1008,7 +1024,7 @@ class Order_model extends CI_Model
                         'type' => "place_order",
                         'content_available' => true
                     );
-                    if (isset($_POST['active_status']) && $_POST['active_status'] != 'awaiting') {
+                    if ($post_active_status !== null && $post_active_status != 'awaiting') {
                         send_notification($fcmMsg, $registrationIDs_chunks);
                     }
                 }
@@ -1019,7 +1035,7 @@ class Order_model extends CI_Model
                     'type_id' => $last_order_id
                 );
                 insert_details($admin_notifi, 'system_notification');
-                if (isset($_POST['active_status']) && $_POST['active_status'] != 'awaiting') {
+                if ($post_active_status !== null && $post_active_status != 'awaiting') {
                     // send_mail($user[0]['email'], 'Order received successfully', $this->load->view('admin/pages/view/email-template.php', $overall_order_data, TRUE));
                 }
             }
@@ -1035,6 +1051,7 @@ class Order_model extends CI_Model
                     ["orders.id" => $last_order_id]
                 ));
             }
+            }, 'place_order notifications #' . $last_order_id);
 
             $this->cart_model->remove_from_cart($data);
             $user_balance = fetch_details('users', ['id' => $data['user_id']], 'balance');
@@ -1059,14 +1076,19 @@ class Order_model extends CI_Model
              *
              * An 'awaiting' order (bank transfer, part-paid wallet) is skipped - payment is not
              * confirmed yet. Confirming it later books the shipment then, from update_order().
+             *
+             * Runs after the response (see after_response_helper.php): the booking is several
+             * HTTPS round trips to Shiprocket and its result is never shown to the customer.
              */
             if ($status != 'awaiting' && !empty($data['address_id'])) {
-                $shipment = create_shiprocket_forward_shipment($last_order_id);
-                if (!empty($shipment['error'])) {
-                    log_message('error', 'place_order: order ' . $last_order_id
-                        . ' was placed but no Shiprocket shipment could be booked - '
-                        . (isset($shipment['message']) ? $shipment['message'] : 'no reason given'));
-                }
+                run_after_response(function () use ($last_order_id) {
+                    $shipment = create_shiprocket_forward_shipment($last_order_id);
+                    if (!empty($shipment['error'])) {
+                        log_message('error', 'place_order: order ' . $last_order_id
+                            . ' was placed but no Shiprocket shipment could be booked - '
+                            . (isset($shipment['message']) ? $shipment['message'] : 'no reason given'));
+                    }
+                }, 'place_order shiprocket booking #' . $last_order_id);
             }
 
             $response['error'] = false;

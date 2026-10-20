@@ -16,7 +16,7 @@ defined('BASEPATH') or exit('No direct script access allowed');
  *
  * The order of operations is therefore deliberate:
  *
- *   1. resolve the rates (GST band, plan slab, statutory rates for THIS seller)
+ *   1. resolve the rates (GST band, category commission, statutory rates for THIS seller)
  *   2. solve for the price that hits the target margin           <- the only new maths
  *   3. run the real settlement ladder on that price              <- the numbers shown
  *   4. report what the ladder produced, never what step 2 assumed
@@ -32,7 +32,7 @@ class Price_calculator_model extends CI_Model
         parent::__construct();
         $this->load->database();
         $this->load->helper(['function_helper']);
-        $this->load->model(['Seller_model', 'Seller_subscription_model', 'Tax_compliance_model']);
+        $this->load->model(['Seller_model', 'Category_model', 'Tax_compliance_model']);
     }
 
     /* ------------------------------------------------------------------ options ------ */
@@ -55,14 +55,27 @@ class Price_calculator_model extends CI_Model
             ->result_array();
     }
 
-    /** Every plan a seller could be on, so an upgrade can be priced before it is bought. */
-    public function plans()
+    /**
+     * Every active category with the commission its products are charged, in tree order, so
+     * a seller can price a product in the category they will list it under.
+     */
+    public function categories()
     {
-        return $this->db->select('id, name, price, validity, listings_limit,
-                                  commission_first50, commission_51_100, commission_after100')
-            ->order_by('price + 0', 'ASC', false)
-            ->get('subscriptions')
-            ->result_array();
+        return $this->Category_model->commission_overview(true);
+    }
+
+    /**
+     * The category the calculator opens on: the seller's primary category if they have one,
+     * otherwise null (the view then falls back to the first category in the list).
+     */
+    public function default_category_id($seller_id)
+    {
+        $row = $this->db->select('primary_category_id')
+            ->where('user_id', (int) $seller_id)
+            ->get('seller_data')
+            ->row_array();
+
+        return !empty($row['primary_category_id']) ? (int) $row['primary_category_id'] : null;
     }
 
     /**
@@ -106,7 +119,7 @@ class Price_calculator_model extends CI_Model
     /**
      * Price one unit, end to end.
      *
-     * @param array $in seller_id, plan_id, tax_id, product_cost, cost_includes_gst,
+     * @param array $in seller_id, category_id, tax_id, product_cost, cost_includes_gst,
      *                  shipping, target_margin, selling_price (optional - price this instead
      *                  of recommending one).
      * @return array ['error' => bool, 'message' => string, ...]
@@ -200,9 +213,9 @@ class Price_calculator_model extends CI_Model
     /**
      * Every percentage that applies to this sale, each with where it came from.
      *
-     * The sources matter as much as the numbers: a seller who is shown "7%" learns nothing,
-     * but one shown "7% - orders 1-50 on the 100 Listings plan" can predict their own next
-     * sale. Every value here is read from the database or the settings, never assumed.
+     * The sources matter as much as the numbers: a seller who is shown "10%" learns little,
+     * but one shown "10% - inherited from Home and Living" knows where the rate comes from.
+     * Every value here is read from the database or the settings, never assumed.
      */
     private function resolve_rates($seller_id, $in)
     {
@@ -214,20 +227,18 @@ class Price_calculator_model extends CI_Model
             return ['error' => true, 'message' => 'Choose a GST rate for these goods.'];
         }
 
-        // The plan being priced - the seller's own unless they asked about another one.
-        $plan = null;
-        if (!empty($in['plan_id'])) {
-            $plan = $this->db->where('id', (int) $in['plan_id'])->get('subscriptions')->row_array();
+        // Commission comes from the category the product will be listed in - the same
+        // resolver checkout uses to lock the rate onto the order line.
+        $category_id = !empty($in['category_id']) ? (int) $in['category_id'] : 0;
+        $category = ($category_id > 0)
+            ? $this->db->select('id, name')->where('id', $category_id)->get('categories')->row_array()
+            : null;
+        $commission = $this->Category_model->resolve_commission_for_category($category_id);
+        $commission_from = null;
+        if ($commission['source'] === 'category_inherited' && !empty($commission['category_id'])) {
+            $from = $this->db->select('name')->where('id', (int) $commission['category_id'])->get('categories')->row_array();
+            $commission_from = !empty($from) ? unslash($from['name']) : null;
         }
-        if (empty($plan)) {
-            $plan = $this->Seller_subscription_model->get_current_plan($seller_id);
-        }
-
-        $current_plan = $this->Seller_subscription_model->get_current_plan($seller_id);
-        $orders_done  = $this->Seller_model->get_seller_order_count($seller_id);
-        $order_no     = $orders_done + 1;
-
-        $commission = $this->Seller_model->commission_rate_for_plan($plan, $order_no);
 
         // GST on the platform's commission, and the gateway rates, exactly as the settlement
         // engine reads them: the admin settings blob first, config/commission.php behind it.
@@ -258,6 +269,9 @@ class Price_calculator_model extends CI_Model
             'gst_band_id'        => (int) $band['id'],
             'commission_percent' => $commission['rate'],
             'commission_source'  => $commission['source'],
+            'commission_from'    => $commission_from,
+            'category_id'        => !empty($category) ? (int) $category['id'] : null,
+            'category_name'      => !empty($category) ? unslash($category['name']) : null,
             'commission_gst'     => $setting_or_config('commission_gst_percent'),
             'tcs_percent'        => $tcs['percent'],
             'tcs_basis'          => $tcs['basis'],
@@ -269,12 +283,6 @@ class Price_calculator_model extends CI_Model
             'entity_class'       => $profile['entity_class'],
             'fy_turnover'        => round((float) $turnover, 2),
             'financial_year'     => $fy,
-            'orders_done'        => $orders_done,
-            'order_no'           => $order_no,
-            'plan'               => $plan,
-            'plan_id'            => !empty($plan['id']) ? (int) $plan['id'] : null,
-            'is_current_plan'    => (!empty($plan['id']) && !empty($current_plan['id']) && $plan['id'] == $current_plan['id']),
-            'slab'               => ($order_no <= 50) ? 'first50' : (($order_no <= 100) ? '51_100' : 'after100'),
         ];
     }
 

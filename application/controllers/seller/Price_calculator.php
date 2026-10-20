@@ -9,8 +9,8 @@ defined('BASEPATH') or exit('No direct script access allowed');
  * deduction ladder that pays the seller, so the estimate on this screen and the figure that
  * lands in their wallet cannot disagree.
  *
- * The page renders with a worked result already on it (from the seller's own plan and their
- * first available GST band) rather than an empty form, because an empty calculator explains
+ * The page renders with a worked result already on it (from the seller's primary category and
+ * the standard GST band) rather than an empty form, because an empty calculator explains
  * nothing about how the deductions work.
  */
 class Price_calculator extends CI_Controller
@@ -23,7 +23,7 @@ class Price_calculator extends CI_Controller
         $this->load->database();
         $this->load->library(['ion_auth', 'form_validation']);
         $this->load->helper(['url', 'language']);
-        $this->load->model(['Price_calculator_model', 'Seller_subscription_model']);
+        $this->load->model(['Price_calculator_model']);
     }
 
     private function guard()
@@ -49,8 +49,8 @@ class Price_calculator extends CI_Controller
         $this->data['meta_description'] = 'Work out what to charge and what you will be paid | ' . $settings['app_name'];
 
         $this->data['tax_bands'] = $this->Price_calculator_model->tax_bands();
-        $this->data['plans'] = $this->Price_calculator_model->plans();
-        $this->data['current_plan'] = $this->Seller_subscription_model->get_current_plan($seller_id);
+        $this->data['commission_categories'] = $this->Price_calculator_model->categories();
+        $this->data['default_category_id'] = $this->Price_calculator_model->default_category_id($seller_id);
         // null when this seller has no recovered freight on record, which is the normal state
         // wherever Shiprocket booking has not been capturing it. The view shows no hint at all
         // in that case rather than inventing an average.
@@ -81,7 +81,7 @@ class Price_calculator extends CI_Controller
         $this->form_validation->set_rules('product_cost', 'Product cost', 'trim|required|numeric|greater_than_equal_to[0]|xss_clean');
         $this->form_validation->set_rules('shipping', 'Shipping cost', 'trim|numeric|greater_than_equal_to[0]|xss_clean');
         $this->form_validation->set_rules('target_margin', 'Target margin', 'trim|required|numeric|greater_than_equal_to[0]|less_than[100]|xss_clean');
-        $this->form_validation->set_rules('plan_id', 'Subscription plan', 'trim|numeric|xss_clean');
+        $this->form_validation->set_rules('category_id', 'Category', 'trim|numeric|xss_clean');
         $this->form_validation->set_rules('selling_price', 'Selling price', 'trim|numeric|greater_than_equal_to[0]|xss_clean');
 
         if (!$this->form_validation->run()) {
@@ -97,7 +97,7 @@ class Price_calculator extends CI_Controller
         $result = $this->Price_calculator_model->quote([
             'seller_id'         => $this->session->userdata('user_id'),
             'tax_id'            => $this->input->post('tax_id', true),
-            'plan_id'           => $this->input->post('plan_id', true),
+            'category_id'       => $this->input->post('category_id', true),
             'product_cost'      => $this->input->post('product_cost', true),
             'cost_includes_gst' => ($this->input->post('cost_includes_gst', true) == '1'),
             'shipping'          => $this->input->post('shipping', true),

@@ -200,6 +200,8 @@ class Category extends CI_Controller
 
             $this->form_validation->set_rules('category_input_name', 'Category Name', 'trim|required|xss_clean');
             $this->form_validation->set_rules('banner', 'Banner', 'trim|xss_clean');
+            // Blank = inherit from the parent category.
+            $this->form_validation->set_rules('commission_percent', 'Commission (%)', 'trim|numeric|greater_than_equal_to[0]|less_than_equal_to[100]');
 
             if (isset($_POST['edit_category'])) {
 
@@ -284,6 +286,106 @@ class Category extends CI_Controller
         } else {
             redirect('admin/login', 'refresh');
         }
+    }
+
+    /**
+     * Category commission rates: the whole category tree on one screen, each row editable.
+     * A blank rate inherits from the parent category; a chain with no rate anywhere settles at
+     * the platform default (config/commission.php). See Category_model::resolve_commission_for_category().
+     */
+    public function commission()
+    {
+        if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
+            $this->config->load('commission', true);
+            $this->data['main_page'] = TABLES . 'category-commission';
+            $settings = get_settings('system_settings', true);
+            $this->data['title'] = 'Category Commission | ' . $settings['app_name'];
+            $this->data['meta_description'] = 'Category Commission | ' . $settings['app_name'];
+            $this->data['commission_rows'] = $this->category_model->commission_overview();
+            $this->data['commission_default'] = (float) $this->config->item('default_commission_percent', 'commission');
+            $this->data['can_edit_commission'] = has_permissions('update', 'categories');
+            $this->load->view('admin/template', $this->data);
+        } else {
+            redirect('admin/login', 'refresh');
+        }
+    }
+
+    /**
+     * Save one or more category commission rates.
+     *
+     * POST rates = JSON object {category_id: "12.5" | ""}. "" clears the category's own rate so
+     * it inherits from its parent again. All-or-nothing: any invalid value rejects the batch.
+     * Responds with the refreshed overview, because changing a parent moves the effective rate
+     * of every subcategory that inherits from it.
+     */
+    public function update_commission()
+    {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {
+            redirect('admin/login', 'refresh');
+            return;
+        }
+        if (print_msg(!has_permissions('update', 'categories'), PERMISSION_ERROR_MSG, 'categories')) {
+            return false;
+        }
+
+        $response = [
+            'error'    => true,
+            'csrfName' => $this->security->get_csrf_token_name(),
+            'csrfHash' => $this->security->get_csrf_hash(),
+        ];
+
+        $rates = json_decode((string) $this->input->post('rates'), true);
+        if (!is_array($rates) || empty($rates)) {
+            $response['message'] = 'Nothing to save.';
+            echo json_encode($response);
+            return;
+        }
+
+        $clean = [];
+        foreach ($rates as $id => $value) {
+            if (!is_numeric($id) || (int) $id <= 0) {
+                $response['message'] = 'Invalid category.';
+                echo json_encode($response);
+                return;
+            }
+            $value = trim((string) $value);
+            if ($value === '') {
+                $clean[(int) $id] = null;
+                continue;
+            }
+            if (!is_numeric($value) || (float) $value < 0 || (float) $value > 100) {
+                $name = fetch_details('categories', ['id' => (int) $id], 'name');
+                $response['message'] = 'Commission for "' . (!empty($name) ? unslash($name[0]['name']) : '#' . (int) $id)
+                    . '" must be a number from 0 to 100, or blank to inherit.';
+                echo json_encode($response);
+                return;
+            }
+            $clean[(int) $id] = round((float) $value, 2);
+        }
+
+        $existing = $this->db->where_in('id', array_keys($clean))->count_all_results('categories');
+        if ($existing !== count($clean)) {
+            $response['message'] = 'One or more categories no longer exist. Reload the page and try again.';
+            echo json_encode($response);
+            return;
+        }
+
+        $this->db->trans_start();
+        foreach ($clean as $id => $rate) {
+            $this->category_model->set_commission_percent($id, $rate);
+        }
+        $this->db->trans_complete();
+
+        if ($this->db->trans_status() === false) {
+            $response['message'] = 'Something went wrong. Please try again.';
+            echo json_encode($response);
+            return;
+        }
+
+        $response['error'] = false;
+        $response['message'] = count($clean) . ' commission rate' . (count($clean) > 1 ? 's' : '') . ' saved. New orders use the new rates; existing orders keep theirs.';
+        $response['rows'] = $this->category_model->commission_overview();
+        echo json_encode($response);
     }
 
     public function top_category()

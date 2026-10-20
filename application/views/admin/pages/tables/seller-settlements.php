@@ -110,15 +110,6 @@ $money = function ($amount) use ($currency) {
                             These settle automatically once their return window closes.
                         <?php } ?>
 
-                        <?php if ($unsettled['blocked_items'] > 0) { ?>
-                            <div class="mt-2 text-muted">
-                                <i class="fas fa-info-circle mr-1"></i>
-                                <strong><?= (int) $unsettled['blocked_items'] ?></strong> of them
-                                (<?= $money($unsettled['blocked_amount']) ?>) belong to sellers with no
-                                subscription plan. They settle at the platform default commission rate
-                                (config/commission.php) rather than being held back.
-                            </div>
-                        <?php } ?>
                     </div>
                 </div>
             <?php } ?>

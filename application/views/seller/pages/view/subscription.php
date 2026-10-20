@@ -393,71 +393,14 @@
                         <?php endif; ?>
                     </section>
 
-                    <section class="subscription-commission-sec">
+                    <section class="subscription-commission-sec" id="category-commission">
                         <h1 style="color: var(--orange); font-size: 40px;">Commission</h1>
                         <div class="subscription-table-box">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Orders</th>
-                                        <th class="text-right">Commission % per transaction</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php if (!empty($current_plan) && (!empty($current_plan['commission_first50']) || !empty($current_plan['commission_51_100']) || !empty($current_plan['commission_after100']))) : ?>
-                                        <tr>
-                                            <td>For first 50 Orders</td>
-                                            <td class="text-right"><?= html_escape($current_plan['commission_first50']); ?>%</td>
-                                        </tr>
-                                        <tr>
-                                            <td>51 - 100 Orders</td>
-                                            <td class="text-right"><?= html_escape($current_plan['commission_51_100']); ?>%</td>
-                                        </tr>
-                                        <tr>
-                                            <td>Commission after 100 orders</td>
-                                            <td class="text-right"><?= html_escape($current_plan['commission_after100']); ?>%</td>
-                                        </tr>
-                                    <?php else : ?>
-                                        <tr>
-                                            <td colspan="2" class="text-center">Commission details will appear here once a plan is active.</td>
-                                        </tr>
-                                    <?php endif; ?>
-                                </tbody>
-                            </table>
+                            <?php // Charged per product CATEGORY, the same for every plan. ?>
+                            <?php $this->load->view('seller/include-category-commission'); ?>
                         </div>
-                        <button type="button" class="subscription-know-more" data-toggle="modal" data-target="#commission-info-modal">Know more</button>
-                        <p style="font-size: 12px; margin-top: 10px;">Or talk to our customer support</p>
+                        <p style="font-size: 12px; margin-top: 16px;">Questions? Talk to our customer support.</p>
                     </section>
-
-                    <?php
-                    $has_commission_slabs = !empty($current_plan) && (!empty($current_plan['commission_first50']) || !empty($current_plan['commission_51_100']) || !empty($current_plan['commission_after100']));
-                    $example_pr = $has_commission_slabs ? (float) $current_plan['commission_first50'] : 8;
-                    $example_amt = round(1000 / 100 * $example_pr, 2);
-                    $example_net = round(1000 - $example_amt, 2);
-                    ?>
-                    <div class="modal fade" id="commission-info-modal" tabindex="-1" role="dialog" aria-labelledby="commissionInfoModalTitle" aria-hidden="true">
-                        <div class="modal-dialog modal-lg" role="document">
-                            <div class="modal-content">
-                                <div class="modal-header">
-                                    <h5 class="modal-title" id="commissionInfoModalTitle">How commission works</h5>
-                                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                        <span aria-hidden="true">&times;</span>
-                                    </button>
-                                </div>
-                                <div class="modal-body" style="text-align: left;">
-                                    <p>Commission is calculated automatically for every order once it's delivered and past the return window, based on the slab % from your active subscription plan:</p>
-                                    <ul>
-                                        <li>Your first 50 completed orders (lifetime): <strong><?= $has_commission_slabs ? html_escape($current_plan['commission_first50']) : '8' ?>%</strong> commission</li>
-                                        <li>Orders 51&ndash;100: <strong><?= $has_commission_slabs ? html_escape($current_plan['commission_51_100']) : '10' ?>%</strong> commission</li>
-                                        <li>Orders after 100: <strong><?= $has_commission_slabs ? html_escape($current_plan['commission_after100']) : '12' ?>%</strong> commission</li>
-                                    </ul>
-                                    <p>The order count never resets &mdash; it's the total number of completed orders you've had across your entire time on the platform.</p>
-                                    <p><strong>Example:</strong> if you're within your first 50 orders and an order's amount is &#8377;1,000, your commission is &#8377;1,000 &times; <?= $example_pr ?>% = &#8377;<?= $example_amt ?>, and &#8377;<?= $example_net ?> is credited to your wallet.</p>
-                                    <p>You can see the exact figures for every settled order in your <a href="<?= base_url('seller/settlement/settlement-history') ?>">Settlement History</a> page.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
 

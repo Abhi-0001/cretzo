@@ -366,7 +366,7 @@ class Subscription extends CI_Controller
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
             // is_admin() is group 1, which every system-user role (admin/editor/supporter)
             // belongs to - it gates nothing on its own. Plan CRUD sets the prices, listing
-            // limits and commission rates the whole marketplace bills on, so it needs the
+            // limits the whole marketplace bills on, so it needs the
             // same 'subscription' module check the seller-subscription screens already use.
             if (!has_permissions('read', 'subscription')) {
                 deny_panel_access();
@@ -414,15 +414,8 @@ class Subscription extends CI_Controller
         $this->form_validation->set_rules('price', 'Price', 'trim|required|numeric|greater_than_equal_to[0]|xss_clean');
         $this->form_validation->set_rules('listings_limit', 'Listings Limit', 'trim|xss_clean');
         $this->form_validation->set_rules('validity', 'Validity', 'trim|required|numeric|greater_than[0]|xss_clean');
-        // 'required' added. These were optional, so a plan could be saved with the commission
-        // fields left blank - they stored NULL, and the settlement engine casts NULL to 0.0,
-        // meaning every seller on that plan was settled at 0% commission and the platform
-        // earned nothing on their sales, silently. (The shipped "Launch Offer" plan is in
-        // exactly this state.) A plan must now state its rate explicitly, including a
-        // deliberate 0.
-        $this->form_validation->set_rules('commission_first50', 'Commission (first 50 orders)', 'trim|required|numeric|greater_than_equal_to[0]|less_than_equal_to[100]|xss_clean');
-        $this->form_validation->set_rules('commission_51_100', 'Commission (51-100 orders)', 'trim|required|numeric|greater_than_equal_to[0]|less_than_equal_to[100]|xss_clean');
-        $this->form_validation->set_rules('commission_after100', 'Commission (after 100 orders)', 'trim|required|numeric|greater_than_equal_to[0]|less_than_equal_to[100]|xss_clean');
+        // Commission is no longer a plan setting - it is set per category (Admin > Categories >
+        // Category Commission), see Category_model::resolve_commission_for_category().
         // Feature descriptions had no validation rule at all - completely bypassing xss_clean
         // unlike every other free-text field on this same form.
         $features_post = $this->input->post('features');
@@ -468,9 +461,6 @@ class Subscription extends CI_Controller
             'price' => $this->input->post('price'),
             'listings_limit' => $this->input->post('listings_limit'),
             'validity' => $this->input->post('validity'),
-            'commission_first50' => $this->input->post('commission_first50'),
-            'commission_51_100' => $this->input->post('commission_51_100'),
-            'commission_after100' => $this->input->post('commission_after100'),
 
             // save features JSON
             'features' => json_encode($features_array)

@@ -550,7 +550,16 @@ $notif_unread = $this->ion_auth->logged_in()
                                 <div class="d-flex flex-row gap-3 shopping-cart-item-main" title="<?= html_escape($items['name']) ?>">
                                     <figure class="rounded cart-img">
                                         <a href="<?= base_url('products/details/' . $items['product_slug']) ?>">
-                                            <img src="<?= $items['product_variants'][0]['variant_image'] ?? base_url($items['image']) ?>" alt="<?= html_escape($items['name']) ?>" title="<?= html_escape($items['name']) ?>" style="object-fit: cover;">
+                                            <?php // The real photo goes in data-cz-src and cretzo-fixes.js swaps it in when the
+                                                  // drawer is about to open. These are full-size product photos (~150-300 KB per
+                                                  // cart line) and every page of the site downloaded all of them for a drawer
+                                                  // nobody had opened - 1.2 MB on a page view for an 8-item cart. loading=lazy
+                                                  // does not help: a closed offcanvas is slid off-screen, not hidden, so Chrome
+                                                  // still counts it as near the viewport and fetches.
+                                                  // The photo is drawn ~54px wide, so the small thumbnail is used (~50 KB
+                                                  // instead of ~300 KB); get_image_url() falls back to the original when no
+                                                  // thumbnail exists. ?>
+                                            <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-cz-src="<?= $items['product_variants'][0]['variant_image'] ?? get_image_url($items['image'], 'thumb', 'sm') ?>" alt="<?= html_escape($items['name']) ?>" title="<?= html_escape($items['name']) ?>" style="object-fit: cover;" decoding="async">
                                         </a>
                                     </figure>
                                     <div class="w-100 cart-title">

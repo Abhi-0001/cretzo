@@ -30,7 +30,11 @@
                                     <i class="fa fa-plus"></i> Choose Media
                                 </button>
                             </div>
-                            <table class='table-striped' data-toolbar="#toolbar" id='media-upload-table' data-page-size="5" data-toggle="table" data-url="<?= base_url('seller/media/fetch') ?>" data-click-to-select="true" data-side-pagination="server" data-pagination="true" data-page-list="[5, 10, 20, 50, 100, 200]" data-search="true" data-show-columns="true" data-show-refresh="true" data-trim-on-search="false" data-sort-name="id" data-sort-order="asc" data-mobile-responsive="true" data-toolbar="" data-show-export="true" data-query-params="mediaParams">
+                            <?php // No data-toggle="table": that auto-initialised this table - and so fetched the
+                                  // media list and downloaded its full-size photos (~700 KB) - on EVERY seller
+                                  // page, though the modal is only ever opened from the product/profile forms.
+                                  // It is initialised the first time the modal opens (show.bs.modal below). ?>
+                            <table class='table-striped' data-toolbar="#toolbar" id='media-upload-table' data-page-size="5" data-url="<?= base_url('seller/media/fetch') ?>" data-click-to-select="true" data-side-pagination="server" data-pagination="true" data-page-list="[5, 10, 20, 50, 100, 200]" data-search="true" data-show-columns="true" data-show-refresh="true" data-trim-on-search="false" data-sort-name="id" data-sort-order="asc" data-mobile-responsive="true" data-toolbar="" data-show-export="true" data-query-params="mediaParams">
                                 <thead>
                                     <tr>
                                         <th data-field="state" data-checkbox="true"></th>
@@ -181,10 +185,19 @@
 
         initMediaModalDropzone(mediaType);
 
-        $('#media-upload-table').bootstrapTable('refreshOptions', {
+        var $mediaTable = $('#media-upload-table');
+        if (!$mediaTable.data('bootstrap.table')) {
+            // First open on this page: build the table now (reads its data-* options and
+            // loads the first page of media once).
+            $mediaTable.bootstrapTable({
+                singleSelect: (isMultipleAllowed == 1) ? false : true,
+            });
+            return;
+        }
+        $mediaTable.bootstrapTable('refreshOptions', {
             singleSelect: (isMultipleAllowed == 1) ? false : true,
         });
-        $('#media-upload-table').bootstrapTable('refresh');
+        $mediaTable.bootstrapTable('refresh');
     });
 
     $(document).on('click', '#media-upload-modal #upload-media', function () {

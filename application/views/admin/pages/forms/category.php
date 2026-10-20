@@ -48,6 +48,46 @@
                                         </select>
                                     </div>
                                 </div>
+                                <?php
+                                // Effective rate of every category, so the hint under the commission
+                                // field can say what a blank value will inherit from the chosen parent.
+                                $commission_rates = [];
+                                foreach ($this->category_model->commission_overview() as $c) {
+                                    $commission_rates[$c['id']] = ['rate' => $c['effective_rate'], 'name' => $c['name']];
+                                }
+                                $this->config->load('commission', true);
+                                $commission_default = (float) $this->config->item('default_commission_percent', 'commission');
+                                $own_commission = (isset($fetched_data[0]['commission_percent']) && $fetched_data[0]['commission_percent'] !== null && $fetched_data[0]['commission_percent'] !== '')
+                                    ? rtrim(rtrim($fetched_data[0]['commission_percent'], '0'), '.')
+                                    : '';
+                                ?>
+                                <div class="form-group row">
+                                    <label for="commission_percent" class="col-sm-2 col-form-label">Commission (%)</label>
+                                    <div class="col-sm-10">
+                                        <div class="input-group" style="max-width: 220px;">
+                                            <input type="number" class="form-control" id="commission_percent" name="commission_percent" min="0" max="100" step="0.01" placeholder="Inherit" value="<?= html_escape($own_commission) ?>">
+                                            <div class="input-group-append"><span class="input-group-text">%</span></div>
+                                        </div>
+                                        <small class="form-text text-muted" id="commission_hint"></small>
+                                        <small class="form-text text-muted">Charged on the ex-GST value of every product sold in this category. Changing it only affects orders placed after you save.</small>
+                                    </div>
+                                </div>
+                                <script>
+                                    (function () {
+                                        var rates = <?= json_encode($commission_rates) ?>;
+                                        var platformDefault = <?= json_encode($commission_default) ?>;
+                                        function fmt(n) { return (Math.round(n * 100) / 100) + '%'; }
+                                        function refreshHint() {
+                                            var parentId = $('#category_parent').val();
+                                            var p = parentId && rates[parentId];
+                                            $('#commission_hint').text(p
+                                                ? 'Leave blank to inherit ' + fmt(p.rate) + ' from "' + p.name + '".'
+                                                : 'Leave blank to use the platform default of ' + fmt(platformDefault) + '.');
+                                        }
+                                        $(document).off('change.czcomm').on('change.czcomm', '#category_parent', refreshHint);
+                                        refreshHint();
+                                    })();
+                                </script>
                                 <div class="row">
                                     <div class="form-group col-md-6">
                                         <label for="image">Main Image <span class='text-danger text-sm'>*</span><br><small>(Recommended Size : 131 x 131 pixels)</small></label>

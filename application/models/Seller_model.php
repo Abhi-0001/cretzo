@@ -528,93 +528,46 @@ class Seller_model extends CI_Model
     }
 
     /**
-     * How many ORDERS this seller has completed, for picking their commission slab.
+     * The commission percentage a product is charged: the rate of its category, inherited up
+     * the category tree, falling back to the platform default.
      *
-     * The slab used to be chosen from a count of rows in seller_settlements - which holds one
-     * row per order ITEM, not per order. A single six-item order therefore consumed six slab
-     * slots, and sellers crossed into the higher-commission bands three to six times faster
-     * than promised. The seller-facing plan page says "your first 50 completed ORDERS
-     * (lifetime)", so orders is what this counts: distinct order_ids for this seller.
+     * Commission used to come from the seller's subscription plan in three slabs keyed on the
+     * seller's lifetime order count (first 50 / 51-100 / after 100). It is now a property of
+     * WHAT is sold, set per category by the admin - see
+     * Category_model::resolve_commission_for_category() for the inheritance rules.
      *
-     * Counted at the moment of sale (see resolve_commission_rate) rather than at settlement,
-     * so the rate is a property of the sale and cannot move afterwards.
+     * @param int $product_id
+     * @return array{rate: float, source: string, category_id: int|null}
      */
-    public function get_seller_order_count($seller_id)
+    public function resolve_commission_for_product($product_id)
     {
-        $row = $this->db
-            ->select('COUNT(DISTINCT order_id) AS total', false)
-            ->where('seller_id', $seller_id)
-            ->get('order_items')
+        $row = $this->db->select('category_id')
+            ->where('id', (int) $product_id)
+            ->get('products')
             ->row_array();
 
-        return (int) $row['total'];
+        $this->load->model('Category_model');
+        return $this->Category_model->resolve_commission_for_category(!empty($row) ? $row['category_id'] : null);
     }
 
     /**
-     * Resolve the commission percentage that applies to a seller right now.
+     * Same as resolve_commission_for_product(), starting from a product variant (what an
+     * order item references).
      *
-     * Slab direction and the lifetime basis are deliberate and left as they are: the seller
-     * panel states "your first 50 completed orders (lifetime)" with the rate RISING after
-     * that, i.e. an introductory rate for new sellers that steps up to the standard one. Only
-     * the counting unit was wrong.
-     *
-     * @param int      $seller_id
-     * @param int|null $order_no  1-based position of the order being priced. Defaults to the
-     *                            seller's next order.
-     * @return array{rate: float, source: string}
+     * @param int $product_variant_id
+     * @return array{rate: float, source: string, category_id: int|null}
      */
-    public function resolve_commission_rate($seller_id, $order_no = null)
+    public function resolve_commission_for_variant($product_variant_id)
     {
-        if ($order_no === null) {
-            $order_no = $this->get_seller_order_count($seller_id) + 1;
-        }
+        $row = $this->db->select('p.category_id')
+            ->from('product_variants pv')
+            ->join('products p', 'p.id = pv.product_id', 'left')
+            ->where('pv.id', (int) $product_variant_id)
+            ->get()
+            ->row_array();
 
-        $plan = $this->Seller_subscription_model->get_current_plan($seller_id);
-
-        return $this->commission_rate_for_plan($plan, $order_no);
-    }
-
-    /**
-     * The commission percentage a GIVEN plan charges at a given order position.
-     *
-     * Split out of resolve_commission_rate() so a plan the seller is not on can be priced -
-     * the price calculator lets a seller ask "what would I earn on Unlimited?", and the
-     * resolver above can only ever answer for the plan they already hold. The settlement path
-     * is unaffected: it still calls resolve_commission_rate(), which now delegates here, so
-     * both sides share one copy of the slab rules rather than growing a second.
-     *
-     * @param array|null $plan     a row from `subscriptions`, or null / [] for no plan.
-     * @param int        $order_no 1-based position of the order being priced.
-     * @return array{rate: float, source: string}
-     */
-    public function commission_rate_for_plan($plan, $order_no)
-    {
-        $this->config->load('commission', true);
-        $default = (float) $this->config->item('default_commission_percent', 'commission');
-
-        if (empty($plan)) {
-            return ['rate' => $default, 'source' => 'platform_default'];
-        }
-
-        $order_no = (int) $order_no;
-
-        if ($order_no <= 50) {
-            $rate = isset($plan['commission_first50']) ? $plan['commission_first50'] : null;
-        } elseif ($order_no <= 100) {
-            $rate = isset($plan['commission_51_100']) ? $plan['commission_51_100'] : null;
-        } else {
-            $rate = isset($plan['commission_after100']) ? $plan['commission_after100'] : null;
-        }
-
-        // A NULL slab used to be cast straight to 0.0, so a plan with no rates set settled
-        // every sale at ZERO commission and the platform earned nothing, silently. (The
-        // shipped "Launch Offer" plan is exactly that.) An unset rate now falls back to the
-        // configured platform rate instead of quietly meaning "free".
-        if ($rate === null || $rate === '') {
-            return ['rate' => $default, 'source' => 'platform_default'];
-        }
-
-        return ['rate' => (float) $rate, 'source' => 'plan_slab'];
+        $this->load->model('Category_model');
+        return $this->Category_model->resolve_commission_for_category(!empty($row) ? $row['category_id'] : null);
     }
 
     /**
@@ -1025,13 +978,13 @@ class Seller_model extends CI_Model
                 // who changed plan between the sale and the settlement had the new rate applied
                 // retroactively to sales already completed under the old one.
                 //
-                // Legacy rows (sold before the rate was recorded) fall back to resolving it now,
-                // which is exactly the old behaviour rather than refusing to settle them.
+                // Legacy rows (sold before the rate was recorded) fall back to resolving it now
+                // from the product's category, rather than refusing to settle them.
                 $rate_source = $row['commission_rate_source'];
                 if ($row['commission_rate'] !== null && $row['commission_rate'] !== '') {
                     $commission_pr = (float) $row['commission_rate'];
                 } else {
-                    $resolved = $this->resolve_commission_rate($row['seller_id']);
+                    $resolved = $this->resolve_commission_for_variant($row['product_variant_id']);
                     $commission_pr = $resolved['rate'];
                     $rate_source = $resolved['source'];
                 }

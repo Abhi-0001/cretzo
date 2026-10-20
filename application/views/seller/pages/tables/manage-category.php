@@ -29,6 +29,11 @@
                     </div>
                 </div>
                 <div class="card-body">
+                    <div class="seller-commission-note">
+                        <i class="fas fa-percentage mr-2"></i>
+                        <span>Commission is charged on every item you sell at the rate of the category it is listed in, on the price before GST.
+                            A subcategory without its own rate uses its parent's. <a href="<?= base_url('seller/subscription/manage_subscriptions') ?>#category-commission">See all rates</a></span>
+                    </div>
                     <div id="list_view_html">
                         <table class='table-striped' id='category_table' data-toggle="table" data-url="<?= base_url('seller/category/category_list') ?>" data-click-to-select="true" data-side-pagination="server" data-pagination="true" data-page-list="[5, 10, 20, 50, 100, 200]" data-search="true" data-show-columns="true" data-show-refresh="true" data-trim-on-search="false" data-sort-name="id" data-sort-order="asc" data-mobile-responsive="true" data-toolbar="" data-show-export="true" data-maintain-selected="true" data-export-types='["txt","excel","csv"]' data-export-options='{
                         "fileName": "categories-list",
@@ -49,6 +54,7 @@
                                           // builds from), so no data was touched and Category_model still puts
                                           // `banner` in the payload for the mobile app. Re-add this one <th> to
                                           // bring the column back. ?>
+                                    <th data-field="commission" data-sortable="false" data-align='center'>Commission</th>
                                     <th data-field="status" data-sortable="true" data-align='center'>Status</th>
                                 </tr>
                             </thead>
@@ -113,6 +119,19 @@
         color: #fff;
     }
 
+    .manage-category-page .seller-commission-note {
+        display: flex;
+        align-items: flex-start;
+        background: var(--color-orange-light, #fff4ea);
+        border: 1px solid rgba(219, 115, 35, .2);
+        border-radius: 8px;
+        padding: 10px 14px;
+        margin-bottom: 14px;
+        font-size: 13.5px;
+        color: #444;
+    }
+    .manage-category-page .seller-commission-note i { color: var(--color-orange); margin-top: 3px; }
+    .manage-category-page .seller-commission-note a { color: var(--color-orange-dark); font-weight: 600; }
     .manage-category-page .fixed-table-toolbar { margin-bottom: 10px; }
     .manage-category-page .fixed-table-toolbar > div { margin-left: 10px !important; }
     .manage-category-page .fixed-table-toolbar .btn-group > .btn,

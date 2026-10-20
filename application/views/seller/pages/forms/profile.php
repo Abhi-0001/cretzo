@@ -409,10 +409,11 @@ $initial       = in_array(($current_profile_section ?? 'personal'), $section_key
                   <?php foreach ($all_categories as $cat): ?>
                     <?php if ((int) $cat['parent_id'] !== 0) continue; // top-level only ?>
                     <option value="<?= (int) $cat['id'] ?>" <?= (isset($d['primary_category_id']) && (string) $d['primary_category_id'] === (string) $cat['id']) ? 'selected' : '' ?>>
-                      <?= czp_attr($cat['name']) ?>
+                      <?= czp_attr($cat['name']) ?><?= isset($cat['commission_label']) ? ' — ' . czp_attr($cat['commission_label']) . ' commission' : '' ?>
                     </option>
                   <?php endforeach; ?>
                 </select>
+                <small class="czp-hint">Commission is charged per product category, on the price before GST. <a href="<?= base_url('seller/subscription/manage_subscriptions') ?>#category-commission">See all rates</a></small>
                 <span class="czp-error" data-czp-error></span>
               </div>
 
@@ -686,9 +687,10 @@ $initial       = in_array(($current_profile_section ?? 'personal'), $section_key
     <div class="czp-modal-body">
       <?php foreach ($all_categories as $cat): ?>
         <?php if ((int) $cat['parent_id'] === 0) continue; // sub-categories only ?>
-        <label class="czp-pick" data-parent="<?= (int) $cat['parent_id'] ?>" data-label="<?= czp_attr($cat['name']) ?>" hidden>
+        <?php $cat_rate = isset($cat['commission_label']) ? ' · ' . $cat['commission_label'] : ''; ?>
+        <label class="czp-pick" data-parent="<?= (int) $cat['parent_id'] ?>" data-label="<?= czp_attr($cat['name'] . $cat_rate) ?>" hidden>
           <input type="checkbox" value="<?= (int) $cat['id'] ?>">
-          <span><?= czp_attr($cat['name']) ?></span>
+          <span><?= czp_attr($cat['name']) ?><?php if ($cat_rate !== '') : ?> <small style="color:#b5651d;font-weight:600"><?= czp_attr($cat['commission_label']) ?></small><?php endif; ?></span>
         </label>
       <?php endforeach; ?>
       <p class="czp-hint" id="category_empty">Choose a Primary Product Category first.</p>

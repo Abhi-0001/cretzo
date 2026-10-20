@@ -451,7 +451,31 @@ function refreshBill(){
     
 }
 
-function place_order() {
+/*
+ * One owner for the Place Order button's state. Every path used to write its own
+ * `.attr('disabled', ...).html(...)`, and several of them reset it to "Place Order" while a
+ * payment was still in flight - most visibly right after the Razorpay popup opened, and again
+ * after a successful order while waiting on the redirect - so the customer saw the button
+ * come back and thought the payment had not gone through.
+ */
+var place_order_btn_label = null;
+
+function set_place_order_busy(label) {
+    var $btn = $('#place-order-btn');
+    if (place_order_btn_label === null) {
+        place_order_btn_label = $btn.html();
+    }
+    $btn.attr('disabled', true).html(
+        '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>' + label
+    );
+}
+
+function reset_place_order_btn() {
+    $('#place-order-btn').attr('disabled', false).html(place_order_btn_label !== null ? place_order_btn_label : 'PLACE ORDER');
+    place_order_btn_label = null;
+}
+
+function place_order(busy_label) {
     let myForm = document.getElementById('checkout_form');
     var formdata = new FormData(myForm);
     formdata.append(csrfName, csrfHash);
@@ -474,18 +498,22 @@ function place_order() {
         processData: false,
         contentType: false,
         beforeSend: function () {
-            $('#place-order-btn').attr('disabled', true).html('Please Wait...');
+            set_place_order_busy(busy_label || 'Placing your order...');
         },
         success: function (data) {
             csrfName = data.csrfName;
             csrfHash = data.csrfHash;
-            $('#place-order-btn').attr('disabled', false).html('Place Order');
             if (data.error == false) {
+                // Stay busy: the caller redirects to the success page straight away. Re-enabling
+                // here put "Place Order" back on screen for the moment before the redirect, which
+                // read as the payment having to be made again.
+                set_place_order_busy('Order placed! Redirecting...');
                 Toast.fire({
                     icon: 'success',
                     title: data.message
                 });
             } else {
+                reset_place_order_btn();
                 Toast.fire({
                     icon: 'error',
                     title: data.message
@@ -493,7 +521,7 @@ function place_order() {
             }
         },
         error: function (jqXHR) {
-            $('#place-order-btn').attr('disabled', false).html('Place Order');
+            reset_place_order_btn();
             Toast.fire({
                 icon: 'error',
                 title: 'Something went wrong while placing your order. Please try again.'
@@ -526,11 +554,13 @@ function razorpay_setup(key, amount, app_name, logo, razorpay_order_id, username
         "handler": function (response) {
             $('#razorpay_payment_id').val(response.razorpay_payment_id);
             $('#razorpay_signature').val(response.razorpay_signature);
-            place_order().done(function (result) {
+            // The money has moved; what is left is the server verifying it and writing the
+            // order. Say so, rather than the generic wait label.
+            place_order('Confirming your payment...').done(function (result) {
                 if (result.error == false) {
-                    setTimeout(function () {
-                        location.href = payment_success_url(result);
-                    }, 3000);
+                    // Straight to the success page. This waited a fixed 3 seconds on top of the
+                    // server round trip, for nothing but the toast to be read.
+                    location.href = payment_success_url(result);
                 }
             });
         },
@@ -548,7 +578,9 @@ function razorpay_setup(key, amount, app_name, logo, razorpay_order_id, username
         "escape": false,
         "modal": {
             "ondismiss": function () {
-                // $('#place_order_btn').attr('disabled', false).html('Place Order');
+                // The popup was closed without paying - only now is it right to offer the
+                // button again. (It used to be re-enabled the instant the popup opened.)
+                reset_place_order_btn();
             }
         }
     };
@@ -582,8 +614,12 @@ function setupClickEvents(){
         /* var final_total = $("#final_total").text();
         final_total = final_total.replace(',', ''); */
 
-        var btn_html = $('#place-order-btn').html();
-        $('#place-order-btn').attr('disabled', true).html('Please Wait...');
+        // A second click while an order or a payment popup is already in flight would start a
+        // second Razorpay order / a second COD order.
+        if (place_order_btn_label !== null) {
+            return false;
+        }
+        set_place_order_busy('Please wait...');
 
         /* if (($('#is_time_slots_enabled').val() == 1 && ($('input[name="delivery_time"]').is(':checked') == false || $('input[type=hidden][id="start_date"]').val() == "") && $('#product_type').val() != 'digital_product')) {
             Toast.fire({
@@ -599,11 +635,11 @@ function setupClickEvents(){
                 icon: 'error',
                 title: "Please add/choose address."
             });
-            $('#place-order-btn').attr('disabled', false).html(btn_html);
+            reset_place_order_btn();
             return false;
         }
         if (documents === "") {
-            $('#place-order-btn').attr('disabled', false).html(btn_html);
+            reset_place_order_btn();
             return Toast.fire({
                 icon: 'error',
                 title: 'Please select an Document.'
@@ -636,18 +672,20 @@ function setupClickEvents(){
                     rzp1.on('payment.failed', function (response) {
                         location.href = base_url + 'payment/cancel';
                     });
-                    $('#place-order-btn').attr('disabled', false).html('Place Order');
+                    // Stays busy while the popup is open; ondismiss or the payment handler
+                    // decides what happens next.
+                    set_place_order_busy('Complete the payment in the popup...');
                 } else {
                     Toast.fire({
                         icon: 'error',
                         title: data.message
                     });
-                    $('#place-order-btn').attr('disabled', false).html('Place Order');
+                    reset_place_order_btn();
 
                 }
             }, "json").fail(function (jqXHR) {
                 // Razorpay order setup failed on the server — don't leave the button hung.
-                $('#place-order-btn').attr('disabled', false).html('Place Order');
+                reset_place_order_btn();
                 Toast.fire({
                     icon: 'error',
                     title: 'Could not start the payment. Please try again.'
@@ -656,16 +694,11 @@ function setupClickEvents(){
             });
         }
         else if (payment_methods == "COD" /* || payment_methods == "Direct Bank Transfer" */) {
+            // place_order() already toasts any error, so only the success path is handled here
+            // (each branch used to toast the same error a second time).
             place_order().done(function (result) {
                 if (result.error == false) {
-                    setTimeout(function () {
-                        location.href = payment_success_url(result);
-                    }, 3000);
-                } else {
-                    Toast.fire({
-                        icon: 'error',
-                        title: result.message
-                    });
+                    location.href = payment_success_url(result);
                 }
             });
         }
@@ -674,21 +707,14 @@ function setupClickEvents(){
             place_order().done(function (result) {
                 if (result.error == false) {
                     location.href = payment_success_url(result);
-                    // window.location.reload();
-                } else {
-                    Toast.fire({
-                        icon: 'error',
-                        title: result.message
-                    });
                 }
-
             });
 
         }
         else {
             // No payment method matched (e.g. none selected, or partial-wallet without a
             // gateway). Reset the button so it can never stay stuck on "Please Wait...".
-            $('#place-order-btn').attr('disabled', false).html(btn_html);
+            reset_place_order_btn();
             Toast.fire({
                 icon: 'error',
                 title: 'Please select a payment method.'

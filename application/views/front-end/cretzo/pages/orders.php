@@ -118,7 +118,8 @@ ob_start(); ?>
 
                 $tone   = order_status_tone($item['active_status']);
                 $label  = order_status_label($item['active_status']);
-                $image  = (!empty($item['variant_image'])) ? $item['variant_image'] : $item['image'];
+                // image_sm: the list draws a small tile, and the full-size original cost ~150-300 KB a row.
+                $image  = (!empty($item['variant_image'])) ? $item['variant_image'] : (!empty($item['image_sm']) ? $item['image_sm'] : $item['image']);
                 $detail = base_url('my-account/order-details/' . $row['id'] . '/' . $item['id']);
                 $when   = isset($item['status'][array_key_last($item['status'])][1])
                     ? orderStatusTimeToHumanReadableString($item['status'][array_key_last($item['status'])][1])

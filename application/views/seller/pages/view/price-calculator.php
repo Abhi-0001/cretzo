@@ -3,7 +3,7 @@
  * Seller > Price Calculator.
  *
  * Inputs left, the answer right. Every rate on this screen is resolved by the backend from
- * the seller's real plan, their real GST band and their own PAN/GSTIN - the page itself does
+ * the category's commission, the seller's real GST band and their own PAN/GSTIN - the page itself does
  * no arithmetic beyond formatting, deliberately. A JavaScript copy of the deduction ladder
  * would give faster feedback and would drift from the settlement engine within a sprint,
  * which is the one thing this feature exists to prevent.
@@ -18,7 +18,11 @@
  *     hint appears only when the seller genuinely has recovered freight on record.
  */
 $currency = isset($currency) && $currency !== '' ? $currency : '₹';
-$plan_id_now = !empty($current_plan['id']) ? (int) $current_plan['id'] : 0;
+/* Open on the seller's primary category if it is in the list, otherwise the first one. */
+$category_ids = array_column($commission_categories, 'id');
+$category_id_now = (!empty($default_category_id) && in_array((int) $default_category_id, $category_ids, true))
+    ? (int) $default_category_id
+    : (!empty($category_ids) ? (int) $category_ids[0] : 0);
 
 /* Default the GST band to the standard rate if it is present, so the page opens on the band
  * most of the catalogue actually uses rather than on "GST Zero". */
@@ -90,16 +94,15 @@ if (!$default_tax_id && !empty($tax_bands)) {
                         </div>
 
                         <div class="czpc-field">
-                            <label class="czpc-label" for="czpc-plan">Subscription plan</label>
-                            <select class="czpc-select" id="czpc-plan" name="plan_id">
-                                <?php foreach ($plans as $plan) { ?>
-                                    <option value="<?= (int) $plan['id'] ?>" <?= ((int) $plan['id'] === $plan_id_now) ? 'selected' : '' ?>>
-                                        <?= html_escape($plan['name']) ?>
-                                        <?= ($plan_id_now && (int) $plan['id'] === $plan_id_now) ? ' (your plan)' : '' ?>
+                            <label class="czpc-label" for="czpc-category">Product category</label>
+                            <select class="czpc-select" id="czpc-category" name="category_id">
+                                <?php foreach ($commission_categories as $cat) { ?>
+                                    <option value="<?= (int) $cat['id'] ?>" <?= ((int) $cat['id'] === $category_id_now) ? 'selected' : '' ?>>
+                                        <?= str_repeat('&nbsp;&nbsp;&nbsp;', (int) $cat['depth']) ?><?= html_escape($cat['name']) ?> &mdash; <?= html_escape(rtrim(rtrim(number_format((float) $cat['effective_rate'], 2, '.', ''), '0'), '.')) ?>%
                                     </option>
                                 <?php } ?>
                             </select>
-                            <p class="czpc-hint">Switch plans here to see what a different one would earn you before you buy it.</p>
+                            <p class="czpc-hint">Commission is charged by the category the product is listed in.</p>
                         </div>
 
                         <div class="czpc-field">
@@ -108,8 +111,7 @@ if (!$default_tax_id && !empty($tax_bands)) {
                                 <span id="czpc-commission">&mdash;</span>
                                 <span class="czpc-src" id="czpc-commission-src"></span>
                             </div>
-                            <div class="czpc-slabs" id="czpc-slabs"></div>
-                            <p class="czpc-hint" id="czpc-slab-note"></p>
+                            <p class="czpc-hint" id="czpc-commission-note"></p>
                         </div>
 
                         <div class="czpc-field">
@@ -191,7 +193,6 @@ if (!$default_tax_id && !empty($tax_bands)) {
                         <p class="czpc-legend">Price summary</p>
 
                         <div class="czpc-alert czpc-alert-error" id="czpc-error" hidden></div>
-                        <div class="czpc-alert czpc-alert-info" id="czpc-plan-note" hidden></div>
 
                         <div class="czpc-summary-body" id="czpc-summary">
                             <div class="czpc-hero">
@@ -253,7 +254,6 @@ if (!$default_tax_id && !empty($tax_bands)) {
 
     var el = {
         error:      document.getElementById('czpc-error'),
-        planNote:   document.getElementById('czpc-plan-note'),
         summary:    document.getElementById('czpc-summary'),
         heroLabel:  document.getElementById('czpc-hero-label'),
         price:      document.getElementById('czpc-price-out'),
@@ -266,8 +266,7 @@ if (!$default_tax_id && !empty($tax_bands)) {
         foot:       document.getElementById('czpc-foot'),
         commission: document.getElementById('czpc-commission'),
         commSrc:    document.getElementById('czpc-commission-src'),
-        slabs:      document.getElementById('czpc-slabs'),
-        slabNote:   document.getElementById('czpc-slab-note'),
+        commNote:   document.getElementById('czpc-commission-note'),
         itcNote:    document.getElementById('czpc-itc-note'),
         go:         document.getElementById('czpc-go')
     };
@@ -294,51 +293,19 @@ if (!$default_tax_id && !empty($tax_bands)) {
         el.lines.appendChild(row);
     }
 
-    function renderSlabs(rates) {
-        el.slabs.innerHTML = '';
-        var plan = rates.plan || {};
-        var slabs = [
-            { key: 'first50',  label: 'Orders 1-50',  value: plan.commission_first50 },
-            { key: '51_100',   label: 'Orders 51-100', value: plan.commission_51_100 },
-            { key: 'after100', label: 'Orders 101+',   value: plan.commission_after100 }
-        ];
-        slabs.forEach(function (slab) {
-            var box = document.createElement('div');
-            box.className = 'czpc-slab' + (rates.slab === slab.key ? ' is-here' : '');
-            var small = document.createElement('small');
-            small.textContent = slab.label;
-            var b = document.createElement('b');
-            b.textContent = (slab.value === null || slab.value === '' || typeof slab.value === 'undefined')
-                ? 'not set' : pct(slab.value);
-            box.appendChild(small);
-            box.appendChild(b);
-            el.slabs.appendChild(box);
-        });
-
-        el.slabNote.textContent = 'You have completed ' + rates.orders_done +
-            (rates.orders_done === 1 ? ' order' : ' orders') +
-            ', so this is priced at the rate for your next one.';
-    }
-
     function render(data) {
         var r = data.rates, b = data.breakdown, e = data.earnings;
 
         el.commission.textContent = pct(r.commission_percent);
-        if (r.commission_source !== 'plan_slab') {
+        if (r.commission_source === 'category') {
+            el.commSrc.textContent = 'SET ON THIS CATEGORY';
+            el.commNote.textContent = '';
+        } else if (r.commission_source === 'category_inherited') {
+            el.commSrc.textContent = 'INHERITED';
+            el.commNote.textContent = 'This category uses the rate of ' + (r.commission_from || 'its parent category') + '.';
+        } else {
             el.commSrc.textContent = 'PLATFORM DEFAULT';
-        } else {
-            el.commSrc.textContent = r.is_current_plan ? 'FROM YOUR PLAN' : 'ON ' + String(r.plan.name || '').toUpperCase();
-        }
-        renderSlabs(r);
-
-        /* A seller comparing plans is looking at numbers they cannot get today. Saying so is
-         * the difference between a comparison and a false promise. */
-        if (r.plan && !r.is_current_plan) {
-            el.planNote.hidden = false;
-            el.planNote.textContent = 'This is what the ' + (r.plan.name || 'selected') +
-                ' plan would earn you. You are not on it — these figures apply once you upgrade.';
-        } else {
-            el.planNote.hidden = true;
+            el.commNote.textContent = 'No rate is set for this category, so the standard platform rate applies.';
         }
 
         var asked = form.selling_price.value !== '' && Number(form.selling_price.value) > 0;
@@ -391,14 +358,13 @@ if (!$default_tax_id && !empty($tax_bands)) {
             notes.push('You are not recorded as GST-registered, so no TCS is collected and you cannot claim GST back on purchases.');
         }
         notes.push('Shipping is your own estimate — your settlement uses whatever the courier actually bills.');
-        notes.push('Rates are today’s. A plan change or a new order slab will move them.');
+        notes.push('Rates are today’s. The commission is fixed on each order when it is placed.');
         el.foot.textContent = notes.join(' ');
 
         el.error.hidden = true;
     }
 
     function fail(message) {
-        el.planNote.hidden = true;
         el.error.hidden = false;
         el.error.textContent = message || 'Something went wrong working that out. Try again.';
     }
@@ -448,10 +414,8 @@ if (!$default_tax_id && !empty($tax_bands)) {
         calculate();
     });
 
-    /* Changing the plan or the GST band changes the rates, so recalculate straight away -
-     * comparing plans is the reason the dropdown is there and making it a two-step action
-     * would hide the comparison. */
-    document.getElementById('czpc-plan').addEventListener('change', calculate);
+    /* Changing the category or the GST band changes the rates, so recalculate straight away. */
+    document.getElementById('czpc-category').addEventListener('change', calculate);
     document.getElementById('czpc-tax').addEventListener('change', calculate);
 
     document.getElementById('czpc-reset').addEventListener('click', function () {

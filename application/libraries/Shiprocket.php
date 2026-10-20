@@ -484,7 +484,35 @@ class Shiprocket
 
         $url = $this->url . 'courier/serviceability/?' . $qry_str;
 
+        /*
+         * Serviceability answers are cached for a few minutes.
+         *
+         * One checkout asks Shiprocket the same questions over and over: the checkout page
+         * checks every cart item and every parcel (with and without COD) when the address is
+         * picked, and "Pay Now" then re-runs exactly the same checks before writing the order -
+         * once per item in check_cart_products_delivarable() and again per parcel in
+         * get_cart_total(). Each is a separate HTTPS call; on an 8-item cart that was 4-7s
+         * spent on the Pay Now click alone re-learning what the page had just been told.
+         *
+         * Only usable answers (HTTP 2xx carrying courier data) are cached, so a transport
+         * failure, an auth problem or a "not serviceable" reply is always re-asked. Ten minutes
+         * is far shorter than courier coverage or rate cards ever change.
+         */
+        $cache_key = 'shiprocket.serviceability.' . md5($qry_str);
+        $cached = function_exists('app_cache_get') ? app_cache_get($cache_key) : null;
+        if (is_array($cached)) {
+            $this->last_error = null;
+            $this->last_status = 200;
+            return $cached;
+        }
+
         $result = $this->curl($url);
+
+        if (function_exists('app_cache_set') && is_array($result)
+            && $this->last_status >= 200 && $this->last_status < 300
+            && !empty($result['data']['available_courier_companies'])) {
+            app_cache_set($cache_key, $result, 600);
+        }
         return $result;
     }
 

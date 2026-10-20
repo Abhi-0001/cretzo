@@ -165,6 +165,68 @@
                 </div>
             </div>
 
+            <?php
+            // Commission on what this seller actually lists: one row per category they have
+            // products in, at the rate checkout will charge. Falls back to their primary
+            // category when they have nothing listed yet.
+            $CI = &get_instance();
+            $CI->load->model('Category_model');
+            $dash_seller_id = (int) $CI->session->userdata('user_id');
+            $dash_cats = $CI->db->query(
+                'SELECT c.id, c.name, COUNT(DISTINCT p.id) AS products
+                 FROM products p JOIN categories c ON c.id = p.category_id
+                 WHERE p.seller_id = ? AND p.status IN (0, 1, 2)
+                 GROUP BY c.id, c.name ORDER BY products DESC, c.name ASC LIMIT 8',
+                [$dash_seller_id]
+            )->result_array();
+            if (empty($dash_cats)) {
+                $dash_cats = $CI->db->query(
+                    'SELECT c.id, c.name, 0 AS products FROM seller_data sd JOIN categories c ON c.id = sd.primary_category_id WHERE sd.user_id = ?',
+                    [$dash_seller_id]
+                )->result_array();
+            }
+            ?>
+            <div class="row">
+                <div class="col-12 mb-3">
+                    <div class="card attribute-card">
+                        <div class="card-header attribute-card-header d-flex justify-content-between align-items-center flex-wrap">
+                            <div class="d-flex align-items-center">
+                                <span class="header-icon bg-set"><i class="fas fa-percentage"></i></span>
+                                <h5 class="mb-0">Your Commission Rates</h5>
+                            </div>
+                            <a href="<?= base_url('seller/subscription/manage_subscriptions') ?>#category-commission" class="small font-weight-bold" style="color: var(--color-orange-dark);">All category rates <i class="fa fa-arrow-right"></i></a>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted small mb-3">Commission is charged on each item sold, at the rate of its category, on the price before GST.</p>
+                            <?php if (empty($dash_cats)) : ?>
+                                <p class="text-muted mb-0">Add products to see the commission for your categories.</p>
+                            <?php else : ?>
+                                <div class="dash-commission-grid">
+                                    <?php foreach ($dash_cats as $dc) :
+                                        $dc_eff = $CI->Category_model->resolve_commission_for_category($dc['id']); ?>
+                                        <div class="dash-commission-item">
+                                            <span class="dash-commission-name"><?= html_escape(unslash($dc['name'])) ?></span>
+                                            <span class="dash-commission-rate"><?= html_escape($CI->Category_model->format_commission($dc_eff['rate'])) ?></span>
+                                            <?php if ((int) $dc['products'] > 0) : ?>
+                                                <small class="text-muted"><?= (int) $dc['products'] ?> product<?= (int) $dc['products'] === 1 ? '' : 's' ?></small>
+                                            <?php else : ?>
+                                                <small class="text-muted">Primary category</small>
+                                            <?php endif; ?>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <style>
+                .dash-commission-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+                .dash-commission-item { border: 1px solid rgba(0, 0, 0, .08); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; }
+                .dash-commission-name { font-size: 13px; color: #555; font-weight: 600; }
+                .dash-commission-rate { font-size: 22px; font-weight: 800; color: var(--color-orange-dark, #db7323); line-height: 1.3; }
+            </style>
+
             <div class="row">
                 <div class="col-md-6 col-12 mb-3">
                     <div class="dash-notice dash-notice-danger">

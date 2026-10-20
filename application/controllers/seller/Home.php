@@ -361,6 +361,14 @@ class Home extends CI_Controller
                     ->order_by('name', 'ASC')
                     ->get()
                     ->result_array();
+
+                // The commission each category is charged at, shown beside it in the pickers.
+                $this->load->model('Category_model');
+                foreach ($this->data['all_categories'] as &$cat_row) {
+                    $eff = $this->Category_model->resolve_commission_for_category($cat_row['id']);
+                    $cat_row['commission_label'] = $this->Category_model->format_commission($eff['rate']);
+                }
+                unset($cat_row);
             }
 
             $selected_state_name = $this->data['fetched_data'][0]['state'] ?? '';

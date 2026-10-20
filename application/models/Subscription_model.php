@@ -16,9 +16,9 @@ class Subscription_model extends CI_Model
             'listings_limit' => isset($data['listings_limit']) ? $data['listings_limit'] : null,
             'validity' => isset($data['validity']) ? $data['validity'] : null,
 
-            'commission_first50' => isset($data['commission_first50']) ? $data['commission_first50'] : null,
-            'commission_51_100' => isset($data['commission_51_100']) ? $data['commission_51_100'] : null,
-            'commission_after100' => isset($data['commission_after100']) ? $data['commission_after100'] : null,
+            // No commission here any more: commission is set per CATEGORY (Admin > Categories >
+            // Category Commission). The old plan slab columns are left in the table, unwritten
+            // and unread, so migration 086 stays reversible.
 
             // IMPORTANT FIX
             'features' => isset($data['features']) ? $data['features'] : '[]'
@@ -68,7 +68,7 @@ class Subscription_model extends CI_Model
 
         // Sort column was passed straight into order_by() with no whitelist - an injection
         // route the same as already fixed on other list pages.
-        $allowed_sort_columns = ['id', 'name', 'price', 'listings_limit', 'validity', 'commission_first50', 'commission_51_100', 'commission_after100'];
+        $allowed_sort_columns = ['id', 'name', 'price', 'listings_limit', 'validity'];
         $requested_sort = $this->input->get('sort');
         $sort = in_array($requested_sort, $allowed_sort_columns, true) ? $requested_sort : $sort;
         $order = (strtolower((string) $this->input->get('order')) === 'desc') ? 'desc' : 'asc';
@@ -133,10 +133,6 @@ class Subscription_model extends CI_Model
             $tempRow['price'] = $row['price'];
             $tempRow['listings_limit'] = $row['listings_limit'];
             $tempRow['validity'] = $row['validity'];
-
-            $tempRow['commission_first50'] = $row['commission_first50'];
-            $tempRow['commission_51_100'] = $row['commission_51_100'];
-            $tempRow['commission_after100'] = $row['commission_after100'];
 
             if (!$this->ion_auth->is_seller()) {
                 $tempRow['operate'] = $operate;

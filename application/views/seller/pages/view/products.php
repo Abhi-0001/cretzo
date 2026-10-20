@@ -58,6 +58,14 @@
                         <hr>
                         <div class="col-12 col-sm-12 text-sm">
                             <h6 class="my-3"><?= 'Category : <span class="text-primary">' . ucfirst($product_details[0]['category_name']) . '</span>' ?></h6>
+                            <?php
+                            // The commission this product is charged when it sells - its category's rate.
+                            $CI = &get_instance();
+                            $CI->load->model('Category_model');
+                            $pv_commission = $CI->Category_model->resolve_commission_for_category($product_details[0]['category_id'] ?? null);
+                            ?>
+                            <h6 class="my-3">Commission : <span class="text-primary"><?= html_escape($CI->Category_model->format_commission($pv_commission['rate'])) ?></span>
+                                <small class="text-muted">per sale, on the price before GST<?= $pv_commission['source'] === 'category_inherited' ? ' (inherited from the parent category)' : ($pv_commission['source'] === 'platform_default' ? ' (standard platform rate)' : '') ?></small></h6>
                         </div>
                         <div class="py-2 px-3 mt-4">
                             <div class="col-md-12 mb-3">

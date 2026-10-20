@@ -66,7 +66,11 @@
 switch (ENVIRONMENT)
 {
 	case 'development':
-		error_reporting(-1);
+		// Not -1: the bundled payment libraries (Razorpay, Stripe, Flutterwave, Midtrans, ...)
+		// create dynamic properties, which PHP 8.2 reports as E_DEPRECATED. With display_errors
+		// on, those notices are printed AHEAD of every JSON body the Cart controller returns,
+		// so the checkout's JSON.parse fails and Place Order never completes.
+		error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT & ~E_USER_DEPRECATED);
 		ini_set('display_errors', 1);
 	break;
 

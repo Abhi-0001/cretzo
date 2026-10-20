@@ -5309,6 +5309,98 @@ function delete_images($subdirectory, $image_name)
     }
 }
 
+/**
+ * WebP uploads never got thumbnails.
+ *
+ * resize_image() builds thumb-sm / thumb-md through CodeIgniter 3's Image_lib, which only
+ * knows GIF, JPEG and PNG - a .webp fails inside it and no thumbnail is written. Most new
+ * product photos are .webp (1-2K px, 80-260 KB each), so get_image_url() fell back to the
+ * full-size original for every one of them and the live /products page weighed 5.9 MB, 4.5 MB
+ * of it product photos drawn a few hundred pixels wide.
+ *
+ * Rather than a one-off backfill (the uploads only exist on the server), a missing WebP
+ * thumbnail is generated the first time a page asks for it - AFTER that page has been sent
+ * (run_after_response), so no visitor waits on it. That visitor gets the original as before;
+ * everyone after gets the thumbnail. Capped per request so a cold listing page cannot turn
+ * into minutes of image work (12 images x ~100-200 ms at most). Needs GD with WebP; silently does nothing without it (local
+ * XAMPP ships GD disabled).
+ */
+function queue_missing_webp_thumbnails($dir, $file_name)
+{
+    static $queued = [];
+    if (strtolower(pathinfo($file_name, PATHINFO_EXTENSION)) !== 'webp'
+        || !function_exists('imagecreatefromwebp') || !function_exists('run_after_response')) {
+        return;
+    }
+    $key = $dir . $file_name;
+    if (isset($queued[$key]) || count($queued) >= 12) {
+        return;
+    }
+    $queued[$key] = true;
+    run_after_response(function () use ($dir, $file_name) {
+        generate_webp_thumbnails($dir, $file_name);
+    }, 'webp thumbnails ' . $file_name);
+}
+
+/**
+ * Writes thumb-sm (450px) and thumb-md (800px) for one WebP, the same box sizes resize_image()
+ * uses for other formats. An original already smaller than a box gets no file for that size -
+ * get_image_url() serves the original then, which is what it always did.
+ *
+ * @param string $dir       absolute directory of the original, with trailing slash
+ * @param string $file_name the original's file name
+ */
+function generate_webp_thumbnails($dir, $file_name)
+{
+    if (!function_exists('imagecreatefromwebp')) {
+        return false;
+    }
+    $source = $dir . $file_name;
+    $size = @getimagesize($source);
+    if (!$size || $size[2] !== IMAGETYPE_WEBP) {
+        return false;
+    }
+    list($w, $h) = $size;
+    $src = null;
+    foreach (['sm' => 450, 'md' => 800] as $key => $box) {
+        $target_dir = $dir . 'thumb-' . $key . '/';
+        $target = $target_dir . $file_name;
+        if (file_exists($target) || ($w <= $box && $h <= $box)) {
+            continue;
+        }
+        if ($src === null) {
+            $src = @imagecreatefromwebp($source);
+            if (!$src) {
+                log_message('error', 'generate_webp_thumbnails: could not decode ' . $source);
+                return false;
+            }
+        }
+        $ratio = min($box / $w, $box / $h);
+        $nw = max(1, (int) round($w * $ratio));
+        $nh = max(1, (int) round($h * $ratio));
+        $dst = imagecreatetruecolor($nw, $nh);
+        imagealphablending($dst, false);
+        imagesavealpha($dst, true);
+        imagecopyresampled($dst, $src, 0, 0, 0, 0, $nw, $nh, $w, $h);
+        if (!is_dir($target_dir)) {
+            @mkdir($target_dir, 0755, true);
+        }
+        // Temp file + rename, so a concurrent request never serves a half-written thumbnail.
+        $tmp = $target . '.' . getmypid() . '.tmp';
+        if (@imagewebp($dst, $tmp, 80) && @rename($tmp, $target)) {
+            // written
+        } else {
+            @unlink($tmp);
+            log_message('error', 'generate_webp_thumbnails: could not write ' . $target);
+        }
+        imagedestroy($dst);
+    }
+    if ($src) {
+        imagedestroy($src);
+    }
+    return true;
+}
+
 function get_image_url($path, $image_type = '', $image_size = '', $file_type = 'image')
 {
     $path = explode('/', (string)$path);
@@ -5329,6 +5421,9 @@ function get_image_url($path, $image_type = '', $image_size = '', $file_type = '
             if (file_exists($filepath)) {
                 return  $imagepath;
             } else if (file_exists($file_main_dir . $image_name)) {
+                if (strtolower($image_type) === 'thumb') {
+                    queue_missing_webp_thumbnails($file_main_dir, $image_name);
+                }
                 return  $image_main_dir . $image_name;
             } else {
                 return  base_url() . NO_IMAGE;

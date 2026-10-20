@@ -127,7 +127,10 @@ $logo = get_settings('web_logo');
                         <li class="cart-item cart-product" data-product-id="<?= $row['product_id']; ?>">
                             <div class="cart-item-img-container">
                                 <a href="<?= base_url('products/details/' . $row['slug']) ?>">
-                                    <img class="cart-item-img" src="<?= $row['product_variants'][0]['variant_image'] ?? $row['image'] ?>" alt="<?= $row['name']; ?>" style="object-fit: cover;" />
+                                    <?php // image_sm (450px thumbnail, from get_cart_total) rather than the full-size
+                                          // original: the cart draws it ~100px wide, and the originals ran 150-300 KB
+                                          // per line. get_image_url() already fell back to the original if no thumb. ?>
+                                    <img class="cart-item-img" src="<?= $row['product_variants'][0]['variant_image'] ?? ($row['image_sm'] ?? $row['image']) ?>" alt="<?= $row['name']; ?>" style="object-fit: cover;" />
                                 </a>
                                 <!-- <img class="cart-item-img" src="../images/cart-item1.png"> -->
                             </div>
@@ -321,7 +324,8 @@ $logo = get_settings('web_logo');
                     if ($is_logged_in) {
                         foreach ($cart as $key => $row) {
                             if (!isset($row['qty']) || $row['qty'] == 0) continue;
-                            $img = $row['product_variants'][0]['variant_image'] ?? $row['image'];
+                            // Thumbnail, like the cart list above: this repeats every cart photo at icon size.
+                            $img = $row['product_variants'][0]['variant_image'] ?? ($row['image_sm'] ?? $row['image']);
                             // server side date (7-14 days)
                             $start = (new DateTime())->modify('+7 day')->format('j M Y');
                             $end = (new DateTime())->modify('+14 day')->format('j M Y');

@@ -342,3 +342,24 @@
     $(function () {
         $('.password-field, .password-container').attr('data-cretzo-pass-toggle', '1');
     });
+
+    /* ═══════════════════════════════════════════════
+       MINI-CART PHOTOS — fetched only when the drawer is wanted
+       header.php renders each mini-cart photo as a 1px placeholder with the real
+       URL in data-cz-src, because every page used to download every cart line's
+       full-size photo for a drawer that is closed on load. Swap them in on the
+       first sign of intent (hover / touch / focus on a cart trigger) so they are
+       usually ready by the time the drawer slides in, and on open as a backstop.
+    ═══════════════════════════════════════════════ */
+    function loadMiniCartPhotos() {
+        $('#offcanvas-cart img[data-cz-src]').each(function () {
+            this.src = this.getAttribute('data-cz-src');
+            this.removeAttribute('data-cz-src');
+        });
+    }
+    $(document).on('mouseenter touchstart focus', '[data-bs-target="#offcanvas-cart"]', loadMiniCartPhotos);
+    document.addEventListener('show.bs.offcanvas', function (e) {
+        if (e.target && e.target.id === 'offcanvas-cart') {
+            loadMiniCartPhotos();
+        }
+    });

@@ -233,6 +233,7 @@ class Category_model extends CI_Model
     public function clear_category_cache()
     {
         $this->children_index = null;
+        $this->commission_index = null;
 
         /*
          * The storefront header caches the rendered navigation tree across requests
@@ -248,6 +249,196 @@ class Category_model extends CI_Model
             app_cache_delete_group('nav_categories');
             app_cache_delete_group('home_categories');
         }
+    }
+
+    /**
+     * Request-scoped id => [parent_id, commission_percent, name] for EVERY category, or NULL
+     * when not yet built. Separate from children_index() because that one holds active
+     * categories only, and a product filed under a deactivated category still has to be priced.
+     *
+     * @var array|null
+     */
+    private $commission_index = null;
+
+    private function commission_index()
+    {
+        if ($this->commission_index === null) {
+            $index = [];
+            // Guarded so a deploy that lands before migration 086 has run prices every sale at
+            // the platform default instead of fataling checkout on an unknown column.
+            $rate_column = $this->db->field_exists('commission_percent', 'categories') ? 'commission_percent' : 'NULL AS commission_percent';
+            $rows = $this->db->query('SELECT id, parent_id, ' . $rate_column . ', name FROM categories')->result_array();
+            foreach ($rows as $row) {
+                $index[(int) $row['id']] = $row;
+            }
+            $this->commission_index = $index;
+        }
+        return $this->commission_index;
+    }
+
+    /**
+     * The commission percentage a product in this category is charged.
+     *
+     * Walks up parent_id from the category to the root and takes the first category with a
+     * rate set (NULL = inherit). When nothing in the chain has one - or the category does not
+     * exist - the platform default from config/commission.php applies, so an unpriced category
+     * can never silently mean zero commission.
+     *
+     * @param int|null $category_id
+     * @return array{rate: float, source: string, category_id: int|null}
+     *         source is 'category' (set on this category), 'category_inherited' (set on an
+     *         ancestor - category_id is that ancestor) or 'platform_default'.
+     */
+    public function resolve_commission_for_category($category_id)
+    {
+        $index = $this->commission_index();
+        $id = (int) $category_id;
+        $seen = [];
+
+        while ($id > 0 && isset($index[$id]) && !isset($seen[$id])) {
+            $seen[$id] = true;
+            $rate = $index[$id]['commission_percent'];
+            if ($rate !== null && $rate !== '') {
+                return [
+                    'rate'        => (float) $rate,
+                    'source'      => ($id === (int) $category_id) ? 'category' : 'category_inherited',
+                    'category_id' => $id,
+                ];
+            }
+            $id = (int) $index[$id]['parent_id'];
+        }
+
+        $this->config->load('commission', true);
+        return [
+            'rate'        => (float) $this->config->item('default_commission_percent', 'commission'),
+            'source'      => 'platform_default',
+            'category_id' => null,
+        ];
+    }
+
+    /**
+     * Commission percentage as display text: 12, 12.5 - never "12.00".
+     */
+    public function format_commission($rate)
+    {
+        return rtrim(rtrim(number_format((float) $rate, 2, '.', ''), '0'), '.') . '%';
+    }
+
+    /**
+     * Add each node's effective commission to a category tree (rows from get_categories() /
+     * get_seller_categories(), whose children are arrays or stdClass objects). Sets
+     * `commission_rate` and `commission_source` on every node, and appends " - 12%" to `text`
+     * when $label_text is true (jstree renders `text`).
+     *
+     * Kept out of sub_categories() itself because the storefront navigation walks that tree too
+     * and must not show commission.
+     */
+    public function annotate_tree_with_commission($nodes, $label_text = true)
+    {
+        if (empty($nodes) || !is_array($nodes)) {
+            return $nodes;
+        }
+        foreach ($nodes as $k => $node) {
+            $is_obj = is_object($node);
+            $id = $is_obj ? ($node->id ?? null) : ($node['id'] ?? null);
+            if ($id === null) {
+                continue;
+            }
+            $eff = $this->resolve_commission_for_category($id);
+            $children = $is_obj ? ($node->children ?? []) : ($node['children'] ?? []);
+            $children = $this->annotate_tree_with_commission(is_array($children) ? $children : [], $label_text);
+            if ($is_obj) {
+                $node = clone $node;
+                $node->commission_rate = $eff['rate'];
+                $node->commission_source = $eff['source'];
+                $node->children = $children;
+                if ($label_text && isset($node->text)) {
+                    $node->text .= ' - ' . $this->format_commission($eff['rate']);
+                }
+            } else {
+                $node['commission_rate'] = $eff['rate'];
+                $node['commission_source'] = $eff['source'];
+                $node['children'] = $children;
+                if ($label_text && isset($node['text'])) {
+                    $node['text'] .= ' - ' . $this->format_commission($eff['rate']);
+                }
+            }
+            $nodes[$k] = $node;
+        }
+        return $nodes;
+    }
+
+    /**
+     * Set (or clear, with NULL) one category's commission rate.
+     *
+     * @param int        $category_id
+     * @param float|null $rate  0-100, or NULL to inherit from the parent.
+     * @return bool
+     */
+    public function set_commission_percent($category_id, $rate)
+    {
+        $this->db->where('id', (int) $category_id)
+            ->update('categories', ['commission_percent' => ($rate === null) ? null : round((float) $rate, 2)]);
+        $this->clear_category_cache();
+        return $this->db->affected_rows() >= 0;
+    }
+
+    /**
+     * Every category as a flat, tree-ordered list with its own and its effective commission,
+     * for the admin commission screen and the seller's read-only rate card.
+     *
+     * @param bool $active_only
+     * @return array[] each: id, parent_id, name, depth, status, commission_percent (own, or
+     *                 null), effective_rate, effective_source, inherited_from (name or null)
+     */
+    public function commission_overview($active_only = false)
+    {
+        $rows = $this->db->query(
+            'SELECT id, parent_id, name, status, commission_percent FROM categories'
+            . ($active_only ? ' WHERE status = 1' : '')
+            . ' ORDER BY row_order ASC, id ASC'
+        )->result_array();
+
+        $by_parent = [];
+        $ids = [];
+        foreach ($rows as $row) {
+            $ids[(int) $row['id']] = true;
+        }
+        foreach ($rows as $row) {
+            // A row whose parent is missing (or filtered out as inactive) is shown at the root
+            // rather than dropped, so nothing that can carry a product disappears from the list.
+            $parent = (int) $row['parent_id'];
+            $by_parent[isset($ids[$parent]) ? $parent : 0][] = $row;
+        }
+
+        $index = $this->commission_index();
+        $out = [];
+        $walk = function ($parent_id, $depth) use (&$walk, &$out, $by_parent, $index) {
+            if (empty($by_parent[$parent_id]) || $depth > 20) {
+                return;
+            }
+            foreach ($by_parent[$parent_id] as $row) {
+                $eff = $this->resolve_commission_for_category($row['id']);
+                $from = null;
+                if ($eff['source'] === 'category_inherited' && isset($index[$eff['category_id']])) {
+                    $from = unslash($index[$eff['category_id']]['name']);
+                }
+                $out[] = [
+                    'id'                 => (int) $row['id'],
+                    'parent_id'          => (int) $row['parent_id'],
+                    'name'               => unslash($row['name']),
+                    'depth'              => $depth,
+                    'status'             => (int) $row['status'],
+                    'commission_percent' => ($row['commission_percent'] === null) ? null : (float) $row['commission_percent'],
+                    'effective_rate'     => $eff['rate'],
+                    'effective_source'   => $eff['source'],
+                    'inherited_from'     => $from,
+                ];
+                $walk((int) $row['id'], $depth + 1);
+            }
+        };
+        $walk(0, 0);
+        return $out;
     }
 
     public function sub_categories($id, $level)
@@ -487,6 +678,16 @@ class Category_model extends CI_Model
                 }
                 $tempRow['banner'] = "<div class='image-box-100' ><a href='" . $row['banner_main'] . "' data-toggle='lightbox' data-gallery='gallery'> <img src='" . $row['banner'] . "' class='rounded'></a></div>";
 
+                $eff = $this->resolve_commission_for_category($row['id']);
+                $rate_text = rtrim(rtrim(number_format($eff['rate'], 2, '.', ''), '0'), '.') . '%';
+                if ($eff['source'] === 'category') {
+                    $tempRow['commission'] = '<span class="badge badge-info">' . $rate_text . '</span>';
+                } elseif ($eff['source'] === 'category_inherited') {
+                    $tempRow['commission'] = '<span class="badge badge-light border">' . $rate_text . '</span> <small class="text-muted d-block">inherited</small>';
+                } else {
+                    $tempRow['commission'] = '<span class="badge badge-light border">' . $rate_text . '</span> <small class="text-muted d-block">platform default</small>';
+                }
+
                 if (!$this->ion_auth->is_seller()) {
                     $tempRow['operate'] = $operate;
                 }
@@ -526,6 +727,15 @@ class Category_model extends CI_Model
                 : create_unique_slug($data['category_input_name'], 'categories'),
             'status' => '1',
         ];
+
+        // Commission: blank = inherit from the parent category. Only written when the field was
+        // actually posted, so a save from any form that does not carry it (or a deploy ahead of
+        // migration 086) leaves the stored rate alone instead of wiping it to NULL.
+        if (array_key_exists('commission_percent', $data) && $this->db->field_exists('commission_percent', 'categories')) {
+            $cat_data['commission_percent'] = (trim((string) $data['commission_percent']) === '')
+                ? null
+                : round((float) $data['commission_percent'], 2);
+        }
 
         if (isset($data['edit_category'])) {
             unset($cat_data['status']);

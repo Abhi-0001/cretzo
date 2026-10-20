@@ -156,7 +156,7 @@ $approval_status_url  = base_url('seller/home/profile?section=admin');
                             <span class="cz-step-icon"><i class="fas fa-crown"></i></span>
                             <div>
                                 <h6>Choose a subscription plan</h6>
-                                <p>Your plan decides your listing limit and commission slabs.</p>
+                                <p>Your plan decides how many products you can list.</p>
                             </div>
                         </li>
                         <li class="is-done">

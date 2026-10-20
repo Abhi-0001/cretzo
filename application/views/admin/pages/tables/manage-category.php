@@ -49,6 +49,9 @@
                                 <i class="fas fa-stream mr-1"></i>Tree View
                             </button>
                         </div>
+                        <a href="<?= base_url('admin/category/commission') ?>" class="btn btn-outline-primary-theme btn-sm mb-2 mr-2">
+                            <i class="fas fa-percentage mr-1"></i>Edit Commission Rates
+                        </a>
                         <a href="<?= base_url('admin/category/create-category') ?>" class="btn btn-primary-theme btn-sm mb-2">
                             <i class="fas fa-plus mr-1"></i>Add Category
                         </a>
@@ -82,6 +85,7 @@
                                           // carries it). Re-add this one <th> to bring the column back.
                                           // NOTE: blog categories are a separate screen (tables/manage-categories.php,
                                           // via admin/Blogs.php) and keep their own banner column. ?>
+                                    <th data-field="commission" data-sortable="false" data-align='center'>Commission</th>
                                     <th data-field="status" data-sortable="true" data-align='center'>Status</th>
                                     <th data-field="operate" data-sortable="false" data-align='center'>Action</th>
                                 </tr>

@@ -71,29 +71,8 @@
                                         <input type="text" class="form-control" onkeypress="return event.charCode >= 48 && event.charCode <= 57" name="validity" id="validity" value="<?= (isset($fetched_data[0]['validity']) ? $fetched_data[0]['validity'] : '') ?>">
                                     </div>
                                 </div>
-                                <div class="row">
-                                    <div class="form-group col-md-4">
-                                        <label for="commission_first50" class="control-label">Commission (0-50 orders) %</label>
-                                    </div>
-                                    <div class="form-group col-md-8">
-                                        <input type="number" step="any" class="form-control" name="commission_first50" id="commission_first50" value="<?= (isset($fetched_data[0]['commission_first50']) ? $fetched_data[0]['commission_first50'] : '') ?>">
-                                    </div>
-                                </div>
-                                <div class="row">
-                                    <div class="form-group col-md-4">
-                                        <label for="commission_51_100" class="control-label">Commission (51-100 orders) %</label>
-                                    </div>
-                                    <div class="form-group col-md-8">
-                                        <input type="number" step="any" class="form-control" name="commission_51_100" id="commission_51_100" value="<?= (isset($fetched_data[0]['commission_51_100']) ? $fetched_data[0]['commission_51_100'] : '') ?>">
-                                    </div>
-                                </div>
-                                <div class="row">
-                                    <div class="form-group col-md-4">
-                                        <label for="commission_after100" class="control-label">Commission (after 100 orders) %</label>
-                                    </div>
-                                    <div class="form-group col-md-8">
-                                        <input type="number" step="any" class="form-control" name="commission_after100" id="commission_after100" value="<?= (isset($fetched_data[0]['commission_after100']) ? $fetched_data[0]['commission_after100'] : '') ?>">
-                                    </div>
+                                <div class="alert alert-light border small mb-0">
+                                    <i class="fas fa-percentage mr-1"></i> Commission is no longer set per plan. It is charged by product category &mdash; edit it in <a href="<?= base_url('admin/category/commission') ?>">Categories &rsaquo; Category Commission</a>.
                                 </div>
 
                                 <!-- Plan Features Section -->
@@ -175,9 +154,6 @@
                                         <th data-field="price" data-sortable="true">Price</th>
                                         <th data-field="listings_limit" data-sortable="true">Listings Limit</th>
                                         <th data-field="validity" data-sortable="true">Validity</th>
-                                        <th data-field="commission_first50" data-sortable="true">Commission 0-50%</th>
-                                        <th data-field="commission_51_100" data-sortable="true">Commission 51-100%</th>
-                                        <th data-field="commission_after100" data-sortable="true">Commission >100%</th>
                                         <th data-field="operate" data-sortable="false">Actions</th>
                                     </tr>
                                 </thead>

@@ -6,22 +6,22 @@ defined('BASEPATH') or exit('No direct script access allowed');
 | Commission & settlement configuration
 |--------------------------------------------------------------------------
 |
-| Commission RATES themselves live on the subscription plans (the
-| commission_first50 / commission_51_100 / commission_after100 columns), because
-| they are a per-plan commercial decision the admin edits. This file holds the
-| platform-wide settlement parameters that are not per-plan.
+| Commission RATES themselves live on the product categories
+| (categories.commission_percent, edited in Admin > Categories > Category
+| Commission). A subcategory with no rate inherits its parent's. This file holds
+| the platform-wide settlement parameters.
 |
 */
 
 /*
 | Fallback commission percentage.
 |
-| Used when a seller's plan has no rate for their slab. Previously a NULL rate was
-| cast to 0.0 and the sale settled at ZERO commission with nothing reported - the
-| shipped "Launch Offer" plan is in exactly that state. Falling back to an explicit
-| platform rate means a missing plan value can never silently mean "free".
+| Used when neither a product's category nor any of its ancestors has a rate set
+| (see Category_model::resolve_commission_for_category()). Falling back to an
+| explicit platform rate means a missing category value can never silently mean
+| "free".
 |
-| Set this to 0 only if you genuinely intend un-priced plans to be commission-free.
+| Set this to 0 only if you genuinely intend un-priced categories to be commission-free.
 */
 $config['default_commission_percent'] = 8;
 

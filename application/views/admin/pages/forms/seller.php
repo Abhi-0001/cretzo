@@ -213,10 +213,8 @@ if ($display_name === '') {
     $display_name = $d['shop_name'] ?? 'Seller';
 }
 
-// The seller's current subscription plan is where commission actually comes
-// from (Seller_model::settle_seller_commission() reads the plan slabs, never
-// seller_data.commission), so the Admin step links to it rather than offering
-// a rate box that no calculation would consult.
+// The seller's current subscription plan, shown as a badge in the header.
+// (Commission is NOT a plan setting - it is charged per product category.)
 $plan_row = null;
 if ($edit_user_id > 0) {
     $CI = &get_instance();
@@ -674,7 +672,7 @@ $rail = [
             <section class="czp-step" data-czp-step="admin" data-czp-label="Admin Controls" hidden>
               <div class="czp-step-head">
                 <h2>Admin Controls</h2>
-                <p>Approval, what this seller is allowed to do, and where their commission rate actually comes from.</p>
+                <p>Approval, what this seller is allowed to do, and the commission charged on their categories.</p>
               </div>
               <div class="czp-alert" data-czp-alert hidden></div>
 
@@ -763,38 +761,41 @@ $rail = [
               <fieldset class="czp-group">
                 <legend>Commission</legend>
                 <?php
-                // The global "Commission(%)" input and the per-category commission
-                // picker that used to sit here wrote to seller_data.commission and the
-                // seller_commission table - neither of which is read by anything that
-                // computes money any more. Commission comes from the seller's
-                // SUBSCRIPTION PLAN slabs (subscriptions.commission_first50 /
-                // commission_51_100 / commission_after100), see
-                // Seller_model::settle_seller_commission(). Leaving the old fields here
-                // meant an admin could carefully set a rate, see it saved, and have
-                // every settlement quietly ignore it.
+                // Commission is charged per PRODUCT CATEGORY (Admin > Categories > Category
+                // Commission), not per seller or per plan - so this shows the rates of the
+                // categories this seller trades in, and links to where they are edited.
+                $seller_cat_ids = array_filter(array_map('intval', array_merge(
+                    [$d['primary_category_id'] ?? 0],
+                    explode(',', (string) ($d['category_ids'] ?? ''))
+                )));
+                $seller_cat_rates = [];
+                if (!empty($seller_cat_ids)) {
+                    $CI = &get_instance();
+                    $CI->load->model('Category_model');
+                    $names = $CI->db->select('id, name')->where_in('id', array_unique($seller_cat_ids))->get('categories')->result_array();
+                    foreach ($names as $n) {
+                        $eff = $CI->Category_model->resolve_commission_for_category($n['id']);
+                        $seller_cat_rates[] = ['name' => unslash($n['name']), 'rate' => $eff['rate']];
+                    }
+                }
                 ?>
-                <?php if (!empty($plan_row)): ?>
-                  <div class="czp-alert czp-alert-info">
-                    <b>Set by this seller's subscription plan: <?= asf_attr($plan_row['name']) ?></b>
-                    <div class="czp-kv">
+                <div class="czp-alert czp-alert-info">
+                  <b>Charged by product category</b>
+                  <div class="czp-kv">
+                    <?php if (!empty($seller_cat_rates)): ?>
                       <div class="czp-kv-row">
-                        <span class="czp-badge czp-badge-grey">First 50 orders: <?= asf_attr($plan_row['commission_first50']) ?>%</span>
-                        <span class="czp-badge czp-badge-grey">Orders 51&ndash;100: <?= asf_attr($plan_row['commission_51_100']) ?>%</span>
-                        <span class="czp-badge czp-badge-grey">After 100: <?= asf_attr($plan_row['commission_after100']) ?>%</span>
+                        <?php foreach ($seller_cat_rates as $r): ?>
+                          <span class="czp-badge czp-badge-grey"><?= asf_attr($r['name']) ?>: <?= asf_attr(rtrim(rtrim(number_format($r['rate'], 2, '.', ''), '0'), '.')) ?>%</span>
+                        <?php endforeach; ?>
                       </div>
-                      <div class="czp-kv-row">
-                        Change the rate on the <a href="<?= base_url('admin/subscription') ?>">subscription plan</a>,
-                        or see this seller's <a href="<?= base_url('admin/settlement') ?>">settlement records</a>.
-                      </div>
+                    <?php endif; ?>
+                    <div class="czp-kv-row">
+                      Each sale is charged the rate of the category the product is listed in. Change rates in
+                      <a href="<?= base_url('admin/category/commission') ?>">Category Commission</a>, or see this seller's
+                      <a href="<?= base_url('admin/settlement') ?>">settlement records</a>.
                     </div>
                   </div>
-                <?php else: ?>
-                  <div class="czp-alert czp-alert-warn">
-                    <b>No subscription plan</b>
-                    There is no commission slab to settle against, so delivered orders stay uncredited until
-                    this seller is on a plan &mdash; see <a href="<?= base_url('admin/settlement') ?>">Commission &amp; Settlements</a>.
-                  </div>
-                <?php endif; ?>
+                </div>
               </fieldset>
 
               <fieldset class="czp-group">

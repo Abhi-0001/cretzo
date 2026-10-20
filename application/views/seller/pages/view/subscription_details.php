@@ -112,12 +112,8 @@
                                     <li><span>Support</span><strong>24*7</strong></li>
                                 </ul>
 
-                                <p class="mb-2"><strong>Commission</strong></p>
-                                <ul class="commission-list mb-4">
-                                    <li><?= html_escape($plan['commission_first50']); ?>% <span>(First 50 Orders)</span></li>
-                                    <li><?= html_escape($plan['commission_51_100']); ?>% <span>(51-100 Orders)</span></li>
-                                    <li><?= html_escape($plan['commission_after100']); ?>% <span>(Above 100 Orders)</span></li>
-                                </ul>
+                                <p class="mb-1"><strong>Commission</strong></p>
+                                <p class="small text-muted mb-4">Charged by product category, the same on every plan &mdash; see the rates on the <a href="<?= base_url('seller/subscription/manage_subscriptions'); ?>">Subscription</a> page.</p>
 
                                 <div class="plan-total d-flex justify-content-between align-items-center">
                                     <span>₹<?= html_escape($plan['price']); ?> / Year</span>
@@ -141,8 +137,7 @@
 </div>
 
 <?php
-// Checkout approval gate. The seller sees the whole plan - price, inclusions, commission
-// slabs - and only meets this popup when they click Proceed to Pay, which is the point at
+// Checkout approval gate. The seller sees the whole plan - price and inclusions - and only meets this popup when they click Proceed to Pay, which is the point at
 // which an unapproved account must be stopped. seller/Subscription::purchase() enforces the
 // same rule server-side.
 $this->load->view('seller/include-approval-modals', ['approval_modal_mode' => 'checkout']);

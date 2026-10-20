@@ -59,7 +59,10 @@ class Category extends CI_Controller
         }
 
         $seller_id = $this->session->userdata('user_id');
-        $response['data'] = $this->category_model->get_seller_categories($seller_id);
+        // Each node's label carries the commission its products are charged ("Rings - 12%").
+        $response['data'] = $this->category_model->annotate_tree_with_commission(
+            $this->category_model->get_seller_categories($seller_id)
+        );
         echo json_encode($response);
         return;
     }
