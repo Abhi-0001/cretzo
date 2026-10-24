@@ -191,7 +191,7 @@ class System_users_model extends CI_Model
 
             $operate = '';
             if ($current_user_id != $row['user_id'] && $userData[0]['role'] == 0) {
-                $operate .= ' <a href="javascript:void(0)" class="edit_btn action-btn btn btn-success btn-xs mb-1 ml-1"  title="Edit" data-id="' . $row['id'] . '" data-url="admin/system_users/add_system_users"><i class="fa fa-pen"></i></a>';
+                $operate .= ' <a href="' . base_url('admin/system_users/add-system-users?edit_id=' . $row['id']) . '" class="action-btn btn btn-success btn-xs mb-1 ml-1"  title="Edit"><i class="fa fa-pen"></i></a>';
                 $operate .= ' <a  href="javascript:void(0)" class="btn btn-danger action-btn btn-xs mr-1 mb-1 ml-1"  title="Delete" id="delete-system-users" data-id="' . $row['user_id'] . '"  ><i class="fa fa-trash"></i></a>';
 
                 if ($row['active'] == '1') {

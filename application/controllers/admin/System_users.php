@@ -68,6 +68,7 @@ class System_users extends CI_Controller
             $this->data['about_us'] = get_settings('about_us');
             $this->data['system_modules'] = $this->config->item('system_modules');
             $this->data['user_roles'] = $this->config->item('system_user_roles');
+            $this->data['is_super_admin'] = $is_super_admin;
 
             $this->load->view('admin/template', $this->data);
         } else {
@@ -119,7 +120,7 @@ class System_users extends CI_Controller
                 }
             }
 
-            $this->form_validation->set_rules('username', 'Username', 'trim|required|xss_clean');
+            $this->form_validation->set_rules('username', 'Name', 'trim|required|xss_clean');
             $this->form_validation->set_rules('mobile', 'Mobile', 'trim|required|xss_clean|numeric');
             $this->form_validation->set_rules('email', 'Email', 'trim|required|xss_clean');
             $this->form_validation->set_rules('role', 'role', 'trim|required|xss_clean');
@@ -127,7 +128,8 @@ class System_users extends CI_Controller
             if (isset($edit_id)) {
                 $this->form_validation->set_rules('edit_system_user', 'Id', 'trim|required|numeric|xss_clean');
                 if (isset($_POST['password']) && !empty($_POST['password'])) {
-                    $this->form_validation->set_rules('password', 'Password', 'trim|required|xss_clean|min_length[' . $this->config->item('min_password_length', 'ion_auth') . ']');
+                    $this->form_validation->set_rules('password', 'Password', 'trim|required|xss_clean|min_length[' . $this->config->item('min_password_length', 'ion_auth') . ']|matches[confirm_password]');
+                    $this->form_validation->set_rules('confirm_password', 'Confirm Password', 'trim|required|xss_clean');
                 }
             } else {
                 $this->form_validation->set_rules('password', 'Password ' . $this->lang->line('change_password_validation_new_password_label'), 'trim|required|xss_clean|min_length[' . $this->config->item('min_password_length', 'ion_auth') . ']|matches[confirm_password]');
@@ -175,6 +177,25 @@ class System_users extends CI_Controller
                     }
                 }
 
+                // Two-step approval: every add, and every edit that changes something, must be
+                // confirmed with an email OTP AND an SMS OTP sent to the fixed approver.
+                if ($this->change_needs_approval($edit_id)) {
+                    $gate = $this->check_approval($edit_id);
+                    if ($gate !== true) {
+                        $this->response['error'] = true;
+                        $this->response['otp_required'] = !empty($gate['otp_required']);
+                        $this->response['sms_failed'] = !empty($gate['sms_failed']);
+                        $this->response['expired'] = !empty($gate['expired']);
+                        $this->response['approver_mobile'] = SYSTEM_USER_APPROVER_MOBILE;
+                        $this->response['approver_email_masked'] = $this->mask_email(SYSTEM_USER_APPROVER_EMAIL);
+                        $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                        $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                        $this->response['message'] = $gate['message'];
+                        print_r(json_encode($this->response));
+                        return;
+                    }
+                }
+
                 $this->system_users_model->update_user($_POST);
                 $this->response['error'] = false;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
@@ -193,6 +214,172 @@ class System_users extends CI_Controller
         } else {
             redirect('admin/login', 'refresh');
         }
+    }
+
+    /**
+     * Normalised permission map, so "unchanged" compares equal however the checkboxes arrived.
+     */
+    private function normalise_permissions($raw)
+    {
+        if (is_string($raw)) {
+            $raw = json_decode($raw, true);
+        }
+        if (!is_array($raw)) {
+            return [];
+        }
+        $out = [];
+        foreach ($raw as $module => $actions) {
+            if (!is_array($actions)) {
+                continue;
+            }
+            $keys = array_keys($actions);
+            sort($keys);
+            $out[$module] = $keys;
+        }
+        ksort($out);
+        return $out;
+    }
+
+    /**
+     * A new account always needs approval. An edit needs it when name, mobile, email, role,
+     * password or permissions differ from what is stored; a save that changes nothing does not.
+     * When in doubt (row not found) it asks - failing closed.
+     */
+    private function change_needs_approval($edit_id)
+    {
+        if (empty($edit_id)) {
+            return true;
+        }
+        $current = $this->db->select('u.username,u.mobile,u.email,up.role,up.permissions')
+            ->join('users u', 'up.user_id=u.id')
+            ->where('up.user_id', (int) $edit_id)
+            ->get('user_permissions up')->row_array();
+        if (empty($current)) {
+            return true;
+        }
+        if (trim((string) $this->input->post('username')) !== trim((string) $current['username'])
+            || trim((string) $this->input->post('mobile')) !== trim((string) $current['mobile'])
+            || strtolower(trim((string) $this->input->post('email'))) !== strtolower(trim((string) $current['email']))
+            || (string) $this->input->post('role') !== (string) $current['role']
+            || trim((string) $this->input->post('password')) !== ''
+        ) {
+            return true;
+        }
+        $posted = (string) $this->input->post('role') === '0' ? [] : $this->normalise_permissions($this->input->post('permissions'));
+        $stored = (string) $current['role'] === '0' ? [] : $this->normalise_permissions($current['permissions']);
+        return $posted !== $stored;
+    }
+
+    /** Ties an email OTP to the exact change it was issued for, so it cannot approve another. */
+    private function change_fingerprint($edit_id)
+    {
+        $role = (string) $this->input->post('role');
+        return hash('sha256', json_encode([
+            'edit'        => (string) $edit_id,
+            'username'    => trim((string) $this->input->post('username')),
+            'mobile'      => trim((string) $this->input->post('mobile')),
+            'email'       => strtolower(trim((string) $this->input->post('email'))),
+            'role'        => $role,
+            'password'    => hash('sha256', (string) $this->input->post('password')),
+            'permissions' => $role === '0' ? [] : $this->normalise_permissions($this->input->post('permissions')),
+        ]));
+    }
+
+    private function mask_email($email)
+    {
+        $parts = explode('@', $email, 2);
+        if (count($parts) !== 2) {
+            return $email;
+        }
+        return substr($parts[0], 0, 2) . str_repeat('*', max(1, strlen($parts[0]) - 2)) . '@' . $parts[1];
+    }
+
+    /**
+     * Returns true when both OTPs check out. Otherwise ['message' => ..., 'otp_required' => bool];
+     * with no OTP supplied it also issues (or re-issues) the email OTP.
+     */
+    private function check_approval($edit_id)
+    {
+        $fingerprint = $this->change_fingerprint($edit_id);
+        $email_otp = trim((string) $this->input->post('email_otp'));
+        $id_token = trim((string) $this->input->post('approval_id_token', false));
+        $state = $this->session->userdata('system_user_approval');
+
+        if ($email_otp === '' || $id_token === '') {
+            // Resends are limited so the approver's inbox cannot be flooded.
+            $now = time();
+            $sent = is_array($state) && !empty($state['sent_log']) ? array_filter($state['sent_log'], function ($t) use ($now) {
+                return $t > $now - 3600;
+            }) : [];
+            if (count($sent) >= 5) {
+                return ['message' => 'Too many verification codes requested. Try again in an hour.'];
+            }
+            if (!empty($sent) && max($sent) > $now - 30 && is_array($state) && ($state['fingerprint'] ?? '') === $fingerprint) {
+                // Same change re-submitted within 30s: keep the code already sent.
+                return ['otp_required' => true, 'message' => 'A code was just emailed. Enter it below, or wait 30 seconds to resend.'];
+            }
+
+            $otp = (string) random_int(100000, 999999);
+            $sent[] = $now;
+            $this->session->set_userdata('system_user_approval', [
+                'hash'        => hash('sha256', $otp),
+                'fingerprint' => $fingerprint,
+                'expires'     => $now + 600,
+                'attempts'    => 0,
+                'sent_log'    => array_values($sent),
+            ]);
+
+            $who = trim((string) $this->input->post('username')) . ' (' . trim((string) $this->input->post('mobile')) . ')';
+            $what = empty($edit_id) ? 'add a new system user' : 'change the system user';
+            $mail = send_mail(
+                SYSTEM_USER_APPROVER_EMAIL,
+                'Admin approval code',
+                '<p>An admin is trying to ' . $what . ' <b>' . html_escape($who) . '</b>.</p>'
+                . '<p>Approval code: <b style="font-size:20px;letter-spacing:3px">' . $otp . '</b></p>'
+                . '<p>It expires in 10 minutes. If you did not expect this, do not share the code.</p>'
+            );
+            if (!empty($mail['error'])) {
+                return ['message' => 'Could not email the approval code, so nothing was saved. Check Email Settings and try again.'];
+            }
+            return ['otp_required' => true, 'message' => 'Verification needed: enter the code emailed to ' . $this->mask_email(SYSTEM_USER_APPROVER_EMAIL) . ' and the SMS code sent to the approver mobile.'];
+        }
+
+        if (!is_array($state) || empty($state['hash']) || $state['expires'] < time()) {
+            return ['otp_required' => true, 'message' => 'The email code has expired. A new one is needed.', 'expired' => true];
+        }
+        if (($state['attempts'] ?? 0) >= 5) {
+            $this->session->unset_userdata('system_user_approval');
+            return ['message' => 'Too many wrong codes. Start again.'];
+        }
+        $state['attempts'] = ($state['attempts'] ?? 0) + 1;
+        $this->session->set_userdata('system_user_approval', $state);
+
+        if (!hash_equals($state['fingerprint'], $fingerprint)) {
+            return ['message' => 'The details changed after the code was sent. Submit again to get a new code.'];
+        }
+        if (!hash_equals($state['hash'], hash('sha256', $email_otp))) {
+            return ['otp_required' => true, 'message' => 'The email code is incorrect.', 'wrong_email' => true];
+        }
+
+        $verified = verify_firebase_id_token($id_token);
+        if (!empty($verified['error'])) {
+            return ['otp_required' => true, 'message' => 'The SMS code could not be verified: ' . $verified['message'], 'sms_failed' => true];
+        }
+        if ($verified['provider'] !== 'phone' || $verified['phone'] !== SYSTEM_USER_APPROVER_MOBILE) {
+            return ['otp_required' => true, 'message' => 'The SMS code was not confirmed for the approver mobile.', 'sms_failed' => true];
+        }
+        if (empty($verified['auth_time']) || $verified['auth_time'] < time() - 600) {
+            return ['otp_required' => true, 'message' => 'The SMS verification is too old. Verify again.', 'sms_failed' => true];
+        }
+        $token_key = hash('sha256', $verified['uid'] . '|' . $verified['auth_time']);
+        if ($token_key === $this->session->userdata('system_user_approval_used')) {
+            return ['otp_required' => true, 'message' => 'That SMS verification was already used. Verify again.', 'sms_failed' => true];
+        }
+
+        // Single use: neither factor can approve a second change.
+        $this->session->set_userdata('system_user_approval_used', $token_key);
+        $this->session->unset_userdata('system_user_approval');
+        return true;
     }
 
     public function delete_system_user()

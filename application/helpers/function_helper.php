@@ -10850,6 +10850,8 @@ function verify_firebase_id_token($id_token)
         // saw confirmed. It is the only trustworthy statement that the caller controls
         // that handset, so password reset binds to this rather than to a posted field.
         'phone'    => isset($payload->phone_number) ? (string) $payload->phone_number : '',
+        // When the user actually completed the sign-in (not when the token was refreshed).
+        'auth_time' => isset($payload->auth_time) ? (int) $payload->auth_time : 0,
         'provider' => $provider,
     ];
 }

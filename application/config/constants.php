@@ -289,3 +289,12 @@ defined('SUPPORT_WHATSAPP_DEFAULT') or define('SUPPORT_WHATSAPP_DEFAULT', '72900
 | Raise it for a catalogue that changes rarely; lower it during a flash sale.
 */
 defined('HOME_SECTIONS_CACHE_TTL') or define('HOME_SECTIONS_CACHE_TTL', 300);
+
+/*
+ * Two-step approval for system (admin-panel) users. Creating one, or changing its name, mobile,
+ * email, role, password or permissions, needs BOTH an email OTP and an SMS OTP delivered to
+ * this one approver - not to the person being added - so a hijacked or careless admin session
+ * cannot mint or alter staff accounts alone. The SMS goes out through Firebase (E.164 form).
+ */
+defined('SYSTEM_USER_APPROVER_MOBILE') or define('SYSTEM_USER_APPROVER_MOBILE', '+918130358306');
+defined('SYSTEM_USER_APPROVER_EMAIL') or define('SYSTEM_USER_APPROVER_EMAIL', 'ksangeeta271@gmail.com');
