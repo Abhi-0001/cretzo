@@ -185,9 +185,7 @@ class System_users extends CI_Controller
                         $this->response['error'] = true;
                         $this->response['otp_required'] = !empty($gate['otp_required']);
                         $this->response['sms_failed'] = !empty($gate['sms_failed']);
-                        $this->response['expired'] = !empty($gate['expired']);
                         $this->response['approver_mobile'] = SYSTEM_USER_APPROVER_MOBILE;
-                        $this->response['approver_email_masked'] = $this->mask_email(SYSTEM_USER_APPROVER_EMAIL);
                         $this->response['csrfName'] = $this->security->get_csrf_token_name();
                         $this->response['csrfHash'] = $this->security->get_csrf_hash();
                         $this->response['message'] = $gate['message'];
@@ -270,115 +268,35 @@ class System_users extends CI_Controller
         return $posted !== $stored;
     }
 
-    /** Ties an email OTP to the exact change it was issued for, so it cannot approve another. */
-    private function change_fingerprint($edit_id)
-    {
-        $role = (string) $this->input->post('role');
-        return hash('sha256', json_encode([
-            'edit'        => (string) $edit_id,
-            'username'    => trim((string) $this->input->post('username')),
-            'mobile'      => trim((string) $this->input->post('mobile')),
-            'email'       => strtolower(trim((string) $this->input->post('email'))),
-            'role'        => $role,
-            'password'    => hash('sha256', (string) $this->input->post('password')),
-            'permissions' => $role === '0' ? [] : $this->normalise_permissions($this->input->post('permissions')),
-        ]));
-    }
-
-    private function mask_email($email)
-    {
-        $parts = explode('@', $email, 2);
-        if (count($parts) !== 2) {
-            return $email;
-        }
-        return substr($parts[0], 0, 2) . str_repeat('*', max(1, strlen($parts[0]) - 2)) . '@' . $parts[1];
-    }
-
     /**
-     * Returns true when both OTPs check out. Otherwise ['message' => ..., 'otp_required' => bool];
-     * with no OTP supplied it also issues (or re-issues) the email OTP.
+     * Approval is one SMS code, texted by Firebase to SYSTEM_USER_APPROVER_MOBILE every time.
+     * Returns true when the posted Firebase ID token proves that number confirmed a code just
+     * now. With no token it returns ['otp_required' => true] so the page opens the code box.
      */
     private function check_approval($edit_id)
     {
-        $fingerprint = $this->change_fingerprint($edit_id);
-        $email_otp = trim((string) $this->input->post('email_otp'));
         $id_token = trim((string) $this->input->post('approval_id_token', false));
-        $state = $this->session->userdata('system_user_approval');
-
-        if ($email_otp === '' || $id_token === '') {
-            // Resends are limited so the approver's inbox cannot be flooded.
-            $now = time();
-            $sent = is_array($state) && !empty($state['sent_log']) ? array_filter($state['sent_log'], function ($t) use ($now) {
-                return $t > $now - 3600;
-            }) : [];
-            if (count($sent) >= 5) {
-                return ['message' => 'Too many verification codes requested. Try again in an hour.'];
-            }
-            if (!empty($sent) && max($sent) > $now - 30 && is_array($state) && ($state['fingerprint'] ?? '') === $fingerprint) {
-                // Same change re-submitted within 30s: keep the code already sent.
-                return ['otp_required' => true, 'message' => 'A code was just emailed. Enter it below, or wait 30 seconds to resend.'];
-            }
-
-            $otp = (string) random_int(100000, 999999);
-            $sent[] = $now;
-            $this->session->set_userdata('system_user_approval', [
-                'hash'        => hash('sha256', $otp),
-                'fingerprint' => $fingerprint,
-                'expires'     => $now + 600,
-                'attempts'    => 0,
-                'sent_log'    => array_values($sent),
-            ]);
-
-            $who = trim((string) $this->input->post('username')) . ' (' . trim((string) $this->input->post('mobile')) . ')';
-            $what = empty($edit_id) ? 'add a new system user' : 'change the system user';
-            $mail = send_mail(
-                SYSTEM_USER_APPROVER_EMAIL,
-                'Admin approval code',
-                '<p>An admin is trying to ' . $what . ' <b>' . html_escape($who) . '</b>.</p>'
-                . '<p>Approval code: <b style="font-size:20px;letter-spacing:3px">' . $otp . '</b></p>'
-                . '<p>It expires in 10 minutes. If you did not expect this, do not share the code.</p>'
-            );
-            if (!empty($mail['error'])) {
-                return ['message' => 'Could not email the approval code, so nothing was saved. Check Email Settings and try again.'];
-            }
-            return ['otp_required' => true, 'message' => 'Verification needed: enter the code emailed to ' . $this->mask_email(SYSTEM_USER_APPROVER_EMAIL) . ' and the SMS code sent to the approver mobile.'];
-        }
-
-        if (!is_array($state) || empty($state['hash']) || $state['expires'] < time()) {
-            return ['otp_required' => true, 'message' => 'The email code has expired. A new one is needed.', 'expired' => true];
-        }
-        if (($state['attempts'] ?? 0) >= 5) {
-            $this->session->unset_userdata('system_user_approval');
-            return ['message' => 'Too many wrong codes. Start again.'];
-        }
-        $state['attempts'] = ($state['attempts'] ?? 0) + 1;
-        $this->session->set_userdata('system_user_approval', $state);
-
-        if (!hash_equals($state['fingerprint'], $fingerprint)) {
-            return ['message' => 'The details changed after the code was sent. Submit again to get a new code.'];
-        }
-        if (!hash_equals($state['hash'], hash('sha256', $email_otp))) {
-            return ['otp_required' => true, 'message' => 'The email code is incorrect.', 'wrong_email' => true];
+        if ($id_token === '') {
+            return ['otp_required' => true, 'message' => 'Verification needed: enter the SMS code sent to the approver mobile.'];
         }
 
         $verified = verify_firebase_id_token($id_token);
         if (!empty($verified['error'])) {
-            return ['otp_required' => true, 'message' => 'The SMS code could not be verified: ' . $verified['message'], 'sms_failed' => true];
+            return ['otp_required' => true, 'sms_failed' => true, 'message' => 'The SMS code could not be verified: ' . $verified['message']];
         }
         if ($verified['provider'] !== 'phone' || $verified['phone'] !== SYSTEM_USER_APPROVER_MOBILE) {
-            return ['otp_required' => true, 'message' => 'The SMS code was not confirmed for the approver mobile.', 'sms_failed' => true];
+            return ['otp_required' => true, 'sms_failed' => true, 'message' => 'The SMS code was not confirmed for the approver mobile.'];
         }
         if (empty($verified['auth_time']) || $verified['auth_time'] < time() - 600) {
-            return ['otp_required' => true, 'message' => 'The SMS verification is too old. Verify again.', 'sms_failed' => true];
+            return ['otp_required' => true, 'sms_failed' => true, 'message' => 'The SMS verification is too old. Verify again.'];
         }
         $token_key = hash('sha256', $verified['uid'] . '|' . $verified['auth_time']);
         if ($token_key === $this->session->userdata('system_user_approval_used')) {
-            return ['otp_required' => true, 'message' => 'That SMS verification was already used. Verify again.', 'sms_failed' => true];
+            return ['otp_required' => true, 'sms_failed' => true, 'message' => 'That SMS verification was already used. Verify again.'];
         }
 
-        // Single use: neither factor can approve a second change.
+        // Single use: one SMS code approves one change.
         $this->session->set_userdata('system_user_approval_used', $token_key);
-        $this->session->unset_userdata('system_user_approval');
         return true;
     }
 

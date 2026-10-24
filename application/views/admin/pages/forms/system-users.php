@@ -180,22 +180,18 @@ $current_role = $is_edit ? (string) $u['role'] : '';
             </div>
             <div class="modal-body">
                 <p class="small text-muted mb-3">
-                    Approval is needed to add or change a system user. Enter the code emailed to
-                    <b id="su_approver_email"></b> and the SMS code sent to <b id="su_approver_mobile"></b>.
+                    Approval is needed to add or change a system user. Enter the code texted to
+                    <b id="su_approver_mobile"></b>.
                 </p>
                 <div class="form-group">
-                    <label for="su_email_otp">Email code</label>
-                    <input type="text" class="form-control" id="su_email_otp" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
-                </div>
-                <div class="form-group">
                     <label for="su_sms_otp">SMS code</label>
-                    <input type="text" class="form-control" id="su_sms_otp" inputmode="numeric" maxlength="6" autocomplete="off">
+                    <input type="text" class="form-control" id="su_sms_otp" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
                 </div>
                 <div id="su_approval_msg" class="small"></div>
                 <div id="su_recaptcha"></div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-link mr-auto" id="su_resend_btn">Resend codes</button>
+                <button type="button" class="btn btn-link mr-auto" id="su_resend_btn">Resend code</button>
                 <button type="button" class="btn btn-secondary" id="su_cancel_btn">Cancel</button>
                 <button type="button" class="btn btn-success" id="su_verify_btn">Verify &amp; save</button>
             </div>

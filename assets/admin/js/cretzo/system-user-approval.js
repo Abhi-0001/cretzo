@@ -2,10 +2,9 @@
  * Two-step approval on the Add/Edit System User form.
  *
  * The form is submitted normally first. When the server decides the change needs approval it
- * replies { otp_required: true } and has already emailed a code to the approver. This script
- * then asks Firebase to text a second code to the approver's mobile, shows both inputs, and
- * resubmits the same form with the email code and the Firebase ID token attached. The server
- * re-verifies both (the token's phone claim must equal the approver's number), so nothing
+ * replies { otp_required: true }. This script then asks Firebase to text a code to the approver's
+ * mobile, shows the code box, and resubmits the same form with the Firebase ID token attached.
+ * The server re-verifies the token (its phone claim must equal the approver's number), so nothing
  * here is trusted.
  *
  * Bound on the form itself with stopPropagation() so custom.js's generic delegated
@@ -51,7 +50,7 @@ window.addEventListener('load', function () {
         recaptcha = new firebase.auth.RecaptchaVerifier('su_recaptcha', { size: 'invisible' });
         return firebase.auth().signInWithPhoneNumber(approverMobile, recaptcha).then(function (c) {
             confirmation = c;
-            if (!keepMessage) { msg('Codes sent. Enter both below.', true); }
+            if (!keepMessage) { msg('Code sent. Enter it below.', true); }
         }).catch(function (err) {
             resetRecaptcha();
             msg('Could not send the SMS code: ' + ((err && err.message) || 'unknown error'), false);
@@ -62,7 +61,6 @@ window.addEventListener('load', function () {
         var fd = new FormData(form);
         fd.append(window.csrfName, window.csrfHash);
         if (withCodes) {
-            fd.append('email_otp', $.trim($('#su_email_otp').val()));
             fd.append('approval_id_token', idToken);
         }
         if ($btn) { $btn.prop('disabled', true).text('Please wait...'); }
@@ -81,7 +79,6 @@ window.addEventListener('load', function () {
             if (res.otp_required) {
                 approverMobile = res.approver_mobile || approverMobile;
                 $('#su_approver_mobile').text(approverMobile);
-                $('#su_approver_email').text(res.approver_email_masked || '');
                 if (!withCodes) {
                     $modal.modal({ backdrop: 'static', keyboard: false });
                     msg(res.message, true);
@@ -110,17 +107,16 @@ window.addEventListener('load', function () {
         e.stopPropagation();
         confirmation = null;
         idToken = '';
-        $('#su_email_otp, #su_sms_otp').val('');
+        $('#su_sms_otp').val('');
         post(false, $('#submit_btn'), $('#submit_btn').text());
     });
 
     $('#su_verify_btn').on('click', function () {
         var $btn = $(this);
         var label = $btn.text();
-        var email = $.trim($('#su_email_otp').val());
         var sms = $.trim($('#su_sms_otp').val());
-        if (!email || !sms) {
-            msg('Enter both the email code and the SMS code.', false);
+        if (!sms) {
+            msg('Enter the SMS code.', false);
             return;
         }
         if (idToken) {
@@ -144,13 +140,9 @@ window.addEventListener('load', function () {
     });
 
     $('#su_resend_btn').on('click', function () {
-        $('#su_email_otp, #su_sms_otp').val('');
-        msg('Sending new codes...', true);
-        // Re-posting the form makes the server issue a fresh email code (it keeps the current
-        // one if it was sent under 30s ago); clearing `confirmation` makes the reply re-send the SMS.
-        confirmation = null;
-        idToken = '';
-        post(false, null, '');
+        $('#su_sms_otp').val('');
+        msg('Sending a new code...', true);
+        sendSms();
     });
 
     $('#su_cancel_btn').on('click', function () {
