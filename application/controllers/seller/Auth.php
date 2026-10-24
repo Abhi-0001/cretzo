@@ -1,9 +1,6 @@
 <?php
 
-use Twilio\TwiML\Messaging\Message;
 defined('BASEPATH') or exit('No direct script access allowed');
-
-use Twilio\Rest\Client as TwilioClient;
 
 class Auth extends CI_Controller
 {
@@ -65,62 +62,6 @@ class Auth extends CI_Controller
 
         $this->data['launch_offer_active'] = $this->Seller_subscription_model->is_launch_offer_active();
         $this->load->view('seller/pages/forms/seller-registration', $this->data);
-    }
-
-     // 1. Send OTP via Twilio
-    public function send_otp(){
-        $mobile = $this->input->post('mobile', true);
-        // Basic check
-        if(empty($mobile) || strlen($mobile) != 10){
-            echo json_encode(['status' => 'error', 'message' => 'Invalid mobile number']);
-            return;
-        }
-
-        // Generate OTP
-        $otp = random_int(100000, 999999);
-
-        // Store OTP & mobile in session for 10 minutes
-        $this->session->set_tempdata('otp', $otp, 10 * 60);
-
-        $this->config->load('twilio', true);
-        $sid = $this->config->item('sid', 'twilio');
-        $token = $this->config->item('token', 'twilio');
-        $twilio_number = $this->config->item('from_number', 'twilio');
-
-        /* The Twilio credentials moved out of the tracked config file and into the
-         * environment, because they were published in git history and an auth token
-         * lets the holder send SMS billed to this account, from this account's number.
-         *
-         * Fail closed and say why. Without this the TwilioClient constructor would be
-         * handed empty strings and the failure would surface as a generic "Failed to
-         * send OTP" - indistinguishable from a network problem, and it would send an
-         * operator hunting in the wrong place. */
-        if ($sid === '' || $token === '' || $twilio_number === '') {
-            log_message('error', 'seller/Auth::send_otp: Twilio credentials are not configured. '
-                . 'Set TWILIO_SID, TWILIO_TOKEN and TWILIO_FROM_NUMBER in the .env file '
-                . '(see .env.example). The old values were committed to git and must be rotated.');
-            echo json_encode([
-                'status' => 'error',
-                'message' => 'SMS sending is not configured. Please contact support.',
-            ]);
-            return;
-        }
-
-        try {
-            $client = new TwilioClient($sid, $token);
-            $client->messages->create(
-                "+91".$mobile,
-                [
-                    "from" => $twilio_number,
-                    "body" => "Your OTP is: ".$otp
-                ]
-            );
-
-            echo json_encode(['status' => 'success', 'message' => 'OTP sent successfully']);
-        } catch (Exception $e) {
-            log_message('error', 'Twilio OTP send failed: ' . $e->getMessage());
-            echo json_encode(['status' => 'error', 'message' => 'Failed to send OTP. Please try again.']);
-        }
     }
 
     public function verify_otp(){
