@@ -277,6 +277,22 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
                                     </a>
                                 </li>
                             <?php } ?>
+                            <?php if (has_permissions('read', 'seller')) { ?>
+                                <li class="nav-item">
+                                    <a href="<?= base_url('admin/seller_changes') ?>" class="nav-link">
+                                        <i class="fa fa-user-check nav-icon"></i>
+                                        <p>Profile Changes</p>
+                                    </a>
+                                </li>
+                            <?php } ?>
+                            <?php if (has_permissions('read', 'seller')) { ?>
+                                <li class="nav-item">
+                                    <a href="<?= base_url('admin/seller_deletions') ?>" class="nav-link">
+                                        <i class="fa fa-user-times nav-icon"></i>
+                                        <p>Deletion Requests</p>
+                                    </a>
+                                </li>
+                            <?php } ?>
                             <?php // Seller wallet is served by admin/Transaction.php, which gates on
                                   // the 'transactions' module - not on 'seller'. ?>
                             <?php if (has_permissions('read', 'transactions')) { ?>

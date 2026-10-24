@@ -1075,7 +1075,7 @@ class Products extends CI_Controller
             $images_info_error = "";
             $config = [
                 'upload_path' => FCPATH . REVIEW_IMG_PATH,
-                'allowed_types' => 'jpg|png|jpeg|gif',
+                'allowed_types' => 'jpg|png|jpeg|gif|webp|avif',
                 'max_size' => 8000,
             ];
 

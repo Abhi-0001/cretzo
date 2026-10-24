@@ -149,7 +149,7 @@ if (!function_exists('asf_attr')) {
         $has      = $value !== '';
         $is_pdf   = $has && preg_match('/\.pdf$/i', $value);
         $url      = $has ? base_url($value) : '';
-        $accept   = !empty($o['images_only']) ? '.jpg,.jpeg,.png,.gif' : '.jpg,.jpeg,.png,.gif,.pdf';
+        $accept   = !empty($o['images_only']) ? '.jpg,.jpeg,.png,.gif,.webp,.avif' : '.jpg,.jpeg,.png,.gif,.webp,.avif,.pdf';
         $types    = !empty($o['images_only']) ? 'JPG, PNG or GIF' : 'JPG, PNG, GIF or PDF';
         ?>
         <div class="czp-field czp-col-<?= $col ?>"
@@ -334,7 +334,7 @@ $rail = [
 
               <div class="czp-avatar-row czp-field" data-czp-field="seller_photo"
                    data-czp-file-label="Seller photo" data-czp-file-images>
-                <input type="file" class="czp-file" id="seller_photo_input" name="seller_photo" accept=".jpg,.jpeg,.png,.gif">
+                <input type="file" class="czp-file" id="seller_photo_input" name="seller_photo" accept=".jpg,.jpeg,.png,.gif,.webp,.avif">
                 <input type="hidden" name="old_seller_photo" value="<?= asf_attr($d['image'] ?? '') ?>">
                 <div class="czp-avatar" data-czp-avatar tabindex="0" role="button" aria-label="Upload seller photo">
                   <svg data-czp-avatar-icon xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" <?= $seller_photo_url !== '' ? 'hidden' : '' ?>>
@@ -441,7 +441,7 @@ $rail = [
                     // logo on every save that did not re-upload one. ?>
               <div class="czp-avatar-row czp-field" data-czp-field="store_logo"
                    data-czp-file-label="Store logo" data-czp-file-images>
-                <input type="file" class="czp-file" id="store_logo_input" name="store_logo" accept=".jpg,.jpeg,.png,.gif">
+                <input type="file" class="czp-file" id="store_logo_input" name="store_logo" accept=".jpg,.jpeg,.png,.gif,.webp,.avif">
                 <input type="hidden" name="old_store_logo" value="<?= asf_attr($d['logo'] ?? '') ?>">
                 <div class="czp-avatar is-square" data-czp-avatar tabindex="0" role="button" aria-label="Upload store logo">
                   <svg data-czp-avatar-icon xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" <?= !empty($d['logo']) ? 'hidden' : '' ?>>

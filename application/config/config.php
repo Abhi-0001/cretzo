@@ -738,7 +738,7 @@ $config['system_modules'] = [
 */
 
 $config['type'] = array(
-    'image' => ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'eps'],
+    'image' => ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'eps', 'webp', 'avif'],
     'video' => ['mp4', '3gp', 'avchd', 'avi', 'flv', 'mkv', 'mov', 'webm', 'wmv', 'mpg', 'mpeg', 'ogg'],
     'document' => ['doc', 'docx', 'txt', 'pdf', 'ppt', 'pptx'],
     'spreadsheet' => ['xls', 'xsls'],

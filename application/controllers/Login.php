@@ -252,7 +252,7 @@ class Login extends CI_Controller
 
         $this->upload->initialize([
             'upload_path'   => FCPATH . USER_IMG_PATH,
-            'allowed_types' => 'jpeg|jpg|png|gif',
+            'allowed_types' => 'jpeg|jpg|png|gif|webp|avif',
             'max_size'      => 4096,
             'encrypt_name'  => true,
         ]);

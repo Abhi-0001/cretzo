@@ -203,12 +203,8 @@ class Category extends CI_Controller
             // Blank = inherit from the parent category.
             $this->form_validation->set_rules('commission_percent', 'Commission (%)', 'trim|numeric|greater_than_equal_to[0]|less_than_equal_to[100]');
 
-            if (isset($_POST['edit_category'])) {
-
-                $this->form_validation->set_rules('category_input_image', 'Image', 'trim|xss_clean');
-            } else {
-                $this->form_validation->set_rules('category_input_image', 'Image', 'trim|required|xss_clean', array('required' => 'Category image is required'));
-            }
+            // The main image is optional, on add as well as edit.
+            $this->form_validation->set_rules('category_input_image', 'Image', 'trim|xss_clean');
 
 
             if (!$this->form_validation->run()) {

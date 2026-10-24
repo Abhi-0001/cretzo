@@ -1156,7 +1156,7 @@ Defined Methods:-
             $images_info_error = "";
             $config = [
                 'upload_path' => FCPATH . REVIEW_IMG_PATH,
-                'allowed_types' => 'jpg|png|jpeg|gif',
+                'allowed_types' => 'jpg|png|jpeg|gif|webp|avif',
                 'max_size' => 8000,
             ];
 
@@ -2482,7 +2482,7 @@ Defined Methods:-
 
             $config = [
                 'upload_path' => FCPATH . USER_IMG_PATH,
-                'allowed_types' => 'jpeg|gif|jpg|png',
+                'allowed_types' => 'jpeg|gif|jpg|png|webp|avif',
             ];
 
             $image_new_name = '';
@@ -2702,7 +2702,12 @@ Defined Methods:-
 
                 if ($login) {
                     $user_group = fetch_details('users_groups', ['user_id' => $_POST['user_id']], 'group_id');
-                    if ($user_group[0]['group_id'] == '2') {
+                    /* A seller (or delivery boy) also carries the customer group, and that row comes first,
+                     * so testing only the first row sent every seller down the customer branch - which
+                     * deleted the account outright. Look at every group, most privileged role first. */
+                    $group_ids = array_map('strval', array_column($user_group, 'group_id'));
+                    $primary_group = in_array('4', $group_ids, true) ? '4' : (in_array('3', $group_ids, true) ? '3' : (in_array('2', $group_ids, true) ? '2' : ''));
+                    if ($primary_group == '2') {
                         $status = 'awaiting,received,processed,shipped';
                         $multiple_status = explode(',', $status);
                         $orders = fetch_orders('', $_POST['user_id'], $multiple_status);
@@ -2724,97 +2729,15 @@ Defined Methods:-
                         delete_details(['user_id' => $_POST['user_id']], 'users_groups');
                         $response['error'] = false;
                         $response['message'] = 'User Deleted Succesfully';
-                    } else if ($user_group[0]['group_id'] == '4') {
-                        $login = $this->ion_auth->login($this->input->post('mobile'), $this->input->post('password'), false);
-                        if ($login) {
-                            $delete = array(
-                                "media" => 0,
-                                "payment_requests" => 0,
-                                "products" => 0,
-                                "product_attributes" => 0,
-                                "order_items" => 0,
-                                "orders" => 0,
-                                "order_bank_transfer" => 0,
-                                "seller_commission" => 0,
-                                "seller_data" => 0,
-                            );
-                            $seller_media = fetch_details('seller_data', ['user_id' => $_POST['user_id']], 'id,logo,national_identity_card,address_proof');
-                            if (!empty($seller_media)) {
-                                (unlink(FCPATH . $seller_media[0]['logo']) != null) && !empty(unlink(FCPATH . $seller_media[0]['logo'])) ? unlink(FCPATH . $seller_media[0]['logo']) : "";
-                                (unlink(FCPATH . $seller_media[0]['national_identity_card']) != null) && !empty(unlink(FCPATH . $seller_media[0]['national_identity_card'])) ? unlink(FCPATH . $seller_media[0]['national_identity_card']) : "";
-                                (unlink(FCPATH . $seller_media[0]['address_proof']) != null) && !empty(unlink(FCPATH . $seller_media[0]['address_proof'])) ? unlink(unlink(FCPATH . $seller_media[0]['address_proof'])) : "";
-                            }
-                            if (update_details(['seller_id' => 0], ['seller_id' => $_POST['user_id']], 'media')) {
-                                $delete['media'] = 1;
-                            }
-                            /* check for retur requesst if seller's product have */
-                            $return_req = $this->db->where(['p.seller_id' => $_POST['user_id']])->join('products p', 'p.id=rr.product_id')->get('return_requests rr')->result_array();
-                            if (!empty($return_req)) {
-                                $this->response['error'] = true;
-                                $this->response['message'] = 'Seller could not be deleted.Either found some order items which has return request.Finalize those before deleting it';
-                                print_r(json_encode($this->response));
-                                return;
-                                exit();
-                            }
-                            $pr_ids = fetch_details("products", ['seller_id' => $_POST['user_id']], "id");
-                            if (delete_details(['seller_id' => $_POST['user_id']], 'products')) {
-                                $delete['products'] = 1;
-                            }
-                            foreach ($pr_ids as $row) {
-                                if (delete_details(['product_id' => $row['id']], 'product_attributes')) {
-                                    $delete['product_attributes'] = 1;
-                                }
-                            }
-                            /* check order items */
-                            $order_items = fetch_details('order_items', ['seller_id' => $_POST['user_id']], 'id,order_id');
-                            if (delete_details(['seller_id' => $_POST['user_id']], 'order_items')) {
-                                $delete['order_items'] = 1;
-                            }
-                            if (!empty($order_items)) {
-                                $res_order_id = array_values(array_unique(array_column($order_items, "order_id")));
-                                for ($i = 0; $i < count($res_order_id); $i++) {
-                                    $orders = $this->db->where('oi.seller_id != ' . (int) $_POST['user_id'] . ' and oi.order_id=' . (int) $res_order_id[$i])  /* SQL INJECTION - was raw $_POST['user_id']; the mobile API needs only the shared app key, so this was reachable by anyone who extracted it from the APK. */->join('orders o', 'o.id=oi.order_id', 'right')->get('order_items oi')->result_array();
-                                    if (empty($orders)) {
-                                        // delete orders
-                                        if (delete_details(['seller_id' => $_POST['user_id']], 'order_items')) {
-                                            $delete['order_items'] = 1;
-                                        }
-                                        if (delete_details(['id' => $res_order_id[$i]], 'orders')) {
-                                            $delete['orders'] = 1;
-                                        }
-                                        if (delete_details(['order_id' => $res_order_id[$i]], 'order_bank_transfer')) {
-                                            $delete['order_bank_transfer'] = 1;
-                                        }
-                                    }
-                                }
-                            } else {
-                                $delete['order_items'] = 1;
-                                $delete['orders'] = 1;
-                                $delete['order_bank_transfer'] = 1;
-                            }
-                            if (!empty($res_order_id)) {
-
-                                if (delete_details(['id' => $res_order_id[$i]], 'orders')) {
-                                    $delete['orders'] = 1;
-                                }
-                            } else {
-                                $delete['orders'] = 1;
-                            }
-                            if (delete_details(['seller_id' => $_POST['user_id']], 'seller_commission')) {
-                                $delete['seller_commission'] = 1;
-                            }
-                            if (delete_details(['user_id' => $_POST['user_id']], 'seller_data')) {
-                                $delete['seller_data'] = 1;
-                            }
-                            if (isset($delete['seller_data']) && !empty($delete['seller_data']) && isset($delete['seller_commission']) && !empty($delete['seller_commission'])) {
-                                $deleted = TRUE;
-                            }
-                        }
-                        delete_details(['id' => $_POST['user_id']], 'users');
-                        delete_details(['user_id' => $_POST['user_id']], 'users_groups');
-                        $response['error'] = false;
-                        $response['message'] = 'Seller Deleted Succesfully';
-                    } else if ($user_group[0]['group_id'] == '3') {
+                    } else if ($primary_group == '4') {
+                        // A seller cannot delete their own account: file a request for the admin,
+                        // who deletes it (or declines). Credentials were verified above.
+                        $this->load->model('Seller_deletion_model');
+                        $note = trim((string) $this->input->post('note', true));
+                        list($err, $msg) = $this->Seller_deletion_model->create((int) $_POST['user_id'], $note !== '' ? $note : 'Requested from the app.');
+                        $response['error'] = $err;
+                        $response['message'] = $msg;
+                    } else if ($primary_group == '3') {
                         delete_details(['id' => $_POST['user_id']], 'users');
                         delete_details(['user_id' => $_POST['user_id']], 'users_groups');
                         $response['error'] = false;
@@ -3287,6 +3210,8 @@ Defined Methods:-
                         $filters['product_type'] = (isset($sections[$i]['product_type'])) ? $sections[$i]['product_type'] : null;
                     }
                 }
+                // $filters is shared by every section in this loop, so set the cap each time.
+                $filters['max_per_seller'] = (int) ($sections[$i]['max_per_seller'] ?? 0);
                 $categories = (isset($sections[$i]['categories']) && !empty($sections[$i]['categories']) && $sections[$i]['categories'] != NULL) ? explode(',', $sections[$i]['categories']) : null;
 
                 $products = fetch_product($user_id, (isset($filters)) ? $filters : null, (isset($product_ids) && !empty($product_ids)) ? $product_ids : null, $categories, $p_limit, $p_offset, $p_sort, $p_order, NULL, $zipcode, NULL);

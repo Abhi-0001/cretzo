@@ -41,7 +41,7 @@ $(document).ready(function () {
     var addresses = [];
 
     $('#documents').on('change', function () {
-        var allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx'];
+        var allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'pdf', 'doc', 'docx'];
         var selectedFiles = this.files;
 
         for (var i = 0; i < selectedFiles.length; i++) {

@@ -1029,6 +1029,16 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
     if (isset($filter) && !empty($filter['product_type']) && $filter['product_type'] == 'new_added_products') {
         $sort = 'p.id';
         $order = 'desc';
+
+        /* Featured-section cap: at most N of any one seller's products. Without it a seller who
+         * lists ten products at once fills the whole "New Arrivals" grid. A product qualifies
+         * when fewer than N of the same seller's visible products are newer than it, i.e. it is
+         * among that seller's N newest - the same p.id order the section is sorted by. A plain
+         * correlated count (no window function) so it runs on any MariaDB/MySQL version. */
+        $max_per_seller = isset($filter['max_per_seller']) ? (int) $filter['max_per_seller'] : 0;
+        if ($max_per_seller > 0) {
+            $t->db->where('(SELECT COUNT(*) FROM products p_cap WHERE p_cap.seller_id = p.seller_id AND p_cap.status = 1 AND p_cap.listing_visibility = 1 AND p_cap.id > p.id) < ' . $max_per_seller, null, false);
+        }
     }
 
     if (isset($filter) && !empty($filter['product_variant_ids'])) {
@@ -1097,6 +1107,17 @@ function fetch_product($user_id = NULL, $filter = NULL, $id = NULL, $category_id
     }
     if (isset($filter['discount']) && !empty($filter['discount']) && $filter['discount'] != "") {
         $t->db->order_by('cal_discount_percentage', 'DESC');
+    } elseif (in_array($sort, ['pv.date_added', 'date_added'], true)) {
+        /* "Newest first" / "Oldest first" must mean exactly that. The branch below ranks every
+         * subscribed seller's products above all others BEFORE it applies the chosen sort, so
+         * products from a seller without an active subscription sorted after every older
+         * product from a subscribed one - brand-new listings landed on the last page. Price
+         * sorting already puts its own key first; the date sort now does too.
+         * GROUP BY p.id leaves pv.date_added unaggregated (an arbitrary variant's value), so
+         * take the product's newest (desc) or oldest (asc) variant, and break ties on p.id. */
+        $date_dir = sanitize_sort_direction($order, 'DESC');
+        $t->db->order_by(($date_dir === 'ASC' ? 'MIN' : 'MAX') . '(pv.date_added) ' . $date_dir, false);
+        $t->db->order_by('p.id', $date_dir);
     } else {
         $t->db->order_by('has_subscription', 'DESC');
         if ($sort != null && $sort != 'pv.price') {
@@ -4261,6 +4282,11 @@ function get_frontend_subcategories_html($subcategories)
 
 function resize_image($image_data, $source_path, $id = false)
 {
+    // CI's image_lib (gd2) cannot decode AVIF, so resizing would only raise errors. The original is
+    // stored as uploaded and get_image_url() falls back to it where a thumbnail is missing.
+    if (strtolower(pathinfo((string) ($image_data['file_name'] ?? ''), PATHINFO_EXTENSION)) === 'avif') {
+        return;
+    }
     if ($image_data['is_image']) {
 
         $t = &get_instance();
@@ -5403,6 +5429,11 @@ function generate_webp_thumbnails($dir, $file_name)
 
 function get_image_url($path, $image_type = '', $image_size = '', $file_type = 'image')
 {
+    // An item with no image (categories can now be saved without one) has an empty path. Without
+    // this the URL collapsed to the site root, and every <img> built from it was a broken image.
+    if ($file_type == 'image' && trim((string) $path) === '') {
+        return base_url() . NO_IMAGE;
+    }
     $path = explode('/', (string)$path);
     $subdirectory = '';
     for ($i = 0; $i < count($path) - 1; $i++) {
@@ -5949,6 +5980,11 @@ function get_current_version()
 
 function resize_review_images($image_data, $source_path, $id = false)
 {
+    // CI's image_lib (gd2) cannot decode AVIF, so resizing would only raise errors. The original is
+    // stored as uploaded and get_image_url() falls back to it where a thumbnail is missing.
+    if (strtolower(pathinfo((string) ($image_data['file_name'] ?? ''), PATHINFO_EXTENSION)) === 'avif') {
+        return;
+    }
     if ($image_data['is_image']) {
 
         $t = &get_instance();

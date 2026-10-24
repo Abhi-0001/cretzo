@@ -456,7 +456,7 @@ class Support extends CI_Controller
             'upload_path'   => $target,
             // Deliberately narrower than allowed_media_types(): a support attachment has no
             // reason to accept archives or executables.
-            'allowed_types' => 'jpg|jpeg|png|gif|webp|pdf|doc|docx|txt',
+            'allowed_types' => 'jpg|jpeg|png|gif|webp|avif|pdf|doc|docx|txt',
             'max_size'      => 5120,
             'encrypt_name'  => TRUE,
         ];

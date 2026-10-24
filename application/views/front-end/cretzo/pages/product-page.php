@@ -900,11 +900,11 @@
                                 </div>
 
                                 <div class="czrev-field">
-                                    <label class="czrev-label" for="czrev-images">Add photos <span class="czrev-hint">(JPG, PNG or GIF &middot; up to 5 photos &middot; max 7 MB each)</span></label>
+                                    <label class="czrev-label" for="czrev-images">Add photos <span class="czrev-hint">(JPG, PNG, WEBP, AVIF or GIF &middot; up to 5 photos &middot; max 7 MB each)</span></label>
                                     <?php /* accept= filters the picker only - czrevValidateFiles() in
                                             product-page.js enforces the same rules the upload config does. */ ?>
                                     <input type="file" class="czrev-file" id="czrev-images" name="images[]"
-                                           accept="image/png,image/jpeg,image/gif" multiple>
+                                           accept="image/png,image/jpeg,image/gif,image/webp,image/avif" multiple>
                                     <label class="czrev-file-btn" for="czrev-images">
                                         <i class="uil uil-camera-plus"></i> Choose photos
                                     </label>
@@ -1085,7 +1085,7 @@
                         </div>
                         <div class="form-group fs-17">
                             <label for="exampleFormControlTextarea1">Images</label>
-                            <input type="file" name="images[]" accept="image/x-png,image/gif,image/jpeg" multiple />
+                            <input type="file" name="images[]" accept="image/x-png,image/gif,image/jpeg,image/webp,image/avif" multiple />
                         </div>
                         <button class="cretzo btn btn-dark btn-primary rounded-pill w-100" id="rating-submit-btn">Submit</button>
                     </form>
@@ -1115,7 +1115,7 @@
                         </div>
                         <div class="form-group">
                             <label for="exampleFormControlTextarea1"><?= !empty($this->lang->line('images')) ? $this->lang->line('images') : 'Images' ?></label>
-                            <input type="file" name="images[]" accept="image/x-png,image/gif,image/jpeg" multiple />
+                            <input type="file" name="images[]" accept="image/x-png,image/gif,image/jpeg,image/webp,image/avif" multiple />
                         </div>
                         <button class="cretzo btn btn-dark btn-primary rounded-pill w-100" id="rating-submit-btn"><?= !empty($this->lang->line('submit')) ? $this->lang->line('submit') : 'Submit' ?></button>
                     </form>

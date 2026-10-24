@@ -164,6 +164,7 @@ return array(
 	'jar'	=>	array('application/java-archive', 'application/x-java-application', 'application/x-jar', 'application/x-compressed'),
 	'svg'	=>	array('image/svg+xml', 'image/svg', 'application/xml', 'text/xml'),
 	'webp'  =>  array('image/webp'),
+	'avif'  =>  array('image/avif'),
 	'vcf'	=>	'text/x-vcard',
 	'srt'	=>	array('text/srt', 'text/plain'),
 	'vtt'	=>	array('text/vtt', 'text/plain'),

@@ -89,8 +89,8 @@ ob_start(); ?>
         <p class="czap-panel__title" style="margin-bottom:6px"><i class="uil uil-camera"></i> Profile photo</p>
         <p class="czap-help" style="margin:0 0 10px">
             <?= $profile_image_is_placeholder
-                ? 'You have not added a photo yet. JPG, PNG or GIF.'
-                : 'JPG, PNG or GIF. Replace it any time.' ?>
+                ? 'You have not added a photo yet. JPG, PNG, WEBP, AVIF or GIF.'
+                : 'JPG, PNG, WEBP, AVIF or GIF. Replace it any time.' ?>
         </p>
         <button type="button" class="czap-btn czap-btn--ghost czap-btn--sm" data-czap-open="#czap-profile-modal">
             <i class="uil uil-image-upload"></i> <?= $profile_image_is_placeholder ? 'Add a photo' : 'Change photo' ?>
@@ -225,9 +225,9 @@ $this->load->view('front-end/' . THEME . '/partials/account-layout', [
                             <i class="uil uil-image-upload"></i> Choose photo
                         </label>
                         <input type="file" id="czap-image" name="image" hidden
-                               accept="image/png,image/jpeg,image/gif"
+                               accept="image/png,image/jpeg,image/gif,image/webp,image/avif"
                                data-czap-file="#czap-photo-preview" data-czap-file-name="#czap-photo-name">
-                        <p class="czap-help" id="czap-photo-name">JPG, PNG or GIF. Optional.</p>
+                        <p class="czap-help" id="czap-photo-name">JPG, PNG, WEBP, AVIF or GIF. Optional.</p>
                     </div>
                 </div>
 

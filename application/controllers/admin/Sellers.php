@@ -21,6 +21,10 @@ class Sellers extends CI_Controller
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
             $this->data['main_page'] = TABLES . 'manage-seller';
+            $this->load->model('Seller_profile_change_model');
+            $this->data['pending_profile_changes'] = $this->Seller_profile_change_model->count_pending();
+            $this->load->model('Seller_deletion_model');
+            $this->data['pending_deletion_requests'] = $this->Seller_deletion_model->count_pending();
             $settings = get_settings('system_settings', true);
             $this->data['title'] = 'Seller Management | ' . $settings['app_name'];
             $this->data['meta_description'] = ' Seller Management  | ' . $settings['app_name'];
@@ -558,7 +562,7 @@ class Sellers extends CI_Controller
                 }
                 $this->upload->initialize([
                     'upload_path' => FCPATH . USER_IMG_PATH,
-                    'allowed_types' => 'jpg|png|jpeg|gif|pdf',
+                    'allowed_types' => 'jpg|png|jpeg|gif|webp|avif|pdf',
                     'max_size' => 8000,
                 ]);
                 if ($this->upload->do_upload('seller_photo')) {
@@ -605,7 +609,7 @@ class Sellers extends CI_Controller
             $document_error = '';
             $doc_config = [
                 'upload_path' => FCPATH . SELLER_DOCUMENTS_PATH,
-                'allowed_types' => 'jpg|png|jpeg|gif|pdf',
+                'allowed_types' => 'jpg|png|jpeg|gif|webp|avif|pdf',
                 'max_size' => 8000,
             ];
             foreach ($doc_required as $field => $is_required) {

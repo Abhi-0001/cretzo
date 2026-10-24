@@ -2395,7 +2395,7 @@ Defined Methods:-
             $store_logo_error = "";
             $config = [
                 'upload_path' =>  FCPATH . SELLER_DOCUMENTS_PATH,
-                'allowed_types' => 'jpg|png|jpeg|gif',
+                'allowed_types' => 'jpg|png|jpeg|gif|webp|avif',
                 'max_size' => 8000,
             ];
             if (isset($logo_files['store_logo']) && !empty($logo_files['store_logo']['name']) && isset($logo_files['store_logo']['name'])) {
@@ -2457,7 +2457,7 @@ Defined Methods:-
             $authorized_signature_error = "";
             $config = [
                 'upload_path' =>  FCPATH . SELLER_DOCUMENTS_PATH,
-                'allowed_types' => 'jpg|png|jpeg|gif',
+                'allowed_types' => 'jpg|png|jpeg|gif|webp|avif',
                 'max_size' => 8000,
             ];
             if (isset($authorized_signature_files['authorized_signature']) && !empty($authorized_signature_files['authorized_signature']['name']) && isset($authorized_signature_files['authorized_signature']['name'])) {
@@ -2518,7 +2518,7 @@ Defined Methods:-
             $id_card_error = "";
             $config = [
                 'upload_path' =>  FCPATH . SELLER_DOCUMENTS_PATH,
-                'allowed_types' => 'jpg|png|jpeg|gif',
+                'allowed_types' => 'jpg|png|jpeg|gif|webp|avif',
                 'max_size' => 8000,
             ];
             if (isset($id_card_files['national_identity_card']) &&  !empty($id_card_files['national_identity_card']['name']) && isset($id_card_files['national_identity_card']['name'])) {
@@ -2577,7 +2577,7 @@ Defined Methods:-
             $proof_error = "";
             $config = [
                 'upload_path' =>  FCPATH . SELLER_DOCUMENTS_PATH,
-                'allowed_types' => 'jpg|png|jpeg|gif',
+                'allowed_types' => 'jpg|png|jpeg|gif|webp|avif',
                 'max_size' => 8000,
             ];
             if (isset($proof_files['address_proof']) && !empty($proof_files['address_proof']['name']) && isset($proof_files['address_proof']['name'])) {
@@ -3156,7 +3156,7 @@ Defined Methods:-
             $store_logo_error = "";
             $config = [
                 'upload_path' =>  FCPATH . SELLER_DOCUMENTS_PATH,
-                'allowed_types' => 'jpg|png|jpeg|gif',
+                'allowed_types' => 'jpg|png|jpeg|gif|webp|avif',
                 'max_size' => 8000,
             ];
             if (isset($logo_files['store_logo']) && !empty($logo_files['store_logo']['name']) && isset($logo_files['store_logo']['name'])) {
@@ -3215,7 +3215,7 @@ Defined Methods:-
             $authorized_signature_error = "";
             $config = [
                 'upload_path' =>  FCPATH . SELLER_DOCUMENTS_PATH,
-                'allowed_types' => 'jpg|png|jpeg|gif',
+                'allowed_types' => 'jpg|png|jpeg|gif|webp|avif',
                 'max_size' => 8000,
             ];
             if (isset($authorized_signature_files['authorized_signature']) && !empty($authorized_signature_files['authorized_signature']['name']) && isset($authorized_signature_files['authorized_signature']['name'])) {
@@ -3276,7 +3276,7 @@ Defined Methods:-
             $id_card_error = "";
             $config = [
                 'upload_path' =>  FCPATH . SELLER_DOCUMENTS_PATH,
-                'allowed_types' => 'jpg|png|jpeg|gif',
+                'allowed_types' => 'jpg|png|jpeg|gif|webp|avif',
                 'max_size' => 8000,
             ];
             if (isset($id_card_files['national_identity_card']) &&  !empty($id_card_files['national_identity_card']['name']) && isset($id_card_files['national_identity_card']['name'])) {
@@ -3335,7 +3335,7 @@ Defined Methods:-
             $proof_error = "";
             $config = [
                 'upload_path' =>  FCPATH . SELLER_DOCUMENTS_PATH,
-                'allowed_types' => 'jpg|png|jpeg|gif',
+                'allowed_types' => 'jpg|png|jpeg|gif|webp|avif',
                 'max_size' => 8000,
             ];
             if (isset($proof_files['address_proof']) && !empty($proof_files['address_proof']['name']) && isset($proof_files['address_proof']['name'])) {
@@ -4056,13 +4056,19 @@ Defined Methods:-
         }
     }
 
+    /**
+     * "Delete my account" from the seller app. A seller can no longer delete their own account:
+     * this still checks the seller's credentials, but then only FILES a deletion request for the
+     * admin (who deletes the account, or declines). Same inputs as before; note is optional here
+     * so existing app builds that do not send one keep working.
+     *
+     *   user_id:15
+     *   mobile:9874563214
+     *   password:12345695
+     *   note:(optional) why the seller wants to leave
+     */
     public function delete_seller()
     {
-        /*
-            user_id:15
-            mobile:9874563214
-            password:12345695
-        */
         if (!$this->verify_token()) {
             return false;
         }
@@ -4076,123 +4082,30 @@ Defined Methods:-
             $this->response['data'] = array();
             echo json_encode($this->response);
             return false;
-        } else {
+        }
 
-            $user_data = fetch_details('users', ['id' => $_POST['user_id'], 'mobile' => $_POST['mobile']], 'id,username,password,active,mobile');
-            if ($user_data) {
-                $login = $this->ion_auth->login($this->input->post('mobile'), $this->input->post('password'), false);
-                if ($login) {
-                    $user_group = fetch_details('users_groups', ['user_id' => $_POST['user_id']], 'group_id');
-                    if ($user_group[0]['group_id'] == '4') {
-                        $login = $this->ion_auth->login($this->input->post('mobile'), $this->input->post('password'), false);
-                        if ($login) {
-                            $delete = array(
-                                "media" => 0,
-                                "payment_requests" => 0,
-                                "products" => 0,
-                                "product_attributes" => 0,
-                                "product_variants" => 0,
-                                "order_items" => 0,
-                                "orders" => 0,
-                                "order_bank_transfer" => 0,
-                                "seller_commission" => 0,
-                                "seller_data" => 0,
-                            );
-                            $seller_media = fetch_details('seller_data', ['user_id' => $_POST['user_id']], 'id,logo,national_identity_card,address_proof,authorized_signature');
-                            if (!empty($seller_media)) {
-                                (unlink(FCPATH . $seller_media[0]['logo']) != null) && !empty(unlink(FCPATH . $seller_media[0]['logo'])) ? unlink(FCPATH . $seller_media[0]['logo']) : "";
-                                (unlink(FCPATH . $seller_media[0]['national_identity_card']) != null) && !empty(unlink(FCPATH . $seller_media[0]['national_identity_card'])) ? unlink(FCPATH . $seller_media[0]['national_identity_card']) : "";
-                                (unlink(FCPATH . $seller_media[0]['address_proof']) != null) && !empty(unlink(FCPATH . $seller_media[0]['address_proof'])) ? unlink(unlink(FCPATH . $seller_media[0]['address_proof'])) : "";
-                                (unlink(FCPATH . $seller_media[0]['authorized_signature']) != null) && !empty(unlink(FCPATH . $seller_media[0]['authorized_signature'])) ? unlink(unlink(FCPATH . $seller_media[0]['authorized_signature'])) : "";
-                            }
-                            if (update_details(['seller_id' => 0], ['seller_id' => $_POST['user_id']], 'media')) {
-                                $delete['media'] = 1;
-                            }
-                            /* check for retur requesst if seller's product have */
-                            $return_req = $this->db->where(['p.seller_id' => $_POST['user_id']])->join('products p', 'p.id=rr.product_id')->get('return_requests rr')->result_array();
-                            if (!empty($return_req)) {
-                                $this->response['error'] = true;
-                                $this->response['message'] = 'Seller could not be deleted.Either found some order items which has return request.Finalize those before deleting it';
-                                print_r(json_encode($this->response));
-                                return;
-                                exit();
-                            }
-                            $pr_ids = fetch_details("products", ['seller_id' => $_POST['user_id']], "id");
-                            if (delete_details(['seller_id' => $_POST['user_id']], 'products')) {
-                                $delete['products'] = 1;
-                            }
-                            foreach ($pr_ids as $row) {
-                                if (delete_details(['product_id' => $row['id']], 'product_attributes')) {
-                                    $delete['product_attributes'] = 1;
-                                }
-                                if (delete_details(['product_id' => $row['id']], 'product_variants')) {
-                                    $delete['product_variants'] = 1;
-                                }
-                            }
-                            /* check order items */
-                            $order_items = fetch_details('order_items', ['seller_id' => $_POST['user_id']], 'id,order_id');
-                            if (delete_details(['seller_id' => $_POST['user_id']], 'order_items')) {
-                                $delete['order_items'] = 1;
-                            }
-                            if (!empty($order_items)) {
-                                $res_order_id = array_values(array_unique(array_column($order_items, "order_id")));
-                                for ($i = 0; $i < count($res_order_id); $i++) {
-                                    $orders = $this->db->where('oi.seller_id != ' . (int) $_POST['user_id'] . ' and oi.order_id=' . (int) $res_order_id[$i])  /* SQL INJECTION - was raw $_POST['user_id']. */->join('orders o', 'o.id=oi.order_id', 'right')->get('order_items oi')->result_array();
-                                    if (empty($orders)) {
-                                        // delete orders
-                                        if (delete_details(['seller_id' => $_POST['user_id']], 'order_items')) {
-                                            $delete['order_items'] = 1;
-                                        }
-                                        if (delete_details(['id' => $res_order_id[$i]], 'orders')) {
-                                            $delete['orders'] = 1;
-                                        }
-                                        if (delete_details(['order_id' => $res_order_id[$i]], 'order_bank_transfer')) {
-                                            $delete['order_bank_transfer'] = 1;
-                                        }
-                                    }
-                                }
-                            } else {
-                                $delete['order_items'] = 1;
-                                $delete['orders'] = 1;
-                                $delete['order_bank_transfer'] = 1;
-                            }
-                            if (!empty($res_order_id)) {
-
-                                if (delete_details(['id' => $res_order_id[$i]], 'orders')) {
-                                    $delete['orders'] = 1;
-                                }
-                            } else {
-                                $delete['orders'] = 1;
-                            }
-                            if (delete_details(['seller_id' => $_POST['user_id']], 'seller_commission')) {
-                                $delete['seller_commission'] = 1;
-                            }
-                            if (delete_details(['user_id' => $_POST['user_id']], 'seller_data')) {
-                                $delete['seller_data'] = 1;
-                            }
-                            if (isset($delete['seller_data']) && !empty($delete['seller_data']) && isset($delete['seller_commission']) && !empty($delete['seller_commission'])) {
-                                $deleted = TRUE;
-                            }
-                        }
-                        delete_details(['id' => $_POST['user_id']], 'users');
-                        delete_details(['user_id' => $_POST['user_id']], 'users_groups');
-                        $response['error'] = false;
-                        $response['message'] = 'Seller Deleted Successfully';
-                    } else {
-                        $response['error'] = true;
-                        $response['message'] = 'Details Does\'s Match';
-                    }
-                } else {
-                    $response['error'] = true;
-                    $response['message'] = 'Details Does\'s Match';
-                }
-            } else {
-                $response['error'] = true;
-                $response['message'] = 'User Not Found';
-            }
-            echo json_encode($response);
+        $user_id = (int) $this->input->post('user_id', true);
+        $user_data = fetch_details('users', ['id' => $user_id, 'mobile' => $this->input->post('mobile', true)], 'id');
+        if (!$user_data) {
+            echo json_encode(['error' => true, 'message' => 'User Not Found']);
             return;
         }
+        $login = $this->ion_auth->login($this->input->post('mobile'), $this->input->post('password'), false);
+        $user_group = $login ? fetch_details('users_groups', ['user_id' => $user_id], 'group_id') : [];
+        // A seller also holds the customer group (listed first), so check every row, not the first.
+        if (!$login || !in_array('4', array_map('strval', array_column($user_group, 'group_id')), true)) {
+            echo json_encode(['error' => true, 'message' => "Details Doesn't Match"]);
+            return;
+        }
+
+        $this->load->model('Seller_deletion_model');
+        $note = trim((string) $this->input->post('note', true));
+        if ($note === '') {
+            $note = 'Requested from the seller app.';
+        }
+        list($error, $message) = $this->Seller_deletion_model->create($user_id, $note);
+        echo json_encode(['error' => $error, 'message' => $message]);
+        return;
     }
 
     public function manage_stock()

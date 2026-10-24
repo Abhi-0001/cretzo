@@ -92,7 +92,7 @@ ob_start(); ?>
                                 <i class="uil uil-paperclip"></i>
                                 <span id="cs-attach-label">Attach files</span>
                                 <input type="file" name="attachments[]" id="cs-attachments" multiple
-                                       accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.txt" hidden>
+                                       accept=".jpg,.jpeg,.png,.gif,.webp,.avif,.pdf,.doc,.docx,.txt" hidden>
                             </label>
                             <div class="cs-support__replybtns">
                                 <button type="button" class="cs-support__ghost" id="cs-resolve-btn" hidden>Mark resolved</button>

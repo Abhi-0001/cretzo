@@ -90,7 +90,7 @@
                                 </script>
                                 <div class="row">
                                     <div class="form-group col-md-6">
-                                        <label for="image">Main Image <span class='text-danger text-sm'>*</span><br><small>(Recommended Size : 131 x 131 pixels)</small></label>
+                                        <label for="image">Main Image <small class="text-muted">(optional)</small><br><small>(Recommended Size : 131 x 131 pixels)</small></label>
                                         <?php
                                         // Previously opened the shared media-library modal: upload a file there, then
                                         // separately click it in a list and click "Choose Media" to actually attach it

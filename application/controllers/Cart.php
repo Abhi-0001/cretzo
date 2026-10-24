@@ -724,7 +724,7 @@ class Cart extends CI_Controller
                         $temp_array = array();
                         $files = $_FILES;
                         $images_info_error = "";
-                        $allowed_media_types = 'jpg|png|jpeg|pdf|doc|docs|txt';
+                        $allowed_media_types = 'jpg|png|jpeg|webp|avif|pdf|doc|docs|txt';
                         $config = [
                             'upload_path' =>  FCPATH . ORDER_ATTACHMENTS,
                             'allowed_types' => $allowed_media_types,

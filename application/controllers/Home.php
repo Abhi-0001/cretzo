@@ -146,6 +146,8 @@ if (!empty($sections)) {
                 if (isset($sections[$i]['product_type']) && !empty($sections[$i]['product_type'])) {
                     $filters['product_type'] = (isset($sections[$i]['product_type'])) ? $sections[$i]['product_type'] : null;
                 }
+                // $filters is shared by every section in this loop, so set the cap each time.
+                $filters['max_per_seller'] = (int) ($sections[$i]['max_per_seller'] ?? 0);
 
                 if ($default_theme_name == 'modern') {
                     if ($sections[$i]['style'] == "default" || $sections[$i]['style'] == "style_3") {

@@ -268,7 +268,7 @@ class Login extends CI_Controller
                     }
                     $photo_config = [
                         'upload_path' => FCPATH . USER_IMG_PATH,
-                        'allowed_types' => 'jpg|png|jpeg|gif|pdf',
+                        'allowed_types' => 'jpg|png|jpeg|gif|webp|avif|pdf',
                         'max_size' => 8000,
                     ];
                     $this->upload->initialize($photo_config);
@@ -296,7 +296,7 @@ class Login extends CI_Controller
                 $store_logo_error = "";
                 $config = [
                     'upload_path' =>  FCPATH . SELLER_DOCUMENTS_PATH,
-                    'allowed_types' => 'jpg|png|jpeg|gif|pdf',
+                    'allowed_types' => 'jpg|png|jpeg|gif|webp|avif|pdf',
                     'max_size' => 8000,
                 ];
                 if (isset($logo_files['store_logo']) && !empty($logo_files['store_logo']['name']) && isset($logo_files['store_logo']['name'])) {
@@ -359,7 +359,7 @@ class Login extends CI_Controller
                     'upload_path' =>  FCPATH . SELLER_DOCUMENTS_PATH,
                     // Images only: a PDF here would be saved and then render as a broken picture
                     // across the top of the public store page.
-                    'allowed_types' => 'jpg|png|jpeg|gif',
+                    'allowed_types' => 'jpg|png|jpeg|gif|webp|avif',
                     'max_size' => 8000,
                 ];
                 if (isset($store_banner_files['store_banner']) && !empty($store_banner_files['store_banner']['name']) && isset($store_banner_files['store_banner']['name'])) {
@@ -423,7 +423,7 @@ class Login extends CI_Controller
                 $authorized_signature_error = "";
                 $config = [
                     'upload_path' =>  FCPATH . SELLER_DOCUMENTS_PATH,
-                    'allowed_types' => 'jpg|png|jpeg|gif|pdf',
+                    'allowed_types' => 'jpg|png|jpeg|gif|webp|avif|pdf',
                     'max_size' => 8000,
                 ];
                 if (isset($authorized_signature_files['authorized_signature']) && !empty($authorized_signature_files['authorized_signature']['name']) && isset($authorized_signature_files['authorized_signature']['name'])) {
@@ -484,7 +484,7 @@ class Login extends CI_Controller
                 $id_card_error = "";
                 $config = [
                     'upload_path' =>  FCPATH . SELLER_DOCUMENTS_PATH,
-                    'allowed_types' => 'jpg|png|jpeg|gif|pdf',
+                    'allowed_types' => 'jpg|png|jpeg|gif|webp|avif|pdf',
                     'max_size' => 8000,
                 ];
                 if (isset($id_card_files['national_identity_card']) &&  !empty($id_card_files['national_identity_card']['name']) && isset($id_card_files['national_identity_card']['name'])) {
@@ -545,7 +545,7 @@ class Login extends CI_Controller
                 $proof_error = "";
                 $config = [
                     'upload_path' =>  FCPATH . SELLER_DOCUMENTS_PATH,
-                    'allowed_types' => 'jpg|png|jpeg|gif|pdf',
+                    'allowed_types' => 'jpg|png|jpeg|gif|webp|avif|pdf',
                     'max_size' => 8000,
                 ];
                 if (isset($proof_files['address_proof']) && !empty($proof_files['address_proof']['name']) && isset($proof_files['address_proof']['name'])) {
@@ -620,7 +620,7 @@ class Login extends CI_Controller
                     if (!empty($_FILES[$doc_field]['name'])) {
                         $doc_config = [
                             'upload_path' => FCPATH . SELLER_DOCUMENTS_PATH,
-                            'allowed_types' => 'jpg|png|jpeg|gif|pdf',
+                            'allowed_types' => 'jpg|png|jpeg|gif|webp|avif|pdf',
                             'max_size' => 8000,
                         ];
                         $this->upload->initialize($doc_config);
@@ -761,6 +761,13 @@ class Login extends CI_Controller
                         $seller_profile['image'] = $new_seller_photo;
                     }
 
+                    // Once a seller is approved, major business/personal edits (legal name, PAN/GST,
+                    // bank account, identity documents ...) must be approved by an admin. They are put
+                    // back to their approved values here, so the save below writes only what may change
+                    // immediately, and the proposed values wait in seller_profile_change_requests.
+                    $this->load->model('Seller_profile_change_model');
+                    $held_changes = $this->Seller_profile_change_model->hold_major_changes($user_id, $seller_data, $seller_profile);
+
                     if ($this->Seller_model->add_seller($seller_data, $seller_profile)) {
 
                         // The new banner is saved, so the file it replaced is now an orphan. Only a file
@@ -784,6 +791,11 @@ class Login extends CI_Controller
                             $message = 'Profile updated successfully.';
                         }
 
+                        if (!empty($held_changes['held'])) {
+                            $message = 'Profile saved. Changes to ' . implode(', ', $held_changes['held'])
+                                . ' need admin approval - your current approved details stay live until then.';
+                        }
+
                         // The pickup address given here is the seller's primary pickup address:
                         // mirror it into the Pickup Addresses list. A failure there (e.g. the
                         // courier rejecting it) must not undo the profile save, but is reported.
@@ -801,7 +813,8 @@ class Login extends CI_Controller
                             'csrfName' => $this->security->get_csrf_token_name(),
                             'csrfHash' => $this->security->get_csrf_hash(),
                             'message'  => $message,
-                            'verification_filed' => $verification['filed']
+                            'verification_filed' => $verification['filed'],
+                            'changes_pending' => !empty($held_changes['held'])
                         ];
                     
                         echo json_encode($this->response);

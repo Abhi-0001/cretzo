@@ -44,8 +44,8 @@
      Constants shared with the server
      ====================================================================== */
 
-  // admin/Sellers::add_seller() -> allowed_types 'jpg|png|jpeg|gif|pdf'
-  var ALLOWED_EXT = ['jpg', 'jpeg', 'png', 'gif', 'pdf'];
+  // admin/Sellers::add_seller() -> allowed_types 'jpg|png|jpeg|gif|webp|avif|pdf'
+  var ALLOWED_EXT = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'pdf'];
   // ...and max_size 8000, which CodeIgniter reads as kilobytes.
   var MAX_FILE_KB = 8000;
 
@@ -325,11 +325,11 @@
     // allowed_types list covers every upload on this form) but nothing can
     // render it. Documents take either.
     var imagesOnly = wrap.hasAttribute('data-czp-file-images');
-    var allowed = imagesOnly ? ['jpg', 'jpeg', 'png', 'gif'] : ALLOWED_EXT;
+    var allowed = imagesOnly ? ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif'] : ALLOWED_EXT;
     if (allowed.indexOf(ext) === -1) {
       return label + (imagesOnly
-        ? ' must be a JPG, JPEG, PNG or GIF image'
-        : ' must be a JPG, JPEG, PNG, GIF or PDF file');
+        ? ' must be a JPG, JPEG, PNG, WEBP, AVIF or GIF image'
+        : ' must be a JPG, JPEG, PNG, WEBP, AVIF, GIF or PDF file');
     }
     if (f.size === 0) return 'That file is empty. Please choose another one.';
     if (f.size > MAX_FILE_KB * 1024) {

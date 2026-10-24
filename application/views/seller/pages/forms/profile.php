@@ -99,7 +99,7 @@ if (!function_exists('czp_val')) {
         $has      = $value !== '';
         $is_pdf   = $has && preg_match('/\.pdf$/i', $value);
         $url      = $has ? base_url($value) : '';
-        $accept   = !empty($o['images_only']) ? '.jpg,.jpeg,.png,.gif' : '.jpg,.jpeg,.png,.gif,.pdf';
+        $accept   = !empty($o['images_only']) ? '.jpg,.jpeg,.png,.gif,.webp,.avif' : '.jpg,.jpeg,.png,.gif,.webp,.avif,.pdf';
         $types    = !empty($o['images_only']) ? 'JPG, PNG or GIF' : 'JPG, PNG, GIF or PDF';
         ?>
         <div class="czp-field czp-col-<?= $col ?>"
@@ -192,6 +192,37 @@ $initial       = in_array(($current_profile_section ?? 'personal'), $section_key
       <p>Five short steps. Each one is checked before you move on, so nothing comes back as a surprise at the end.</p>
     </header>
 
+    <?php
+    // Major edits made after approval wait for an admin; say what, and that nothing has gone live.
+    $czp_pending  = isset($pending_change_request) ? $pending_change_request : null;
+    $czp_rejected = isset($rejected_change_request) ? $rejected_change_request : null;
+    if ($czp_pending) : ?>
+      <div class="czp-pending" role="status">
+        <b>Changes waiting for admin approval</b>
+        <span>Your current approved details are still live. These changes will go live once an admin approves them:</span>
+        <ul>
+          <?php foreach ($czp_pending['changes'] as $c) : ?>
+            <li><?= htmlspecialchars($c['label'], ENT_QUOTES, 'UTF-8') ?></li>
+          <?php endforeach; ?>
+        </ul>
+      </div>
+    <?php elseif ($czp_rejected) : ?>
+      <div class="czp-pending czp-pending-rejected" role="status">
+        <b>Your last profile change was not approved</b>
+        <span>
+          <?= htmlspecialchars(implode(', ', array_column($czp_rejected['changes'], 'label')), ENT_QUOTES, 'UTF-8') ?>
+          <?= !empty($czp_rejected['reject_reason']) ? ' &mdash; ' . htmlspecialchars($czp_rejected['reject_reason'], ENT_QUOTES, 'UTF-8') : '' ?>.
+          Your previous details are unchanged.
+        </span>
+      </div>
+    <?php elseif ((string) ($d['status'] ?? '') === '1') : ?>
+      <div class="czp-pending czp-pending-note" role="note">
+        <span>Your account is approved, so changes to personal details, business and tax details, documents and bank details are
+        reviewed by an admin before they go live. Everything else (store name, logo, banner, description, pickup address, categories)
+        saves straight away.</span>
+      </div>
+    <?php endif; ?>
+
     <nav class="czp-rail" aria-label="Profile steps">
       <?php
       $rail = [
@@ -222,7 +253,7 @@ $initial       = in_array(($current_profile_section ?? 'personal'), $section_key
 
           <div class="czp-avatar-row czp-field" data-czp-field="seller_photo"
                data-czp-file-label="Your photo" data-czp-file-images>
-            <input type="file" class="czp-file" id="seller_photo_input" name="seller_photo" accept=".jpg,.jpeg,.png,.gif">
+            <input type="file" class="czp-file" id="seller_photo_input" name="seller_photo" accept=".jpg,.jpeg,.png,.gif,.webp,.avif">
             <div class="czp-avatar" data-czp-avatar tabindex="0" role="button" aria-label="Upload your photo">
               <svg data-czp-avatar-icon xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" <?= !empty($d['image']) ? 'hidden' : '' ?>>
                 <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6m2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0m4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4m-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10s-3.516.68-4.168 1.332c-.678.678-.83 1.418-.832 1.664z"/>
@@ -296,7 +327,10 @@ $initial       = in_array(($current_profile_section ?? 'personal'), $section_key
           <footer class="czp-nav">
             <span></span>
             <span class="czp-nav-count">Step 1 of 5</span>
-            <button type="button" class="czp-btn czp-btn-primary" data-czp-next>Continue</button>
+            <span class="czp-nav-actions">
+              <button type="button" class="czp-btn czp-btn-save" data-czp-save title="Save the changes on this page without going through the other steps">Save changes</button>
+              <button type="button" class="czp-btn czp-btn-primary" data-czp-next>Continue</button>
+            </span>
           </footer>
         </section>
 
@@ -310,7 +344,7 @@ $initial       = in_array(($current_profile_section ?? 'personal'), $section_key
 
           <div class="czp-avatar-row czp-field" data-czp-field="store_logo"
                data-czp-file-label="Shop logo" data-czp-file-images>
-            <input type="file" class="czp-file" id="store_logo_input" name="store_logo" accept=".jpg,.jpeg,.png,.gif">
+            <input type="file" class="czp-file" id="store_logo_input" name="store_logo" accept=".jpg,.jpeg,.png,.gif,.webp,.avif">
             <input type="hidden" name="old_store_logo" value="<?= czp_val($d, 'logo') ?>">
             <div class="czp-avatar is-square" data-czp-avatar tabindex="0" role="button" aria-label="Upload shop logo">
               <svg data-czp-avatar-icon xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" <?= !empty($d['logo']) ? 'hidden' : '' ?>>
@@ -333,7 +367,7 @@ $initial       = in_array(($current_profile_section ?? 'personal'), $section_key
                 // logo picker's markup, so validation, preview and error display come from the same JS. ?>
           <div class="czp-avatar-row czp-field" data-czp-field="store_banner"
                data-czp-file-label="Store banner" data-czp-file-images>
-            <input type="file" class="czp-file" id="store_banner_input" name="store_banner" accept=".jpg,.jpeg,.png,.gif">
+            <input type="file" class="czp-file" id="store_banner_input" name="store_banner" accept=".jpg,.jpeg,.png,.gif,.webp,.avif">
             <input type="hidden" name="old_store_banner" value="<?= czp_val($d, 'store_banner') ?>">
             <div class="czp-avatar is-banner" data-czp-avatar tabindex="0" role="button" aria-label="Upload store banner">
               <svg data-czp-avatar-icon xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" <?= !empty($d['store_banner']) ? 'hidden' : '' ?>>
@@ -431,7 +465,10 @@ $initial       = in_array(($current_profile_section ?? 'personal'), $section_key
           <footer class="czp-nav">
             <button type="button" class="czp-btn czp-btn-ghost" data-czp-back>Back</button>
             <span class="czp-nav-count">Step 2 of 5</span>
-            <button type="button" class="czp-btn czp-btn-primary" data-czp-next>Continue</button>
+            <span class="czp-nav-actions">
+              <button type="button" class="czp-btn czp-btn-save" data-czp-save title="Save the changes on this page without going through the other steps">Save changes</button>
+              <button type="button" class="czp-btn czp-btn-primary" data-czp-next>Continue</button>
+            </span>
           </footer>
         </section>
 
@@ -560,7 +597,10 @@ $initial       = in_array(($current_profile_section ?? 'personal'), $section_key
           <footer class="czp-nav">
             <button type="button" class="czp-btn czp-btn-ghost" data-czp-back>Back</button>
             <span class="czp-nav-count">Step 3 of 5</span>
-            <button type="button" class="czp-btn czp-btn-primary" data-czp-next>Continue</button>
+            <span class="czp-nav-actions">
+              <button type="button" class="czp-btn czp-btn-save" data-czp-save title="Save the changes on this page without going through the other steps">Save changes</button>
+              <button type="button" class="czp-btn czp-btn-primary" data-czp-next>Continue</button>
+            </span>
           </footer>
         </section>
 
@@ -608,7 +648,10 @@ $initial       = in_array(($current_profile_section ?? 'personal'), $section_key
           <footer class="czp-nav">
             <button type="button" class="czp-btn czp-btn-ghost" data-czp-back>Back</button>
             <span class="czp-nav-count">Step 4 of 5</span>
-            <button type="button" class="czp-btn czp-btn-primary" data-czp-next>Continue</button>
+            <span class="czp-nav-actions">
+              <button type="button" class="czp-btn czp-btn-save" data-czp-save title="Save the changes on this page without going through the other steps">Save changes</button>
+              <button type="button" class="czp-btn czp-btn-primary" data-czp-next>Continue</button>
+            </span>
           </footer>
         </section>
 
@@ -672,6 +715,67 @@ $initial       = in_array(($current_profile_section ?? 'personal'), $section_key
 
       </form>
     </div>
+
+    <?php
+    // A seller cannot delete their own account: they ask, an admin decides.
+    $czp_del = isset($deletion_request) ? $deletion_request : null;
+    $czp_del_declined = isset($deletion_declined) ? $deletion_declined : null;
+    ?>
+    <div class="czp-danger-card" id="czp_delete_card">
+      <h2>Close my account</h2>
+      <?php if ($czp_del) : ?>
+        <p class="czp-danger-status">
+          <b>Deletion request sent</b> on <?= htmlspecialchars(date('d M Y', strtotime($czp_del['requested_at'])), ENT_QUOTES, 'UTF-8') ?>.
+          Your account stays active until the admin acts on it.
+        </p>
+        <blockquote><?= nl2br(htmlspecialchars($czp_del['note'], ENT_QUOTES, 'UTF-8')) ?></blockquote>
+        <button type="button" class="czp-btn czp-btn-ghost" id="czp_delete_cancel">Cancel my request</button>
+      <?php else : ?>
+        <?php if ($czp_del_declined) : ?>
+          <p class="czp-danger-status">Your last deletion request was not approved<?= !empty($czp_del_declined['admin_note']) ? ': ' . htmlspecialchars($czp_del_declined['admin_note'], ENT_QUOTES, 'UTF-8') : '' ?>. Your account is still active.</p>
+        <?php endif; ?>
+        <p>You cannot delete your account yourself. Tell us why you want to leave and send a request &mdash; an admin will review it and delete the account.
+          Deleting an account removes its products and order history, so settle any open orders and payouts first.</p>
+        <label for="czp_delete_note">Why do you want to delete your account? <i class="czp-req">*</i></label>
+        <textarea id="czp_delete_note" rows="3" maxlength="1000" placeholder="For example: I have closed my business and no longer sell on Cretzo."></textarea>
+        <button type="button" class="czp-btn czp-btn-danger" id="czp_delete_send">Request account deletion</button>
+      <?php endif; ?>
+    </div>
+    <script>
+    (function () {
+      function post(url, data, done) {
+        data = data || {};
+        data[csrfName] = csrfHash;
+        $.ajax({ url: base_url + url, type: 'POST', data: data, dataType: 'json' })
+          .done(function (res) {
+            if (res.csrfName) { csrfName = res.csrfName; csrfHash = res.csrfHash; }
+            done(res);
+          })
+          .fail(function () { done({ error: true, message: 'Something went wrong. Please try again.' }); });
+      }
+      $('#czp_delete_send').on('click', function () {
+        var note = $.trim($('#czp_delete_note').val());
+        if (note.length < 10) { Swal.fire('Add a note', 'Please tell us why you want to leave (at least 10 characters).', 'warning'); return; }
+        Swal.fire({
+          title: 'Send deletion request?',
+          text: 'The admin will review it. Your account stays active until then.',
+          showCancelButton: true, confirmButtonText: 'Send request'
+        }).then(function (r) {
+          if (r.dismiss) return;
+          post('seller/home/request_account_deletion', { note: note }, function (res) {
+            Swal.fire(res.error ? 'Oops...' : 'Request sent', res.message, res.error ? 'warning' : 'success')
+              .then(function () { if (!res.error) window.location.reload(); });
+          });
+        });
+      });
+      $('#czp_delete_cancel').on('click', function () {
+        post('seller/home/cancel_account_deletion', {}, function (res) {
+          Swal.fire(res.error ? 'Oops...' : 'Cancelled', res.message, res.error ? 'warning' : 'success')
+            .then(function () { if (!res.error) window.location.reload(); });
+        });
+      });
+    })();
+    </script>
   </div>
 </div>
 

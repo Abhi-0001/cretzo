@@ -295,8 +295,8 @@ function validateForm(form) {
     const fileInput = form.querySelector('input[type="file"][name="' + fieldName + '"]');
     if (!fileInput || !fileInput.files || !fileInput.files.length) return;
     const f = fileInput.files[0];
-    if (!/^image\/(jpeg|jpg|png|gif)$/i.test(f.type)) {
-      showError(fileInput, 'Please upload a valid image (JPG, PNG or GIF)');
+    if (!/^image\/(jpeg|jpg|png|gif|webp|avif)$/i.test(f.type)) {
+      showError(fileInput, 'Please upload a valid image (JPG, PNG, WEBP, AVIF or GIF)');
       valid = false;
     } else if (f.size > 8 * 1024 * 1024) {
       showError(fileInput, FILE_LABELS[fieldName] + ' must be under 8 MB');
@@ -319,8 +319,8 @@ function validateForm(form) {
     const fileInput = form.querySelector('input[type="file"][name="' + fieldName + '"]');
     if (!fileInput || !fileInput.files || !fileInput.files.length) return;
     const f = fileInput.files[0];
-    if (!/^image\/(jpeg|jpg|png|gif)$/i.test(f.type) && f.type !== 'application/pdf') {
-      showError(fileInput, 'Please upload a valid image (JPG, PNG, GIF) or PDF');
+    if (!/^image\/(jpeg|jpg|png|gif|webp|avif)$/i.test(f.type) && f.type !== 'application/pdf') {
+      showError(fileInput, 'Please upload a valid image (JPG, PNG, WEBP, AVIF, GIF) or PDF');
       valid = false;
     } else if (f.size > 8 * 1024 * 1024) {
       showError(fileInput, FILE_LABELS_FLEXIBLE[fieldName] + ' must be under 8 MB');

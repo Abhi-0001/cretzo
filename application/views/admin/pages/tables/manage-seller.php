@@ -28,6 +28,12 @@
                         <a href="javascript:void(0)" class="btn btn-outline-primary-theme btn-sm mb-2 update-seller-commission" title="If you found seller commission not crediting using cron job you can update seller commission from here!">
                             <i class="fas fa-sync-alt mr-1"></i>Update Seller Commission
                         </a>
+                        <a href="<?= base_url('admin/seller_changes') ?>" class="btn btn-outline-primary-theme btn-sm mb-2 mr-2" title="Major profile edits from approved sellers waiting for your approval">
+                            <i class="fas fa-user-check mr-1"></i>Profile Changes<?php if (!empty($pending_profile_changes)) { ?> <span class="badge badge-danger"><?= (int) $pending_profile_changes ?></span><?php } ?>
+                        </a>
+                        <a href="<?= base_url('admin/seller_deletions') ?>" class="btn btn-outline-primary-theme btn-sm mb-2 mr-2" title="Sellers asking for their account to be deleted">
+                            <i class="fas fa-user-times mr-1"></i>Deletion Requests<?php if (!empty($pending_deletion_requests)) { ?> <span class="badge badge-danger"><?= (int) $pending_deletion_requests ?></span><?php } ?>
+                        </a>
                         <a href="<?= base_url('admin/sellers/manage-seller') ?>" class="btn btn-primary-theme btn-sm mb-2">
                             <i class="fas fa-plus mr-1"></i>Add Seller
                         </a>

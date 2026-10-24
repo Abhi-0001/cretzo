@@ -731,8 +731,9 @@ function save_product(form) {
                 iziToast.success({
                     message: result['message'],
                 });
+                // Added or updated: go back to the Manage Products list.
                 setTimeout(function () {
-                    location.reload();
+                    window.location.href = base_url + from + '/product/';
                 }, 600);
             }
         }
@@ -4796,7 +4797,7 @@ function getAcceptedMediaTypes(mediaType) {
             return '.zip,.rar,.7z,.pdf,.doc,.docx,.xls,.xlsx,.txt';
         case 'image':
         default:
-            return '.jpg,.jpeg,.png,.gif,.webp,.bmp';
+            return '.jpg,.jpeg,.png,.gif,.webp,.avif,.bmp';
     }
 }
 
@@ -6586,8 +6587,13 @@ $(document).on('click', '.update-seller-commission', function () {
             return new Promise((resolve, reject) => {
                 $.ajax({
                     url: base_url + 'admin/cron-job/settle-seller-commission',
-                    type: 'GET',
+                    // POST, not GET. cron_authorized() only accepts an admin session on a
+                    // POST (behind CodeIgniter's CSRF check); a GET is treated as the
+                    // scheduled job and needs the cron secret, which is why this button
+                    // answered "Cron secret is not configured on this server".
+                    type: 'POST',
                     data: {
+                        [csrfName]: csrfHash,
                         'is_date': true
                     },
                     dataType: 'json',

@@ -334,6 +334,31 @@ class Home extends CI_Controller
                 // exit;
 
             $this->data['fetched_data'] = unslash_deep($this->data['fetched_data']);
+
+            // Account-deletion request state for the "Close my account" card.
+            $this->load->model('Seller_deletion_model');
+            $this->data['deletion_request'] = $this->Seller_deletion_model->get_pending($user_id);
+            $this->data['deletion_declined'] = $this->data['deletion_request'] ? null : $this->Seller_deletion_model->get_recent_declined($user_id);
+
+            // Major edits waiting for admin approval: show the seller the values they asked for
+            // (so a later minor save re-posts them unchanged instead of silently withdrawing the
+            // request), and say clearly that they are not live yet.
+            $this->load->model('Seller_profile_change_model');
+            $this->data['pending_change_request'] = $this->Seller_profile_change_model->get_pending($user_id);
+            if ($this->data['pending_change_request'] && !empty($this->data['fetched_data'][0])) {
+                $this->data['fetched_data'][0] = $this->Seller_profile_change_model->overlay_pending($this->data['fetched_data'][0], $user_id);
+            }
+            // The most recent rejection, so the seller learns why their change did not go live.
+            $this->data['rejected_change_request'] = null;
+            if (!$this->data['pending_change_request'] && $this->Seller_profile_change_model->table_ready()) {
+                $rej = $this->db->where(['seller_id' => (int) $user_id, 'status' => 'rejected'])
+                    ->where('reviewed_at >', date('Y-m-d H:i:s', strtotime('-14 days')))
+                    ->order_by('id', 'DESC')->limit(1)->get('seller_profile_change_requests')->row_array();
+                if ($rej) {
+                    $rej['changes'] = json_decode($rej['changes'], true) ?: [];
+                    $this->data['rejected_change_request'] = $rej;
+                }
+            }
             // Added Bank Names Logic 
             $this->data['indian_banks'] = [];
             if ($this->db->table_exists('indian_banks')) {
@@ -437,6 +462,47 @@ class Home extends CI_Controller
             redirect('seller/home', 'refresh');
         }
     }
+    /**
+     * A seller cannot delete their own account. They send the admin a request with a note;
+     * the admin deletes the account (or declines). POST: note.
+     */
+    public function request_account_deletion()
+    {
+        $this->account_deletion_reply(function ($user_id) {
+            $this->load->model('Seller_deletion_model');
+            return $this->Seller_deletion_model->create($user_id, $this->input->post('note', true));
+        });
+    }
+
+    /** POST: withdraw the seller's own pending deletion request. */
+    public function cancel_account_deletion()
+    {
+        $this->account_deletion_reply(function ($user_id) {
+            $this->load->model('Seller_deletion_model');
+            return $this->Seller_deletion_model->cancel($user_id);
+        });
+    }
+
+    private function account_deletion_reply(callable $action)
+    {
+        $out = function ($error, $message) {
+            echo json_encode([
+                'error'    => $error,
+                'message'  => $message,
+                'csrfName' => $this->security->get_csrf_token_name(),
+                'csrfHash' => $this->security->get_csrf_hash(),
+            ]);
+        };
+        if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller())) {
+            return $out(true, 'Please log in again.');
+        }
+        if (defined('ALLOW_MODIFICATION') && ALLOW_MODIFICATION == 0) {
+            return $out(true, DEMO_VERSION_MSG);
+        }
+        list($error, $message) = $action((int) $this->session->userdata('user_id'));
+        return $out($error, $message);
+    }
+
     public function get_districts_by_state()
     {
         if (!($this->ion_auth->logged_in() && $this->ion_auth->is_seller() && $this->ion_auth->can_access_seller_panel())) {

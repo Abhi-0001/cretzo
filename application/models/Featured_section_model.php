@@ -25,6 +25,12 @@ class Featured_section_model extends CI_Model
             'product_ids' => $product_ids,
             'style' => $data['style']
         ];
+        // Cap on one seller's products in the section; only meaningful for New Added Products.
+        // Guarded so a deploy that has not yet run migration 088 can still save sections.
+        if ($this->db->field_exists('max_per_seller', 'sections')) {
+            $featured_data['max_per_seller'] = (trim($data['product_type']) == 'new_added_products' && isset($data['max_per_seller']))
+                ? max(0, min(50, (int) $data['max_per_seller'])) : 0;
+        }
         
         if (isset($data['edit_featured_section'])) {
             if (strtolower(trim($data['product_type'])) != 'custom_products' && trim($data['product_type']) != 'digital_product') {

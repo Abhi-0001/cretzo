@@ -31,8 +31,16 @@
   width: 100% !important;
   height: auto !important;
   aspect-ratio: 4/3;
-  object-fit: cover;
+  /* contain, not cover: product photos are often square or portrait, and
+     cover cropped their top and bottom to fill the 4:3 frame. */
+  object-fit: contain;
+  background: #fff;
   border: 1px solid rgba(145, 145, 145, 0.12);
+}
+/* custom.css's `.swiper-slide img { object-fit: cover }` outranks the rule above.
+   Keep the whole photo visible in the main gallery. */
+.gallery-top-1 .swiper-slide img.product-big-img{
+  object-fit: contain;
 }
 .product-big-img-video-frame{
   width: 100% !important;

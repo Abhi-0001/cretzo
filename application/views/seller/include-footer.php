@@ -90,7 +90,7 @@
                 return '.mp4,.mov,.avi,.mkv,.webm';
             case 'image':
             default:
-                return '.jpg,.jpeg,.png,.gif,.webp,.bmp';
+                return '.jpg,.jpeg,.png,.gif,.webp,.avif,.bmp';
         }
     }
 

@@ -748,9 +748,8 @@ class Category_model extends CI_Model
             $this->db->set($cat_data)->where('id', $data['edit_category'])->update('categories');
             $this->clear_category_cache();
         } else {
-            if (!empty($data['category_input_image']) && isset($data['category_input_image'])) {
-                $cat_data['image'] = $data['category_input_image'];
-            }
+            // categories.image is NOT NULL with no default, and the image is optional.
+            $cat_data['image'] = !empty($data['category_input_image']) ? $data['category_input_image'] : '';
             if (isset($data['banner'])) {
                 $cat_data['banner'] = (isset($data['banner']) && !empty($data['banner'])) ? $data['banner'] : '';
             }

@@ -94,6 +94,26 @@
                                     </div>
                                 </div>
 
+                                <!-- cap per seller: New Added Products only -->
+                                <div class="form-group row max_per_seller_row <?= (isset($fetched_data[0]['id']) && $fetched_data[0]['product_type'] == 'new_added_products') ? '' : 'd-none' ?>">
+                                    <label for="max_per_seller" class="control-label">Max products per seller</label>
+                                    <div class="col-md-12">
+                                        <input type="number" min="0" max="50" step="1" name="max_per_seller" id="max_per_seller" class="form-control"
+                                            value="<?= isset($fetched_data[0]['id']) ? (int) $fetched_data[0]['max_per_seller'] : 2 ?>">
+                                        <small class="text-muted">The most products any one seller can show in this section (their newest ones). Set 0 for no limit.</small>
+                                    </div>
+                                </div>
+                                <script>
+                                    document.addEventListener('DOMContentLoaded', function () {
+                                        var type = document.querySelector('select.product_type');
+                                        var row = document.querySelector('.max_per_seller_row');
+                                        if (!type || !row) return;
+                                        type.addEventListener('change', function () {
+                                            row.classList.toggle('d-none', type.value.trim() !== 'new_added_products');
+                                        });
+                                    });
+                                </script>
+
                                 <!-- for custom product -->
 
                                 <div class="form-group row custom_products <?= (isset($fetched_data[0]['id'])  && $fetched_data[0]['product_type'] == 'custom_products') ? '' : 'd-none' ?>">

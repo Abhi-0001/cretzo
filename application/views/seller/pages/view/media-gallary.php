@@ -219,7 +219,7 @@ $(document).ready(function () {
         myDropzone = new Dropzone('#dropzone', {
             url: base_url + 'seller/media/upload',
             paramName: 'documents',
-            acceptedFiles: '.jpg,.jpeg,.png,.gif,.webp,.bmp',
+            acceptedFiles: '.jpg,.jpeg,.png,.gif,.webp,.avif,.bmp',
             clickable: true,
             autoProcessQueue: false,
             parallelUploads: 12,

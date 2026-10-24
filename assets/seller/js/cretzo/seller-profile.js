@@ -91,8 +91,8 @@
      Constants shared with the server
      ====================================================================== */
 
-  // seller/Login::update_user() -> allowed_types 'jpg|png|jpeg|gif|pdf'
-  var ALLOWED_EXT = ['jpg', 'jpeg', 'png', 'gif', 'pdf'];
+  // seller/Login::update_user() -> allowed_types 'jpg|png|jpeg|gif|webp|avif|pdf'
+  var ALLOWED_EXT = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'pdf'];
   // ...and max_size 8000, which CodeIgniter reads as kilobytes.
   var MAX_FILE_KB = 8000;
 
@@ -351,11 +351,11 @@
     // (one allowed_types list covers every upload on this form) but nothing can
     // render it. Documents take either.
     var imagesOnly = wrap.hasAttribute('data-czp-file-images');
-    var allowed = imagesOnly ? ['jpg', 'jpeg', 'png', 'gif'] : ALLOWED_EXT;
+    var allowed = imagesOnly ? ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif'] : ALLOWED_EXT;
     if (allowed.indexOf(ext) === -1) {
       return label + ': "' + f.name + '" is not an accepted file type. ' + (imagesOnly
-        ? 'Please upload a JPG, JPEG, PNG or GIF image.'
-        : 'Please upload a JPG, JPEG, PNG, GIF or PDF file.');
+        ? 'Please upload a JPG, JPEG, PNG, WEBP, AVIF or GIF image.'
+        : 'Please upload a JPG, JPEG, PNG, WEBP, AVIF, GIF or PDF file.');
     }
     if (f.size === 0) {
       return label + ': "' + f.name + '" is empty. Please choose another file.';
@@ -369,7 +369,7 @@
 
   /**
    * Reads the first bytes of a chosen file and names what it REALLY is. The extension alone is
-   * not enough: a phone photo saved as WEBP/HEIC and renamed to .jpg passes the extension check
+   * not enough: a phone photo saved as HEIC and renamed to .jpg passes the extension check
    * but the server (which checks the content) rejects it - and only at final submit.
    * Resolves to '' when the content is acceptable, else a message for the seller.
    */
@@ -391,15 +391,16 @@
         else if (ascii(1, 4) === 'PNG' && a[0] === 0x89) kind = 'png';
         else if (ascii(0, 4) === 'GIF8') kind = 'gif';
         else if (ascii(0, 4) === '%PDF') kind = 'pdf';
-        else if (ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP') kind = 'WEBP';
+        else if (ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP') kind = 'webp';
+        else if (ascii(4, 8) === 'ftyp' && (ascii(8, 12) === 'avif' || ascii(8, 12) === 'avis')) kind = 'avif';
         else if (ascii(4, 8) === 'ftyp') kind = 'HEIC/HEIF';
         else if (ascii(0, 2) === 'BM') kind = 'BMP';
         else if (ascii(0, 4) === 'II*\x00' || ascii(0, 4) === 'MM\x00*') kind = 'TIFF';
-        var ok = imagesOnly ? ['jpg', 'png', 'gif'] : ['jpg', 'png', 'gif', 'pdf'];
+        var ok = imagesOnly ? ['jpg', 'png', 'gif', 'webp', 'avif'] : ['jpg', 'png', 'gif', 'webp', 'avif', 'pdf'];
         if (ok.indexOf(kind) !== -1) return resolve('');
         resolve(label + ': "' + f.name + '" is ' + (kind ? 'really a ' + kind + ' file' : 'not a valid image') +
           ' that was only renamed to .' + ((f.name.split('.').pop() || '').toLowerCase()) +
-          '. Please save or export it as a ' + (imagesOnly ? 'JPG, PNG or GIF image.' : 'JPG, PNG, GIF image or PDF.'));
+          '. Please save or export it as a ' + (imagesOnly ? 'JPG, PNG, WEBP, AVIF or GIF image.' : 'JPG, PNG, WEBP, AVIF, GIF image or PDF.'));
       };
       reader.readAsArrayBuffer(f.slice(0, 16));
     });
@@ -1414,12 +1415,24 @@
   }
 
   var submitBtn = $('[data-czp-submit]', form);
-  if (submitBtn) submitBtn.addEventListener('click', function (e) {
-    e.preventDefault();
 
+  /**
+   * Validate and POST the whole form.
+   *
+   * @param {Element} btn         the button that was pressed (shows progress)
+   * @param {boolean} singleStep  true for a per-step "Save changes": only the step the
+   *                              seller is on has to be valid, the rest of the form is
+   *                              posted as it stands (the server saves what it is given
+   *                              and files nothing for approval unless the profile is
+   *                              complete), and the seller stays on this page.
+   */
+  function saveProfile(btn, singleStep) {
     // Every step, in order. The first one with a problem is where the seller
     // is taken - so no error can ever surface for the first time here on Review.
-    for (var i = 0; i < steps.length; i++) {
+    // A single-step save checks just the current step.
+    var first = singleStep ? current : 0;
+    var last = singleStep ? current + 1 : steps.length;
+    for (var i = first; i < last; i++) {
       attempted[i] = true;
       var result = checkStep(steps[i]);
       if (!result.ok) {
@@ -1452,13 +1465,13 @@
       return;
     }
 
-    submitBtn.disabled = true;
-    var original = submitBtn.textContent;
-    submitBtn.textContent = 'Submitting...';
+    btn.disabled = true;
+    var original = btn.textContent;
+    btn.textContent = singleStep ? 'Saving...' : 'Submitting...';
 
     function reset() {
-      submitBtn.disabled = false;
-      submitBtn.textContent = original;
+      btn.disabled = false;
+      btn.textContent = original;
       draftOn = !!CFG.draftUrl;
     }
 
@@ -1493,7 +1506,7 @@
     if (xhr.upload) xhr.upload.onprogress = function (e) {
       if (!e.lengthComputable || !totalBytes) return;
       var pct = Math.min(100, Math.round((e.loaded / e.total) * 100));
-      submitBtn.textContent = pct < 100 ? 'Uploading... ' + pct + '%' : 'Saving...';
+      btn.textContent = pct < 100 ? 'Uploading... ' + pct + '%' : 'Saving...';
     };
 
     xhr.onload = function () {
@@ -1508,12 +1521,17 @@
       if (data.error === false) {
         // Stay disabled until the redirect: re-enabling here let a second click
         // submit the whole profile again during the pause.
-        submitBtn.textContent = 'Saved';
+        btn.textContent = 'Saved';
         toast('success', data.message || 'Profile saved.');
         // A save that did NOT go for verification says why, which is worth
         // reading before the redirect takes the page away.
-        var wait = (data.verification_filed === false && data.message) ? 4000 : 1800;
-        setTimeout(function () { window.location.href = CFG.homeUrl; }, wait);
+        var wait = ((data.verification_filed === false || data.changes_pending) && data.message) ? 4000 : 1800;
+        // A per-step save keeps the seller where they were; the page reloads so the
+        // saved values, the "waiting for approval" banner and the document inputs are fresh.
+        var dest = singleStep
+          ? window.location.pathname + '?section=' + encodeURIComponent(steps[current].key)
+          : CFG.homeUrl;
+        setTimeout(function () { window.location.href = dest; }, wait);
         return;
       }
 
@@ -1527,6 +1545,20 @@
       toast('error', 'This is taking too long. Your details may have saved - reload the page to check, or try again with smaller files.');
     };
     xhr.send(payload);
+  }
+
+  if (submitBtn) submitBtn.addEventListener('click', function (e) {
+    e.preventDefault();
+    saveProfile(submitBtn, false);
+  });
+
+  // "Save changes" on each step: update just this page's fields without walking
+  // through every other step.
+  form.addEventListener('click', function (e) {
+    var saveBtn = e.target.closest && e.target.closest('[data-czp-save]');
+    if (!saveBtn) return;
+    e.preventDefault();
+    saveProfile(saveBtn, true);
   });
 
   /* ======================================================================

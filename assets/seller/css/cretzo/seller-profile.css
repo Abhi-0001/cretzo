@@ -756,3 +756,57 @@ textarea.czp-input { min-height: 84px; resize: vertical; }
 }
 .czp-draft-status.is-shown { opacity: 1; transform: none; }
 .czp-draft-status.is-error { background: #fef3f2; color: #912018; border-color: #f4c1bc; }
+
+/* ---- Per-step Save + pending-approval banner -------------------------- */
+.czp-nav-actions { display: inline-flex; align-items: center; gap: .6rem; }
+.czp-btn-save {
+  background: #fff;
+  color: var(--czp-orange-dark);
+  border: 1px solid var(--czp-orange);
+}
+.czp-btn-save:hover { background: var(--czp-orange-soft); }
+.czp-btn-save[disabled] { opacity: .6; cursor: default; }
+@media (max-width: 520px) {
+  .czp-nav-actions { flex: 1; justify-content: flex-end; }
+  .czp-nav-actions .czp-btn { padding-left: .9rem; padding-right: .9rem; }
+}
+.czp-pending {
+  margin: 0 0 1rem;
+  padding: .9rem 1.1rem;
+  border: 1px solid #f2c48e;
+  border-left: 4px solid var(--czp-orange);
+  border-radius: 10px;
+  background: var(--czp-orange-soft);
+  color: var(--czp-ink);
+  font-size: 14px;
+}
+.czp-pending b { display: block; margin-bottom: .2rem; }
+.czp-pending span { display: block; color: var(--czp-ink-soft); }
+.czp-pending ul { margin: .4rem 0 0; padding-left: 1.2rem; }
+.czp-pending-rejected { border-color: #f0b6b6; border-left-color: #d64545; background: #fff5f5; }
+.czp-pending-note { border-color: var(--czp-line); border-left-color: var(--czp-line-strong); background: #fbfcfd; }
+
+/* ---- Close my account ------------------------------------------------- */
+.czp-danger-card {
+  margin: 1.25rem 0 0;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid #f0d0d0;
+  border-radius: 14px;
+  background: #fff;
+  color: var(--czp-ink);
+  font-size: 14px;
+}
+.czp-danger-card h2 { margin: 0 0 .5rem; font-size: 1.05rem; color: #b83232; }
+.czp-danger-card p { margin: 0 0 .8rem; color: var(--czp-ink-soft); }
+.czp-danger-card label { display: block; margin-bottom: .35rem; font-weight: 600; }
+.czp-danger-card textarea {
+  width: 100%; margin-bottom: .8rem; padding: .6rem .8rem;
+  border: 1px solid var(--czp-line-strong); border-radius: 10px; font: inherit; resize: vertical;
+}
+.czp-danger-card blockquote {
+  margin: 0 0 .8rem; padding: .6rem .9rem; background: #fbfcfd;
+  border-left: 3px solid var(--czp-line-strong); color: var(--czp-ink-soft);
+}
+.czp-danger-status { color: var(--czp-ink) !important; }
+.czp-btn-danger { background: #fff; color: #b83232; border: 1px solid #d64545; }
+.czp-btn-danger:hover { background: #fff5f5; }

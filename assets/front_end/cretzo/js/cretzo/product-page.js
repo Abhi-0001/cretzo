@@ -206,46 +206,95 @@ function setupScrollMagicEffect(){
     // Destroy scroll magic if it already exists
     destroyScrollMagic();
 
+    var detailContainerContent = document.querySelector(".detail-container-content");
+    var imgContainer = document.querySelector(".img-container");
+    if (!detailContainerContent || !imgContainer) return;
+
     if(getWindowWidth() <= 800)
         return;
 
     // Create a ScrollMagic Controller
     controller = new ScrollMagic.Controller();
 
-    // Get the elements
-    var detailContainerContent = document.querySelector(".detail-container-content");
-    var imgContainer = document.querySelector(".img-container");
-    
-    // Calculate the duration: from the top of detail-container-content 
-    // to the point where the end of detail-container-content aligns with the end of img-container
-    var imgContainerHeight = imgContainer.offsetHeight;
-    var duration = detailContainerContent.offsetHeight - imgContainerHeight + 16;
-
-    // Get the height of the sticky header
-    // var headerHeight = -1 * (document.querySelector(".header-container").offsetHeight + document.querySelector(".navbar-container").offsetHeight);
-
-    // Create a Scene
+    // Duration: from the top of detail-container-content to the point where its
+    // end aligns with the end of img-container. It is a function so ScrollMagic
+    // re-measures on every refresh: the gallery's lazy images and Swiper thumbs
+    // are still placeholders at DOM ready, and a one-off measurement then gave a
+    // pin far longer than the details column, so the gallery rode down over the
+    // "More from this seller" / similar-products sections.
     scene = new ScrollMagic.Scene({
-        triggerElement: ".detail-container", // Trigger this when .scrollable-div comes into view
-        //duration: document.querySelector('.detail-container-content').offsetHeight, // The length of the scrolling div
-        duration: duration,
-        // offset: headerHeight,
+        triggerElement: ".detail-container",
+        duration: function () {
+            return pinDuration(detailContainerContent, imgContainer);
+        },
         triggerHook: "onLeave" // When .scrollable-div leaves the viewport
     })
     .setPin(".img-container") // Pin the .scrollable-div while scrolling
     .addTo(controller);
 
-    // Optionally add a smooth animation
     scene.on("progress", function (event) {
-        document.querySelector('.detail-container').scrollTop = event.progress * document.querySelector('.detail-container-content').offsetHeight;
+        document.querySelector('.detail-container').scrollTop = event.progress * detailContainerContent.offsetHeight;
     });
+
+    watchPinLayout(detailContainerContent, imgContainer);
+    refreshPin();
 }
 
+// Distance the gallery may travel while the details column scrolls past it.
+// ScrollMagic reads a duration of 0 as "pin forever", so when the details are
+// not taller than the gallery (short description, many thumbnails) there is
+// nothing to travel: the caller disables the scene instead of pinning.
+function pinDuration(detailContainerContent, imgContainer){
+    return detailContainerContent.offsetHeight - imgContainer.offsetHeight + 16;
+}
+
+// Re-measure the pin whenever either column changes height (images loading,
+// variant/description changes, fonts, window resize).
+var pinLayoutObserver = null;
+function refreshPin(){
+    if (!scene) return;
+    var content = document.querySelector(".detail-container-content");
+    var img = document.querySelector(".img-container");
+    if (!content || !img) return;
+    scene.enabled(pinDuration(content, img) > 0);
+    scene.refresh();
+}
+function watchPinLayout(detailContainerContent, imgContainer){
+    if (pinLayoutObserver) { pinLayoutObserver.disconnect(); pinLayoutObserver = null; }
+    if (window.ResizeObserver) {
+        var queued = false;
+        pinLayoutObserver = new ResizeObserver(function () {
+            if (queued) return;
+            queued = true;
+            requestAnimationFrame(function () { queued = false; refreshPin(); });
+        });
+        pinLayoutObserver.observe(detailContainerContent);
+        pinLayoutObserver.observe(imgContainer);
+    }
+    imgContainer.querySelectorAll('img').forEach(function (img) {
+        if (!img.complete) img.addEventListener('load', refreshPin, { once: true });
+    });
+    window.addEventListener('load', refreshPin, { once: true });
+}
+
+// Rebuild (or tear down) the pin when the viewport crosses the desktop breakpoint.
+var pinWasDesktop = getWindowWidth() > 800;
+window.addEventListener('resize', function () {
+    var isDesktop = getWindowWidth() > 800;
+    if (isDesktop !== pinWasDesktop) {
+        pinWasDesktop = isDesktop;
+        setupScrollMagicEffect();
+    }
+});
+
 function destroyScrollMagic(){
+    if (pinLayoutObserver) { pinLayoutObserver.disconnect(); pinLayoutObserver = null; }
     if(controller != null)
         controller.destroy(true);
     if(scene != null)
         scene.destroy(true);
+    controller = null;
+    scene = null;
 }
 
 function getWindowWidth(){
@@ -336,7 +385,7 @@ $(function () {
        reads as kilobytes. Stay just under it so the browser rejects the file rather
        than the customer waiting for an upload that cannot succeed. */
     var MAX_BYTES = 7 * 1024 * 1024;
-    var ALLOWED = ['image/jpeg', 'image/pjpeg', 'image/png', 'image/gif'];
+    var ALLOWED = ['image/jpeg', 'image/pjpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif'];
 
     var $form = $(form);
     var ratingField = document.getElementById('czrev-rating-value');
@@ -395,9 +444,9 @@ $(function () {
             /* Some Windows/Android pickers hand over an empty type for a .jpg, so
                fall back to the extension rather than rejecting a valid photo. */
             var typeOk = ALLOWED.indexOf((f.type || '').toLowerCase()) !== -1 ||
-                /\.(jpe?g|png|gif)$/i.test(f.name || '');
+                /\.(jpe?g|png|gif|webp|avif)$/i.test(f.name || '');
             if (!typeOk) {
-                return '"' + f.name + '" is not a JPG, PNG or GIF.';
+                return '"' + f.name + '" is not a JPG, PNG, WEBP, AVIF or GIF.';
             }
             if (f.size > MAX_BYTES) {
                 return '"' + f.name + '" is larger than 7 MB.';

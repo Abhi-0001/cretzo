@@ -606,7 +606,7 @@ class Auth extends CI_Controller
                 $fileError = $_FILES['store_logo']['error'];
 
                 $fileExt = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
-                $allowed = ['jpg', 'jpeg', 'png', 'webp'];
+                $allowed = ['jpg', 'jpeg', 'png', 'webp', 'avif'];
 
                 // Validation
                 if (!in_array($fileExt, $allowed)) {
@@ -785,7 +785,7 @@ class Auth extends CI_Controller
             $store_logo_error = "";
             $config = [
                 'upload_path' =>  FCPATH . SELLER_DOCUMENTS_PATH,
-                'allowed_types' => 'jpg|png|jpeg|gif',
+                'allowed_types' => 'jpg|png|jpeg|gif|webp|avif',
                 'max_size' => 8000,
             ];
             if (isset($logo_files['store_logo']) && !empty($logo_files['store_logo']['name']) && isset($logo_files['store_logo']['name'])) {
@@ -846,7 +846,7 @@ class Auth extends CI_Controller
             $authorized_signature_error = "";
             $config = [
                 'upload_path' =>  FCPATH . SELLER_DOCUMENTS_PATH,
-                'allowed_types' => 'jpg|png|jpeg|gif',
+                'allowed_types' => 'jpg|png|jpeg|gif|webp|avif',
                 'max_size' => 8000,
             ];
             if (isset($authorized_signature_files['authorized_signature']) && !empty($authorized_signature_files['authorized_signature']['name']) && isset($authorized_signature_files['authorized_signature']['name'])) {
@@ -907,7 +907,7 @@ class Auth extends CI_Controller
             $id_card_error = "";
             $config = [
                 'upload_path' =>  FCPATH . SELLER_DOCUMENTS_PATH,
-                'allowed_types' => 'jpg|png|jpeg|gif',
+                'allowed_types' => 'jpg|png|jpeg|gif|webp|avif',
                 'max_size' => 8000,
             ];
             if (isset($id_card_files['national_identity_card']) &&  !empty($id_card_files['national_identity_card']['name']) && isset($id_card_files['national_identity_card']['name'])) {
@@ -968,7 +968,7 @@ class Auth extends CI_Controller
             $proof_error = "";
             $config = [
                 'upload_path' =>  FCPATH . SELLER_DOCUMENTS_PATH,
-                'allowed_types' => 'jpg|png|jpeg|gif',
+                'allowed_types' => 'jpg|png|jpeg|gif|webp|avif',
                 'max_size' => 8000,
             ];
             if (isset($proof_files['address_proof']) && !empty($proof_files['address_proof']['name']) && isset($proof_files['address_proof']['name'])) {

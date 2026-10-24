@@ -160,7 +160,7 @@ $config['type'] = array(
     // Re-adding it needs a real sanitiser (e.g. strip script/handlers server-side) plus
     // Content-Disposition/CSP on the uploads path - not just this list.
     'image' => array(
-        'types' => array('jpg', 'jpeg', 'png', 'gif', 'bmp', 'eps', 'webp'),
+        'types' => array('jpg', 'jpeg', 'png', 'gif', 'bmp', 'eps', 'webp', 'avif'),
         'icon' => ''
     ),
     'video' => array(

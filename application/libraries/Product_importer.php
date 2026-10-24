@@ -576,6 +576,9 @@ class Product_importer
         }
         $info = @getimagesizefromstring($res['body']);
         $allowed = [IMAGETYPE_JPEG => 'jpg', IMAGETYPE_PNG => 'png', IMAGETYPE_GIF => 'gif', IMAGETYPE_WEBP => 'webp'];
+        if (defined('IMAGETYPE_AVIF')) {
+            $allowed[IMAGETYPE_AVIF] = 'avif'; // PHP 8.1+
+        }
         if (!$info || !isset($allowed[$info[2]])) {
             return $this->fail('Not a supported image.');
         }
