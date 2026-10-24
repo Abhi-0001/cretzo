@@ -59,7 +59,7 @@ foreach ($commission_rows as $r) {
                 <div class="col-md-4 mb-3">
                     <div class="ccm-stat">
                         <span class="ccm-stat-label">How it applies</span>
-                        <span class="ccm-stat-sub mt-1">Charged on the ex-GST value of each item. The rate is fixed on the order when it is placed &mdash; changing it here only affects new orders.</span>
+                        <span class="ccm-stat-sub mt-1">Charged on the ex-GST value of each item. The rate is fixed on the order when it is placed &mdash; changing it here only affects new orders. Sellers in the <a href="<?= base_url('admin/commission_offer') ?>">Zero Commission Offer</a> pay 0% on their first free orders instead.</span>
                     </div>
                 </div>
             </div>

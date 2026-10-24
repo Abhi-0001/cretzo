@@ -417,8 +417,21 @@ class Ion_auth
 		if (empty($id)) {
 			return NULL;
 		}
-		$row = fetch_details('seller_data', ['user_id' => $id], 'status');
-		return !empty($row) ? $row[0]['status'] : NULL;
+		// Read several times per seller request (panel-access check, approval check, the
+		// status code the views test), always for the same row - remember it for this request.
+		if (!array_key_exists($id, $this->seller_status_memo)) {
+			$row = fetch_details('seller_data', ['user_id' => $id], 'status');
+			$this->seller_status_memo[$id] = !empty($row) ? $row[0]['status'] : NULL;
+		}
+		return $this->seller_status_memo[$id];
+	}
+
+	/** Per-request memo for seller_raw_status(); cleared by forget_seller_status(). */
+	private $seller_status_memo = [];
+
+	public function forget_seller_status()
+	{
+		$this->seller_status_memo = [];
 	}
 
 	/**

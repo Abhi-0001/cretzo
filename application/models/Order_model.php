@@ -841,6 +841,10 @@ class Order_model extends CI_Model
             $this->load->model('Category_model');
             $resolved_commission = [];
             $has_commission_category_column = $this->db->field_exists('commission_category_id', 'order_items');
+            // Zero-commission launch offer: asked ONCE per seller per order, so every line of an
+            // enrolled seller's order is free and the whole order uses one of their slots.
+            $this->load->model('Commission_offer_model');
+            $offer_rate_by_seller = [];
 
 
             for ($i = 0; $i < count($product_variant); $i++) {
@@ -873,6 +877,17 @@ class Order_model extends CI_Model
                 }
                 $product_variant_data[$i]['commission_rate'] = $resolved_commission[$item_category_id]['rate'];
                 $product_variant_data[$i]['commission_rate_source'] = $resolved_commission[$item_category_id]['source'];
+
+                $item_seller_id = (int) $product_variant[$i]['seller_id'];
+                if (!array_key_exists($item_seller_id, $offer_rate_by_seller)) {
+                    $offer_rate_by_seller[$item_seller_id] = $this->Commission_offer_model->checkout_rate($item_seller_id);
+                }
+                if ($offer_rate_by_seller[$item_seller_id] !== null) {
+                    // commission_category_id below still records the category, so the
+                    // statement can show what the rate would have been.
+                    $product_variant_data[$i]['commission_rate'] = $offer_rate_by_seller[$item_seller_id]['rate'];
+                    $product_variant_data[$i]['commission_rate_source'] = $offer_rate_by_seller[$item_seller_id]['source'];
+                }
                 if ($has_commission_category_column) {
                     $product_variant_data[$i]['commission_category_id'] = $resolved_commission[$item_category_id]['category_id'];
                 }

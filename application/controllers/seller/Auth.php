@@ -170,6 +170,9 @@ class Auth extends CI_Controller
 
         // assign_registration_offer() no-ops when a subscription already exists.
         $this->Seller_subscription_model->assign_registration_offer($user_id);
+        // Zero-commission launch offer: first 20 sellers, first 10 orders. Never blocks sign-up.
+        $this->load->model('Commission_offer_model');
+        $this->Commission_offer_model->enrol_new_seller($user_id);
     }
 
     public function ajax_signup(){
@@ -319,9 +322,16 @@ class Auth extends CI_Controller
             // Launch promotion: first 20 vendors get "Launch Offer" (30 free listings /
             // 1 year), everyone after gets the free plan. Never blocks registration.
             $this->Seller_subscription_model->assign_registration_offer($user_id);
+            // Zero-commission launch offer: first 20 sellers, first 10 orders. Never blocks sign-up.
+            $this->load->model('Commission_offer_model');
+            $this->Commission_offer_model->enrol_new_seller($user_id);
 
-            // Try to login
-            $login_result = $this->ion_auth->login($mobile, $password);
+            // Start the session for the account we just created. ion_auth->login() would
+            // look the row up again and bcrypt-verify the password we hashed a moment ago -
+            // a second ~100-400ms CPU burn (more on shared hosting) that proves nothing, plus
+            // login-attempt bookkeeping queries. The user is brand new and active, so set the
+            // same session login() sets, directly.
+            $login_result = $this->_start_session_for_new_user($user_id);
             if ($login_result) {
                 $response['status'] = 'success';
                 $response['message'] = 'Account created successfully!';
@@ -338,6 +348,26 @@ class Auth extends CI_Controller
         }
 
         $this->output->set_content_type('application/json')->set_output(json_encode($response));
+    }
+
+    /**
+     * Log in an account that was created a moment ago in this same request, without the
+     * lookup + bcrypt verify that ion_auth->login() performs. Sets the same session.
+     */
+    private function _start_session_for_new_user($user_id, $remember = false)
+    {
+        $new_user = $this->db->select('mobile, email, id, active, last_login')
+            ->where('id', $user_id)->limit(1)->get('users')->row();
+        if (!$new_user || (int) $new_user->active !== 1) {
+            return false;
+        }
+        $this->ion_auth_model->set_session($new_user);
+        $this->ion_auth_model->update_last_login($new_user->id);
+        if ($remember) {
+            $this->ion_auth_model->remember_user($new_user->mobile);
+        }
+        $this->session->sess_regenerate(FALSE);
+        return true;
     }
 
     /**
@@ -692,9 +722,14 @@ class Auth extends CI_Controller
             // 1 year), everyone after gets the free plan.
             if (!empty($user_id)) {
                 $this->Seller_subscription_model->assign_registration_offer($user_id);
+                // Zero-commission launch offer: first 20 sellers, first 10 orders. Never blocks sign-up.
+                $this->load->model('Commission_offer_model');
+                $this->Commission_offer_model->enrol_new_seller($user_id);
             }
 
-            $this->ion_auth->login($this->input->post('phone'), $temp_password, true);
+            if (!empty($user_id)) {
+                $this->_start_session_for_new_user($user_id, true);
+            }
 
 
 

@@ -47,6 +47,7 @@
                 <span class="lo-text"><strong>Launch Offer</strong>First 20 vendors get 30 free listings for 1 year</span>
             </div>
             <?php endif; ?>
+            <?php $this->load->view('seller/include-zero-offer-banner'); ?>
         </div>
 
         <div class="form-section">
@@ -598,13 +599,21 @@ $(document).ready(function () {
         let $btn = $(this).find('button[type="submit"]');
         $btn.prop('disabled', true).text('Creating Account...');
 
-        $.post(base_url + "seller/auth/ajax_signup", $(this).serialize(), function (res) {
+        // timeout: without one a stalled request leaves the button on "Creating Account..."
+        // for as long as the browser cares to wait, with no way for the seller to retry.
+        $.ajax({
+            url: base_url + "seller/auth/ajax_signup",
+            type: "POST",
+            data: $(this).serialize(),
+            dataType: "json",
+            timeout: 30000
+        }).done(function (res) {
             try {
                 if (res.status === "success") {
                     $(".success_signup").addClass('show').text("Account created successfully! Redirecting...");
                     setTimeout(function() {
                         window.location.href = base_url + "seller/home";
-                    }, 1500);
+                    }, 600);
                 } else {
                     $btn.prop('disabled', false).text('Sign Up');
                     let errorMsg = res.message || 'Registration failed. Please try again.';
@@ -614,9 +623,13 @@ $(document).ready(function () {
                 $btn.prop('disabled', false).text('Sign Up');
                 alert('An error occurred. Please try again.');
             }
-        }, "json").fail(function(jqXHR, textStatus, errorThrown) {
+        }).fail(function(jqXHR, textStatus, errorThrown) {
             $btn.prop('disabled', false).text('Sign Up');
             console.error('Server error:', jqXHR, textStatus, errorThrown);
+            if (textStatus === 'timeout') {
+                alert('Signup is taking longer than expected. Your account may already have been created - try logging in before signing up again.');
+                return;
+            }
             alert('Server error: ' + (jqXHR.responseJSON?.message || errorThrown || 'Please try again'));
         });
     });

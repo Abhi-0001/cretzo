@@ -29,6 +29,7 @@
                     </div>
                 </div>
                 <div class="card-body">
+                    <?php $zos_compact = true; $this->load->view('seller/include-zero-offer-status', ['zos_compact' => true]); ?>
                     <div class="seller-commission-note">
                         <i class="fas fa-percentage mr-2"></i>
                         <span>Commission is charged on every item you sell at the rate of the category it is listed in, on the price before GST.

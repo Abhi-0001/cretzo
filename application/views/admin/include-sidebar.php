@@ -208,6 +208,12 @@ if ($authentication_settings !== null && is_string($authentication_settings)) {
                                         <p>Category Commission</p>
                                     </a>
                                 </li>
+                                <li class="nav-item">
+                                    <a href="<?= base_url('admin/commission_offer') ?>" class="nav-link">
+                                        <i class="fa fa-gift nav-icon"></i>
+                                        <p>Zero Commission Offer</p>
+                                    </a>
+                                </li>
                             <?php } ?>
                             <?php if (has_permissions('read', 'category_order')) { ?>
                                 <li class="nav-item">

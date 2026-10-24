@@ -277,6 +277,7 @@
                             </span>
                         </div>
                         <?php endif; ?>
+                        <?php $this->load->view('seller/include-zero-offer-banner'); ?>
                         <h1>Subscription Plans</h1>
                         <p class="subtitle">Choose a plan that fits your creative journey</p>
 

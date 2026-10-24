@@ -197,6 +197,7 @@
                             <a href="<?= base_url('seller/subscription/manage_subscriptions') ?>#category-commission" class="small font-weight-bold" style="color: var(--color-orange-dark);">All category rates <i class="fa fa-arrow-right"></i></a>
                         </div>
                         <div class="card-body">
+                            <?php $this->load->view('seller/include-zero-offer-status'); ?>
                             <p class="text-muted small mb-3">Commission is charged on each item sold, at the rate of its category, on the price before GST.</p>
                             <?php if (empty($dash_cats)) : ?>
                                 <p class="text-muted mb-0">Add products to see the commission for your categories.</p>

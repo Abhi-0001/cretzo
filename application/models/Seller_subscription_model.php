@@ -15,10 +15,27 @@ class Seller_subscription_model extends CI_Model
     /** Validity of the launch promotion, in days (1 year). */
     const LAUNCH_OFFER_VALIDITY_DAYS = 365;
 
+    /**
+     * Per-request memo for get_active_subscription(). A single seller page asked for the
+     * same row 2-3 times (plan lookup, listing limit, visibility check, header badge).
+     * Every write to seller_subscriptions in this model calls forget_active_subscription().
+     */
+    private $active_subscription_memo = [];
+
+    public function forget_active_subscription()
+    {
+        $this->active_subscription_memo = [];
+    }
+
     public function get_active_subscription($seller_id)
     {
         if (empty($seller_id)) {
             return null;
+        }
+
+        $memo_key = (string) $seller_id;
+        if (array_key_exists($memo_key, $this->active_subscription_memo)) {
+            return $this->active_subscription_memo[$memo_key];
         }
 
         $this->db->where('seller_id', $seller_id);
@@ -38,7 +55,7 @@ class Seller_subscription_model extends CI_Model
         $this->db->order_by('id', 'DESC');
         $query = $this->db->get('seller_subscriptions');
 
-        return $query->row_array();
+        return $this->active_subscription_memo[$memo_key] = $query->row_array();
     }
 
     public function get_latest_subscription($seller_id)
@@ -155,6 +172,7 @@ class Seller_subscription_model extends CI_Model
         }
 
         // mark existing subscriptions as inactive
+        $this->forget_active_subscription();
         $this->db->set('is_active', 0)->where('seller_id', $seller_id)->update('seller_subscriptions');
 
         $start = date('Y-m-d H:i:s');
@@ -174,6 +192,7 @@ class Seller_subscription_model extends CI_Model
         ];
 
         $inserted = $this->db->insert('seller_subscriptions', $data);
+        $this->forget_active_subscription();
 
         // The new plan's listing limit applies to the shop straight away: a downgrade
         // hides everything that no longer has a slot, an upgrade gives those slots back.
@@ -734,6 +753,13 @@ class Seller_subscription_model extends CI_Model
             return $result;
         }
 
+        // A seller with no products (every brand-new signup) has nothing to hide or restore;
+        // one count replaces the plan lookup and the five visibility queries below.
+        if ($this->get_listing_usage($seller_id) === 0) {
+            $result['limit'] = $this->get_listing_limit($seller_id);
+            return $result;
+        }
+
         $limit = $this->get_listing_limit($seller_id);
         $result['limit'] = $limit;
 
@@ -891,6 +917,7 @@ class Seller_subscription_model extends CI_Model
             return false;
         }
 
+        $this->forget_active_subscription();
         $this->db->set('is_active', 0)->where('seller_id', $seller_id)->where('is_active', 1)->update('seller_subscriptions');
 
         // update() returns TRUE whenever the QUERY succeeded, including when it matched no
@@ -912,6 +939,7 @@ class Seller_subscription_model extends CI_Model
         }
 
         $new_end = date('Y-m-d H:i:s', strtotime('+' . (int) $days . ' days', strtotime($sub['end_date'])));
+        $this->forget_active_subscription();
         return $this->db->set('end_date', $new_end)->where('id', $sub['id'])->update('seller_subscriptions');
     }
 

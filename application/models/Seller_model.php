@@ -13,6 +13,8 @@ class Seller_model extends CI_Model
     }
     
      function seller_cereate_user($data){
+        // Writes seller_data.status; drop any status Ion_auth::seller_raw_status() remembered.
+        $this->ion_auth->forget_seller_status();
 
         $user = $this->db
             ->where('user_id', $data['user_id'])

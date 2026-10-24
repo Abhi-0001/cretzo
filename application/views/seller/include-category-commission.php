@@ -36,6 +36,7 @@ foreach ($czcc_rows as $r) {
 $czcc_compact = !empty($czcc_compact);
 ?>
 <div class="czcc">
+    <?php if (!$czcc_compact) { $this->load->view('seller/include-zero-offer-status'); } ?>
     <?php if (!$czcc_compact) : ?>
         <p class="czcc-lead">Commission is charged on each item you sell, at the rate of the category the product is listed in. It is worked out on the price before GST, and the rate is fixed when the order is placed.</p>
     <?php endif; ?>

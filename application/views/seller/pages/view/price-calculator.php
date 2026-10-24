@@ -112,6 +112,9 @@ if (!$default_tax_id && !empty($tax_bands)) {
                                 <span class="czpc-src" id="czpc-commission-src"></span>
                             </div>
                             <p class="czpc-hint" id="czpc-commission-note"></p>
+                            <?php // The estimate below uses the normal category rate - what the product earns
+                                  // long-term. The free orders are a bonus on top, shown here. ?>
+                            <?php $this->load->view('seller/include-zero-offer-status', ['zos_compact' => true]); ?>
                         </div>
 
                         <div class="czpc-field">

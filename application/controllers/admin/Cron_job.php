@@ -230,6 +230,7 @@ class Cron_job extends CI_Controller
         // for sellers who haven't logged in - admin reports and the API then see the same
         // free-tier state the seller would.
         $this->load->model('Seller_subscription_model');
+        $this->Seller_subscription_model->forget_active_subscription();
         $moved = 0;
         $hidden = 0;
         foreach ($lapsed as $row) {

@@ -349,7 +349,11 @@ class Seller_settlement_model extends CI_Model
                 // broken down for the seller.
                 'product_tax_amount' => isset($row['product_tax_amount']) ? $row['product_tax_amount'] : '0.00',
                 'taxable_value' => isset($row['taxable_value']) ? $row['taxable_value'] : $row['order_amount'],
-                'commission_percent' => $row['commission_percent'],
+                // A 0% line from the zero-commission launch offer says so, rather than looking
+                // like a missing or broken rate.
+                'commission_percent' => (isset($row['commission_rate_source']) && $row['commission_rate_source'] === 'zero_offer')
+                    ? $row['commission_percent'] . ' <span class="badge badge-success" title="Zero-commission launch offer">Offer</span>'
+                    : $row['commission_percent'],
                 'commission_amount' => $row['commission_amount'],
                 'commission_gst_amount' => isset($row['commission_gst_amount']) ? $row['commission_gst_amount'] : '0.00',
                 // The courier freight recovered from the seller for this item's parcel. Always

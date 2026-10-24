@@ -126,8 +126,18 @@ class Orders extends CI_Controller
                     // Both columns are 0/NULL on an order nobody has updated and with no
                     // delivery boy assigned, which built the malformed SQL fragment "id =" and
                     // sent it to the database.
-                    $updated_username = !empty($row['updated_by']) ? fetch_details('users', ['id' => $row['updated_by']], 'username') : [];
-                    $deliver_by = !empty($row['delivery_boy_id']) ? fetch_details('users', ['id' => $row['delivery_boy_id']], 'username') : [];
+                    // The same few staff ids repeat down the list - look each one up once.
+                    if (!isset($username_lookup)) {
+                        $username_lookup = [];
+                    }
+                    foreach (['updated_by', 'delivery_boy_id'] as $uid_col) {
+                        $uid = $row[$uid_col] ?? null;
+                        if (!empty($uid) && !array_key_exists($uid, $username_lookup)) {
+                            $username_lookup[$uid] = fetch_details('users', ['id' => $uid], 'username');
+                        }
+                    }
+                    $updated_username = !empty($row['updated_by']) ? $username_lookup[$row['updated_by']] : [];
+                    $deliver_by = !empty($row['delivery_boy_id']) ? $username_lookup[$row['delivery_boy_id']] : [];
                     $temp['id'] = $row['order_item_id'];
                     $temp['product_id'] = $row['product_id'];
                     $temp['item_otp'] = $row['item_otp'];

@@ -779,6 +779,20 @@ $rail = [
                     }
                 }
                 ?>
+                <?php
+                if ($edit_user_id > 0) {
+                    $CI = &get_instance();
+                    $CI->load->model('Commission_offer_model');
+                    $zco = $CI->Commission_offer_model->seller_status($edit_user_id);
+                }
+                ?>
+                <?php if (!empty($zco['enrolled']) || !empty($zco['revoked'])): ?>
+                  <div class="czp-alert <?= !empty($zco['active']) ? 'czp-alert-success' : 'czp-alert-info' ?>">
+                    <b>Zero Commission Offer: <?= !empty($zco['active']) ? 'active' : (!empty($zco['revoked']) ? 'removed' : 'used up') ?></b>
+                    <?= (int) $zco['used'] ?> of <?= (int) $zco['limit'] ?> commission-free orders used<?= !empty($zco['active']) ? ', ' . (int) $zco['remaining'] . ' left' : '' ?>.
+                    <a href="<?= base_url('admin/commission_offer') ?>">Manage the offer</a>
+                  </div>
+                <?php endif; ?>
                 <div class="czp-alert czp-alert-info">
                   <b>Charged by product category</b>
                   <div class="czp-kv">

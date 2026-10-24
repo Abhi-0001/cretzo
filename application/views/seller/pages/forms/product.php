@@ -1339,13 +1339,23 @@ $(document).ready(function () {
     // Commission charged in the chosen category - the same rate checkout will lock onto the
     // order line, so the seller sees it before they list.
     var $commInfo = $('#category_commission_info');
+    <?php
+    $zo_ci = &get_instance();
+    $zo_ci->load->model('Commission_offer_model');
+    $zo_status = $zo_ci->Commission_offer_model->seller_status((int) $zo_ci->session->userdata('user_id'));
+    ?>
+    var zeroOffer = <?= json_encode(['active' => (bool) $zo_status['active'], 'remaining' => (int) $zo_status['remaining']]) ?>;
     function fmtRate(n) { return (Math.round(n * 100) / 100) + '%'; }
     function showCommission(cat) {
         if (!cat || cat.rate === null) { $commInfo.hide().empty(); return; }
         var why = cat.rateSource === 'category_inherited' ? ' (inherited from its parent category)'
             : (cat.rateSource === 'platform_default' ? ' (standard platform rate)' : '');
+        var offer = zeroOffer.active
+            ? '<br><i class="fas fa-gift mr-1"></i> <b>Zero Commission Offer:</b> your next ' + zeroOffer.remaining +
+              ' order' + (zeroOffer.remaining === 1 ? '' : 's') + ' are commission-free (0%), then this rate applies.'
+            : '';
         $commInfo.html('<i class="fas fa-percentage mr-1"></i> Commission in this category: <b>' + fmtRate(cat.rate) + '</b>' + why +
-            ', charged on the price before GST.').show();
+            ', charged on the price before GST.' + offer).show();
     }
 
     function setCategories(tree) {

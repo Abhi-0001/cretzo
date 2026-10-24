@@ -945,6 +945,9 @@ class Sellers extends CI_Controller
                     $insert_id = $this->Seller_model->add_seller($data, [], $com_data);
                     if (!empty($insert_id)) {
                         $persist_admin_only_fields($target_user_id);
+                        // Zero-commission launch offer (first 20 sellers, first 10 orders).
+                        $this->load->model('Commission_offer_model');
+                        $this->Commission_offer_model->enrol_new_seller($target_user_id);
 
                         $this->response['error'] = false;
                         $this->response['csrfName'] = $this->security->get_csrf_token_name();

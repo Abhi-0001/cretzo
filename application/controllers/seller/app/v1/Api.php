@@ -3480,6 +3480,9 @@ Defined Methods:-
                     );
                     $insert_id = $this->Seller_model->add_seller($data);
                     if (!empty($insert_id)) {
+                        // Zero-commission launch offer (first 20 sellers, first 10 orders).
+                        $this->load->model('Commission_offer_model');
+                        $this->Commission_offer_model->enrol_new_seller($user_id[0]['id']);
                         $this->response['error'] = false;
                         $this->response['message'] = 'Seller registered Successfully. Wait for approval of admin.';
                         print_r(json_encode($this->response));

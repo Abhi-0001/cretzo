@@ -72,6 +72,7 @@ $is_forgot_password = (isset($main_page) && strpos($main_page, 'forgot-password'
                 <span class="lo-text"><strong>Launch Offer</strong>First 20 vendors get 30 free listings for 1 year</span>
             </div>
             <?php endif; ?>
+            <?php $this->load->view('seller/include-zero-offer-banner'); ?>
         </div>
 		
         <div class="form-section">
