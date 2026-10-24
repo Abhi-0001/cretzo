@@ -127,7 +127,7 @@ if (!function_exists('czp_val')) {
                 // a required document without replacing it fails validation. ?>
           <input type="hidden" name="old_<?= czp_attr($name) ?>" value="<?= czp_attr($value) ?>">
 
-          <div class="czp-doc" data-czp-doc <?= $has ? '' : 'hidden' ?>>
+          <div class="czp-doc" data-czp-doc <?= $is_pdf ? 'data-czp-pdf-url="' . czp_attr($url) . '"' : '' ?> <?= $has ? '' : 'hidden' ?>>
             <a data-czp-doc-link target="_blank" rel="noopener" <?= ($has && !$is_pdf) ? 'href="' . czp_attr($url) . '"' : '' ?>>
               <img class="czp-doc-thumb" data-czp-doc-thumb alt=""
                    <?= ($has && !$is_pdf) ? 'src="' . czp_attr($url) . '"' : '' ?>
@@ -419,7 +419,7 @@ $initial       = in_array(($current_profile_section ?? 'personal'), $section_key
 
               <div class="czp-field czp-col-6" data-czp-field="secondary_category_ids">
                 <label class="czp-label">Secondary Categories <small class="czp-hint" style="display:inline">(optional)</small></label>
-                <small class="czp-hint">Only sub-categories of your primary category can be added.</small>
+                <small class="czp-hint">Any other categories you sell in - they don't have to be under your primary category.</small>
                 <div class="czp-pills" id="category_pills"></div>
                 <input type="hidden" name="secondary_category_ids" id="secondary_category_ids" value="<?= czp_val($d, 'category_ids') ?>">
                 <button type="button" class="czp-btn czp-btn-ghost czp-btn-sm" id="category_open">+ Add categories</button>
@@ -685,12 +685,13 @@ $initial       = in_array(($current_profile_section ?? 'personal'), $section_key
       <button type="button" class="czp-modal-close" data-czp-modal-close aria-label="Close">&times;</button>
     </div>
     <div class="czp-modal-body">
+      <?php $cat_names = array_column($all_categories, 'name', 'id'); ?>
       <?php foreach ($all_categories as $cat): ?>
-        <?php if ((int) $cat['parent_id'] === 0) continue; // sub-categories only ?>
+        <?php $cat_path = ((int) $cat['parent_id'] !== 0 && isset($cat_names[$cat['parent_id']])) ? $cat_names[$cat['parent_id']] . ' › ' . $cat['name'] : $cat['name']; ?>
         <?php $cat_rate = isset($cat['commission_label']) ? ' · ' . $cat['commission_label'] : ''; ?>
-        <label class="czp-pick" data-parent="<?= (int) $cat['parent_id'] ?>" data-label="<?= czp_attr($cat['name'] . $cat_rate) ?>" hidden>
+        <label class="czp-pick" data-id="<?= (int) $cat['id'] ?>" data-label="<?= czp_attr($cat_path . $cat_rate) ?>" hidden>
           <input type="checkbox" value="<?= (int) $cat['id'] ?>">
-          <span><?= czp_attr($cat['name']) ?><?php if ($cat_rate !== '') : ?> <small style="color:#b5651d;font-weight:600"><?= czp_attr($cat['commission_label']) ?></small><?php endif; ?></span>
+          <span><?= czp_attr($cat_path) ?><?php if ($cat_rate !== '') : ?> <small style="color:#b5651d;font-weight:600"><?= czp_attr($cat['commission_label']) ?></small><?php endif; ?></span>
         </label>
       <?php endforeach; ?>
       <p class="czp-hint" id="category_empty">Choose a Primary Product Category first.</p>

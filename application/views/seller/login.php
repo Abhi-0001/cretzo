@@ -70,9 +70,11 @@ $is_forgot_password = (isset($main_page) && strpos($main_page, 'forgot-password'
             <div class="launch-offer-banner" role="note">
                 <span class="lo-icon" aria-hidden="true">&#127881;</span>
                 <span class="lo-text"><strong>Launch Offer</strong>First 20 vendors get 30 free listings for 1 year</span>
+                <?php $this->load->view('seller/include-zero-offer-banner', ['zero_inside' => true]); ?>
             </div>
-            <?php endif; ?>
+            <?php else : ?>
             <?php $this->load->view('seller/include-zero-offer-banner'); ?>
+            <?php endif; ?>
         </div>
 		
         <div class="form-section">

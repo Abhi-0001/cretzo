@@ -95,12 +95,12 @@
                     if (isset($product['product'][0]['video_type']) && !empty($product['product'][0]['video_type'])) {
                         $total_images++;
                     ?>
-                        <div class="swiper-slide" style="align-self: center;">
+                        <div class="swiper-slide product-video-slide" style="align-self: center;">
                             <figure class="rounded">
                                 <?php if ($product['product'][0]['video_type'] == 'self_hosted') { ?>
-                                    <video controls width="320" height="240" src="<?= $product['product'][0]['video'] ?>">
+                                    <video loop muted playsinline preload="metadata" class="product-big-img-video" src="<?= $product['product'][0]['video'] ?>">
                                         <?= !empty($this->lang->line('no_video_tag_support')) ? $this->lang->line('no_video_tag_support') : 'Your browser does not support the video tag.' ?>
-                                    </video>
+                                    </video><button type="button" class="product-video-toggle" aria-label="Pause video"><i class="uil uil-pause"></i></button>
                                 <?php } else if ($product['product'][0]['video_type'] == 'youtube' || $product['product'][0]['video_type'] == 'vimeo') {
                                     if ($product['product'][0]['video_type'] == 'vimeo') {
                                         $url =  explode("/", $product['product'][0]['video']);
@@ -177,9 +177,10 @@
                         $total_images++;
                     ?>
 
-                        <div class="swiper-slide mb-1" style="margin-right: 10px;">
+                        <div class="swiper-slide mb-1 product-video-thumb" style="margin-right: 10px;">
                             <div class="swiper-img" style="height: auto !important; margin-right: 10px;">
-                                <img src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= base_url('assets/admin/images/video-file.png') ?>" class="rounded p-1 lazy product-small-img" alt="">
+                                <img src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= base_url('assets/admin/images/video-file.png') ?>" class="rounded p-1 lazy product-small-img" alt="Product video">
+                                <span class="product-video-play"><i class="uil uil-play"></i></span>
                             </div>
                         </div>
                         

@@ -662,7 +662,11 @@
     if (p.badge) p.badge.hidden = !isPdf;
     if (p.thumb) p.thumb.hidden = true;
     if (p.link) p.link.removeAttribute('href');
-    if (p.box) p.box.hidden = false;
+    if (p.box) {
+      if (isPdf) p.box.setAttribute('data-czp-pdf-url', URL.createObjectURL(file));
+      else p.box.removeAttribute('data-czp-pdf-url');
+      p.box.hidden = false;
+    }
 
     if (!isPdf && /^image\//.test(file.type)) {
       var reader = new FileReader();
@@ -730,6 +734,75 @@
         setFieldError(wrap, validateFile(wrap));
       });
     }
+  });
+
+  /* ---- Full-screen PDF viewer ------------------------------------------
+     Images already open large; a PDF only had a bare badge. Clicking the
+     badge or file name opens it in a full-screen overlay so it can be read
+     properly. data-czp-pdf-url on the [data-czp-doc] box holds the source:
+     the saved path from PHP, or a blob: URL for a file picked this visit. */
+  var pdfViewer = null;
+
+  function ensurePdfViewer() {
+    if (pdfViewer) return pdfViewer;
+    var st = document.createElement('style');
+    st.textContent =
+      '.czp-pdfv{position:fixed;inset:0;z-index:2147483000;display:flex;flex-direction:column;background:rgba(15,23,42,.92)}' +
+      '.czp-pdfv[hidden]{display:none}' +
+      '.czp-pdfv-bar{display:flex;align-items:center;gap:12px;padding:10px 16px;color:#fff;font:600 14px/1.2 system-ui,sans-serif}' +
+      '.czp-pdfv-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+      '.czp-pdfv-bar a,.czp-pdfv-bar button{color:#fff;background:rgba(255,255,255,.14);border:0;border-radius:8px;padding:8px 14px;font:inherit;text-decoration:none;cursor:pointer}' +
+      '.czp-pdfv-bar a:hover,.czp-pdfv-bar button:hover{background:rgba(255,255,255,.26)}' +
+      '.czp-pdfv-frame{flex:1;width:100%;border:0;background:#fff}';
+    document.head.appendChild(st);
+
+    var el = document.createElement('div');
+    el.className = 'czp-pdfv';
+    el.hidden = true;
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-modal', 'true');
+    el.innerHTML =
+      '<div class="czp-pdfv-bar"><span class="czp-pdfv-title"></span>' +
+      '<a target="_blank" rel="noopener">Open in new tab</a>' +
+      '<button type="button">Close &times;</button></div>' +
+      '<iframe class="czp-pdfv-frame" title="PDF preview"></iframe>';
+    document.body.appendChild(el);
+
+    var api = {
+      el: el,
+      frame: el.querySelector('iframe'),
+      title: el.querySelector('.czp-pdfv-title'),
+      tab: el.querySelector('a'),
+      open: function (url, name) {
+        api.frame.src = url;
+        api.tab.href = url;
+        api.title.textContent = name || 'Document';
+        el.hidden = false;
+        document.documentElement.style.overflow = 'hidden';
+      },
+      close: function () {
+        el.hidden = true;
+        api.frame.src = 'about:blank';
+        document.documentElement.style.overflow = '';
+      }
+    };
+    el.querySelector('button').addEventListener('click', api.close);
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !el.hidden) api.close();
+    });
+    pdfViewer = api;
+    return api;
+  }
+
+  form.addEventListener('click', function (e) {
+    var box = e.target.closest('[data-czp-doc]');
+    if (!box || e.target.closest('[data-czp-doc-remove]')) return;
+    var url = box.getAttribute('data-czp-pdf-url');
+    var badge = box.querySelector('[data-czp-doc-file]');
+    if (!url || !badge || badge.hidden) return;
+    e.preventDefault();
+    var nameEl = box.querySelector('[data-czp-doc-name]');
+    ensurePdfViewer().open(url, nameEl ? nameEl.textContent : '');
   });
 
   /* ---- Round avatar pickers (personal photo, shop logo) ---------------- */
@@ -1188,35 +1261,24 @@
       });
     }
 
-    // Only sub-categories of the chosen primary category may be picked.
+    // Secondary categories are simply "what else do you sell": any category at any
+    // level may be picked, except the primary one itself (it is already selected).
     function filterToPrimary() {
       var pid = primary.value;
-      var any = false;
       $$('.czp-pick', modal).forEach(function (row) {
-        var show = pid !== '' && row.getAttribute('data-parent') === pid;
-        row.hidden = !show;
-        if (show) any = true;
+        row.hidden = pid !== '' && row.getAttribute('data-id') === pid;
       });
       var empty = $('#category_empty', modal);
-      if (empty) {
-        empty.hidden = any;
-        empty.textContent = primary.value === ''
-          ? 'Choose a Primary Product Category first.'
-          : 'This category has no sub-categories to add.';
-      }
+      if (empty) empty.hidden = true;
     }
 
     function prune() {
       var pid = primary.value;
-      hidden.value = ids().filter(function (id) { return parentOf[id] === pid; }).join(',');
+      hidden.value = ids().filter(function (id) { return id !== pid; }).join(',');
       renderPills();
     }
 
     openBtn.addEventListener('click', function () {
-      if (primary.value === '') {
-        setFieldError($('[data-czp-field="primary_category_id"]'), 'Choose a Primary Product Category first');
-        return;
-      }
       var chosen = ids();
       boxes.forEach(function (b) { b.checked = chosen.indexOf(b.value) !== -1; });
       filterToPrimary();
@@ -1241,9 +1303,7 @@
 
     primary.addEventListener('change', function () { prune(); filterToPrimary(); });
 
-    // Secondary categories only mean anything under a chosen primary, so drop
-    // whatever a pre-primary save left in category_ids.
-    if (primary.value === '') hidden.value = '';
+    prune();
     filterToPrimary();
     renderPills();
   })();

@@ -79,6 +79,7 @@ $(document).ready(function() {
     
     setupScrollMagicEffect();
     setupThumbnailHoverPreview();
+    setupWatchVideoButton();
     setupProductImageZoom();
 
 });
@@ -587,3 +588,39 @@ $(function () {
         });
     });
 })();
+
+// Self-hosted video is the last slide: play it when the buyer reaches it, pause when they leave.
+// (Muted because browsers block autoplay with sound; the controls let them unmute or pause.)
+function setupWatchVideoButton() {
+    var tries = 0;
+    (function bind() {
+        var g = window.galleryTop;
+        if (!g || !g.on) { if (tries++ < 20) setTimeout(bind, 250); return; }
+        g.on('slideChange', function () {
+            document.querySelectorAll('.gallery-top-1 .product-video-slide video').forEach(function (v) {
+                var active = v.closest('.swiper-slide').classList.contains('swiper-slide-active');
+                if (active) { var p = v.play(); if (p && p.catch) p.catch(function () {}); }
+                else v.pause();
+            });
+        });
+    })();
+}
+
+// Pause / resume: the round button, or a click on the video itself.
+$(document).on('click', '.product-video-toggle, .product-video-slide video', function () {
+    var slide = $(this).closest('.product-video-slide');
+    var v = slide.find('video')[0];
+    if (!v) return;
+    if (v.paused) { var p = v.play(); if (p && p.catch) p.catch(function () {}); } else v.pause();
+});
+['play', 'pause'].forEach(function (type) {
+    // media events don't bubble, so listen in the capture phase
+    document.addEventListener(type, function (e) {
+        if (!e.target.closest || !e.target.closest('.product-video-slide')) return;
+        var paused = type === 'pause';
+        var btn = e.target.closest('.product-video-slide').querySelector('.product-video-toggle');
+        if (!btn) return;
+        btn.setAttribute('aria-label', paused ? 'Play video' : 'Pause video');
+        btn.querySelector('i').className = paused ? 'uil uil-play' : 'uil uil-pause';
+    }, true);
+});

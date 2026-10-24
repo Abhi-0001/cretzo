@@ -137,7 +137,7 @@ if (!function_exists('asf_attr')) {
     /**
      * One document upload: drop zone, the old_<name> keeper, and a chip for
      * whatever is already on record (images open in the admin panel's
-     * ekko-lightbox, PDFs open in a new tab).
+     * ekko-lightbox, PDFs in a full-screen viewer).
      */
     function asf_file(array $o)
     {
@@ -178,7 +178,7 @@ if (!function_exists('asf_attr')) {
                 // removing a required document without replacing it fails. ?>
           <input type="hidden" name="old_<?= asf_attr($name) ?>" value="<?= asf_attr($value) ?>">
 
-          <div class="czp-doc" data-czp-doc <?= $has ? '' : 'hidden' ?>>
+          <div class="czp-doc" data-czp-doc <?= $is_pdf ? 'data-czp-pdf-url="' . asf_attr($url) . '"' : '' ?> <?= $has ? '' : 'hidden' ?>>
             <a data-czp-doc-link target="_blank" rel="noopener"
                <?= $has ? 'href="' . asf_attr($url) . '"' : '' ?>
                <?= ($has && !$is_pdf) ? 'data-toggle="lightbox" data-gallery="seller_documents" data-title="' . asf_attr(strip_tags($o['label'])) . '"' : '' ?>>
@@ -515,7 +515,7 @@ $rail = [
                   ?>
                   <div class="czp-field czp-col-6" data-czp-field="secondary_category_ids">
                     <label class="czp-label">Secondary Categories <small class="czp-hint" style="display:inline">(optional)</small></label>
-                    <small class="czp-hint">Only sub-categories of the primary category can be added.</small>
+                    <small class="czp-hint">Any other categories the seller sells in - they don't have to be under the primary category.</small>
                     <div class="czp-pills" id="category_pills"></div>
                     <input type="hidden" name="secondary_category_ids" id="secondary_category_ids" value="<?= asf_attr($d['category_ids'] ?? '') ?>">
                     <button type="button" class="czp-btn czp-btn-ghost czp-btn-sm" id="category_open">+ Add categories</button>
@@ -885,11 +885,12 @@ $rail = [
       <button type="button" class="czp-modal-close" data-czp-modal-close aria-label="Close">&times;</button>
     </div>
     <div class="czp-modal-body">
+      <?php $cat_names = array_column($all_categories, 'name', 'id'); ?>
       <?php foreach ($all_categories as $cat): ?>
-        <?php if ((int) $cat['parent_id'] === 0) continue; // sub-categories only ?>
-        <label class="czp-pick" data-parent="<?= (int) $cat['parent_id'] ?>" data-label="<?= asf_attr($cat['name']) ?>" hidden>
+        <?php $cat_path = ((int) $cat['parent_id'] !== 0 && isset($cat_names[$cat['parent_id']])) ? $cat_names[$cat['parent_id']] . ' › ' . $cat['name'] : $cat['name']; ?>
+        <label class="czp-pick" data-id="<?= (int) $cat['id'] ?>" data-label="<?= asf_attr($cat_path) ?>" hidden>
           <input type="checkbox" value="<?= (int) $cat['id'] ?>">
-          <span><?= asf_attr($cat['name']) ?></span>
+          <span><?= asf_attr($cat_path) ?></span>
         </label>
       <?php endforeach; ?>
       <p class="czp-hint" id="category_empty">Choose a Primary Product Category first.</p>

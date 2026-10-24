@@ -275,9 +275,11 @@
                                 <span class="slb-title">Launch Offer</span>
                                 <span class="slb-sub">First 20 vendors get 30 free listings for 1 year</span>
                             </span>
+                            <?php $this->load->view('seller/include-zero-offer-banner', ['zero_inside' => true]); ?>
                         </div>
-                        <?php endif; ?>
+                        <?php else : ?>
                         <?php $this->load->view('seller/include-zero-offer-banner'); ?>
+                        <?php endif; ?>
                         <h1>Subscription Plans</h1>
                         <p class="subtitle">Choose a plan that fits your creative journey</p>
 
