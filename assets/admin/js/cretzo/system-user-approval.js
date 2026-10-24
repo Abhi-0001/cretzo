@@ -37,6 +37,23 @@ window.addEventListener('load', function () {
         }
     }
 
+    var cooldownTimer = null;
+    function startCooldown() {
+        var left = 30;
+        var $b = $('#su_resend_btn').prop('disabled', true);
+        clearInterval(cooldownTimer);
+        $b.text('Resend in ' + left + 's');
+        cooldownTimer = setInterval(function () {
+            left--;
+            if (left <= 0) {
+                clearInterval(cooldownTimer);
+                $b.prop('disabled', false).text('Resend code');
+            } else {
+                $b.text('Resend in ' + left + 's');
+            }
+        }, 1000);
+    }
+
     function resetRecaptcha() {
         try { if (recaptcha && recaptcha.clear) { recaptcha.clear(); } } catch (e) { /* already gone */ }
         recaptcha = null;
@@ -50,6 +67,7 @@ window.addEventListener('load', function () {
         recaptcha = new firebase.auth.RecaptchaVerifier('su_recaptcha', { size: 'invisible' });
         return firebase.auth().signInWithPhoneNumber(approverMobile, recaptcha).then(function (c) {
             confirmation = c;
+            startCooldown();
             if (!keepMessage) { msg('Code sent. Enter it below.', true); }
         }).catch(function (err) {
             resetRecaptcha();
@@ -144,6 +162,10 @@ window.addEventListener('load', function () {
         msg('Sending a new code...', true);
         sendSms();
     });
+
+    $modal.on('shown.bs.modal', function () { $('#su_sms_otp').trigger('focus'); });
+    $('#su_sms_otp').on('input', function () { this.value = this.value.replace(/\D+/g, ''); })
+        .on('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); $('#su_verify_btn').trigger('click'); } });
 
     $('#su_cancel_btn').on('click', function () {
         resetRecaptcha();

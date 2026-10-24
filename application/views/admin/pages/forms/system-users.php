@@ -13,13 +13,13 @@ $stored_perms = $is_edit ? (json_decode((string) $u['permissions'], true) ?: [])
 $is_super_admin = !empty($is_super_admin);
 
 $sections = [
-    ['key' => 'orders',    'title' => 'Orders & Customers', 'icon' => 'fa-shopping-bag', 'modules' => ['orders', 'return_request', 'customers', 'payment_request', 'transactions', 'fund_transfer', 'support_tickets', 'chat', 'delivery_boy']],
-    ['key' => 'catalog',   'title' => 'Products & Catalogue', 'icon' => 'fa-box-open', 'modules' => ['product', 'product_order', 'categories', 'category_order', 'brands', 'media', 'tax', 'attribute', 'attribute_set', 'attribute_value', 'manage_stock']],
-    ['key' => 'marketing', 'title' => 'Storefront & Marketing', 'icon' => 'fa-bullhorn', 'modules' => ['home_slider_images', 'new_offer_images', 'featured_section', 'promo_code', 'referral', 'blogs', 'blog_categories', 'faq', 'custom_notifications', 'send_notification', 'custom_sms']],
-    ['key' => 'sellers',   'title' => 'Sellers', 'icon' => 'fa-store', 'modules' => ['seller', 'subscription', 'pickup_location']],
-    ['key' => 'reports',   'title' => 'Reports', 'icon' => 'fa-chart-line', 'modules' => ['sales_report', 'sales_inventory']],
-    ['key' => 'content',   'title' => 'Content Pages', 'icon' => 'fa-file-alt', 'modules' => ['contact_us', 'about_us', 'privacy_policy', 'shipping_policy', 'return_policy', 'admin_privacy_policy', 'delivery_boy_privacy_policy', 'seller_privacy_policy']],
-    ['key' => 'settings',  'title' => 'Settings & System', 'icon' => 'fa-cog', 'modules' => ['settings', 'email_settings', 'payment_settings', 'shipping_settings', 'notification_setting', 'sms-gateway-settings', 'authentication_settings', 'time_slots', 'area', 'city', 'zipcodes', 'client_api_keys', 'system_update', 'purchase_code']],
+    ['key' => 'orders',    'title' => 'Orders & Customers', 'icon' => 'fa-receipt', 'modules' => ['orders', 'return_request', 'customers', 'payment_request', 'transactions', 'fund_transfer', 'support_tickets', 'chat', 'delivery_boy']],
+    ['key' => 'catalog',   'title' => 'Products & Catalogue', 'icon' => 'fa-boxes', 'modules' => ['product', 'product_order', 'categories', 'category_order', 'brands', 'media', 'tax', 'attribute', 'attribute_set', 'attribute_value', 'manage_stock']],
+    ['key' => 'marketing', 'title' => 'Storefront & Marketing', 'icon' => 'fa-tags', 'modules' => ['home_slider_images', 'new_offer_images', 'featured_section', 'promo_code', 'referral', 'blogs', 'blog_categories', 'faq', 'custom_notifications', 'send_notification', 'custom_sms']],
+    ['key' => 'sellers',   'title' => 'Sellers', 'icon' => 'fa-store-alt', 'modules' => ['seller', 'subscription', 'pickup_location']],
+    ['key' => 'reports',   'title' => 'Reports', 'icon' => 'fa-chart-pie', 'modules' => ['sales_report', 'sales_inventory']],
+    ['key' => 'content',   'title' => 'Content Pages', 'icon' => 'fa-newspaper', 'modules' => ['contact_us', 'about_us', 'privacy_policy', 'shipping_policy', 'return_policy', 'admin_privacy_policy', 'delivery_boy_privacy_policy', 'seller_privacy_policy']],
+    ['key' => 'settings',  'title' => 'Settings & System', 'icon' => 'fa-sliders-h', 'modules' => ['settings', 'email_settings', 'payment_settings', 'shipping_settings', 'notification_setting', 'sms-gateway-settings', 'authentication_settings', 'time_slots', 'area', 'city', 'zipcodes', 'client_api_keys', 'system_update', 'purchase_code']],
 ];
 // Any module registered in config/eshop.php but not listed above still gets a home.
 $placed = ['profile']; // granted to everyone automatically (see system-user-form.js)
@@ -144,8 +144,9 @@ $current_role = $is_edit ? (string) $u['role'] : '';
                             }, array_keys($js_sections[$sec['key']]));
                         ?>
                             <div class="su-section" data-section="<?= $sec['key'] ?>">
+                                <span class="su-ico su-c-<?= $sec_i = (($sec_i ?? 0) % 8) + 1 ?>"><i class="fas <?= $sec['icon'] ?>"></i></span>
                                 <div class="su-section-info">
-                                    <b><i class="fas <?= $sec['icon'] ?> mr-2"></i><?= $sec['title'] ?></b>
+                                    <b><?= $sec['title'] ?></b>
                                     <small class="d-block text-muted"><?= html_escape(implode(', ', $names)) ?></small>
                                 </div>
                                 <div class="su-levels" role="group">
@@ -174,26 +175,23 @@ $current_role = $is_edit ? (string) $u['role'] : '';
 
 <div class="modal fade" id="su_approval_modal" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered" role="document">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="fas fa-shield-alt mr-2"></i>Two-step verification</h5>
-            </div>
-            <div class="modal-body">
-                <p class="small text-muted mb-3">
-                    Approval is needed to add or change a system user. Enter the code texted to
-                    <b id="su_approver_mobile"></b>.
+        <div class="modal-content su-modal">
+            <div class="su-modal-body">
+                <div class="su-modal-icon"><i class="fas fa-lock"></i></div>
+                <h5 class="su-modal-title">Approval needed</h5>
+                <p class="su-modal-sub">
+                    We texted a 6-digit code to <b id="su_approver_mobile"></b>.<br>
+                    Enter it to confirm this change.
                 </p>
-                <div class="form-group">
-                    <label for="su_sms_otp">SMS code</label>
-                    <input type="text" class="form-control" id="su_sms_otp" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
+                <input type="text" class="su-code" id="su_sms_otp" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;" aria-label="SMS code">
+                <div id="su_approval_msg" class="su-msg" role="status"></div>
+                <button type="button" class="btn su-verify" id="su_verify_btn">Verify &amp; save</button>
+                <div class="su-modal-links">
+                    <button type="button" class="btn btn-link" id="su_resend_btn">Resend code</button>
+                    <span>&middot;</span>
+                    <button type="button" class="btn btn-link text-muted" id="su_cancel_btn">Cancel</button>
                 </div>
-                <div id="su_approval_msg" class="small"></div>
                 <div id="su_recaptcha"></div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-link mr-auto" id="su_resend_btn">Resend code</button>
-                <button type="button" class="btn btn-secondary" id="su_cancel_btn">Cancel</button>
-                <button type="button" class="btn btn-success" id="su_verify_btn">Verify &amp; save</button>
             </div>
         </div>
     </div>
@@ -257,4 +255,72 @@ $current_role = $is_edit ? (string) $u['role'] : '';
 
     .admin-system-user-form-page .su-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; padding-bottom: 20px; }
     .admin-system-user-form-page .su-actions #error_box { margin-right: auto; }
+
+    .admin-system-user-form-page .su-ico {
+        width: 42px; height: 42px; border-radius: 12px; flex: none;
+        display: inline-flex; align-items: center; justify-content: center; font-size: 17px;
+    }
+    .admin-system-user-form-page .su-c-1 { background: #fff1e6; color: #f26b1d; }
+    .admin-system-user-form-page .su-c-2 { background: #e8f1ff; color: #2f6fed; }
+    .admin-system-user-form-page .su-c-3 { background: #fdeaf3; color: #d6336c; }
+    .admin-system-user-form-page .su-c-4 { background: #e6f7ef; color: #1f9d63; }
+    .admin-system-user-form-page .su-c-5 { background: #f1ebff; color: #7048e8; }
+    .admin-system-user-form-page .su-c-6 { background: #fff7db; color: #d9930d; }
+    .admin-system-user-form-page .su-c-7 { background: #e9eef3; color: #4a5a6a; }
+    .admin-system-user-form-page .su-c-8 { background: #f0f0f0; color: #666; }
+    .admin-system-user-form-page .su-section { gap: 14px; flex-wrap: nowrap; align-items: center; padding: 14px 8px; border-radius: 10px; transition: background .15s; }
+    .admin-system-user-form-page .su-section:hover { background: #fafafa; }
+    .admin-system-user-form-page .su-section-info b { font-size: 15px; color: #222; }
+    .admin-system-user-form-page .su-section-info small { font-size: 12.5px; margin-top: 2px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .admin-system-user-form-page .su-levels { background: #f3f4f6; border: none; padding: 3px; border-radius: 10px; gap: 2px; }
+    .admin-system-user-form-page .su-level { background: transparent; border: none; border-radius: 8px; padding: 6px 14px; }
+    .admin-system-user-form-page .su-level:first-child { border-left: none; }
+    .admin-system-user-form-page .su-level:hover { background: rgba(0,0,0,0.05); }
+    .admin-system-user-form-page .su-level.active { box-shadow: 0 1px 3px rgba(0,0,0,0.18); }
+    .admin-system-user-form-page .su-level.active[data-level="none"] { background: #fff; color: #444; }
+    @media (max-width: 767px) {
+        .admin-system-user-form-page .su-section { flex-wrap: wrap; }
+        .admin-system-user-form-page .su-levels { width: 100%; }
+        .admin-system-user-form-page .su-level { flex: 1; padding: 8px 4px; }
+    }
+    .admin-system-user-form-page .su-role { padding: 14px 16px; }
+    .admin-system-user-form-page .su-role i {
+        width: 38px; height: 38px; border-radius: 10px; background: var(--color-orange-light, #fff1e6);
+        display: inline-flex; align-items: center; justify-content: center; font-size: 16px; margin-bottom: 10px;
+    }
+    .admin-system-user-form-page .su-role.active i { background: var(--color-orange); color: #fff; }
+    .admin-system-user-form-page .su-card .form-control { border-radius: 8px; height: 42px; }
+    .admin-system-user-form-page .su-card .form-control:focus { border-color: var(--color-orange); box-shadow: 0 0 0 3px rgba(242,107,29,.15); }
+    .admin-system-user-form-page .su-actions {
+        position: sticky; bottom: 0; background: rgba(255,255,255,.95); backdrop-filter: blur(4px);
+        padding: 12px 16px; margin: 0 -7px; border-top: 1px solid rgba(0,0,0,0.08); z-index: 5;
+    }
+
+    /* approval popup */
+    #su_approval_modal .su-modal { border: none; border-radius: 18px; box-shadow: 0 20px 60px rgba(0,0,0,.25); overflow: hidden; }
+    #su_approval_modal .su-modal-body { padding: 34px 32px 22px; text-align: center; }
+    #su_approval_modal .su-modal-icon {
+        width: 64px; height: 64px; margin: 0 auto 16px; border-radius: 50%;
+        background: linear-gradient(135deg, #ff9a52, var(--color-orange, #f26b1d)); color: #fff; font-size: 24px;
+        display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(242,107,29,.35);
+    }
+    #su_approval_modal .su-modal-title { font-weight: 700; font-size: 20px; margin-bottom: 6px; }
+    #su_approval_modal .su-modal-sub { color: #6b7280; font-size: 14px; line-height: 1.5; margin-bottom: 20px; }
+    #su_approval_modal .su-modal-sub b { color: #222; white-space: nowrap; }
+    #su_approval_modal .su-code {
+        width: 100%; text-align: center; font-size: 28px; font-weight: 700; letter-spacing: 12px; text-indent: 12px;
+        height: 58px; border: 2px solid #e5e7eb; border-radius: 12px; outline: none; background: #fafafa;
+    }
+    #su_approval_modal .su-code:focus { border-color: var(--color-orange, #f26b1d); background: #fff; box-shadow: 0 0 0 4px rgba(242,107,29,.15); }
+    #su_approval_modal .su-code::placeholder { color: #cbd0d6; letter-spacing: 10px; }
+    #su_approval_modal .su-msg { min-height: 22px; margin: 10px 0 14px; font-size: 13px; }
+    #su_approval_modal .su-verify {
+        width: 100%; height: 48px; border-radius: 12px; font-weight: 700; font-size: 15px;
+        background: var(--color-orange, #f26b1d); border-color: var(--color-orange, #f26b1d); color: #fff;
+    }
+    #su_approval_modal .su-verify:hover { filter: brightness(.95); color: #fff; }
+    #su_approval_modal .su-verify:disabled { opacity: .65; }
+    #su_approval_modal .su-modal-links { margin-top: 10px; font-size: 13px; color: #aaa; }
+    #su_approval_modal .su-modal-links .btn-link { font-size: 13px; padding: 4px 6px; text-decoration: none; }
+    #su_approval_modal .su-modal-links .btn-link:disabled { color: #aaa; }
 </style>
