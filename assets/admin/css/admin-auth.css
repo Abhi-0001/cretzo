@@ -15,7 +15,13 @@ body.login-page {
     --cz-muted: #6b6b6b;
     --cz-border: #e6ddcd;
 
-    min-height: 100vh;
+    /* custom.css pins .login-page to height:100% and AdminLTE's min-height can resolve to
+       less than the viewport, so the card sat at the top. Take the full viewport height
+       so the flex centering below has room to work. */
+    height: auto !important;
+    min-height: 100vh !important;
+    min-height: 100dvh !important;
+    box-sizing: border-box;
     display: flex !important;
     align-items: center;
     justify-content: center;

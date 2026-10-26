@@ -1144,6 +1144,7 @@
     { re: /\bPhone\b/i, field: 'phone' },
     { re: /\bEmail\b/i, field: 'email' },
     { re: /\bPassword\b/i, field: 'password' },
+    { re: /National Identity Card Back|Identity Proof - Back/i, field: 'national_identity_card_back' },
     { re: /\bIdentity Proof\b|\bNational Identity\b/i, field: 'national_identity_card' },
     { re: /\bAuthorized Signat/i, field: 'authorized_signature' },
     { re: /\bPan Card\b/i, field: 'pan_card_document' }

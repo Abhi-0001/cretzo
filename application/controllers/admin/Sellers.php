@@ -223,7 +223,7 @@ class Sellers extends CI_Controller
                 "seller_data" => 0,
             );
 
-            $seller_media = fetch_details('seller_data', ['user_id' => $id], 'id,logo,authorized_signature,national_identity_card,address_proof');
+            $seller_media = fetch_details('seller_data', ['user_id' => $id], 'id,logo,store_banner,authorized_signature,national_identity_card,national_identity_card_back,address_proof');
 
             if (!empty($seller_media)) {
                 // Every one of these columns is optional, and most sellers have at least one
@@ -231,7 +231,7 @@ class Sellers extends CI_Controller
                 // called on a DIRECTORY and emitted four warnings that printed straight into
                 // the response body - which broke the JSON the admin UI parses, so a delete
                 // that actually succeeded still reported an error in the browser.
-                foreach (['logo', 'national_identity_card', 'address_proof', 'authorized_signature'] as $media_field) {
+                foreach (['logo', 'store_banner', 'national_identity_card', 'national_identity_card_back', 'address_proof', 'authorized_signature'] as $media_field) {
                     $path = isset($seller_media[0][$media_field]) ? trim((string) $seller_media[0][$media_field]) : '';
                     if ($path === '') {
                         continue;
@@ -388,6 +388,23 @@ class Sellers extends CI_Controller
         }
         $out = ['valid' => ($message === ''), 'message' => $message];
         $this->output->set_content_type('application/json')->set_output(json_encode($out));
+    }
+
+    /**
+     * Mirrors the pickup address on the seller form into the seller's Pickup Addresses list.
+     *
+     * The seller's own profile save has always done this (seller/Login::update_user); the admin
+     * form only wrote seller_data.pickup_*, so a seller created or edited by an admin had an empty
+     * Pickup Addresses section. A problem registering the address with the courier must not undo
+     * the seller save, so it is returned as a note to append to the success message.
+     *
+     * @return string '' or a sentence starting with a space
+     */
+    private function sync_pickup_address($seller_id, array $seller_data)
+    {
+        $this->load->model('Pickup_location_model');
+        $sync = $this->Pickup_location_model->sync_primary_from_profile($seller_id, $seller_data);
+        return (!empty($sync['error']) && !empty($sync['message'])) ? ' Pickup address: ' . strip_tags($sync['message']) : '';
     }
 
     public function add_seller()
@@ -597,6 +614,8 @@ class Sellers extends CI_Controller
                 'national_identity_card' => true,
                 'authorized_signature' => true,
                 'store_logo' => false,
+                'store_banner' => false,
+                'national_identity_card_back' => false,
                 'pan_card_document' => true,
                 'gstin_document' => !$gst_check_set,
                 'gst_enrollment_ack_document' => false,
@@ -616,10 +635,16 @@ class Sellers extends CI_Controller
                 $old_value = trim($this->input->post('old_' . $field, true) ?? '');
                 $document_values[$field] = ($old_value !== '') ? $old_value : null;
                 if (!empty($_FILES[$field]['name'])) {
-                    $this->upload->initialize($doc_config);
+                    // The store banner is a picture shown on the storefront, never a PDF.
+                    $this->upload->initialize($field === 'store_banner' ? array_merge($doc_config, ['allowed_types' => 'jpg|png|jpeg|gif|webp|avif']) : $doc_config);
                     if ($this->upload->do_upload($field)) {
                         $doc_data = $this->upload->data();
-                        resize_review_images($doc_data, FCPATH . SELLER_DOCUMENTS_PATH); // no-op for PDFs
+                        // no-op for PDFs. The store banner spans the full storefront width, so keep it HD (shrink only past 2400px).
+                        if ($field === 'store_banner') {
+                            resize_review_images($doc_data, FCPATH . SELLER_DOCUMENTS_PATH, false, 2400, true);
+                        } else {
+                            resize_review_images($doc_data, FCPATH . SELLER_DOCUMENTS_PATH);
+                        }
                         if ($old_value !== '') {
                             $old_parts = explode('/', $old_value);
                             delete_images(SELLER_DOCUMENTS_PATH, end($old_parts));
@@ -667,6 +692,8 @@ class Sellers extends CI_Controller
                 'national_identity_card' => $document_values['national_identity_card'],
                 'authorized_signature' => $document_values['authorized_signature'],
                 'store_logo' => $document_values['store_logo'],
+                'store_banner' => $document_values['store_banner'],
+                'national_identity_card_back' => $document_values['national_identity_card_back'],
                 'first_name' => $this->input->post('first_name', true),
                 'middle_name' => $this->input->post('middle_name', true),
                 'last_name' => $this->input->post('last_name', true),
@@ -879,7 +906,7 @@ class Sellers extends CI_Controller
                     $this->response['error'] = false;
                     $this->response['csrfName'] = $this->security->get_csrf_token_name();
                     $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                    $this->response['message'] = 'Seller Update Successfully';
+                    $this->response['message'] = 'Seller Update Successfully' . $this->sync_pickup_address($target_user_id, $shared_seller_data);
                     print_r(json_encode($this->response));
                 } else {
                     $this->response['error'] = true;
@@ -956,7 +983,7 @@ class Sellers extends CI_Controller
                         $this->response['error'] = false;
                         $this->response['csrfName'] = $this->security->get_csrf_token_name();
                         $this->response['csrfHash'] = $this->security->get_csrf_hash();
-                        $this->response['message'] = 'Seller Added Successfully';
+                        $this->response['message'] = 'Seller Added Successfully' . $this->sync_pickup_address($target_user_id, $shared_seller_data);
                         print_r(json_encode($this->response));
                     } else {
                         $this->response['error'] = true;

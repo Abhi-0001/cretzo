@@ -120,6 +120,14 @@ class Seller_model extends CI_Model
             $seller_data['store_banner'] = $data['store_banner'];
         }
 
+        // The back side of the identity proof. Written only by callers that know the field (the
+        // two seller-profile forms send it, falling back to the stored path); registration and the
+        // mobile APIs do not, and must not blank it. An empty value does clear it - that is the
+        // x button on the form.
+        if (array_key_exists('national_identity_card_back', $data)) {
+            $seller_data['national_identity_card_back'] = ($data['national_identity_card_back'] !== '') ? $data['national_identity_card_back'] : null;
+        }
+
         if (isset($data['categories']) && $data['categories'] == "seller_profile") {
             unset($seller_data['category_ids']);
             unset($seller_data['permissions']);

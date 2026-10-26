@@ -11,6 +11,7 @@ function toggleMegaMenu(btn){
     var index = Array.from(btn.parentElement.children).indexOf(btn);
     var megaMenu = document.querySelectorAll('.mega-menu')[index];
     var isClosed = !megaMenu.classList.contains('active');
+    positionMegaMenu(btn, megaMenu);
 
     // Close all mega menus
     closeAllMegaMenus();
@@ -20,13 +21,31 @@ function toggleMegaMenu(btn){
 
         btn.classList.add('nav-mega-btn-active'); // Add class to btn when mega menu is opened
 
-        $('#bg-backdrop').addClass('active');
+        if (megaMenu.children.length) $('#bg-backdrop').addClass('active'); /* no dimming for a category with no panel */
         // $('#megamenu-hover-net').addClass('active');
 
         isMegaMenuOpen = true;
     } /* else {
         megaMenu.classList.add('d-none');
     } */
+}
+
+/* Anchor a mega menu under the nav button that opened it (kept inside the viewport), so the
+   pointer can drop straight from the button onto the panel instead of crossing empty space -
+   leaving the navbar on the way used to start the close timer and the panel vanished. */
+function positionMegaMenu(btn, megaMenu) {
+    var container = document.querySelector('.navbar-container');
+    if (!container || !megaMenu.children.length) return;
+
+    var containerRect = container.getBoundingClientRect();
+    var btnRect = btn.getBoundingClientRect();
+    var margin = 12;
+
+    var left = btnRect.left - containerRect.left;
+    var maxLeft = containerRect.width - megaMenu.offsetWidth - margin;
+    left = Math.max(margin, Math.min(left, maxLeft));
+
+    megaMenu.style.left = left + 'px';
 }
 
 function closeAllMegaMenus() {

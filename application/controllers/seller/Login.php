@@ -384,7 +384,8 @@ class Login extends CI_Controller
                             $store_banner_error = trim($store_banner_error . ' ' . $this->_upload_error('Store banner', $other_img->display_errors()));
                         } else {
                             $temp_array_store_banner = $other_img->data();
-                            resize_review_images($temp_array_store_banner, FCPATH . SELLER_DOCUMENTS_PATH);
+                            // Keep HD: the banner spans the full storefront width, so only shrink it past 2400px.
+                            resize_review_images($temp_array_store_banner, FCPATH . SELLER_DOCUMENTS_PATH, false, 2400, true);
                             $store_banner_doc  = SELLER_DOCUMENTS_PATH . $temp_array_store_banner['file_name'];
                         }
                     } else {
@@ -612,6 +613,9 @@ class Login extends CI_Controller
                     'business_address_proof_document',
                     'partnership_deed_document',
                     'bank_account_proof_document',
+                    // Not a business document, but optional and handled identically: the back of the
+                    // identity proof, for IDs that have one.
+                    'national_identity_card_back',
                 ];
                 $business_document_values = [];
                 $business_document_error = '';

@@ -1,0 +1,634 @@
+/*
+ * Product form (add / edit) - shared by the seller and admin panels.
+ * Markup: application/views/{seller,admin}/pages/forms/product.php
+ * Behaviour: assets/seller/js/cretzo/product-form.js
+ *
+ * One guided page of numbered section cards instead of one long wall of fields.
+ * Rarely-changed settings live in the collapsed "More options" card. Every id / name /
+ * class that assets/admin/custom/custom.js binds to is untouched, so only the look and
+ * grouping live here. Overrides are prefixed `.card-body.czpf` so they win over the
+ * page's older inline <style> block, which is loaded after this file.
+ */
+
+/* ------------------------------------------------------------------ shell */
+.card-body.czpf {
+    background: #f5f6f8;
+    border-radius: 12px;
+    padding: 16px !important;
+    overflow: visible !important;
+    overflow-x: clip !important; /* clip (unlike hidden) keeps position: sticky working */
+}
+.czpf .czpf-card {
+    background: #fff;
+    border: 1px solid rgba(0, 0, 0, .07);
+    border-radius: 12px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .04);
+    margin-bottom: 16px;
+    scroll-margin-top: 130px;
+}
+.czpf .czpf-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid rgba(0, 0, 0, .06);
+}
+.czpf .czpf-head h5 { margin: 0; font-size: 16px; font-weight: 700; color: #2b2b2b; }
+.czpf .czpf-head p { margin: 2px 0 0; font-size: 13px; color: #6b7280; }
+.czpf .czpf-num {
+    flex: 0 0 auto;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: var(--color-orange, #f2822e);
+    color: #fff;
+    font-weight: 700;
+    font-size: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.czpf .czpf-body { padding: 18px 20px 20px; }
+.czpf .czpf-body > .form-group:last-child { margin-bottom: 0; }
+
+/* labels + fields: one rhythm everywhere inside the cards */
+.card-body.czpf label.col-form-label,
+.card-body.czpf label.control-label {
+    font-weight: 600;
+    font-size: 13.5px;
+    color: #333;
+    padding: 0 0 4px;
+    display: block;
+    max-width: 100%;
+}
+.czpf .form-group { margin-bottom: 14px; }
+.czpf .form-row > .form-group { padding-left: 6px; padding-right: 6px; }
+.czpf .form-row { margin-left: -6px; margin-right: -6px; }
+.czpf .form-text { font-size: 12.5px; }
+
+/* ----------------------------------------------------------- step checklist */
+.czpf .czpf-steps {
+    position: sticky;
+    top: var(--czpf-top, 0px);
+    z-index: 30;
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    background: #fff;
+    border: 1px solid rgba(0, 0, 0, .08);
+    border-radius: 12px;
+    padding: 6px;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .06);
+}
+.czpf .czpf-steps a {
+    flex: 1 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    color: #555;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    text-decoration: none !important;
+    transition: background .15s, color .15s;
+}
+.czpf .czpf-steps a:hover { background: #f3f4f6; color: #222; }
+.czpf .czpf-steps a.is-active { background: var(--color-orange-light, #fff1e6); color: var(--color-orange-dark, #c5601a); }
+.czpf .czpf-steps b {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #e5e7eb;
+    color: #555;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+}
+.czpf .czpf-steps a.is-active b { background: var(--color-orange, #f2822e); color: #fff; }
+.czpf .czpf-steps a.is-done b { background: #2e7d32; color: #fff; font-size: 0; }
+.czpf .czpf-steps a.is-done b::after { content: "\2713"; font-size: 12px; }
+.czpf .czpf-steps a.czpf-step-optional { color: #777; font-weight: 500; }
+
+/* ------------------------------------------------------------------- folds */
+.czpf .czpf-fold-body {
+    display: grid;
+    grid-template-rows: 0fr;
+    visibility: hidden;              /* stays laid out, so select2 / switches / TinyMCE measure correctly */
+    transition: grid-template-rows .25s ease, visibility 0s linear .25s;
+}
+.czpf .czpf-fold-body > * { overflow: hidden; min-height: 0; }
+.czpf .czpf-fold.is-open > .czpf-fold-body { grid-template-rows: 1fr; visibility: visible; transition-delay: 0s; }
+.czpf .czpf-fold.is-open > .czpf-fold-body > * { overflow: visible; }
+.czpf .czpf-fold-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 0;
+    background: none;
+    padding: 4px 0;
+    margin-bottom: 4px;
+    font-weight: 600;
+    font-size: 13.5px;
+    color: var(--color-orange-dark, #c5601a);
+    cursor: pointer;
+}
+.czpf .czpf-fold-toggle:hover { text-decoration: underline; }
+.czpf .czpf-fold-toggle > i { font-size: 11px; transition: transform .2s; }
+.czpf .czpf-fold.is-open > .czpf-fold-toggle > i { transform: rotate(90deg); }
+.czpf .czpf-fold-toggle small { color: #888; font-weight: 400; }
+.czpf .czpf-fold > .czpf-fold-body { padding-top: 6px; }
+
+/* "More options" is a whole card whose header is the toggle */
+.czpf .czpf-more { padding: 0; }
+.czpf .czpf-more > .czpf-fold-body { padding-top: 0; }
+.czpf .czpf-more-toggle {
+    display: flex;
+    width: 100%;
+    margin: 0;
+    padding: 16px 20px;
+    text-align: left;
+    align-items: center;
+    gap: 12px;
+    color: #2b2b2b;
+}
+.czpf .czpf-more-toggle:hover { text-decoration: none; background: #fafafa; border-radius: 12px; }
+.czpf .czpf-num-plus { background: #e5e7eb; color: #555; font-size: 18px; line-height: 1; }
+.czpf .czpf-more-title { flex: 1 1 auto; display: block; font-weight: 400; }
+.czpf .czpf-more-title b { font-size: 16px; font-weight: 700; }
+.czpf .czpf-more-title small { color: #888; margin-left: 6px; font-size: 12.5px; }
+.czpf .czpf-more-title em { display: block; font-style: normal; font-size: 13px; color: #6b7280; margin-top: 2px; }
+.czpf .czpf-more-chev { margin-left: auto; transition: transform .2s; color: #888; }
+.czpf .czpf-more.is-open > .czpf-more-toggle > .czpf-more-chev { transform: rotate(180deg); }
+.czpf .czpf-more.is-open > .czpf-more-toggle > i.czpf-more-chev { transform: rotate(180deg); }
+.czpf .czpf-more-inner { border-top: 1px solid rgba(0, 0, 0, .06); }
+.czpf .czpf-group { margin-bottom: 22px; }
+.czpf .czpf-group:last-child { margin-bottom: 0; }
+.czpf .czpf-group > h6 {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    color: var(--color-orange-dark, #c5601a);
+    margin: 0 0 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px dashed rgba(0, 0, 0, .12);
+}
+
+/* --------------------------------------------------------- yes / no switches */
+.czpf .czpf-switches {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 10px;
+}
+.czpf .czpf-switch,
+.czpf .czpf-switch-select {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border: 1px solid rgba(0, 0, 0, .1);
+    border-radius: 10px;
+    padding: 10px 12px;
+    background: #fff;
+}
+.czpf .czpf-switch.d-none { display: none !important; }
+.czpf .czpf-switch > label,
+.czpf .czpf-switch-select > label { margin: 0; font-size: 13.5px; font-weight: 600; color: #333; }
+.czpf .czpf-switch-select { grid-column: 1 / -1; }
+.czpf .czpf-switch-select.collapse:not(.show) { display: none; }
+.czpf .czpf-switch-select select { max-width: 260px; }
+.czpf .czpf-switch-cell > div { padding-top: 2px; }
+.card-body.czpf .bootstrap-switch { border-radius: 6px; border-color: rgba(0, 0, 0, .15); }
+.card-body.czpf .bootstrap-switch .bootstrap-switch-handle-off.bootstrap-switch-danger {
+    background: #e9ecef;
+    color: #555;
+}
+.card-body.czpf .bootstrap-switch .bootstrap-switch-handle-on.bootstrap-switch-success { background: #2e7d32; color: #fff; }
+
+/* ------------------------------------------------------ price / stock / tabs */
+.czpf .additional-info { display: block; margin: 0; }
+.czpf .additional-info .nav-tabs {
+    border-bottom: 1px solid rgba(0, 0, 0, .1);
+    gap: 4px;
+}
+.czpf .additional-info .nav-tabs .nav-link {
+    border: 0;
+    border-bottom: 3px solid transparent;
+    border-radius: 0;
+    color: #666;
+    font-weight: 600;
+    padding: 10px 16px;
+}
+.card-body.czpf .nav-tabs .nav-link.active {
+    color: var(--color-orange-dark, #c5601a);
+    border-bottom: 3px solid var(--color-orange, #f2822e);
+    background: transparent;
+}
+.czpf .additional-info .nav-tabs .nav-link.disabled { color: #aaa; }
+.czpf .additional-info.czpf-tabs-single > nav { display: none; }
+.czpf .additional-info .tab-content.p-3 { padding: 18px 0 0 !important; }
+
+/* the legacy panes lay labels out as col-md-2 / values as col-md-12 outside any .row */
+.czpf .tab-pane label[class*="col-md-"] {
+    flex: 0 0 100%;
+    max-width: 100%;
+    width: 100%;
+    padding-left: 0;
+    padding-right: 0;
+}
+.czpf .tab-pane .form-group > [class*="col-md-"],
+.czpf .tab-pane .form-group > .col,
+.czpf .tab-pane .form-group .col.col-xs-12 { padding-left: 0; padding-right: 0; }
+
+.card-body.czpf .tab-pane label[class*="col-md-"] { font-weight: 600; font-size: 13.5px; color: #333; margin-bottom: 4px; }
+.czpf .czpf-fold-toggle:focus { outline: none; }
+.czpf .czpf-fold-toggle:focus-visible { outline: 2px solid var(--color-orange, #f2822e); outline-offset: 2px; border-radius: 6px; }
+
+/* MRP and selling price side by side */
+@media (min-width: 576px) {
+    .czpf #general_price_section > .form-group:nth-of-type(1),
+    .czpf #general_price_section > .form-group:nth-of-type(2) { float: left; width: calc(50% - 8px); }
+    .czpf #general_price_section > .form-group:nth-of-type(1) { margin-right: 16px; }
+    .czpf #general_price_section > .form-group:nth-of-type(3) { clear: both; }
+}
+.czpf #general_price_section > .form-group:nth-of-type(3) { margin: 6px 0 0 !important; }
+.czpf #product-dimensions .control-label { font-size: 13.5px; font-weight: 700; padding: 0; }
+.czpf .product-dimensions, .czpf .dimensions { margin-left: -6px; margin-right: -6px; }
+.czpf .product-dimensions > .col-3, .czpf .dimensions > .col-3 { padding-left: 6px; padding-right: 6px; }
+.czpf .product-dimensions .control-label, .czpf .dimensions .control-label { padding-left: 0; padding-right: 0; }
+
+/* SKU / stock / status as one row of three */
+.czpf .simple-product-level-stock-management::after,
+.czpf .variant-product-level-stock-management::after { content: ""; display: table; clear: both; }
+@media (min-width: 576px) {
+    .czpf .simple-product-level-stock-management > .col,
+    .czpf .variant-product-level-stock-management > .col { float: left; width: 33.333%; padding: 0 6px !important; }
+}
+.czpf .simple_stock_management_status, .czpf .variant_stock_status { margin-right: 6px; }
+
+/* In "add" mode "Save Settings" only locks the product-type select with no way back, and the
+   page-level Add Product button already does everything it did - so it is not offered. */
+.czpf.czpf-create .simple-product-save,
+.czpf.czpf-create #digital_product_setting > .row:last-child { display: none !important; }
+
+.czpf .czpf-alert {
+    font-size: 13.5px;
+    border-radius: 10px;
+    background: #fff8ec;
+    border: 1px solid #f3d9a6;
+    border-left: 4px solid var(--color-orange, #f2822e);
+    color: #5c4a22;
+}
+.czpf #attributes_process, .czpf #variants_process { margin-top: 10px; }
+
+/* ------------------------------------------------------------- media tiles */
+.czpf .grow { position: relative; }
+.czpf .media-remove-btn {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    z-index: 3;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: #dc3545;
+    color: #fff !important;
+    font-size: 17px;
+    line-height: 22px;
+    text-align: center;
+    text-decoration: none !important;
+    cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .25);
+}
+.czpf .media-remove-btn:hover { background: #b02a37; }
+.czpf .image-upload-section { margin-left: 0; margin-right: 0; padding-left: 0; padding-right: 0; }
+.czpf .image-upload-section.media-dnd { min-height: 64px; }
+
+/* ------------------------------------------------------------- action bar */
+.card-body.czpf .product-form-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 25;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin: 8px -16px -16px;
+    padding: 12px 20px;
+    background: #fff;
+    border-top: 1px solid rgba(0, 0, 0, .08);
+    border-radius: 0 0 12px 12px;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, .05);
+}
+.card-body.czpf .product-form-actions .btn { min-width: 150px; border-radius: 8px; padding: 8px 20px; font-weight: 600; }
+.card-body.czpf .product-form-actions .btn-success { background: var(--color-orange, #f2822e); border-color: var(--color-orange, #f2822e); }
+.card-body.czpf .product-form-actions .btn-success:hover:not(:disabled) { background: var(--color-orange-dark, #c5601a); border-color: var(--color-orange-dark, #c5601a); }
+/* Reset is the secondary action - the stock yellow competed with the primary beside it */
+.card-body.czpf .product-form-actions .btn-warning { background: #fff; border: 1px solid rgba(0, 0, 0, .18); color: #6b7280; box-shadow: none; }
+.card-body.czpf .product-form-actions .btn-warning:hover { background: #f6f6f6; border-color: rgba(0, 0, 0, .3); color: #333; }
+
+/* ------------------------------------------------------------------ phones */
+@media (max-width: 767.98px) {
+    .card-body.czpf { padding: 10px !important; }
+    .czpf .czpf-head { padding: 14px 14px 10px; }
+    .czpf .czpf-body { padding: 14px; }
+    .czpf .czpf-steps a { padding: 8px 10px; }
+    .czpf .czpf-steps a span { display: none; }
+    .czpf .czpf-steps a.is-active span { display: inline; }
+    .czpf .czpf-more-toggle { padding: 14px; }
+    .czpf .czpf-more-title small { display: block; margin: 2px 0 0; }
+    .card-body.czpf .product-form-actions { margin: 8px -10px -10px; padding: 10px 14px; }
+    .card-body.czpf .product-form-actions .btn { flex: 1; min-width: 0; }
+    .czpf .additional-info .nav-tabs { flex-wrap: nowrap; overflow-x: auto; white-space: nowrap; }
+}
+
+/* ------------------------------------------------------------ Options tab */
+.czpf .czpf-opt-intro {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    margin: 0 0 14px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: #fff8ec;
+    border: 1px solid #f3d9a6;
+    border-left: 4px solid var(--color-orange, #f2822e);
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: #5c4a22;
+}
+.czpf .czpf-opt-intro > i { color: var(--color-orange, #f2822e); margin-top: 3px; }
+.czpf #note { display: none !important; }          /* superseded by the intro above */
+
+/* Add option / Save options: one tidy toolbar instead of two float-right 16%-wide boxes */
+.czpf #product-attributes > .col-md-12:has(#add_attributes) {
+    display: flex;
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 0;
+    margin-bottom: 12px;
+}
+.czpf #add_attributes, .czpf #save_attributes, .czpf #reset_variants {
+    float: none !important;
+    flex: 0 0 auto;
+    width: auto;
+    max-width: none;
+    margin: 0 !important;
+    padding: 7px 16px;
+    border-radius: 8px;
+    font-weight: 600;
+}
+.czpf #add_attributes { background: var(--color-orange, #f2822e); border-color: var(--color-orange, #f2822e); color: #fff; }
+.czpf #add_attributes::before { content: "+"; font-weight: 700; margin-right: 6px; }
+.czpf #add_attributes:hover { background: var(--color-orange-dark, #c5601a); border-color: var(--color-orange-dark, #c5601a); }
+.czpf.czpf-create #save_attributes { display: none !important; }   /* variations are built automatically while adding */
+
+/* every option is one white card: [handle] Option | Values | Use for variations | remove */
+.czpf .product-attr-selectbox {
+    display: grid !important;
+    grid-template-columns: 24px minmax(170px, 1fr) minmax(0, 2fr) 36px;
+    align-items: center;
+    gap: 12px;
+    margin: 0 0 10px !important;
+    padding: 12px 14px !important;
+    background: #fff !important;
+    border: 1px solid rgba(0, 0, 0, .12) !important;
+    border-radius: 10px !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
+}
+.czpf .product-attr-selectbox:has(.is_attribute_checked) { grid-template-columns: 24px minmax(170px, 1fr) minmax(0, 2fr) auto 36px; }
+.czpf .product-attr-selectbox > [class*="col-"] { width: auto; max-width: none; flex: none; padding: 0; margin: 0; }
+.czpf .product-attr-selectbox .fa-sort { color: #9ca3af; cursor: grab; }
+.czpf .product-attr-selectbox .select2-container { width: 100% !important; }
+.czpf .product-attr-selectbox .select2-selection--multiple { min-height: 42px; border-radius: 8px; }
+.czpf .product-attr-selectbox .remove_attributes,
+.czpf .product-attr-selectbox .remove_edit_attribute { padding: 0; line-height: 1; }
+.czpf .product-attr-selectbox .remove_attributes i,
+.czpf .product-attr-selectbox .remove_edit_attribute i { font-size: 22px; }
+
+.czpf .czpf-use-var {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    padding: 9px 12px;
+    border: 1px solid rgba(0, 0, 0, .12);
+    border-radius: 8px;
+    background: #fafafa;
+    font-size: 13px;
+    font-weight: 600;
+    color: #444;
+    cursor: pointer;
+    white-space: nowrap;
+    user-select: none;
+}
+.card-body.czpf .czpf-use-var input.is_attribute_checked {
+    -webkit-appearance: checkbox;
+    appearance: auto;
+    position: static !important;
+    opacity: 1 !important;
+    transform: none !important;   /* custom/custom.css scales .custom-checkbox by 2 */
+    flex: 0 0 16px;
+    width: 16px !important;
+    height: 16px !important;
+    margin: 0 !important;
+    padding: 0;
+    accent-color: var(--color-orange, #f2822e);
+    cursor: pointer;
+}
+.czpf .czpf-use-var:has(input:checked) { background: var(--color-orange-light, #fff1e6); border-color: var(--color-orange, #f2822e); color: var(--color-orange-dark, #c5601a); }
+
+.czpf .no-attributes-added, .czpf .no-variants-added {
+    background: #fafafa !important;
+    border: 1px dashed rgba(0, 0, 0, .2) !important;
+    border-radius: 10px !important;
+    color: #6b7280;
+    padding: 18px 14px !important;
+    margin: 0 !important;
+}
+.czpf .czpf-var-status {
+    display: none;
+    margin-top: 12px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 13.5px;
+    background: #f3f4f6;
+    color: #444;
+}
+.czpf .czpf-var-status.is-ok { background: #edf7ee; color: #1f5d27; border: 1px solid #c9e4cc; }
+.czpf .czpf-var-status.is-ok i { margin-right: 4px; }
+
+@media (max-width: 767.98px) {
+    .czpf .product-attr-selectbox,
+    .czpf .product-attr-selectbox:has(.is_attribute_checked) { grid-template-columns: minmax(0, 1fr) 36px; }
+    .czpf .product-attr-selectbox > :nth-child(1) { display: none; }
+    .czpf .product-attr-selectbox > :nth-child(2),
+    .czpf .product-attr-selectbox > :nth-child(3),
+    .czpf .product-attr-selectbox:has(.is_attribute_checked) > :nth-child(4) { grid-column: 1 / -1; }
+    .czpf .product-attr-selectbox:has(.is_attribute_checked) > :nth-child(5) { grid-column: 2; grid-row: 4; }
+    .czpf .product-attr-selectbox:has(.is_attribute_checked) > :nth-child(4) { grid-column: 1; grid-row: 4; }
+}
+
+/* -------------------------------------------------------- Variations tab */
+/* one card per variation: [handle] [value pills] ........ [price summary] [Edit] [remove], details open below */
+.card-body.czpf .product-variant-selectbox {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0 12px;
+    margin: 0 0 10px !important;
+    padding: 12px 14px !important;
+    background: #fff !important;
+    border: 1px solid rgba(0, 0, 0, .12) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
+    transition: border-color .15s, box-shadow .15s;
+}
+.card-body.czpf .product-variant-selectbox:has(.collapse.show) {
+    border-color: var(--color-orange, #f2822e) !important;
+    box-shadow: 0 2px 10px rgba(242, 130, 46, .15);
+}
+.czpf .product-variant-selectbox > .col-1 { flex: 0 0 auto; width: auto; max-width: none; padding: 0; }
+.czpf .product-variant-selectbox .fa-sort { color: #9ca3af; cursor: grab; }
+.czpf .product-variant-selectbox > .col-2 { flex: 0 0 auto; width: auto; max-width: none; padding: 0; margin: 0; }
+.czpf .product-variant-selectbox > .col-2 input.form-control,
+.czpf .product-variant-selectbox > .col-2 select.form-control {
+    width: auto;
+    min-width: 72px;
+    max-width: 160px;
+    height: 34px;
+    padding: 0 16px;
+    border-radius: 999px;
+    border: 1px solid #f6cfae;
+    background: var(--color-orange-light, #fff1e6);
+    color: var(--color-orange-dark, #c5601a);
+    font-weight: 700;
+    font-size: 13.5px;
+    text-align: center;
+    field-sizing: content;
+}
+.czpf .product-variant-selectbox > .col-2 select.form-control { background: #fff; color: #333; font-weight: 500; }
+.czpf .czpf-var-sum {
+    flex: 1 1 140px;
+    min-width: 0;
+    text-align: right;
+    font-size: 14px;
+    color: #333;
+    white-space: nowrap;
+}
+.czpf .czpf-var-sum s { color: #9ca3af; font-size: 12.5px; margin-left: 4px; }
+.czpf .czpf-var-stock { color: #6b7280; font-size: 13px; }
+.czpf .czpf-var-missing { color: #b45309; font-weight: 600; font-size: 13px; }
+.czpf .product-variant-selectbox > .col.my-auto {
+    flex: 0 0 auto;
+    width: auto;
+    max-width: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 8px;
+}
+.czpf .product-variant-selectbox > input[type="hidden"] { display: none; }
+
+/* the Edit button: pen + label, so it reads as "click to edit" */
+.card-body.czpf .czpf-edit-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 14px;
+    border: 1px solid var(--color-orange, #f2822e);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--color-orange-dark, #c5601a) !important;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+.card-body.czpf .czpf-edit-btn:hover { background: var(--color-orange-light, #fff1e6); }
+.czpf .czpf-edit-btn i { font-size: 12px; }
+.czpf .czpf-edit-lbl::before { content: "Edit"; }
+.czpf .product-variant-selectbox:has(.collapse.show) .czpf-edit-btn i::before { content: "\f00d"; }   /* pen -> cross while open */
+.czpf .product-variant-selectbox:has(.collapse.show) .czpf-edit-lbl::before { content: "Close"; }
+.card-body.czpf .product-variant-selectbox:has(.collapse.show) .czpf-edit-btn { background: var(--color-orange, #f2822e); color: #fff !important; }
+.czpf .product-variant-selectbox .remove_variants { padding: 0 2px; line-height: 1; }
+.czpf .product-variant-selectbox .remove_variants i { font-size: 22px; }
+
+/* the opened details */
+.czpf .product-variant-selectbox > .col-12 { flex: 0 0 100%; max-width: 100%; padding: 0; }
+.czpf .product-variant-selectbox .collapse.show,
+.czpf .product-variant-selectbox .collapsing { padding-top: 14px; margin-top: 12px; border-top: 1px dashed rgba(0, 0, 0, .14); }
+.czpf .product-variant-selectbox .form-group.row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 0 0 14px;
+}
+.czpf .product-variant-selectbox .form-group.row > .col,
+.czpf .product-variant-selectbox .form-group.row > [class*="col-"] {
+    flex: 1 1 170px;
+    width: auto;
+    max-width: none;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+.czpf .product-variant-selectbox .form-group.row > .col-6 { flex: 0 0 100%; }
+.czpf .product-variant-selectbox .form-group.row > .col:empty { display: none; }
+.czpf .product-variant-selectbox .form-group.row.mt-3 { margin-top: 0 !important; margin-bottom: 6px; }
+.czpf .product-variant-selectbox .control-label {
+    padding: 0 !important;
+    margin-bottom: 4px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #333;
+    max-width: 100%;
+}
+.czpf .product-variant-selectbox #product-dimensions .control-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .4px;
+    text-transform: uppercase;
+    color: var(--color-orange-dark, #c5601a);
+}
+.czpf .product-variant-selectbox .col-12.pt-3 { padding: 0 !important; }
+.czpf .product-variant-selectbox .col-12.pt-3 > .control-label { display: block; }
+.czpf .product-variant-selectbox .col-12.pt-3 > .col-md-3 { padding: 0; max-width: none; flex: none; }
+
+/* toolbar above the rows */
+.card-body.czpf #expand_all, .card-body.czpf #collapse_all {
+    margin: 0 8px 12px 0 !important;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 13px;
+    padding: 5px 14px;
+}
+.card-body.czpf #save_variations {
+    background: var(--color-orange, #f2822e);
+    border-color: var(--color-orange, #f2822e);
+    border-radius: 8px;
+    font-weight: 600;
+    padding: 6px 16px;
+}
+.card-body.czpf #save_variations:hover { background: var(--color-orange-dark, #c5601a); border-color: var(--color-orange-dark, #c5601a); }
+
+@media (max-width: 767.98px) {
+    .czpf .czpf-var-sum { order: 5; flex: 0 0 100%; text-align: left; }
+    .czpf .product-variant-selectbox > .col.my-auto { margin-left: auto; }
+    .czpf .product-variant-selectbox > .col-1 { display: none; }
+    .czpf .product-variant-selectbox > .col-2 input.form-control { min-width: 60px; padding: 0 12px; }
+}
+
+/* edit mode: "Reset Variants" sat on top of Expand / Collapse All */
+.czpf #product-variants > .col-md-12 { padding: 0; display: flex; justify-content: flex-end; }
+.czpf #reset_variants { margin: 0 0 10px !important; }

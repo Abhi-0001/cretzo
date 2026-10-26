@@ -318,7 +318,8 @@ $initial       = in_array(($current_profile_section ?? 'personal'), $section_key
             <legend>Identity documents</legend>
             <div class="czp-grid">
               <?php
-              czp_file_field(['name' => 'national_identity_card', 'label' => 'Identity Proof', 'value' => $d['national_identity_card'] ?? '', 'required' => true, 'hint' => 'Aadhaar, passport, voter ID or driving licence']);
+              czp_file_field(['name' => 'national_identity_card', 'label' => 'Identity Proof - Front', 'value' => $d['national_identity_card'] ?? '', 'required' => true, 'hint' => 'Aadhaar, passport, voter ID or driving licence']);
+              czp_file_field(['name' => 'national_identity_card_back', 'label' => 'Identity Proof - Back', 'value' => $d['national_identity_card_back'] ?? '', 'hint' => 'Optional - the back of the ID, if it has one']);
               czp_file_field(['name' => 'authorized_signature', 'label' => 'Authorized Signatory', 'value' => $d['authorized_signature'] ?? '', 'required' => true, 'hint' => 'A clear scan of your signature']);
               ?>
             </div>

@@ -696,6 +696,20 @@ class Product extends CI_Controller
              }
          }
 
+         // A physical product has to carry its parcel weight (grams) and size (cm): the Shiprocket
+         // order is booked from these values. The form works in grams; the database, Shiprocket and
+         // the courier checks all work in kg, so convert once here.
+         $parcel_error = product_parcel_fields_error($_POST);
+         if ($parcel_error !== '') {
+             $this->response['error'] = true;
+             $this->response['csrfName'] = $this->security->get_csrf_token_name();
+             $this->response['csrfHash'] = $this->security->get_csrf_hash();
+             $this->response['message'] = $parcel_error;
+             print_r(json_encode($this->response));
+             return;
+         }
+         product_post_weights_to_kg($_POST);
+
          // Save product
          $new_product_id = $this->product_model->add_product($_POST);
 

@@ -624,6 +624,19 @@ class Product extends CI_Controller
                 }
 
                
+                // Weight is typed in grams; the database and Shiprocket use kg. A physical product must
+                // carry its parcel weight and size so the Shiprocket order can be booked from them.
+                $parcel_error = product_parcel_fields_error($_POST);
+                if ($parcel_error !== '') {
+                    $this->response['error'] = true;
+                    $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                    $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                    $this->response['message'] = $parcel_error;
+                    print_r(json_encode($this->response));
+                    return;
+                }
+                product_post_weights_to_kg($_POST);
+
                 $this->product_model->add_product($_POST);
                 $this->response['error'] = false;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();

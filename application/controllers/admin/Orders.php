@@ -1650,10 +1650,12 @@ class Orders extends CI_Controller
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {
 
             $this->form_validation->set_rules('pickup_location', ' Pickup Location ', 'trim|required|xss_clean');
-            $this->form_validation->set_rules('parcel_weight', ' Parcel Weight ', 'trim|required|xss_clean');
-            $this->form_validation->set_rules('parcel_height', ' Parcel Height ', 'trim|required|xss_clean');
-            $this->form_validation->set_rules('parcel_breadth', ' Parcel Breadth ', 'trim|required|xss_clean');
-            $this->form_validation->set_rules('parcel_length', ' Parcel Length ', 'trim|required|xss_clean');
+            // The parcel weight (grams) and size (cm) are optional here: whatever is left blank is taken from
+            // the ordered products' own saved weight and size, exactly as the automatic booking does.
+            $this->form_validation->set_rules('parcel_weight', ' Parcel Weight ', 'trim|numeric|greater_than[0]|xss_clean');
+            $this->form_validation->set_rules('parcel_height', ' Parcel Height ', 'trim|numeric|greater_than[0]|xss_clean');
+            $this->form_validation->set_rules('parcel_breadth', ' Parcel Breadth ', 'trim|numeric|greater_than[0]|xss_clean');
+            $this->form_validation->set_rules('parcel_length', ' Parcel Length ', 'trim|numeric|greater_than[0]|xss_clean');
 
             if (!$this->form_validation->run()) {
                 $this->response['error'] = true;
@@ -1663,6 +1665,20 @@ class Orders extends CI_Controller
                 print_r(json_encode($this->response));
             } else {
                 $_POST['order_items'] = json_decode($_POST['order_items'][0], 1);
+                // Weight is typed in grams, Shiprocket and the database use kg; blank fields come from the products.
+                if (isset($_POST['parcel_weight']) && trim($_POST['parcel_weight']) !== '') {
+                    $_POST['parcel_weight'] = weight_grams_to_kg($_POST['parcel_weight']);
+                }
+                $parcel_fields = ['parcel_weight', 'parcel_length', 'parcel_breadth', 'parcel_height'];
+                $parcel_missing = array_filter($parcel_fields, function ($f) { return !isset($_POST[$f]) || trim((string) $_POST[$f]) === ''; });
+                if (!empty($parcel_missing)) {
+                    $auto = shiprocket_parcel_defaults((int) $this->input->post('order_id'), (int) $this->input->post('shiprocket_seller_id'), (string) $this->input->post('pickup_location'));
+                    if (empty($auto['error']) && !empty($auto['data'])) {
+                        foreach ($parcel_missing as $f) {
+                            $_POST[$f] = $auto['data'][$f];
+                        }
+                    }
+                }
                 $this->load->library(['Shiprocket']);
                 $order_items =  $_POST['order_items'];
                 $items = [];

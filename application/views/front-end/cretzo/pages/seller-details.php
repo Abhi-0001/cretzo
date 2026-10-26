@@ -30,7 +30,16 @@
     <div class="aboutus-two">
         <img class="profile-icon lazy" src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= base_url($sellers[0]['logo']) ?>">
         
-        <p class="heading-b orange"><?= $sellers[0]['store_name'] ?></p>
+        <?php // Show the shop name, not the owner's account name. Sellers carry it in store_name
+              // (profile form) or shop_name (older registrations); the account username is only a
+              // last resort so the heading is never blank. ?>
+        <?php $shop_display_name = '';
+              foreach ([$sellers[0]['store_name'] ?? '', $sellers[0]['shop_name'] ?? '', $seller_details[0]['username'] ?? ''] as $candidate) {
+                  if (trim((string) $candidate) !== '') {
+                      $shop_display_name = trim((string) $candidate);
+                      break;
+                  }
+              } ?>
 
         <!-- <br> -->
 
@@ -39,7 +48,7 @@
                 <i class="fs-60 orange uil uil-store"></i>
             </div>
             <div class="d-flex flex-column">
-                <h1 class="h1"><?= $seller_details[0]['username'] ?></h1>
+                <h1 class="h1"><?= html_escape($shop_display_name) ?></h1>
                 <ul class="d-flex gap-4 pl-0">
                     <li class="d-inline-block">
                         <i class="text-warning uil uil-star"></i>

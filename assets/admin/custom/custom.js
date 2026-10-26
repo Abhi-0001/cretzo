@@ -450,7 +450,7 @@ function create_variants(preproccessed_permutation_result = false, from) {
     var selected_attributes_values = JSON.stringify(attributes_values);
 
     $('.no-variants-added').hide();
-    $.ajax({
+    return $.ajax({
         type: 'GET',
         url: base_url + from + '/product/get_variants_by_id',
         data: {
@@ -473,7 +473,7 @@ function create_variants(preproccessed_permutation_result = false, from) {
                     tmp_variant_value_id = tmp_variant_value_id + " " + value.id;
                     html += '<div class="col-2"> <input type="text" class="col form-control" value="' + value.value + '" readonly></div>';
                 });
-                html += '<input type="hidden" name="variants_ids[]" value="' + tmp_variant_value_id + '"><div class="col my-auto row justify-content-center"> <a data-toggle="collapse" class="btn btn-tool text-primary" data-target="#' + attr_name + '" aria-expanded="true"><i class="fas fa-angle-down fa-2x"></i> </a> <button type="button" class="btn btn-tool remove_variants"> <i class="text-danger far fa-times-circle fa-2x "></i> </button></div><div class="col-12" id="variant_stock_management_html"><div id=' + attr_name + ' style="" class="collapse">';
+                html += '<input type="hidden" name="variants_ids[]" value="' + tmp_variant_value_id + '"><div class="col my-auto row justify-content-center"> <a data-toggle="collapse" class="btn btn-tool text-primary czpf-edit-btn" data-target="#' + attr_name + '" aria-expanded="true" title="Edit price, stock and size"><i class="fas fa-pen"></i><span class="czpf-edit-lbl"></span></a> <button type="button" class="btn btn-tool remove_variants"> <i class="text-danger far fa-times-circle fa-2x "></i> </button></div><div class="col-12" id="variant_stock_management_html"><div id=' + attr_name + ' style="" class="collapse">';
                 if ($('.variant_stock_status').is(':checked') && $('.variant-stock-level-type').val() == 'variable_level') {
 
                     html += '<div class="form-group row">' +
@@ -488,24 +488,24 @@ function create_variants(preproccessed_permutation_result = false, from) {
                         ' <select type="text" name="variant_level_stock_status[]" class="col form-control varaint-must-fill-field"><option value="1">In Stock</option><option value="0">Out Of Stock</option> </select></div></div>' +
                         '<div class="form-group row mt-3" id="product-dimensions">' +
                         '<div class="col-6">' +
-                        '<label for="weight" class="control-label col-md-12"><small>(These are the product parcel"s dimentions.)</small ></label > ' +
+                        '<label for="weight" class="control-label col-md-12">Parcel weight &amp; size</label > ' +
                         '</div>' +
                         '</div>' +
                         '<div class="form-group row">' +
                         '<div class="col col-xs-12">' +
-                        '<label for="weight" class="control-label col-md-12">Weight <small>(kg)</small> <span class="text-danger text-xs">*</span></label>' +
-                        '<input type="number" class="form-control" name="weight[]" placeholder="Weight" id="weight" value="" step="0.01">' +
+                        '<label for="weight" class="control-label col-md-12">Weight <small>(grams)</small> <span class="text-danger text-xs">*</span></label>' +
+                        '<input type="number" class="form-control" name="weight[]" placeholder="e.g. 500" id="weight" value="" step="1" min="1">' +
                         '</div>' +
                         '<div class="col col-xs-12">' +
-                        '<label for="height" class="control-label col-md-12">Height <small>(cms)</small></label>' +
+                        '<label for="height" class="control-label col-md-12">Height <small>(cm)</small> <span class="text-danger text-xs">*</span></label>' +
                         '<input type="number" class="form-control" name="height[]" placeholder="Height" id="height" value="" step="0.01">' +
                         '</div>' +
                         '<div class="col col-xs-12">' +
-                        '<label for="breadth" class="control-label col-md-12">Breadth <small>(cms)</small></label>' +
+                        '<label for="breadth" class="control-label col-md-12">Breadth <small>(cm)</small> <span class="text-danger text-xs">*</span></label>' +
                         '<input type="number" class="form-control" name="breadth[]" placeholder="Breadth" id="breadth" value="" step="0.01">' +
                         '</div>' +
                         '<div class="col col-xs-12">' +
-                        '<label for="length" class="control-label col-md-12">Length <small>(cms)</small></label>' +
+                        '<label for="length" class="control-label col-md-12">Length <small>(cm)</small> <span class="text-danger text-xs">*</span></label>' +
                         '<input type="number" class="form-control" name="length[]" placeholder="Length" id="length" value="" step="0.01">' +
                         '</div></div>';
                 } else {
@@ -517,24 +517,24 @@ function create_variants(preproccessed_permutation_result = false, from) {
                         '<input type="number" name="variant_special_price[]" class="col form-control discounted_price varaint-must-fill-field" min="0" step="0.01"></div></div>' +
                         '<div class="form-group row mt-3" id="product-dimensions">' +
                         '<div class="col-6">' +
-                        '<label for="weight" class="control-label col-md-12"><small>(These are the product parcel"s dimentions.)</small ></label > ' +
+                        '<label for="weight" class="control-label col-md-12">Parcel weight &amp; size</label > ' +
                         '</div>' +
                         '</div>' +
                         '<div class="form-group row">' +
                         '<div class="col col-xs-12">' +
-                        '<label for="weight" class="control-label col-md-12">Weight <small>(kg)</small> <span class="text-danger text-xs">*</span></label>' +
-                        '<input type="number" class="form-control" name="weight[]" placeholder="Weight" id="weight" value="" step="0.01">' +
+                        '<label for="weight" class="control-label col-md-12">Weight <small>(grams)</small> <span class="text-danger text-xs">*</span></label>' +
+                        '<input type="number" class="form-control" name="weight[]" placeholder="e.g. 500" id="weight" value="" step="1" min="1">' +
                         '</div>' +
                         '<div class="col col-xs-12">' +
-                        '<label for="height" class="control-label col-md-12">Height <small>(cms)</small></label>' +
+                        '<label for="height" class="control-label col-md-12">Height <small>(cm)</small> <span class="text-danger text-xs">*</span></label>' +
                         '<input type="number" class="form-control" name="height[]" placeholder="Height" id="height" value="" step="0.01">' +
                         '</div>' +
                         '<div class="col col-xs-12">' +
-                        '<label for="breadth" class="control-label col-md-12">Breadth <small>(cms)</small></label>' +
+                        '<label for="breadth" class="control-label col-md-12">Breadth <small>(cm)</small> <span class="text-danger text-xs">*</span></label>' +
                         '<input type="number" class="form-control" name="breadth[]" placeholder="Breadth" id="breadth" value="" step="0.01">' +
                         '</div>' +
                         '<div class="col col-xs-12">' +
-                        '<label for="length" class="control-label col-md-12">Length <small>(cms)</small></label>' +
+                        '<label for="length" class="control-label col-md-12">Length <small>(cm)</small> <span class="text-danger text-xs">*</span></label>' +
                         '<input type="number" class="form-control" name="length[]" placeholder="Length" id="length" value="" step="0.01">' +
                         '</div>' +
                         '<div class="col col-xs-12"></div>' +
@@ -583,7 +583,7 @@ function create_attributes(value, selected_attr) {
         var html = '<div class="form-group move row my-auto p-2 border rounded bg-gray-light product-attr-selectbox" id=' + attr_name + '><div class="col-md-1 col-sm-12 text-center my-auto"><i class="fas fa-sort"></i></div><div class="col-md-4 col-sm-12"> <select name="attribute_id[]" class="attributes select_single" data-placeholder=" Type to search and select attributes"><option value=""></option>' + $options + '</select></div><div class="col-md-4 col-sm-12"> <select name="attribute_value_ids[]" class="multiple_values" multiple="" data-placeholder=" Type to search and select attributes values"><option value=""></option> </select></div><div class="col-md-2 col-sm-6 text-center py-1 align-self-center"> <button type="button" class="btn btn-tool remove_attributes"> <i class="text-danger far fa-times-circle fa-2x "></i> </button></div></div>';
     } else {
         $('#note').removeClass('d-none');
-        var html = '<div class="form-group row move my-auto p-2 border rounded bg-gray-light product-attr-selectbox" id=' + attr_name + '><div class="col-md-1 col-sm-12 text-center my-auto"><i class="fas fa-sort"></i></div><div class="col-md-4 col-sm-12"> <select name="attribute_id[]" class="attributes select_single" data-placeholder=" Type to search and select attributes"><option value=""></option>' + $options + '</select></div><div class="col-md-4 col-sm-12"> <select name="attribute_value_ids[]" class="multiple_values" multiple="" data-placeholder=" Type to search and select attributes values"><option value=""></option> </select></div><div class="col-md-2 col-sm-6 text-center py-1 align-self-center"><input type="checkbox" name="variations[]" class="is_attribute_checked custom-checkbox mt-2"></div><div class="col-md-1 col-sm-6 text-center py-1 align-self-center"> <button type="button" class="btn btn-tool remove_attributes"> <i class="text-danger far fa-times-circle fa-2x "></i> </button></div></div>';
+        var html = '<div class="form-group row move my-auto p-2 border rounded bg-gray-light product-attr-selectbox" id=' + attr_name + '><div class="col-md-1 col-sm-12 text-center my-auto"><i class="fas fa-sort"></i></div><div class="col-md-4 col-sm-12"> <select name="attribute_id[]" class="attributes select_single" data-placeholder=" Type to search and select attributes"><option value=""></option>' + $options + '</select></div><div class="col-md-4 col-sm-12"> <select name="attribute_value_ids[]" class="multiple_values" multiple="" data-placeholder=" Type to search and select attributes values"><option value=""></option> </select></div><div class="col-md-2 col-sm-6 text-center py-1 align-self-center"><label class="czpf-use-var mb-0"><input type="checkbox" name="variations[]" class="is_attribute_checked custom-checkbox mt-2"> <span>Use for variations</span></label></div><div class="col-md-1 col-sm-6 text-center py-1 align-self-center"> <button type="button" class="btn btn-tool remove_attributes"> <i class="text-danger far fa-times-circle fa-2x "></i> </button></div></div>';
     }
     $('#attributes_process').append(html);
     if (selected_attr) {
@@ -888,7 +888,7 @@ function create_editable_variants(data, newly_selected_attr = false, add_newly_c
                     html += '</select></div>';
                 }
             }
-            html += '<input type="hidden" name="variants_ids[]" value="' + b.attribute_value_ids + '"><div class="col my-auto row justify-content-center"> <a data-toggle="collapse" class="btn btn-tool text-primary" data-target="#' + attr_name + '" aria-expanded="true"><i class="fas fa-angle-down fa-2x"></i> </a> <button type="button" class="btn btn-tool remove_variants"> <i class="text-danger far fa-times-circle fa-2x "></i> </button></div><div class="col-12" id="variant_stock_management_html"><div id=' + attr_name + ' style="" class="collapse">';
+            html += '<input type="hidden" name="variants_ids[]" value="' + b.attribute_value_ids + '"><div class="col my-auto row justify-content-center"> <a data-toggle="collapse" class="btn btn-tool text-primary czpf-edit-btn" data-target="#' + attr_name + '" aria-expanded="true" title="Edit price, stock and size"><i class="fas fa-pen"></i><span class="czpf-edit-lbl"></span></a> <button type="button" class="btn btn-tool remove_variants"> <i class="text-danger far fa-times-circle fa-2x "></i> </button></div><div class="col-12" id="variant_stock_management_html"><div id=' + attr_name + ' style="" class="collapse">';
 
             if ($('.variant_stock_status').is(':checked') && $('.variant-stock-level-type').val() == 'variable_level') {
 
@@ -907,30 +907,30 @@ function create_editable_variants(data, newly_selected_attr = false, add_newly_c
                     '<option value="1">In Stock</option><option value="0"  ' + selected + '  >Out Of Stock</option> </select></div></div>' +
                     '<div class="form-group row mt-3" id="product-dimensions">' +
                     '<div class="col-6">' +
-                    '<label for="weight" class="control-label col-md-12"><small>(These are the product parcel"s dimentions.)</small ></label > ' +
+                    '<label for="weight" class="control-label col-md-12">Parcel weight &amp; size</label > ' +
                     '</div>' +
                     '</div>' +
                     '<div class="form-group row">' +
                     '<div class="col col-xs-12">' +
-                    '<label for="weight" class="control-label col-md-12">Weight <small>(kg)</small> <span class="text-danger text-xs">*</span></label>' +
-                    '<input type="number" class="form-control" name="weight[]" placeholder="Weight" id="weight" value="' +
-                    b.weight +
-                    '" step="0.01">' +
+                    '<label for="weight" class="control-label col-md-12">Weight <small>(grams)</small> <span class="text-danger text-xs">*</span></label>' +
+                    '<input type="number" class="form-control" name="weight[]" placeholder="e.g. 500" id="weight" value="' +
+                    (parseFloat(b.weight) > 0 ? Math.round(parseFloat(b.weight) * 1000) : '') +
+                    '" step="1" min="1">' +
                     '</div>' +
                     '<div class="col col-xs-12">' +
-                    '<label for="height" class="control-label col-md-12">Height <small>(cms)</small></label>' +
+                    '<label for="height" class="control-label col-md-12">Height <small>(cm)</small> <span class="text-danger text-xs">*</span></label>' +
                     '<input type="number" class="form-control" name="height[]" placeholder="Height" id="height" value="' +
                     b.height +
                     '" step="0.01">' +
                     '</div>' +
                     '<div class="col col-xs-12">' +
-                    '<label for="breadth" class="control-label col-md-12">Breadth <small>(cms)</small></label>' +
+                    '<label for="breadth" class="control-label col-md-12">Breadth <small>(cm)</small> <span class="text-danger text-xs">*</span></label>' +
                     '<input type="number" class="form-control" name="breadth[]" placeholder="Breadth" id="breadth" value="' +
                     b.breadth +
                     '" step="0.01">' +
                     '</div>' +
                     '<div class="col col-xs-12">' +
-                    '<label for="length" class="control-label col-md-12">Length <small>(cms)</small></label>' +
+                    '<label for="length" class="control-label col-md-12">Length <small>(cm)</small> <span class="text-danger text-xs">*</span></label>' +
                     '<input type="number" class="form-control" name="length[]" placeholder="Length" id="length" value="' +
                     b.length +
                     '" step="0.01">' +
@@ -944,30 +944,30 @@ function create_editable_variants(data, newly_selected_attr = false, add_newly_c
                     '<input type="number" name="variant_special_price[]" class="col form-control discounted_price varaint-must-fill-field"  min="0" value="' + b.special_price + '" step="0.01"></div></div>' +
                     '<div class="form-group row mt-3" id="product-dimensions">' +
                     '<div class="col-6">' +
-                    '<label for="weight" class="control-label col-md-12"><small>(These are the product parcel"s dimentions.)</small ></label > ' +
+                    '<label for="weight" class="control-label col-md-12">Parcel weight &amp; size</label > ' +
                     '</div>' +
                     '</div>' +
                     '<div class="form-group row">' +
                     '<div class="col col-xs-12">' +
-                    '<label for="weight" class="control-label col-md-12">Weight <small>(kg)</small> <span class="text-danger text-xs">*</span></label>' +
-                    '<input type="number" class="form-control" name="weight[]" placeholder="Weight" id="weight" value="' +
-                    b.weight +
-                    '" step="0.01">' +
+                    '<label for="weight" class="control-label col-md-12">Weight <small>(grams)</small> <span class="text-danger text-xs">*</span></label>' +
+                    '<input type="number" class="form-control" name="weight[]" placeholder="e.g. 500" id="weight" value="' +
+                    (parseFloat(b.weight) > 0 ? Math.round(parseFloat(b.weight) * 1000) : '') +
+                    '" step="1" min="1">' +
                     '</div>' +
                     '<div class="col col-xs-12">' +
-                    '<label for="height" class="control-label col-md-12">Height <small>(cms)</small></label>' +
+                    '<label for="height" class="control-label col-md-12">Height <small>(cm)</small> <span class="text-danger text-xs">*</span></label>' +
                     '<input type="number" class="form-control" name="height[]" placeholder="Height" id="height" value="' +
                     b.height +
                     '" step="0.01">' +
                     '</div>' +
                     '<div class="col col-xs-12">' +
-                    '<label for="breadth" class="control-label col-md-12">Breadth <small>(cms)</small></label>' +
+                    '<label for="breadth" class="control-label col-md-12">Breadth <small>(cm)</small> <span class="text-danger text-xs">*</span></label>' +
                     '<input type="number" class="form-control" name="breadth[]" placeholder="Breadth" id="breadth" value="' +
                     b.breadth +
                     '" step="0.01">' +
                     '</div>' +
                     '<div class="col col-xs-12">' +
-                    '<label for="length" class="control-label col-md-12">Length <small>(cms)</small></label>' +
+                    '<label for="length" class="control-label col-md-12">Length <small>(cm)</small> <span class="text-danger text-xs">*</span></label>' +
                     '<input type="number" class="form-control" name="length[]" placeholder="Length" id="length" value="' +
                     b.length +
                     '" step="0.01">' +
@@ -2510,7 +2510,7 @@ $(document).on('click', ' #add_attributes , #tab-for-variations', function (e) {
             var html = '<div class="form-group move row my-auto p-2 border rounded bg-gray-light product-attr-selectbox" id=' + attr_name + '><div class="col-md-1 col-sm-12 text-center my-auto"><i class="fas fa-sort"></i></div><div class="col-md-4 col-sm-12"> <select name="attribute_id[]" class="attributes select_single" data-placeholder=" Type to search and select attributes"><option value=""></option>' + $options + '</select></div><div class="col-md-4 col-sm-12 "> <select name="attribute_value_ids[]" class="multiple_values" multiple="" data-placeholder=" Type to search and select attributes values"><option value=""></option> </select></div><div class="col-md-2 col-sm-6 text-center py-1 align-self-center"> <button type="button" class="btn btn-tool remove_attributes"> <i class="text-danger far fa-times-circle fa-2x "></i> </button></div></div>';
         } else {
             $('#note').removeClass('d-none');
-            var html = '<div class="form-group row move my-auto p-2 border rounded bg-gray-light product-attr-selectbox" id=' + attr_name + '><div class="col-md-1 col-sm-12 text-center my-auto"><i class="fas fa-sort"></i></div><div class="col-md-4 col-sm-12"> <select name="attribute_id[]" class="attributes select_single" data-placeholder=" Type to search and select attributes"><option value=""></option>' + $options + '</select></div><div class="col-md-4 col-sm-12 "> <select name="attribute_value_ids[]" class="multiple_values" multiple="" data-placeholder=" Type to search and select attributes values"><option value=""></option> </select></div><div class="col-md-2 col-sm-6 text-center py-1 align-self-center"><input type="checkbox" name="variations[]" class="is_attribute_checked custom-checkbox "></div><div class="col-md-1 col-sm-6 text-center py-1 align-self-center "> <button type="button" class="btn btn-tool remove_attributes"> <i class="text-danger far fa-times-circle fa-2x "></i> </button></div></div>';
+            var html = '<div class="form-group row move my-auto p-2 border rounded bg-gray-light product-attr-selectbox" id=' + attr_name + '><div class="col-md-1 col-sm-12 text-center my-auto"><i class="fas fa-sort"></i></div><div class="col-md-4 col-sm-12"> <select name="attribute_id[]" class="attributes select_single" data-placeholder=" Type to search and select attributes"><option value=""></option>' + $options + '</select></div><div class="col-md-4 col-sm-12 "> <select name="attribute_value_ids[]" class="multiple_values" multiple="" data-placeholder=" Type to search and select attributes values"><option value=""></option> </select></div><div class="col-md-2 col-sm-6 text-center py-1 align-self-center"><label class="czpf-use-var mb-0"><input type="checkbox" name="variations[]" class="is_attribute_checked custom-checkbox " checked> <span>Use for variations</span></label></div><div class="col-md-1 col-sm-6 text-center py-1 align-self-center "> <button type="button" class="btn btn-tool remove_attributes"> <i class="text-danger far fa-times-circle fa-2x "></i> </button></div></div>';
         }
         $('#attributes_process').append(html);
 
@@ -2707,9 +2707,9 @@ $(document).on('change', '#product_type_menu', function () {
         $('.standdard_shipping').addClass('d-none');
 
     } else {
-        var html = ' <option value="">Select Type</option>' +
-            '<option value="simple_product">Simple Product</option>' +
-            '<option value="variable_product">Variable Product</option>';
+        var html = ' <option value="">Choose one...</option>' +
+            '<option value="simple_product">Simple — one price, no options</option>' +
+            '<option value="variable_product">With options — size, colour, etc.</option>';
         $('#product-type').html(html);
         $('.cod_allowed').removeClass('d-none');
         $('.is_returnable').removeClass('d-none');
@@ -2880,20 +2880,20 @@ $(document).on('click', '.reset-settings', function (e) {
             var html = ' <input type="hidden" name="reset_settings" value="1">' +
                 '<div class="row mt-4 col-md-12 "> <nav class="w-100">' +
                 '<div class="nav nav-tabs" id="product-tab" role="tablist"> ' +
-                '<a class="nav-item nav-link active" id="tab-for-general-price" data-toggle="tab" href="#general-settings" role="tab" aria-controls="general-price" aria-selected="true">General</a> ' +
-                '<a class="nav-item nav-link disabled product-attributes" id="tab-for-attributes" data-toggle="tab" href="#product-attributes" role="tab" aria-controls="product-attributes" aria-selected="false">Attributes</a> ' +
+                '<a class="nav-item nav-link active" id="tab-for-general-price" data-toggle="tab" href="#general-settings" role="tab" aria-controls="general-price" aria-selected="true">Price &amp; stock</a> ' +
+                '<a class="nav-item nav-link disabled product-attributes" id="tab-for-attributes" data-toggle="tab" href="#product-attributes" role="tab" aria-controls="product-attributes" aria-selected="false">Options</a> ' +
                 '<a class="nav-item nav-link disabled product-variants d-none" id="tab-for-variations" data-toggle="tab" href="#product-variants" role="tab" aria-controls="product-variants" aria-selected="false">Variations</a></div> </nav>' +
                 '<div class="tab-content p-3 col-md-12" id="nav-tabContent">' +
                 '<div class="tab-pane fade active show" id="general-settings" role="tabpanel" aria-labelledby="general-settings-tab">' +
                 '<div class="form-group">' +
-                ' <label for="type" class="col-md-2">Type Of Product :</label>' +
+                ' <label for="product-type" class="col-md-12 col-form-label">Does this product have options like size or colour?</label>' +
                 '<div class="col-md-12"> <input type="hidden" name="product_type"> ' +
                 '<input type="hidden" name="simple_product_stock_status"> ' +
                 '<input type="hidden" name="variant_stock_level_type"> ' +
                 ' <input type="hidden" name="variant_stock_status"> ' +
                 '<select name="type" id="product-type" class="form-control product-type" data-placeholder=" Type to search and select type">' +
-                '<option value=" ">Select Type</option><option value="simple_product">Simple Product</option>' +
-                '<option value="digital_product">Digital Product</option><option value="variable_product">Variable Product</option> </select></div></div>' +
+                '<option value=" ">Choose one...</option><option value="simple_product">Simple — one price, no options</option>' +
+                '<option value="digital_product">Digital download</option><option value="variable_product">With options — size, colour, etc.</option> </select></div></div>' +
                 '<div id="product-general-settings"><div id="general_price_section" class="collapse"><div class="form-group"> ' +
                 '<label for="type" class="col-md-2">MRP (list price):</label>' +
                 '<div class="col-md-12"> <input type="number" name="simple_price" class="form-control stock-simple-mustfill-field price" min="0" step="0.01"></div></div>' +
@@ -2901,7 +2901,7 @@ $(document).on('click', '.reset-settings', function (e) {
                 ' <input type="number" name="simple_special_price" class="form-control discounted_price stock-simple-mustfill-field" min="0" step="0.01"></div></div>' +
                 '<div class="form-group simple_stock_management"><div class="col"> ' +
                 '<input type="checkbox" name="simple_stock_management_status" class="align-middle simple_stock_management_status">' +
-                ' <span class="align-middle">Enable Stock Management</span></div></div></div>' +
+                ' <span class="align-middle">Track my stock <small class="text-muted">(turn on to enter how many you have)</small></span></div></div></div>' +
                 '<div class="form-group simple-product-level-stock-management collapse">' +
                 '<div class="col col-xs-12"> <label class="control-label">SKU :</label> ' +
                 '<input type="text" name="product_sku" class="col form-control simple-pro-sku"></div>' +
@@ -2912,7 +2912,7 @@ $(document).on('click', '.reset-settings', function (e) {
                 '<div class="form-group collapse simple-product-save"><div class="col"> ' +
                 '<a href="javascript:void(0);" class="btn btn-primary save-settings">Save Settings</a></div></div></div>' +
                 '<div id="variant_stock_level" class="collapse"><div class="form-group"><div class="col">' +
-                ' <input type="checkbox" name="variant_stock_management_status" class="align-middle variant_stock_status"> <span class="align-middle"> Enable Stock Management</span></div></div>' +
+                ' <input type="checkbox" name="variant_stock_management_status" class="align-middle variant_stock_status"> <span class="align-middle"> Track my stock <small class="text-muted">(turn on to enter how many you have)</small></span></div></div>' +
                 '<div class="form-group collapse" id="stock_level"> <label for="type" class="col-md-2">Choose Stock Management Type:</label>' +
                 '<div class="col-md-12"> <select id="stock_level_type" class="form-control variant-stock-level-type" data-placeholder=" Type to search and select type">' +
                 '<option value=" ">Select Stock Type</option><option value="product_level">Product Level ( Stock Will Be Managed Generally )</option>' +
@@ -2928,10 +2928,10 @@ $(document).on('click', '.reset-settings', function (e) {
                 '<div class="tab-pane fade" id="product-attributes" role="tabpanel" aria-labelledby="product-attributes-tab">' +
                 '<div class="info col-12 p-3 d-none" id="note"><div class=" col-12 d-flex align-center"> <strong>Note : </strong> <input type="checkbox" checked="checked" class="ml-3 my-auto custom-checkbox" disabled> ' +
                 '<span class="ml-3">check if the attribute is to be used for variation </span></div></div><div class="col-md-12">' +
-                ' <a href="javascript:void(0);" id="add_attributes" class="btn btn-block btn-outline-primary col-md-2 float-right m-2 btn-sm">Add Attributes</a>' +
-                ' <a href="javascript:void(0);" id="save_attributes" class="btn btn-block btn-outline-primary col-md-2 float-right m-2 btn-sm d-none">Save Attributes</a></div>' +
+                ' <a href="javascript:void(0);" id="add_attributes" class="btn btn-block btn-outline-primary col-md-2 float-right m-2 btn-sm">Add option</a>' +
+                ' <a href="javascript:void(0);" id="save_attributes" class="btn btn-block btn-outline-primary col-md-2 float-right m-2 btn-sm d-none">Save options</a></div>' +
                 '<div class="clearfix"></div><div id="attributes_process"><div class="form-group text-center row my-auto p-2 border rounded bg-gray-light col-md-12 no-attributes-added">' +
-                '<div class="col-md-12 text-center">No Product Attribures Are Added !</div></div></div></div><div class="tab-pane fade" id="product-variants" role="tabpanel" aria-labelledby="product-variants-tab">' +
+                '<div class="col-md-12 text-center">No options added yet. Add one, e.g. Size or Colour.</div></div></div></div><div class="tab-pane fade" id="product-variants" role="tabpanel" aria-labelledby="product-variants-tab">' +
                 '<div class="clearfix"></div><div class="form-group text-center row my-auto p-2 border rounded bg-gray-light col-md-12 no-variants-added">' +
                 '<div class="col-md-12 text-center">No Product Variations Are Added !</div></div>' +
                 '<div id="variants_process" class="ui-sortable"></div></div></div></div>';
@@ -6757,17 +6757,8 @@ function priceFormatter(data) {
             return sum + i
         }, 0);
 }
-// Feature Section Hide or Show Category Field
-
-$(document).on('change', '.product_type', function () {
-    var product_type = $('.product_type').val();
-    var exclude_product_type = ["custom_products"];
-    if (exclude_product_type.includes(product_type)) {
-        $(".select-categories").hide();
-    } else {
-        $(".select-categories").show();
-    }
-});
+// Feature Section category field: shown only for the Trending Deals style (its "Shop by Categories"
+// tiles); that toggle lives with the form in views/admin/pages/tables/featured_section.php.
 $(document).on('click', '.add_promo_code_discount', function () {
     Swal.fire({
         title: 'Are You Sure !',
@@ -9221,11 +9212,20 @@ $(document).on('change', '.check_create_order', function (e) {
     var fromSeller = $('#fromseller').val();
     var fromPanel = (fromSeller != 'undefined' && fromSeller == 1) ? 'seller' : 'admin';
 
+    // The order page carries several elements with id="order_id" (the status form has an empty one
+    // that comes first), so a bare #order_id gave an empty id, the defaults request was refused with
+    // "Select a pickup location first" and the four parcel fields were always left blank. Read the
+    // values from the Shiprocket form itself.
+    var $parcelForm = $('#shiprocket_order_parcel_form');
+    var formVal = function (name, fallbackSelector) {
+        var $f = $parcelForm.find('[name="' + name + '"]').first();
+        return $f.length ? $f.val() : $(fallbackSelector).val();
+    };
     var payload = {
         pickup_location: pickup_location,
         shiprocket_seller_id: seller_id,
-        order_id: $('#order_id').val(),
-        user_id: $('#user_id').val(),
+        order_id: formVal('order_id', '#order_id'),
+        user_id: formVal('user_id', '#user_id'),
         order_items: $('#order_items').val()
     };
     payload[csrfName] = csrfHash;
@@ -9235,13 +9235,13 @@ $(document).on('change', '.check_create_order', function (e) {
         csrfHash = result.csrfHash;
 
         if (result.error === false && result.data) {
-            $('#parcel_weight').val(result.data.parcel_weight);
+            $('#parcel_weight').val(Math.round(parseFloat(result.data.parcel_weight) * 1000));   // server sends kg, the field is grams
             $('#parcel_height').val(result.data.parcel_height);
             $('#parcel_breadth').val(result.data.parcel_breadth);
             $('#parcel_length').val(result.data.parcel_length);
             iziToast.info({
                 title: 'Shiprocket',
-                message: 'Pickup location auto-selected. Please confirm parcel size before creating order.'
+                message: 'Pickup location selected. Weight and size were filled in from the products - change them only if the packed box is different.'
             });
         } else if (result.message) {
             iziToast.warning({

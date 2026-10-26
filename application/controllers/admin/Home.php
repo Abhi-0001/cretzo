@@ -312,6 +312,10 @@ class Home extends CI_Controller
 
             $this->db->where('id', (int) $id)->update($table);
             $this->db->trans_complete();
+            if ($table === 'sections') {
+                // Publishing/unpublishing a home section must show on the cached guest home page now.
+                app_cache_delete('home_sections.guest');
+            }
             // Was inverted - success set error=true and failure set error=false, and the two JS
             // callers were written to match, so every early-return guard above (demo mode,
             // "Invalid request") was rendered to the admin as a green success toast. Normalised

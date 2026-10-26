@@ -629,10 +629,16 @@ class Products extends CI_Controller
         $filter['attribute_value_ids'] = implode(',', $filter['attribute_value_ids']);
         $product_ids = explode(',', (string) $section['product_ids']);
         $product_ids = array_filter($product_ids);
-        if (isset($section['product_type']) && !empty($section['product_type'])) {
+        $curated = section_is_curated($section);
+        if (!$curated && isset($section['product_type']) && !empty($section['product_type'])) {
             $filter['product_type'] = (isset($section['product_type'])) ? $section['product_type'] : null;
         }
-        $product_categories = (isset($section['categories']) && !empty($section['categories']) && $section['categories'] != NULL) ? explode(',', $section['categories']) : null;
+        $product_categories = (!$curated && isset($section['categories']) && !empty($section['categories']) && $section['categories'] != NULL) ? explode(',', $section['categories']) : null;
+        // A hand-picked section lists its picked products and nothing else. With no ids at all
+        // fetch_product() would return the whole catalogue, so an empty pick list matches id 0.
+        if ($curated && empty($product_ids)) {
+            $product_ids = [0];
+        }
 
 
         /* filter within price range */

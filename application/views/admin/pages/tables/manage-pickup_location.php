@@ -178,6 +178,7 @@
                                     <th data-field="address2">Address 2</th>
                                     <th data-field="city" data-sortable="true">City</th>
                                     <th data-field="pin_code" data-sortable="true">Pincode</th>
+                                    <th data-field="approval">Status</th>
                                     <th data-field="verified">Verified</th>
                                     <th data-field="operate">Actions</th>
                                 </tr>

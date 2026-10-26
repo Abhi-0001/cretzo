@@ -182,24 +182,25 @@
                                                     <div class="form-group row mt-3">
                                                         <div class="col-md-6">
                                                             <label for="txn_amount">Total Weight of Box</label>
+                                                            <small class="d-block text-muted">Filled in automatically from the weight and size saved on the ordered products. Change a value only if the packed box is different.</small>
                                                         </div>
                                                     </div>
                                                     <div class="form-group row mt-4">
                                                         <div class="col-3">
-                                                            <label for="parcel_weight" class="control-label col-md-12">Weight <small>(kg)</small> <span class='text-danger text-xs'>*</span></label>
-                                                            <input type="number" class="form-control" name="parcel_weight" placeholder="Parcel Weight" id="parcel_weight" value="" step=".01">
+                                                            <label for="parcel_weight" class="control-label col-md-12">Weight <small>(grams)</small></label>
+                                                            <input type="number" class="form-control" name="parcel_weight" placeholder="Auto" id="parcel_weight" value="" step="1" min="1">
                                                         </div>
                                                         <div class="col-3">
-                                                            <label for="parcel_height" class="control-label col-md-12">Height <small>(cms)</small> <span class='text-danger text-xs'>*</span></label>
-                                                            <input type="number" class="form-control" name="parcel_height" placeholder="Parcel Height" id="parcel_height" value="" min="1">
+                                                            <label for="parcel_height" class="control-label col-md-12">Height <small>(cm)</small></label>
+                                                            <input type="number" class="form-control" name="parcel_height" placeholder="Auto" id="parcel_height" value="" min="1">
                                                         </div>
                                                         <div class="col-3">
-                                                            <label for="parcel_breadth" class="control-label col-md-12">Breadth <small>(cms)</small> <span class='text-danger text-xs'>*</span></label>
-                                                            <input type="number" class="form-control" name="parcel_breadth" placeholder="Parcel Breadth" id="parcel_breadth" value="" min="1">
+                                                            <label for="parcel_breadth" class="control-label col-md-12">Breadth <small>(cm)</small></label>
+                                                            <input type="number" class="form-control" name="parcel_breadth" placeholder="Auto" id="parcel_breadth" value="" min="1">
                                                         </div>
                                                         <div class="col-3">
-                                                            <label for="parcel_length" class="control-label col-md-12">Length <small>(cms)</small> <span class='text-danger text-xs'>*</span></label>
-                                                            <input type="number" class="form-control" name="parcel_length" placeholder="Parcel Length" id="parcel_length" value="" min="1">
+                                                            <label for="parcel_length" class="control-label col-md-12">Length <small>(cm)</small></label>
+                                                            <input type="number" class="form-control" name="parcel_length" placeholder="Auto" id="parcel_length" value="" min="1">
                                                         </div>
                                                     </div>
                                                 </div>

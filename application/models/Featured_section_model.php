@@ -7,9 +7,17 @@ class Featured_section_model extends CI_Model
     {
 
         $data = escape_array($data);
-       
+
+        /* Home page sections are hand-picked: the automatic types (new added / most selling /
+           top rated / on sale) are retired, so anything that is not a digital section is saved
+           as custom_products. See section_is_curated() in function_helper.php. */
+        if (trim($data['product_type']) != 'digital_product') {
+            $data['product_type'] = 'custom_products';
+        }
+
         if(isset($data['product_ids']) && !empty($data['product_ids']) && trim($data['product_type']) == 'custom_products'){
-            $product_ids = implode(',', $data['product_ids']);
+            // Keep the order the admin picked them in, and drop duplicates / non-ids.
+            $product_ids = implode(',', array_values(array_unique(array_filter(array_map('intval', (array) $data['product_ids'])))));
         }elseif(isset($data['digital_product_ids']) && !empty($data['digital_product_ids']) && trim($data['product_type']) == 'digital_product'){
             $product_ids = implode(',', $data['digital_product_ids']);
         }
@@ -25,11 +33,11 @@ class Featured_section_model extends CI_Model
             'product_ids' => $product_ids,
             'style' => $data['style']
         ];
-        // Cap on one seller's products in the section; only meaningful for New Added Products.
+        // The per-seller cap (migration 088) only ever applied to the automatic New Added Products
+        // type. Picked products are never capped, so it is zeroed rather than left to drop picks.
         // Guarded so a deploy that has not yet run migration 088 can still save sections.
         if ($this->db->field_exists('max_per_seller', 'sections')) {
-            $featured_data['max_per_seller'] = (trim($data['product_type']) == 'new_added_products' && isset($data['max_per_seller']))
-                ? max(0, min(50, (int) $data['max_per_seller'])) : 0;
+            $featured_data['max_per_seller'] = 0;
         }
         
         if (isset($data['edit_featured_section'])) {
@@ -40,6 +48,9 @@ class Featured_section_model extends CI_Model
         } else {
             $this->db->insert('sections', $featured_data);
         }
+        // The signed-out home page is cached for a few minutes; an admin editing the page expects
+        // to see the change straight away.
+        app_cache_delete('home_sections.guest');
     }
     public function get_section_list()
     {
@@ -123,7 +134,10 @@ class Featured_section_model extends CI_Model
             $tempRow['style'] = ucfirst(str_replace('_', ' ', $row['style']));
             $tempRow['product_ids'] = $row['product_ids'];
             $tempRow['categories'] = $row['categories'];
-            $tempRow['product_type'] = ucwords(str_replace('_', ' ', $row['product_type']));
+            $picked = array_filter(explode(',', (string) $row['product_ids']), 'strlen');
+            $tempRow['product_type'] = ($row['product_type'] == 'digital_product')
+                ? 'Digital Product'
+                : 'Hand-picked (' . count($picked) . ' products)';
             $tempRow['date'] = $row['date_added'];
             $tempRow['operate'] = $operate;
             $rows[] = $tempRow;

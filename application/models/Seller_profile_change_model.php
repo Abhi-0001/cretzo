@@ -29,6 +29,7 @@ class Seller_profile_change_model extends CI_Model
         'state'                           => 'Personal state',
         'pin'                             => 'Personal PIN code',
         'national_identity_card'          => 'Identity proof',
+        'national_identity_card_back'     => 'Identity proof (back side)',
         'address_proof'                   => 'Address proof',
         'authorized_signature'            => 'Authorised signature',
         // Business
@@ -60,7 +61,7 @@ class Seller_profile_change_model extends CI_Model
 
     /** Fields that hold an uploaded file's path. */
     const FILE_FIELDS = [
-        'national_identity_card', 'address_proof', 'authorized_signature',
+        'national_identity_card', 'national_identity_card_back', 'address_proof', 'authorized_signature',
         'pan_card_document', 'gstin_document', 'gst_enrollment_ack_document',
         'business_proof_document', 'business_address_proof_document',
         'partnership_deed_document', 'bank_account_proof_document',

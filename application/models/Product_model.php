@@ -601,9 +601,10 @@ class Product_model extends CI_Model
             $total = $row['total'];
         }
 
-        $search_res = $this->db->select('product_variants.id AS id,p.category_id,c.name as category_name,COALESCE(NULLIF(sd.shop_name, ""), sd.store_name) as store_name, p.id as pid,p.rating,p.no_of_ratings,p.name, p.type, p.image, p.status,p.brand,product_variants.price , product_variants.special_price, product_variants.stock')
+        $search_res = $this->db->select('product_variants.id AS id,p.category_id,c.name as category_name,COALESCE(NULLIF(sd.shop_name, ""), NULLIF(sd.store_name, ""), su.username) as store_name, p.id as pid,p.rating,p.no_of_ratings,p.name, p.type, p.image, p.status,p.listing_visibility,p.brand,product_variants.price , product_variants.special_price, product_variants.stock')
             ->join("categories c", "p.category_id=c.id")
             ->join("seller_data sd", "sd.user_id=p.seller_id ")
+            ->join('users su', 'su.id = p.seller_id', 'left')
             ->join('product_variants', 'product_variants.product_id = p.id');
         if (isset($multipleWhere) && !empty($multipleWhere)) {
             $search_res->group_Start();
@@ -722,6 +723,8 @@ class Product_model extends CI_Model
 
             $attr_values  =  get_variants_values_by_pid($row['pid']);
             $tempRow['id'] = $row['pid'];
+            // 2 = hidden because the seller's plan has no slot for it (migration 034); the featured-section picker flags these.
+            $tempRow['listing_visibility'] = $row['listing_visibility'];
             $tempRow['varaint_id'] = $row['id'];
             $tempRow['name'] = $row['name'] . '<br><small>' . ucwords(str_replace('_', ' ', $row['type'])) . '</small><br><small> By </small><b>' . $row['store_name'] . '</b>';
             $tempRow['product_name'] = $row['name'] . '   ' . '<small>(' . ucwords(str_replace('_', ' ', $row['type'])) . '</small><small> By </small><b>' . $row['store_name'] . ')</b>';

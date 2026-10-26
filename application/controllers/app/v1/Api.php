@@ -3203,16 +3203,24 @@ Defined Methods:-
                 $product_ids = explode(',', $sections[$i]['product_ids']);
                 $product_ids = array_filter($product_ids);
                 $filters['show_only_active_products'] = 1;
+                $curated = section_is_curated($sections[$i]);
                 if (isset($_POST['top_rated_product']) && !empty($_POST['top_rated_product'])) {
                     $filters['product_type'] = (isset($_POST['top_rated_product']) && $_POST['top_rated_product'] == 1) ? 'top_rated_product_including_all_products' : null;
                 } else {
-                    if (isset($sections[$i]['product_type']) && !empty($sections[$i]['product_type'])) {
+                    // Sections are hand-picked (see section_is_curated()); the shared $filters
+                    // must not carry the previous section's type into this one.
+                    unset($filters['product_type']);
+                    if (!$curated && isset($sections[$i]['product_type']) && !empty($sections[$i]['product_type'])) {
                         $filters['product_type'] = (isset($sections[$i]['product_type'])) ? $sections[$i]['product_type'] : null;
                     }
                 }
                 // $filters is shared by every section in this loop, so set the cap each time.
-                $filters['max_per_seller'] = (int) ($sections[$i]['max_per_seller'] ?? 0);
-                $categories = (isset($sections[$i]['categories']) && !empty($sections[$i]['categories']) && $sections[$i]['categories'] != NULL) ? explode(',', $sections[$i]['categories']) : null;
+                $filters['max_per_seller'] = $curated ? 0 : (int) ($sections[$i]['max_per_seller'] ?? 0);
+                $categories = (!$curated && isset($sections[$i]['categories']) && !empty($sections[$i]['categories']) && $sections[$i]['categories'] != NULL) ? explode(',', $sections[$i]['categories']) : null;
+                // No picks means no products - fetch_product() with no ids would return everything.
+                if ($curated && empty($product_ids)) {
+                    $product_ids = [0];
+                }
 
                 $products = fetch_product($user_id, (isset($filters)) ? $filters : null, (isset($product_ids) && !empty($product_ids)) ? $product_ids : null, $categories, $p_limit, $p_offset, $p_sort, $p_order, NULL, $zipcode, NULL);
 

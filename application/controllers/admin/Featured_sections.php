@@ -23,6 +23,13 @@ class Featured_sections extends CI_Controller
             $this->data['title'] = 'Featured Sections Management | ' . $settings['app_name'];
             $this->data['meta_description'] = ' Featured Sections Management  | ' . $settings['app_name'];
             $this->data['categories'] = $this->category_model->get_categories();
+            // Approved sellers, for the product picker's "filter by seller" dropdown.
+            $this->data['sellers'] = $this->db
+                ->select('sd.user_id, COALESCE(NULLIF(sd.shop_name, ""), NULLIF(sd.store_name, ""), u.username) AS name', false)
+                ->join('users u', 'u.id = sd.user_id')
+                ->where('sd.status', 1)
+                ->order_by('name')
+                ->get('seller_data sd')->result_array();
             // Was a bare isset() followed by an unconditional $featured_data[0] - an ?edit_id=
                 // that is empty, non-numeric, or names a deleted section blew up on "Undefined
                 // array key 0". Also guard the product_ids lookup: a section with no products
@@ -33,8 +40,17 @@ class Featured_sections extends CI_Controller
                 if (!empty($featured_data)) {
                     $product_ids = array_filter(explode(',', (string) $featured_data[0]['product_ids']), 'strlen');
                     $this->data['product_details'] = (!empty($product_ids))
-                        ? $this->db->where_in('id', $product_ids)->get('products')->result_array()
+                        ? $this->db
+                            ->select('p.id, p.name, p.image, p.status, p.listing_visibility, COALESCE(NULLIF(sd.shop_name, ""), NULLIF(sd.store_name, ""), su.username, "") AS seller_name, (SELECT MIN(IF(pv.special_price > 0, pv.special_price, pv.price)) FROM product_variants pv WHERE pv.product_id = p.id) AS price', false)
+                            ->join('seller_data sd', 'sd.user_id = p.seller_id', 'left')
+                            ->join('users su', 'su.id = p.seller_id', 'left')
+                            ->where_in('p.id', $product_ids)->get('products p')->result_array()
                         : [];
+                    // Show the picks in the order they were saved in, not table order.
+                    $pick_position = array_flip(array_values($product_ids));
+                    usort($this->data['product_details'], function ($a, $b) use ($pick_position) {
+                        return ($pick_position[$a['id']] ?? PHP_INT_MAX) <=> ($pick_position[$b['id']] ?? PHP_INT_MAX);
+                    });
                     $this->data['fetched_data'] = $featured_data;
                 }
             }
@@ -65,11 +81,20 @@ class Featured_sections extends CI_Controller
             $this->form_validation->set_rules('product_type', ' Product Type ', 'trim|required|xss_clean', array('required' => 'Select Product Type'));
             $this->form_validation->set_rules('product_ids[]', ' Product ', 'trim|xss_clean');
 
+            $picked_products = array_filter((array) $this->input->post('product_ids'), 'strlen');
+            $is_digital = (trim((string) $this->input->post('product_type')) == 'digital_product');
             if (!$this->form_validation->run()) {
                 $this->response['error'] = true;
                 $this->response['csrfName'] = $this->security->get_csrf_token_name();
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
                 $this->response['message'] = validation_errors();
+            } elseif (!$is_digital && empty($picked_products)) {
+                // A section with no picked products renders nothing on the home page, so saving one
+                // would look like it worked while the section silently never appeared.
+                $this->response['error'] = true;
+                $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                $this->response['message'] = 'Pick at least one product for this section - it only shows the products you choose.';
             } else {
 
                 if (isset($_POST['edit_featured_section'])) {
@@ -164,6 +189,7 @@ class Featured_sections extends CI_Controller
             }
             $this->db->trans_complete();
 
+            app_cache_delete('home_sections.guest');
             $this->response['error'] = ($this->db->trans_status() === false);
             $this->response['csrfName'] = $this->security->get_csrf_token_name();
             $this->response['csrfHash'] = $this->security->get_csrf_hash();
@@ -201,6 +227,7 @@ class Featured_sections extends CI_Controller
                 exit();
             }
             if (delete_details(['id' => $_GET['id']], 'sections') == TRUE) {
+                app_cache_delete('home_sections.guest');
                 $this->response['error'] = false;
                 $this->response['message'] = 'Deleted Succesfully';
                 print_r(json_encode($this->response));

@@ -142,12 +142,16 @@ if (!empty($sections)) {
     for ($i = 0; $i < count($sections); $i++) {
         $product_ids = isset($sections[$i]['product_ids']) ? explode(',', (string)$sections[$i]['product_ids']) : '';
         $product_ids = array_filter((array)$product_ids);
+                // Hand-picked by the admin; see section_is_curated() for what that rules out.
+                $curated = section_is_curated($sections[$i]);
                 $product_categories = (isset($sections[$i]['categories']) && !empty($sections[$i]['categories']) && $sections[$i]['categories'] != NULL) ? explode(',', $sections[$i]['categories']) : null;
-                if (isset($sections[$i]['product_type']) && !empty($sections[$i]['product_type'])) {
+                // $filters is shared by every section in this loop, so reset the type each time.
+                unset($filters['product_type']);
+                if (!$curated && isset($sections[$i]['product_type']) && !empty($sections[$i]['product_type'])) {
                     $filters['product_type'] = (isset($sections[$i]['product_type'])) ? $sections[$i]['product_type'] : null;
                 }
                 // $filters is shared by every section in this loop, so set the cap each time.
-                $filters['max_per_seller'] = (int) ($sections[$i]['max_per_seller'] ?? 0);
+                $filters['max_per_seller'] = $curated ? 0 : (int) ($sections[$i]['max_per_seller'] ?? 0);
 
                 if ($default_theme_name == 'modern') {
                     if ($sections[$i]['style'] == "default" || $sections[$i]['style'] == "style_3") {
@@ -178,7 +182,20 @@ if (!empty($sections)) {
                     }
                 }
 
-                $products = fetch_product($user_id, (isset($filters)) ? $filters : null, (isset($product_ids)) ? $product_ids : null, $product_categories, $limit, null, null, null);
+                if ($curated) {
+                    /* Only the picked products, in the order they were picked. No category filter
+                       (that field only drives the Shop by Categories tiles), no site-wide fallback
+                       when nothing is picked - fetch_product() with no ids would return the whole
+                       catalogue - and no limit in the query, because the cap is applied after the
+                       pick order is restored. */
+                    $products = ['product' => [], 'filters' => []];
+                    if (!empty($product_ids)) {
+                        $products = fetch_product($user_id, $filters, $product_ids, null, null, null, null, null);
+                        $products['product'] = section_order_picked_products($products['product'] ?? [], $product_ids, $limit);
+                    }
+                } else {
+                    $products = fetch_product($user_id, (isset($filters)) ? $filters : null, (isset($product_ids)) ? $product_ids : null, $product_categories, $limit, null, null, null);
+                }
                 // print_R($products);
                 $sections[$i]['title'] =  unslash($sections[$i]['title']);
                 $sections[$i]['slug'] =  url_title($sections[$i]['title'], 'dash', true);

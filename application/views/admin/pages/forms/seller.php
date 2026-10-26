@@ -420,7 +420,8 @@ $rail = [
                 <legend>Identity documents</legend>
                 <div class="czp-grid">
                   <?php
-                  asf_file(['name' => 'national_identity_card', 'label' => 'Identity Proof', 'value' => $d['national_identity_card'] ?? '', 'required' => true, 'hint' => 'Aadhaar, passport, voter ID or driving licence']);
+                  asf_file(['name' => 'national_identity_card', 'label' => 'Identity Proof - Front', 'value' => $d['national_identity_card'] ?? '', 'required' => true, 'hint' => 'Aadhaar, passport, voter ID or driving licence']);
+                  asf_file(['name' => 'national_identity_card_back', 'label' => 'Identity Proof - Back', 'value' => $d['national_identity_card_back'] ?? '', 'hint' => 'Optional - the back of the ID, if it has one']);
                   asf_file(['name' => 'authorized_signature', 'label' => 'Authorized Signatory', 'value' => $d['authorized_signature'] ?? '', 'required' => true, 'hint' => 'A clear scan of the signature']);
                   ?>
                 </div>
@@ -457,6 +458,30 @@ $rail = [
                   <span class="czp-error" data-czp-error></span>
                 </div>
                 <label class="czp-btn czp-btn-ghost czp-btn-sm" for="store_logo_input">Choose logo</label>
+              </div>
+
+              <?php // Store banner: the wide header image on the public store page. It is
+                    // seller_data.store_banner as-is (no key remapping like the logo), and
+                    // Seller_model::add_seller() writes it only when non-empty, so saving without
+                    // touching it keeps the seller's banner. ?>
+              <div class="czp-avatar-row czp-field" data-czp-field="store_banner"
+                   data-czp-file-label="Store banner" data-czp-file-images>
+                <input type="file" class="czp-file" id="store_banner_input" name="store_banner" accept=".jpg,.jpeg,.png,.gif,.webp,.avif">
+                <input type="hidden" name="old_store_banner" value="<?= asf_attr($d['store_banner'] ?? '') ?>">
+                <div class="czp-avatar is-banner" data-czp-avatar tabindex="0" role="button" aria-label="Upload store banner">
+                  <svg data-czp-avatar-icon xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" <?= !empty($d['store_banner']) ? 'hidden' : '' ?>>
+                    <path d="M14.5 3h-13a.5.5 0 0 0-.5.5v9a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5v-9a.5.5 0 0 0-.5-.5M2 4h12v5.5l-2.6-2.1a.5.5 0 0 0-.63 0L7.5 10 5.6 8.6a.5.5 0 0 0-.6 0L2 10.8zm3.5 1.5a1 1 0 1 1 0 2 1 1 0 0 1 0-2"/>
+                  </svg>
+                  <img data-czp-avatar-img alt=""
+                       <?= !empty($d['store_banner']) ? 'src="' . asf_attr(base_url($d['store_banner'])) . '"' : '' ?>
+                       <?= !empty($d['store_banner']) ? '' : 'hidden' ?>>
+                </div>
+                <div class="czp-avatar-copy">
+                  <b>Store banner</b>
+                  <small class="czp-hint">The wide image at the top of the store page. A landscape picture, about 1900 &times; 450 px. JPG, PNG or GIF, up to 8 MB.</small>
+                  <span class="czp-error" data-czp-error></span>
+                </div>
+                <label class="czp-btn czp-btn-ghost czp-btn-sm" for="store_banner_input"><?= !empty($d['store_banner']) ? 'Change banner' : 'Choose banner' ?></label>
               </div>
 
               <fieldset class="czp-group">

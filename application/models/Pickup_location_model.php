@@ -137,6 +137,9 @@ class Pickup_location_model extends CI_Model
         if (!$this->db->insert('pickup_locations', $pickup_location_data)) {
             return ['error' => true, 'message' => 'Could not save the pickup location.', 'shiprocket' => null];
         }
+        // Read now: the Shiprocket library below runs its own queries, after which insert_id() is
+        // no longer this row.
+        $inserted_id = $this->db->insert_id();
 
         // Register it with Shiprocket. Only attempted when Shiprocket shipping is actually the
         // configured method - otherwise this made a pointless authenticated API call (and logged
@@ -158,11 +161,21 @@ class Pickup_location_model extends CI_Model
             || isset($result['address']['pickup_code'])
         );
 
+        $reason = $this->shiprocket->last_error();
+        if (empty($reason) && is_array($result) && !empty($result['message'])) {
+            $reason = is_string($result['message']) ? $result['message'] : json_encode($result['message']);
+        }
+
+        /* "Primary-<seller id>" is the nickname this platform gives the profile address itself (see
+           sync_primary_from_profile). If Shiprocket says it already exists, it is on the account
+           because an earlier save registered it - not a clash with someone else's address - so
+           the row is kept rather than rolled back with a confusing "not saved". */
+        if (!$accepted && preg_match('/^Primary-\d+$/', (string) $pickup_location_data['pickup_location']) && stripos((string) $reason, 'already exists') !== false) {
+            $accepted = true;
+            $result = is_array($result) ? $result : [];
+        }
+
         if (!$accepted) {
-            $reason = $this->shiprocket->last_error();
-            if (empty($reason) && is_array($result) && !empty($result['message'])) {
-                $reason = is_string($result['message']) ? $result['message'] : json_encode($result['message']);
-            }
             log_message('error', 'Shiprocket rejected pickup location "' . $pickup_location_data['pickup_location']
                 . '": ' . ($reason !== '' ? $reason : json_encode($result)));
 
@@ -177,7 +190,7 @@ class Pickup_location_model extends CI_Model
                 || $this->shiprocket->last_status() >= 500
                 || $this->shiprocket->last_status() === 401;
             if (!$retryable) {
-                $new_id = $this->db->insert_id();
+                $new_id = $inserted_id;
                 if (!empty($new_id)) {
                     $this->db->where(['id' => $new_id, 'seller_id' => $pickup_location_data['seller_id']])
                         ->delete('pickup_locations');
@@ -203,7 +216,7 @@ class Pickup_location_model extends CI_Model
          * sync. Stamped from the same response that told us it was accepted.
          */
         if ($this->db->field_exists('shiprocket_verified_at', 'pickup_locations')) {
-            $new_id = $this->db->insert_id();
+            $new_id = $inserted_id;
             if (!empty($new_id)) {
                 $verified = ['shiprocket_verified_at' => date('Y-m-d H:i:s')];
                 // Shiprocket will not schedule a pickup from an address whose phone it has not
@@ -539,7 +552,7 @@ class Pickup_location_model extends CI_Model
                 if ($row['status'] == '1') {
                     $seller_operate .= ' <a href="javascript:void(0)" class="btn btn-success btn-xs update_active_status mr-1 mb-1" data-table="pickup_locations" title="Deactivate" data-id="' . $row['id'] . '" data-status="' . $row['status'] . '"><i class="fas fa-check-square"></i></a>';
                 } else {
-                    $seller_operate .= ' <span class="badge badge-secondary mr-1" title="Inactive - contact an admin to re-activate it">Inactive</span>';
+                    // Not approved: the Status column already says so; only an admin can approve it.
                 }
 
                 $seller_operate .= ' <a href="javascript:void(0)" class="btn btn-danger btn-xs delete-pickup-location mr-1 mb-1" title="Delete" data-id="' . $row['id'] . '"><i class="fa fa-trash"></i></a>';
@@ -556,6 +569,11 @@ class Pickup_location_model extends CI_Model
             $tempRow['state'] = html_escape($row['state']);
             $tempRow['country'] = html_escape($row['country']);
             $tempRow['pin_code'] = html_escape($row['pin_code']);
+            // Every address is listed, approved or not; this tag says which. status 1 is what an admin
+            // grants (the Verified toggle on the admin list) and what product forms require.
+            $tempRow['approval'] = ($row['status'] == '1')
+                ? '<span class="badge badge-success">Approved</span>'
+                : '<span class="badge badge-warning">Not approved</span>';
             if ($this->ion_auth->is_admin()) {
                 $tempRow['verified'] = $verify;
                 $tempRow['operate'] = $operate;

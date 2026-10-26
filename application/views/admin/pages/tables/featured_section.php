@@ -5,8 +5,8 @@
         <div class="container-fluid">
             <div class="row mb-2 align-items-center">
                 <div class="col-sm-6">
-                    <h4 class="mb-0"><i class="fas fa-star mr-2 text-primary-theme"></i>Manage Featured Sections</h4>
-                    <p class="text-muted mb-0 small">Curated product/category groupings shown on the storefront.</p>
+                    <h4 class="mb-0"><i class="fas fa-star mr-2 text-primary-theme"></i>Home Page Sections</h4>
+                    <p class="text-muted mb-0 small">Choose exactly which products appear on the buyer home page.</p>
                 </div>
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">
@@ -24,7 +24,7 @@
                     <div class="card attribute-card mb-3">
                         <div class="card-header attribute-card-header">
                             <span class="header-icon bg-set mr-2"><i class="fas fa-plus"></i></span>
-                            <h5 class="mb-0"><?= (isset($fetched_data[0]['id'])) ? 'Edit Featured Section' : 'Add Featured Section' ?></h5>
+                            <h5 class="mb-0"><?= (isset($fetched_data[0]['id'])) ? 'Edit section' : 'Add a section' ?></h5>
                         </div>
                         <!-- form start -->
                         <form class="form-horizontal form-submit-event" action="<?= base_url('admin/Featured_sections/add_featured_section'); ?>" method="POST" enctype="multipart/form-data">
@@ -32,138 +32,275 @@
                                 <input type="hidden" id="edit_featured_section" name="edit_featured_section" value="<?= @$fetched_data[0]['id'] ?>">
                                 <input type="hidden" id="update_id" name="update_id" value="1">
                             <?php } ?>
-                            <div class="card-body">
-                                <div class="form-group row">
-                                    <label for="title" class="control-label">Title for section <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-md-12">
-                                        <input type="text" class="form-control" name="title" id="title" value="<?= (isset($fetched_data[0]['title']) ? html_escape($fetched_data[0]['title']) : '') ?>" placeholder="Title">
-                                    </div>
-                                </div>
-                                <div class="form-group row">
-                                    <label for="short_description" class="control-label">Short description <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-md-12">
-                                        <input type="text" class="form-control" name="short_description" id="short_description" value="<?= (isset($fetched_data[0]['short_description']) ? html_escape($fetched_data[0]['short_description']) : '') ?>" placeholder="Short description">
-                                    </div>
-                                </div>
-                                <div class="form-group row select-categories">
-                                    <label for="categories" class="control-label">Categories</label>
-                                    <div class="col-md-12">
-                                        <select name="categories[]" class=" select_multiple w-100" multiple data-placeholder=" Type to search and select categories">
-                                            <option value=""><?= (isset($categories) && empty($categories)) ? 'No Categories Exist' : 'Select Categories' ?>
-                                            </option>
-                                            <?php
-                                            $selected_val = (isset($fetched_data[0]['id']) &&  !empty($fetched_data[0]['id'])) ? $fetched_data[0]['categories'] : '';
-                                            $selected_vals = explode(',', $selected_val);
-                                            echo get_categories_option_html($categories, $selected_vals);
+                            <?php
+                            // Home page sections show only what an admin picks - the automatic types are retired.
+                            $is_edit = isset($fetched_data[0]['id']);
+                            $current_type = ($is_edit && $fetched_data[0]['product_type'] == 'digital_product') ? 'digital_product' : 'custom_products';
+                            $style_labels = [
+                                'cretzo_trending'      => 'Trending Deals - 6 products, plus Shop by Categories tiles',
+                                'cretzo_best_seller'   => 'Best Seller - 12 products',
+                                'cretzo_featured'      => 'Featured Products - 12 products with Add to Cart',
+                                'cretzo_new_arrivals'  => 'New Arrivals - 12 products in a grid',
+                                'cretzo_special_picks' => 'Special Picks - 6 large tiles',
+                            ];
+                            $saved_style = $is_edit ? $fetched_data[0]['style'] : 'cretzo_featured';
+                            if (!isset($style_labels[$saved_style])) {
+                                // A section saved under another theme's layout keeps it until the admin picks a new one.
+                                $style_labels = [$saved_style => ucwords(str_replace('_', ' ', $saved_style)) . ' (other theme)'] + $style_labels;
+                            }
+                            $pick_cards = [];
+                            if ($is_edit && $current_type == 'custom_products' && !empty($product_details)) {
+                                foreach ($product_details as $p) {
+                                    $pick_cards[] = [
+                                        'id'     => (int) $p['id'],
+                                        'name'   => (string) $p['name'],
+                                        'seller' => isset($p['seller_name']) ? (string) $p['seller_name'] : '',
+                                        'price'  => isset($p['price']) ? (string) $p['price'] : '',
+                                        'img'    => get_image_url($p['image'], 'thumb', 'sm'),
+                                        'hidden' => (isset($p['listing_visibility']) && $p['listing_visibility'] == 2) || (isset($p['status']) && $p['status'] != 1),
+                                    ];
+                                }
+                            }
+                            ?>
+                            <div class="card-body czfs">
+                                <input type="hidden" name="product_type" value="<?= $current_type ?>">
 
-                                            ?>
-                                        </select>
+                                <div class="form-row">
+                                    <div class="form-group col-md-6">
+                                        <label for="title" class="czfs-label">Section name <span class="text-danger">*</span></label>
+                                        <input type="text" class="form-control" name="title" id="title" value="<?= ($is_edit ? html_escape($fetched_data[0]['title']) : '') ?>" placeholder="e.g. Trending Deals">
                                     </div>
-                                </div>
-
-                                <div class="form-group row">
-                                    <?php
-                                    $style = ['default', 'style_1', 'style_2', 'style_3', 'style_4', 'cretzo_trending', 'cretzo_best_seller', 'cretzo_featured', 'cretzo_new_arrivals', 'cretzo_special_picks'];
-                                    ?>
-                                    <label for="style" class="control-label">Style <span class='text-danger text-sm'>*</span></label>
-                                    <div class="col-md-12">
-                                        <select name="style" class="form-control">
-                                            <option value=" ">Select Style</option>
-                                            <?php foreach ($style as $row) { ?>
-                                                <option value="<?= $row ?>" <?= (isset($fetched_data[0]['style']) && $fetched_data[0]['style'] == $row) ? 'Selected' : '' ?>><?= ucwords(str_replace('_', ' ', $row)) ?></option>
+                                    <div class="form-group col-md-6">
+                                        <label for="style" class="czfs-label">Layout <span class="text-danger">*</span></label>
+                                        <select name="style" id="style" class="form-control">
+                                            <?php foreach ($style_labels as $key => $label) { ?>
+                                                <option value="<?= $key ?>" <?= $saved_style == $key ? 'selected' : '' ?>><?= html_escape($label) ?></option>
                                             <?php } ?>
                                         </select>
-                                        <?php ?>
                                     </div>
                                 </div>
-
-                                <div class="form-group row">
-                                    <?php
-                                    $product_type = ['new_added_products', 'products_on_sale', 'top_rated_products', 'most_selling_products', 'custom_products','digital_product'];
-                                    ?>
-                                    <label for="product_type" class="control-label">Product Types <span class='text-danger text-sm'> * </span></label>
-                                    <div class="col-md-12">
-                                        <select name="product_type" class="form-control product_type">
-                                            <option value=" ">Select Types</option>
-                                            <?php foreach ($product_type as $row) { ?>
-                                                <option value="<?= $row ?>" <?= (isset($fetched_data[0]['id']) &&  $fetched_data[0]['product_type'] == $row) ? "Selected" : "" ?>><?= ucwords(str_replace('_', ' ', $row)) ?></option>
-                                            <?php
-                                            } ?>
-                                        </select>
-                                        <?php ?>
-                                    </div>
-                                </div>
-
-                                <!-- cap per seller: New Added Products only -->
-                                <div class="form-group row max_per_seller_row <?= (isset($fetched_data[0]['id']) && $fetched_data[0]['product_type'] == 'new_added_products') ? '' : 'd-none' ?>">
-                                    <label for="max_per_seller" class="control-label">Max products per seller</label>
-                                    <div class="col-md-12">
-                                        <input type="number" min="0" max="50" step="1" name="max_per_seller" id="max_per_seller" class="form-control"
-                                            value="<?= isset($fetched_data[0]['id']) ? (int) $fetched_data[0]['max_per_seller'] : 2 ?>">
-                                        <small class="text-muted">The most products any one seller can show in this section (their newest ones). Set 0 for no limit.</small>
-                                    </div>
-                                </div>
-                                <script>
-                                    document.addEventListener('DOMContentLoaded', function () {
-                                        var type = document.querySelector('select.product_type');
-                                        var row = document.querySelector('.max_per_seller_row');
-                                        if (!type || !row) return;
-                                        type.addEventListener('change', function () {
-                                            row.classList.toggle('d-none', type.value.trim() !== 'new_added_products');
-                                        });
-                                    });
-                                </script>
-
-                                <!-- for custom product -->
-
-                                <div class="form-group row custom_products <?= (isset($fetched_data[0]['id'])  && $fetched_data[0]['product_type'] == 'custom_products') ? '' : 'd-none' ?>">
-                                    <label for="product_ids" class="control-label">Products *</label>
-                                    <div class="col-md-12">
-                                        <select name="product_ids[]" class="search_admin_product w-100" multiple data-placeholder=" Type to search and select products" onload="multiselect()">
-                                            <?php
-                                            if (isset($fetched_data[0]['id'])) {
-                                                $product_id = explode(",", $fetched_data[0]['product_ids']);
-
-                                                foreach ($product_details as $row) {
-                                            ?>
-                                                    <option value="<?= $row['id'] ?>" selected><?= html_escape($row['name']) ?></option>
-                                            <?php
-                                                }
-                                            }
-
-                                            ?>
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <!-- for digital product -->
-
-                                <div class="form-group row digital_products <?= (isset($fetched_data[0]['id'])  && $fetched_data[0]['product_type'] == 'digital_product') ? '' : 'd-none' ?>">
-                                    <label for="digital_product_ids" class="control-label">Products *</label>
-                                    <div class="col-md-12">
-                                        <select name="digital_product_ids[]" class="search_admin_digital_product w-100" multiple data-placeholder=" Type to search and select products" onload="multiselect()">
-                                            <?php
-                                            if (isset($fetched_data[0]['id'])) {
-                                                $product_id = explode(",", $fetched_data[0]['product_ids']);
-                                               
-                                                foreach ($product_details as $row) {
-                                                    
-                                            ?>
-                                                    <option value="<?= $row['id'] ?>" selected><?= html_escape($row['name']) ?></option>
-                                            <?php
-                                                }
-                                            }
-
-                                            ?>
-                                        </select>
-                                    </div>
-                                </div>
-
                                 <div class="form-group">
-                                    <button type="reset" class="btn btn-warning">Reset</button>
-                                    <button type="submit" class="btn btn-success" id="submit_btn"><?= (isset($fetched_data[0]['id'])) ? 'Update Fetured Section' : 'Add Fetured Section' ?></button>
+                                    <label for="short_description" class="czfs-label">One-line description <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" name="short_description" id="short_description" value="<?= ($is_edit ? html_escape($fetched_data[0]['short_description']) : '') ?>" placeholder="Shown under the section name on the home page">
+                                </div>
+
+                                <div class="form-group select-categories">
+                                    <label for="categories" class="czfs-label">Shop by Categories tiles</label>
+                                    <select name="categories[]" id="categories" class="select_multiple w-100" multiple data-placeholder="Choose the categories to show as tiles">
+                                        <?php
+                                        $selected_vals = explode(',', $is_edit ? (string) $fetched_data[0]['categories'] : '');
+                                        echo get_categories_option_html($categories, $selected_vals);
+                                        ?>
+                                    </select>
+                                    <small class="text-muted">The category tiles that appear under Trending Deals.</small>
+                                </div>
+
+                                <?php if ($current_type == 'custom_products') { ?>
+                                    <div class="czfs-picker">
+                                        <div class="czfs-pane">
+                                            <div class="czfs-pane-head">
+                                                <span class="czfs-step">1</span>
+                                                <div>
+                                                    <strong>Find products</strong>
+                                                    <div class="text-muted small">Search any seller's products, or browse one seller.</div>
+                                                </div>
+                                            </div>
+                                            <div class="czfs-tools">
+                                                <input type="search" id="czfs-search" class="form-control" placeholder="Search by product name" autocomplete="off">
+                                                <select id="czfs-seller" class="form-control">
+                                                    <option value="">All sellers</option>
+                                                    <?php foreach ((isset($sellers) ? $sellers : []) as $seller_row) { ?>
+                                                        <option value="<?= (int) $seller_row['user_id'] ?>"><?= html_escape($seller_row['name']) ?></option>
+                                                    <?php } ?>
+                                                </select>
+                                            </div>
+                                            <button type="button" id="czfs-add-seller" class="btn btn-sm btn-outline-primary czfs-addall" disabled>Add this seller's newest products</button>
+                                            <div id="czfs-results" class="czfs-list"></div>
+                                            <button type="button" id="czfs-more" class="btn btn-sm btn-light btn-block d-none">Show more</button>
+                                        </div>
+
+                                        <div class="czfs-pane czfs-pane-picked">
+                                            <div class="czfs-pane-head">
+                                                <span class="czfs-step">2</span>
+                                                <div>
+                                                    <strong>On the home page <span class="czfs-count" id="czfs-count">0</span></strong>
+                                                    <div class="text-muted small" id="czfs-hint"></div>
+                                                </div>
+                                            </div>
+                                            <div id="czfs-picked" class="czfs-list"></div>
+                                            <div id="czfs-inputs"></div>
+                                        </div>
+                                    </div>
+                                <?php } else { ?>
+                                    <div class="form-group digital_products">
+                                        <label class="czfs-label">Digital products *</label>
+                                        <select name="digital_product_ids[]" class="search_admin_digital_product w-100" multiple data-placeholder=" Type to search and select products">
+                                            <?php foreach ((isset($product_details) ? $product_details : []) as $row) { ?>
+                                                <option value="<?= $row['id'] ?>" selected><?= html_escape($row['name']) ?></option>
+                                            <?php } ?>
+                                        </select>
+                                    </div>
+                                <?php } ?>
+
+                                <div class="czfs-actions">
+                                    <button type="submit" class="btn btn-success" id="submit_btn"><?= $is_edit ? 'Save changes' : 'Create section' ?></button>
+                                    <?php if ($is_edit) { ?>
+                                        <a href="<?= base_url('admin/featured_sections') ?>" class="btn btn-light">Cancel</a>
+                                    <?php } else { ?>
+                                        <button type="reset" class="btn btn-light">Clear</button>
+                                    <?php } ?>
                                 </div>
                             </div>
+                            <?php if ($current_type == 'custom_products') { ?>
+                            <script>
+                                window.addEventListener('load', function () {
+                                    var $ = window.jQuery;
+                                    if (!$) return;
+                                    var PAGE = 20;
+                                    var SLOTS = {cretzo_trending: 6, cretzo_special_picks: 6};
+                                    var picked = <?= json_encode($pick_cards, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>;
+                                    var initial = picked.slice();
+                                    var $style = $('#style'), $seller = $('#czfs-seller'), $search = $('#czfs-search');
+                                    var $results = $('#czfs-results'), $picked = $('#czfs-picked'), $more = $('#czfs-more');
+                                    var page = 1, total = 0, timer = null, reqId = 0;
+                                    var PLACEHOLDER = base_url + 'assets/front_end/cretzo/img/product-placeholder.jpg';
+
+                                    // The list endpoint returns display HTML; DOMParser turns it into text / an image
+                                    // address without running scripts or loading anything.
+                                    function parse(html) { return new DOMParser().parseFromString(String(html || ''), 'text/html'); }
+                                    function toCard(x) {
+                                        var name = (parse(x.product_name).body.textContent || '').replace(/\s*\(.*$/, '').trim();
+                                        var img = parse(x.image).querySelector('img');
+                                        return {
+                                            id: Number(x.id),
+                                            name: (parse(x.name).body.firstChild || {}).textContent || name,
+                                            seller: (parse(x.name).querySelector('b') || {}).textContent || '',
+                                            price: String(x.price || '').replace(/^[^\d]*/, ''),
+                                            img: img ? img.getAttribute('src') : '',
+                                            hidden: String(x.listing_visibility) === '2'
+                                        };
+                                    }
+                                    function isPicked(id) { return picked.some(function (p) { return p.id === id; }); }
+                                    function thumb(src) { return $('<img class="czfs-thumb" alt="" loading="lazy">').attr('src', src || PLACEHOLDER); }
+                                    function meta(c) {
+                                        var bits = [];
+                                        if (c.seller) bits.push('by ' + c.seller);
+                                        if (c.price) bits.push('₹' + c.price);
+                                        return $('<div class="czfs-meta">').text(bits.join('  ·  '));
+                                    }
+
+                                    function renderPicked() {
+                                        var slots = SLOTS[$style.val()] || 12;
+                                        $picked.empty();
+                                        $('#czfs-inputs').empty();
+                                        if (!picked.length) {
+                                            $picked.append('<div class="czfs-empty">Nothing picked yet.<br>Add products from the left - this section only shows what you choose.</div>');
+                                        }
+                                        picked.forEach(function (c, i) {
+                                            if (i === slots) $picked.append('<div class="czfs-divider">Below this line: only on the "See all" page</div>');
+                                            var $row = $('<div class="czfs-item">').toggleClass('is-extra', i >= slots);
+                                            $row.append($('<span class="czfs-pos">').text(i + 1), thumb(c.img));
+                                            var $info = $('<div class="czfs-info">').append($('<div class="czfs-name">').text(c.name), meta(c));
+                                            if (c.hidden) $info.append('<span class="czfs-warn">Not visible in the shop right now</span>');
+                                            $row.append($info);
+                                            var $btns = $('<div class="czfs-btns">');
+                                            $btns.append($('<button type="button" class="btn btn-sm btn-light" title="Move up">').html('&#9650;').prop('disabled', i === 0).on('click', function () { move(i, -1); }));
+                                            $btns.append($('<button type="button" class="btn btn-sm btn-light" title="Move down">').html('&#9660;').prop('disabled', i === picked.length - 1).on('click', function () { move(i, 1); }));
+                                            $btns.append($('<button type="button" class="btn btn-sm btn-light text-danger" title="Remove">').html('&times;').on('click', function () { picked.splice(i, 1); renderPicked(); renderResults(); }));
+                                            $row.append($btns);
+                                            $picked.append($row);
+                                            $('#czfs-inputs').append($('<input type="hidden" name="product_ids[]">').val(c.id));
+                                        });
+                                        $('#czfs-count').text(picked.length);
+                                        $('#czfs-hint').text('The home page shows the first ' + slots + ', in this order. Use the arrows to reorder.');
+                                        $('.select-categories').toggle($style.val() === 'cretzo_trending');
+                                    }
+                                    function move(i, d) {
+                                        var j = i + d;
+                                        if (j < 0 || j >= picked.length) return;
+                                        var t = picked[i]; picked[i] = picked[j]; picked[j] = t;
+                                        renderPicked();
+                                    }
+
+                                    var shown = [];
+                                    function renderResults() {
+                                        $results.empty();
+                                        if (!shown.length) {
+                                            $results.append('<div class="czfs-empty">No products found.</div>');
+                                            return;
+                                        }
+                                        shown.forEach(function (c) {
+                                            var already = isPicked(c.id);
+                                            var $row = $('<div class="czfs-item">').toggleClass('is-done', already);
+                                            $row.append(thumb(c.img));
+                                            var $info = $('<div class="czfs-info">').append($('<div class="czfs-name">').text(c.name), meta(c));
+                                            if (c.hidden) $info.append('<span class="czfs-warn">Hidden by its seller’s plan - can’t be shown</span>');
+                                            $row.append($info);
+                                            var $btn = $('<button type="button" class="btn btn-sm">');
+                                            if (already) $btn.addClass('btn-light').text('Added').prop('disabled', true);
+                                            else if (c.hidden) $btn.addClass('btn-light').text('Hidden').prop('disabled', true);
+                                            else $btn.addClass('btn-primary').text('Add').on('click', function () { picked.push(c); renderPicked(); renderResults(); });
+                                            $row.append($('<div class="czfs-btns">').append($btn));
+                                            $results.append($row);
+                                        });
+                                        $more.toggleClass('d-none', shown.length >= total);
+                                    }
+
+                                    function load(reset) {
+                                        if (reset) { page = 1; shown = []; }
+                                        var mine = ++reqId;
+                                        $results.addClass('is-loading');
+                                        $.getJSON(base_url + 'admin/product/get_product_data', {
+                                            search: $.trim($search.val()), seller_id: $seller.val() || '', status: 1,
+                                            limit: PAGE, offset: (page - 1) * PAGE
+                                        }).done(function (r) {
+                                            if (mine !== reqId) return;
+                                            total = Number(r.total || 0);
+                                            shown = shown.concat((r.rows || []).map(toCard));
+                                            renderResults();
+                                        }).always(function () { if (mine === reqId) $results.removeClass('is-loading'); });
+                                    }
+
+                                    $search.on('input', function () { clearTimeout(timer); timer = setTimeout(function () { load(true); }, 250); });
+                                    $seller.on('change', function () {
+                                        $('#czfs-add-seller').prop('disabled', !$seller.val());
+                                        load(true);
+                                    });
+                                    $more.on('click', function () { page++; load(false); });
+                                    $style.on('change', renderPicked);
+
+                                    $('#czfs-add-seller').on('click', function () {
+                                        var $btn = $(this).prop('disabled', true);
+                                        $.getJSON(base_url + 'admin/product/get_product_data', {seller_id: $seller.val(), status: 1, limit: 40, offset: 0})
+                                            .done(function (r) {
+                                                var added = 0;
+                                                (r.rows || []).map(toCard).forEach(function (c) {
+                                                    if (c.hidden || added >= 12 || isPicked(c.id)) return;
+                                                    picked.push(c); added++;
+                                                });
+                                                renderPicked(); renderResults();
+                                                if (!added) alert('Nothing to add - this seller has no visible products that are not already picked.');
+                                            })
+                                            .always(function () { $btn.prop('disabled', !$seller.val()); });
+                                    });
+
+                                    $('form.form-submit-event').on('reset', function () {
+                                        setTimeout(function () { picked = initial.slice(); renderPicked(); renderResults(); }, 0);
+                                    });
+
+                                    renderPicked();
+                                    load(true);
+                                });
+                            </script>
+                            <?php } else { ?>
+                            <script>
+                                window.addEventListener('load', function () {
+                                    var $ = window.jQuery; if (!$) return;
+                                    $('.select-categories').toggle($('#style').val() === 'cretzo_trending');
+                                    $('#style').on('change', function () { $('.select-categories').toggle($(this).val() === 'cretzo_trending'); });
+                                });
+                            </script>
+                            <?php } ?>
                             <div class="d-flex justify-content-center form-group">
                                 <div id="error_box">
                                 </div>
@@ -264,6 +401,33 @@
     .admin-featured-section-page .fixed-table-pagination .pagination .page-item.active .page-link { color: #fff; background-color: var(--color-orange); border-color: var(--color-orange); }
     .admin-featured-section-page .fixed-table-pagination .pagination .page-link { color: var(--color-orange-dark); border-radius: 6px; margin: 0 2px; border: 1px solid rgba(0,0,0,0.08); }
     .admin-featured-section-page .action-btn { display: inline-block; vertical-align: middle; }
+
+    /* hand-picked product picker */
+    .admin-featured-section-page .czfs-label { font-weight: 600; font-size: 13px; color: var(--color-grey); margin-bottom: 4px; }
+    .admin-featured-section-page .czfs-picker { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 8px 0 18px; }
+    @media (max-width: 991px) { .admin-featured-section-page .czfs-picker { grid-template-columns: 1fr; } }
+    .admin-featured-section-page .czfs-pane { border: 1px solid rgba(0,0,0,.08); border-radius: 12px; padding: 14px; background: #fcfcfd; min-width: 0; }
+    .admin-featured-section-page .czfs-pane-picked { background: #fff8f2; border-color: rgba(255,122,0,.25); }
+    .admin-featured-section-page .czfs-pane-head { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
+    .admin-featured-section-page .czfs-step { flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--color-orange); color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+    .admin-featured-section-page .czfs-count { display: inline-block; margin-left: 6px; padding: 0 8px; border-radius: 10px; background: var(--color-orange); color: #fff; font-size: 12px; }
+    .admin-featured-section-page .czfs-tools { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+    .admin-featured-section-page .czfs-addall { margin-bottom: 8px; }
+    .admin-featured-section-page .czfs-list { max-height: 440px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+    .admin-featured-section-page .czfs-list.is-loading { opacity: .5; }
+    .admin-featured-section-page .czfs-item { display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid rgba(0,0,0,.07); border-radius: 10px; padding: 8px; }
+    .admin-featured-section-page .czfs-item.is-done { opacity: .55; }
+    .admin-featured-section-page .czfs-item.is-extra { opacity: .6; border-style: dashed; }
+    .admin-featured-section-page .czfs-thumb { flex: none; width: 48px; height: 48px; border-radius: 8px; object-fit: cover; background: #f1f1f1; }
+    .admin-featured-section-page .czfs-pos { flex: none; width: 22px; text-align: center; font-weight: 700; color: var(--color-orange); }
+    .admin-featured-section-page .czfs-info { flex: 1; min-width: 0; }
+    .admin-featured-section-page .czfs-name { font-weight: 600; font-size: 13px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .admin-featured-section-page .czfs-meta { font-size: 12px; color: #777; white-space: pre; overflow: hidden; text-overflow: ellipsis; }
+    .admin-featured-section-page .czfs-warn { display: inline-block; margin-top: 2px; font-size: 11px; color: #b42318; background: #fee4e2; border-radius: 6px; padding: 0 6px; }
+    .admin-featured-section-page .czfs-btns { flex: none; display: flex; gap: 4px; }
+    .admin-featured-section-page .czfs-empty { text-align: center; color: #888; padding: 28px 12px; font-size: 13px; }
+    .admin-featured-section-page .czfs-divider { text-align: center; font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: .4px; border-top: 1px dashed rgba(0,0,0,.2); padding-top: 6px; margin-top: 2px; }
+    .admin-featured-section-page .czfs-actions { display: flex; gap: 8px; padding-top: 4px; }
 </style>
 <!-- /.content -->
 </div>

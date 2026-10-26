@@ -5978,7 +5978,14 @@ function get_current_version()
     return $version[0]['version'];
 }
 
-function resize_review_images($image_data, $source_path, $id = false)
+/*
+ * $max_side: longest allowed side in px. The default (800) is for review/ticket/document photos
+ * and also enlarges anything smaller. A larger value with $only_shrink = true is for pictures that
+ * are shown big on the storefront (the store banner): they are scaled down only when they exceed
+ * $max_side and are otherwise stored untouched, so an HD upload is not squeezed to 800px and then
+ * stretched across the page.
+ */
+function resize_review_images($image_data, $source_path, $id = false, $max_side = 800, $only_shrink = false)
 {
     // CI's image_lib (gd2) cannot decode AVIF, so resizing would only raise errors. The original is
     // stored as uploaded and get_image_url() falls back to it where a thumbnail is missing.
@@ -6002,8 +6009,12 @@ function resize_review_images($image_data, $source_path, $id = false)
                 mkdir($target_path, 0777);
             }
 
-            $n_w = 800;
-            $n_h = 800;
+            if ($only_shrink && $w <= $max_side && $h <= $max_side) {
+                return;
+            }
+
+            $n_w = (int) $max_side;
+            $n_h = (int) $max_side;
             $config['image_library'] = 'gd2';
             $config['create_thumb'] = FALSE;
             $config['maintain_ratio'] = TRUE;
@@ -12067,6 +12078,74 @@ function shiprocket_parcel_dimension($value)
 }
 
 /**
+ * Weight units.
+ *
+ * Sellers and admins think in GRAMS, so every web screen that asks for or shows a product /
+ * parcel weight uses grams. The database, Shiprocket, the courier rate checks and the mobile
+ * API all work in KILOGRAMS, and that does not change: the conversion happens only at the
+ * edge of the web forms, through these two functions, so nothing downstream had to be touched.
+ */
+function weight_grams_to_kg($grams)
+{
+    return round(((float) $grams) / 1000, 3);
+}
+
+function weight_kg_to_grams($kg)
+{
+    $grams = round(((float) $kg) * 1000);
+    return $grams > 0 ? (int) $grams : '';
+}
+
+/**
+ * Converts the weight(s) in a posted product form from grams to kilograms, in place.
+ * A simple / digital product posts one value, a variable product one per variation.
+ */
+function product_post_weights_to_kg(array &$post)
+{
+    if (!isset($post['weight'])) {
+        return;
+    }
+    if (is_array($post['weight'])) {
+        foreach ($post['weight'] as $key => $value) {
+            $post['weight'][$key] = ($value === '' || $value === null) ? $value : weight_grams_to_kg($value);
+        }
+    } elseif ($post['weight'] !== '') {
+        $post['weight'] = weight_grams_to_kg($post['weight']);
+    }
+}
+
+/**
+ * The parcel fields a physical product must carry so Shiprocket can be booked from it.
+ *
+ * Shiprocket rejects a shipment whose weight or any of length / breadth / height is 0, and the
+ * order is booked automatically from these product values at checkout. Left blank they used to
+ * fall back to a nominal 0.5 kg / 10 cm box - which under-declares most parcels and gets the
+ * seller billed the difference after pickup - so the product form now insists on real values.
+ * Returns an error message, or '' when everything needed is there. Digital products ship nothing.
+ */
+function product_parcel_fields_error(array $post)
+{
+    if (($post['product_type'] ?? '') === 'digital_product') {
+        return '';
+    }
+    $labels = [
+        'weight'  => 'Weight (in grams)',
+        'length'  => 'Length (in cm)',
+        'breadth' => 'Breadth (in cm)',
+        'height'  => 'Height (in cm)',
+    ];
+    foreach ($labels as $key => $label) {
+        $values = array_key_exists($key, $post) ? (is_array($post[$key]) ? $post[$key] : [$post[$key]]) : [null];
+        foreach ($values as $value) {
+            if (!is_numeric($value) || (float) $value <= 0) {
+                return $label . ' is required and must be more than 0. The courier needs the parcel\'s weight and size to be booked.';
+            }
+        }
+    }
+    return '';
+}
+
+/**
  * Order item ids on an order that already belong to a live FORWARD Shiprocket shipment.
  *
  * `order_tracking`.`order_item_id` is a comma-separated list, not an id, so this cannot be a
@@ -12444,19 +12523,33 @@ function shiprocket_parcel_defaults($order_id, $seller_id, $pickup_location)
     $height = 0;
     $matched = 0;
 
+    // An item belongs to the chosen pickup when either the pickup the PRODUCT names or the one the
+    // booking will actually use (resolve_seller_pickup_location() swaps a named address Shiprocket
+    // has not confirmed for one it can ship from) is the one that was picked. Matching only the
+    // resolved name found nothing for a product whose own pickup was the unconfirmed one - the
+    // screen then showed blank weight and size boxes for the admin to type in by hand.
+    $physical = [];
+    $on_pickup = [];
     foreach ($items as $item) {
         if (isset($item['product_type']) && $item['product_type'] == 'digital_product') {
             continue;
         }
+        $physical[] = $item;
         $resolved = resolve_seller_pickup_location(
             isset($item['pickup_location']) ? $item['pickup_location'] : '',
             $item['seller_id']
         );
         $resolved_name = isset($resolved['pickup_location']) ? $resolved['pickup_location'] : '';
-        if ($resolved_name !== trim((string) $pickup_location)) {
-            continue;
+        $chosen = trim((string) $pickup_location);
+        if ($resolved_name === $chosen || trim((string) $item['pickup_location']) === $chosen) {
+            $on_pickup[] = $item;
         }
+    }
+    // Nothing matched by name: the pickup was picked for this seller's order, so use all of the
+    // seller's physical items on it rather than answering with nothing.
+    $use = !empty($on_pickup) ? $on_pickup : $physical;
 
+    foreach ($use as $item) {
         $matched++;
         $weight += shiprocket_parcel_weight($item['weight']) * max(1, (int) $item['quantity']);
         $length  = max($length, shiprocket_parcel_dimension($item['length']));
@@ -14299,4 +14392,46 @@ function seller_profile_draft_delete($user_id)
     if ($t->db->table_exists('seller_profile_drafts')) {
         $t->db->delete('seller_profile_drafts', ['user_id' => (int) $user_id]);
     }
+}
+
+/*
+ * HOMEPAGE SECTIONS ARE HAND-PICKED
+ *
+ * Every featured section (Trending Deals, Best Seller, Featured Products, New Arrivals, ...)
+ * shows exactly the products an administrator picked for it in Admin > Featured Sections -
+ * nothing is ranked or filled in automatically. The old "New Added / Most Selling / Top Rated /
+ * On Sale" product types are therefore no longer honoured when a section is rendered: a section
+ * saved with one of them (or any section whose pick list is empty) shows nothing until products
+ * are picked, rather than falling back to a site-wide ranking.
+ *
+ * Digital-product sections keep their own picker and are left alone.
+ *
+ * The three places that render a section - the storefront home page, the "See all" page and the
+ * app's get_sections - all go through these two helpers so they cannot disagree.
+ */
+function section_is_curated($section)
+{
+    return strtolower(trim((string) (isset($section['product_type']) ? $section['product_type'] : ''))) !== 'digital_product';
+}
+
+/**
+ * Put fetched products into the order the admin picked them in, then cap the count.
+ *
+ * fetch_product() ranks by subscription and row_order, which has nothing to do with the order
+ * an admin arranged a section in, and it applies its LIMIT before that order could matter - so
+ * callers fetch every picked product (no limit) and let this trim to the section's slot count.
+ * Picked products that did not come back (inactive, plan-hidden, deleted) are simply absent.
+ */
+function section_order_picked_products($products, $picked_ids, $limit = null)
+{
+    if (empty($products) || !is_array($products)) {
+        return [];
+    }
+    $position = array_flip(array_map('strval', array_values((array) $picked_ids)));
+    usort($products, function ($a, $b) use ($position) {
+        $pa = isset($position[(string) $a['id']]) ? $position[(string) $a['id']] : PHP_INT_MAX;
+        $pb = isset($position[(string) $b['id']]) ? $position[(string) $b['id']] : PHP_INT_MAX;
+        return $pa <=> $pb;
+    });
+    return ($limit !== null && $limit > 0) ? array_slice($products, 0, (int) $limit) : $products;
 }

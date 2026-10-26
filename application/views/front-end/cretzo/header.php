@@ -299,12 +299,12 @@ $notif_unread = $this->ion_auth->logged_in()
         <div class="mega-menus">
             <!--  Mega menu for 'Shop All' button at index 0 -->
 
-            <?php generateMegaMenu($categories, 5); ?>
+            <?php generateMegaMenu($categories, 5, false); ?>
 
             <!-- Mega menu for each top-level category -->
             <?php foreach ($categories as $key => $row) { ?>
 
-                <?php generateMegaMenu($row['children'], 3); ?>
+                <?php generateMegaMenu($row['children'], 5); ?>
 
             <?php } ?>
         </div>
@@ -673,26 +673,18 @@ $notif_unread = $this->ion_auth->logged_in()
         }
         return $html;
     } */
-    function generateMegaMenuSubcategories($categories, $ignore_children = false, $child_depth = 0) {
+    /* Mega-menu links under one heading. A link's own children are listed beneath it as an
+       indented sub-list, so deeper levels (child-of-child) stay visible in the same section.
+       $showNested = false keeps it to the direct children only (used by the Shop All menu). */
+    function generateMegaMenuSubcategories($categories, $showNested = true) {
         $html = '';
         foreach ($categories as $category) {
-            
-            $hasChildren = !empty($category['children']);
-            $renderChildren = $hasChildren && !$ignore_children;
-
-            // $html .= '<li class="text-n mega-list-item">';
-
-            $margin_left = $child_depth * 8; // Calculate margin-left based on child_depth
-            $html .= '<li class="text-n mega-list-item" style="margin-left: ' . $margin_left . 'px;">'; // Add margin-left
-            
-            $html .= '<a href="' . base_url('products/category/' . html_escape($category['slug'])) . '" class="text-decoration-none">';
+            $html .= '<li class="mega-link-item">';
+            $html .= '<a href="' . base_url('products/category/' . html_escape($category['slug'])) . '" class="mega-link">';
             $html .= unslash(str_replace('\r\n', '&#13;&#10;', $category['name']));
-            if ($renderChildren) {
-                $html .= '<span class="dropdown-indicator">&#9658;</span>'; // Add an indicator for categories with subcategories
-            }
             $html .= '</a>';
-            if ($renderChildren) {
-                $html .= generateMegaMenuSubcategories($category['children'], false, $child_depth + 1); // Recursively call the function for sub-categories
+            if ($showNested && !empty($category['children'])) {
+                $html .= '<ul class="mega-sublinks">' . generateMegaMenuSubcategories($category['children']) . '</ul>';
             }
             $html .= '</li>';
         }
@@ -722,7 +714,7 @@ $notif_unread = $this->ion_auth->logged_in()
         return $html;
     }
 
-    function generateMegaMenu($categories, $noOfRows) {
+    function generateMegaMenu($categories, $noOfRows, $showNested = true) {
         /*
          * A top-level category with NO subcategories used to bring the entire storefront down.
          * count() is 0, so $categoriesPerRow becomes ceil(0 / n) = 0, and on PHP 8
@@ -745,28 +737,65 @@ $notif_unread = $this->ion_auth->logged_in()
             return;
         }
 
-        $noOfRows = (int) $noOfRows;
-        $noOfRows = ($noOfRows > 0) ? $noOfRows : 1;
+        /*
+         * $noOfColumns is the maximum number of columns. Headings keep their order and are
+         * flowed top-to-bottom into columns of roughly equal height (a heading with many links
+         * weighs more than a bare one), so several short headings can stack in one column
+         * the way the reference mega menu does.
+         */
+        $noOfColumns = (int) $noOfRows;
+        $noOfColumns = ($noOfColumns > 0) ? min($noOfColumns, $totalCategories) : 1;
 
-        $categoriesPerRow = (int) ceil($totalCategories / $noOfRows);
-        $categoriesPerRow = ($categoriesPerRow > 0) ? $categoriesPerRow : 1;
+        /*
+         * When none of the entries has children of its own (e.g. a category whose subcategories
+         * are all leaves), a row of bare headings would look empty - list them as plain links.
+         */
+        $hasNested = false;
+        foreach ($categories as $row) {
+            if (!empty($row['children'])) {
+                $hasNested = true;
+                break;
+            }
+        }
+        if (!$hasNested) {
+            $perColumn = (int) ceil($totalCategories / max(1, min($noOfColumns, (int) ceil($totalCategories / 7))));
+            echo '<div class="mega-menu">';
+            foreach (array_chunk($categories, max(1, $perColumn)) as $column) {
+                echo '<div class="mega-col"><ul class="mega-links">' . generateMegaMenuSubcategories($column, $showNested) . '</ul></div>';
+            }
+            echo '</div>';
+            return;
+        }
 
-        $chunks = array_chunk($categories, $categoriesPerRow);
+        $weights = [];
+        $totalWeight = 0;
+        foreach ($categories as $k => $row) {
+            $weights[$k] = 2 + (is_array($row['children'] ?? null) ? count($row['children']) : 0);
+            $totalWeight += $weights[$k];
+        }
+        $target = $totalWeight / $noOfColumns;
+
+        $columns = [];
+        $before = 0;
+        foreach ($categories as $k => $row) {
+            $col = (int) floor(($before + $weights[$k] / 2) / $target);
+            $col = min($col, $noOfColumns - 1);
+            $columns[$col][] = $row;
+            $before += $weights[$k];
+        }
 
         echo '<div class="mega-menu">';
-        foreach ($chunks as $chunk) {
-            $chunkCount = count($chunk);
-            $i = 0;
-
-            echo '<div class="mega-list-container">';
-            foreach ($chunk as $row) {
-                $i++;
-                echo '<ul class="list mega-list' . ($i == $chunkCount ? ' last' : '') . '">';
-                echo '<a href="' . base_url('products/category/' . html_escape($row['slug'])) . '" class="text-decoration-none">';
-                echo '<lh class="text-n mega-list-item mega-list-item-heading">' . unslash(str_replace('\r\n', '&#13;&#10;', $row['name'])) . '</lh>';
-                echo '</a>';
-                echo generateMegaMenuSubcategories($row['children']);
-                echo '</ul>';
+        foreach ($columns as $column) {
+            echo '<div class="mega-col">';
+            foreach ($column as $row) {
+                $children = is_array($row['children'] ?? null) ? $row['children'] : [];
+                echo '<div class="mega-group">';
+                echo '<a href="' . base_url('products/category/' . html_escape($row['slug'])) . '" class="mega-heading">'
+                    . unslash(str_replace('\r\n', '&#13;&#10;', $row['name'])) . '</a>';
+                if (!empty($children)) {
+                    echo '<ul class="mega-links">' . generateMegaMenuSubcategories($children, $showNested) . '</ul>';
+                }
+                echo '</div>';
             }
             echo '</div>';
         }

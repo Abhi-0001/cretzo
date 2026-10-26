@@ -69,20 +69,26 @@
 
 .mega-menu{
     position: absolute;
-    /* left: 0px; */
     top: 68px;
     min-height: 100px;
-    width: 80vw;
-    margin: 0 5vw;
-    overflow: hidden;
+    width: max-content;
+    max-width: 92vw;
+    max-height: calc(100vh - 150px);
+    margin: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
     background-color: white;
     border-radius: 0 0 8px 8px;
     display: flex;
-    box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
 
     opacity: 0;
     visibility: hidden;
     /* transition: opacity 0.1s ease, visibility 0.1s ease; */ /* commented cause we don't want animation when closing mega menu */
+}
+/* a category with nothing to list gets no panel */
+.mega-menu:empty{
+    display: none;
 }
 
 /* Active state of mega menu */
@@ -125,53 +131,102 @@
     visibility: visible;
 } */
 
-.mega-list-container{
-    padding: 10px;
-    flex: 1;
+/* Mega menu content: columns of headings, each heading with its direct children beneath */
+.mega-col{
+    flex: 0 0 auto;
+    width: 15.5vw;
+    min-width: 190px;
+    max-width: 250px;
+    padding: 26px 22px 18px 30px;
+    box-sizing: border-box;
 }
-.mega-list-container:nth-child(even){
-    background-color: rgba(0, 0, 0, 0.03);
+/* a short list (a single column of links) still gets a comfortable target to hover and click */
+.mega-col:only-child{
+    min-width: 260px;
 }
-
-.mega-list{
-    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-    margin-bottom: 10px;
-
-    /* min-width: 100px; */
-    padding-left: 1em;
-
-    padding-bottom: 0.5em;
-}
-.mega-list.last{
-    border-bottom: 0;
+.mega-col:nth-child(even){
+    background-color: #fafafb;
 }
 
-.mega-list-item-heading{
-    font-weight: bold;
-    /* color: var(--color-orange); */
-    color: black;
-
-    font-size: 1em !important;
+.mega-group + .mega-group::before{
+    content: '';
+    display: block;
+    width: 70%;
+    margin: 14px 0 16px;
+    border-top: 1px solid #eaeaec;
 }
+
+.mega-heading{
+    display: block;
+    margin-bottom: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.4;
+    color: var(--color-orange);
+    text-transform: none;
+    letter-spacing: 0;
+    text-decoration: none;
+}
+.mega-heading:hover{
+    color: var(--color-orange);
+    text-decoration: none;
+}
+/* a heading with no children is just a link, so close up the gap under it */
+.mega-heading:last-child{
+    margin-bottom: 0;
+}
+
+.mega-links{
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+.mega-link{
+    display: block;
+    padding: 4px 0;
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.35;
+    color: #282c3f;
+    text-transform: none;
+    letter-spacing: 0;
+    text-decoration: none;
+    transition: none;
+}
+.mega-link:hover{
+    color: var(--color-orange);
+    font-weight: 400;
+    text-decoration: none;
+}
+/* children of a link, shown indented beneath it */
+.mega-sublinks{
+    list-style: none;
+    margin: 0 0 4px;
+    padding: 0 0 0 14px;
+}
+.mega-sublinks .mega-link{
+    padding: 2px 0;
+    font-size: 13px;
+    color: #6b6f80;
+}
+.mega-sublinks .mega-link:hover{
+    color: var(--color-orange);
+}
+/* Still used by the header search-suggestion rows (footer.php), which share the old class name */
 .mega-list-item{
     opacity: 0.92;
     transition: 0.2s;
     cursor: pointer;
     overflow: hidden;
     text-overflow: ellipsis;
-
     font-size: 1em !important;
 }
 .mega-list-item:hover{
-    /* transform: translateX(10px); */
-    /* color: var(--color-orange); */
     opacity: 1;
     color: black;
     font-weight: 700;
 }
-.mega-list-item a{
-    transition: none;
-}
+
 .nav-mega-btn{
     position: relative;
 }
@@ -191,12 +246,6 @@
 
 /* responsive starts */
 @media screen and (max-width: 1600px) {
-    .mega-list-item-heading{
-        font-size: 0.8em !important;
-    }
-    .mega-list-item{
-        font-size: 0.75em !important;
-    }
 }
 @media screen and (max-width: 1400px) {
     .nav-btn{
@@ -204,37 +253,16 @@
     }
 }
 @media screen and (max-width: 1300px) {
-    .mega-list-item-heading{
-        font-size: 0.75em !important;
-    }
-    .mega-list-item{
-        font-size: 0.65em !important;
-    }
-
     .nav-btn{
         font-size: 0.96vw;
     }
 }
 @media screen and (max-width: 1200px) {
-    .mega-list-item-heading{
-        font-size: 0.65em !important;
-    }
-    .mega-list-item{
-        font-size: 0.55em !important;
-    }
-
     .nav-btn{
         font-size: 0.9vw;
     }
 }
 @media screen and (max-width: 1050px) {
-    .mega-list-item-heading{
-        font-size: 0.55em !important;
-    }
-    .mega-list-item{
-        font-size: 0.45em !important;
-    }
-
     .navbar-container{
         padding: 0em 1em;
     }
