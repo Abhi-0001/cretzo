@@ -703,7 +703,7 @@
                                     <div class="czpf-body">
                                         <div class="form-group">
                                             <label class="col-form-label">Full description</label>
-                                            <textarea name="pro_input_description" class="textarea addr_editor" placeholder="Place some text here"><?= $is_edit ? unslash(str_replace('\r\n', '&#13;&#10;', $pd['description'])) : ''; ?></textarea>
+                                            <textarea name="pro_input_description" class="textarea addr_editor" placeholder="Place some text here"><?= $is_edit ? html_escape(unslash(str_replace('\r\n', '&#13;&#10;', $pd['description']))) : ''; ?></textarea>
                                         </div>
                                         <?php $has_extra = $is_edit && trim((string) ($pd['extra_description'] ?? '')) !== ''; ?>
                                         <div class="czpf-fold <?= $has_extra ? 'is-open' : '' ?>">
@@ -711,7 +711,7 @@
                                             <div class="czpf-fold-body">
                                                 <div class="form-group mb-0">
                                                     <label class="col-form-label">Extra description</label>
-                                                    <textarea name="extra_input_description" class="textarea addr_editor" placeholder="Place some text here"><?= $is_edit ? unslash(str_replace('\r\n', '&#13;&#10;', $pd['extra_description'])) : ''; ?></textarea>
+                                                    <textarea name="extra_input_description" class="textarea addr_editor" placeholder="Place some text here"><?= $is_edit ? html_escape(unslash(str_replace('\r\n', '&#13;&#10;', $pd['extra_description']))) : ''; ?></textarea>
                                                 </div>
                                             </div>
                                         </div>

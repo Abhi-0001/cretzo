@@ -293,6 +293,11 @@ class Notification_settings extends CI_Controller
                 return;
             }
 
+            /* ---- mobile (SMS): named accounts always, whole audiences only if switched on in
+             *      Admin > SMS Gateway Settings > Mobile alerts ---- */
+            $this->load->helper('sms_helper');
+            notify_audience_mobile($send_to, $user_ids, (string) $title, (string) $message, (string) $type, (string) $type_ids);
+
             /* ---- best-effort push ---- */
             $fcm_key   = get_settings('fcm_server_key');
             $push_note = '';

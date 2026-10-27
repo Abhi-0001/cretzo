@@ -1394,17 +1394,27 @@ class Products extends CI_Controller
                     } else {
                         $file_url = $url;
                     }
+                    // hash_link is whatever the SELLER typed as the download link, so $file_url can be
+                    // `application/config/database.php` or `../../x`, and this endpoint then streams that
+                    // file to the buyer. Only a real file under uploads/ may be served, and the resolved
+                    // path - never the seller's string - is what is measured and read.
+                    $uploads_root = realpath(FCPATH . 'uploads');
+                    $safe_path = realpath(FCPATH . ltrim(str_replace('\\', '/', $file_url), '/'));
+                    if ($safe_path === false || $uploads_root === false || !is_file($safe_path)
+                        || strpos($safe_path, $uploads_root . DIRECTORY_SEPARATOR) !== 0) {
+                        $safe_path = false;
+                    }
                     // Process download
-                    if (file_exists($file_url)) {
+                    if ($safe_path !== false) {
                         header('Content-Description: File Transfer');
                         header('Content-Type: application/octet-stream');
                         header('Content-Disposition: attachment; filename="' . basename($url) . '"');
                         header('Expires: 0');
                         header('Cache-Control: must-revalidate');
                         header('Pragma: public');
-                        header('Content-Length: ' . filesize($url));
+                        header('Content-Length: ' . filesize($safe_path));
                         flush(); // Flush system output buffer
-                        readfile($url);
+                        readfile($safe_path);
                         update_details(['active_status' => 'delivered'], ['id' => $order_item_id], 'order_items');
                         die();
                     } else {

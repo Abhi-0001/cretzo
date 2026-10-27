@@ -169,6 +169,12 @@ Options -Indexes
     # file that is served as image/jpeg but contains markup into a stored XSS.
     Header always set X-Content-Type-Options "nosniff"
 
+    # PHP announces its exact version on every response (`X-Powered-By: PHP/8.x.y`). That
+    # tells a scanner which CVE list to try, for no benefit to a legitimate visitor.
+    # `always unset` so it is removed from error responses too.
+    Header always unset X-Powered-By
+    Header unset X-Powered-By
+
     # No framing from other origins: blocks clickjacking of the admin panel and of the
     # checkout, where an invisible overlay over a real button is the whole attack.
     Header always set X-Frame-Options "SAMEORIGIN"

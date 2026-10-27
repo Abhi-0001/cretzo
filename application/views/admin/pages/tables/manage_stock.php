@@ -32,7 +32,7 @@
                             <form class="form-horizontal form-submit-event" id="stock_adjustment_form" action="<?= base_url('admin/manage_stock/update_stock'); ?>" method="POST" enctype="multipart/form-data">
                                 <div class="card-body">
                                     <?php if (isset($fetched_data['product'][0]['id'])) { ?>
-                                        <input type="hidden" name="variant_id" value="<?= $this->input->get('edit_id') ?>">
+                                        <input type="hidden" name="variant_id" value="<?= html_escape($this->input->get('edit_id')) ?>">
                                     <?php  } ?>
 
                                     <div class="row">
@@ -102,7 +102,7 @@
                     </div>
 
                     <table class='table-striped' id='products_table' data-toggle="table"
-                        data-url="<?= isset($_GET['flag']) ? base_url('admin/manage_stock/get_stock_list?flag=') . $_GET['flag'] : base_url('admin/manage_stock/get_stock_list') ?>"
+                        data-url="<?= isset($_GET['flag']) ? base_url('admin/manage_stock/get_stock_list?flag=') . rawurlencode($_GET['flag']) : base_url('admin/manage_stock/get_stock_list') ?>"
                         data-click-to-select="true" data-side-pagination="server" data-pagination="true"
                         data-page-list="[5, 10, 20, 50, 100, 200]" data-search="true" data-show-columns="true"
                         data-show-refresh="true" data-trim-on-search="false" data-sort-name="id" data-sort-order="desc"

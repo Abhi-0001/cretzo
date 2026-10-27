@@ -462,7 +462,7 @@
                 <?php } ?>
                 <li class="text-s"><i class="uil uil-check-circle"></i> 100% Original Products</li>
                 <li class="text-s"><i class="uil uil-check-circle"></i> Cash on Delivery might be available</li>
-                <li class="text-s"><i class="uil uil-check-circle"></i> Easy 14 days returns and exchanges</li>
+                <!-- <li class="text-s"><i class="uil uil-check-circle"></i> Easy 14 days returns and exchanges</li> -->
             </ul>
 
             <div class="d-flex flex-row mt-4">
@@ -588,7 +588,7 @@
 
     <div id="description" class="text-n des">
         <?php if ($has_description) { ?>
-            <?= strip_stray_rn_lines($product['product'][0]['description']) ?>
+            <?= sanitize_rich_html(strip_stray_rn_lines($product['product'][0]['description'])) ?>
         <?php } else { ?>
             <p class="op-6">No description available for this product.</p>
         <?php } ?>
@@ -597,7 +597,7 @@
 
     <div id="information" class="text-n des d-none">
         <?php if ($has_extra_description) { ?>
-            <?= strip_stray_rn_lines($product['product'][0]['extra_description']) ?>
+            <?= sanitize_rich_html(strip_stray_rn_lines($product['product'][0]['extra_description'])) ?>
         <?php } else { ?>
             <p class="op-6">No additional information available for this product.</p>
         <?php } ?>

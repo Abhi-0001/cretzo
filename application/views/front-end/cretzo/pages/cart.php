@@ -1085,12 +1085,17 @@ $(document).ready(function () {
                     $.each(response.data, function (index, item) {
 
                         // Proper escaping
-                        let safeName = item.name.replace(/"/g, '&quot;');
+                        // Escape for HTML text AND attribute context. This used to escape only the double quote,
+                        // put the name in an inline onclick (decoded before the JS is parsed), and inject
+                        // item.name unescaped as markup.
+                        let safeName = String(item.name == null ? '' : item.name)
+                            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                            .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 
                         html += `
                             <div class="search-item" 
-                                 onclick="selectSuggestion(&quot;${safeName}&quot;)">
-                                ${item.name}
+                                 data-name="${safeName}">
+                                ${safeName}
                             </div>
                         `;
                     });
@@ -1112,6 +1117,10 @@ $(document).ready(function () {
 
     });
 
+});
+
+$(document).on('click', '.search-item[data-name]', function () {
+    selectSuggestion($(this).attr('data-name'));
 });
 
 // Fill value into search box

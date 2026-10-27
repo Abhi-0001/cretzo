@@ -498,6 +498,20 @@ class Order_model extends CI_Model
                cannot lawfully fulfil, and by the time it showed up in a return the goods had
                already moved. Refused here, at the one point every checkout path funnels
                through (web, mobile API and POS all call this method). */
+            /* The delivery address must belong to the person placing the order. address_id was
+               trusted as posted, so an order could be placed against ANOTHER customer's saved
+               address - and the order page then shows that person's name, phone and address to
+               the buyer. Checked here, before anything is debited, for the same reason as above:
+               every checkout path (web, mobile API, POS) funnels through this method. */
+            if (!empty($data['address_id']) && !empty($data['user_id'])) {
+                $address_owner = $this->db->select('user_id')->where('id', (int) $data['address_id'])
+                    ->get('addresses')->row_array();
+                if (empty($address_owner) || (int) $address_owner['user_id'] !== (int) $data['user_id']) {
+                    $response['error'] = true;
+                    $response['message'] = 'Please choose a valid delivery address.';
+                    return $response;
+                }
+            }
             if (!empty($data['address_id'])) {
                 $CI->load->model('Tax_compliance_model');
                 $delivery_state = $this->db->select('state')->where('id', (int) $data['address_id'])
@@ -2497,12 +2511,10 @@ class Order_model extends CI_Model
             'digital_orders_mails',
             'id'
         );
+        // The POST override below used to replace the whitelisted $sort above with the raw
+        // request value, which order_by() passes through untouched when it holds a parenthesis.
         if (isset($_POST['sort']))
-            if ($_POST['sort'] == 'id') {
-                $sort = "id";
-            } else {
-                $sort = $_POST['sort'];
-            }
+            $sort = sanitize_sort_column_for_table($_POST['sort'], 'digital_orders_mails', 'id');
         if (isset($_GET['order']))
             $order = $_GET['order'];
         if (isset($_POST['order']))
@@ -2607,14 +2619,12 @@ class Order_model extends CI_Model
         if (isset($_POST['limit']))
             $limit = $_POST['limit'];
 
+        // Raw request value used to go straight into order_by(); whitelist it against the
+        // table's real columns instead.
         if (isset($_POST['sort']))
-            if ($_POST['sort'] == 'id') {
-                $sort = "id";
-            } else {
-                $sort = $_POST['sort'];
-            }
+            $sort = sanitize_sort_column_for_table($_POST['sort'], 'order_tracking', 'id');
         if (isset($_POST['order']))
-            $order = $_POST['order'];
+            $order = sanitize_sort_direction($_POST['order'], 'DESC');
 
         if (isset($_POST['search']) and $_POST['search'] != '') {
             $search = $_POST['search'];

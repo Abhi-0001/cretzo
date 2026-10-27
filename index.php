@@ -53,7 +53,104 @@
  *
  * NOTE: If you change these, also change the error_reporting() code below
  */
-	define('ENVIRONMENT', isset($_SERVER['CI_ENV']) ? $_SERVER['CI_ENV'] : 'development');
+	/*
+	 * SECRETS FILE (.env)
+	 *
+	 * config/constants.php, config.php, cron.php and database.php read their secrets
+	 * with getenv(), and .env.example tells the operator to put them in a `.env` file -
+	 * but nothing ever READ that file, so on a host with no way to set real environment
+	 * variables every one of those secrets was silently empty. It is loaded here, before
+	 * CodeIgniter boots, so web requests and CLI (`php index.php admin migrate`, cron)
+	 * see the same values.
+	 *
+	 * Looked for in the web root and then in its PARENT directory. The parent is the
+	 * better home: a file outside the document root cannot be requested at all, whereas
+	 * the one inside depends on the dot-file deny rule in .htaccess staying in place.
+	 *
+	 * A variable the real environment already defines is never overridden, and a value
+	 * is never echoed or logged. Format: KEY=value, `#` comments, optional quotes.
+	 */
+	if ( ! function_exists('cretzo_load_env_file'))
+	{
+		function cretzo_load_env_file($path)
+		{
+			if ( ! is_file($path) OR ! is_readable($path) OR ! function_exists('putenv'))
+			{
+				return;
+			}
+
+			foreach ((array) file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line)
+			{
+				$line = trim($line);
+				if ($line === '' OR $line[0] === '#' OR strpos($line, '=') === FALSE)
+				{
+					continue;
+				}
+
+				list($key, $value) = explode('=', $line, 2);
+				$key   = trim($key);
+				$value = trim($value);
+
+				// Only well-formed names; keeps a stray line from defining PATH, LD_PRELOAD etc.
+				if ( ! preg_match('/^[A-Z][A-Z0-9_]*$/', $key) OR in_array($key, array('CI_ENV', 'PATH'), TRUE))
+				{
+					continue;
+				}
+
+				$quote = $value !== '' ? $value[0] : '';
+				if (($quote === '"' OR $quote === "'") && strlen($value) >= 2 && substr($value, -1) === $quote)
+				{
+					$value = substr($value, 1, -1);
+				}
+
+				$existing = getenv($key);
+				if ($existing !== FALSE && $existing !== '')
+				{
+					continue;
+				}
+
+				putenv($key.'='.$value);
+				$_ENV[$key] = $value;
+			}
+		}
+	}
+
+	cretzo_load_env_file(dirname(__FILE__).DIRECTORY_SEPARATOR.'.env');
+	cretzo_load_env_file(dirname(dirname(__FILE__)).DIRECTORY_SEPARATOR.'.env');
+
+	/*
+	 * Which environment is this?  FAIL CLOSED.
+	 *
+	 * This used to be `isset($_SERVER['CI_ENV']) ? $_SERVER['CI_ENV'] : 'development'`,
+	 * so anything that reached the code without CI_ENV set - the cron jobs and
+	 * `php index.php ...` on the server (Apache's SetEnvIf in .htaccess never applies
+	 * to CLI), a request by IP address, a staging hostname, a host panel that drops the
+	 * variable - ran as DEVELOPMENT: display_errors on and db_debug TRUE, which prints
+	 * failing SQL and absolute paths to whoever triggered the error.
+	 *
+	 * Now: an explicit CI_ENV wins (web server variable or real environment variable),
+	 * then the gitignored `.env.development` marker file opts a developer's machine in,
+	 * and everything else - including the live server, which never has that file - is
+	 * 'production'.
+	 */
+	if (isset($_SERVER['CI_ENV']) && $_SERVER['CI_ENV'] !== '')
+	{
+		$cretzo_env = $_SERVER['CI_ENV'];
+	}
+	elseif (getenv('CI_ENV') !== FALSE && getenv('CI_ENV') !== '')
+	{
+		$cretzo_env = getenv('CI_ENV');
+	}
+	elseif (is_file(dirname(__FILE__).DIRECTORY_SEPARATOR.'.env.development'))
+	{
+		$cretzo_env = 'development';
+	}
+	else
+	{
+		$cretzo_env = 'production';
+	}
+	define('ENVIRONMENT', $cretzo_env);
+	unset($cretzo_env);
 
 /*
  *---------------------------------------------------------------

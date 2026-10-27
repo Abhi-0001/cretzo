@@ -1455,6 +1455,8 @@ Defined Methods:-
 
                 $this->response['error'] = false;
                 $this->response['message'] = 'Settings retrieved successfully';
+                // Credentials (gateway secrets, Shiprocket login, FCM server key) must never leave the server.
+                $general_settings = scrub_api_settings($general_settings);
                 $this->response['data'] = $general_settings;
             } else {
                 $this->response['error'] = true;
@@ -3122,6 +3124,28 @@ Defined Methods:-
         // if (!$this->verify_token()) {
         //     return false;
         // }
+
+        // The user_id branch converts an EXISTING account into a seller: it inserts a
+        // seller_data row and then swaps the account's group. With no check on who is asking,
+        // anyone could POST any user_id - an admin's included, which removed the admin group
+        // and locked that admin out of the panel. The caller must now prove the account is
+        // theirs (the per-user token issued at login), and only a plain customer account
+        // (group 2) can be converted.
+        if (isset($_POST['user_id']) && !empty($_POST['user_id'])) {
+            if (!$this->verify_user_token()) {
+                return false;
+            }
+            $current_groups = $this->ion_auth->get_users_groups($this->input->post('user_id', true))->result_array();
+            foreach ($current_groups as $current_group) {
+                if ((int) $current_group['id'] !== 2) {
+                    $this->response['error'] = true;
+                    $this->response['message'] = 'This account cannot be converted to a seller account.';
+                    $this->response['data'] = [];
+                    print_r(json_encode($this->response));
+                    return false;
+                }
+            }
+        }
         if (!isset($_POST['user_id'])) {
             $this->form_validation->set_rules('name', 'Name', 'trim|required|xss_clean');
             $this->form_validation->set_rules('mobile', 'Mobile', 'trim|required|xss_clean|min_length[5]');
@@ -3506,6 +3530,9 @@ Defined Methods:-
 
     public function upload_media()
     {
+        if (!$this->verify_token()) {
+            return false;
+        }
         $this->form_validation->set_rules('seller_id', 'Seller id', 'trim|required|xss_clean');
         if (!$this->form_validation->run()) {
             $this->response['error'] = true;
@@ -3919,6 +3946,9 @@ Defined Methods:-
     /* add_product_faqs */
     public function add_product_faqs()
     {
+        if (!$this->verify_token()) {
+            return false;
+        }
         $this->form_validation->set_rules('product_id', 'Product Id', 'trim|numeric|xss_clean|required');
         $this->form_validation->set_rules('seller_id', 'Seller id', 'trim|numeric|xss_clean|required');
         $this->form_validation->set_rules('question', 'Question', 'trim|xss_clean|required');
@@ -4015,6 +4045,9 @@ Defined Methods:-
 
     public function delete_product_faq()
     {
+        if (!$this->verify_token()) {
+            return false;
+        }
         $this->form_validation->set_rules('id', 'FAQ id', 'trim|xss_clean|required');
         if (!$this->form_validation->run()) {
             $this->response['error'] = true;
@@ -4034,6 +4067,9 @@ Defined Methods:-
 
     public function edit_product_faq()
     {
+        if (!$this->verify_token()) {
+            return false;
+        }
         $this->form_validation->set_rules('seller_id', 'Seller id', 'trim|xss_clean|required');
         $this->form_validation->set_rules('id', 'FAQ id', 'trim|xss_clean|required');
         $this->form_validation->set_rules('answer', 'Answer', 'trim|xss_clean|required');

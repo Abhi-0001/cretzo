@@ -265,7 +265,13 @@ function send_sms($phone, $msg, $country_code = "+91")
             $data["params"][$key] = $value;
         }
     }
-    return curl_sms($data["base_url"], isset($data["sms_gateway_method"]) ? $data["sms_gateway_method"] : 'GET', $data["body"], $data["header"]);
+    // The params rows built above were never used: a GET gateway needs them in the query string
+    // and nothing appended them, so such a gateway received a bare base URL.
+    $url = $data["base_url"];
+    if (!empty($data["params"])) {
+        $url .= (strpos($url, '?') === false ? '?' : '&') . http_build_query($data["params"]);
+    }
+    return curl_sms($url, isset($data["sms_gateway_method"]) ? $data["sms_gateway_method"] : 'GET', $data["body"], $data["header"]);
 }
 
 function curl_sms($url, $method = 'GET', $data = [], $headers = [])
@@ -276,6 +282,10 @@ function curl_sms($url, $method = 'GET', $data = [], $headers = [])
         CURLOPT_URL => $url,
         CURLOPT_RETURNTRANSFER => 1,
         CURLOPT_HEADER => 0,
+        // No timeout at all before: a gateway that accepted the connection and never answered
+        // held the request (or the after-response worker) open until PHP's limit.
+        CURLOPT_CONNECTTIMEOUT => 5,
+        CURLOPT_TIMEOUT => 12,
         CURLOPT_HTTPHEADER => array(
             'Content-Type: application/x-www-form-urlencoded',
         )
@@ -313,4 +323,182 @@ function curl_sms($url, $method = 'GET', $data = [], $headers = [])
         log_message('error', 'curl_sms: ' . $result['error'] . ' (url: ' . $url . ')');
     }
     return $result;
+}
+
+
+/* ======================================================================================
+ *  MOBILE ALERTS - every in-app notification is also texted to the account's mobile number
+ * ======================================================================================
+ * add_user_notification() (the one writer of per-user notifications: orders, tickets, approvals,
+ * payouts, referral rewards...) calls notify_user_mobile() after saving the in-app row, and the
+ * admin "Send Notification" screen calls notify_audience_mobile() for what it broadcasts.
+ *
+ * Delivery runs after the HTTP response (run_after_response) and can never throw into the caller:
+ * a gateway outage must not break an order or a form save. Every attempt is written to
+ * notification_mobile_log, which is also what suppresses an identical message to the same
+ * person within 10 minutes. Nothing is sent while no SMS gateway is configured.
+ *
+ * Channel list: only 'sms' exists. A WhatsApp sender plugs in by adding a channel to
+ * mobile_alert_channels() and a branch in mobile_alert_deliver().
+ */
+
+function mobile_alert_settings()
+{
+    $raw = get_settings('mobile_notifications', true);
+    $s = is_array($raw) ? $raw : [];
+    return [
+        'sms'        => (int) (isset($s['sms']) ? $s['sms'] : 1),
+        'sellers'    => (int) (isset($s['sellers']) ? $s['sellers'] : 1),
+        'customers'  => (int) (isset($s['customers']) ? $s['customers'] : 1),
+        'broadcasts' => (int) (isset($s['broadcasts']) ? $s['broadcasts'] : 0),
+    ];
+}
+
+function mobile_alert_channels()
+{
+    $s = mobile_alert_settings();
+    $gateway = get_settings('sms_gateway_settings', true);
+    $channels = [];
+    if ($s['sms'] && !empty($gateway) && !empty($gateway['base_url'])) {
+        $channels[] = 'sms';
+    }
+    return $channels;
+}
+
+/** The text a person receives: app name, title and message on one line, no markup. */
+function mobile_alert_text($title, $message)
+{
+    $settings = get_settings('system_settings', true);
+    $app = !empty($settings['app_name']) ? $settings['app_name'] : '';
+    $body = trim(html_entity_decode(strip_tags((string) $title)) . ' - ' . html_entity_decode(strip_tags((string) $message)), ' -');
+    $body = trim(preg_replace('/\s+/u', ' ', $body));
+    $text = ($app !== '' ? $app . ': ' : '') . $body;
+    return mb_strlen($text) > 300 ? mb_substr($text, 0, 297) . '...' : $text;
+}
+
+/** National number for the gateway: digits only, last 10 when a country code is stored with it. */
+function mobile_alert_number($raw)
+{
+    $digits = preg_replace('/\D/', '', (string) $raw);
+    if (strlen($digits) > 10) {
+        $digits = substr($digits, -10);
+    }
+    return strlen($digits) === 10 ? $digits : '';
+}
+
+/**
+ * Text one account about a notification. Called for sellers and buyers alike; which of the two it
+ * is comes from the link the notification points at (seller panel links carry "/seller").
+ *
+ * @param string $audience 'auto' | 'sellers' | 'customers' - 'auto' reads it from $link
+ */
+function notify_user_mobile($user_id, $title, $message, $type = '', $type_id = '', $link = '', $audience = 'auto')
+{
+    try {
+        $user_id = (int) $user_id;
+        $channels = mobile_alert_channels();
+        if ($user_id < 1 || empty($channels)) {
+            return false;
+        }
+        if ($audience === 'auto') {
+            $audience = strpos((string) $link, '/seller') !== false ? 'sellers' : 'customers';
+        }
+        $s = mobile_alert_settings();
+        if (empty($s[$audience])) {
+            return false;
+        }
+        $text = mobile_alert_text($title, $message);
+        if ($text === '') {
+            return false;
+        }
+        $type = (string) $type;
+        $type_id = (string) $type_id;
+        run_after_response(function () use ($user_id, $channels, $text, $type, $type_id) {
+            mobile_alert_deliver($user_id, $channels, $text, $type, $type_id);
+        }, 'mobile alert');
+        return true;
+    } catch (Throwable $e) {
+        log_message('error', 'notify_user_mobile: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/** The worker: look the number up, skip repeats, send, log. */
+function mobile_alert_deliver($user_id, array $channels, $text, $type, $type_id)
+{
+    $t = &get_instance();
+    $row = $t->db->select('mobile')->where('id', (int) $user_id)->get('users')->row_array();
+    $mobile = mobile_alert_number(isset($row['mobile']) ? $row['mobile'] : '');
+    $hash = md5($text);
+
+    foreach ($channels as $channel) {
+        $log = [
+            'user_id' => (int) $user_id, 'channel' => $channel, 'mobile' => $mobile,
+            'type' => mb_substr($type, 0, 64), 'type_id' => mb_substr($type_id, 0, 128),
+            'message_hash' => $hash, 'message' => mb_substr($text, 0, 600),
+        ];
+        if ($mobile === '') {
+            $t->db->insert('notification_mobile_log', $log + ['status' => 'skipped', 'error' => 'No valid 10-digit mobile number on the account.']);
+            continue;
+        }
+        $dup = $t->db->where(['user_id' => (int) $user_id, 'channel' => $channel, 'message_hash' => $hash, 'status' => 'sent'])
+            ->where('created_at >=', date('Y-m-d H:i:s', time() - 600))->count_all_results('notification_mobile_log');
+        if ($dup) {
+            continue;
+        }
+        $res = send_sms($mobile, $text);
+        $ok = empty($res['error']) && !empty($res['http_code']) && $res['http_code'] >= 200 && $res['http_code'] < 300;
+        $t->db->insert('notification_mobile_log', $log + [
+            'status' => $ok ? 'sent' : 'failed',
+            'error'  => $ok ? null : mb_substr(!empty($res['error']) ? $res['error'] : ('Gateway answered HTTP ' . (int) $res['http_code'] . ' ' . substr((string) (isset($res['raw_body']) ? $res['raw_body'] : ''), 0, 120)), 0, 255),
+        ]);
+    }
+}
+
+/**
+ * Admin broadcast -> mobile. A named list of accounts is always texted; a whole audience only
+ * when the "broadcasts" switch is on, because that is one billed SMS per account.
+ */
+function notify_audience_mobile($send_to, array $user_ids, $title, $message, $type = '', $type_id = '', $link = '')
+{
+    try {
+        $s = mobile_alert_settings();
+        if (empty(mobile_alert_channels())) {
+            return 0;
+        }
+        $t = &get_instance();
+        $seller_rows = $t->db->select('user_id')->where('group_id', 4)->get('users_groups')->result_array();
+        $sellers = array_map('intval', array_column($seller_rows, 'user_id'));
+        $targets = [];   // user_id => audience
+        if ($send_to === 'specific_user') {
+            foreach ($user_ids as $id) {
+                $targets[(int) $id] = in_array((int) $id, $sellers, true) ? 'sellers' : 'customers';
+            }
+        } elseif ($s['broadcasts']) {
+            if ($send_to === 'all_sellers' || $send_to === 'all_users') {
+                foreach ($sellers as $id) {
+                    $targets[$id] = 'sellers';
+                }
+            }
+            if ($send_to === 'all_customers' || $send_to === 'all_users') {
+                $cust = $t->db->select('u.id')->from('users u')->join('users_groups ug', 'ug.user_id = u.id AND ug.group_id = 2')
+                    ->where('u.active', 1)->get()->result_array();
+                foreach ($cust as $c) {
+                    if (!in_array((int) $c['id'], $sellers, true)) {
+                        $targets[(int) $c['id']] = 'customers';
+                    }
+                }
+            }
+        }
+        $count = 0;
+        foreach (array_slice($targets, 0, 5000, true) as $id => $aud) {
+            if ($id > 0 && notify_user_mobile($id, $title, $message, $type, $type_id, $link, $aud)) {
+                $count++;
+            }
+        }
+        return $count;
+    } catch (Throwable $e) {
+        log_message('error', 'notify_audience_mobile: ' . $e->getMessage());
+        return 0;
+    }
 }

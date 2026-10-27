@@ -91,9 +91,29 @@ if(ENVIRONMENT === 'development'){
 	$t_password = 'Geet@cretzo123';
 }
 
+// ---------------------------------------------------------------------------
+// Credentials come from the ENVIRONMENT first (see .env.example; index.php loads
+// the server's `.env` before CodeIgniter boots). The literals above are the LEGACY
+// fallback, kept ONLY so the live site cannot lose its database connection during
+// the cutover - that password is in git history and must be treated as public.
+//
+// CUTOVER (in this order):
+//   1. Change the DB password in hPanel (Databases -> Management).
+//   2. Put DB_HOSTNAME / DB_USERNAME / DB_PASSWORD / DB_DATABASE in the server's .env.
+//   3. Confirm the site still works.
+//   4. Delete the literals in the if/elseif above and commit that.
+// ---------------------------------------------------------------------------
+$t_hostname = 'localhost';
+foreach (array('t_hostname' => 'DB_HOSTNAME', 't_username' => 'DB_USERNAME', 't_password' => 'DB_PASSWORD', 't_database_name' => 'DB_DATABASE') as $t_var => $t_env) {
+	$t_val = getenv($t_env);
+	if ($t_val !== FALSE && $t_val !== '') {
+		$$t_var = $t_val;
+	}
+}
+unset($t_var, $t_env, $t_val);
 $db['default'] = array(
 	'dsn'	=> '',
-	'hostname' => 'localhost',
+	'hostname' => $t_hostname,
 	//'username' => 'u554344800_cretzo',
 	'username' => $t_username,
 	'password' => $t_password,

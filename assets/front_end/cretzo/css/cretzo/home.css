@@ -17,7 +17,7 @@
     justify-content: center;
     grid-template-columns: repeat(6, 1fr);
     overflow: hidden;
-    padding: 1em 6vw;
+    padding: 1em 1vw;
 }
 
 /* trending deals starts */

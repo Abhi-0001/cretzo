@@ -69,7 +69,13 @@ class Home extends CI_Controller
         // with no authentication check whatsoever - an unauthenticated visitor could POST to
         // admin/home/reset_password and take over any account on the platform, including
         // other administrators. Restricted to a logged-in admin.
-        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {
+        //
+        // is_admin() is true for EVERY system user (Supporter and Editor included), so that
+        // alone let the lowest-privilege staff account set the super admin's password and then
+        // sign in as them. Resetting another account's password is a super-admin action
+        // (user_permissions.role = 0); nothing in the admin UI calls this endpoint.
+        $acting_permissions = $this->ion_auth->logged_in() ? get_user_permissions($this->session->userdata('user_id')) : [];
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin() || empty($acting_permissions) || intval($acting_permissions[0]['role']) !== 0) {
             $this->response['error'] = true;
             $this->response['message'] = 'Unauthorized';
             echo json_encode($this->response);
@@ -77,7 +83,7 @@ class Home extends CI_Controller
         }
 
         $this->form_validation->set_rules('mobile', 'Mobile No', 'trim|numeric|required|xss_clean|max_length[16]');
-        $this->form_validation->set_rules('new_password', 'New Password', 'trim|required|xss_clean');
+        $this->form_validation->set_rules('new_password', 'New Password', 'trim|required|min_length[8]|xss_clean');
 
         if (!$this->form_validation->run()) {
             $this->response['error'] = true;

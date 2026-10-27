@@ -1751,7 +1751,8 @@ $(document).on('submit', '.container-fluid .form-submit-event', function (e) {
     var redirectUrl = $(this).data('redirect-url');
     var formData = new FormData(this);
     var update_id = $('#update_id').val();
-    if (update_id == '1') {
+    // An edit form can sit in a modal (loaded via .edit_btn) or directly on the page.
+    if (update_id == '1' && $('.edit-modal-lg #error_box').length) {
         var error_box = $('.edit-modal-lg #error_box');
         var submit_btn = $('.edit-modal-lg #submit_btn');
         var btn_html = $('.edit-modal-lg #submit_btn').html();

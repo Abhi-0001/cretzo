@@ -2340,7 +2340,16 @@ function add_user_notification($user_id, $title, $message, $type = 'default', $l
         'link'     => (string) $link,
     ];
 
-    return (bool) $t->db->insert('notifications', $row);
+    $saved = (bool) $t->db->insert('notifications', $row);
+
+    // Every in-app notification is also texted to the account's mobile number. It is queued to
+    // run after the response and never throws, so it cannot affect the caller.
+    if ($saved) {
+        $t->load->helper('sms_helper');
+        notify_user_mobile($user_id, $title, $message, $type, $type_id, $link);
+    }
+
+    return $saved;
 }
 
 /**
@@ -11192,6 +11201,15 @@ function send_password_reset_otp($mobile, $user = null)
     // loaded by every controller that needs password reset. Idempotent.
     $t->load->helper('sms_helper');
 
+    // No send limit existed here (only the signup OTP path was throttled), which had two
+    // consequences: anyone could make this endpoint SMS/e-mail-bomb a number, and - worse -
+    // an attacker guessing the 6-digit code could simply request a fresh OTP whenever the
+    // old one was used up and keep guessing. Same per-number / per-address caps as signup.
+    $send_guard = otp_rate_limit_guard($mobile);
+    if (empty($send_guard['allowed'])) {
+        return ['error' => true, 'message' => $send_guard['message']];
+    }
+
     $stored = store_password_reset_otp($mobile);
     if (!empty($stored['error'])) {
         return $stored;
@@ -11281,6 +11299,30 @@ function send_password_reset_otp($mobile, $user = null)
  */
 function verify_password_reset_otp($mobile, $otp, $consume = true)
 {
+    // WRONG-GUESS CAP. The code is 6 digits, valid 10 minutes, and nothing counted failed
+    // attempts - so ~10^6 requests against the reset endpoint of ANY portal (admin included)
+    // was an account takeover. Five wrong guesses per number per 15 minutes now lock the
+    // number out, whether or not a new OTP is requested in between: the counter is keyed on
+    // the NUMBER and deliberately survives a resend. Stored in otp_rate_limits (scope
+    // 'reset_verify'), the same table the send throttle uses.
+    $ci = &get_instance();
+    $guess_key = otp_rate_limit_key($mobile);
+    $guess_limit = 5;
+    $guess_window = 900;
+    $locked_message = 'Too many incorrect attempts. Please wait 15 minutes and request a new OTP.';
+
+    if ($guess_key !== '') {
+        $row = $ci->db->select('attempts, window_start')
+            ->where('scope', 'reset_verify')
+            ->where('identifier', $guess_key)
+            ->get('otp_rate_limits')
+            ->row_array();
+        if (!empty($row) && (int) $row['attempts'] >= $guess_limit
+            && (time() - strtotime($row['window_start'])) < $guess_window) {
+            return ['error' => true, 'message' => $locked_message];
+        }
+    }
+
     $otps = fetch_details('otps', ['mobile' => $mobile]);
     if (empty($otps)) {
         return ['error' => true, 'message' => 'Please request a new OTP.'];
@@ -11289,13 +11331,280 @@ function verify_password_reset_otp($mobile, $otp, $consume = true)
         return ['error' => true, 'message' => 'OTP has expired. Please request a new OTP.'];
     }
     // An emptied row is a consumed code, not a match for an empty submission.
-    if ((string) $otps[0]['otp'] === '' || (string) $otps[0]['otp'] !== (string) $otp) {
+    if ((string) $otps[0]['otp'] === '' || !hash_equals((string) $otps[0]['otp'], (string) $otp)) {
+        if ($guess_key !== '') {
+            $now = time();
+            $stamp = date('Y-m-d H:i:s', $now);
+            $ci->db->query(
+                "INSERT INTO `otp_rate_limits` (`scope`, `identifier`, `attempts`, `window_start`, `updated_at`)
+                 VALUES ('reset_verify', ?, 1, ?, ?)
+                 ON DUPLICATE KEY UPDATE
+                    `attempts`     = IF(`window_start` <= ?, 1, `attempts` + 1),
+                    `window_start` = IF(`window_start` <= ?, VALUES(`window_start`), `window_start`),
+                    `updated_at`   = VALUES(`updated_at`)",
+                [$guess_key, $stamp, $stamp, date('Y-m-d H:i:s', $now - $guess_window), date('Y-m-d H:i:s', $now - $guess_window)]
+            );
+            $row = $ci->db->select('attempts')->where('scope', 'reset_verify')->where('identifier', $guess_key)->get('otp_rate_limits')->row_array();
+            if (!empty($row) && (int) $row['attempts'] >= $guess_limit) {
+                // Burn the live code as well, so it cannot be tried again after the lock lapses.
+                update_details(['otp' => ''], ['mobile' => $mobile], 'otps');
+                return ['error' => true, 'message' => $locked_message];
+            }
+        }
         return ['error' => true, 'message' => 'Invalid OTP.'];
+    }
+    if ($guess_key !== '') {
+        $ci->db->where('scope', 'reset_verify')->where('identifier', $guess_key)->delete('otp_rate_limits');
     }
     if ($consume) {
         update_details(['otp' => ''], ['mobile' => $mobile], 'otps');
     }
     return ['error' => false, 'message' => 'OTP verified.'];
+}
+
+/**
+ * Strips credentials out of a settings payload before it is sent to a mobile app.
+ *
+ * The customer, seller and admin APIs' get_settings endpoints returned the WHOLE
+ * `payment_method` JSON (every gateway's secret key and webhook secret - including
+ * refund_webhook_secret_key, which is what the webhook signature checks rely on),
+ * `shipping_method` (the Shiprocket login and webhook token), `sms_gateway_settings`
+ * and the legacy FCM server key. They sit behind the shared, extractable app key, so
+ * anyone holding a copy of the app could read every payment credential.
+ *
+ * Only the sections that can hold credentials are touched - user_data, policies, logo
+ * and so on pass through unchanged. Public identifiers the app genuinely needs
+ * (razorpay_key_id, stripe_publishable_key, flutterwave_public_key, midtrans_client_key,
+ * merchant ids) do not match the pattern and are kept.
+ *
+ * @param array $settings keyed by setting name, as built by get_settings()
+ * @return array
+ */
+function scrub_api_settings($settings)
+{
+    if (!is_array($settings)) {
+        return $settings;
+    }
+
+    $sections = ['payment_method', 'shipping_method', 'send_notification_settings', 'system_settings', 'authentication_settings'];
+    $secret_key = '/(secret|password|passwd|token|salt|private|server_key|encryption_key|merchant_key)/i';
+
+    $scrub = function ($value, $drop_email) use (&$scrub, $secret_key) {
+        if (!is_array($value)) {
+            return $value;
+        }
+        $clean = [];
+        foreach ($value as $k => $v) {
+            if (is_string($k) && (preg_match($secret_key, $k) || ($drop_email && $k === 'email'))) {
+                continue;
+            }
+            $clean[$k] = $scrub($v, $drop_email);
+        }
+        return $clean;
+    };
+
+    foreach ($settings as $name => $value) {
+        if (!is_string($name)) {
+            continue;
+        }
+        if ($name === 'fcm_server_key' || $name === 'sms_gateway_settings') {
+            // Blank the value but keep the SHAPE: in "all" mode these arrive as a one-element
+            // list, and an app that reads index [0] must not find the list gone.
+            $settings[$name] = is_array($value)
+                ? array_map(function ($x) { return is_array($x) ? [] : ''; }, $value)
+                : '';
+        } elseif (in_array($name, $sections, true)) {
+            $settings[$name] = $scrub($value, $name === 'shipping_method');
+        }
+    }
+    return $settings;
+}
+
+/**
+ * Allowlist sanitiser for rich text that sellers and admins author as HTML (product
+ * descriptions, "extra" descriptions).
+ *
+ * WHY. These fields are echoed raw into the storefront product page and into the admin
+ * and seller product views, and nothing on the write path (CI's blocklist xss_clean is
+ * not applied to them, and the CSV bulk upload skips it entirely) removes script. A seller
+ * who saves  <img src=x onerror=...>  gets code running in the ADMIN's session the moment
+ * the product is opened for review, and in every shopper's browser on the product page.
+ *
+ * HOW. The markup is parsed into a DOM and rebuilt from an allowlist - tags, per-tag
+ * attributes, URL schemes and CSS properties - rather than filtered with patterns, so an
+ * unknown construct is dropped, not let through. Normal rich-text formatting (headings,
+ * lists, tables, links, images, inline colour/size styles) survives; scripts, event
+ * handlers, javascript:/data: URLs, forms, SVG/MathML, styles and comments do not.
+ *
+ * Applied on OUTPUT, so stored data is untouched and the rule can be tightened later.
+ *
+ * @param  string $html
+ * @return string safe HTML
+ */
+function sanitize_rich_html($html)
+{
+    $html = (string) $html;
+    if (trim($html) === '' || strpos($html, '<') === false) {
+        // No '<' means no tags can exist - entities stay inert text.
+        return $html;
+    }
+    if (!class_exists('DOMDocument')) {
+        return htmlspecialchars($html, ENT_QUOTES, 'UTF-8');
+    }
+
+    $drop = ['script', 'style', 'frame', 'frameset', 'object', 'embed', 'applet', 'form', 'input', 'button',
+        'select', 'option', 'textarea', 'link', 'meta', 'base', 'svg', 'math', 'noscript', 'template', 'title', 'head',
+        'audio', 'video', 'source', 'track', 'canvas', 'dialog', 'portal', 'slot'];
+    $tags = ['p', 'br', 'hr', 'div', 'span', 'b', 'strong', 'i', 'em', 'u', 's', 'strike', 'del', 'ins', 'sub', 'sup', 'small',
+        'big', 'mark', 'blockquote', 'pre', 'code', 'ul', 'ol', 'li', 'dl', 'dt', 'dd', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'table', 'thead', 'tbody', 'tfoot', 'tr', 'td', 'th', 'caption', 'colgroup', 'col', 'a', 'img', 'figure',
+        'figcaption', 'font', 'center', 'iframe'];
+    $global_attrs = ['class', 'title', 'dir', 'lang', 'align', 'style'];
+    $tag_attrs = [
+        'a'        => ['href', 'target', 'rel'],
+        'img'      => ['src', 'alt', 'width', 'height', 'loading'],
+        'td'       => ['colspan', 'rowspan', 'width', 'height', 'valign', 'bgcolor', 'nowrap'],
+        'th'       => ['colspan', 'rowspan', 'width', 'height', 'valign', 'bgcolor', 'nowrap', 'scope'],
+        'table'    => ['width', 'border', 'cellpadding', 'cellspacing', 'bgcolor'],
+        'tr'       => ['valign', 'bgcolor'],
+        'col'      => ['span', 'width'],
+        'colgroup' => ['span', 'width'],
+        'font'     => ['color', 'size', 'face'],
+        'ol'       => ['start', 'type'],
+        'li'       => ['value'],
+        'iframe'   => ['src', 'width', 'height', 'allowfullscreen', 'frameborder'],
+    ];
+    $css_props = ['color', 'background-color', 'background', 'font-size', 'font-weight', 'font-style', 'font-family',
+        'font-variant', 'text-align', 'text-decoration', 'text-indent', 'text-transform', 'line-height', 'letter-spacing',
+        'word-spacing', 'white-space', 'vertical-align', 'margin', 'margin-top', 'margin-right', 'margin-bottom',
+        'margin-left', 'padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left', 'width', 'height',
+        'max-width', 'min-width', 'max-height', 'min-height', 'border', 'border-top', 'border-right', 'border-bottom',
+        'border-left', 'border-color', 'border-style', 'border-width', 'border-collapse', 'border-spacing',
+        'border-radius', 'list-style', 'list-style-type', 'display', 'float', 'clear', 'table-layout'];
+
+    // True when $url is safe for the given tag/attribute. Whitespace and control characters
+    // are stripped first because browsers ignore them inside a scheme ("java\tscript:").
+    $url_ok = function ($url, $tag) {
+        $u = preg_replace('/[\x00-\x20\x7f]+/', '', (string) $url);
+        if ($u === '') {
+            return true;
+        }
+        if (!preg_match('/^([a-z][a-z0-9+.\-]*):/i', $u, $m)) {
+            return true; // relative URL, no scheme
+        }
+        $scheme = strtolower($m[1]);
+        if ($tag === 'a') {
+            return in_array($scheme, ['http', 'https', 'mailto', 'tel'], true);
+        }
+        if ($tag === 'img') {
+            if ($scheme === 'http' || $scheme === 'https') {
+                return true;
+            }
+            return (bool) preg_match('#^data:image/(png|jpe?g|gif|webp);base64,[a-z0-9+/=]+$#i', $u);
+        }
+        if ($tag === 'iframe') {
+            // Video embeds only, and only over https from the two common hosts.
+            return (bool) preg_match('#^https://(www\.youtube\.com|www\.youtube-nocookie\.com|player\.vimeo\.com)/#i', $u);
+        }
+        return false;
+    };
+
+    $css_ok = function ($style) use ($css_props) {
+        $out = [];
+        foreach (explode(';', (string) $style) as $decl) {
+            if (strpos($decl, ':') === false) {
+                continue;
+            }
+            list($prop, $val) = array_map('trim', explode(':', $decl, 2));
+            $prop = strtolower($prop);
+            if ($val === '' || !in_array($prop, $css_props, true)) {
+                continue;
+            }
+            // url(), expression(), IE behaviours, @import, comments and CSS escapes (\75 rl) are all
+            // ways to run script or fetch from an attacker; nothing legitimate in a description needs them.
+            if (preg_match('/url\s*\(|expression|javascript:|vbscript:|@import|behavior|binding|\\\\|<|>|\/\*|\(\s*["\']?\s*data:/i', $val)) {
+                continue;
+            }
+            $out[] = $prop . ': ' . $val;
+        }
+        return implode('; ', $out);
+    };
+
+    $prev = libxml_use_internal_errors(true);
+    $dom = new DOMDocument();
+    $loaded = $dom->loadHTML('<?xml encoding="UTF-8"><div>' . $html . '</div>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+    libxml_clear_errors();
+    libxml_use_internal_errors($prev);
+    if (!$loaded) {
+        return htmlspecialchars($html, ENT_QUOTES, 'UTF-8');
+    }
+    $root = $dom->getElementsByTagName('div')->item(0);
+    if (!$root) {
+        return htmlspecialchars($html, ENT_QUOTES, 'UTF-8');
+    }
+
+    $walk = function (DOMNode $node) use (&$walk, $drop, $tags, $global_attrs, $tag_attrs, $url_ok, $css_ok) {
+        foreach (iterator_to_array($node->childNodes) as $child) {
+            if ($child->nodeType === XML_TEXT_NODE) {
+                continue;
+            }
+            if ($child->nodeType !== XML_ELEMENT_NODE) {
+                $node->removeChild($child); // comments, processing instructions, CDATA
+                continue;
+            }
+            $tag = strtolower($child->nodeName);
+            if (in_array($tag, $drop, true)) {
+                $node->removeChild($child);
+                continue;
+            }
+            if (!in_array($tag, $tags, true)) {
+                // Unknown element: keep its (sanitised) content, lose the element itself.
+                $walk($child);
+                while ($child->firstChild) {
+                    $node->insertBefore($child->firstChild, $child);
+                }
+                $node->removeChild($child);
+                continue;
+            }
+
+            foreach (iterator_to_array($child->attributes) as $attr) {
+                $name = strtolower($attr->nodeName);
+                $val = $attr->nodeValue;
+                $allowed = in_array($name, $global_attrs, true) || (isset($tag_attrs[$tag]) && in_array($name, $tag_attrs[$tag], true));
+                if (!$allowed || strpos($name, 'on') === 0) {
+                    $child->removeAttribute($attr->nodeName);
+                } elseif ($name === 'style') {
+                    $clean = $css_ok($val);
+                    if ($clean === '') {
+                        $child->removeAttribute($attr->nodeName);
+                    } else {
+                        $child->setAttribute('style', $clean);
+                    }
+                } elseif ($name === 'href' || $name === 'src') {
+                    if (!$url_ok($val, $tag)) {
+                        $child->removeAttribute($attr->nodeName);
+                    }
+                } elseif ($name === 'target' && !in_array(strtolower($val), ['_blank', '_self'], true)) {
+                    $child->removeAttribute($attr->nodeName);
+                }
+            }
+            if ($tag === 'iframe' && !$child->hasAttribute('src')) {
+                $node->removeChild($child); // an iframe with no vetted source is nothing
+                continue;
+            }
+            if ($tag === 'a' && $child->hasAttribute('target')) {
+                $child->setAttribute('rel', 'noopener noreferrer');
+            }
+            $walk($child);
+        }
+    };
+    $walk($root);
+
+    $out = '';
+    foreach ($root->childNodes as $c) {
+        $out .= $dom->saveHTML($c);
+    }
+    return $out;
 }
 
 function get_statistics($product_varient_id)

@@ -198,7 +198,7 @@
                     <div class="card-body">
                         <div class="tab-content" id="nav-tabContent">
                             <?php if (!empty($product_details[0]['description'])) { ?>
-                                <div class="tab-pane active" id="product-desc" role="tabpanel" aria-labelledby="product-desc-tab"><?= $product_details[0]['description'] ?></div>
+                                <div class="tab-pane active" id="product-desc" role="tabpanel" aria-labelledby="product-desc-tab"><?= sanitize_rich_html($product_details[0]['description']) ?></div>
                             <?php } ?>
                             <?php
                             if (!empty($product_rating['product_rating'])) {

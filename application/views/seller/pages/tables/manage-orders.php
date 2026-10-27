@@ -68,7 +68,7 @@
                             <form class="form-horizontal" id="digital_product_management" action="<?= base_url('seller/orders/send_digital_product'); ?>" method="POST" enctype="multipart/form-data">
                                 <div class="card-body">
                                     <input type="hidden" name="order_id" value="<?= $order_item_data[0]['order_id'] ?? '' ?>">
-                                    <input type="hidden" name="order_item_id" id="send_mail_order_item_id" value="<?= $this->input->get('edit_id') ?>">
+                                    <input type="hidden" name="order_item_id" id="send_mail_order_item_id" value="<?= html_escape($this->input->get('edit_id')) ?>">
                                     <input type="hidden" name="username" value="<?= $user_data['username'] ?? '' ?>">
                                     <div class="row form-group">
                                         <div class="col-12">

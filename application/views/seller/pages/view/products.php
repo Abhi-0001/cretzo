@@ -165,7 +165,7 @@
                             </dv>
                     </nav>
                     <div class="tab-content p-3 col-md-12" id="nav-tabContent">
-                        <div class="tab-pane active" id="product-desc" role="tabpanel" aria-labelledby="product-desc-tab"><?= $product_details[0]['description'] ?></div>
+                        <div class="tab-pane active" id="product-desc" role="tabpanel" aria-labelledby="product-desc-tab"><?= sanitize_rich_html($product_details[0]['description']) ?></div>
                         <?php
                         if (!empty($product_rating['product_rating'])) {
                         ?>

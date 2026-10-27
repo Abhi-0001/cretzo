@@ -55,7 +55,7 @@
                                 <form class="form-horizontal form-submit-event" id="digital_product_management" action="<?= base_url('seller/orders/send_digital_product'); ?>" method="POST" enctype="multipart/form-data">
                                     <div class="card-body">
                                         <input type="hidden" name="order_id" value="<?= $order_detls[0]['order_id'] ?>">
-                                        <input type="hidden" name="order_item_id" value="<?= $this->input->get('edit_id') ?>">
+                                        <input type="hidden" name="order_item_id" value="<?= html_escape($this->input->get('edit_id')) ?>">
                                         <input type="hidden" name="username" value="<?= $order_detls[0]['uname']  ?>">
                                         <div class="row form-group">
                                             <div class="col-12">

@@ -110,7 +110,9 @@ class Featured_section_model extends CI_Model
         foreach ($city_search_res as $row) {
             $row = unslash($row);
 
-            $operate = ' <a href="javascript:void(0)" class="edit_btn action-btn btn btn-primary btn-xs ml-1 mr-1 mb-1" title="Edit" data-id="' . $row['id'] . '" data-url="admin/Featured_sections/"><i class="fa fa-pen"></i></a>';
+            // Edit opens the same full form as "Add a section" (with the product picker) on the page
+            // itself; the old modal loaded it through .load(), which strips the picker's script.
+            $operate = ' <a href="' . base_url('admin/featured_sections?edit_id=' . (int) $row['id']) . '" class="action-btn btn btn-primary btn-xs ml-1 mr-1 mb-1" title="Edit"><i class="fa fa-pen"></i></a>';
             $operate .= ' <a  href="javascript:void(0)" class="btn btn-danger action-btn btn-xs mr-1 mb-1 ml-1" title="Delete" data-id="' . $row['id'] . '" id="delete-featured-section" ><i class="fa fa-trash"></i></a>';
 
             // Featured sections had no publish/unpublish control at all - creating one pushed it

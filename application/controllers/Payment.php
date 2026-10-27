@@ -63,33 +63,50 @@
                 redirect(base_url());
             }
 
-            if ($_SERVER['HTTP_REFERER'] == 'https://www.sandbox.paypal.com/' || $_SERVER['HTTP_REFERER'] == 'https://www.paypal.com/') {
-                $order_id = $this->uri->segment(3);
-                $order_item = fetch_details('order_items', ['order_id' => $order_id], 'user_id,product_variant_id,quantity');
-                foreach ($order_item as $row) {
-                    $cart_data = [
-                        'user_id' => $row['user_id'],
-                        'product_variant_id' => $row['product_variant_id'],
-                        'qty' => $row['quantity'],
-                        'is_saved_for_later' => 0,
-                    ];
-                    $this->db->insert('cart', $cart_data);
-                }
-                $order = fetch_orders($order_id, false, false, false, false, false, false, false);
+            // This endpoint is the PayPal "cancel" return URL (see payment/paypal). It used to
+            // be gated ONLY by `$_SERVER['HTTP_REFERER'] == 'https://www.paypal.com/'` - a
+            // header the caller writes themselves - and then deleted whichever order id was in
+            // the URL and credited the wallet with that order's full final_total. So any
+            // logged-in user could delete anyone's order, or delete their own paid/delivered
+            // order and be refunded in wallet credit while keeping the goods.
+            //
+            // Now: the order must belong to the logged-in user and every line must still be
+            // 'awaiting' (i.e. unpaid), and the wallet is credited with what was actually
+            // DEBITED from it for this order (orders.wallet_balance), not the order total -
+            // for a cancelled, never-paid PayPal order nothing else was ever taken.
+            $order_id = (int) $this->uri->segment(3);
+            $user_id = (int) $this->session->userdata('user_id');
+            $order = ($order_id > 0 && $user_id > 0) ? fetch_details('orders', ['id' => $order_id, 'user_id' => $user_id], 'id,wallet_balance') : [];
+            $order_items = !empty($order) ? fetch_details('order_items', ['order_id' => $order_id], 'user_id,product_variant_id,quantity,active_status') : [];
 
-                $user_id = $order['order_data'][0]['user_id'];
-                $returnable_amount = $order['order_data'][0]['final_total'];
-
-                update_wallet_balance('credit', $user_id, $returnable_amount, 'Wallet Amount Credited for Order ID  : ' . $order_id);
-                if ($order['order_data'][0]['order_items'][0]['status'][0][0] == 'awaiting') {
-                    // Restored only order_items[0], so every line after the first on a
-                    // multi-item order stayed held. restore_order_stock() covers them all.
-                    restore_order_stock($order_id);
-                }
-                delete_details(['id' => $order_id], 'orders');
-                delete_details(['order_id' => $order_id], 'order_items');
+            if (empty($order) || empty($order_items)) {
                 redirect('payment/cancel');
             }
+            foreach ($order_items as $row) {
+                if ($row['active_status'] !== 'awaiting') {
+                    redirect('payment/cancel');
+                }
+            }
+
+            foreach ($order_items as $row) {
+                $cart_data = [
+                    'user_id' => $row['user_id'],
+                    'product_variant_id' => $row['product_variant_id'],
+                    'qty' => $row['quantity'],
+                    'is_saved_for_later' => 0,
+                ];
+                $this->db->insert('cart', $cart_data);
+            }
+
+            $returnable_amount = (float) $order[0]['wallet_balance'];
+            if ($returnable_amount > 0) {
+                update_wallet_balance('credit', $user_id, $returnable_amount, 'Wallet Amount Credited for Order ID  : ' . $order_id);
+            }
+            // Restores every line, not just the first one.
+            restore_order_stock($order_id);
+            delete_details(['id' => $order_id], 'orders');
+            delete_details(['order_id' => $order_id], 'order_items');
+            redirect('payment/cancel');
         }
         public function paytm()
         {
@@ -292,6 +309,17 @@
 
         public function phonepe_response()
         {
+            // This handler is CSRF-exempt, needs no login, and REBUILDS the visitor's session
+            // (user_id, identity, and the session-hash constant) from whatever `transactionId`
+            // is POSTed - so anyone who knows or can guess a transaction id becomes that user.
+            // The proper fix binds the return to a secret issued when the payment starts, which
+            // needs a live PhonePe test. Until then it is closed unless PhonePe is switched on:
+            // a store that does not use PhonePe has no business exposing this endpoint at all.
+            $payment_settings = get_settings('payment_method', true);
+            if (empty($payment_settings['phonepe_payment_method']) || $payment_settings['phonepe_payment_method'] != 1) {
+                show_404();
+                return;
+            }
             $paramList = array();
             $paramList = $_POST;
             if (isset($_POST['transactionId']) && !empty($_POST['transactionId'])) {

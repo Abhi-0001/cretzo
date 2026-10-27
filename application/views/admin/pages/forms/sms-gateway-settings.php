@@ -27,6 +27,56 @@
     <section class="content">
         <input type="hidden" id="sms_gateway_settings" name="sms_gateway_settings" value='<?= htmlspecialchars($sms, ENT_QUOTES) ?>'>
         <div class="container-fluid">
+            <?php
+            $mobile_alerts = mobile_alert_settings();
+            $gateway_ready = !empty($sms_gateway_settings['base_url']);
+            ?>
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="card attribute-card">
+                        <div class="card-header attribute-card-header d-flex align-items-center">
+                            <span class="header-icon bg-set mr-2"><i class="fas fa-mobile-alt"></i></span>
+                            <h5 class="mb-0">Mobile alerts</h5>
+                        </div>
+                        <div class="card-body pt-3">
+                            <p class="text-muted mb-3">Every notification a seller or buyer gets in their account is also texted to their mobile number through the gateway below.
+                                <?php if (!$gateway_ready) { ?><b class="text-danger">No gateway is configured yet, so nothing is being sent.</b><?php } ?>
+                                Texts go out after the page responds and are never sent twice within 10 minutes. Failures are recorded in the <code>notification_mobile_log</code> table.</p>
+                            <form id="mobile-alerts-form" autocomplete="off">
+                                <?php foreach ([
+                                    'sms'        => ['Send notifications by SMS', 'Master switch for this feature.'],
+                                    'sellers'    => ['Text sellers', 'Order, payout, approval, ticket and other seller notifications.'],
+                                    'customers'  => ['Text buyers', 'Order status, ticket, wallet and other buyer notifications.'],
+                                    'broadcasts' => ['Text admin broadcasts to a whole audience', 'Admin > Send Notification to All Sellers / All Customers / All Users. One billed SMS per account, so it is off by default. Messages to named users are always texted.'],
+                                ] as $key => $meta) { ?>
+                                    <div class="custom-control custom-switch mb-2">
+                                        <input type="checkbox" class="custom-control-input" id="ma-<?= $key ?>" name="<?= $key ?>" value="1" <?= !empty($mobile_alerts[$key]) ? 'checked' : '' ?>>
+                                        <label class="custom-control-label font-weight-bold" for="ma-<?= $key ?>"><?= $meta[0] ?></label>
+                                        <small class="form-text text-muted"><?= $meta[1] ?></small>
+                                    </div>
+                                <?php } ?>
+                                <button type="submit" class="btn btn-success mt-2" id="mobile-alerts-save">Save mobile alert settings</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <script>
+                $('#mobile-alerts-form').on('submit', function(e) {
+                    e.preventDefault();
+                    var $b = $('#mobile-alerts-save').prop('disabled', true);
+                    var data = {};
+                    ['sms', 'sellers', 'customers', 'broadcasts'].forEach(function(k) { data[k] = $('#ma-' + k).is(':checked') ? 1 : 0; });
+                    data[csrfName] = csrfHash;
+                    $.ajax({ url: '<?= base_url('admin/sms_gateway_settings/save_mobile_alerts') ?>', type: 'POST', data: data, dataType: 'json' })
+                        .done(function(res) {
+                            if (res.csrfName) { csrfName = res.csrfName; csrfHash = res.csrfHash; }
+                            iziToast[res.error ? 'error' : 'success']({ message: res.message });
+                        })
+                        .fail(function() { iziToast.error({ message: 'Something went wrong. Please try again.' }); })
+                        .always(function() { $b.prop('disabled', false); });
+                });
+            </script>
             <div class="row">
                 <div class="col-md-12">
                     <div class="card attribute-card">

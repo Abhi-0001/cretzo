@@ -32,7 +32,7 @@
                             <form class="form-horizontal" id="stock_adjustment_form" action="<?= base_url('seller/manage_stock/update_stock'); ?>" method="POST" enctype="multipart/form-data">
                                 <div class="card-body">
                                     <?php if (isset($fetched_data['product'][0]['id'])) { ?>
-                                        <input type="hidden" name="variant_id" value="<?= $this->input->get('edit_id') ?>">
+                                        <input type="hidden" name="variant_id" value="<?= html_escape($this->input->get('edit_id')) ?>">
                                     <?php  } ?>
 
                                     <div class="row">

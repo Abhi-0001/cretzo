@@ -95,6 +95,39 @@ class Sms_gateway_settings extends CI_Controller
         }
     }
 
+    /** Mobile alerts switches: which notifications are also texted. See notify_user_mobile(). */
+    public function save_mobile_alerts()
+    {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {
+            redirect('admin/login', 'refresh');
+            return;
+        }
+        if (!has_permissions('read', 'sms-gateway-settings')) {
+            deny_panel_access();
+        }
+        if (print_msg(!has_permissions('update', 'sms-gateway-settings'), PERMISSION_ERROR_MSG, 'sms-gateway-settings')) {
+            return false;
+        }
+        $value = json_encode([
+            'sms'        => $this->input->post('sms') == '1' ? 1 : 0,
+            'sellers'    => $this->input->post('sellers') == '1' ? 1 : 0,
+            'customers'  => $this->input->post('customers') == '1' ? 1 : 0,
+            'broadcasts' => $this->input->post('broadcasts') == '1' ? 1 : 0,
+        ]);
+        if ($this->db->where('variable', 'mobile_notifications')->count_all_results('settings')) {
+            $this->db->where('variable', 'mobile_notifications')->update('settings', ['value' => $value]);
+        } else {
+            $this->db->insert('settings', ['variable' => 'mobile_notifications', 'value' => $value]);
+        }
+        clear_settings_cache();
+        echo json_encode([
+            'error'    => false,
+            'message'  => 'Mobile alert settings saved.',
+            'csrfName' => $this->security->get_csrf_token_name(),
+            'csrfHash' => $this->security->get_csrf_hash(),
+        ]);
+    }
+
     public function update_notification_module()
     {
         if ($this->ion_auth->logged_in() && $this->ion_auth->is_admin()) {

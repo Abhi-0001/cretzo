@@ -432,10 +432,13 @@ $(document).ready(function () {
             $.each(data, function (index, item) {
                 const rawName = String(item.name || '');
                 const safeName = rawName.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
-                const safeUrl = String(item.url || '').replace(/"/g, '&quot;');
+                const safeUrl = String(item.url || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 
+                // data-* attributes, not an inline onclick: an attribute value is HTML-decoded BEFORE an
+                // inline handler's JavaScript is parsed, so the &quot; escaping above turned straight
+                // back into a string terminator and a name like  x");fetch(...);//  executed.
                 html += `
-                    <div class="search-item text-n mega-list-item" onclick="selectSuggestion(&quot;${safeName}&quot;,&quot;${safeUrl}&quot;)">
+                    <div class="search-item text-n mega-list-item" data-name="${safeName}" data-url="${safeUrl}">
                         <div>${safeName}</div>
                     </div>
                 `;
@@ -495,9 +498,14 @@ $(document).ready(function () {
 });
 
 // Fill value into search box
+$(document).on('click', '.search-item[data-name]', function () {
+    selectSuggestion($(this).attr('data-name'), $(this).attr('data-url'));
+});
+
 function selectSuggestion(name, url) {
     $(".search_field").val('');
-    if (url && url.length > 0) {
+    // Never navigate to a javascript:/data: URL, whatever the suggestion carried.
+    if (url && url.length > 0 && !/^\s*(javascript|data|vbscript):/i.test(url)) {
         window.location.href = url;
     } else {
         window.location.href = base_url + '/products/search?q=' + encodeURIComponent(name);

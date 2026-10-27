@@ -76,7 +76,7 @@
                             <h5 class="mb-0">Transactions</h5>
                         </div>
                         <div class="card-body">
-                            <input type='hidden' id='transaction_user_id' value='<?= (isset($_GET['user_id']) && !empty($_GET['user_id'])) ? $_GET['user_id'] : '' ?>'>
+                            <input type='hidden' id='transaction_user_id' value='<?= (isset($_GET['user_id']) && !empty($_GET['user_id'])) ? html_escape($_GET['user_id']) : '' ?>'>
                             <table class='table-striped' data-toggle="table" data-url="<?= base_url('admin/transaction/view_transactions') ?>" data-click-to-select="true" data-side-pagination="server" data-pagination="true" data-page-list="[5, 10, 20, 50, 100, 200]" data-search="true" data-show-columns="true" data-show-refresh="true" data-trim-on-search="false" data-sort-name="id" data-sort-order="desc" data-mobile-responsive="true" data-toolbar="" data-show-export="true" data-maintain-selected="true" data-query-params="transaction_query_params">
                                 <thead>
                                     <tr>

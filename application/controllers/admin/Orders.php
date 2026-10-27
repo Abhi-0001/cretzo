@@ -322,7 +322,7 @@ class Orders extends CI_Controller
                 }
             }
             if (isset($_POST['deliver_by']) && !empty($_POST['deliver_by']) && isset($_POST['orderid']) && !empty($_POST['orderid'])) {
-                $where = "id = " . $_POST['orderid'] . "";
+                $where = "id = " . (int) $_POST['orderid'] . "";
                 // orders has no delivery_boy_id column - the assignment is per order item.
                 // Reading it off `orders` was an "Unknown column" error every time.
                 $current_delivery_boy = fetch_details('order_items', ['order_id' => $_POST['orderid']], 'delivery_boy_id');
@@ -446,8 +446,8 @@ class Orders extends CI_Controller
             $error = TRUE;
             $message = '';
 
-            $where_id = "id = " . $_POST['orderid'] . " and (active_status != 'cancelled' and active_status != 'returned' ) ";
-            $where_order_id = "order_id = " . $_POST['orderid'] . " and (active_status != 'cancelled' and active_status != 'returned' ) ";
+            $where_id = "id = " . (int) $_POST['orderid'] . " and (active_status != 'cancelled' and active_status != 'returned' ) ";
+            $where_order_id = "order_id = " . (int) $_POST['orderid'] . " and (active_status != 'cancelled' and active_status != 'returned' ) ";
 
             $order_items_details = fetch_details('order_items', $where_order_id, 'active_status');
             $counter = count($order_items_details);

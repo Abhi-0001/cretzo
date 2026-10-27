@@ -23,11 +23,11 @@
                 <div class="col-md-12">
                     <div class="card attribute-card mb-3">
                         <div class="card-header attribute-card-header">
-                            <span class="header-icon bg-set mr-2"><i class="fas fa-plus"></i></span>
+                            <span class="header-icon bg-set mr-2"><i class="fas <?= isset($fetched_data[0]['id']) ? 'fa-pen' : 'fa-plus' ?>"></i></span>
                             <h5 class="mb-0"><?= (isset($fetched_data[0]['id'])) ? 'Edit section' : 'Add a section' ?></h5>
                         </div>
                         <!-- form start -->
-                        <form class="form-horizontal form-submit-event" action="<?= base_url('admin/Featured_sections/add_featured_section'); ?>" method="POST" enctype="multipart/form-data">
+                        <form class="form-horizontal form-submit-event" action="<?= base_url('admin/Featured_sections/add_featured_section'); ?>" method="POST" enctype="multipart/form-data"<?= isset($fetched_data[0]['id']) ? ' data-redirect-url="' . base_url('admin/featured_sections') . '"' : '' ?>>
                             <?php if (isset($fetched_data[0]['id'])) { ?>
                                 <input type="hidden" id="edit_featured_section" name="edit_featured_section" value="<?= @$fetched_data[0]['id'] ?>">
                                 <input type="hidden" id="update_id" name="update_id" value="1">
@@ -309,20 +309,6 @@
                     </div>
                 </div>
                 <!--/.card-->
-            </div>
-            <div class="modal fade edit-modal-lg" tabindex="-1" role="dialog" aria-labelledby="myLargeModalLabel" aria-hidden="true">
-                <div class="modal-dialog modal-lg">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title" id="exampleModalLongTitle">Edit Fetured Section Details</h5>
-                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                <span aria-hidden="true">&times;</span>
-                            </button>
-                        </div>
-                        <div class="modal-body">
-                        </div>
-                    </div>
-                </div>
             </div>
             <div class="col-md-12 main-content">
                 <div class="card attribute-card">

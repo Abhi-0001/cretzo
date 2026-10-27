@@ -1,3 +1,9 @@
+// HTML-escape for values interpolated into template strings. Product names are seller-entered
+// (and the CSV bulk upload skips xss_clean), so they must never be injected as markup.
+function plEsc(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
 var price_filter_enabled = false;
 // paging state for infinite scroll
 var currentPage = 1;
@@ -887,7 +893,7 @@ function renderProducts(products) {
         // Secondary image for the hover-swap (falls back to none when the product has only one image)
         let hoverSrc = (product.other_images_sm && product.other_images_sm.length) ? product.other_images_sm[0] : '';
         let hoverImgHTML = hoverSrc
-            ? `<img class="card-img-img secondary-img" src="${hoverSrc}" alt="${product.name}">`
+            ? `<img class="card-img-img secondary-img" src="${hoverSrc}" alt="${plEsc(product.name)}">`
             : '';
 
         // Short description safely
@@ -938,7 +944,7 @@ function renderProducts(products) {
                 <button class="small-btn small-btn-light prod-tag prod-tag-top">Sale</button>
                 <button class="small-btn small-btn-dark prod-tag prod-tag-bottom">New</button>
 
-                <img class="card-img-img primary-img lazy" src="${imgSrc}" data-src="${imgSrc}" alt="${product.name}">
+                <img class="card-img-img primary-img lazy" src="${imgSrc}" data-src="${imgSrc}" alt="${plEsc(product.name)}">
                 ${hoverImgHTML}
 
                 ${generateStarRatingHTML(product)}
@@ -950,7 +956,7 @@ function renderProducts(products) {
             </div>
 
             <div class="card-des">
-                <h1 class="ta-c text-s product-name-no-wrap">${product.name}</h1>
+                <h1 class="ta-c text-s product-name-no-wrap">${plEsc(product.name)}</h1>
 
                 <p class="ta-c list-product-desc text-es product-name-no-wrap">
                     ${shortDesc}

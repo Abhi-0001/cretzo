@@ -63,8 +63,8 @@
 
                             </div>
                         </div>
-                        <input type='hidden' id='order_user_id' value='<?= (isset($_GET['user_id']) && !empty($_GET['user_id'])) ? $_GET['user_id'] : '' ?>'>
-                        <input type='hidden' id='order_seller_id' value='<?= (isset($_GET['seller_id']) && !empty($_GET['seller_id'])) ? $_GET['seller_id'] : '' ?>'>
+                        <input type='hidden' id='order_user_id' value='<?= (isset($_GET['user_id']) && !empty($_GET['user_id'])) ? html_escape($_GET['user_id']) : '' ?>'>
+                        <input type='hidden' id='order_seller_id' value='<?= (isset($_GET['seller_id']) && !empty($_GET['seller_id'])) ? html_escape($_GET['seller_id']) : '' ?>'>
                         <div class="row col-md-6">
                             <div class="row col-md-4 pull-right">
                                 <a href="#" class="btn btn-primary btn-sm add_promo_code_discount" title="If you found Promo Code Discount not crediting using cron job you can update Promo Code Discount from here!">Settle Promo Code Discount</a>

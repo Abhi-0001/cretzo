@@ -1153,6 +1153,8 @@ Defined Methods:-
 
                 $this->response['error'] = false;
                 $this->response['message'] = 'Settings retrieved successfully';
+                // Credentials (gateway secrets, Shiprocket login, FCM server key) must never leave the server.
+                $general_settings = scrub_api_settings($general_settings);
                 $this->response['data'] = $general_settings;
             } else {
                 $this->response['error'] = true;

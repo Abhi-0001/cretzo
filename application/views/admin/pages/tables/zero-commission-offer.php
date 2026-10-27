@@ -182,7 +182,9 @@
             .done(function (res) {
                 if (res.csrfName) { csrfName = res.csrfName; csrfHash = res.csrfHash; }
                 if (res.state) { state = res.state; render(); }
-                (res.error ? iziToast.error : iziToast.success)({ message: res.message });
+                // Call as a method: iziToast's helpers use `this`, so a detached reference throws
+                // inside this callback and the .always() below never restores the button.
+                iziToast[res.error ? 'error' : 'success']({ message: res.message });
             })
             .fail(function () { iziToast.error({ message: 'Something went wrong. Please try again.' }); })
             .always(function () { if ($btn) $btn.prop('disabled', false).html(original); });
