@@ -188,12 +188,20 @@ function notify_event(string $event,array $emails = [], array $phone = [],  $whe
     $sent = ['sms' => 0, 'mail' => 0];
     $failed = ['sms' => 0, 'mail' => 0];
 
+    // The Mobile alerts feature texts the same people about the same order events (see
+    // notify_user_mobile()). Each path records what it sent and skips what the other already
+    // sent for this order + status, so nobody gets two texts for one event.
+    $order_ref = isset($where['orders.id']) ? (string) $where['orders.id'] : '';
     foreach ($sendPhone as $phone_number) {
+        if (sms_already_sent_for_order($phone_number, $order_ref, $event)) {
+            continue;
+        }
         $result = send_sms($phone_number, $message);
         if (!empty($result['error']) || empty($result['http_code']) || $result['http_code'] < 200 || $result['http_code'] >= 300) {
             $failed['sms']++;
         } else {
             $sent['sms']++;
+            sms_record_for_order($phone_number, $order_ref, $event, $message);
         }
     }
 
@@ -443,7 +451,7 @@ function mobile_alert_deliver($user_id, array $channels, $text, $type, $type_id)
         }
         $dup = $t->db->where(['user_id' => (int) $user_id, 'channel' => $channel, 'message_hash' => $hash, 'status' => 'sent'])
             ->where('created_at >=', date('Y-m-d H:i:s', time() - 600))->count_all_results('notification_mobile_log');
-        if ($dup) {
+        if ($dup || ($channel === 'sms' && sms_already_sent_for_order($mobile, $type_id, $type))) {
             continue;
         }
         $res = send_sms($mobile, $text);
@@ -500,5 +508,70 @@ function notify_audience_mobile($send_to, array $user_ids, $title, $message, $ty
     } catch (Throwable $e) {
         log_message('error', 'notify_audience_mobile: ' . $e->getMessage());
         return 0;
+    }
+}
+
+/**
+ * One word for the status an SMS is about, so the SMS Matrix event "customer_order_shipped" and
+ * the notification type "order_shipped" count as the same thing. '' when it is not an order
+ * status (then nothing is de-duplicated across the two paths).
+ */
+function sms_status_key($event_or_type)
+{
+    $e = strtolower((string) $event_or_type);
+    if ($e === 'place_order') {
+        return 'placed';
+    }
+    if (preg_match('/^(?:customer_|seller_|delivery_boy_)?order_(received|processed|shipped|delivered|cancelled|returned)$/', $e, $m)) {
+        return $m[1];
+    }
+    return '';
+}
+
+/** Has this number already been texted about this order + status in the last 10 minutes? */
+function sms_already_sent_for_order($mobile, $order_ref, $event_or_type)
+{
+    try {
+        $number = mobile_alert_number($mobile);
+        $key = sms_status_key($event_or_type);
+        if ($number === '' || (string) $order_ref === '' || $key === '') {
+            return false;
+        }
+        $t = &get_instance();
+        if (!$t->db->table_exists('notification_mobile_log')) {
+            return false;
+        }
+        $rows = $t->db->select('type')->where(['mobile' => $number, 'type_id' => (string) $order_ref, 'status' => 'sent', 'channel' => 'sms'])
+            ->where('created_at >=', date('Y-m-d H:i:s', time() - 600))->get('notification_mobile_log')->result_array();
+        foreach ($rows as $r) {
+            if (sms_status_key($r['type']) === $key) {
+                return true;
+            }
+        }
+    } catch (Throwable $e) {
+        log_message('error', 'sms_already_sent_for_order: ' . $e->getMessage());
+    }
+    return false;
+}
+
+/** Remember an SMS sent by the SMS Matrix path, so the Mobile alerts path can see it. */
+function sms_record_for_order($mobile, $order_ref, $event, $message)
+{
+    try {
+        $number = mobile_alert_number($mobile);
+        if ($number === '' || (string) $order_ref === '' || sms_status_key($event) === '') {
+            return;
+        }
+        $t = &get_instance();
+        if (!$t->db->table_exists('notification_mobile_log')) {
+            return;
+        }
+        $t->db->insert('notification_mobile_log', [
+            'user_id' => 0, 'channel' => 'sms', 'mobile' => $number, 'type' => mb_substr((string) $event, 0, 64),
+            'type_id' => mb_substr((string) $order_ref, 0, 128), 'message_hash' => md5((string) $message),
+            'message' => mb_substr((string) $message, 0, 600), 'status' => 'sent', 'error' => null,
+        ]);
+    } catch (Throwable $e) {
+        log_message('error', 'sms_record_for_order: ' . $e->getMessage());
     }
 }
