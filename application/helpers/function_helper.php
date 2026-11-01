@@ -11414,15 +11414,15 @@ function scrub_api_settings($settings)
     }
 
     $sections = ['payment_method', 'shipping_method', 'send_notification_settings', 'system_settings', 'authentication_settings'];
-    $secret_key = '/(secret|password|passwd|token|salt|private|server_key|encryption_key|merchant_key)/i';
+    $sensitive_key_pattern = '/(secret|password|passwd|token|salt|private|server_key|encryption_key|merchant_key)/i';
 
-    $scrub = function ($value, $drop_email) use (&$scrub, $secret_key) {
+    $scrub = function ($value, $drop_email) use (&$scrub, $sensitive_key_pattern) {
         if (!is_array($value)) {
             return $value;
         }
         $clean = [];
         foreach ($value as $k => $v) {
-            if (is_string($k) && (preg_match($secret_key, $k) || ($drop_email && $k === 'email'))) {
+            if (is_string($k) && (preg_match($sensitive_key_pattern, $k) || ($drop_email && $k === 'email'))) {
                 continue;
             }
             $clean[$k] = $scrub($v, $drop_email);
