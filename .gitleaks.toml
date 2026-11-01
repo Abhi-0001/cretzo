@@ -89,6 +89,10 @@ regexes = [
   #
   # Delete this entry together with the $legacy_* block in database.php.
   '''(Geet@cretzo123|cretZo@#12;)''',
+  # database.php maps variable names to the ENVIRONMENT VARIABLES that supply them:
+  # 't_password' => 'DB_PASSWORD'. The right-hand side is the NAME of an env var, not a
+  # password. Scoped to that exact pair so a real literal is still flagged.
+  '''t_password.\s*=>\s*.DB_PASSWORD.''',
 ]
 paths = [
   # The template carries no real values, only names and comments.
