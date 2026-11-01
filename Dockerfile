@@ -140,6 +140,9 @@ RUN { \
     } > /etc/apache2/conf-available/passenv-ci.conf; \
     a2enconf passenv-ci
 
+# HD product videos: PHP's stock 2M upload limit rejected them before the app saw the file
+COPY docker/uploads.ini /usr/local/etc/php/conf.d/uploads.ini
+
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html

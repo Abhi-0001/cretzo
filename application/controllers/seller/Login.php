@@ -670,8 +670,11 @@ class Login extends CI_Controller
                         $ids = array_filter(array_map('intval', explode(',', $secondary_categories_post)));
                         $secondary_category_ids = !empty($ids) ? implode(',', $ids) : null;
                     }
-                    $primary_category_id = $this->input->post('primary_category_id', true);
-                    $primary_category_id = ($primary_category_id !== null && $primary_category_id !== '') ? (int) $primary_category_id : null;
+                    // Several primary categories arrive comma-separated; the first doubles as the single
+                    // primary_category_id that commission defaults and the dashboard read.
+                    $primary_ids = array_values(array_unique(array_filter(array_map('intval', explode(',', (string) $this->input->post('primary_category_id', true))))));
+                    $primary_category_id = !empty($primary_ids) ? $primary_ids[0] : null;
+                    $primary_category_ids = !empty($primary_ids) ? implode(',', $primary_ids) : null;
 
                 if ($user_id) {
 
@@ -697,6 +700,7 @@ class Login extends CI_Controller
                         'slug' => $final_slug,
                         'category_ids' => $secondary_category_ids,
                         'primary_category_id' => $primary_category_id,
+                        'primary_category_ids' => $primary_category_ids,
                         'first_name' => $this->input->post('first_name') ?? null,
                         'middle_name' => $this->input->post('middle_name') ?? null,
                         'last_name' => $this->input->post('last_name') ?? null,

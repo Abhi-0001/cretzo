@@ -526,21 +526,21 @@ $rail = [
               <fieldset class="czp-group">
                 <legend>What this seller sells</legend>
                 <div class="czp-grid">
-                  <?php
-                  $primary_options = ['' => 'Select a category'];
-                  foreach ($all_categories as $cat) {
-                      if ((int) $cat['parent_id'] !== 0) continue; // top-level only
-                      $primary_options[$cat['id']] = $cat['name'];
-                  }
-                  asf_field([
-                      'name' => 'primary_category_id', 'label' => 'Primary Product Category', 'required' => true,
-                      'type' => 'select', 'id' => 'primary_category_id', 'options' => $primary_options,
-                      'value' => $d['primary_category_id'] ?? '',
-                  ]);
-                  ?>
+                  <div class="czp-field czp-col-6" data-czp-field="primary_category_id">
+                    <label class="czp-label">Primary Product Categories <i class="czp-req">*</i></label>
+                    <div class="czp-chips" id="primary_chips">
+                  <?php $sel_primary = array_filter(array_map('intval', explode(',', (string) (($d['primary_category_ids'] ?? '') ?: ($d['primary_category_id'] ?? ''))))); ?>
+                  <?php foreach ($all_categories as $cat): ?>
+                    <?php if ((int) $cat['parent_id'] !== 0) continue; // top-level only ?>
+                    <label class="czp-chip"><input type="checkbox" value="<?= (int) $cat['id'] ?>" <?= in_array((int) $cat['id'], $sel_primary, true) ? 'checked' : '' ?>><span><?= asf_attr($cat['name']) ?></span></label>
+                  <?php endforeach; ?>
+                </div>
+                <input type="hidden" id="primary_category_id" name="primary_category_id" value="<?= implode(',', $sel_primary) ?>">
+                    <span class="czp-error" data-czp-error></span>
+                  </div>
                   <div class="czp-field czp-col-6" data-czp-field="secondary_category_ids">
                     <label class="czp-label">Secondary Categories <small class="czp-hint" style="display:inline">(optional)</small></label>
-                    <small class="czp-hint">Any other categories the seller sells in - they don't have to be under the primary category.</small>
+                    <small class="czp-hint">Sub-categories of the selected primary categories.</small>
                     <div class="czp-pills" id="category_pills"></div>
                     <input type="hidden" name="secondary_category_ids" id="secondary_category_ids" value="<?= asf_attr($d['category_ids'] ?? '') ?>">
                     <button type="button" class="czp-btn czp-btn-ghost czp-btn-sm" id="category_open">+ Add categories</button>
@@ -790,7 +790,7 @@ $rail = [
                 // Commission), not per seller or per plan - so this shows the rates of the
                 // categories this seller trades in, and links to where they are edited.
                 $seller_cat_ids = array_filter(array_map('intval', array_merge(
-                    [$d['primary_category_id'] ?? 0],
+                    explode(',', (string) (($d['primary_category_ids'] ?? '') ?: ($d['primary_category_id'] ?? ''))),
                     explode(',', (string) ($d['category_ids'] ?? ''))
                 )));
                 $seller_cat_rates = [];
@@ -913,9 +913,9 @@ $rail = [
       <?php $cat_names = array_column($all_categories, 'name', 'id'); ?>
       <?php foreach ($all_categories as $cat): ?>
         <?php $cat_path = ((int) $cat['parent_id'] !== 0 && isset($cat_names[$cat['parent_id']])) ? $cat_names[$cat['parent_id']] . ' › ' . $cat['name'] : $cat['name']; ?>
-        <label class="czp-pick" data-id="<?= (int) $cat['id'] ?>" data-label="<?= asf_attr($cat_path) ?>" hidden>
+        <label class="czp-pick" data-id="<?= (int) $cat['id'] ?>" data-parent="<?= (int) $cat['parent_id'] ?>" data-label="<?= asf_attr($cat['name']) ?>" hidden>
           <input type="checkbox" value="<?= (int) $cat['id'] ?>">
-          <span><?= asf_attr($cat_path) ?></span>
+          <span><?= asf_attr($cat['name']) ?></span>
         </label>
       <?php endforeach; ?>
       <p class="czp-hint" id="category_empty">Choose a Primary Product Category first.</p>

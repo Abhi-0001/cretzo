@@ -7,7 +7,7 @@ function plEsc(s) {
 var price_filter_enabled = false;
 // paging state for infinite scroll
 var currentPage = 1;
-var perPage = 20;          // default page size for scroll
+var perPage = 36;          // default page size for scroll
 var totalRows = 0;
 var isLoading = false;
 var useAjaxInfiniteScroll = false;
@@ -632,21 +632,47 @@ function removeSellerFilter() {
 }
 
 
-// Page size for the AJAX list. It has to come from the URL, not from the `var
-// perPage = 20` default: ajaxProductList() overwrites the request's per-page with
-// this value, so opening /products/9?per-page=2 refetched with per-page=20, which
-// is only 5 pages long - page 9 then existed on the server-rendered page but not
-// in the AJAX reply, and the pager came back with no current page and both arrows
-// dead. It also meant ?per-page was silently ignored the moment the page loaded.
+// Page size for the AJAX list: always a whole number of grid rows, so the last row of a
+// page is never left short. The column count comes from the CSS grid on #productList (it
+// changes with the viewport width), and a page holds PRODUCT_ROWS_PER_PAGE rows of it.
+// A ?per-page in the URL is deliberately ignored - it is rewritten on every load by
+// ajaxProductList() and would otherwise pin the page size to a stale value.
+var PRODUCT_ROWS_PER_PAGE = 6;
+function getGridColumns() {
+    var grid = document.getElementById('productList');
+    if (grid) {
+        var cols = getComputedStyle(grid).gridTemplateColumns;
+        if (cols && cols !== 'none') {
+            var n = cols.trim().split(/\s+/).length;
+            if (n > 0) { return n; }
+        }
+    }
+    return 6;
+}
 function getPerPageFromUrl() {
-    var value = parseInt(new URLSearchParams(window.location.search).get('per-page'), 10);
-    return (!isNaN(value) && value > 0) ? value : perPage;
+    return getGridColumns() * PRODUCT_ROWS_PER_PAGE;
 }
 
 // Load products for the currently opened page URL.
 perPage = getPerPageFromUrl();
 currentPage = getCurrentPageFromUrl();
 ajaxProductList(currentPage);
+
+// The column count changes with the viewport, so re-fit the page size on resize and keep
+// the first product on screen where it was.
+(function () {
+    var resizeTimer = null;
+    $(window).on('resize', function () {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(function () {
+            var next = getPerPageFromUrl();
+            if (next === perPage) { return; }
+            var firstItem = (currentPage - 1) * perPage;
+            perPage = next;
+            ajaxProductList(Math.floor(firstItem / perPage) + 1);
+        }, 250);
+    });
+})();
 
 function getQueryQ() {
     const params = new URLSearchParams(window.location.search);

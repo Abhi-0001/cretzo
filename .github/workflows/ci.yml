@@ -62,7 +62,7 @@ jobs:
       # The job of this gate is to stop a NEW secret being added. --redact so a finding
       # is reported without printing the secret into a public build log.
       - name: Scan the working tree for secrets
-        run: /tmp/gitleaks detect --config .gitleaks.toml --source . --no-git --no-banner --redact --exit-code 1
+        run: /tmp/gitleaks detect --config .gitleaks.toml --source . --no-git --no-banner --redact --verbose --exit-code 1
 
   lint:
     name: PHP syntax lint

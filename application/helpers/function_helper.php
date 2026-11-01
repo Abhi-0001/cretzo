@@ -9326,6 +9326,33 @@ function category_descendant_ids($category_id)
     return $cache[$cache_key] = array_values(array_unique($all));
 }
 
+/**
+ * Category ids a seller may list products in: the primary and secondary categories chosen on
+ * their profile, plus anything beneath them. Returns NULL when the seller has chosen none yet
+ * (legacy accounts), meaning "no restriction", so they are not locked out of listing.
+ */
+function seller_allowed_category_ids($seller_id)
+{
+    if (empty($seller_id)) {
+        return null;
+    }
+    $t = &get_instance();
+    $row = $t->db->query('SELECT primary_category_id, primary_category_ids, category_ids FROM seller_data WHERE user_id = ' . (int) $seller_id . ' LIMIT 1')->row_array();
+    if (empty($row)) {
+        return null;
+    }
+    $chosen = array_filter(array_map('intval', explode(',', (string) $row['category_ids'])));
+    if (!empty($row['primary_category_id'])) {
+        $chosen[] = (int) $row['primary_category_id'];
+    }
+    foreach (explode(',', (string) $row['primary_category_ids']) as $pid) {
+        $chosen[] = (int) $pid;
+    }
+    $chosen = array_filter($chosen);
+    $chosen = array_values(array_unique($chosen));
+    return empty($chosen) ? null : category_descendant_ids($chosen);
+}
+
 function check_for_parent_id($category_id)
 {
     $t = &get_instance();
@@ -11387,15 +11414,15 @@ function scrub_api_settings($settings)
     }
 
     $sections = ['payment_method', 'shipping_method', 'send_notification_settings', 'system_settings', 'authentication_settings'];
-    $secret_key = '/(secret|password|passwd|token|salt|private|server_key|encryption_key|merchant_key)/i';
+    $sensitive_key_pattern = '/(secret|password|passwd|token|salt|private|server_key|encryption_key|merchant_key)/i';
 
-    $scrub = function ($value, $drop_email) use (&$scrub, $secret_key) {
+    $scrub = function ($value, $drop_email) use (&$scrub, $sensitive_key_pattern) {
         if (!is_array($value)) {
             return $value;
         }
         $clean = [];
         foreach ($value as $k => $v) {
-            if (is_string($k) && (preg_match($secret_key, $k) || ($drop_email && $k === 'email'))) {
+            if (is_string($k) && (preg_match($sensitive_key_pattern, $k) || ($drop_email && $k === 'email'))) {
                 continue;
             }
             $clean[$k] = $scrub($v, $drop_email);

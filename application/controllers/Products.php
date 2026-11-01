@@ -201,7 +201,7 @@ class Products extends CI_Controller
 
         // print_r($filter);
         // die;
-        $limit = ($this->input->get('per-page')) ? $this->input->get('per-page', true) : 20;
+        $limit = ($this->input->get('per-page')) ? $this->input->get('per-page', true) : 36;
 
         $page_no = (empty($this->uri->segment(2))) ? 1 : $this->uri->segment(2);
         if (!is_numeric($page_no)) {
@@ -308,7 +308,7 @@ class Products extends CI_Controller
             $has_child_or_item = 'true'
         );
 
-        $limit = ($this->input->get('per-page')) ? $this->input->get('per-page', true) : 20;
+        $limit = ($this->input->get('per-page')) ? $this->input->get('per-page', true) : 36;
 
         /*
          * PERFORMANCE: a fetch_product() call sat here whose result was only ever read
@@ -648,7 +648,7 @@ class Products extends CI_Controller
         $filter['max_price'] = $max_price;
 
 
-        $limit = ($this->input->get('per-page')) ? $this->input->get('per-page', true) : 20;
+        $limit = ($this->input->get('per-page')) ? $this->input->get('per-page', true) : 36;
         $products = fetch_product(null, $filter, $product_ids, $product_categories, $limit, $offset, $sort, $order);
 
         // $brands = array();
@@ -1559,7 +1559,7 @@ class Products extends CI_Controller
         }
 
         /* -------- PAGINATION -------- */
-        $limit = (isset($get['per-page']) && is_numeric($get['per-page']) && (int)$get['per-page'] > 0) ? (int)$get['per-page'] : 20;
+        $limit = (isset($get['per-page']) && is_numeric($get['per-page']) && (int)$get['per-page'] > 0) ? (int)$get['per-page'] : 36;
         $page = (isset($get['page']) && is_numeric($get['page']) && (int)$get['page'] > 0) ? (int)$get['page'] : 1;
         $offset = ($page - 1) * $limit;
 

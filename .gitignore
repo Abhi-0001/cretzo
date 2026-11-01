@@ -62,3 +62,6 @@ webhook.log
 # regenerated on demand - committing it would ship one machine's stale reference
 # data (categories, settings, language list) to every other environment.
 application/cache/app/
+
+# Local DB dumps for docker auto-import - hold live credentials and customer data
+docker/init-db/*.sql

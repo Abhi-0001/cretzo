@@ -179,7 +179,11 @@
 
                         <div class="swiper-slide mb-1 product-video-thumb" style="margin-right: 10px;">
                             <div class="swiper-img" style="height: auto !important; margin-right: 10px;">
-                                <img src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= base_url('assets/admin/images/video-file.png') ?>" class="rounded p-1 lazy product-small-img" alt="Product video">
+                                <?php if ($product['product'][0]['video_type'] == 'self_hosted') { ?>
+                                    <video muted playsinline preload="metadata" class="rounded product-small-img" src="<?= $product['product'][0]['video'] ?>#t=0.5"></video>
+                                <?php } else { ?>
+                                    <img src="<?= base_url('assets/front_end/cretzo/img/product-placeholder.jpg') ?>" data-src="<?= base_url('assets/admin/images/video-file.png') ?>" class="rounded p-1 lazy product-small-img" alt="Product video">
+                                <?php } ?>
                                 <span class="product-video-play"><i class="uil uil-play"></i></span>
                             </div>
                         </div>

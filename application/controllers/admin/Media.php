@@ -99,9 +99,9 @@ class Media extends CI_Controller
         $config['allowed_types'] = $allowed_media_types;
         // No size cap was set at all here (CI's Upload library defaults max_size to 0 =
         // unlimited), and this is the one endpoint that accepts arbitrary file types
-        // (image/video/doc/spreadsheet/archive) from any admin - bounded to 50MB, generous
+        // (image/video/doc/spreadsheet/archive) from any admin - bounded to 200MB (HD product videos), generous
         // enough for the video/archive types this library allows, without being unlimited.
-        $config['max_size'] = 51200;
+        $config['max_size'] = 204800;
         $other_image_cnt = count($_FILES['documents']['name']);
         $other_img = $this->upload;
         $other_img->initialize($config);

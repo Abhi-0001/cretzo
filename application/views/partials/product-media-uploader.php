@@ -33,6 +33,12 @@
         justify-content: center;
         overflow: hidden;
     }
+    .media-tile.media-tile-video { max-width: 260px; }
+    .media-tile.media-tile-video .image-upload-div { height: auto; aspect-ratio: 16/9; background: #000; border-radius: 8px; position: relative; cursor: pointer; }
+    .media-tile video { display: block; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+    .media-video-play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.25); transition: background .15s; }
+    .media-video-play span { width: 52px; height: 52px; border-radius: 50%; background: rgba(255,255,255,.92); color: #333; font-size: 20px; display: flex; align-items: center; justify-content: center; padding-left: 4px; }
+    .media-tile .image-upload-div:hover .media-video-play { background: rgba(0,0,0,.4); }
     .media-tile img { max-height: 110px; width: auto; max-width: 100%; object-fit: contain; }
     .media-tile-name { font-size: 11px; color: #6c757d; word-break: break-all; line-height: 1.25; }
     .media-remove-btn {
@@ -68,6 +74,14 @@
         background: #f2822e; color: #fff; font-size: 10px; font-weight: 600;
         padding: 1px 7px; border-radius: 10px; letter-spacing: .02em;
     }
+
+    .media-star-btn {
+        position: absolute; left: 6px; top: 6px; z-index: 3; width: 26px; height: 26px; padding: 0;
+        border: 1px solid #f2822e; border-radius: 50%; background: #fff; color: #f2822e;
+        font-size: 13px; line-height: 24px; text-align: center; cursor: pointer;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, .2);
+    }
+    .media-star-btn:hover { background: #f2822e; color: #fff; }
 
     /* Image editor */
     .media-edit-btn {
@@ -147,9 +161,18 @@
             normalise($(this));
             this.setAttribute('draggable', 'true');
         });
-        $m.find('.media-main-badge').remove();
+        // Only the main image wears the badge; a photo swapped out of the main slot must lose it.
+        $m.add($o).find('.media-main-badge').remove();
         tilesOf($m).each(function () {
             $(this).append('<span class="media-main-badge">Main</span>');
+        });
+        // A star on every other image makes it the main image in one click (the same swap
+        // as dragging it onto the main image, for people who would not think to drag).
+        $m.find('.media-star-btn').remove();
+        tilesOf($o).each(function () {
+            if (!$(this).children('.media-star-btn').length && $(this).find('img').length && !$(this).hasClass('media-tile-video')) {
+                $(this).prepend('<button type="button" class="media-star-btn" title="Make this the main image" aria-label="Make this the main image"><i class="fa fa-star"></i></button>');
+            }
         });
         tilesOf($m).add(tilesOf($o)).each(function () {
             var $t = $(this);
@@ -161,8 +184,8 @@
             var $z = $(this);
             if (!$z.next('.media-dnd-hint').length) {
                 $z.after('<p class="media-dnd-hint"><i class="fa fa-arrows-alt"></i> ' +
-                    ($z.is($m) ? 'Drag an image from "Other Images" here to make it the main image.'
-                               : 'Drag images to re-order them, or drop one onto the main image.') + '</p>');
+                    ($z.is($m) ? 'Click the star on any other image (or drag it here) to make it the main image.'
+                               : 'Click the star to make an image the main one, or drag images to re-order them.') + '</p>');
             }
         });
     }
@@ -276,6 +299,12 @@
         if (isFileDrag(e) && !zoneOf(e.target)) e.preventDefault();
     });
 
+    // Click a video tile -> play it in a popup on the same page.
+    $(document).on('click', '.image-upload-div[data-video-src]', function () {
+        var $v = $('<video controls autoplay playsinline style="width:100%;max-height:75vh;background:#000;border-radius:8px"></video>').attr('src', $(this).attr('data-video-src'));
+        Swal.fire({ html: $v, width: 'min(92vw, 1000px)', showConfirmButton: false, showCloseButton: true, background: '#fff', padding: '2.2rem 1rem 1rem' });
+    });
+
     // ------------------------------------------------------------------ uploads
     function previewSrcFor(mediaType, url) {
         if (mediaType === 'image') return url;
@@ -292,7 +321,13 @@
             '</div>'
         );
         // .text()/.attr() rather than string-built HTML: names come from the upload response.
-        $tile.find('.image-upload-div').append(
+        if (mediaType.indexOf('video') === 0 && url) {
+            $tile.addClass('media-tile-video').removeClass('col-md-3');
+            $tile.find('.image-upload-div').attr('data-video-src', url).append(
+                $('<video muted playsinline preload="metadata"></video>').attr('src', url + '#t=0.5'),
+                '<div class="media-video-play"><span><i class="fas fa-play"></i></span></div>'
+            );
+        } else $tile.find('.image-upload-div').append(
             $('<img class="img-fluid mb-2">').attr({ src: previewSrcFor(mediaType, url), alt: name, title: name })
         );
         $tile.find('.media-tile-name').text(name);
@@ -331,7 +366,7 @@
 
                 var uploaded = res.files || [];
                 if (!uploaded.length) {
-                    Swal.fire({ icon: 'error', title: 'Upload failed', text: res.message || 'No file was uploaded.' });
+                    Swal.fire({ icon: 'error', title: 'Upload failed', text: $('<div>').html(res.message || 'No file was uploaded.').text().trim() });
                     return;
                 }
                 if (res.error) {
@@ -362,6 +397,15 @@
     });
     $(document).on('change', '.direct-upload-input', function () {
         uploadFiles(Array.prototype.slice.call(this.files || []), $(this));
+    });
+
+    $(document).on('click', 'button.media-star-btn', function (e) {
+        e.preventDefault();
+        var $tile = $(this).closest('.media-tile');
+        var $current = tilesOf($main()).first();
+        if ($current.length) swap($tile, $current);
+        else { $main().append($tile); adopt($tile, true); }
+        refresh();
     });
 
     // Removes a tile that has not been saved yet - the form only submits what is in the DOM.

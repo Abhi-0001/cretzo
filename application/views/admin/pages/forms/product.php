@@ -200,8 +200,8 @@
                                                             <?php if ($is_edit && ($pd['video_type'] ?? '') == 'self_hosted') { ?>
                                                                 <small class="text-muted d-block mt-2">Choose a new file only if you want to replace the current video.</small>
                                                                 <div class="container-fluid row image-upload-section ">
-                                                                    <div class="col-md-3 col-sm-12 shadow p-3 mb-5 bg-white rounded m-4 text-center grow image">
-                                                                        <div class='image-upload-div'><img class="img-fluid mb-2" src="<?= base_url('assets/admin/images/video-file.png') ?>" alt="Product Video" title="Product Video"></div>
+                                                                    <div class="col-md-3 col-sm-12 text-center grow image media-tile media-tile-video">
+                                                                        <div class='image-upload-div' data-video-src="<?= html_escape(base_url($pd['video'])) ?>"><video muted playsinline preload="metadata" src="<?= html_escape(base_url($pd['video'])) ?>#t=0.5"></video><div class="media-video-play"><span><i class="fas fa-play"></i></span></div></div>
                                                                         <input type="hidden" name="pro_input_video" value='<?= html_escape($pd['video']) ?>'>
                                                                     </div>
                                                                 </div>
