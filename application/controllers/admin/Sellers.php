@@ -676,8 +676,11 @@ class Sellers extends CI_Controller
                 $ids = array_filter(array_map('intval', explode(',', $secondary_categories_post)));
                 $secondary_category_ids = !empty($ids) ? implode(',', $ids) : null;
             }
-            $primary_category_id = $this->input->post('primary_category_id', true);
-            $primary_category_id = ($primary_category_id !== null && $primary_category_id !== '') ? (int) $primary_category_id : null;
+            // Several primary categories arrive comma-separated; the first doubles as the single
+            // primary_category_id that commission defaults and the dashboard read.
+            $primary_ids = array_values(array_unique(array_filter(array_map('intval', explode(',', (string) $this->input->post('primary_category_id', true))))));
+            $primary_category_id = !empty($primary_ids) ? $primary_ids[0] : null;
+            $primary_category_ids = !empty($primary_ids) ? implode(',', $primary_ids) : null;
 
             // process permissions of sellers
             $permmissions = array();
@@ -710,6 +713,7 @@ class Sellers extends CI_Controller
                 'store_description' => $this->input->post('store_description', true),
                 'category_ids' => $secondary_category_ids,
                 'primary_category_id' => $primary_category_id,
+                        'primary_category_ids' => $primary_category_ids,
                 'pickup_address1' => $this->input->post('pickup_address1', true),
                 'pickup_address2' => $this->input->post('pickup_address2', true),
                 'pickup_district' => $this->input->post('pickup_district', true),

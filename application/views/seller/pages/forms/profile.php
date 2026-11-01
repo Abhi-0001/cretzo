@@ -438,23 +438,22 @@ $initial       = in_array(($current_profile_section ?? 'personal'), $section_key
             <legend>What you sell</legend>
             <div class="czp-grid">
               <div class="czp-field czp-col-6" data-czp-field="primary_category_id">
-                <label class="czp-label" for="primary_category_id">Primary Product Category <i class="czp-req">*</i></label>
-                <select class="czp-input" id="primary_category_id" name="primary_category_id">
-                  <option value="">Select a category</option>
+                <label class="czp-label" for="primary_category_id">Primary Product Categories <i class="czp-req">*</i></label>
+                <div class="czp-chips" id="primary_chips">
+                  <?php $sel_primary = array_filter(array_map('intval', explode(',', (string) (($d['primary_category_ids'] ?? '') ?: ($d['primary_category_id'] ?? ''))))); ?>
                   <?php foreach ($all_categories as $cat): ?>
                     <?php if ((int) $cat['parent_id'] !== 0) continue; // top-level only ?>
-                    <option value="<?= (int) $cat['id'] ?>" <?= (isset($d['primary_category_id']) && (string) $d['primary_category_id'] === (string) $cat['id']) ? 'selected' : '' ?>>
-                      <?= czp_attr($cat['name']) ?><?= isset($cat['commission_label']) ? ' — ' . czp_attr($cat['commission_label']) . ' commission' : '' ?>
-                    </option>
+                    <label class="czp-chip"><input type="checkbox" value="<?= (int) $cat['id'] ?>" <?= in_array((int) $cat['id'], $sel_primary, true) ? 'checked' : '' ?>><span><?= czp_attr($cat['name']) ?><?= isset($cat['commission_label']) ? ' <em>' . czp_attr($cat['commission_label']) . '</em>' : '' ?></span></label>
                   <?php endforeach; ?>
-                </select>
+                </div>
+                <input type="hidden" id="primary_category_id" name="primary_category_id" value="<?= implode(',', $sel_primary) ?>">
                 <small class="czp-hint">Commission is charged per product category, on the price before GST. <a href="<?= base_url('seller/subscription/manage_subscriptions') ?>#category-commission">See all rates</a></small>
                 <span class="czp-error" data-czp-error></span>
               </div>
 
               <div class="czp-field czp-col-6" data-czp-field="secondary_category_ids">
                 <label class="czp-label">Secondary Categories <small class="czp-hint" style="display:inline">(optional)</small></label>
-                <small class="czp-hint">Any other categories you sell in - they don't have to be under your primary category.</small>
+                <small class="czp-hint">Sub-categories of the primary categories you selected.</small>
                 <div class="czp-pills" id="category_pills"></div>
                 <input type="hidden" name="secondary_category_ids" id="secondary_category_ids" value="<?= czp_val($d, 'category_ids') ?>">
                 <button type="button" class="czp-btn czp-btn-ghost czp-btn-sm" id="category_open">+ Add categories</button>
@@ -794,9 +793,9 @@ $initial       = in_array(($current_profile_section ?? 'personal'), $section_key
       <?php foreach ($all_categories as $cat): ?>
         <?php $cat_path = ((int) $cat['parent_id'] !== 0 && isset($cat_names[$cat['parent_id']])) ? $cat_names[$cat['parent_id']] . ' › ' . $cat['name'] : $cat['name']; ?>
         <?php $cat_rate = isset($cat['commission_label']) ? ' · ' . $cat['commission_label'] : ''; ?>
-        <label class="czp-pick" data-id="<?= (int) $cat['id'] ?>" data-label="<?= czp_attr($cat_path . $cat_rate) ?>" hidden>
+        <label class="czp-pick" data-id="<?= (int) $cat['id'] ?>" data-parent="<?= (int) $cat['parent_id'] ?>" data-label="<?= czp_attr($cat['name'] . $cat_rate) ?>" hidden>
           <input type="checkbox" value="<?= (int) $cat['id'] ?>">
-          <span><?= czp_attr($cat_path) ?><?php if ($cat_rate !== '') : ?> <small style="color:#b5651d;font-weight:600"><?= czp_attr($cat['commission_label']) ?></small><?php endif; ?></span>
+          <span><?= czp_attr($cat['name']) ?><?php if ($cat_rate !== '') : ?> <small style="color:#b5651d;font-weight:600"><?= czp_attr($cat['commission_label']) ?></small><?php endif; ?></span>
         </label>
       <?php endforeach; ?>
       <p class="czp-hint" id="category_empty">Choose a Primary Product Category first.</p>

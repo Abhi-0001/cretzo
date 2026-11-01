@@ -325,6 +325,33 @@ class Category_model extends CI_Model
     }
 
     /**
+     * Narrows a category tree to the categories a seller is allowed to list in (see
+     * seller_allowed_category_ids()). A permitted node keeps its whole subtree; a node that is
+     * not permitted but has permitted descendants is dropped and those descendants are lifted up.
+     * With no restriction the tree is returned untouched.
+     */
+    public function restrict_tree_to_seller($tree, $seller_id)
+    {
+        $allowed = seller_allowed_category_ids($seller_id);
+        if ($allowed === null) {
+            return $tree;
+        }
+        $allowed = array_flip($allowed);
+        $walk = function ($nodes) use (&$walk, $allowed) {
+            $out = [];
+            foreach ((array) $nodes as $node) {
+                if (isset($allowed[(int) $node['id']])) {
+                    $out[] = $node;
+                } elseif (!empty($node['children'])) {
+                    $out = array_merge($out, $walk($node['children']));
+                }
+            }
+            return $out;
+        };
+        return $walk($tree);
+    }
+
+    /**
      * Add each node's effective commission to a category tree (rows from get_categories() /
      * get_seller_categories(), whose children are arrays or stdClass objects). Sets
      * `commission_rate` and `commission_source` on every node, and appends " - 12%" to `text`
@@ -634,6 +661,13 @@ class Category_model extends CI_Model
         $bulkData['total'] = $total;
         $rows = array();
         $tempRow = array();
+
+        // Whole id => [name, parent_id] map in one query (a few hundred rows), so each row's full
+        // ancestor path (Grandparent > Parent) can be built without a lookup per level.
+        $cat_map = [];
+        foreach ($this->db->select('id, name, parent_id')->get('categories')->result_array() as $c) {
+            $cat_map[$c['id']] = $c;
+        }
         if (!empty($cat_search_res)) {
             foreach ($cat_search_res as $row) {
 
@@ -654,6 +688,26 @@ class Category_model extends CI_Model
                 }
 
                 $tempRow['id'] = $row['id'];
+                $parent_drill_url = $this->ion_auth->is_seller() ? 'seller/category?id=' : 'admin/category?id=';
+                if (!empty($row['parent_id']) && isset($cat_map[$row['parent_id']])) {
+                    // Walk up to the root (bounded, so a bad cycle in the data cannot hang the list).
+                    $trail = [];
+                    $cur = (int) $row['parent_id'];
+                    for ($hops = 0; $cur && isset($cat_map[$cur]) && $hops < 20; $hops++) {
+                        array_unshift($trail, $cat_map[$cur]);
+                        $cur = (int) $cat_map[$cur]['parent_id'];
+                    }
+                    $immediate = array_pop($trail);
+                    $path = '';
+                    foreach ($trail as $anc) {
+                        $path .= '<span class="cat-parent-anc">' . html_escape(unslash($anc['name'])) . '</span><i class="fas fa-angle-right cat-parent-sep"></i>';
+                    }
+                    $tempRow['parent_name'] = '<div class="cat-parent-path">' . $path
+                        . '<a class="cat-parent-chip" href="' . base_url() . $parent_drill_url . (int) $immediate['id'] . '">' . html_escape(unslash($immediate['name'])) . '</a></div>'
+                        . '<small class="text-muted d-block">Level ' . (count($trail) + 2) . '</small>';
+                } else {
+                    $tempRow['parent_name'] = '<span class="cat-parent-chip cat-parent-root">Top level</span>';
+                }
                 // This list is served to both portals. The link was hard-coded to admin/category,
                 // so a seller clicking a category name was sent to an admin URL their role cannot
                 // open - it bounced them out of the page they were on.
@@ -696,6 +750,21 @@ class Category_model extends CI_Model
             $bulkData['rows'] = $rows;
         }
         print_r(json_encode($bulkData));
+    }
+
+    /**
+     * True if $parent_id already has a child called $name (case/space-insensitive).
+     * The same name may exist under different parents, but never twice under one parent.
+     * $exclude_id is the category being edited, so it does not collide with itself.
+     */
+    public function sibling_name_exists($name, $parent_id, $exclude_id = null)
+    {
+        $this->db->where('parent_id', (int) $parent_id);
+        $this->db->where('LOWER(TRIM(name)) =', mb_strtolower(trim((string) $name)));
+        if (!empty($exclude_id)) {
+            $this->db->where('id !=', (int) $exclude_id);
+        }
+        return $this->db->count_all_results('categories') > 0;
     }
 
     public function add_category($data)

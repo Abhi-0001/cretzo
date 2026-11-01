@@ -1262,20 +1262,46 @@
       });
     }
 
-    // Secondary categories are simply "what else do you sell": any category at any
-    // level may be picked, except the primary one itself (it is already selected).
+    // Primary categories are a set of chips; their ids live comma-separated in the hidden
+    // #primary_category_id input (the field the validation and the server read).
+    var chips = $$('#primary_chips input[type="checkbox"]');
+    function primaryIds() {
+      return primary.value.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+    }
+    chips.forEach(function (c) {
+      c.addEventListener('change', function () {
+        primary.value = chips.filter(function (x) { return x.checked; }).map(function (x) { return x.value; }).join(',');
+        primary.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    });
+
+    // Secondary categories are the sub-categories (at any depth) of the chosen primaries.
+    function isUnderPrimary(id, pids) {
+      var cur = parentOf[id], depth = 0;
+      while (cur && cur !== '0' && depth++ < 20) {
+        if (pids.indexOf(cur) !== -1) return true;
+        cur = parentOf[cur];
+      }
+      return false;
+    }
     function filterToPrimary() {
-      var pid = primary.value;
+      var pids = primaryIds();
+      var any = false;
       $$('.czp-pick', modal).forEach(function (row) {
-        row.hidden = pid !== '' && row.getAttribute('data-id') === pid;
+        var show = isUnderPrimary(row.getAttribute('data-id'), pids);
+        row.hidden = !show;
+        any = any || show;
       });
       var empty = $('#category_empty', modal);
-      if (empty) empty.hidden = true;
+      if (empty) {
+        empty.hidden = any;
+        empty.textContent = pids.length ? 'The selected primary categories have no sub-categories.' : 'Choose a Primary Product Category first.';
+      }
     }
 
     function prune() {
-      var pid = primary.value;
-      hidden.value = ids().filter(function (id) { return id !== pid; }).join(',');
+      var pids = primaryIds();
+      hidden.value = ids().filter(function (id) { return isUnderPrimary(id, pids); }).join(',');
       renderPills();
     }
 

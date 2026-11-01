@@ -89,9 +89,11 @@ class Product extends CI_Controller
         $this->data['fetched_data'] = $this->fetch_owned_faq($_GET['edit_id'], $seller_id);
     }
 
-    // Sellers may list products in ANY active category, not just the primary/secondary
-    // categories picked on their profile (that's data-collection only) — full tree, no seller filter.
-    $this->data['categories'] = json_decode(json_encode($this->category_model->get_categories()), 1);
+    // Sellers may list products only in the primary/secondary categories on their profile.
+    $this->data['categories'] = $this->category_model->restrict_tree_to_seller(
+        json_decode(json_encode($this->category_model->get_categories()), 1),
+        $seller_id
+    );
     $this->data['brands'] = fetch_details('brands', ['status' => 1], 'id,name');
     $this->load->view('seller/template', $this->data);
 }
@@ -167,12 +169,14 @@ class Product extends CI_Controller
                     }
                 }
             }
-            // Sellers may list products in ANY active category, not just the primary/secondary
-            // categories picked on their profile (that's data-collection only) — full tree, no seller filter.
+            // Sellers may list products only in the primary/secondary categories on their profile.
             // Each node also carries commission_rate, so the picker can show the seller what
             // they will be charged in the category they choose.
             $this->data['categories'] = $this->category_model->annotate_tree_with_commission(
-                $this->category_model->get_categories(),
+                $this->category_model->restrict_tree_to_seller(
+                    $this->category_model->get_categories(),
+                    $this->session->userdata('user_id')
+                ),
                 false
             );
             $this->data['attributes_refind'] = $attributes_refind;
@@ -500,6 +504,22 @@ class Product extends CI_Controller
         $this->form_validation->set_rules('pro_input_name', 'Product Name', 'trim|required|xss_clean');
         $this->form_validation->set_rules('short_description', 'Short Description', 'trim|required|xss_clean');
         $this->form_validation->set_rules('category_id', 'Category Id', 'trim|required|numeric|xss_clean', array('required' => 'Category is required'));
+        // Server-side twin of the picker's restriction. An existing product may keep the
+        // category it already has, so editing one filed before this rule is not blocked.
+        $allowed_categories = seller_allowed_category_ids($this->session->userdata('user_id'));
+        if ($allowed_categories !== null && !empty($_POST['category_id']) && !in_array((int) $_POST['category_id'], $allowed_categories, true)) {
+            $current = !empty($_POST['edit_product_id'])
+                ? $this->db->select('category_id')->where(['id' => (int) $_POST['edit_product_id'], 'seller_id' => (int) $this->session->userdata('user_id')])->get('products')->row_array()
+                : null;
+            if (empty($current) || (int) $current['category_id'] !== (int) $_POST['category_id']) {
+                $this->response['error'] = true;
+                $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                $this->response['message'] = 'You can only list products in the categories set on your profile.';
+                print_r(json_encode($this->response));
+                return;
+            }
+        }
         $this->form_validation->set_rules('pro_input_tax', 'Tax', 'trim|xss_clean');
         $image_rule = (isset($_POST['edit_product_id']) && !empty($_POST['edit_product_id'])) ? 'trim|xss_clean' : 'trim|required|xss_clean';
         $this->form_validation->set_rules('pro_input_image', 'Image', $image_rule, ['required' => 'Image is required']);
@@ -1211,6 +1231,10 @@ class Product extends CI_Controller
                             $category = fetch_details('categories', ['id' => $row[$C['category_id']]], 'id');
                             if (empty($category)) {
                                 return bulk_upload_row_error('Category ID "' . $row[$C['category_id']] . '" at row ' . $line . ' does not exist. Copy the ID from the Categories page.');
+                            }
+                            $allowed_categories = seller_allowed_category_ids($this->session->userdata('user_id'));
+                            if ($allowed_categories !== null && !in_array((int) $row[$C['category_id']], $allowed_categories, true)) {
+                                return bulk_upload_row_error('Category ID "' . $row[$C['category_id']] . '" at row ' . $line . ' is not one of the categories on your profile.');
                             }
 
                             $product_type = trim($row[$C['product_type']]);

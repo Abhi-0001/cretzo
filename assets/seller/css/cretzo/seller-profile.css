@@ -505,6 +505,18 @@ textarea.czp-input { min-height: 84px; resize: vertical; }
 }
 .czp-doc-remove:hover { background: var(--czp-red); color: #fff; }
 
+/* ---- Primary category chips ------------------------------------------ */
+.czp-chips { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .45rem; }
+.czp-chip { cursor: pointer; margin: 0; }
+.czp-chip input { position: absolute; opacity: 0; pointer-events: none; }
+.czp-chip span {
+  display: inline-block; padding: .4rem .8rem; border-radius: 999px;
+  border: 1px solid #e3e6ec; background: #fff; font-size: 13px; font-weight: 600;
+}
+.czp-chip em { font-style: normal; color: #b5651d; font-size: 11px; margin-left: .25rem; }
+.czp-chip input:checked + span { background: var(--czp-orange-soft); border-color: #e8883c; color: #a4550f; }
+.czp-chip input:focus-visible + span { outline: 2px solid #e8883c; outline-offset: 2px; }
+
 /* ---- Category pills + picker ----------------------------------------- */
 .czp-pills { display: flex; flex-wrap: wrap; gap: .35rem; margin-bottom: .45rem; }
 .czp-pill {

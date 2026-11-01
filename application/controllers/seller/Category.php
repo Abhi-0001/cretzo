@@ -27,6 +27,9 @@ class Category extends CI_Controller
             } else {
                 $this->data['base_category_url']  = base_url() . 'seller/category/category_list';
             }
+            $this->data['current_parent'] = (!empty($id) && is_numeric($id))
+                ? $this->db->select('id, name, parent_id')->where('id', (int) $id)->get('categories')->row_array()
+                : null;
             $this->data['category_result'] = $this->category_model->get_categories();
             $this->load->view('seller/template', $this->data);
         } else {

@@ -98,7 +98,7 @@ class Media extends CI_Controller
         // unlimited), unlike the admin side of the same endpoint. PHP's upload_max_filesize
         // masks it today, but nothing in the app enforced a ceiling of its own. Matches the
         // admin cap so both halves of the media library behave the same.
-        $config['max_size'] = 51200;
+        $config['max_size'] = 204800;
         $other_image_cnt = count($_FILES['documents']['name']);
         $other_img = $this->upload;
         $other_img->initialize($config);

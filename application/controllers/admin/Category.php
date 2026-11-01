@@ -55,7 +55,11 @@ class Category extends CI_Controller
             } else {
                 $this->data['base_category_url']  = base_url() . 'admin/category/category_list';
             }
+            $this->data['current_parent'] = (!empty($id) && is_numeric($id))
+                ? $this->db->select('id, name, parent_id')->where('id', (int) $id)->get('categories')->row_array()
+                : null;
             $this->data['category_result'] = $this->category_model->get_categories();
+            $this->data['categories'] = $this->data['category_result'];
             $this->load->view('admin/template', $this->data);
         } else {
             redirect('admin/login', 'refresh');
@@ -228,6 +232,18 @@ class Category extends CI_Controller
                 $this->response['csrfHash'] = $this->security->get_csrf_hash();
                 $this->response['message'] = 'A category cannot be set as its own parent, directly or through one of its subcategories.';
                 print_r(json_encode($this->response));
+            } else if ($this->category_model->sibling_name_exists(
+                $this->input->post('category_input_name'),
+                (int) $this->input->post('category_parent'),
+                $this->input->post('edit_category')
+            )) {
+                // A parent may not have two children with the same name. The same name under a
+                // different parent is fine (e.g. "Accessories" under both Men and Women).
+                $this->response['error'] = true;
+                $this->response['csrfName'] = $this->security->get_csrf_token_name();
+                $this->response['csrfHash'] = $this->security->get_csrf_hash();
+                $this->response['message'] = 'This parent already has a subcategory named "' . html_escape(trim($this->input->post('category_input_name'))) . '". Use a different name, or pick another parent.';
+                print_r(json_encode($this->response));
             } else {
 
                 $this->category_model->add_category($_POST);
@@ -241,6 +257,92 @@ class Category extends CI_Controller
         } else {
             redirect('admin/login', 'refresh');
         }
+    }
+
+    /**
+     * Add many categories under one parent in a single request.
+     *
+     * POST category_parent (blank = top level) and names (one category per line). Applies the same
+     * rule as the single form - a parent cannot hold two children with the same name - so names
+     * already present under that parent, and repeats within the pasted list, are skipped and
+     * reported back rather than failing the whole batch.
+     */
+    public function bulk_add_categories()
+    {
+        if (!$this->ion_auth->logged_in() || !$this->ion_auth->is_admin()) {
+            redirect('admin/login', 'refresh');
+            return;
+        }
+        if (print_msg(!has_permissions('create', 'categories'), PERMISSION_ERROR_MSG, 'categories')) {
+            return false;
+        }
+
+        $response = [
+            'error'    => true,
+            'csrfName' => $this->security->get_csrf_token_name(),
+            'csrfHash' => $this->security->get_csrf_hash(),
+            'message'  => '',
+        ];
+
+        $parent_id = (int) $this->input->post('category_parent');
+        if ($parent_id > 0 && !$this->db->where('id', $parent_id)->count_all_results('categories')) {
+            $response['message'] = 'The selected parent category does not exist.';
+            echo json_encode($response);
+            return;
+        }
+
+        $lines = preg_split('/\r\n|\r|\n/', (string) $this->input->post('names'));
+        $names = [];
+        $skipped = [];
+        foreach ($lines as $line) {
+            $name = trim(preg_replace('/\s+/', ' ', strip_tags($line)));
+            if ($name === '') {
+                continue;
+            }
+            if (mb_strlen($name) > 255) {
+                $skipped[] = ['name' => mb_substr($name, 0, 40) . '...', 'reason' => 'name is too long'];
+                continue;
+            }
+            $key = mb_strtolower($name);
+            if (isset($names[$key])) {
+                $skipped[] = ['name' => $name, 'reason' => 'listed more than once'];
+                continue;
+            }
+            $names[$key] = $name;
+        }
+
+        if (empty($names) && empty($skipped)) {
+            $response['message'] = 'Enter at least one category name.';
+            echo json_encode($response);
+            return;
+        }
+        if (count($names) > 200) {
+            $response['message'] = 'Add at most 200 categories at a time.';
+            echo json_encode($response);
+            return;
+        }
+
+        $added = [];
+        foreach ($names as $name) {
+            if ($this->category_model->sibling_name_exists($name, $parent_id)) {
+                $skipped[] = ['name' => $name, 'reason' => 'already exists under this parent'];
+                continue;
+            }
+            $this->category_model->add_category([
+                'category_input_name' => $name,
+                'category_parent'     => $parent_id,
+            ]);
+            $added[] = $name;
+        }
+
+        $response['error'] = empty($added);
+        $response['added'] = $added;
+        $response['skipped'] = $skipped;
+        $response['message'] = empty($added)
+            ? 'Nothing was added - every name already exists under this parent.'
+            : count($added) . ' categor' . (count($added) === 1 ? 'y' : 'ies') . ' added'
+              . (!empty($skipped) ? ', ' . count($skipped) . ' skipped.' : '.');
+        echo json_encode($response);
     }
 
     public function update_category_order()

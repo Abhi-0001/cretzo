@@ -78,6 +78,7 @@ class Seller_model extends CI_Model
                 'store_description' => $data['store_description'] ?? null,
                 'category_ids' => $data['category_ids'] ?? null,
                 'primary_category_id' => $data['primary_category_id'] ?? null,
+                'primary_category_ids' => $data['primary_category_ids'] ?? null,
 
                 'pickup_address1' => $data['pickup_address1'] ?? null,
                 'pickup_address2' => $data['pickup_address2'] ?? null,
